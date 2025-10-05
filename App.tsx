@@ -5,13 +5,16 @@ import { useSessionStorage } from './hooks/useSessionStorage';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SavedCVs from './components/SavedCVs';
-import { Edit, User, List } from './components/icons';
+import SettingsModal from './components/SettingsModal';
+import { Edit, User, List, Settings } from './components/icons';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
   const [savedCVs, setSavedCVs] = useLocalStorage<SavedCV[]>('savedCVs', []);
   const [currentCV, setCurrentCV] = useSessionStorage<CVData | null>('currentCV', null);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiKey, setApiKey] = useLocalStorage<string | null>('geminiApiKey', null);
 
   const handleProfileSave = (profile: UserProfile) => {
     setUserProfile(profile);
@@ -45,6 +48,7 @@ const App: React.FC = () => {
   }, [setCurrentCV]);
 
   const profileExists = useMemo(() => userProfile !== null, [userProfile]);
+  const apiKeySet = useMemo(() => !!apiKey, [apiKey]);
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
@@ -61,6 +65,13 @@ const App: React.FC = () => {
                   Edit Profile
                 </button>
              )}
+              <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
           </div>
         </div>
       </header>
@@ -99,6 +110,8 @@ const App: React.FC = () => {
                 existingProfile={userProfile} 
                 onSave={handleProfileSave} 
                 onCancel={() => profileExists && setIsEditingProfile(false)}
+                apiKeySet={apiKeySet}
+                openSettings={() => setIsSettingsOpen(true)}
               />
             ) : (
               <CVGenerator 
@@ -106,11 +119,20 @@ const App: React.FC = () => {
                 currentCV={currentCV}
                 setCurrentCV={setCurrentCV}
                 onSaveCV={handleSaveCV}
+                apiKeySet={apiKeySet}
+                openSettings={() => setIsSettingsOpen(true)}
               />
             )}
           </div>
         </div>
       </main>
+      
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={setApiKey}
+        currentApiKey={apiKey}
+      />
     </div>
   );
 };

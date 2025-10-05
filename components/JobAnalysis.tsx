@@ -6,15 +6,16 @@ import { CheckCircle } from './icons';
 interface JobAnalysisProps {
     jobDescription: string;
     cvTextContent: string;
+    apiKeySet: boolean;
 }
 
-const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent }) => {
+const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet }) => {
     const [analysis, setAnalysis] = useState<JobAnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (jobDescription.trim().length > 50) {
+        if (jobDescription.trim().length > 50 && apiKeySet) {
             const handler = setTimeout(() => {
                 setIsLoading(true);
                 setError(null);
@@ -30,7 +31,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             setAnalysis(null);
             setError(null);
         }
-    }, [jobDescription]);
+    }, [jobDescription, apiKeySet]);
 
     const matchedKeywords = useMemo(() => {
         if (!analysis || !cvTextContent) return new Set();
@@ -56,6 +57,14 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
 
     if (!jobDescription.trim() || jobDescription.length < 50) {
         return null;
+    }
+
+    if (!apiKeySet) {
+        return (
+            <div className="mt-6 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                <p className="text-sm text-amber-700 dark:text-amber-300">Job analysis requires a Gemini API key. Please add one in the settings.</p>
+            </div>
+        )
     }
 
     return (

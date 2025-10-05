@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -44,7 +43,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       >
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Settings</h2>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">&times;</button>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-2xl leading-none">&times;</button>
         </div>
         
         <div>
