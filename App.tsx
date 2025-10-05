@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { UserProfile, CVData, SavedCV } from './types';
+import { UserProfile, CVData, SavedCV, ApiSettings } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
@@ -13,7 +13,7 @@ const App: React.FC = () => {
   const [currentCV, setCurrentCV] = useLocalStorage<CVData | null>('currentCV', null);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [apiKey, setApiKey] = useLocalStorage<string | null>('geminiApiKey', null);
+  const [apiSettings, setApiSettings] = useLocalStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
 
   const handleProfileSave = (profile: UserProfile) => {
     setUserProfile(profile);
@@ -47,7 +47,7 @@ const App: React.FC = () => {
   }, [setCurrentCV]);
 
   const profileExists = useMemo(() => userProfile !== null, [userProfile]);
-  const apiKeySet = useMemo(() => !!apiKey, [apiKey]);
+  const apiKeySet = useMemo(() => !!apiSettings?.apiKey, [apiSettings]);
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
@@ -129,8 +129,8 @@ const App: React.FC = () => {
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        onSave={setApiKey}
-        currentApiKey={apiKey}
+        onSave={setApiSettings}
+        currentApiSettings={apiSettings}
       />
     </div>
   );

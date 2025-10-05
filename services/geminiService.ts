@@ -1,13 +1,24 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { UserProfile, CVData, JobAnalysisResult } from '../types';
+import { UserProfile, CVData, JobAnalysisResult, ApiSettings, AIProvider } from '../types';
 
 function getAiClient(): GoogleGenAI {
-    const apiKey = localStorage.getItem('geminiApiKey');
-    if (!apiKey) {
-        throw new Error("Gemini API key not found. Please set it in the settings.");
+    const settingsString = localStorage.getItem('apiSettings');
+    if (!settingsString) {
+        throw new Error("API settings not found. Please set your API key in the settings.");
     }
+
+    const settings: ApiSettings = JSON.parse(settingsString);
+
+    if (!settings.apiKey) {
+        throw new Error("API key not found. Please set it in the settings.");
+    }
+
+    if (settings.provider !== 'gemini') {
+        throw new Error(`The selected provider '${settings.provider}' is not yet supported. Please select 'gemini' in the settings.`);
+    }
+    
     // Remove quotes from key if it's stored as a JSON string
-    const cleanedApiKey = apiKey.replace(/^"|"$/g, '');
+    const cleanedApiKey = settings.apiKey.replace(/^"|"$/g, '');
     return new GoogleGenAI({ apiKey: cleanedApiKey });
 }
 

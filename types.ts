@@ -25,7 +25,7 @@ export interface Education {
 }
 
 export interface Project {
-  id: string;
+  id:string;
   name: string;
   description: string;
   link?: string;
@@ -119,3 +119,10 @@ export const templateDisplayNames: Record<TemplateName, string> = {
     infographic: 'Infographic',
     classic: 'Classic',
 };
+
+export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
+
+export interface ApiSettings {
+  provider: AIProvider;
+  apiKey: string | null;
+}
