@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { UserProfile } from '../types';
@@ -12,6 +13,8 @@ interface ProfileFormProps {
   existingProfile: UserProfile | null;
   onSave: (data: UserProfile) => void;
   onCancel?: () => void;
+  apiKeySet: boolean;
+  openSettings: () => void;
 }
 
 const fileToBase64 = (file: File): Promise<{base64: string, mimeType: string}> => {
@@ -27,7 +30,7 @@ const fileToBase64 = (file: File): Promise<{base64: string, mimeType: string}> =
   });
 };
 
-const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings }) => {
   const [aiMode, setAiMode] = useState(false);
   const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload'>('text');
   const [rawText, setRawText] = useState('');
@@ -69,6 +72,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   };
 
   const handleGenerateProfile = async () => {
+    if (!apiKeySet) {
+        setAiError("Please set your Gemini API key in the settings to use this feature.");
+        openSettings();
+        return;
+    }
     if (!rawText.trim() && !uploadedFile) {
       setAiError("Please paste your information or upload a file first.");
       return;
@@ -91,7 +99,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         setAiMode(false); // Switch to form view for review
         alert("Profile generated successfully! Please review and save.");
     } catch (err) {
-        setAiError(err instanceof Error ? err.message : "An unknown error occurred.");
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+        if (errorMessage.includes("API Key not found")) {
+            setAiError(errorMessage);
+            openSettings();
+        } else {
+            setAiError(`Failed to generate profile: ${errorMessage}`);
+        }
     } finally {
         setIsGenerating(false);
     }
@@ -133,7 +147,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           }
       };
       reader.readAsText(file);
-      // Reset file input value to allow re-uploading the same file
       event.target.value = '';
   };
 
@@ -150,7 +163,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                  <Button variant="ghost" size="sm" onClick={handleExportProfile}>
                     <DownloadCloud className="h-4 w-4 mr-2"/> Export
                 </Button>
-                <Button variant="secondary" onClick={() => setAiMode(!aiMode)}>
+                <Button variant="secondary" onClick={() => setAiMode(!aiMode)} disabled={!apiKeySet && !aiMode} title={!apiKeySet ? "Please set your API key in settings to enable AI features" : ""}>
                     <Sparkles className="h-4 w-4 mr-2" />
                     {aiMode ? 'Fill Form Manually' : 'Generate with AI'}
                 </Button>
@@ -203,7 +216,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 
                 {aiError && <p className="text-red-500 text-sm mt-2">{aiError}</p>}
                 <div className="flex justify-end">
-                    <Button onClick={handleGenerateProfile} disabled={isGenerating}>
+                    <Button onClick={handleGenerateProfile} disabled={isGenerating || !apiKeySet}>
                          {isGenerating ? (
                             <>
                                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>

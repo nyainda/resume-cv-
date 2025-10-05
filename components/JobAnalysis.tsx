@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { analyzeJobDescriptionForKeywords } from '../services/geminiService';
 import { JobAnalysisResult } from '../types';
@@ -6,31 +7,32 @@ import { CheckCircle } from './icons';
 interface JobAnalysisProps {
     jobDescription: string;
     cvTextContent: string;
+    apiKeySet: boolean;
 }
 
-const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent }) => {
+const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet }) => {
     const [analysis, setAnalysis] = useState<JobAnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (jobDescription.trim().length > 50) { // Avoid analyzing very short texts
+        if (apiKeySet && jobDescription.trim().length > 50) {
             const handler = setTimeout(() => {
                 setIsLoading(true);
                 setError(null);
                 setAnalysis(null);
                 analyzeJobDescriptionForKeywords(jobDescription)
                     .then(setAnalysis)
-                    .catch(err => setError(err.message))
+                    .catch(err => setError(err instanceof Error ? err.message : "Analysis failed"))
                     .finally(() => setIsLoading(false));
-            }, 1000); // Debounce to avoid excessive API calls while typing
+            }, 1000); // Debounce
 
             return () => clearTimeout(handler);
         } else {
             setAnalysis(null);
             setError(null);
         }
-    }, [jobDescription]);
+    }, [jobDescription, apiKeySet]);
 
     const matchedKeywords = useMemo(() => {
         if (!analysis || !cvTextContent) return new Set();
@@ -54,7 +56,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
         return matches;
     }, [analysis, cvTextContent]);
 
-    if (!jobDescription.trim() || jobDescription.length < 50) {
+    if (!apiKeySet || !jobDescription.trim() || jobDescription.length < 50) {
         return null;
     }
 
