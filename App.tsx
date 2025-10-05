@@ -5,7 +5,7 @@ import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SavedCVs from './components/SavedCVs';
 import SettingsModal from './components/SettingsModal';
-import { Edit, User, List, Settings } from './components/icons';
+import { Edit, User, List, Settings, FileText } from './components/icons';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
@@ -50,15 +50,20 @@ const App: React.FC = () => {
   const apiKeySet = useMemo(() => !!apiSettings?.apiKey, [apiSettings]);
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      <header className="bg-white dark:bg-slate-800 shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">AI CV Builder</h1>
+    <div className="min-h-screen bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50">
+      <header className="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <FileText className="h-7 w-7 text-indigo-600" />
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+              AI CV Builder
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
              {profileExists && (
                <button 
                   onClick={() => setIsEditingProfile(true)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
                 >
                   <User className="h-4 w-4" />
                   Edit Profile
@@ -66,7 +71,7 @@ const App: React.FC = () => {
              )}
               <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="p-2 text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="p-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
                 aria-label="Settings"
               >
                 <Settings className="h-5 w-5" />
@@ -76,17 +81,17 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
           {/* Sidebar */}
           <aside className="lg:col-span-4 xl:col-span-3">
             <div className="sticky top-24 space-y-6">
               {profileExists && (
-                <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+                <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5">
                   <div className="flex items-center justify-between mb-4">
-                     <h2 className="text-xl font-semibold flex items-center gap-2"><User className="h-6 w-6" /> My Profile</h2>
-                     <button onClick={() => setIsEditingProfile(true)} className="text-blue-500 hover:underline text-sm font-medium flex items-center gap-1"><Edit className="h-3 w-3" /> Edit</button>
+                     <h2 className="text-lg font-semibold flex items-center gap-3"><User className="h-5 w-5 text-zinc-500" /> My Profile</h2>
+                     <button onClick={() => setIsEditingProfile(true)} className="text-indigo-600 hover:underline text-sm font-medium flex items-center gap-1"><Edit className="h-3 w-3" /> Edit</button>
                   </div>
-                  <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
                      <p><strong>Name:</strong> {userProfile?.personalInfo.name}</p>
                      <p><strong>Email:</strong> {userProfile?.personalInfo.email}</p>
                   </div>
@@ -94,8 +99,8 @@ const App: React.FC = () => {
               )}
 
               {savedCVs.length > 0 && (
-                <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
-                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><List className="h-6 w-6" /> Saved CVs</h2>
+                <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5">
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-3"><List className="h-5 w-5 text-zinc-500" /> Saved CVs</h2>
                   <SavedCVs savedCVs={savedCVs} onLoad={handleLoadCV} onDelete={handleDeleteCV} />
                 </div>
               )}

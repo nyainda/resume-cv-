@@ -192,7 +192,7 @@ export const generateCV = async (profile: UserProfile, jobDescription: string, e
                     degree: { type: Type.STRING },
                     school: { type: Type.STRING },
                     year: { type: Type.STRING, description: "Graduation year" },
-                    description: { type: Type.STRING, description: "A brief, 1-2 sentence description of the course or degree program."}
+                    description: { type: Type.STRING, description: "A brief, 1-2 sentence description of notable coursework or achievements."}
                 },
                 required: ["degree", "school", "year"]
             }
@@ -248,7 +248,7 @@ export const generateCV = async (profile: UserProfile, jobDescription: string, e
         2. User's Experience: Review all of the user's provided work experience. For each entry, rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job. Include ALL of the user's original experiences.
         ${experienceInstruction}
         4. Skills: Generate a list of skills that are most relevant to the job description. Use the user's skills list as a reference but DO NOT be limited by it. Create the best possible skill list for this specific job.
-        5. Education: For each education entry, add a brief, 1-2 sentence 'description' of the degree program.
+        5. Education: For each education entry, add a brief, 1-2 sentence 'description' of notable coursework or achievements.
         ${projectsInstruction}
         7. Languages: Include the languages provided by the user. Do not invent new ones.
         8. Overall: Ensure the entire CV is professional, ATS-friendly, and free of errors.

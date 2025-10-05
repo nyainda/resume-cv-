@@ -30,14 +30,14 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({ letterText, onT
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
             <h2 className="text-2xl font-bold">Generated Cover Letter</h2>
             <div className="mt-2 flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Template:</span>
-                <Button variant={template === 'modern' ? 'primary' : 'secondary'} size="sm" onClick={() => setTemplate('modern')}>Modern</Button>
-                <Button variant={template === 'professional' ? 'primary' : 'secondary'} size="sm" onClick={() => setTemplate('professional')}>Professional</Button>
+                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Template:</span>
+                <Button variant={template === 'modern' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTemplate('modern')} className={template === 'modern' ? 'bg-zinc-200 dark:bg-neutral-700' : ''}>Modern</Button>
+                <Button variant={template === 'professional' ? 'secondary' : 'ghost'} size="sm" onClick={() => setTemplate('professional')} className={template === 'professional' ? 'bg-zinc-200 dark:bg-neutral-700' : ''}>Professional</Button>
             </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -59,9 +59,9 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({ letterText, onT
         contentEditable={isEditing}
         suppressContentEditableWarning={true}
         onBlur={(e) => onTextChange(e.currentTarget.innerText)}
-        className={`p-6 border rounded-md bg-slate-50 dark:bg-slate-900/50 whitespace-pre-wrap text-slate-700 dark:text-slate-300 leading-relaxed transition-all 
+        className={`p-6 border border-zinc-200 dark:border-neutral-700 rounded-lg bg-zinc-50 dark:bg-neutral-900/50 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300 leading-relaxed transition-all 
           ${template === 'professional' ? 'font-serif' : 'font-sans'}
-          ${isEditing ? 'ring-2 ring-blue-500 focus:outline-none' : ''}`}
+          ${isEditing ? 'ring-2 ring-indigo-500 focus:outline-none' : ''}`}
       >
         {letterText}
       </div>

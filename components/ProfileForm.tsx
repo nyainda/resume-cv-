@@ -188,9 +188,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-8 rounded-lg shadow-md">
-        <div className="flex flex-wrap justify-between items-center mb-6 border-b pb-4 gap-4">
-            <h1 className="text-3xl font-bold">My Profile</h1>
+    <div className="bg-white dark:bg-neutral-800/50 p-6 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
+        <div className="flex flex-wrap justify-between items-center mb-8 border-b border-zinc-200 dark:border-neutral-700 pb-5 gap-4">
+            <h1 className="text-2xl sm:text-3xl font-bold">My Profile</h1>
             <div className="flex items-center gap-2">
                 <input type="file" accept=".json" ref={importInputRef} onChange={handleImportProfile} className="hidden" />
                 <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()}>
@@ -200,24 +200,26 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                     <DownloadCloud className="h-4 w-4 mr-2"/> Export
                 </Button>
                 <Button variant="secondary" onClick={() => setAiMode(!aiMode)} title={!apiKeySet ? "Please set your API key in settings to use AI features" : ""}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    {aiMode ? 'Fill Form Manually' : 'Generate with AI'}
+                    <Sparkles className="h-4 w-4 mr-2 text-indigo-500" />
+                    {aiMode ? 'Fill Manually' : 'Generate with AI'}
                 </Button>
             </div>
         </div>
 
         {aiMode ? (
-            <div className="space-y-4">
-                <Label htmlFor="raw-text" className="text-xl font-bold">Paste or Upload your Resume/Profile</Label>
-                <p className="text-sm text-slate-500 mb-2">Provide your career details in any format (pasted text, PDF, or image), and our AI will structure it into your profile.</p>
+            <div className="space-y-6">
+                <div>
+                  <Label htmlFor="raw-text" className="text-xl font-bold">Generate Profile with AI</Label>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Provide your career details in any format (pasted text, PDF, or image), and our AI will structure it for you.</p>
+                </div>
 
-                <div className="my-2 border-b border-slate-200 dark:border-slate-700">
-                  <nav className="-mb-px flex space-x-4" aria-label="Tabs">
-                    <button onClick={() => setProfileInputMode('text')} className={`${profileInputMode === 'text' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                <div className="border-b border-zinc-200 dark:border-neutral-700">
+                  <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                    <button onClick={() => setProfileInputMode('text')} className={`${profileInputMode === 'text' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
                       Paste Text
                     </button>
-                    <button onClick={() => setProfileInputMode('upload')} className={`${profileInputMode === 'upload' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
-                      Upload File (PDF, JPG, PNG)
+                    <button onClick={() => setProfileInputMode('upload')} className={`${profileInputMode === 'upload' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
+                      Upload File (PDF, etc.)
                     </button>
                   </nav>
                 </div>
@@ -233,15 +235,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                     />
                 ) : (
                     <div className="mt-4 flex items-center justify-center w-full">
-                        <label htmlFor="profile-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg bg-slate-50 dark:bg-slate-700 dark:border-slate-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600'}`}>
+                        <label htmlFor="profile-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-zinc-300 border-dashed rounded-xl bg-zinc-50 dark:bg-neutral-800 dark:border-neutral-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
                             <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
                                 {uploadedFile ? (
-                                    <p className="font-semibold text-blue-600 px-2">{uploadedFile.name}</p>
+                                    <p className="font-semibold text-indigo-600 px-2">{uploadedFile.name}</p>
                                 ) : (
                                     <>
-                                        <svg className="w-8 h-8 mb-4 text-slate-500 dark:text-slate-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                                        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">PDF, PNG, JPG, or WEBP</p>
+                                        <UploadCloud className="w-8 h-8 mb-4 text-zinc-500 dark:text-zinc-400" />
+                                        <p className="mb-2 text-sm text-zinc-500 dark:text-zinc-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">PDF, PNG, JPG, or WEBP</p>
                                     </>
                                 )}
                             </div>
@@ -264,35 +266,35 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 </div>
             </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold border-b pb-2">Personal Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><Label htmlFor="name">Full Name</Label><Input id="name" {...register("personalInfo.name", { required: true })} />{errors.personalInfo?.name && <p className="text-red-500 text-xs mt-1">Name is required</p>}</div>
-                <div><Label htmlFor="email">Email</Label><Input id="email" type="email" {...register("personalInfo.email", { required: true })} />{errors.personalInfo?.email && <p className="text-red-500 text-xs mt-1">Email is required</p>}</div>
-                <div><Label htmlFor="phone">Phone</Label><Input id="phone" {...register("personalInfo.phone")} /></div>
-                <div><Label htmlFor="location">Location</Label><Input id="location" {...register("personalInfo.location")} /></div>
-                <div className="md:col-span-2"><Label htmlFor="linkedin">LinkedIn URL</Label><Input id="linkedin" {...register("personalInfo.linkedin")} /></div>
-                <div><Label htmlFor="website">Website/Portfolio URL</Label><Input id="website" {...register("personalInfo.website")} /></div>
-                <div><Label htmlFor="github">GitHub URL</Label><Input id="github" {...register("personalInfo.github")} /></div>
+              <h2 className="text-xl font-semibold border-b border-zinc-200 dark:border-neutral-700 pb-3">Personal Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-2">
+                <div><Label htmlFor="name">Full Name</Label><Input id="name" {...register("personalInfo.name", { required: true })} className="mt-1" />{errors.personalInfo?.name && <p className="text-red-500 text-xs mt-1">Name is required</p>}</div>
+                <div><Label htmlFor="email">Email</Label><Input id="email" type="email" {...register("personalInfo.email", { required: true })} className="mt-1"/>{errors.personalInfo?.email && <p className="text-red-500 text-xs mt-1">Email is required</p>}</div>
+                <div><Label htmlFor="phone">Phone</Label><Input id="phone" {...register("personalInfo.phone")} className="mt-1"/></div>
+                <div><Label htmlFor="location">Location</Label><Input id="location" {...register("personalInfo.location")} className="mt-1"/></div>
+                <div className="md:col-span-2"><Label htmlFor="linkedin">LinkedIn URL</Label><Input id="linkedin" {...register("personalInfo.linkedin")} className="mt-1"/></div>
+                <div><Label htmlFor="website">Website/Portfolio URL</Label><Input id="website" {...register("personalInfo.website")} className="mt-1"/></div>
+                <div><Label htmlFor="github">GitHub URL</Label><Input id="github" {...register("personalInfo.github")} className="mt-1"/></div>
               </div>
             </div>
             
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="summary" className="text-2xl font-bold">Professional Summary</Label>
-                <button type="button" onClick={() => handleEnhance('summary')} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-50" title="Enhance with AI">
+              <div className="flex items-center gap-2 mb-2 border-b border-zinc-200 dark:border-neutral-700 pb-3">
+                <h2 className="text-xl font-semibold">Professional Summary</h2>
+                <button type="button" onClick={() => handleEnhance('summary')} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-indigo-500 hover:text-indigo-700 disabled:opacity-50" title="Enhance with AI">
                     {isEnhancing === 'summary' ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
                 </button>
               </div>
-              <Textarea id="summary" {...register("summary", { required: true })} rows={4} />
+              <Textarea id="summary" {...register("summary", { required: true })} rows={4} className="mt-2" />
               {errors.summary && <p className="text-red-500 text-xs mt-1">Summary is required</p>}
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold border-b pb-2">Work Experience</h2>
+              <h2 className="text-xl font-semibold border-b border-zinc-200 dark:border-neutral-700 pb-3">Work Experience</h2>
               {workFields.map((item, index) => (
-                <div key={item.id} className="p-4 border rounded-md space-y-2 relative">
+                <div key={item.id} className="p-4 border border-zinc-200 dark:border-neutral-700/80 rounded-lg space-y-3 relative bg-zinc-50/50 dark:bg-neutral-800/20">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input placeholder="Company" {...register(`workExperience.${index}.company`, { required: true })} />
                     <Input placeholder="Job Title" {...register(`workExperience.${index}.jobTitle`, { required: true })} />
@@ -301,35 +303,35 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                   </div>
                   <div className="flex items-center gap-2">
                      <Label className="text-sm font-medium">Responsibilities & Achievements</Label>
-                     <button type="button" onClick={() => handleEnhance('responsibilities', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-50" title="Enhance with AI">
+                     <button type="button" onClick={() => handleEnhance('responsibilities', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-indigo-500 hover:text-indigo-700 disabled:opacity-50" title="Enhance with AI">
                         {isEnhancing === `responsibilities.${index}` ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
                      </button>
                   </div>
                   <Textarea placeholder="Enter a few keywords or existing points, then click the ✨ icon to generate professional bullet points." {...register(`workExperience.${index}.responsibilities`, { required: true })} rows={4} />
-                  <button type="button" onClick={() => removeWork(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => removeWork(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full"><Trash className="h-4 w-4" /></button>
                 </div>
               ))}
               <Button type="button" variant="secondary" size="sm" onClick={() => appendWork({ id: `${Date.now()}`, company: '', jobTitle: '', startDate: '', endDate: '', responsibilities: '' })}><Plus className="h-4 w-4 mr-2" /> Add Experience</Button>
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold border-b pb-2">Education</h2>
+              <h2 className="text-xl font-semibold border-b border-zinc-200 dark:border-neutral-700 pb-3">Education</h2>
               {eduFields.map((item, index) => (
-                <div key={item.id} className="p-4 border rounded-md space-y-2 relative">
+                <div key={item.id} className="p-4 border border-zinc-200 dark:border-neutral-700/80 rounded-lg space-y-2 relative bg-zinc-50/50 dark:bg-neutral-800/20">
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      <Input placeholder="Degree (e.g., B.S. in Computer Science)" {...register(`education.${index}.degree`, { required: true })} />
                      <Input placeholder="School/University" {...register(`education.${index}.school`, { required: true })} />
                      <Input placeholder="Graduation Year" {...register(`education.${index}.graduationYear`)} />
                    </div>
-                  <button type="button" onClick={() => removeEdu(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => removeEdu(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full"><Trash className="h-4 w-4" /></button>
                 </div>
               ))}
               <Button type="button" variant="secondary" size="sm" onClick={() => appendEdu({ id: `${Date.now()}`, degree: '', school: '', graduationYear: '' })}><Plus className="h-4 w-4 mr-2" /> Add Education</Button>
             </div>
 
             <div>
-              <Label htmlFor="skills" className="text-2xl font-bold">Skills</Label>
-              <p className="text-sm text-slate-500 mb-2">Enter skills separated by commas (e.g., React, TypeScript, Node.js)</p>
+              <Label htmlFor="skills" className="text-xl font-semibold">Skills</Label>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">Enter skills separated by commas (e.g., React, TypeScript, Node.js)</p>
               <Controller
                   name="skills"
                   control={control}
@@ -345,39 +347,39 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold border-b pb-2">Projects (Optional)</h2>
+              <h2 className="text-xl font-semibold border-b border-zinc-200 dark:border-neutral-700 pb-3">Projects (Optional)</h2>
               {projFields.map((item, index) => (
-                <div key={item.id} className="p-4 border rounded-md space-y-2 relative">
+                <div key={item.id} className="p-4 border border-zinc-200 dark:border-neutral-700/80 rounded-lg space-y-3 relative bg-zinc-50/50 dark:bg-neutral-800/20">
                    <Input placeholder="Project Name" {...register(`projects.${index}.name`)} />
                     <div className="flex items-center gap-2">
                         <Label className="text-sm font-medium">Project Description</Label>
-                        <button type="button" onClick={() => handleEnhance('project', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-50" title="Enhance with AI">
+                        <button type="button" onClick={() => handleEnhance('project', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-indigo-500 hover:text-indigo-700 disabled:opacity-50" title="Enhance with AI">
                             {isEnhancing === `project.${index}` ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
                         </button>
                     </div>
                    <Textarea placeholder="Briefly describe your project, then click ✨ to enhance it." {...register(`projects.${index}.description`)} rows={2} />
                    <Input placeholder="Project Link (e.g., GitHub, live site)" {...register(`projects.${index}.link`)} />
-                  <button type="button" onClick={() => removeProj(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => removeProj(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full"><Trash className="h-4 w-4" /></button>
                 </div>
               ))}
               <Button type="button" variant="secondary" size="sm" onClick={() => appendProj({ id: `${Date.now()}`, name: '', description: '', link: '' })}><Plus className="h-4 w-4 mr-2" /> Add Project</Button>
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold border-b pb-2">Languages</h2>
+              <h2 className="text-xl font-semibold border-b border-zinc-200 dark:border-neutral-700 pb-3">Languages</h2>
               {langFields.map((item, index) => (
-                <div key={item.id} className="p-4 border rounded-md space-y-2 relative">
+                <div key={item.id} className="p-4 border border-zinc-200 dark:border-neutral-700/80 rounded-lg relative bg-zinc-50/50 dark:bg-neutral-800/20">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <Input placeholder="Language (e.g., Spanish)" {...register(`languages.${index}.name`)} />
                      <Input placeholder="Proficiency (e.g., Fluent, Native)" {...register(`languages.${index}.proficiency`)} />
                    </div>
-                  <button type="button" onClick={() => removeLang(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => removeLang(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full"><Trash className="h-4 w-4" /></button>
                 </div>
               ))}
               <Button type="button" variant="secondary" size="sm" onClick={() => appendLang({ id: `${Date.now()}`, name: '', proficiency: '' })}><Plus className="h-4 w-4 mr-2" /> Add Language</Button>
             </div>
 
-            <div className="flex justify-end gap-4 pt-4 border-t">
+            <div className="flex justify-end gap-4 pt-6 border-t border-zinc-200 dark:border-neutral-700">
               {onCancel && <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>}
               <Button type="submit">Save Profile</Button>
             </div>

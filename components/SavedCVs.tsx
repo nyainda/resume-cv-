@@ -12,12 +12,12 @@ interface SavedCVsProps {
 
 const SavedCVs: React.FC<SavedCVsProps> = ({ savedCVs, onLoad, onDelete }) => {
   return (
-    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+    <div className="space-y-2 max-h-96 overflow-y-auto pr-2 -mr-2">
       {savedCVs.map(cv => (
-        <div key={cv.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between gap-2">
+        <div key={cv.id} className="p-3 bg-zinc-50 dark:bg-neutral-700/30 rounded-lg flex items-center justify-between gap-2 transition-colors hover:bg-zinc-100 dark:hover:bg-neutral-700/60">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate">{cv.name}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-sm font-semibold truncate text-zinc-800 dark:text-zinc-200">{cv.name}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {new Date(cv.createdAt).toLocaleDateString()}
             </p>
           </div>

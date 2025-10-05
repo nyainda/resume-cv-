@@ -10,7 +10,7 @@ import JobAnalysis from './JobAnalysis';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
-import { Save, Download, RefreshCw, Edit, FileText, Sparkles, HelpCircle } from './icons';
+import { Save, Download, RefreshCw, Edit, FileText, Sparkles, HelpCircle, UploadCloud } from './icons';
 
 interface CVGeneratorProps {
   userProfile: UserProfile;
@@ -166,15 +166,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   return (
     <div className="space-y-8">
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-lg shadow-md">
+      <div className="bg-white dark:bg-neutral-800/50 p-6 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
         <Label className="text-2xl font-bold">Job Description</Label>
         
-        <div className="my-2 border-b border-slate-200 dark:border-slate-700">
-          <nav className="-mb-px flex space-x-4" aria-label="Tabs">
-            <button onClick={() => setInputMode('text')} className={`${inputMode === 'text' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+        <div className="mt-4 border-b border-zinc-200 dark:border-neutral-700">
+          <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+            <button onClick={() => setInputMode('text')} className={`${inputMode === 'text' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
               Paste Text
             </button>
-            <button onClick={() => setInputMode('upload')} className={`${inputMode === 'upload' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+            <button onClick={() => setInputMode('upload')} className={`${inputMode === 'upload' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
               Upload Files
             </button>
           </nav>
@@ -187,16 +187,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
              onChange={(e) => setJobDescription(e.target.value)}
              placeholder="Paste the full job description here..."
              rows={10}
-             className="mt-2"
+             className="mt-4"
              disabled={isLoading || isGeneratingCoverLetter}
            />
         ) : (
             <div className="mt-4 flex items-center justify-center w-full">
-                <label htmlFor="file-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg bg-slate-50 dark:bg-slate-700 dark:border-slate-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600'}`}>
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <svg className="w-8 h-8 mb-4 text-slate-500 dark:text-slate-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Click to upload files</span> or drag and drop</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">PDF, DOCX, PNG, JPG, etc.</p>
+                <label htmlFor="file-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-zinc-300 border-dashed rounded-xl bg-zinc-50 dark:bg-neutral-800 dark:border-neutral-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                        <UploadCloud className="w-8 h-8 mb-4 text-zinc-500 dark:text-zinc-400" />
+                        <p className="mb-2 text-sm text-zinc-500 dark:text-zinc-400"><span className="font-semibold">Click to upload files</span> or drag and drop</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">PDF, DOCX, PNG, JPG, etc.</p>
                     </div>
                     <input id="file-upload" type="file" className="hidden" multiple accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*" onChange={handleFileUploads} disabled={!apiKeySet} />
                 </label>
@@ -215,20 +215,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   id="ai-enhancements"
                   checked={aiEnhancements}
                   onChange={(e) => setAiEnhancements(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
-              <label htmlFor="ai-enhancements" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+              <label htmlFor="ai-enhancements" className="text-sm font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer">
                   AI Enhancements
               </label>
               <div className="group relative flex items-center">
-                  <HelpCircle className="h-4 w-4 text-slate-400" />
-                  <div className="absolute bottom-full mb-2 w-64 bg-slate-800 text-white text-xs rounded py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
+                  <HelpCircle className="h-4 w-4 text-zinc-400" />
+                  <div className="absolute bottom-full mb-2 w-64 bg-zinc-800 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
                       Allows the AI to add an ideal work experience and generate relevant projects to strengthen your CV.
-                      <svg className="absolute text-slate-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                      <svg className="absolute text-zinc-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
                   </div>
               </div>
           </div>
-          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet}>
+          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet} size="lg">
             {isLoading ? (
               <>
                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -237,17 +237,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 </svg>
                 {loadingMessage}
               </>
-            ) : <><Sparkles className="h-4 w-4 mr-2" />Generate Tailored CV</>}
+            ) : <><Sparkles className="h-5 w-5 mr-2" />Generate Tailored CV</>}
           </Button>
         </div>
       </div>
       
       {currentCV && (
-        <div className="bg-white dark:bg-slate-800 p-4 sm:p-8 rounded-lg shadow-md">
+        <div className="bg-white dark:bg-neutral-800/50 p-4 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
             <div className="flex flex-wrap items-start justify-between mb-6 gap-6">
                 <div>
                     <h2 className="text-2xl font-bold">CV Preview</h2>
-                     <p className="text-sm text-slate-500 mt-1">Select a template and make final edits.</p>
+                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template and make final edits.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" onClick={() => setIsEditing(!isEditing)} size="sm">
@@ -275,7 +275,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
             <TemplateGallery selectedTemplate={template} onSelect={setTemplate} />
 
-            <div className="mt-6 border-t pt-6">
+            <div className="mt-8 border-t border-zinc-200 dark:border-neutral-700 pt-8">
                 <CVPreview 
                     cvData={currentCV} 
                     personalInfo={userProfile.personalInfo} 
@@ -288,9 +288,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         </div>
       )}
 
-      {coverLetterError && <p className="text-red-500 text-sm mt-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-md">{coverLetterError}</p>}
+      {coverLetterError && <p className="text-red-500 text-sm mt-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">{coverLetterError}</p>}
       {coverLetter && (
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-lg shadow-md">
+          <div className="bg-white dark:bg-neutral-800/50 p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
               <CoverLetterPreview 
                 letterText={coverLetter}
                 onTextChange={setCoverLetter}
