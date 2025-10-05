@@ -1,8 +1,8 @@
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
 import { UserProfile, CVData, TemplateName } from '../types';
-import { generateCV, generateCoverLetter, extractTextFromImage } from '../services/geminiService';
+import { generateCV, generateCoverLetter, extractTextFromImage, extractProfileTextFromFile } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
-import { useSessionStorage } from '../hooks/useSessionStorage';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import CoverLetterPreview from './CoverLetterPreview';
 import TemplateGallery from './TemplateGallery';
@@ -35,15 +35,16 @@ const fileToBase64 = (file: File): Promise<{base64: string, mimeType: string}> =
 };
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, apiKeySet, openSettings }) => {
-  const [jobDescription, setJobDescription] = useSessionStorage<string>('jobDescription', '');
+  const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Generating...');
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [template, setTemplate] = useSessionStorage<TemplateName>('template', 'professional');
+  const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [aiEnhancements, setAiEnhancements] = useState(true);
 
-  const [coverLetter, setCoverLetter] = useSessionStorage<string | null>('coverLetter', null);
+  const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       return;
     }
     setIsLoading(true);
+    setLoadingMessage('Generating CV...');
     setError(null);
     setIsEditing(false);
     setCoverLetter(null); // Clear old cover letter
@@ -103,31 +105,40 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
   }, [jobDescription, userProfile, setCoverLetter, apiKeySet, openSettings]);
 
-  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUploads = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!apiKeySet) {
-        setError("Please set your Gemini API key in the settings to upload images.");
+        setError("Please set your Gemini API key in the settings to upload files.");
         openSettings();
         return;
     }
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-        setError("Please upload a valid image file (e.g., PNG, JPG, WEBP).");
-        return;
-    }
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     setIsLoading(true);
     setError(null);
+    const extractedTexts: string[] = [];
+
     try {
-        const { base64, mimeType } = await fileToBase64(file);
-        const extractedText = await extractTextFromImage(base64, mimeType);
-        setJobDescription(extractedText);
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            setLoadingMessage(`Processing file ${i + 1} of ${files.length}: ${file.name}`);
+            const { base64, mimeType } = await fileToBase64(file);
+
+            let extractedText = '';
+            // Gemini can handle various document types via its generic file API
+            extractedText = await extractProfileTextFromFile(base64, mimeType);
+            
+            extractedTexts.push(extractedText);
+        }
+        setJobDescription(prev => `${prev}\n\n${extractedTexts.join('\n\n---\n\n')}`.trim());
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-        setError(`Failed to process image: ${errorMessage}`);
+        setError(`Failed to process files: ${errorMessage}`);
     } finally {
         setIsLoading(false);
+        setLoadingMessage('Generating...');
+        // Clear file input value to allow re-uploading the same file
+        if(event.target) event.target.value = '';
     }
   };
 
@@ -164,7 +175,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               Paste Text
             </button>
             <button onClick={() => setInputMode('upload')} className={`${inputMode === 'upload' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
-              Upload Image
+              Upload Files
             </button>
           </nav>
         </div>
@@ -181,19 +192,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
            />
         ) : (
             <div className="mt-4 flex items-center justify-center w-full">
-                <label htmlFor="image-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg bg-slate-50 dark:bg-slate-700 dark:border-slate-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600'}`}>
+                <label htmlFor="file-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg bg-slate-50 dark:bg-slate-700 dark:border-slate-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600'}`}>
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         <svg className="w-8 h-8 mb-4 text-slate-500 dark:text-slate-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, or WEBP (MAX. 5MB)</p>
+                        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Click to upload files</span> or drag and drop</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">PDF, DOCX, PNG, JPG, etc.</p>
                     </div>
-                    <input id="image-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleImageUpload} disabled={!apiKeySet} />
+                    <input id="file-upload" type="file" className="hidden" multiple accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*" onChange={handleFileUploads} disabled={!apiKeySet} />
                 </label>
             </div> 
         )}
 
         {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-        {!apiKeySet && inputMode === 'upload' && <p className="text-amber-600 text-sm mt-2">Please set your API key in settings to enable image uploads.</p>}
+        {!apiKeySet && inputMode === 'upload' && <p className="text-amber-600 text-sm mt-2">Please set your API key in settings to enable file uploads.</p>}
 
         <JobAnalysis jobDescription={jobDescription} cvTextContent={cvTextContent} apiKeySet={apiKeySet} />
         
@@ -224,7 +235,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {inputMode === 'upload' ? 'Processing Image...' : 'Generating...'}
+                {loadingMessage}
               </>
             ) : <><Sparkles className="h-4 w-4 mr-2" />Generate Tailored CV</>}
           </Button>

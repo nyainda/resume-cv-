@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { UserProfile, CVData, SavedCV } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { useSessionStorage } from './hooks/useSessionStorage';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SavedCVs from './components/SavedCVs';
@@ -11,7 +10,7 @@ import { Edit, User, List, Settings } from './components/icons';
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
   const [savedCVs, setSavedCVs] = useLocalStorage<SavedCV[]>('savedCVs', []);
-  const [currentCV, setCurrentCV] = useSessionStorage<CVData | null>('currentCV', null);
+  const [currentCV, setCurrentCV] = useLocalStorage<CVData | null>('currentCV', null);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiKey, setApiKey] = useLocalStorage<string | null>('geminiApiKey', null);

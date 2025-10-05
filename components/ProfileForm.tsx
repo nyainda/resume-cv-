@@ -1,7 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { UserProfile } from '../types';
-import { generateProfile, extractProfileTextFromFile } from '../services/geminiService';
+import { 
+    generateProfile, 
+    extractProfileTextFromFile, 
+    generateEnhancedSummary,
+    generateEnhancedResponsibilities,
+    generateEnhancedProjectDescription
+} from '../services/geminiService';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
 import { Label } from './ui/Label';
@@ -36,10 +42,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState<string | null>(null); // e.g., 'summary', 'work.0', 'project.1'
   const importInputRef = useRef<HTMLInputElement>(null);
 
 
-  const { register, control, handleSubmit, formState: { errors }, reset, getValues } = useForm<UserProfile>({
+  const { register, control, handleSubmit, formState: { errors }, reset, getValues, setValue } = useForm<UserProfile>({
     defaultValues: existingProfile || {
       personalInfo: { name: '', email: '', phone: '', location: '', linkedin: '', website: '', github: '' },
       summary: '',
@@ -106,6 +113,37 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         setAiError(displayError);
     } finally {
         setIsGenerating(false);
+    }
+  };
+
+  const handleEnhance = async (type: 'summary' | 'responsibilities' | 'project', index?: number) => {
+    if (!apiKeySet) {
+      alert("Please set your API key in settings to use AI enhancements.");
+      openSettings();
+      return;
+    }
+    
+    const enhancingKey = index !== undefined ? `${type}.${index}` : type;
+    setIsEnhancing(enhancingKey);
+
+    try {
+      if (type === 'summary') {
+        const profileData = getValues();
+        const enhancedSummary = await generateEnhancedSummary(profileData);
+        setValue('summary', enhancedSummary);
+      } else if (type === 'responsibilities' && index !== undefined) {
+        const workItem = getValues(`workExperience.${index}`);
+        const enhancedResps = await generateEnhancedResponsibilities(workItem.jobTitle, workItem.company, workItem.responsibilities);
+        setValue(`workExperience.${index}.responsibilities`, enhancedResps);
+      } else if (type === 'project' && index !== undefined) {
+        const projectItem = getValues(`projects.${index}`);
+        const enhancedDesc = await generateEnhancedProjectDescription(projectItem.name, projectItem.description);
+        setValue(`projects.${index}.description`, enhancedDesc);
+      }
+    } catch (error) {
+        alert(`Failed to enhance content: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsEnhancing(null);
     }
   };
 
@@ -241,8 +279,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             </div>
             
             <div>
-              <Label htmlFor="summary" className="text-2xl font-bold">Professional Summary</Label>
-              <Textarea id="summary" {...register("summary", { required: true })} rows={4} className="mt-2" />
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="summary" className="text-2xl font-bold">Professional Summary</Label>
+                <button type="button" onClick={() => handleEnhance('summary')} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-50" title="Enhance with AI">
+                    {isEnhancing === 'summary' ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
+                </button>
+              </div>
+              <Textarea id="summary" {...register("summary", { required: true })} rows={4} />
               {errors.summary && <p className="text-red-500 text-xs mt-1">Summary is required</p>}
             </div>
 
@@ -256,7 +299,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                     <Input type="date" placeholder="Start Date" {...register(`workExperience.${index}.startDate`)} />
                     <Input type="date" placeholder="End Date" {...register(`workExperience.${index}.endDate`)} />
                   </div>
-                  <Textarea placeholder="Responsibilities and achievements (bullet points)" {...register(`workExperience.${index}.responsibilities`, { required: true })} rows={4} />
+                  <div className="flex items-center gap-2">
+                     <Label className="text-sm font-medium">Responsibilities & Achievements</Label>
+                     <button type="button" onClick={() => handleEnhance('responsibilities', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-50" title="Enhance with AI">
+                        {isEnhancing === `responsibilities.${index}` ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
+                     </button>
+                  </div>
+                  <Textarea placeholder="Enter a few keywords or existing points, then click the ✨ icon to generate professional bullet points." {...register(`workExperience.${index}.responsibilities`, { required: true })} rows={4} />
                   <button type="button" onClick={() => removeWork(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></button>
                 </div>
               ))}
@@ -300,7 +349,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               {projFields.map((item, index) => (
                 <div key={item.id} className="p-4 border rounded-md space-y-2 relative">
                    <Input placeholder="Project Name" {...register(`projects.${index}.name`)} />
-                   <Textarea placeholder="Project Description" {...register(`projects.${index}.description`)} rows={2} />
+                    <div className="flex items-center gap-2">
+                        <Label className="text-sm font-medium">Project Description</Label>
+                        <button type="button" onClick={() => handleEnhance('project', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-50" title="Enhance with AI">
+                            {isEnhancing === `project.${index}` ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
+                        </button>
+                    </div>
+                   <Textarea placeholder="Briefly describe your project, then click ✨ to enhance it." {...register(`projects.${index}.description`)} rows={2} />
                    <Input placeholder="Project Link (e.g., GitHub, live site)" {...register(`projects.${index}.link`)} />
                   <button type="button" onClick={() => removeProj(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></button>
                 </div>

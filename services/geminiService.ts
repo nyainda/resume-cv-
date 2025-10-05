@@ -358,3 +358,108 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
     });
     return JSON.parse(response.text.trim());
 };
+
+export const generateEnhancedSummary = async (profile: UserProfile): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `
+      You are a professional career coach. Based on the provided user profile, write a concise and powerful professional summary (2-4 sentences) that highlights their key strengths and experience. Return only the summary text.
+      USER PROFILE:
+      ${JSON.stringify(profile, null, 2)}
+    `;
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+    return response.text;
+};
+
+export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `
+      You are an expert resume writer specializing in creating impactful, achievement-oriented bullet points for work experience sections.
+
+      **Your Task:**
+      Based on the provided Job Title, Company, and any existing responsibilities, you will generate 3-5 professional bullet points.
+
+      **Instructions:**
+      1.  **Focus on Achievements, Not Duties:** Frame each point around a specific accomplishment. What was the result of the work?
+      2.  **Use Strong Action Verbs:** Start each bullet point with a powerful verb (e.g., "Architected," "Engineered," "Spearheaded," "Quantified").
+      3.  **Quantify Results:** Whenever possible, include metrics to show impact. If exact numbers aren't available, use placeholders like \`[X%]\`, \`[Number]\`, or \`[e.g., thousands of users]\`.
+      4.  **Tailor to the Role:** The bullet points must be highly relevant to the provided Job Title.
+      5.  **Input Handling:**
+          - If "Current Responsibilities" are provided, use them as inspiration to write *new, improved* bullet points. Do not simply rephrase them slightly. Elevate them to a professional standard.
+          - If "Current Responsibilities" are empty or just keywords, generate the bullet points from scratch based on the Job Title.
+      6.  **Output Format:**
+          - Return ONLY the bullet points.
+          - Do not include any introductory phrases like "Here are the enhanced responsibilities:".
+          - Each bullet point must start with a newline and the '•' character.
+          - The output should be a single string.
+
+      **Example:**
+      *Input:*
+      - Job Title: "Sales Engineer"
+      - Company: "Tech Solutions Inc."
+      - Current Responsibilities: "technical demos, presales, talking to clients"
+
+      *Desired Output:*
+      • Drove significant revenue growth by providing expert technical pre-sales support and positioning complex solutions, contributing to a [X]% increase in closed-won deals.
+      • Analyzed intricate client requirements and architected customized technical solutions, addressing critical business challenges and significantly improving operational efficiency for key accounts.
+      • Delivered compelling product demonstrations and technical presentations to C-level executives and technical stakeholders, clearly articulating value propositions and competitive advantages.
+      • Collaborated closely with product management and engineering teams to translate customer feedback into actionable product enhancements and inform future development roadmaps.
+
+      ---
+
+      **Now, complete the following request:**
+
+      **Input:**
+      - Job Title: '${jobTitle}'
+      - Company: '${company}'
+      - Current Responsibilities: "${currentResponsibilities}"
+
+      **Output:**
+    `;
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+    return response.text.trim().replace(/^- /gm, '• ');
+};
+
+export const generateEnhancedProjectDescription = async (projectName: string, currentDescription: string): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `
+      You are a tech portfolio expert who excels at writing concise and compelling project descriptions for resumes.
+
+      **Your Task:**
+      Rewrite and enhance the provided project description to make it highly effective for a technical resume.
+
+      **Instructions:**
+      1.  **Structure:** The description should clearly state the project's purpose, the technologies used, and the key outcomes or features.
+      2.  **Be Specific:** Mention specific frameworks, languages, or tools.
+      3.  **Highlight Impact:** Briefly explain the problem the project solved or its main achievement.
+      4.  **Format:** Return a single, professional paragraph. Do not add any introductory text like "Here is the enhanced description:".
+
+      **Example:**
+      *Input:*
+      - Project Name: "E-commerce Site"
+      - Current Description: "built a website for selling things"
+
+      *Desired Output:*
+      "Developed a full-stack e-commerce platform using the MERN stack (MongoDB, Express.js, React, Node.js) with Stripe integration for secure payments. Implemented features such as user authentication with JWT, a product catalog with search and filtering, and a responsive user interface, resulting in a fully functional online store."
+
+      ---
+
+      **Now, complete the following request:**
+
+      **Input:**
+      - Project Name: '${projectName}'
+      - Current Description: "${currentDescription}"
+
+      **Output:**
+    `;
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+    return response.text;
+};
