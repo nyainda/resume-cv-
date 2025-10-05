@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { analyzeJobDescriptionForKeywords } from '../services/geminiService';
 import { JobAnalysisResult } from '../types';
@@ -7,16 +6,15 @@ import { CheckCircle } from './icons';
 interface JobAnalysisProps {
     jobDescription: string;
     cvTextContent: string;
-    apiKeySet: boolean;
 }
 
-const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet }) => {
+const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent }) => {
     const [analysis, setAnalysis] = useState<JobAnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (apiKeySet && jobDescription.trim().length > 50) {
+        if (jobDescription.trim().length > 50) {
             const handler = setTimeout(() => {
                 setIsLoading(true);
                 setError(null);
@@ -32,7 +30,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             setAnalysis(null);
             setError(null);
         }
-    }, [jobDescription, apiKeySet]);
+    }, [jobDescription]);
 
     const matchedKeywords = useMemo(() => {
         if (!analysis || !cvTextContent) return new Set();
@@ -56,7 +54,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
         return matches;
     }, [analysis, cvTextContent]);
 
-    if (!apiKeySet || !jobDescription.trim() || jobDescription.length < 50) {
+    if (!jobDescription.trim() || jobDescription.length < 50) {
         return null;
     }
 

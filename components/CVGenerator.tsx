@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
 import { UserProfile, CVData, TemplateName } from '../types';
 import { generateCV, generateCoverLetter, extractTextFromImage } from '../services/geminiService';
@@ -18,8 +17,6 @@ interface CVGeneratorProps {
   currentCV: CVData | null;
   setCurrentCV: React.Dispatch<React.SetStateAction<CVData | null>>;
   onSaveCV: (cvData: CVData) => void;
-  apiKeySet: boolean;
-  openSettings: () => void;
 }
 
 const fileToBase64 = (file: File): Promise<{base64: string, mimeType: string}> => {
@@ -35,7 +32,7 @@ const fileToBase64 = (file: File): Promise<{base64: string, mimeType: string}> =
   });
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, apiKeySet, openSettings }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV }) => {
   const [jobDescription, setJobDescription] = useSessionStorage<string>('jobDescription', '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,22 +45,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
 
-  const handleApiKeyError = (err: unknown) => {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-      if (errorMessage.includes("API Key not found")) {
-          setError(errorMessage);
-          openSettings();
-      } else {
-          setError(`Failed to generate: ${errorMessage}`);
-      }
-  };
-
   const handleGenerateCV = useCallback(async () => {
-    if (!apiKeySet) {
-      setError("Please set your Gemini API key in settings to generate a CV.");
-      openSettings();
-      return;
-    }
     if (!jobDescription.trim()) {
       setError("Please provide a job description.");
       return;
@@ -76,18 +58,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       const generatedData = await generateCV(userProfile, jobDescription, aiEnhancements);
       setCurrentCV(generatedData);
     } catch (err) {
-      handleApiKeyError(err);
+      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+      setError(`Failed to generate: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
-  }, [jobDescription, userProfile, setCurrentCV, aiEnhancements, setCoverLetter, apiKeySet, openSettings]);
+  }, [jobDescription, userProfile, setCurrentCV, aiEnhancements, setCoverLetter]);
 
   const handleGenerateCoverLetter = useCallback(async () => {
-    if (!apiKeySet) {
-      setCoverLetterError("Please set your Gemini API key in settings.");
-      openSettings();
-      return;
-    }
     if (!jobDescription.trim()) {
       setCoverLetterError("Please provide a job description to generate a cover letter.");
       return;
@@ -99,24 +77,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         setCoverLetter(letter);
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-        if (errorMessage.includes("API Key not found")) {
-            setCoverLetterError(errorMessage);
-            openSettings();
-        } else {
-            setCoverLetterError(`Failed to generate cover letter: ${errorMessage}`);
-        }
+        setCoverLetterError(`Failed to generate cover letter: ${errorMessage}`);
     } finally {
         setIsGeneratingCoverLetter(false);
     }
-  }, [jobDescription, userProfile, setCoverLetter, apiKeySet, openSettings]);
+  }, [jobDescription, userProfile, setCoverLetter]);
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!apiKeySet) {
-      setError("Please set your Gemini API key in settings to use image upload.");
-      openSettings();
-      event.target.value = ''; // Reset file input
-      return;
-    }
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -132,7 +99,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         const extractedText = await extractTextFromImage(base64, mimeType);
         setJobDescription(extractedText);
     } catch (err) {
-        handleApiKeyError(err);
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+        setError(`Failed to process image: ${errorMessage}`);
     } finally {
         setIsLoading(false);
     }
@@ -188,20 +156,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
            />
         ) : (
             <div className="mt-4 flex items-center justify-center w-full">
-                <label htmlFor="image-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg bg-slate-50 dark:bg-slate-700 dark:border-slate-600 ${apiKeySet ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600' : 'cursor-not-allowed'}`}>
+                <label htmlFor="image-upload" className="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg bg-slate-50 dark:bg-slate-700 dark:border-slate-600 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         <svg className="w-8 h-8 mb-4 text-slate-500 dark:text-slate-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
                         <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, or WEBP (MAX. 5MB)</p>
                     </div>
-                    <input id="image-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleImageUpload} disabled={!apiKeySet} />
+                    <input id="image-upload" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleImageUpload} />
                 </label>
             </div> 
         )}
 
         {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
-        <JobAnalysis jobDescription={jobDescription} cvTextContent={cvTextContent} apiKeySet={apiKeySet} />
+        <JobAnalysis jobDescription={jobDescription} cvTextContent={cvTextContent} />
         
         <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center space-x-2 self-start sm:self-center">
@@ -223,7 +191,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   </div>
               </div>
           </div>
-          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet} title={!apiKeySet ? "Please set your API key in settings" : "Generate Tailored CV"}>
+          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter}>
             {isLoading ? (
               <>
                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -249,7 +217,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                         <Edit className="h-4 w-4 mr-2" />
                         {isEditing ? 'Finish Editing' : 'Edit CV'}
                     </Button>
-                    <Button variant="secondary" onClick={handleGenerateCV} disabled={isLoading || isEditing || !apiKeySet} size="sm">
+                    <Button variant="secondary" onClick={handleGenerateCV} disabled={isLoading || isEditing} size="sm">
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Regenerate
                     </Button>
@@ -257,7 +225,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                         <Save className="h-4 w-4 mr-2" />
                         Save
                     </Button>
-                    <Button variant="secondary" onClick={handleGenerateCoverLetter} disabled={isGeneratingCoverLetter || isEditing || !apiKeySet} size="sm">
+                    <Button variant="secondary" onClick={handleGenerateCoverLetter} disabled={isGeneratingCoverLetter || isEditing} size="sm">
                         <FileText className="h-4 w-4 mr-2" />
                         {isGeneratingCoverLetter ? "Generating..." : "Cover Letter"}
                     </Button>

@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { UserProfile, CVData, SavedCV } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -6,16 +5,13 @@ import { useSessionStorage } from './hooks/useSessionStorage';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SavedCVs from './components/SavedCVs';
-import SettingsModal from './components/SettingsModal';
-import { Edit, User, List, Settings } from './components/icons';
+import { Edit, User, List } from './components/icons';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
   const [savedCVs, setSavedCVs] = useLocalStorage<SavedCV[]>('savedCVs', []);
   const [currentCV, setCurrentCV] = useSessionStorage<CVData | null>('currentCV', null);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
-  const [apiKey, setApiKey] = useLocalStorage<string | null>('gemini-api-key', null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleProfileSave = (profile: UserProfile) => {
     setUserProfile(profile);
@@ -52,12 +48,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onSave={setApiKey}
-        currentApiKey={apiKey}
-      />
       <header className="bg-white dark:bg-slate-800 shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">AI CV Builder</h1>
@@ -71,25 +61,11 @@ const App: React.FC = () => {
                   Edit Profile
                 </button>
              )}
-             <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                aria-label="API Key Settings"
-             >
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Settings</span>
-             </button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        {!apiKey && (
-            <div className="mb-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow" role="alert">
-              <p className="font-bold">Welcome!</p>
-              <p>To enable AI features, please <button onClick={() => setIsSettingsOpen(true)} className="font-bold underline hover:text-yellow-800">set your Gemini API key</button> in the settings.</p>
-            </div>
-        )}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Sidebar */}
           <aside className="lg:col-span-4 xl:col-span-3">
@@ -123,8 +99,6 @@ const App: React.FC = () => {
                 existingProfile={userProfile} 
                 onSave={handleProfileSave} 
                 onCancel={() => profileExists && setIsEditingProfile(false)}
-                apiKeySet={!!apiKey}
-                openSettings={() => setIsSettingsOpen(true)}
               />
             ) : (
               <CVGenerator 
@@ -132,8 +106,6 @@ const App: React.FC = () => {
                 currentCV={currentCV}
                 setCurrentCV={setCurrentCV}
                 onSaveCV={handleSaveCV}
-                apiKeySet={!!apiKey}
-                openSettings={() => setIsSettingsOpen(true)}
               />
             )}
           </div>
