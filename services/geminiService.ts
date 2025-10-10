@@ -157,6 +157,26 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
 
 export const generateCV = async (profile: UserProfile, contextDescription: string, enableEnhancements: boolean, purpose: 'job' | 'academic'): Promise<CVData> => {
     const ai = getAiClient();
+    
+    // First, analyze the job description to extract key terms.
+    let keywordInstruction = '';
+    try {
+        const jobAnalysis = await analyzeJobDescriptionForKeywords(contextDescription);
+        const allKeywords = [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])];
+        if (allKeywords.length > 0) {
+            keywordInstruction = `
+            **CRITICAL REQUIREMENT**: You MUST strategically and naturally integrate the following keywords and skills throughout the generated CV. The most important places to include them are the 'summary' and the 'responsibilities' bullet points for each work experience.
+            - Focus on weaving these terms into achievement-oriented statements.
+            - The final 'skills' array in the JSON output should also heavily feature these terms.
+            
+            **Must-Include Keywords**: ${allKeywords.join(', ')}
+            `;
+        }
+    } catch (e) {
+        console.error("Keyword analysis failed, proceeding with CV generation without explicit keywords.", e);
+        // Generation will continue without the keyword instruction.
+    }
+
     let mainPromptInstruction: string;
     let cvDataSchema: any;
     let githubInstruction = '';
@@ -249,11 +269,14 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             USER PROFILE: ${JSON.stringify(profile, null, 2)}
             GRANT/SCHOLARSHIP DESCRIPTION: ${contextDescription}
             ${githubInstruction}
+            
+            ${keywordInstruction}
+
             Instructions:
-            1.  **Research Statement**: In the 'summary' field, write a compelling 'Research Statement' or 'Objective' (2-4 sentences) that aligns perfectly with the grant's goals.
-            2.  **Experience**: Frame work experience to highlight research, teaching, and academic contributions. Use the title "Research and Professional Experience". Convert responsibilities into achievements relevant to academia.
+            1.  **Research Statement**: In the 'summary' field, write a compelling 'Research Statement' or 'Objective' (2-4 sentences) that aligns perfectly with the grant's goals and incorporates the keywords.
+            2.  **Experience**: Frame work experience to highlight research, teaching, and academic contributions, infusing relevant keywords. Use the title "Research and Professional Experience". Convert responsibilities into achievements relevant to academia.
             3.  **Publications**: If the user has projects or experiences that could be framed as publications, create plausible entries for them.
-            4.  **Skills**: Focus on research methodologies, software, and technical skills relevant to the academic field.
+            4.  **Skills**: Focus on research methodologies, software, and technical skills relevant to the academic field, prioritizing the provided keywords.
             5.  **Education**: Emphasize academic honors, relevant coursework, and thesis/dissertation titles in the 'description' field for each entry.
             6.  **Projects**: Highlight projects that demonstrate research capabilities or technical prowess relevant to the grant.
             7.  Return ONLY the JSON object adhering to the schema.
@@ -268,9 +291,9 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             required: ["summary", "experience", "skills", "education"]
         };
     } else { // 'job' purpose
-         let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any new jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job. Include ALL of the user's original experiences.`;
+         let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any new jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job, making sure to include the "Must-Include Keywords". Include ALL of the user's original experiences.`;
         if (enableEnhancements) {
-            experienceInstruction = `3.  **Generated Experience**: Invent ONE or TWO additional, highly plausible, fictional work experience entries that would make the user the IDEAL candidate for this role. These entries should be creative, impressive, and directly relevant to the job description. For the company names, use real or plausible-sounding companies (e.g., startups, consultancies) or create fictional names that sound authentic.`;
+            experienceInstruction = `3.  **Generated Experience**: Invent ONE or TWO additional, highly plausible, fictional work experience entries that would make the user the IDEAL candidate for this role. These entries should be creative, impressive, and directly relevant to the job description, heavily featuring the "Must-Include Keywords". For the company names, use real or plausible-sounding companies (e.g., startups, consultancies) or create fictional names that sound authentic.`;
         }
 
         mainPromptInstruction = `
@@ -278,11 +301,14 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             USER PROFILE: ${JSON.stringify(profile, null, 2)}
             JOB DESCRIPTION: ${contextDescription}
             ${githubInstruction}
+
+            ${keywordInstruction}
+
             Instructions:
-            1. Summary: Rewrite the professional summary to be concise, powerful, and perfectly aligned with the job description.
+            1. Summary: Rewrite the professional summary to be concise, powerful, and perfectly aligned with the job description. It MUST integrate keywords from the list above.
             2. Experience: For each experience entry, you MUST provide 'startDate' and 'endDate' fields in 'YYYY-MM-DD' format (or 'Present' for endDate of a current role) for sorting purposes.
             ${experienceInstruction}
-            4. Skills: Generate a list of skills that are most relevant to the job description.
+            4. Skills: Generate a list of skills that are most relevant to the job description, ensuring it includes the "Must-Include Keywords".
             5. Education: Add a brief 'description' of notable coursework or achievements.
             6. Projects: Tailor project descriptions to the job.
             7. Return ONLY the JSON object adhering to the provided schema.
