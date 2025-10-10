@@ -100,22 +100,39 @@ const userProfileSchema = {
     required: ["personalInfo", "summary", "workExperience", "education", "skills"]
 };
 
-export const generateProfile = async (rawText: string): Promise<UserProfile> => {
+export const generateProfile = async (rawText: string, githubUrl?: string): Promise<UserProfile> => {
     const ai = getAiClient();
+
+    let githubInstruction = '';
+    if (githubUrl) {
+        githubInstruction = `
+        Additionally, the user has provided a GitHub profile: ${githubUrl}.
+        Based on this, please perform the following enhancements:
+        - **Infer Projects**: Analyze the user's public repositories. Populate the 'projects' array with their most significant ones.
+        - **Project Details**: For each project, use the repository name for 'name', write a concise 'description' about its purpose and tech stack, and create a valid repository 'link' (e.g., '${githubUrl}/repository-name').
+        - **Infer Skills**: Add key programming languages, frameworks, and tools discovered from the repositories to the main 'skills' list.
+        - **Complete Profile**: If details like name or summary are missing from the raw text, try to infer them from the GitHub profile.
+        `;
+    }
+
     const prompt = `
-        You are an expert resume parser. Analyze the following text, which could be from a resume, LinkedIn profile, or user notes, and extract the information into a structured JSON object.
+        You are an expert resume parser and profile builder. Your task is to create a structured JSON object based on the provided information.
+        Prioritize information from the RAW TEXT, and use the GitHub profile to enhance and add project details.
 
         RAW TEXT:
-        ${rawText}
+        ${rawText || 'No raw text provided. Rely on GitHub profile.'}
+        
+        ${githubInstruction}
 
         Instructions:
         1. Parse all available information: personal details (including name, email, phone, location, linkedin, website, github), a professional summary, work experience, education, skills, projects, and languages.
-        2. For dates, standardize them to YYYY-MM-DD format if possible. If only a year is given, use that. For date ranges, provide start and end dates.
+        2. Date Standardization: Accurately parse all dates for work experience. Standardize them to 'YYYY-MM-DD' format. If a month and year are given (e.g., 'June 2020'), use the first day of the month ('2020-06-01'). If only a year is given, use January 1st ('2019-01-01'). For current roles, the 'endDate' must be the string 'Present'.
         3. For skills, extract a list of relevant technical and soft skills.
         4. For work experience responsibilities, keep the original text, ideally as a single string with newlines.
         5. For languages, parse the language name and proficiency level (e.g., Fluent, Native, Professional).
         6. Generate a unique 'id' for each item in workExperience, education, projects, and languages. A simple timestamp string is sufficient.
-        7. Return ONLY the JSON object that adheres to the schema. Do not include markdown formatting.
+        7. If a GitHub URL was provided for analysis, also add it to the 'personalInfo.github' field in the final JSON.
+        8. Return ONLY the JSON object that adheres to the schema. Do not include markdown formatting.
     `;
 
     const response = await ai.models.generateContent({
@@ -138,10 +155,9 @@ export const generateProfile = async (rawText: string): Promise<UserProfile> => 
     return profileData;
 };
 
-export const generateCV = async (profile: UserProfile, jobDescription: string, enableEnhancements: boolean): Promise<CVData> => {
+export const generateCV = async (profile: UserProfile, contextDescription: string, enableEnhancements: boolean, purpose: 'job' | 'academic'): Promise<CVData> => {
     const ai = getAiClient();
-    let experienceInstruction: string;
-    let projectsInstruction: string;
+    let mainPromptInstruction: string;
     let cvDataSchema: any;
     let githubInstruction = '';
 
@@ -155,13 +171,15 @@ export const generateCV = async (profile: UserProfile, jobDescription: string, e
             company: { type: Type.STRING },
             jobTitle: { type: Type.STRING },
             dates: { type: Type.STRING, description: "e.g., 'Jan 2020 - Present'" },
+            startDate: { type: Type.STRING, description: "The start date in YYYY-MM-DD format. Required for sorting." },
+            endDate: { type: Type.STRING, description: "The end date in YYYY-MM-DD format, or the string 'Present'. Required for sorting." },
             responsibilities: {
                 type: Type.ARRAY,
-                description: "3-5 bullet points of key achievements and responsibilities, tailored to the job description.",
+                description: "3-5 bullet points of key achievements and responsibilities, tailored to the context description.",
                 items: { type: Type.STRING }
             }
         },
-        required: ["company", "jobTitle", "dates", "responsibilities"]
+        required: ["company", "jobTitle", "dates", "startDate", "endDate", "responsibilities"]
     };
 
     const baseProjectItems = {
@@ -173,15 +191,27 @@ export const generateCV = async (profile: UserProfile, jobDescription: string, e
         },
         required: ["name", "description"]
     };
+
+     const publicationSchema = {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING },
+            authors: { type: Type.ARRAY, items: { type: Type.STRING } },
+            journal: { type: Type.STRING, description: "The conference or journal name." },
+            year: { type: Type.STRING },
+            link: { type: Type.STRING, description: "A plausible URL to the publication."}
+        },
+        required: ["title", "authors", "journal", "year"]
+    };
     
     const baseSchemaProperties = {
         summary: {
             type: Type.STRING,
-            description: "A professional summary tailored to the job description, 2-4 sentences long."
+            description: "A professional summary or research statement tailored to the context description, 2-4 sentences long."
         },
         skills: {
             type: Type.ARRAY,
-            description: "A list of the most relevant skills for the job, generated by analyzing the job description and referencing the user's skills.",
+            description: "A list of the most relevant skills for the application.",
             items: { type: Type.STRING }
         },
         education: {
@@ -197,6 +227,7 @@ export const generateCV = async (profile: UserProfile, jobDescription: string, e
                 required: ["degree", "school", "year"]
             }
         },
+         projects: { type: Type.ARRAY, items: baseProjectItems },
         languages: {
             type: Type.ARRAY,
             description: "A list of languages and the user's proficiency.",
@@ -211,57 +242,98 @@ export const generateCV = async (profile: UserProfile, jobDescription: string, e
         },
     };
 
-    if (enableEnhancements) {
-        experienceInstruction = `3.  **Generated Experience**: Invent ONE or TWO additional, highly plausible, fictional work experience entries that would make the user the IDEAL candidate for this role. These entries should be creative, impressive, and directly relevant to the job description. For the company names, be highly creative and industry-specific. You can use names of real, plausible-sounding companies (e.g., smaller tech consultancies, startups) or create fictional names that sound authentic and professional, such as 'Innovatech Solutions', 'Quantum Dynamics Corp', or 'Synergy Systems Inc'. Be specific with project details and technical achievements. Place these new entries at the TOP of the experience list.`;
-        projectsInstruction = `6.  **Projects**: Generate 1-2 fictional but realistic project examples that would be impressive for this role. Include a brief description and plausible-looking GitHub or website links for each. If the user provided projects, you can ignore them in favor of these newly generated, more relevant ones.`;
-        
+    if (purpose === 'academic') {
+        mainPromptInstruction = `
+            You are an expert academic CV writer for grant and scholarship applications.
+            Your task is to create a tailored academic CV based on the user profile and the grant/scholarship description.
+            USER PROFILE: ${JSON.stringify(profile, null, 2)}
+            GRANT/SCHOLARSHIP DESCRIPTION: ${contextDescription}
+            ${githubInstruction}
+            Instructions:
+            1.  **Research Statement**: In the 'summary' field, write a compelling 'Research Statement' or 'Objective' (2-4 sentences) that aligns perfectly with the grant's goals.
+            2.  **Experience**: Frame work experience to highlight research, teaching, and academic contributions. Use the title "Research and Professional Experience". Convert responsibilities into achievements relevant to academia.
+            3.  **Publications**: If the user has projects or experiences that could be framed as publications, create plausible entries for them.
+            4.  **Skills**: Focus on research methodologies, software, and technical skills relevant to the academic field.
+            5.  **Education**: Emphasize academic honors, relevant coursework, and thesis/dissertation titles in the 'description' field for each entry.
+            6.  **Projects**: Highlight projects that demonstrate research capabilities or technical prowess relevant to the grant.
+            7.  Return ONLY the JSON object adhering to the schema.
+        `;
         cvDataSchema = {
-        type: Type.OBJECT,
-        properties: { ...baseSchemaProperties,
-            experience: { type: Type.ARRAY, items: baseExperienceItems },
-            projects: { type: Type.ARRAY, items: baseProjectItems }
-        },
-        required: ["summary", "experience", "skills", "education", "languages"]
+            type: Type.OBJECT,
+            properties: {
+                ...baseSchemaProperties,
+                experience: { type: Type.ARRAY, items: baseExperienceItems },
+                publications: { type: Type.ARRAY, description: "List of academic publications.", items: publicationSchema }
+            },
+            required: ["summary", "experience", "skills", "education"]
         };
+    } else { // 'job' purpose
+         let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any new jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job. Include ALL of the user's original experiences.`;
+        if (enableEnhancements) {
+            experienceInstruction = `3.  **Generated Experience**: Invent ONE or TWO additional, highly plausible, fictional work experience entries that would make the user the IDEAL candidate for this role. These entries should be creative, impressive, and directly relevant to the job description. For the company names, use real or plausible-sounding companies (e.g., startups, consultancies) or create fictional names that sound authentic.`;
+        }
 
-    } else {
-        experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any new jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job. Include ALL of the user's original experiences.`;
-        projectsInstruction = `6.  **Projects**: Use ONLY the projects provided by the user. If the user provided projects, rephrase their descriptions to better align with the job. If the user did not provide any projects, this section can be omitted from the output. Do not invent new projects.`;
-        
+        mainPromptInstruction = `
+            You are a professional CV writer and career coach. Your task is to create a tailored CV for a job application.
+            USER PROFILE: ${JSON.stringify(profile, null, 2)}
+            JOB DESCRIPTION: ${contextDescription}
+            ${githubInstruction}
+            Instructions:
+            1. Summary: Rewrite the professional summary to be concise, powerful, and perfectly aligned with the job description.
+            2. Experience: For each experience entry, you MUST provide 'startDate' and 'endDate' fields in 'YYYY-MM-DD' format (or 'Present' for endDate of a current role) for sorting purposes.
+            ${experienceInstruction}
+            4. Skills: Generate a list of skills that are most relevant to the job description.
+            5. Education: Add a brief 'description' of notable coursework or achievements.
+            6. Projects: Tailor project descriptions to the job.
+            7. Return ONLY the JSON object adhering to the provided schema.
+        `;
         cvDataSchema = {
-        type: Type.OBJECT,
-        properties: { ...baseSchemaProperties,
-            experience: { type: Type.ARRAY, items: baseExperienceItems },
-            projects: { type: Type.ARRAY, items: baseProjectItems }
-        },
-        required: ["summary", "experience", "skills", "education", "languages"]
+            type: Type.OBJECT,
+            properties: {
+                ...baseSchemaProperties,
+                experience: { type: Type.ARRAY, items: baseExperienceItems },
+            },
+            required: ["summary", "experience", "skills", "education"]
         };
     }
 
-    const prompt = `
-        You are a professional CV writer and career coach. Your task is to create a tailored CV based on the provided user profile and job description.
-        USER PROFILE: ${JSON.stringify(profile, null, 2)}
-        JOB DESCRIPTION: ${jobDescription}
-        ${githubInstruction}
-        Instructions:
-        1. Summary: Rewrite the professional summary to be concise, powerful, and perfectly aligned with the job description.
-        2. User's Experience: Review all of the user's provided work experience. For each entry, rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job. Include ALL of the user's original experiences.
-        ${experienceInstruction}
-        4. Skills: Generate a list of skills that are most relevant to the job description. Use the user's skills list as a reference but DO NOT be limited by it. Create the best possible skill list for this specific job.
-        5. Education: For each education entry, add a brief, 1-2 sentence 'description' of notable coursework or achievements.
-        ${projectsInstruction}
-        7. Languages: Include the languages provided by the user. Do not invent new ones.
-        8. Overall: Ensure the entire CV is professional, ATS-friendly, and free of errors.
-        9. Return ONLY the JSON object adhering to the provided schema.
-    `;
-
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
+      contents: mainPromptInstruction,
       config: { responseMimeType: 'application/json', responseSchema: cvDataSchema, temperature: 0.6 }
     });
 
-    return JSON.parse(response.text.trim());
+    const cvData: CVData = JSON.parse(response.text.trim());
+
+    // Sort experience in reverse chronological order
+    cvData.experience.sort((a, b) => {
+        const getEndDate = (dateStr: string) => {
+            if (dateStr?.toLowerCase() === 'present') {
+                return new Date(); // Treat 'Present' as today's date
+            }
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? new Date(0) : date; // Fallback for invalid dates
+        };
+
+        const getStartDate = (dateStr: string) => {
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? new Date(0) : date;
+        };
+        
+        const endDateA = getEndDate(a.endDate);
+        const endDateB = getEndDate(b.endDate);
+
+        if (endDateB.getTime() !== endDateA.getTime()) {
+            return endDateB.getTime() - endDateA.getTime(); // Sort by end date descending
+        }
+
+        // If end dates are same, sort by start date descending
+        const startDateA = getStartDate(a.startDate);
+        const startDateB = getStartDate(b.startDate);
+        return startDateB.getTime() - startDateA.getTime();
+    });
+
+    return cvData;
 };
 
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {

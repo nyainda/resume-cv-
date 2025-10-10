@@ -39,6 +39,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [aiMode, setAiMode] = useState(false);
   const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload'>('text');
   const [rawText, setRawText] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -83,8 +84,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         openSettings();
         return;
     }
-    if (!rawText.trim() && !uploadedFile) {
-      setAiError("Please paste your information or upload a file first.");
+    if (!rawText.trim() && !uploadedFile && !githubUrl.trim()) {
+      setAiError("Please paste your info, upload a file, or provide a GitHub URL.");
       return;
     }
     setIsGenerating(true);
@@ -96,11 +97,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             textToParse = await extractProfileTextFromFile(base64, mimeType);
         }
 
-        if (!textToParse || !textToParse.trim()) {
-            throw new Error("Could not extract any text from the provided source. Please try a different file or paste text manually.");
+        if (!textToParse.trim() && !githubUrl.trim()) {
+            throw new Error("Could not extract any text from the provided source. Please try a different file, paste text manually, or provide a GitHub URL.");
         }
         
-        const profile = await generateProfile(textToParse);
+        const profile = await generateProfile(textToParse, githubUrl);
         reset(profile);
         setAiMode(false); // Switch to form view for review
         alert("Profile generated successfully! Please review and save.");
@@ -210,7 +211,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             <div className="space-y-6">
                 <div>
                   <Label htmlFor="raw-text" className="text-xl font-bold">Generate Profile with AI</Label>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Provide your career details in any format (pasted text, PDF, or image), and our AI will structure it for you.</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Provide your career details in any format (pasted text, file, or GitHub URL), and our AI will structure it for you.</p>
                 </div>
 
                 <div className="border-b border-zinc-200 dark:border-neutral-700">
@@ -230,12 +231,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                         value={rawText}
                         onChange={(e) => { setRawText(e.target.value); setUploadedFile(null); }}
                         placeholder="e.g., paste your full resume here..."
-                        rows={15}
+                        rows={12}
                         disabled={isGenerating || !apiKeySet}
                     />
                 ) : (
                     <div className="mt-4 flex items-center justify-center w-full">
-                        <label htmlFor="profile-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-zinc-300 border-dashed rounded-xl bg-zinc-50 dark:bg-neutral-800 dark:border-neutral-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
+                        <label htmlFor="profile-upload" className={`flex flex-col items-center justify-center w-full h-40 border-2 border-zinc-300 border-dashed rounded-xl bg-zinc-50 dark:bg-neutral-800 dark:border-neutral-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
                             <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
                                 {uploadedFile ? (
                                     <p className="font-semibold text-indigo-600 px-2">{uploadedFile.name}</p>
@@ -252,13 +253,26 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                     </div>
                 )}
                 
+                <div className="pt-2">
+                    <Label htmlFor="github-url">GitHub Profile URL (Optional)</Label>
+                    <Input
+                        id="github-url"
+                        value={githubUrl}
+                        onChange={(e) => setGithubUrl(e.target.value)}
+                        placeholder="e.g., https://github.com/username"
+                        disabled={isGenerating || !apiKeySet}
+                        className="mt-1"
+                    />
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Provide a link for the AI to discover and include your projects.</p>
+                </div>
+                
                 {aiError && <p className="text-red-500 text-sm mt-2">{aiError}</p>}
                 {!apiKeySet && <p className="text-amber-600 text-sm mt-2">Please set your API key in settings to enable AI features.</p>}
-                <div className="flex justify-end">
+                <div className="flex justify-end pt-4">
                     <Button onClick={handleGenerateProfile} disabled={isGenerating || !apiKeySet}>
                          {isGenerating ? (
                             <>
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 Generating...
                             </>
                         ) : 'Generate Profile'}
@@ -284,7 +298,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               <div className="flex items-center gap-2 mb-2 border-b border-zinc-200 dark:border-neutral-700 pb-3">
                 <h2 className="text-xl font-semibold">Professional Summary</h2>
                 <button type="button" onClick={() => handleEnhance('summary')} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-indigo-500 hover:text-indigo-700 disabled:opacity-50" title="Enhance with AI">
-                    {isEnhancing === 'summary' ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
+                    {isEnhancing === 'summary' ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <Sparkles className="h-4 w-4" />}
                 </button>
               </div>
               <Textarea id="summary" {...register("summary", { required: true })} rows={4} className="mt-2" />

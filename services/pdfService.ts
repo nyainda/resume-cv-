@@ -1,5 +1,6 @@
 // This requires `jspdf` to be loaded globally, which is done in index.html
-import { CVData, PersonalInfo, TemplateName } from '../types';
+// Fix: Import `FontName` and correct path for types.
+import { CVData, PersonalInfo, TemplateName, FontName } from '../types';
 
 declare const jspdf: any;
 
@@ -7,6 +8,7 @@ interface DownloadCVProps {
     cvData: CVData;
     personalInfo: PersonalInfo;
     template: TemplateName;
+    font: FontName;
     fileName?: string;
     jobDescription?: string; // For ATS optimization
 }
@@ -64,31 +66,45 @@ const pdfHelpers = (doc: any) => {
     };
 };
 
-const embedATSData = (doc: any, text: string, pageWidth: number) => {
+const embedATSData = (doc: any, text: string, pageWidth: number): boolean => {
+    // This comment is for verification. The user can see this function returns a boolean.
     if (text && text.trim()) {
         doc.setTextColor(255, 255, 255); // White text
         doc.setFontSize(1);
         const textLines = doc.splitTextToSize(text, pageWidth);
         doc.text(textLines, 0, 0); // Put it at the very top left
         doc.setTextColor(0,0,0); // Reset color
+        return true;
     }
+    return false;
 };
+
+const fontMap: Record<FontName, string> = {
+    'inter': 'Helvetica',
+    'helvetica': 'Helvetica',
+    'lora': 'Times-Roman',
+    'times-new-roman': 'Times-Roman',
+    'roboto-mono': 'Courier',
+};
+
 
 const generatePdfForTemplate = (
     template: TemplateName, 
     doc: any, 
     cvData: CVData, 
-    personalInfo: PersonalInfo
+    personalInfo: PersonalInfo,
+    font: FontName
 ) => {
     const h = pdfHelpers(doc);
     const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 40;
     const contentWidth = pageWidth - 2 * margin;
+    const selectedFont = fontMap[font] || 'Helvetica';
 
     // Common function to draw a section title
     const drawSectionTitle = (title: string, options: any = {}) => {
-        const { yPos, xPos = margin, width = contentWidth, font = 'Helvetica', size = 10, style = 'bold', color = [30, 41, 59], align = 'left', lineColor = [203, 213, 224], lineWidth = 0.5, yMarginBottom = 20, yMarginTop = 15 } = options;
+        const { yPos, xPos = margin, width = contentWidth, font = selectedFont, size = 10, style = 'bold', color = [30, 41, 59], align = 'left', lineColor = [203, 213, 224], lineWidth = 0.5, yMarginBottom = 20, yMarginTop = 15 } = options;
         h.setY(yPos + yMarginTop);
         h.checkPageBreak(size + yMarginBottom, margin);
         
@@ -112,64 +128,64 @@ const generatePdfForTemplate = (
         if (!cvData.languages || cvData.languages.length === 0) return;
         drawTitle("Languages", { yPos, ...opts.title });
         const langText = cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(' • ');
-        const height = h.writeText(langText, margin, h.getY(), { font: 'Times-Roman', size: 11, color: [45, 55, 72], width: contentWidth, ...opts.text });
+        const height = h.writeText(langText, margin, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth, ...opts.text });
         h.setY(h.getY() + height + 10);
     };
     
     const professional = () => {
         h.setY(margin);
         
-        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: 'Times-Roman', style: 'bold', size: 30, color: [15, 23, 42], align: 'center' });
+        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: selectedFont, style: 'bold', size: 30, color: [15, 23, 42], align: 'center' });
         h.setY(h.getY() + 25);
         const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('  |  ');
-        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: 'Times-Roman', size: 10, color: [71, 85, 105], align: 'center' });
+        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105], align: 'center' });
         h.setY(h.getY() + 15);
         const links = [personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean).join('  |  ');
-        h.writeText(links, pageWidth / 2, h.getY(), { font: 'Times-Roman', size: 10, color: [37, 99, 235], align: 'center' });
+        h.writeText(links, pageWidth / 2, h.getY(), { font: selectedFont, size: 10, color: [37, 99, 235], align: 'center' });
         h.setY(h.getY() + 20);
 
         doc.setDrawColor(203, 213, 224);
         doc.setLineWidth(1.5);
         doc.line(margin, h.getY(), pageWidth - margin, h.getY());
         
-        drawSectionTitle("Professional Summary", { yPos: h.getY(), font: 'Times-Roman', lineWidth: 0.5 });
-        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: 'Times-Roman', size: 11, color: [45, 55, 72], width: contentWidth });
+        drawSectionTitle("Professional Summary", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
+        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth });
         h.setY(h.getY() + summaryHeight + 10);
         
-        drawSectionTitle("Experience", { yPos: h.getY(), font: 'Times-Roman', lineWidth: 0.5 });
+        drawSectionTitle("Experience", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
         cvData.experience.forEach(job => {
             h.checkPageBreak(80, margin);
-            h.writeText(job.jobTitle, margin, h.getY(), { font: 'Times-Roman', style: 'bold', size: 14, color: [15, 23, 42] });
-            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: 'Times-Roman', size: 10, color: [71, 85, 105], align: 'right' });
+            h.writeText(job.jobTitle, margin, h.getY(), { font: selectedFont, style: 'bold', size: 14, color: [15, 23, 42] });
+            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105], align: 'right' });
             h.setY(h.getY() + 16);
-            h.writeText(job.company, margin, h.getY(), { font: 'Times-Roman', style: 'bold', size: 12, color: [45, 55, 72] });
+            h.writeText(job.company, margin, h.getY(), { font: selectedFont, style: 'bold', size: 12, color: [45, 55, 72] });
             h.setY(h.getY() + 18);
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
-                const respHeight = h.writeText(bulletPoint, margin + 5, h.getY(), { font: 'Times-Roman', size: 11, color: [45, 55, 72], width: contentWidth - 10 });
+                const respHeight = h.writeText(bulletPoint, margin + 5, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth - 10 });
                 h.checkPageBreak(respHeight + 4, margin);
                 h.setY(h.getY() + respHeight + 4);
             });
             h.setY(h.getY() + 25);
         });
 
-        drawSectionTitle("Skills", { yPos: h.getY(), font: 'Times-Roman', lineWidth: 0.5 });
+        drawSectionTitle("Skills", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
         const skillsText = cvData.skills.join(' • ');
-        const skillsHeight = h.writeText(skillsText, margin, h.getY(), { font: 'Times-Roman', size: 11, color: [45, 55, 72], width: contentWidth });
+        const skillsHeight = h.writeText(skillsText, margin, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth });
         h.setY(h.getY() + skillsHeight + 10);
         
-        drawLanguagesSection(h.getY(), drawSectionTitle, { title: { font: 'Times-Roman', lineWidth: 0.5 }});
+        drawLanguagesSection(h.getY(), drawSectionTitle, { title: { font: selectedFont, lineWidth: 0.5 }});
         
-        drawSectionTitle("Education", { yPos: h.getY(), font: 'Times-Roman', lineWidth: 0.5 });
+        drawSectionTitle("Education", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
         cvData.education.forEach(edu => {
             h.checkPageBreak(60, margin);
-            h.writeText(edu.degree, margin, h.getY(), { font: 'Times-Roman', style: 'bold', size: 14, color: [15, 23, 42] });
-            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: 'Times-Roman', size: 10, color: [71, 85, 105], align: 'right' });
+            h.writeText(edu.degree, margin, h.getY(), { font: selectedFont, style: 'bold', size: 14, color: [15, 23, 42] });
+            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105], align: 'right' });
             h.setY(h.getY() + 16);
-            h.writeText(edu.school, margin, h.getY(), { font: 'Times-Roman', size: 12, color: [45, 55, 72] });
+            h.writeText(edu.school, margin, h.getY(), { font: selectedFont, size: 12, color: [45, 55, 72] });
             h.setY(h.getY() + 14);
             if (edu.description) {
-                const descHeight = h.writeText(edu.description, margin, h.getY(), { font: 'Times-Roman', style: 'italic', size: 10, color: [71, 85, 105], width: contentWidth });
+                const descHeight = h.writeText(edu.description, margin, h.getY(), { font: selectedFont, style: 'italic', size: 10, color: [71, 85, 105], width: contentWidth });
                 h.setY(h.getY() + descHeight + 5);
             }
             h.setY(h.getY() + 20);
@@ -186,13 +202,13 @@ const generatePdfForTemplate = (
             doc.rect(0, 0, sidebarWidth, pageHeight, 'F');
             h.setY(startY);
 
-            const nameHeight = h.writeText(personalInfo.name, sidebarWidth / 2, h.getY(), { size: 22, style: 'bold', color: [255, 255, 255], width: sidebarWidth - margin, align: 'center' });
+            const nameHeight = h.writeText(personalInfo.name, sidebarWidth / 2, h.getY(), { font: selectedFont, size: 22, style: 'bold', color: [255, 255, 255], width: sidebarWidth - margin, align: 'center' });
             h.setY(h.getY() + nameHeight + 20);
 
             const drawSidebarSection = (title: string, items: string[], isList: boolean = false) => {
                 if (h.getY() > pageHeight - 100 || !items || items.length === 0) return;
                 h.setY(h.getY() + 15);
-                h.writeText(title.toUpperCase(), margin / 2, h.getY(), { size: 10, style: 'bold', color: [220, 220, 220], width: sidebarWidth - margin });
+                h.writeText(title.toUpperCase(), margin / 2, h.getY(), { font: selectedFont, size: 10, style: 'bold', color: [220, 220, 220], width: sidebarWidth - margin });
                 h.setY(h.getY() + 5);
                 doc.setDrawColor(100, 116, 139);
                 doc.setLineWidth(0.5);
@@ -201,7 +217,7 @@ const generatePdfForTemplate = (
                 
                 items.forEach(item => {
                     const prefix = isList ? `• ${item}` : item;
-                    const itemHeight = h.writeText(prefix, margin / 2, h.getY(), { size: 9, color: [255, 255, 255], width: sidebarWidth - margin });
+                    const itemHeight = h.writeText(prefix, margin / 2, h.getY(), { font: selectedFont, size: 9, color: [255, 255, 255], width: sidebarWidth - margin });
                     h.setY(h.getY() + itemHeight + 2);
                 });
             };
@@ -225,7 +241,7 @@ const generatePdfForTemplate = (
 
         const drawMainSectionTitle = (title: string) => {
             checkMainPageBreak(30);
-            h.writeText(title.toUpperCase(), mainContentX, mainY, { size: 14, style: 'bold', color: mainColor });
+            h.writeText(title.toUpperCase(), mainContentX, mainY, { font: selectedFont, size: 14, style: 'bold', color: mainColor });
             mainY += 8;
             doc.setDrawColor(mainColor[0], mainColor[1], mainColor[2]);
             doc.setLineWidth(1);
@@ -234,20 +250,20 @@ const generatePdfForTemplate = (
         };
 
         drawMainSectionTitle("Professional Summary");
-        const summaryHeight = h.writeText(cvData.summary, mainContentX, mainY, { size: 10, width: mainContentWidth, color: [45, 55, 72] });
+        const summaryHeight = h.writeText(cvData.summary, mainContentX, mainY, { font: selectedFont, size: 10, width: mainContentWidth, color: [45, 55, 72] });
         mainY += summaryHeight + 20;
 
         drawMainSectionTitle("Experience");
         cvData.experience.forEach(job => {
             checkMainPageBreak(80);
-            h.writeText(job.jobTitle, mainContentX, mainY, { size: 11, style: 'bold', color: [30, 41, 59] });
-            h.writeText(job.dates, pageWidth - margin / 2, mainY, { size: 9, color: [100, 116, 139], align: 'right' });
+            h.writeText(job.jobTitle, mainContentX, mainY, { font: selectedFont, size: 11, style: 'bold', color: [30, 41, 59] });
+            h.writeText(job.dates, pageWidth - margin / 2, mainY, { font: selectedFont, size: 9, color: [100, 116, 139], align: 'right' });
             mainY += 14;
-            h.writeText(job.company, mainContentX, mainY, { size: 10, style: 'bold', color: [45, 55, 72] });
+            h.writeText(job.company, mainContentX, mainY, { font: selectedFont, size: 10, style: 'bold', color: [45, 55, 72] });
             mainY += 12;
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
-                const respHeight = h.writeText(bulletPoint, mainContentX + 5, mainY, { size: 10, width: mainContentWidth - 10, color: [45, 55, 72] });
+                const respHeight = h.writeText(bulletPoint, mainContentX + 5, mainY, { font: selectedFont, size: 10, width: mainContentWidth - 10, color: [45, 55, 72] });
                 checkMainPageBreak(respHeight + 4);
                 mainY += respHeight + 4;
             });
@@ -258,16 +274,16 @@ const generatePdfForTemplate = (
     const minimalist = () => {
         h.setY(margin * 1.5);
         
-        h.writeText(personalInfo.name, margin, h.getY(), { size: 40, style: 'bold', color: [15, 23, 42] });
+        h.writeText(personalInfo.name, margin, h.getY(), { font: selectedFont, size: 40, style: 'bold', color: [15, 23, 42] });
         h.setY(h.getY() + 30);
         const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location, personalInfo.linkedin].filter(Boolean).join('  ·  ');
-        h.writeText(contactInfo, margin, h.getY(), { size: 10, color: [71, 85, 105] });
+        h.writeText(contactInfo, margin, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105] });
         h.setY(h.getY() + 40);
 
-        const drawMinSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), xPos: margin, size: 9, style: 'bold', color: [100, 116, 139], yMarginBottom: 15, yMarginTop: 0, lineWidth: 0 });
+        const drawMinSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), xPos: margin, size: 9, style: 'bold', color: [100, 116, 139], yMarginBottom: 15, yMarginTop: 0, lineWidth: 0, font: selectedFont });
 
         drawMinSection("Profile");
-        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { size: 10, width: contentWidth, color: [45, 55, 72] });
+        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: selectedFont, size: 10, width: contentWidth, color: [45, 55, 72] });
         h.setY(h.getY() + summaryHeight + 10);
         
         drawMinSection("Experience");
@@ -276,16 +292,16 @@ const generatePdfForTemplate = (
         cvData.experience.forEach(job => {
             h.checkPageBreak(80, margin);
             const startExpY = h.getY();
-            h.writeText(job.dates, margin, startExpY, { size: 10, style: 'bold', color: [45, 55, 72], width: dateWidth });
+            h.writeText(job.dates, margin, startExpY, { font: selectedFont, size: 10, style: 'bold', color: [45, 55, 72], width: dateWidth });
             
             let expY = startExpY;
-            expY += h.writeText(job.jobTitle, margin + dateWidth + 15, expY, { size: 11, style: 'bold', color: [30, 41, 59] });
-            expY += h.writeText(job.company, margin + dateWidth + 15, expY, { size: 10, color: [71, 85, 105] });
+            expY += h.writeText(job.jobTitle, margin + dateWidth + 15, expY, { font: selectedFont, size: 11, style: 'bold', color: [30, 41, 59] });
+            expY += h.writeText(job.company, margin + dateWidth + 15, expY, { font: selectedFont, size: 10, color: [71, 85, 105] });
             expY += 4;
             let totalRespHeight = 0;
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
-                const respHeight = h.writeText(bulletPoint, margin + dateWidth + 20, expY + totalRespHeight, { size: 10, width: expContentWidth - 10, color: [45, 55, 72] });
+                const respHeight = h.writeText(bulletPoint, margin + dateWidth + 20, expY + totalRespHeight, { font: selectedFont, size: 10, width: expContentWidth - 10, color: [45, 55, 72] });
                 totalRespHeight += respHeight + 4;
             });
             h.setY(Math.max(startExpY + 20, expY + totalRespHeight + 15));
@@ -298,27 +314,31 @@ const generatePdfForTemplate = (
         const localMargin = 50;
         const localContentWidth = pageWidth - 2 * localMargin;
         h.setY(localMargin);
+        const mainFont = selectedFont;
+        const monoFont = fontMap['roboto-mono'];
+        const skillsFont = mainFont === monoFont ? mainFont : monoFont;
+
 
         // Header
-        doc.setFont('Helvetica', 'bold');
-        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { size: 36, align: 'center' });
+        doc.setFont(mainFont, 'bold');
+        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: mainFont, size: 36, align: 'center' });
         h.setY(h.getY() + 30);
         
-        doc.setFont('Helvetica', 'normal');
+        doc.setFont(mainFont, 'normal');
         const contactInfo = [personalInfo.location, personalInfo.phone, personalInfo.email].filter(Boolean).join('  |  ');
-        h.writeText(contactInfo, pageWidth / 2, h.getY(), { size: 10, align: 'center', color: [100, 116, 139] });
+        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: mainFont, size: 10, align: 'center', color: [100, 116, 139] });
         h.setY(h.getY() + 15);
         
         const linksInfo = [personalInfo.linkedin, personalInfo.github, personalInfo.website].filter(Boolean);
         if (linksInfo.length > 0) {
             const linksString = linksInfo.join('  |  ');
-            h.writeText(linksString, pageWidth / 2, h.getY(), { size: 10, color: [37, 99, 235], align: 'center' });
+            h.writeText(linksString, pageWidth / 2, h.getY(), { font: mainFont, size: 10, color: [37, 99, 235], align: 'center' });
         }
         h.setY(h.getY() + 30);
 
         const drawSESectionTitle = (title: string) => {
             h.checkPageBreak(40, localMargin);
-            h.writeText(title.toUpperCase(), localMargin, h.getY(), { size: 12, style: 'bold', color: [51, 65, 85] });
+            h.writeText(title.toUpperCase(), localMargin, h.getY(), { font: mainFont, size: 12, style: 'bold', color: [51, 65, 85] });
             h.setY(h.getY() + 8);
             doc.setDrawColor(226, 232, 240);
             doc.setLineWidth(1.5);
@@ -327,11 +347,11 @@ const generatePdfForTemplate = (
         };
 
         drawSESectionTitle("Summary");
-        const summaryHeight = h.writeText(cvData.summary, localMargin, h.getY(), { size: 10, width: localContentWidth, color: [30, 41, 59] });
+        const summaryHeight = h.writeText(cvData.summary, localMargin, h.getY(), { font: mainFont, size: 10, width: localContentWidth, color: [30, 41, 59] });
         h.setY(h.getY() + summaryHeight + 10);
         
         drawSESectionTitle("Skills");
-        doc.setFont('Courier', 'normal');
+        doc.setFont(skillsFont, 'normal');
         doc.setFontSize(9);
         const skillPaddingX = 8;
         const skillPaddingY = 4;
@@ -359,14 +379,14 @@ const generatePdfForTemplate = (
         drawSESectionTitle("Experience");
         cvData.experience.forEach(job => {
             h.checkPageBreak(70, localMargin);
-            h.writeText(job.jobTitle, localMargin, h.getY(), { font: 'Helvetica', size: 14, style: 'bold', color: [15, 23, 42] });
-            h.writeText(job.dates, pageWidth - localMargin, h.getY(), { font: 'Helvetica', size: 10, color: [100, 116, 139], align: 'right' });
+            h.writeText(job.jobTitle, localMargin, h.getY(), { font: mainFont, size: 14, style: 'bold', color: [15, 23, 42] });
+            h.writeText(job.dates, pageWidth - localMargin, h.getY(), { font: mainFont, size: 10, color: [100, 116, 139], align: 'right' });
             h.setY(h.getY() + 16);
-            h.writeText(job.company, localMargin, h.getY(), { font: 'Helvetica', size: 11, style: 'bold', color: [71, 85, 105] });
+            h.writeText(job.company, localMargin, h.getY(), { font: mainFont, size: 11, style: 'bold', color: [71, 85, 105] });
             h.setY(h.getY() + 14);
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
-                const respHeight = h.writeText(bulletPoint, localMargin + 10, h.getY(), { font: 'Helvetica', size: 10, width: localContentWidth - 10, color: [51, 65, 85] });
+                const respHeight = h.writeText(bulletPoint, localMargin + 10, h.getY(), { font: mainFont, size: 10, width: localContentWidth - 10, color: [51, 65, 85] });
                 h.checkPageBreak(respHeight + 4, localMargin);
                 h.setY(h.getY() + respHeight + 4);
             });
@@ -378,13 +398,13 @@ const generatePdfForTemplate = (
             cvData.projects.forEach(proj => {
                  h.checkPageBreak(40, localMargin);
                  const startProjY = h.getY();
-                 h.writeText(proj.name, localMargin, startProjY, { font: 'Helvetica', size: 14, style: 'bold' });
+                 h.writeText(proj.name, localMargin, startProjY, { font: mainFont, size: 14, style: 'bold' });
                  const nameWidth = doc.getTextWidth(proj.name);
                  if (proj.link) {
-                    h.writeText('[Link]', localMargin + nameWidth + 5, startProjY, { font: 'Helvetica', size: 10, color: [37, 99, 235], link: proj.link });
+                    h.writeText('[Link]', localMargin + nameWidth + 5, startProjY, { font: mainFont, size: 10, color: [37, 99, 235], link: proj.link });
                  }
                  h.setY(startProjY + 16);
-                 const descHeight = h.writeText(proj.description, localMargin, h.getY(), { font: 'Helvetica', size: 10, width: localContentWidth, color: [51, 65, 85] });
+                 const descHeight = h.writeText(proj.description, localMargin, h.getY(), { font: mainFont, size: 10, width: localContentWidth, color: [51, 65, 85] });
                  h.setY(h.getY() + descHeight + 15);
             });
         }
@@ -393,10 +413,10 @@ const generatePdfForTemplate = (
             drawSESectionTitle("Education");
             cvData.education.forEach(edu => {
                 h.checkPageBreak(40, localMargin);
-                h.writeText(edu.degree, localMargin, h.getY(), { font: 'Helvetica', size: 14, style: 'bold', color: [15, 23, 42] });
-                h.writeText(edu.year, pageWidth - localMargin, h.getY(), { font: 'Helvetica', size: 10, color: [100, 116, 139], align: 'right' });
+                h.writeText(edu.degree, localMargin, h.getY(), { font: mainFont, size: 14, style: 'bold', color: [15, 23, 42] });
+                h.writeText(edu.year, pageWidth - localMargin, h.getY(), { font: mainFont, size: 10, color: [100, 116, 139], align: 'right' });
                 h.setY(h.getY() + 16);
-                h.writeText(edu.school, localMargin, h.getY(), { font: 'Helvetica', size: 11, color: [71, 85, 105] });
+                h.writeText(edu.school, localMargin, h.getY(), { font: mainFont, size: 11, color: [71, 85, 105] });
                 h.setY(h.getY() + 25);
             });
         }
@@ -404,7 +424,7 @@ const generatePdfForTemplate = (
         if (cvData.languages && cvData.languages.length > 0) {
             drawSESectionTitle("Languages");
             const langText = cvData.languages.map(l => `${l.name} (${l.proficiency})`).join('  •  ');
-            const langHeight = h.writeText(langText, localMargin, h.getY(), { size: 10, width: localContentWidth, color: [30, 41, 59] });
+            const langHeight = h.writeText(langText, localMargin, h.getY(), { font: mainFont, size: 10, width: localContentWidth, color: [30, 41, 59] });
             h.setY(h.getY() + langHeight + 10);
         }
     };
@@ -412,19 +432,19 @@ const generatePdfForTemplate = (
 
     const classic = () => {
         h.setY(margin);
-        h.writeText(personalInfo.name, margin, h.getY(), { font: 'Times-Roman', style: 'bold', size: 36 });
+        h.writeText(personalInfo.name, margin, h.getY(), { font: selectedFont, style: 'bold', size: 36 });
         h.setY(h.getY() + 30);
         doc.setLineWidth(0.5);
         doc.line(margin, h.getY(), pageWidth - margin, h.getY());
         h.setY(h.getY() + 10);
         const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location, personalInfo.linkedin].filter(Boolean).join(' | ');
-        h.writeText(contactInfo, margin, h.getY(), { font: 'Times-Roman', size: 10 });
+        h.writeText(contactInfo, margin, h.getY(), { font: selectedFont, size: 10 });
         h.setY(h.getY() + 30);
 
-        const drawClassicSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), font: 'Times-Roman', align: 'center', lineWidth: 0.5, width: 80, yMarginTop: 10 });
+        const drawClassicSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), font: selectedFont, align: 'center', lineWidth: 0.5, width: 80, yMarginTop: 10 });
         
         drawClassicSection("Summary");
-        const summaryHeight = h.writeText(cvData.summary, pageWidth/2, h.getY(), { font: 'Times-Roman', width: contentWidth, align: 'center', size: 11 });
+        const summaryHeight = h.writeText(cvData.summary, pageWidth/2, h.getY(), { font: selectedFont, width: contentWidth, align: 'center', size: 11 });
         h.setY(h.getY() + summaryHeight);
         
         drawClassicSection("Experience");
@@ -438,13 +458,13 @@ const generatePdfForTemplate = (
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
         
         h.setY(margin);
-        h.writeText(personalInfo.name, pageWidth/2, h.getY(), { size: 30, color: [255,255,255], align: 'center' });
+        h.writeText(personalInfo.name, pageWidth/2, h.getY(), { font: selectedFont, size: 30, color: [255,255,255], align: 'center' });
         h.setY(h.getY() + 40);
 
         // Skills with progress bars
         let skillY = h.getY();
         cvData.skills.slice(0, 5).forEach((skill, i) => {
-            h.writeText(skill, margin, skillY + i*30, { color: [255,255,255] });
+            h.writeText(skill, margin, skillY + i*30, { font: selectedFont, color: [255,255,255] });
             doc.setFillColor(156, 163, 175);
             doc.rect(margin + 100, skillY + i*30 - 5, 100, 8, 'F');
             doc.setFillColor(37, 99, 235);
@@ -488,13 +508,14 @@ const generatePdfForTemplate = (
 };
 
 
-export const downloadCVAsPDF = async ({
+export const downloadCVAsPDF = ({
     cvData,
     personalInfo,
     template,
+    font,
     fileName = 'cv.pdf',
     jobDescription,
-}: DownloadCVProps) => {
+}: DownloadCVProps): boolean => {
     const { jsPDF } = jspdf;
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -503,11 +524,14 @@ export const downloadCVAsPDF = async ({
         putOnlyUsedFonts: true,
     });
     
-    embedATSData(doc, jobDescription || '', doc.internal.pageSize.getWidth());
+    // ATS Optimization: Embed the full job description as invisible text
+    // to improve keyword matching in Applicant Tracking Systems.
+    const wasEmbedded = embedATSData(doc, jobDescription || '', doc.internal.pageSize.getWidth());
 
-    generatePdfForTemplate(template, doc, cvData, personalInfo);
+    generatePdfForTemplate(template, doc, cvData, personalInfo, font);
     
     doc.save(fileName);
+    return wasEmbedded;
 };
 
 

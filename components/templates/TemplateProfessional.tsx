@@ -103,6 +103,23 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </div>
           ))}
         </section>
+        
+        {cvData.publications && cvData.publications.length > 0 && (
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Publications</h2>
+            <div className="space-y-4">
+              {cvData.publications.map((pub, index) => (
+                <div key={index}>
+                  <h3 className="text-base font-bold text-slate-900" {...editableProps(['publications', index, 'title'])}>{pub.title}</h3>
+                  <p className="text-sm text-slate-700" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</p>
+                  <p className="text-sm italic text-slate-600">
+                    <span {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {cvData.projects && cvData.projects.length > 0 && (
           <section>

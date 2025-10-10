@@ -1,16 +1,18 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { UserProfile, CVData, SavedCV, ApiSettings } from './types';
+import { UserProfile, CVData, SavedCV, ApiSettings, TrackedApplication } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SavedCVs from './components/SavedCVs';
 import SettingsModal from './components/SettingsModal';
-import { Edit, User, List, Settings, FileText } from './components/icons';
+import Tracker from './components/Tracker';
+import { Edit, User, List, Settings, FileText, Target } from './components/icons';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
   const [savedCVs, setSavedCVs] = useLocalStorage<SavedCV[]>('savedCVs', []);
   const [currentCV, setCurrentCV] = useLocalStorage<CVData | null>('currentCV', null);
+  const [trackedApps, setTrackedApps] = useLocalStorage<TrackedApplication[]>('trackedApps', []);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiSettings, setApiSettings] = useLocalStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
@@ -20,7 +22,7 @@ const App: React.FC = () => {
     setIsEditingProfile(false);
   };
 
-  const handleSaveCV = (cvData: CVData) => {
+  const handleSaveCV = (cvData: CVData, purpose: 'job' | 'academic') => {
     const cvName = prompt("Enter a name for this CV (e.g., Software Engineer - Google):", `CV for ${cvData.experience[0]?.jobTitle || 'New Role'}`);
     if (cvName) {
       const newSavedCV: SavedCV = {
@@ -28,6 +30,7 @@ const App: React.FC = () => {
         name: cvName,
         createdAt: new Date().toISOString(),
         data: cvData,
+        purpose: purpose,
       };
       setSavedCVs(prev => [newSavedCV, ...prev]);
       alert("CV Saved Successfully!");
@@ -35,7 +38,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCV = useCallback((id: string) => {
-    if (window.confirm("Are you sure you want to delete this CV?")) {
+    if (window.confirm("Are you sure you want to delete this CV? This will not delete tracked applications using this CV.")) {
       setSavedCVs(prev => prev.filter(cv => cv.id !== id));
     }
   }, [setSavedCVs]);
@@ -97,6 +100,13 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
+              
+              <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5">
+                 <h2 className="text-lg font-semibold mb-4 flex items-center gap-3"><Target className="h-5 w-5 text-zinc-500" /> Application Tracker</h2>
+                 <p className="text-sm text-zinc-500 dark:text-zinc-400 -mt-2 mb-4">A simple tracker for your applications.</p>
+                 <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} />
+              </div>
+
 
               {savedCVs.length > 0 && (
                 <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5">

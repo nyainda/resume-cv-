@@ -1,11 +1,15 @@
+// types.ts
+
+// --- Basic Profile & CV Data Structures ---
+
 export interface PersonalInfo {
   name: string;
   email: string;
   phone: string;
   location: string;
   linkedin: string;
-  website?: string;
-  github?: string;
+  website: string;
+  github: string;
 }
 
 export interface WorkExperience {
@@ -18,23 +22,23 @@ export interface WorkExperience {
 }
 
 export interface Education {
-  id: string;
+  id:string;
   degree: string;
   school: string;
   graduationYear: string;
 }
 
 export interface Project {
-  id:string;
+  id: string;
   name: string;
   description: string;
-  link?: string;
+  link: string;
 }
 
 export interface Language {
-    id: string;
-    name: string;
-    proficiency: string; // e.g., Native, Fluent, Proficient
+  id: string;
+  name: string;
+  proficiency: string;
 }
 
 export interface UserProfile {
@@ -43,51 +47,94 @@ export interface UserProfile {
   workExperience: WorkExperience[];
   education: Education[];
   skills: string[];
-  projects: Project[];
-  languages: Language[];
+  projects?: Project[];
+  languages?: Language[];
 }
 
-export interface CVData {
-  summary: string;
-  experience: {
+// --- Generated CV Data Structure ---
+
+export interface CVExperience {
     company: string;
     jobTitle: string;
     dates: string;
+    startDate: string; // For sorting
+    endDate: string; // For sorting
     responsibilities: string[];
-  }[];
-  skills: string[];
-  education: {
+}
+
+export interface CVEducation {
     degree: string;
     school: string;
     year: string;
-    description?: string; // Added optional description
-  }[];
-  projects: {
+    description?: string;
+}
+
+export interface CVProject {
     name: string;
     description: string;
     link?: string;
-  }[];
-  languages: {
+}
+
+export interface CVLanguage {
     name: string;
     proficiency: string;
-  }[];
 }
+
+export interface CVPublication {
+    title: string;
+    authors: string[];
+    journal: string;
+    year: string;
+    link?: string;
+}
+
+export interface CVData {
+    summary: string;
+    skills: string[];
+    experience: CVExperience[];
+    education: CVEducation[];
+    projects?: CVProject[];
+    languages?: CVLanguage[];
+    publications?: CVPublication[];
+}
+
+
+// --- App State & Settings ---
 
 export interface SavedCV {
-    id: string;
-    name: string;
-    createdAt: string;
-    data: CVData;
+  id: string;
+  name: string;
+  createdAt: string;
+  data: CVData;
+  purpose: 'job' | 'academic';
 }
 
-export interface JobAnalysisResult {
-    keywords: string[];
-    skills: string[];
+export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
+
+export interface ApiSettings {
+  provider: AIProvider;
+  apiKey: string | null;
 }
+
+export type ApplicationStatus = 'Wishlist' | 'Applied' | 'Interviewing' | 'Offer' | 'Rejected';
+
+export interface TrackedApplication {
+    id: string;
+    savedCvId: string;
+    savedCvName: string;
+    roleTitle: string;
+    company: string;
+    status: ApplicationStatus;
+    dateApplied: string;
+    notes: string;
+}
+
+
+// --- Templates and Fonts ---
 
 export type TemplateName = 
-  | 'modern' 
   | 'professional'
+  | 'modern'
   | 'minimalist'
   | 'corporate'
   | 'creative'
@@ -103,26 +150,37 @@ export type TemplateName =
   | 'classic';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
-    modern: 'Modern',
     professional: 'Professional',
+    modern: 'Modern',
+    'software-engineer': 'Tech',
     minimalist: 'Minimalist',
     corporate: 'Corporate',
+    elegant: 'Elegant',
+    'modern-tech': 'Modern Tech',
+    'twoColumnBlue': 'Two Column',
     creative: 'Creative',
     timeline: 'Timeline',
-    twoColumnBlue: 'Two Column Blue',
     executive: 'Executive',
     technical: 'Technical',
     compact: 'Compact',
-    elegant: 'Elegant',
-    'software-engineer': 'Software Engineer',
-    'modern-tech': 'Modern Tech',
     infographic: 'Infographic',
     classic: 'Classic',
 };
 
-export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
+export type FontName = 'inter' | 'lora' | 'roboto-mono' | 'helvetica' | 'times-new-roman';
 
-export interface ApiSettings {
-  provider: AIProvider;
-  apiKey: string | null;
+export const fontDisplayNames: Record<FontName, string> = {
+    'inter': 'Inter (Modern Sans)',
+    'helvetica': 'Helvetica (Classic Sans)',
+    'lora': 'Lora (Elegant Serif)',
+    'times-new-roman': 'Times New Roman (Formal Serif)',
+    'roboto-mono': 'Roboto Mono (Monospace)',
+};
+
+
+// --- API Service Payloads ---
+
+export interface JobAnalysisResult {
+    keywords: string[];
+    skills: string[];
 }

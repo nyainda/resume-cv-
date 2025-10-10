@@ -1,5 +1,5 @@
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
-import { UserProfile, CVData, TemplateName } from '../types';
+import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames } from '../types';
 import { generateCV, generateCoverLetter, extractTextFromImage, extractProfileTextFromFile } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -10,13 +10,13 @@ import JobAnalysis from './JobAnalysis';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
-import { Save, Download, RefreshCw, Edit, FileText, Sparkles, HelpCircle, UploadCloud } from './icons';
+import { Save, Download, RefreshCw, Edit, FileText, Sparkles, HelpCircle, UploadCloud, CheckCircle } from './icons';
 
 interface CVGeneratorProps {
   userProfile: UserProfile;
   currentCV: CVData | null;
   setCurrentCV: React.Dispatch<React.SetStateAction<CVData | null>>;
-  onSaveCV: (cvData: CVData) => void;
+  onSaveCV: (cvData: CVData, purpose: 'job' | 'academic') => void;
   apiKeySet: boolean;
   openSettings: () => void;
 }
@@ -41,8 +41,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
+  const [font, setFont] = useLocalStorage<FontName>('cvFont', 'lora');
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [aiEnhancements, setAiEnhancements] = useState(true);
+  const [cvPurpose, setCvPurpose] = useState<'job' | 'academic'>('job');
+  const [atsDataEmbedded, setAtsDataEmbedded] = useState(false);
 
   const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
@@ -55,7 +58,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         return;
     }
     if (!jobDescription.trim()) {
-      setError("Please provide a job description.");
+      setError(`Please provide a ${cvPurpose === 'job' ? 'job' : 'grant/scholarship'} description.`);
       return;
     }
     setIsLoading(true);
@@ -63,8 +66,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setError(null);
     setIsEditing(false);
     setCoverLetter(null); // Clear old cover letter
+    setAtsDataEmbedded(false); // Reset confirmation on new CV generation
     try {
-      const generatedData = await generateCV(userProfile, jobDescription, aiEnhancements);
+      const generatedData = await generateCV(userProfile, jobDescription, aiEnhancements, cvPurpose);
       setCurrentCV(generatedData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
@@ -76,7 +80,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     } finally {
       setIsLoading(false);
     }
-  }, [jobDescription, userProfile, setCurrentCV, aiEnhancements, setCoverLetter, apiKeySet, openSettings]);
+  }, [jobDescription, userProfile, setCurrentCV, aiEnhancements, setCoverLetter, apiKeySet, openSettings, cvPurpose]);
 
   const handleGenerateCoverLetter = useCallback(async () => {
     if (!apiKeySet) {
@@ -85,7 +89,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         return;
     }
     if (!jobDescription.trim()) {
-      setCoverLetterError("Please provide a job description to generate a cover letter.");
+      setCoverLetterError("Please provide a description to generate a cover letter.");
       return;
     }
     setIsGeneratingCoverLetter(true);
@@ -144,13 +148,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const handleDownload = () => {
     if (!currentCV) return;
-    downloadCVAsPDF({
+    const wasEmbedded = downloadCVAsPDF({
       cvData: currentCV,
       personalInfo: userProfile.personalInfo,
       template: template,
+      font: font,
       fileName: `${userProfile.personalInfo.name.replace(' ','_')}_CV.pdf`,
       jobDescription: jobDescription, // Pass job description for ATS optimization
     });
+    setAtsDataEmbedded(wasEmbedded);
   };
 
   const cvTextContent = useMemo(() => {
@@ -167,9 +173,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   return (
     <div className="space-y-8">
       <div className="bg-white dark:bg-neutral-800/50 p-6 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
-        <Label className="text-2xl font-bold">Job Description</Label>
+        <div className="space-y-2">
+            <Label className="text-2xl font-bold">CV Customization</Label>
+            <div className="flex items-center gap-4 pt-2">
+                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">CV Purpose:</span>
+                <div className="flex items-center gap-2 rounded-lg bg-zinc-100 dark:bg-neutral-900 p-1">
+                    <Button variant={cvPurpose === 'job' ? 'secondary' : 'ghost'} size="sm" onClick={() => setCvPurpose('job')} className={`!rounded-md ${cvPurpose === 'job' ? 'bg-white dark:!bg-neutral-700 shadow-sm' : ''}`}>Job Application</Button>
+                    <Button variant={cvPurpose === 'academic' ? 'secondary' : 'ghost'} size="sm" onClick={() => setCvPurpose('academic')} className={`!rounded-md ${cvPurpose === 'academic' ? 'bg-white dark:!bg-neutral-700 shadow-sm' : ''}`}>Grant / Scholarship</Button>
+                </div>
+            </div>
+        </div>
+
+        <Label className="text-xl font-semibold mt-6 block">{cvPurpose === 'job' ? 'Job Description' : 'Grant/Scholarship Description'}</Label>
         
-        <div className="mt-4 border-b border-zinc-200 dark:border-neutral-700">
+        <div className="mt-2 border-b border-zinc-200 dark:border-neutral-700">
           <nav className="-mb-px flex space-x-6" aria-label="Tabs">
             <button onClick={() => setInputMode('text')} className={`${inputMode === 'text' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
               Paste Text
@@ -185,7 +202,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
              id="job-description"
              value={jobDescription}
              onChange={(e) => setJobDescription(e.target.value)}
-             placeholder="Paste the full job description here..."
+             placeholder={`Paste the full ${cvPurpose === 'job' ? 'job' : 'grant'} description here...`}
              rows={10}
              className="mt-4"
              disabled={isLoading || isGeneratingCoverLetter}
@@ -216,14 +233,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   checked={aiEnhancements}
                   onChange={(e) => setAiEnhancements(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  disabled={cvPurpose === 'academic'}
               />
-              <label htmlFor="ai-enhancements" className="text-sm font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer">
+              <label htmlFor="ai-enhancements" className={`text-sm font-medium text-zinc-700 dark:text-zinc-300 ${cvPurpose === 'academic' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                   AI Enhancements
               </label>
               <div className="group relative flex items-center">
                   <HelpCircle className="h-4 w-4 text-zinc-400" />
                   <div className="absolute bottom-full mb-2 w-64 bg-zinc-800 text-white text-xs rounded-lg py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-                      Allows the AI to add an ideal work experience and generate relevant projects to strengthen your CV.
+                      {cvPurpose === 'job' ? 'Allows the AI to add an ideal work experience and generate relevant projects to strengthen your CV.' : 'AI enhancements are not applicable for academic CVs.'}
                       <svg className="absolute text-zinc-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
                   </div>
               </div>
@@ -247,9 +265,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             <div className="flex flex-wrap items-start justify-between mb-6 gap-6">
                 <div>
                     <h2 className="text-2xl font-bold">CV Preview</h2>
-                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template and make final edits.</p>
+                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template, choose a font, and make final edits.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                     <div>
+                        <Label htmlFor="font-select" className="sr-only">Font</Label>
+                        <select
+                            id="font-select"
+                            value={font}
+                            onChange={(e) => setFont(e.target.value as FontName)}
+                            className="text-sm rounded-lg border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 focus:ring-indigo-500 focus:border-indigo-500 h-9"
+                            disabled={isEditing}
+                        >
+                            {Object.entries(fontDisplayNames).map(([key, value]) => (
+                                <option key={key} value={key}>{value}</option>
+                            ))}
+                        </select>
+                    </div>
                     <Button variant="secondary" onClick={() => setIsEditing(!isEditing)} size="sm">
                         <Edit className="h-4 w-4 mr-2" />
                         {isEditing ? 'Finish Editing' : 'Edit CV'}
@@ -258,7 +290,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Regenerate
                     </Button>
-                    <Button variant="secondary" onClick={() => onSaveCV(currentCV)} disabled={isEditing} size="sm">
+                    <Button variant="secondary" onClick={() => onSaveCV(currentCV, cvPurpose)} disabled={isEditing} size="sm">
                         <Save className="h-4 w-4 mr-2" />
                         Save
                     </Button>
@@ -272,6 +304,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                     </Button>
                 </div>
             </div>
+
+            {atsDataEmbedded && (
+                <div className="mb-6 -mt-2 p-3 text-sm text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center gap-3 border border-green-200 dark:border-green-800">
+                    <CheckCircle className="h-5 w-5 flex-shrink-0" />
+                    <span><strong>ATS Optimization Active:</strong> The job description has been embedded as invisible text in your PDF to improve keyword matching.</span>
+                </div>
+            )}
 
             <TemplateGallery selectedTemplate={template} onSelect={setTemplate} />
 
