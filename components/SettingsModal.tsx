@@ -20,10 +20,28 @@ const providerDetails: Record<AIProvider, { name: string, url: string }> = {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
   const [localSettings, setLocalSettings] = useState<ApiSettings>(currentApiSettings);
+  const [storedKeys, setStoredKeys] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    const keys = JSON.parse(localStorage.getItem('provider_keys') || '{}');
+    if (currentApiSettings.apiKey) {
+        keys[currentApiSettings.provider] = currentApiSettings.apiKey;
+    }
+    setStoredKeys(keys);
     setLocalSettings(currentApiSettings);
   }, [currentApiSettings, isOpen]);
+
+  const updateKey = (key: string) => {
+      const newKeys = { ...storedKeys, [localSettings.provider]: key };
+      setStoredKeys(newKeys);
+      localStorage.setItem('provider_keys', JSON.stringify(newKeys));
+      setLocalSettings({ ...localSettings, apiKey: key });
+  };
+
+  const handleProviderChange = (provider: AIProvider) => {
+      const apiKey = storedKeys[provider] || null;
+      setLocalSettings({ provider, apiKey });
+  };
 
   if (!isOpen) return null;
 
@@ -33,6 +51,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   };
 
   const handleClear = () => {
+    const newKeys = { ...storedKeys };
+    delete newKeys[localSettings.provider];
+    setStoredKeys(newKeys);
+    localStorage.setItem('provider_keys', JSON.stringify(newKeys));
+    
     const clearedSettings = { ...localSettings, apiKey: null };
     setLocalSettings(clearedSettings);
     onSave(clearedSettings);
@@ -65,7 +88,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 <select 
                     id="ai-provider"
                     value={localSettings.provider}
-                    onChange={(e) => setLocalSettings({...localSettings, provider: e.target.value as AIProvider })}
+                    onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
                     className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-zinc-300 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg"
                 >
                     {Object.entries(providerDetails).map(([key, value]) => (
@@ -85,7 +108,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 id="api-key"
                 type="password"
                 value={localSettings.apiKey || ''}
-                onChange={(e) => setLocalSettings({ ...localSettings, apiKey: e.target.value })}
+                onChange={(e) => updateKey(e.target.value)}
                 placeholder={`Enter your ${selectedProvider.name} API key`}
               />
             </div>

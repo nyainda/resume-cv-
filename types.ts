@@ -1,3 +1,4 @@
+
 // types.ts
 
 // --- Basic Profile & CV Data Structures ---
@@ -183,4 +184,5 @@ export const fontDisplayNames: Record<FontName, string> = {
 export interface JobAnalysisResult {
     keywords: string[];
     skills: string[];
+    companyName?: string;
 }

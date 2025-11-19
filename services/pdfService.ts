@@ -1,3 +1,4 @@
+
 // This requires `jspdf` to be loaded globally, which is done in index.html
 // Fix: Import `FontName` and correct path for types.
 import { CVData, PersonalInfo, TemplateName, FontName } from '../types';
@@ -51,6 +52,8 @@ const pdfHelpers = (doc: any) => {
             doc.text(lines, x, startY, { align });
         }
         
+        // Calculate height of the text block just written
+        // leading factor 1.15 is standard for jsPDF
         const lineHeight = size * 1.15;
         const lineCount = Array.isArray(lines) ? lines.length : (text.toString().match(/\n/g) || []).length + 1;
         
@@ -104,7 +107,7 @@ const generatePdfForTemplate = (
 
     // Common function to draw a section title
     const drawSectionTitle = (title: string, options: any = {}) => {
-        const { yPos, xPos = margin, width = contentWidth, font = selectedFont, size = 10, style = 'bold', color = [30, 41, 59], align = 'left', lineColor = [203, 213, 224], lineWidth = 0.5, yMarginBottom = 20, yMarginTop = 15 } = options;
+        const { yPos, xPos = margin, width = contentWidth, font = selectedFont, size = 10, style = 'bold', color = [30, 41, 59], align = 'left', lineColor = [203, 213, 224], lineWidth = 0.5, yMarginBottom = 15, yMarginTop = 15 } = options;
         h.setY(yPos + yMarginTop);
         h.checkPageBreak(size + yMarginBottom, margin);
         
@@ -122,74 +125,121 @@ const generatePdfForTemplate = (
         h.setY(h.getY() + yMarginBottom);
     };
 
+    const drawSkillsBlock = (skills: string[], yPos: number, width: number = contentWidth, xPos: number = margin, align: 'left'|'center'|'right' = 'left', color: number[] = [45, 55, 72]) => {
+        if (!skills || skills.length === 0) return 0;
+        const text = skills.join(' • ');
+        return h.writeText(text, xPos, yPos, { font: selectedFont, size: 10, color, width, align });
+    };
+
     // --- TEMPLATE-SPECIFIC IMPLEMENTATIONS ---
     
     const drawLanguagesSection = (yPos: number, drawTitle: (title: string, opts: any) => void, opts: any = {}) => {
         if (!cvData.languages || cvData.languages.length === 0) return;
         drawTitle("Languages", { yPos, ...opts.title });
         const langText = cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(' • ');
-        const height = h.writeText(langText, margin, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth, ...opts.text });
+        const height = h.writeText(langText, margin, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: contentWidth, ...opts.text });
         h.setY(h.getY() + height + 10);
     };
     
     const professional = () => {
         h.setY(margin);
         
-        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: selectedFont, style: 'bold', size: 30, color: [15, 23, 42], align: 'center' });
-        h.setY(h.getY() + 25);
-        const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('  |  ');
-        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105], align: 'center' });
-        h.setY(h.getY() + 15);
-        const links = [personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean).join('  |  ');
-        h.writeText(links, pageWidth / 2, h.getY(), { font: selectedFont, size: 10, color: [37, 99, 235], align: 'center' });
-        h.setY(h.getY() + 20);
+        // Compact Header
+        doc.setFont(selectedFont, 'bold');
+        doc.setFontSize(24);
+        doc.setTextColor(15, 23, 42);
+        const nameWidth = doc.getTextWidth(personalInfo.name);
+        doc.text(personalInfo.name, pageWidth / 2, h.getY(), { align: 'center' });
+        h.setY(h.getY() + 20); // Reduced spacing after name
+        
+        const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('  •  ');
+        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105], align: 'center' });
+        h.setY(h.getY() + 14);
+
+        const links = [personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean).join('  •  ');
+        if (links) {
+            h.writeText(links, pageWidth / 2, h.getY(), { font: selectedFont, size: 9, color: [37, 99, 235], align: 'center' });
+            h.setY(h.getY() + 18);
+        } else {
+            h.setY(h.getY() + 6);
+        }
 
         doc.setDrawColor(203, 213, 224);
-        doc.setLineWidth(1.5);
+        doc.setLineWidth(0.5);
         doc.line(margin, h.getY(), pageWidth - margin, h.getY());
         
-        drawSectionTitle("Professional Summary", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
-        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth });
-        h.setY(h.getY() + summaryHeight + 10);
+        // Slightly reduced top margin for first section
+        drawSectionTitle("Professional Summary", { yPos: h.getY(), font: selectedFont, lineWidth: 0, yMarginTop: 12, yMarginBottom: 8 });
+        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: contentWidth });
+        h.setY(h.getY() + summaryHeight + 8);
         
-        drawSectionTitle("Experience", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
+        drawSectionTitle("Skills", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+        const skillsHeight = drawSkillsBlock(cvData.skills, h.getY());
+        h.setY(h.getY() + skillsHeight + 8);
+
+        drawSectionTitle("Experience", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
         cvData.experience.forEach(job => {
             h.checkPageBreak(80, margin);
-            h.writeText(job.jobTitle, margin, h.getY(), { font: selectedFont, style: 'bold', size: 14, color: [15, 23, 42] });
-            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105], align: 'right' });
+            h.writeText(job.jobTitle, margin, h.getY(), { font: selectedFont, style: 'bold', size: 12, color: [15, 23, 42] });
+            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105], align: 'right' });
+            h.setY(h.getY() + 14);
+            h.writeText(job.company, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [71, 85, 105] });
             h.setY(h.getY() + 16);
-            h.writeText(job.company, margin, h.getY(), { font: selectedFont, style: 'bold', size: 12, color: [45, 55, 72] });
-            h.setY(h.getY() + 18);
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
-                const respHeight = h.writeText(bulletPoint, margin + 5, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth - 10 });
-                h.checkPageBreak(respHeight + 4, margin);
-                h.setY(h.getY() + respHeight + 4);
+                const respHeight = h.writeText(bulletPoint, margin + 5, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: contentWidth - 10 });
+                h.checkPageBreak(respHeight + 3, margin);
+                h.setY(h.getY() + respHeight + 3);
             });
-            h.setY(h.getY() + 25);
+            h.setY(h.getY() + 15);
         });
 
-        drawSectionTitle("Skills", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
-        const skillsText = cvData.skills.join(' • ');
-        const skillsHeight = h.writeText(skillsText, margin, h.getY(), { font: selectedFont, size: 11, color: [45, 55, 72], width: contentWidth });
-        h.setY(h.getY() + skillsHeight + 10);
         
-        drawLanguagesSection(h.getY(), drawSectionTitle, { title: { font: selectedFont, lineWidth: 0.5 }});
+        drawLanguagesSection(h.getY(), drawSectionTitle, { title: { font: selectedFont, lineWidth: 1 }});
         
-        drawSectionTitle("Education", { yPos: h.getY(), font: selectedFont, lineWidth: 0.5 });
+        drawSectionTitle("Education", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
         cvData.education.forEach(edu => {
-            h.checkPageBreak(60, margin);
-            h.writeText(edu.degree, margin, h.getY(), { font: selectedFont, style: 'bold', size: 14, color: [15, 23, 42] });
-            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105], align: 'right' });
-            h.setY(h.getY() + 16);
-            h.writeText(edu.school, margin, h.getY(), { font: selectedFont, size: 12, color: [45, 55, 72] });
+            h.checkPageBreak(50, margin);
+            h.writeText(edu.degree, margin, h.getY(), { font: selectedFont, style: 'bold', size: 12, color: [15, 23, 42] });
+            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105], align: 'right' });
+            h.setY(h.getY() + 14);
+            h.writeText(edu.school, margin, h.getY(), { font: selectedFont, size: 11, color: [71, 85, 105] });
             h.setY(h.getY() + 14);
             if (edu.description) {
-                const descHeight = h.writeText(edu.description, margin, h.getY(), { font: selectedFont, style: 'italic', size: 10, color: [71, 85, 105], width: contentWidth });
+                const descHeight = h.writeText(edu.description, margin, h.getY(), { font: selectedFont, style: 'italic', size: 9, color: [71, 85, 105], width: contentWidth });
                 h.setY(h.getY() + descHeight + 5);
             }
-            h.setY(h.getY() + 20);
+            h.setY(h.getY() + 15);
         });
+
+        // Projects & Publications
+        if (cvData.publications && cvData.publications.length > 0) {
+            drawSectionTitle("Publications", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+            cvData.publications.forEach(pub => {
+                h.checkPageBreak(50, margin);
+                h.writeText(pub.title, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [15, 23, 42], width: contentWidth });
+                h.setY(h.getY() + 14);
+                h.writeText(pub.authors.join(', '), margin, h.getY(), { font: selectedFont, size: 9, color: [45, 55, 72], width: contentWidth });
+                h.setY(h.getY() + 12);
+                 h.writeText(`${pub.journal}, ${pub.year}`, margin, h.getY(), { font: selectedFont, style: 'italic', size: 9, color: [71, 85, 105] });
+                h.setY(h.getY() + 18);
+            });
+        }
+
+        if (cvData.projects && cvData.projects.length > 0) {
+            drawSectionTitle("Projects", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+            cvData.projects.forEach(proj => {
+                 h.checkPageBreak(45, margin);
+                 h.writeText(proj.name, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [15, 23, 42] });
+                 if (proj.link) {
+                    const linkWidth = doc.getTextWidth(proj.name);
+                    h.writeText('[Link]', margin + linkWidth + 10, h.getY(), { font: selectedFont, size: 9, color: [37, 99, 235], link: proj.link });
+                 }
+                 h.setY(h.getY() + 14);
+                 const descHeight = h.writeText(proj.description, margin, h.getY(), { font: selectedFont, size: 10, width: contentWidth, color: [45, 55, 72] });
+                 h.setY(h.getY() + descHeight + 15);
+            });
+        }
     };
     
     const twoColumn = (sidebarColor: [number, number, number], mainColor: [number, number, number]) => {
@@ -202,30 +252,53 @@ const generatePdfForTemplate = (
             doc.rect(0, 0, sidebarWidth, pageHeight, 'F');
             h.setY(startY);
 
-            const nameHeight = h.writeText(personalInfo.name, sidebarWidth / 2, h.getY(), { font: selectedFont, size: 22, style: 'bold', color: [255, 255, 255], width: sidebarWidth - margin, align: 'center' });
+            const nameHeight = h.writeText(personalInfo.name, sidebarWidth / 2, h.getY(), { font: selectedFont, size: 20, style: 'bold', color: [255, 255, 255], width: sidebarWidth - margin, align: 'center' });
             h.setY(h.getY() + nameHeight + 20);
 
-            const drawSidebarSection = (title: string, items: string[], isList: boolean = false) => {
-                if (h.getY() > pageHeight - 100 || !items || items.length === 0) return;
+            const drawSidebarSection = (title: string, contentRenderer: () => number) => {
+                if (h.getY() > pageHeight - 50) return; 
                 h.setY(h.getY() + 15);
                 h.writeText(title.toUpperCase(), margin / 2, h.getY(), { font: selectedFont, size: 10, style: 'bold', color: [220, 220, 220], width: sidebarWidth - margin });
                 h.setY(h.getY() + 5);
-                doc.setDrawColor(100, 116, 139);
+                doc.setDrawColor(200, 200, 200);
                 doc.setLineWidth(0.5);
                 doc.line(margin / 2, h.getY(), sidebarWidth - margin / 2, h.getY());
-                h.setY(h.getY() + 15);
+                h.setY(h.getY() + 10);
                 
-                items.forEach(item => {
-                    const prefix = isList ? `• ${item}` : item;
-                    const itemHeight = h.writeText(prefix, margin / 2, h.getY(), { font: selectedFont, size: 9, color: [255, 255, 255], width: sidebarWidth - margin });
-                    h.setY(h.getY() + itemHeight + 2);
-                });
+                const height = contentRenderer();
+                h.setY(h.getY() + height);
             };
+
             const contactItems = [personalInfo.email, personalInfo.phone, personalInfo.location, personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean) as string[];
-            drawSidebarSection("Contact", contactItems);
-            drawSidebarSection("Skills", cvData.skills, true);
-            drawSidebarSection("Languages", cvData.languages?.map(l => `${l.name}: ${l.proficiency}`));
-            drawSidebarSection("Education", cvData.education.map(e => `${e.degree}\n${e.school}\n${e.year}`));
+            
+            drawSidebarSection("Contact", () => {
+                let totalH = 0;
+                contactItems.forEach(item => {
+                    const itemHeight = h.writeText(item, margin / 2, h.getY() + totalH, { font: selectedFont, size: 8, color: [255, 255, 255], width: sidebarWidth - margin });
+                    totalH += itemHeight + 4;
+                });
+                return totalH;
+            });
+
+            // Use Skills Block for compact sidebar
+            drawSidebarSection("Skills", () => {
+                return h.writeText(cvData.skills.join(' • '), margin / 2, h.getY(), { font: selectedFont, size: 9, color: [255, 255, 255], width: sidebarWidth - margin });
+            });
+
+            drawSidebarSection("Languages", () => {
+                 return h.writeText(cvData.languages?.map(l => `${l.name}: ${l.proficiency}`).join('\n') || '', margin / 2, h.getY(), { font: selectedFont, size: 9, color: [255, 255, 255], width: sidebarWidth - margin });
+            });
+
+            drawSidebarSection("Education", () => {
+                 let totalH = 0;
+                 cvData.education.forEach(e => {
+                     totalH += h.writeText(`${e.degree}`, margin / 2, h.getY() + totalH, { font: selectedFont, size: 9, style: 'bold', color: [255, 255, 255], width: sidebarWidth - margin });
+                     totalH += 4;
+                     totalH += h.writeText(`${e.school}, ${e.year}`, margin / 2, h.getY() + totalH, { font: selectedFont, size: 8, color: [220, 220, 220], width: sidebarWidth - margin });
+                     totalH += 10;
+                 });
+                 return totalH;
+            });
         };
 
         let mainY = margin;
@@ -241,12 +314,12 @@ const generatePdfForTemplate = (
 
         const drawMainSectionTitle = (title: string) => {
             checkMainPageBreak(30);
-            h.writeText(title.toUpperCase(), mainContentX, mainY, { font: selectedFont, size: 14, style: 'bold', color: mainColor });
-            mainY += 8;
+            h.writeText(title.toUpperCase(), mainContentX, mainY, { font: selectedFont, size: 12, style: 'bold', color: mainColor });
+            mainY += 6;
             doc.setDrawColor(mainColor[0], mainColor[1], mainColor[2]);
             doc.setLineWidth(1);
             doc.line(mainContentX, mainY, pageWidth - margin / 2, mainY);
-            mainY += 22;
+            mainY += 18;
         };
 
         drawMainSectionTitle("Professional Summary");
@@ -255,7 +328,7 @@ const generatePdfForTemplate = (
 
         drawMainSectionTitle("Experience");
         cvData.experience.forEach(job => {
-            checkMainPageBreak(80);
+            checkMainPageBreak(70);
             h.writeText(job.jobTitle, mainContentX, mainY, { font: selectedFont, size: 11, style: 'bold', color: [30, 41, 59] });
             h.writeText(job.dates, pageWidth - margin / 2, mainY, { font: selectedFont, size: 9, color: [100, 116, 139], align: 'right' });
             mainY += 14;
@@ -264,50 +337,139 @@ const generatePdfForTemplate = (
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
                 const respHeight = h.writeText(bulletPoint, mainContentX + 5, mainY, { font: selectedFont, size: 10, width: mainContentWidth - 10, color: [45, 55, 72] });
-                checkMainPageBreak(respHeight + 4);
-                mainY += respHeight + 4;
+                checkMainPageBreak(respHeight + 3);
+                mainY += respHeight + 3;
             });
-            mainY += 25;
+            mainY += 20;
         });
+
+        if (cvData.projects && cvData.projects.length > 0) {
+            drawMainSectionTitle("Projects");
+            cvData.projects.forEach(proj => {
+                checkMainPageBreak(50);
+                h.writeText(proj.name, mainContentX, mainY, { font: selectedFont, size: 11, style: 'bold', color: [30, 41, 59] });
+                if (proj.link) {
+                     const linkWidth = doc.getTextWidth(proj.name);
+                     h.writeText('[Link]', mainContentX + linkWidth + 5, mainY, { font: selectedFont, size: 9, color: [37, 99, 235], link: proj.link });
+                }
+                mainY += 14;
+                const descHeight = h.writeText(proj.description, mainContentX, mainY, { font: selectedFont, size: 10, width: mainContentWidth, color: [45, 55, 72] });
+                mainY += descHeight + 15;
+            });
+        }
+        
+        if (cvData.publications && cvData.publications.length > 0) {
+            drawMainSectionTitle("Publications");
+            cvData.publications.forEach(pub => {
+                checkMainPageBreak(50);
+                h.writeText(pub.title, mainContentX, mainY, { font: selectedFont, style: 'bold', size: 10, color: [30, 41, 59], width: mainContentWidth });
+                mainY += 12;
+                h.writeText(pub.authors.join(', '), mainContentX, mainY, { font: selectedFont, size: 9, color: [45, 55, 72], width: mainContentWidth });
+                mainY += 12;
+                h.writeText(`${pub.journal}, ${pub.year}`, mainContentX, mainY, { font: selectedFont, style: 'italic', size: 9, color: [71, 85, 105] });
+                mainY += 18;
+            });
+        }
     };
 
     const minimalist = () => {
-        h.setY(margin * 1.5);
+        h.setY(margin); 
         
-        h.writeText(personalInfo.name, margin, h.getY(), { font: selectedFont, size: 40, style: 'bold', color: [15, 23, 42] });
-        h.setY(h.getY() + 30);
+        // Minimalist Header
+        doc.setFont(selectedFont, 'bold');
+        doc.setFontSize(28);
+        doc.setTextColor(15, 23, 42);
+        h.writeText(personalInfo.name, margin, h.getY());
+        h.setY(h.getY() + 28);
+        
         const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location, personalInfo.linkedin].filter(Boolean).join('  ·  ');
-        h.writeText(contactInfo, margin, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105] });
-        h.setY(h.getY() + 40);
+        h.writeText(contactInfo, margin, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105] });
+        h.setY(h.getY() + 20); 
 
-        const drawMinSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), xPos: margin, size: 9, style: 'bold', color: [100, 116, 139], yMarginBottom: 15, yMarginTop: 0, lineWidth: 0, font: selectedFont });
+        const drawMinSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), xPos: margin, size: 10, style: 'bold', color: [100, 116, 139], yMarginBottom: 10, yMarginTop: 0, lineWidth: 0, font: selectedFont });
 
         drawMinSection("Profile");
         const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: selectedFont, size: 10, width: contentWidth, color: [45, 55, 72] });
-        h.setY(h.getY() + summaryHeight + 10);
+        h.setY(h.getY() + summaryHeight + 12);
         
         drawMinSection("Experience");
-        const dateWidth = 80;
-        const expContentWidth = contentWidth - dateWidth - 15;
+        const dateWidth = 70;
+        const expContentWidth = contentWidth - dateWidth - 10;
         cvData.experience.forEach(job => {
-            h.checkPageBreak(80, margin);
+            h.checkPageBreak(60, margin);
             const startExpY = h.getY();
-            h.writeText(job.dates, margin, startExpY, { font: selectedFont, size: 10, style: 'bold', color: [45, 55, 72], width: dateWidth });
+            h.writeText(job.dates, margin, startExpY, { font: selectedFont, size: 9, style: 'bold', color: [45, 55, 72], width: dateWidth });
             
             let expY = startExpY;
-            expY += h.writeText(job.jobTitle, margin + dateWidth + 15, expY, { font: selectedFont, size: 11, style: 'bold', color: [30, 41, 59] });
-            expY += h.writeText(job.company, margin + dateWidth + 15, expY, { font: selectedFont, size: 10, color: [71, 85, 105] });
+            expY += h.writeText(job.jobTitle, margin + dateWidth + 10, expY, { font: selectedFont, size: 10, style: 'bold', color: [30, 41, 59] });
+            expY += h.writeText(job.company, margin + dateWidth + 10, expY, { font: selectedFont, size: 9, color: [71, 85, 105] });
             expY += 4;
             let totalRespHeight = 0;
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
-                const respHeight = h.writeText(bulletPoint, margin + dateWidth + 20, expY + totalRespHeight, { font: selectedFont, size: 10, width: expContentWidth - 10, color: [45, 55, 72] });
-                totalRespHeight += respHeight + 4;
+                const respHeight = h.writeText(bulletPoint, margin + dateWidth + 10, expY + totalRespHeight, { font: selectedFont, size: 10, width: expContentWidth, color: [45, 55, 72] });
+                totalRespHeight += respHeight + 3;
             });
-            h.setY(Math.max(startExpY + 20, expY + totalRespHeight + 15));
+            h.setY(Math.max(startExpY + 10, expY + totalRespHeight + 12));
         });
 
-        drawLanguagesSection(h.getY(), drawMinSection);
+        if (cvData.education && cvData.education.length > 0) {
+            drawMinSection("Education");
+            cvData.education.forEach(edu => {
+                h.checkPageBreak(40, margin);
+                const startEduY = h.getY();
+                h.writeText(edu.year, margin, startEduY, { font: selectedFont, size: 9, style: 'bold', color: [45, 55, 72], width: dateWidth });
+                
+                let eduY = startEduY;
+                eduY += h.writeText(edu.degree, margin + dateWidth + 10, eduY, { font: selectedFont, size: 10, style: 'bold', color: [30, 41, 59] });
+                eduY += h.writeText(edu.school, margin + dateWidth + 10, eduY, { font: selectedFont, size: 9, color: [71, 85, 105] });
+                h.setY(Math.max(startEduY + 10, eduY + 10));
+            });
+        }
+
+        // Skills Block
+        drawMinSection("Skills");
+        const skillsHeight = drawSkillsBlock(cvData.skills, h.getY(), contentWidth, margin);
+        h.setY(h.getY() + skillsHeight + 15);
+
+        if (cvData.languages && cvData.languages.length > 0) {
+             drawMinSection("Languages");
+             const langText = cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(' • ');
+             const langHeight = h.writeText(langText, margin, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: contentWidth });
+             h.setY(h.getY() + langHeight + 15);
+        }
+
+        if (cvData.projects && cvData.projects.length > 0) {
+            drawMinSection("Projects");
+            cvData.projects.forEach(proj => {
+                 h.checkPageBreak(40, margin);
+                 const startProjY = h.getY();
+                 let projY = startProjY;
+                 
+                 projY += h.writeText(proj.name, margin + dateWidth + 10, projY, { font: selectedFont, size: 10, style: 'bold', color: [30, 41, 59] });
+                 if (proj.link) {
+                    const linkWidth = doc.getTextWidth(proj.name);
+                    h.writeText('[Link]', margin + dateWidth + 10 + linkWidth + 5, startProjY, { font: selectedFont, size: 8, color: [37, 99, 235], link: proj.link });
+                 }
+
+                 const descHeight = h.writeText(proj.description, margin + dateWidth + 10, projY, { font: selectedFont, size: 9, width: expContentWidth, color: [45, 55, 72] });
+                 h.setY(projY + descHeight + 12);
+            });
+        }
+        
+        if (cvData.publications && cvData.publications.length > 0) {
+             drawMinSection("Publications");
+             cvData.publications.forEach(pub => {
+                h.checkPageBreak(40, margin);
+                const startPubY = h.getY();
+                h.writeText(pub.year, margin, startPubY, { font: selectedFont, size: 9, style: 'bold', color: [45, 55, 72], width: dateWidth });
+                
+                let pubY = startPubY;
+                pubY += h.writeText(pub.title, margin + dateWidth + 10, pubY, { font: selectedFont, size: 10, style: 'bold', color: [30, 41, 59] });
+                pubY += h.writeText(pub.journal, margin + dateWidth + 10, pubY, { font: selectedFont, size: 9, style: 'italic', color: [71, 85, 105] });
+                h.setY(Math.max(startPubY + 10, pubY + 10));
+             });
+        }
     };
 
     const softwareEngineerPdf = () => {
@@ -321,34 +483,34 @@ const generatePdfForTemplate = (
 
         // Header
         doc.setFont(mainFont, 'bold');
-        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: mainFont, size: 36, align: 'center' });
-        h.setY(h.getY() + 30);
+        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: mainFont, size: 30, align: 'center' });
+        h.setY(h.getY() + 25);
         
         doc.setFont(mainFont, 'normal');
         const contactInfo = [personalInfo.location, personalInfo.phone, personalInfo.email].filter(Boolean).join('  |  ');
-        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: mainFont, size: 10, align: 'center', color: [100, 116, 139] });
-        h.setY(h.getY() + 15);
+        h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: mainFont, size: 9, align: 'center', color: [100, 116, 139] });
+        h.setY(h.getY() + 12);
         
         const linksInfo = [personalInfo.linkedin, personalInfo.github, personalInfo.website].filter(Boolean);
         if (linksInfo.length > 0) {
             const linksString = linksInfo.join('  |  ');
-            h.writeText(linksString, pageWidth / 2, h.getY(), { font: mainFont, size: 10, color: [37, 99, 235], align: 'center' });
+            h.writeText(linksString, pageWidth / 2, h.getY(), { font: mainFont, size: 9, color: [37, 99, 235], align: 'center' });
         }
-        h.setY(h.getY() + 30);
+        h.setY(h.getY() + 25);
 
         const drawSESectionTitle = (title: string) => {
             h.checkPageBreak(40, localMargin);
-            h.writeText(title.toUpperCase(), localMargin, h.getY(), { font: mainFont, size: 12, style: 'bold', color: [51, 65, 85] });
-            h.setY(h.getY() + 8);
+            h.writeText(title.toUpperCase(), localMargin, h.getY(), { font: mainFont, size: 10, style: 'bold', color: [51, 65, 85] });
+            h.setY(h.getY() + 6);
             doc.setDrawColor(226, 232, 240);
             doc.setLineWidth(1.5);
             doc.line(localMargin, h.getY(), pageWidth - localMargin, h.getY());
-            h.setY(h.getY() + 20);
+            h.setY(h.getY() + 15);
         };
 
         drawSESectionTitle("Summary");
         const summaryHeight = h.writeText(cvData.summary, localMargin, h.getY(), { font: mainFont, size: 10, width: localContentWidth, color: [30, 41, 59] });
-        h.setY(h.getY() + summaryHeight + 10);
+        h.setY(h.getY() + summaryHeight + 12);
         
         drawSESectionTitle("Skills");
         doc.setFont(skillsFont, 'normal');
@@ -374,23 +536,23 @@ const generatePdfForTemplate = (
             doc.text(skill, x + skillPaddingX, y);
             x += tagWidth + skillMargin;
         });
-        h.setY(y + skillHeight + 10);
+        h.setY(y + skillHeight + 15);
 
         drawSESectionTitle("Experience");
         cvData.experience.forEach(job => {
             h.checkPageBreak(70, localMargin);
-            h.writeText(job.jobTitle, localMargin, h.getY(), { font: mainFont, size: 14, style: 'bold', color: [15, 23, 42] });
-            h.writeText(job.dates, pageWidth - localMargin, h.getY(), { font: mainFont, size: 10, color: [100, 116, 139], align: 'right' });
-            h.setY(h.getY() + 16);
-            h.writeText(job.company, localMargin, h.getY(), { font: mainFont, size: 11, style: 'bold', color: [71, 85, 105] });
+            h.writeText(job.jobTitle, localMargin, h.getY(), { font: mainFont, size: 12, style: 'bold', color: [15, 23, 42] });
+            h.writeText(job.dates, pageWidth - localMargin, h.getY(), { font: mainFont, size: 9, color: [100, 116, 139], align: 'right' });
             h.setY(h.getY() + 14);
+            h.writeText(job.company, localMargin, h.getY(), { font: mainFont, size: 10, style: 'bold', color: [71, 85, 105] });
+            h.setY(h.getY() + 12);
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
                 const respHeight = h.writeText(bulletPoint, localMargin + 10, h.getY(), { font: mainFont, size: 10, width: localContentWidth - 10, color: [51, 65, 85] });
-                h.checkPageBreak(respHeight + 4, localMargin);
-                h.setY(h.getY() + respHeight + 4);
+                h.checkPageBreak(respHeight + 3, localMargin);
+                h.setY(h.getY() + respHeight + 3);
             });
-            h.setY(h.getY() + 20);
+            h.setY(h.getY() + 15);
         });
 
         if (cvData.projects && cvData.projects.length > 0) {
@@ -398,12 +560,12 @@ const generatePdfForTemplate = (
             cvData.projects.forEach(proj => {
                  h.checkPageBreak(40, localMargin);
                  const startProjY = h.getY();
-                 h.writeText(proj.name, localMargin, startProjY, { font: mainFont, size: 14, style: 'bold' });
+                 h.writeText(proj.name, localMargin, startProjY, { font: mainFont, size: 11, style: 'bold' });
                  const nameWidth = doc.getTextWidth(proj.name);
                  if (proj.link) {
-                    h.writeText('[Link]', localMargin + nameWidth + 5, startProjY, { font: mainFont, size: 10, color: [37, 99, 235], link: proj.link });
+                    h.writeText('[Link]', localMargin + nameWidth + 5, startProjY, { font: mainFont, size: 9, color: [37, 99, 235], link: proj.link });
                  }
-                 h.setY(startProjY + 16);
+                 h.setY(startProjY + 14);
                  const descHeight = h.writeText(proj.description, localMargin, h.getY(), { font: mainFont, size: 10, width: localContentWidth, color: [51, 65, 85] });
                  h.setY(h.getY() + descHeight + 15);
             });
@@ -413,42 +575,75 @@ const generatePdfForTemplate = (
             drawSESectionTitle("Education");
             cvData.education.forEach(edu => {
                 h.checkPageBreak(40, localMargin);
-                h.writeText(edu.degree, localMargin, h.getY(), { font: mainFont, size: 14, style: 'bold', color: [15, 23, 42] });
-                h.writeText(edu.year, pageWidth - localMargin, h.getY(), { font: mainFont, size: 10, color: [100, 116, 139], align: 'right' });
-                h.setY(h.getY() + 16);
-                h.writeText(edu.school, localMargin, h.getY(), { font: mainFont, size: 11, color: [71, 85, 105] });
-                h.setY(h.getY() + 25);
+                h.writeText(edu.degree, localMargin, h.getY(), { font: mainFont, size: 11, style: 'bold', color: [15, 23, 42] });
+                h.writeText(edu.year, pageWidth - localMargin, h.getY(), { font: mainFont, size: 9, color: [100, 116, 139], align: 'right' });
+                h.setY(h.getY() + 14);
+                h.writeText(edu.school, localMargin, h.getY(), { font: mainFont, size: 10, color: [71, 85, 105] });
+                h.setY(h.getY() + 18);
             });
-        }
-
-        if (cvData.languages && cvData.languages.length > 0) {
-            drawSESectionTitle("Languages");
-            const langText = cvData.languages.map(l => `${l.name} (${l.proficiency})`).join('  •  ');
-            const langHeight = h.writeText(langText, localMargin, h.getY(), { font: mainFont, size: 10, width: localContentWidth, color: [30, 41, 59] });
-            h.setY(h.getY() + langHeight + 10);
         }
     };
 
 
     const classic = () => {
         h.setY(margin);
-        h.writeText(personalInfo.name, margin, h.getY(), { font: selectedFont, style: 'bold', size: 36 });
-        h.setY(h.getY() + 30);
+        h.writeText(personalInfo.name, pageWidth/2, h.getY(), { font: selectedFont, style: 'bold', size: 32, align: 'center' });
+        h.setY(h.getY() + 20);
+        
         doc.setLineWidth(0.5);
-        doc.line(margin, h.getY(), pageWidth - margin, h.getY());
-        h.setY(h.getY() + 10);
-        const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location, personalInfo.linkedin].filter(Boolean).join(' | ');
-        h.writeText(contactInfo, margin, h.getY(), { font: selectedFont, size: 10 });
-        h.setY(h.getY() + 30);
+        doc.line(pageWidth/2 - 30, h.getY(), pageWidth/2 + 30, h.getY());
+        h.setY(h.getY() + 15);
+        
+        const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join(' • ');
+        h.writeText(contactInfo, pageWidth/2, h.getY(), { font: selectedFont, size: 9, align: 'center' });
+        h.setY(h.getY() + 12);
+        
+        const links = [personalInfo.linkedin, personalInfo.website].filter(Boolean).join(' • ');
+         if (links) {
+            h.writeText(links, pageWidth/2, h.getY(), { font: selectedFont, size: 9, align: 'center', color: [30, 64, 175] });
+            h.setY(h.getY() + 20);
+        } else {
+             h.setY(h.getY() + 8);
+        }
 
-        const drawClassicSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), font: selectedFont, align: 'center', lineWidth: 0.5, width: 80, yMarginTop: 10 });
+        const drawClassicSection = (title: string) => drawSectionTitle(title, { yPos: h.getY(), font: selectedFont, align: 'center', lineWidth: 0, width: 100, yMarginTop: 10, yMarginBottom: 10, size: 11 });
         
         drawClassicSection("Summary");
-        const summaryHeight = h.writeText(cvData.summary, pageWidth/2, h.getY(), { font: selectedFont, width: contentWidth, align: 'center', size: 11 });
-        h.setY(h.getY() + summaryHeight);
+        const summaryHeight = h.writeText(cvData.summary, pageWidth/2, h.getY(), { font: selectedFont, width: contentWidth, align: 'center', size: 10 });
+        h.setY(h.getY() + summaryHeight + 15);
         
         drawClassicSection("Experience");
-        // implementation similar to professional
+         cvData.experience.forEach(job => {
+            h.checkPageBreak(70, margin);
+            h.writeText(job.jobTitle, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11 });
+            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: selectedFont, size: 9, align: 'right' });
+            h.setY(h.getY() + 12);
+            h.writeText(job.company, margin, h.getY(), { font: selectedFont, style: 'italic', size: 10 });
+            h.setY(h.getY() + 12);
+            job.responsibilities.forEach(resp => {
+                const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
+                const respHeight = h.writeText(bulletPoint, margin + 10, h.getY(), { font: selectedFont, size: 10, width: contentWidth - 10 });
+                h.checkPageBreak(respHeight + 3, margin);
+                h.setY(h.getY() + respHeight + 3);
+            });
+            h.setY(h.getY() + 15);
+        });
+
+        if (cvData.education && cvData.education.length > 0) {
+            drawClassicSection("Education");
+            cvData.education.forEach(edu => {
+                h.checkPageBreak(40, margin);
+                h.writeText(edu.school, pageWidth/2, h.getY(), { font: selectedFont, style: 'bold', size: 10, align: 'center' });
+                h.setY(h.getY() + 12);
+                h.writeText(`${edu.degree}, ${edu.year}`, pageWidth/2, h.getY(), { font: selectedFont, size: 10, align: 'center' });
+                h.setY(h.getY() + 15);
+            });
+        }
+
+        // Skills Block for Classic
+        drawClassicSection("Skills");
+        const skillsHeight = drawSkillsBlock(cvData.skills, h.getY(), contentWidth, margin, 'center');
+        h.setY(h.getY() + skillsHeight + 15);
     };
     
     const infographic = () => {
@@ -477,8 +672,10 @@ const generatePdfForTemplate = (
         case 'corporate':
         case 'elegant':
         case 'executive':
-        case 'classic':
              professional();
+             break;
+        case 'classic':
+             classic(); // Fix: Correctly call classic function
              break;
         case 'modern':
             twoColumn([45, 55, 72], [71, 85, 105]);
@@ -522,6 +719,14 @@ export const downloadCVAsPDF = ({
         unit: 'pt',
         format: 'a4',
         putOnlyUsedFonts: true,
+    });
+    
+    // Set PDF properties for better metadata
+    doc.setProperties({
+        title: fileName.replace('.pdf', '').replace(/_/g, ' '),
+        author: personalInfo.name,
+        subject: `CV for ${cvData.experience[0]?.jobTitle || 'Job Application'}`,
+        creator: 'AI CV Builder'
     });
     
     // ATS Optimization: Embed the full job description as invisible text

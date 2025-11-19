@@ -1,5 +1,6 @@
+
 import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
-import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames } from '../types';
+import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult } from '../types';
 import { generateCV, generateCoverLetter, extractTextFromImage, extractProfileTextFromFile } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -36,6 +37,7 @@ const fileToBase64 = (file: File): Promise<{base64: string, mimeType: string}> =
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, apiKeySet, openSettings }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
+  const [targetCompany, setTargetCompany] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
   const [error, setError] = useState<string | null>(null);
@@ -148,12 +150,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const handleDownload = () => {
     if (!currentCV) return;
+    
+    // Sanitize and construct filename
+    const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+    const name = sanitize(userProfile.personalInfo.name).substring(0, 20);
+    const company = targetCompany ? sanitize(targetCompany).substring(0, 20) : '';
+    
+    let fileName = `${name}_CV.pdf`;
+    if (company) {
+        fileName = `${name}_${company}_CV.pdf`;
+    }
+
     const wasEmbedded = downloadCVAsPDF({
       cvData: currentCV,
       personalInfo: userProfile.personalInfo,
       template: template,
       font: font,
-      fileName: `${userProfile.personalInfo.name.replace(' ','_')}_CV.pdf`,
+      fileName: fileName,
       jobDescription: jobDescription, // Pass job description for ATS optimization
     });
     setAtsDataEmbedded(wasEmbedded);
@@ -169,6 +182,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     return text.toLowerCase();
   }, [currentCV]);
 
+  const handleJobAnalysisComplete = useCallback((result: JobAnalysisResult) => {
+      if (result.companyName) {
+          setTargetCompany(result.companyName);
+      }
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -223,7 +241,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
         {!apiKeySet && inputMode === 'upload' && <p className="text-amber-600 text-sm mt-2">Please set your API key in settings to enable file uploads.</p>}
 
-        <JobAnalysis jobDescription={jobDescription} cvTextContent={cvTextContent} apiKeySet={apiKeySet} />
+        <JobAnalysis 
+            jobDescription={jobDescription} 
+            cvTextContent={cvTextContent} 
+            apiKeySet={apiKeySet} 
+            onAnalysisComplete={handleJobAnalysisComplete}
+        />
         
         <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center space-x-2 self-start sm:self-center">

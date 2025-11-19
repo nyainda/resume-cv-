@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { analyzeJobDescriptionForKeywords } from '../services/geminiService';
 import { JobAnalysisResult } from '../types';
@@ -7,6 +8,7 @@ interface JobAnalysisProps {
     jobDescription: string;
     cvTextContent: string;
     apiKeySet: boolean;
+    onAnalysisComplete?: (result: JobAnalysisResult) => void;
 }
 
 const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
@@ -52,7 +54,7 @@ const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
 };
 
 
-const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet }) => {
+const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete }) => {
     const [analysis, setAnalysis] = useState<JobAnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,10 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                 setError(null);
                 setAnalysis(null);
                 analyzeJobDescriptionForKeywords(jobDescription)
-                    .then(setAnalysis)
+                    .then(result => {
+                        setAnalysis(result);
+                        if (onAnalysisComplete) onAnalysisComplete(result);
+                    })
                     .catch(err => setError(err instanceof Error ? err.message : "Analysis failed"))
                     .finally(() => setIsLoading(false));
             }, 1000); // Debounce

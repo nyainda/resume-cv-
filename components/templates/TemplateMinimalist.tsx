@@ -1,5 +1,7 @@
+
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
+import { Trash } from '../icons';
 
 interface TemplateProps {
   cvData: CVData;
@@ -21,6 +23,12 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     onDataChange(newCvData);
   }, [cvData, onDataChange]);
 
+  const handleDeleteExperience = (index: number) => {
+    const newCvData = JSON.parse(JSON.stringify(cvData));
+    newCvData.experience.splice(index, 1);
+    onDataChange(newCvData);
+  };
+
   const editableProps = (path: (string | number)[]) => isEditing ? {
     contentEditable: true,
     suppressContentEditableWarning: true,
@@ -29,100 +37,136 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     },
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
   } : {};
-  
-  const Section: React.FC<{title: string; children: React.ReactNode}> = ({ title, children }) => (
-    <section className="mb-8">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">{title}</h2>
-      {children}
-    </section>
-  );
 
   return (
-    <div id="cv-preview-minimalist" className="bg-white p-10 text-slate-800 shadow-lg border font-['Inter']">
-      <header className="mb-12">
-        <h1 className="text-5xl font-bold tracking-tighter">{personalInfo.name}</h1>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 mt-3">
-          <span>{personalInfo.email}</span>
-          <span>{personalInfo.phone}</span>
-          <span>{personalInfo.location}</span>
-          {personalInfo.linkedin && <a href={personalInfo.linkedin} className="text-blue-600 hover:underline">LinkedIn</a>}
-          {personalInfo.website && <a href={personalInfo.website} className="text-blue-600 hover:underline">Website</a>}
-          {personalInfo.github && <a href={personalInfo.github} className="text-blue-600 hover:underline">GitHub</a>}
+    <div id="cv-preview-minimalist" className="bg-white p-10 text-slate-900 shadow-lg border font-sans">
+      <header className="mb-10">
+        <h1 className="text-5xl font-light tracking-tight text-slate-900 mb-2">{personalInfo.name}</h1>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
+            <span>{personalInfo.email}</span>
+            <span>{personalInfo.phone}</span>
+            <span>{personalInfo.location}</span>
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500 mt-1">
+             {personalInfo.linkedin && <a href={personalInfo.linkedin} className="hover:text-slate-800 hover:underline">LinkedIn</a>}
+             {personalInfo.website && <a href={personalInfo.website} className="hover:text-slate-800 hover:underline">Website</a>}
+             {personalInfo.github && <a href={personalInfo.github} className="hover:text-slate-800 hover:underline">GitHub</a>}
         </div>
       </header>
 
-      <main>
-        <Section title="Profile">
-          <p className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-        </Section>
+      <main className="space-y-10">
+        <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Profile</h2>
+            <p className="text-base leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+        </section>
 
-        <Section title="Experience">
-          <div className="space-y-6">
-            {cvData.experience.map((job, index) => (
-              <div key={index} className="grid grid-cols-4 gap-4">
-                <div className="col-span-1">
-                  <p className="text-sm font-semibold" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
-                </div>
-                <div className="col-span-3">
-                  <h3 className="text-base font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                  <p className="text-sm text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                  <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-sm">
-                    {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
-                  </ul>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-        
-        <Section title="Education">
-            {cvData.education.map((edu, index) => (
-                 <div key={index} className="grid grid-cols-4 gap-4">
-                    <div className="col-span-1">
-                        <p className="text-sm font-semibold" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
-                    </div>
-                    <div className="col-span-3">
-                        <h3 className="text-base font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                        <p className="text-sm text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                         {edu.description && (
-                            <p className="text-sm text-slate-500 mt-1" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />
+        <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Experience</h2>
+            <div className="space-y-8">
+                {cvData.experience.map((job, index) => (
+                    <div key={index} className="relative group">
+                        {isEditing && (
+                            <button
+                                onClick={() => handleDeleteExperience(index)}
+                                className="absolute -left-8 top-0 p-1.5 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-red-200 bg-white shadow-sm z-10"
+                                title="Delete this experience entry"
+                            >
+                                <Trash className="h-4 w-4" />
+                            </button>
                         )}
+                        <div className="flex justify-between items-baseline mb-1">
+                             <h3 className="text-lg font-medium text-slate-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                             <p className="text-sm text-slate-500 whitespace-nowrap ml-4" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                        </div>
+                        <p className="text-base text-slate-600 mb-2" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                        <ul className="list-disc list-outside ml-5 space-y-1.5 text-slate-700">
+                            {job.responsibilities.map((resp, i) => (
+                                <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                            ))}
+                        </ul>
                     </div>
-                 </div>
-            ))}
-        </Section>
-        
-        <div className="grid grid-cols-2 gap-8">
-            <Section title="Skills">
-            <div className="flex flex-wrap gap-2">
-                {cvData.skills.map((skill, i) => <span key={i} className="bg-slate-100 text-slate-700 text-sm font-medium px-3 py-1 rounded-full">{skill}</span>)}
-            </div>
-            </Section>
-            {cvData.languages && cvData.languages.length > 0 && (
-                <Section title="Languages">
-                    <div className="flex flex-wrap gap-x-4 gap-y-2">
-                        {cvData.languages.map((lang, i) => <div key={i}><span className="font-semibold">{lang.name}:</span> {lang.proficiency}</div>)}
-                    </div>
-                </Section>
-            )}
-        </div>
-
-
-        {cvData.projects && cvData.projects.length > 0 && (
-          <Section title="Projects">
-             <div className="space-y-6">
-                {cvData.projects.map((proj, index) => (
-                <div key={index}>
-                    <h3 className="text-base font-bold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                    <p className="text-sm mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                    {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
-                </div>
                 ))}
             </div>
-          </Section>
+        </section>
+
+        {cvData.education && cvData.education.length > 0 && (
+            <section>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Education</h2>
+                <div className="space-y-4">
+                    {cvData.education.map((edu, index) => (
+                        <div key={index}>
+                            <div className="flex justify-between items-baseline">
+                                <h3 className="text-base font-medium text-slate-900" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
+                                <p className="text-sm text-slate-500 whitespace-nowrap ml-4" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                            </div>
+                            <p className="text-base text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                             {edu.description && (
+                                <p className="text-sm text-slate-500 mt-1" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
+        <section>
+             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Skills</h2>
+             <div className="flex flex-wrap gap-2">
+                 {cvData.skills.map((skill, i) => (
+                     <span key={i} className="text-sm text-slate-700 bg-slate-100 px-2 py-1 rounded-md">{skill}</span>
+                 ))}
+             </div>
+        </section>
+
+        {cvData.languages && cvData.languages.length > 0 && (
+            <section>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Languages</h2>
+                <div className="flex flex-wrap gap-4">
+                    {cvData.languages.map((lang, index) => (
+                        <div key={index} className="text-sm">
+                            <span className="font-medium text-slate-900" {...editableProps(['languages', index, 'name'])}>{lang.name}</span>
+                            <span className="text-slate-500"> - </span>
+                            <span className="text-slate-600" {...editableProps(['languages', index, 'proficiency'])}>{lang.proficiency}</span>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
+        {cvData.projects && cvData.projects.length > 0 && (
+            <section>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Projects</h2>
+                <div className="space-y-6">
+                    {cvData.projects.map((proj, index) => (
+                         <div key={index}>
+                            <div className="flex items-baseline gap-2 mb-1">
+                                <h3 className="text-lg font-medium text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                                {proj.link && <a href={proj.link} className="text-xs text-blue-600 hover:underline" {...editableProps(['projects', index, 'link'])}>[Link]</a>}
+                            </div>
+                            <p className="text-base text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
+        {cvData.publications && cvData.publications.length > 0 && (
+            <section>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Publications</h2>
+                <div className="space-y-6">
+                    {cvData.publications.map((pub, index) => (
+                         <div key={index}>
+                            <h3 className="text-lg font-medium text-slate-900" {...editableProps(['publications', index, 'title'])}>{pub.title}</h3>
+                            <p className="text-sm text-slate-600" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</p>
+                            <p className="text-sm text-slate-500 italic">
+                                <span {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </section>
         )}
       </main>
-      
       {jobDescriptionForATS && (
           <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
             {jobDescriptionForATS}

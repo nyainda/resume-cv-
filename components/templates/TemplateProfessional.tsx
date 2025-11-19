@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
+import { Trash } from '../icons';
 
 interface TemplateProps {
   cvData: CVData;
@@ -20,6 +21,12 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     current[path[path.length - 1]] = value;
     onDataChange(newCvData);
   }, [cvData, onDataChange]);
+
+  const handleDeleteExperience = (index: number) => {
+    const newCvData = JSON.parse(JSON.stringify(cvData));
+    newCvData.experience.splice(index, 1);
+    onDataChange(newCvData);
+  };
 
   const editableProps = (path: (string | number)[]) => isEditing ? {
     contentEditable: true,
@@ -56,7 +63,16 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Experience</h2>
           <div className="space-y-8">
             {cvData.experience.map((job, index) => (
-              <div key={index}>
+              <div key={index} className="relative group">
+                {isEditing && (
+                    <button
+                        onClick={() => handleDeleteExperience(index)}
+                        className="absolute -left-10 top-0 p-2 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-red-200 bg-white shadow-sm z-10"
+                        title="Delete this experience entry"
+                    >
+                        <Trash className="h-4 w-4" />
+                    </button>
+                )}
                 <div className="flex justify-between items-baseline mb-1">
                   <h3 className="text-lg font-bold text-slate-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                   <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>

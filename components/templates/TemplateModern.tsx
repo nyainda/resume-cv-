@@ -1,5 +1,7 @@
+
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
+import { Trash } from '../icons';
 
 interface TemplateProps {
   cvData: CVData;
@@ -20,6 +22,12 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
     current[path[path.length - 1]] = value;
     onDataChange(newCvData);
   }, [cvData, onDataChange]);
+
+  const handleDeleteExperience = (index: number) => {
+    const newCvData = JSON.parse(JSON.stringify(cvData));
+    newCvData.experience.splice(index, 1);
+    onDataChange(newCvData);
+  };
 
   const editableProps = (path: (string | number)[]) => isEditing ? {
     contentEditable: true,
@@ -92,7 +100,16 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
               <h2 className="text-lg font-bold uppercase tracking-wider text-slate-600 border-b-2 border-slate-200 pb-1 mb-3">Experience</h2>
               <div className="space-y-6">
                 {cvData.experience.map((job, index) => (
-                  <div key={index}>
+                  <div key={index} className="relative group">
+                    {isEditing && (
+                        <button
+                            onClick={() => handleDeleteExperience(index)}
+                            className="absolute -left-8 top-0 p-1.5 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-red-200 bg-white shadow-sm z-10"
+                            title="Delete this experience entry"
+                        >
+                            <Trash className="h-4 w-4" />
+                        </button>
+                    )}
                     <div className="flex justify-between items-baseline">
                       <h3 className="text-base font-semibold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                       <p className="text-xs font-medium text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
@@ -115,6 +132,23 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
                         <h3 className="text-base font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                         <p className="text-sm" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                         {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
+                    </div>
+                    ))}
+                </div>
+              </section>
+            )}
+
+             {cvData.publications && cvData.publications.length > 0 && (
+              <section>
+                <h2 className="text-lg font-bold uppercase tracking-wider text-slate-600 border-b-2 border-slate-200 pb-1 mb-3">Publications</h2>
+                <div className="space-y-5">
+                    {cvData.publications.map((pub, index) => (
+                    <div key={index}>
+                        <h3 className="text-base font-semibold" {...editableProps(['publications', index, 'title'])}>{pub.title}</h3>
+                        <p className="text-sm text-slate-600" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</p>
+                        <p className="text-sm italic text-slate-500">
+                            <span {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>
+                        </p>
                     </div>
                     ))}
                 </div>

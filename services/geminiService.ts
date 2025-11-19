@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from '@google/genai';
+
+import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, JobAnalysisResult, ApiSettings, AIProvider } from '../types';
 
 function getAiClient(): GoogleGenAI {
@@ -14,12 +15,32 @@ function getAiClient(): GoogleGenAI {
     }
 
     if (settings.provider !== 'gemini') {
-        throw new Error(`The selected provider '${settings.provider}' is not yet supported. Please select 'gemini' in the settings.`);
+        // We currently only support Gemini directly in this service.
+        // If the user selects another provider, this service would need to be adapted or a different service used.
+        throw new Error(`The selected provider '${settings.provider}' is not yet supported for generation. Please select 'gemini' in the settings.`);
     }
     
     // Remove quotes from key if it's stored as a JSON string
     const cleanedApiKey = settings.apiKey.replace(/^"|"$/g, '');
     return new GoogleGenAI({ apiKey: cleanedApiKey });
+}
+
+// Retry logic for "Model Overloaded" (503) or Rate Limit (429) errors
+async function retryOperation<T>(operation: () => Promise<T>, retries = 3, delayMs = 2000): Promise<T> {
+    try {
+        return await operation();
+    } catch (error: any) {
+        const errorMessage = error?.message || '';
+        const isOverloaded = errorMessage.includes('503') || errorMessage.includes('Overloaded');
+        const isRateLimit = errorMessage.includes('429');
+
+        if (retries > 0 && (isOverloaded || isRateLimit)) {
+            console.warn(`Model overloaded or rate limited. Retrying... ${retries} attempts left. Waiting ${delayMs}ms.`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            return retryOperation(operation, retries - 1, delayMs * 2); // Exponential backoff
+        }
+        throw error;
+    }
 }
 
 const userProfileSchema = {
@@ -135,7 +156,7 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         8. Return ONLY the JSON object that adheres to the schema. Do not include markdown formatting.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
@@ -143,9 +164,9 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
             responseSchema: userProfileSchema,
             temperature: 0.2,
         }
-    });
+    }));
 
-    const text = response.text.trim();
+    const text = (response.text || "").trim();
     const profileData: UserProfile = JSON.parse(text);
     profileData.projects = profileData.projects || [];
     profileData.education = profileData.education || [];
@@ -291,7 +312,7 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             required: ["summary", "experience", "skills", "education"]
         };
     } else { // 'job' purpose
-         let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any new jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job, making sure to include the "Must-Include Keywords". Include ALL of the user's original experiences.`;
+         let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job.`;
         if (enableEnhancements) {
             experienceInstruction = `3.  **Generated Experience**: Invent ONE or TWO additional, highly plausible, fictional work experience entries that would make the user the IDEAL candidate for this role. These entries should be creative, impressive, and directly relevant to the job description, heavily featuring the "Must-Include Keywords". For the company names, use real or plausible-sounding companies (e.g., startups, consultancies) or create fictional names that sound authentic.`;
         }
@@ -323,13 +344,13 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
         };
     }
 
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: mainPromptInstruction,
       config: { responseMimeType: 'application/json', responseSchema: cvDataSchema, temperature: 0.6 }
-    });
+    }));
 
-    const cvData: CVData = JSON.parse(response.text.trim());
+    const cvData: CVData = JSON.parse((response.text || "").trim());
 
     // Sort experience in reverse chronological order
     cvData.experience.sort((a, b) => {
@@ -373,11 +394,11 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
         },
     };
 
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [filePart, { text: prompt }] },
-    });
-    return response.text;
+    }));
+    return response.text || "";
 };
 
 export const extractTextFromImage = async (base64Image: string, mimeType: string): Promise<string> => {
@@ -392,12 +413,12 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
     };
     const textPart = { text: prompt };
 
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [imagePart, textPart] },
-    });
+    }));
     
-    return response.text;
+    return response.text || "";
 };
 
 export const generateCoverLetter = async (profile: UserProfile, jobDescription: string): Promise<string> => {
@@ -421,17 +442,20 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
         7. Return only the plain text of the cover letter, with appropriate line breaks. Do not return markdown or any other formatting.
     `;
     
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-    });
-    return response.text;
+    }));
+    return response.text || "";
 };
 
 export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
     const ai = getAiClient();
     const prompt = `
-        Analyze the following job description. Extract the top 10 most important technical keywords (specific technologies, tools, platforms, methodologies like Agile) and the top 10 essential soft skills (communication, leadership, etc.). Prioritize keywords that are explicitly mentioned or strongly implied as requirements.
+        Analyze the following job description. 
+        1. Extract the top 10 most important technical keywords (specific technologies, tools, platforms, methodologies like Agile).
+        2. Extract the top 10 essential soft skills (communication, leadership, etc.).
+        3. Identify the name of the Company or Organization hiring. If it is not explicitly stated, try to infer it. If impossible, return an empty string.
 
         JOB DESCRIPTION:
         ${jobDescription}
@@ -451,12 +475,16 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
                 type: Type.ARRAY,
                 description: "Top 10 most important soft skills or abilities.",
                 items: { type: Type.STRING }
+            },
+            companyName: {
+                type: Type.STRING,
+                description: "The name of the company hiring, if found."
             }
         },
         required: ["keywords", "skills"]
     };
     
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
@@ -464,8 +492,8 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
             responseSchema: schema,
             temperature: 0.1,
         }
-    });
-    return JSON.parse(response.text.trim());
+    }));
+    return JSON.parse((response.text || "").trim());
 };
 
 export const generateEnhancedSummary = async (profile: UserProfile): Promise<string> => {
@@ -475,11 +503,11 @@ export const generateEnhancedSummary = async (profile: UserProfile): Promise<str
       USER PROFILE:
       ${JSON.stringify(profile, null, 2)}
     `;
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-    });
-    return response.text;
+    }));
+    return response.text || "";
 };
 
 export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string): Promise<string> => {
@@ -527,11 +555,11 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
 
       **Output:**
     `;
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-    });
-    return response.text.trim().replace(/^- /gm, '• ');
+    }));
+    return (response.text || "").trim().replace(/^- /gm, '• ');
 };
 
 export const generateEnhancedProjectDescription = async (projectName: string, currentDescription: string): Promise<string> => {
@@ -566,9 +594,9 @@ export const generateEnhancedProjectDescription = async (projectName: string, cu
 
       **Output:**
     `;
-    const response = await ai.models.generateContent({
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
-    });
-    return response.text;
+    }));
+    return response.text || "";
 };
