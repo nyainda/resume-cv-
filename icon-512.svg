@@ -1,5 +1,21 @@
-<svg width="512" height="512" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <rect width="24" height="24" rx="4" fill="#2563eb"/>
-    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" fill="#fff" stroke="#2563eb" stroke-width="1"/>
-    <path d="M9.5 12l1.5 3 3-1.5-3-1.5 1.5-3-1.5 3-3 1.5 3 1.5z" fill="#FFD700"/>
+<svg width="60" height="60" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Document -->
+  <rect x="10" y="6" width="36" height="52" rx="4" ry="4" 
+        fill="none" stroke="#2A74FF" stroke-width="3"/>
+
+  <!-- Fold corner -->
+  <polyline points="46,6 46,20 32,20" 
+            fill="none" stroke="#2A74FF" stroke-width="3"/>
+
+  <!-- Name Line -->
+  <line x1="16" y1="26" x2="40" y2="26" stroke="#2A74FF" stroke-width="3"/>
+
+  <!-- Small text lines -->
+  <line x1="16" y1="34" x2="36" y2="34" stroke="#2A74FF" stroke-width="3"/>
+  <line x1="16" y1="42" x2="36" y2="42" stroke="#2A74FF" stroke-width="3"/>
+
+  <!-- Green check badge -->
+  <circle cx="48" cy="46" r="10" fill="none" stroke="#00B05A" stroke-width="3"/>
+  <polyline points="43,46 47,50 54,42" 
+            fill="none" stroke="#00B05A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
