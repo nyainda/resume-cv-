@@ -382,7 +382,7 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
 
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
       // IMPROVEMENT: Use the more capable model for this complex, high-value task.
-      model: 'gemini-2.5-pro',
+      model: 'gemini-2.5-flash',
       config: { 
           responseMimeType: 'application/json', 
           responseSchema: cvDataSchema, 
@@ -494,7 +494,7 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
     
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         // IMPROVEMENT: Use PRO model for better creative writing and tone.
-        model: 'gemini-2.5-pro',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
     }));
