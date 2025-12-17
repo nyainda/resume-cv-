@@ -1,80 +1,57 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, JobAnalysisResult, ApiSettings } from '../types';
 
-// --- System-Level Constants for AI Control (NEW) ---
-// Define a powerful, consistent persona for the AI across all tasks
+// --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-    You are an elite, highly specialized AI consultant for career services. 
-    Your responses must be meticulously accurate, professional, and adhere strictly to all formatting and schema requirements. 
-    You prioritize clarity, impact, and strategic keyword integration in all generated text. 
-    You will never include any commentary, explanations, or extraneous text outside of the requested JSON or plain text output.
+You are an elite AI career consultant. Generate ONLY JSON or plain text outputs. 
+Strictly adhere to schemas. Never hallucinate data outside instructions.
 `;
 
 const SYSTEM_INSTRUCTION_PARSER = `
-    You are an expert, deterministic data extraction and parsing engine. 
-    Your only function is to convert raw, unstructured text into the requested structured JSON format. 
-    You must be meticulous in date standardization and schema compliance. 
-    You will never hallucinate or invent data unless explicitly instructed to do so (e.g., 'id' generation).
+You are an expert data parser. Convert unstructured text into accurate JSON. 
+Standardize dates. Never invent data unless instructed.
 `;
 
-// --- API Client Setup Improvements ---
-function getAiClient(): GoogleGenAI {
+// --- API Client Setup with Multi-Model Support ---
+function getAiClient(modelPreference: 'flash' | 'lite' | 'ultra-lite' = 'lite'): GoogleGenAI {
     let apiKey: string | undefined;
-    
-    // 1. Prioritize local storage settings
     const settingsString = localStorage.getItem('apiSettings');
     if (settingsString) {
         const settings: ApiSettings = JSON.parse(settingsString);
         if (settings.apiKey && settings.provider === 'gemini') {
-            // Remove quotes from key if it's stored as a JSON string
             apiKey = settings.apiKey.replace(/^"|"$/g, '');
         } else if (settings.provider !== 'gemini') {
-            throw new Error(`The selected provider '${settings.provider}' is not yet supported. Please select 'gemini' in the settings.`);
+            throw new Error(`The selected provider '${settings.provider}' is not supported. Use 'gemini'.`);
         }
     }
-    
-    // 2. Fallback to environment variable (for robustness in different deployment environments)
     if (!apiKey && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
         apiKey = process.env.GEMINI_API_KEY;
     }
-    
-    if (!apiKey) {
-        throw new Error("API key not found. Please set your API key in the settings or environment variable.");
-    }
-
+    if (!apiKey) throw new Error("API key not found.");
     return new GoogleGenAI({ apiKey });
 }
 
-// --- Robust Retry Logic Improvements ---
-// Added a specific error type to catch, although the SDK uses generic Errors.
-// Improved error identification to check for status codes within the error message.
+// --- Retry Logic ---
 async function retryOperation<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {
-        const errorMessage = error?.message || '';
-        const status = error?.status; // Check for a formal status property if the SDK provides it
-        
-        // Robust check for 503 or 429 in message or status code
-        const isTransientError = status === 503 || status === 429 || 
-                                 errorMessage.includes('503') || errorMessage.includes('Overloaded') || 
-                                 errorMessage.includes('429') || errorMessage.includes('Rate Limit');
+        const msg = error?.message || '';
+        const status = error?.status;
+        const isTransient = status === 503 || status === 429 || 
+            msg.includes('503') || msg.includes('Overloaded') || 
+            msg.includes('429') || msg.includes('Rate Limit');
 
-        if (retries > 0 && isTransientError) {
-            const currentDelay = delayMs;
-            console.warn(`[Transient Error] Model overloaded or rate limited (${status || errorMessage.substring(0, 50)}). Retrying in ${currentDelay}ms... ${retries} attempts left.`);
-            await new Promise(resolve => setTimeout(resolve, currentDelay));
-            return retryOperation(operation, retries - 1, delayMs * 2); // Exponential backoff
+        if (retries > 0 && isTransient) {
+            await new Promise(r => setTimeout(r, delayMs));
+            return retryOperation(operation, retries - 1, delayMs * 2);
         }
-        
-        // Throw the original error if it's not a transient one or no retries left
-        console.error(`Operation failed after ${4 - retries} attempts. Final Error:`, error);
         throw error;
     }
 }
 
-// --- Schemas (Kept as-is, they are good) ---
-const userProfileSchema = { /* ... (Schema is unchanged for brevity) ... */
+// --- User Profile Schema ---
+const userProfileSchema = {
     type: Type.OBJECT,
     properties: {
         personalInfo: {
@@ -96,16 +73,230 @@ const userProfileSchema = { /* ... (Schema is unchanged for brevity) ... */
             items: {
                 type: Type.OBJECT,
                 properties: {
-                    id: { type: Type.STRING, description: "A unique identifier, can be a timestamp or random string." },
+                    id: { type: Type.STRING },
                     company: { type: Type.STRING },
                     jobTitle: { type: Type.STRING },
-                    startDate: { type: Type.STRING, description: "YYYY-MM-DD format" },
-                    endDate: { type: Type.STRING, description: "YYYY-MM-DD format, or 'Present'" },
-                    responsibilities: { type: Type.STRING, description: "A paragraph or bullet points describing the role." },
+                    startDate: { type: Type.STRING },
+                    endDate: { type: Type.STRING },
+                    responsibilities: { type: Type.STRING },
                 },
                 required: ["id", "company", "jobTitle", "startDate", "responsibilities"]
             }
         },
+        education: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    id: { type: Type.STRING },
+                    degree: { type: Type.STRING },
+                    school: { type: Type.STRING },
+                    graduationYear: { type: Type.STRING },
+                },
+                required: ["id", "degree", "school"]
+            }
+        },
+        skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+        projects: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    id: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    link: { type: Type.STRING },
+                },
+                required: ["id", "name", "description"]
+            }
+        },
+        languages: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    id: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    proficiency: { type: Type.STRING },
+                },
+                required: ["id", "name", "proficiency"]
+            }
+        }
+    },
+    required: ["personalInfo", "summary", "workExperience", "education", "skills"]
+};
+
+// --- Core Functions ---
+export const generateProfile = async (rawText: string): Promise<UserProfile> => {
+    const ai = getAiClient('lite'); // Use lite for faster throughput
+
+    const prompt = `
+Analyze the following text and my GitHub account 'nyainda' to build a professional profile.
+- Include only real data.
+- Populate 'projects', 'skills', 'workExperience', 'education', 'languages'.
+- For projects from GitHub, take top 5 most relevant repos.
+- For work experience, if adding fictional roles, only use plausible Kenyan companies.
+- Standardize dates to YYYY-MM-DD.
+- Return ONLY JSON adhering to schema.
+RAW TEXT:
+${rawText}
+`;
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: userProfileSchema,
+            temperature: 0.1,
+            systemInstruction: SYSTEM_INSTRUCTION_PARSER
+        },
+        contents: prompt
+    }));
+
+    const profile: UserProfile = JSON.parse((response.text || "").trim());
+    return profile;
+};
+
+export const generateCV = async (profile: UserProfile, contextDescription: string, enableEnhancements: boolean, purpose: 'job' | 'academic'): Promise<CVData> => {
+    const ai = getAiClient('lite');
+
+    let keywordInstruction = '';
+    try {
+        const jobAnalysis = await analyzeJobDescriptionForKeywords(contextDescription);
+        const allKeywords = [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])];
+        if (allKeywords.length) {
+            keywordInstruction = `Integrate these keywords naturally throughout the CV: ${allKeywords.join(', ')}`;
+        }
+    } catch {}
+
+    const githubInstruction = profile.personalInfo.github ? `Use GitHub 'nyainda' for enriching projects and skills.` : '';
+
+    const prompt = `
+Create a ${purpose === 'academic' ? 'tailored academic CV' : 'professional job CV'}.
+User Profile: ${JSON.stringify(profile, null, 2)}
+Context: ${contextDescription}
+${keywordInstruction}
+${githubInstruction}
+- Standardize dates to YYYY-MM-DD.
+- Generate any fictional work experience only with Kenyan companies.
+- Return ONLY JSON adhering to schema.
+${enableEnhancements ? 'Include up to 2 highly plausible fictional roles (Kenyan companies only) if missing experience.' : ''}
+`;
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    summary: { type: Type.STRING },
+                    skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    education: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                    experience: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                    projects: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                },
+                required: ["summary", "experience", "skills", "education"]
+            },
+            temperature: 0.6,
+            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL
+        },
+        contents: prompt
+    }));
+
+    const cvData: CVData = JSON.parse((response.text || "").trim());
+
+    // Sort experience by endDate
+    cvData.experience.sort((a, b) => {
+        const parseDate = (s: string) => s?.toLowerCase() === 'present' ? new Date() : new Date(s);
+        return parseDate(b.endDate).getTime() - parseDate(a.endDate).getTime();
+    });
+
+    return cvData;
+};
+
+// --- Utility Functions ---
+export const generateCoverLetter = async (profile: UserProfile, jobDescription: string): Promise<string> => {
+    const ai = getAiClient('lite');
+    const prompt = `
+Write a professional cover letter using the profile and job description.
+- Tone: confident, professional, enthusiastic.
+- Use experiences, achievements, and skills relevant to the job.
+- Integrate keywords from job description.
+- Return ONLY plain text.
+USER PROFILE: ${JSON.stringify(profile)}
+JOB DESCRIPTION: ${jobDescription}
+`;
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        contents: prompt,
+        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
+    }));
+    return response.text || '';
+};
+
+export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
+    const ai = getAiClient('lite');
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            companyName: { type: Type.STRING }
+        },
+        required: ["keywords", "skills"]
+    };
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        contents: jobDescription,
+        config: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.1, systemInstruction: SYSTEM_INSTRUCTION_PARSER }
+    }));
+    return JSON.parse((response.text || "").trim());
+};
+
+export const generateEnhancedSummary = async (profile: UserProfile): Promise<string> => {
+    const ai = getAiClient('lite');
+    const prompt = `Write a 2-4 sentence professional summary highlighting key strengths from the profile. Return only text.\n${JSON.stringify(profile, null, 2)}`;
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        contents: prompt,
+        config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
+    }));
+    return response.text || '';
+};
+
+export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string): Promise<string> => {
+    const ai = getAiClient('lite');
+    const prompt = `
+Generate 3-5 professional bullet points for Job Title: ${jobTitle} at ${company}.
+- Enhance responsibilities into quantified, achievement-oriented points.
+- Return ONLY bullet points starting with '•'.
+Current: "${currentResponsibilities}"
+`;
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        contents: prompt,
+        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
+    }));
+    return response.text?.trim().replace(/^- /gm, '• ') || '';
+};
+
+export const generateEnhancedProjectDescription = async (projectName: string, currentDescription: string): Promise<string> => {
+    const ai = getAiClient('lite');
+    const prompt = `
+Rewrite the project description professionally.
+- Include purpose, technologies, key outcomes.
+Project: ${projectName}
+Current: "${currentDescription}"
+Return only one paragraph.
+`;
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-lite',
+        contents: prompt,
+        config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
+    }));
+    return response.text || '';
+};        },
         education: {
             type: Type.ARRAY,
             items: {
