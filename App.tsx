@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { UserProfile, CVData, SavedCV, ApiSettings, TrackedApplication } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useToast } from './hooks/useToast';
+import { ToastContainer } from './components/ui/Toast';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SavedCVs from './components/SavedCVs';
@@ -16,6 +18,7 @@ const App: React.FC = () => {
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiSettings, setApiSettings] = useLocalStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
+  const toast = useToast();
 
   const handleProfileSave = (profile: UserProfile) => {
     setUserProfile(profile);
@@ -33,15 +36,17 @@ const App: React.FC = () => {
         purpose: purpose,
       };
       setSavedCVs(prev => [newSavedCV, ...prev]);
-      alert("CV Saved Successfully!");
+      toast.success('CV Saved Successfully!', `"${cvName}" has been saved to your library.`);
     }
   };
 
   const handleDeleteCV = useCallback((id: string) => {
+    const cvToDelete = savedCVs.find(cv => cv.id === id);
     if (window.confirm("Are you sure you want to delete this CV? This will not delete tracked applications using this CV.")) {
       setSavedCVs(prev => prev.filter(cv => cv.id !== id));
+      toast.success('CV Deleted', cvToDelete ? `"${cvToDelete.name}" has been removed.` : 'CV has been removed.');
     }
-  }, [setSavedCVs]);
+  }, [setSavedCVs, savedCVs, toast]);
 
   const handleLoadCV = useCallback((cvData: CVData) => {
     setCurrentCV(cvData);
@@ -63,22 +68,22 @@ const App: React.FC = () => {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-             {profileExists && (
-               <button 
-                  onClick={() => setIsEditingProfile(true)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
-                >
-                  <User className="h-4 w-4" />
-                  Edit Profile
-                </button>
-             )}
-              <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="p-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
-                aria-label="Settings"
+            {profileExists && (
+              <button
+                onClick={() => setIsEditingProfile(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
               >
-                <Settings className="h-5 w-5" />
+                <User className="h-4 w-4" />
+                Edit Profile
               </button>
+            )}
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </header>
@@ -91,20 +96,20 @@ const App: React.FC = () => {
               {profileExists && (
                 <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5">
                   <div className="flex items-center justify-between mb-4">
-                     <h2 className="text-lg font-semibold flex items-center gap-3"><User className="h-5 w-5 text-zinc-500" /> My Profile</h2>
-                     <button onClick={() => setIsEditingProfile(true)} className="text-indigo-600 hover:underline text-sm font-medium flex items-center gap-1"><Edit className="h-3 w-3" /> Edit</button>
+                    <h2 className="text-lg font-semibold flex items-center gap-3"><User className="h-5 w-5 text-zinc-500" /> My Profile</h2>
+                    <button onClick={() => setIsEditingProfile(true)} className="text-indigo-600 hover:underline text-sm font-medium flex items-center gap-1"><Edit className="h-3 w-3" /> Edit</button>
                   </div>
                   <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
-                     <p><strong>Name:</strong> {userProfile?.personalInfo.name}</p>
-                     <p><strong>Email:</strong> {userProfile?.personalInfo.email}</p>
+                    <p><strong>Name:</strong> {userProfile?.personalInfo.name}</p>
+                    <p><strong>Email:</strong> {userProfile?.personalInfo.email}</p>
                   </div>
                 </div>
               )}
-              
+
               <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5">
-                 <h2 className="text-lg font-semibold mb-4 flex items-center gap-3"><Target className="h-5 w-5 text-zinc-500" /> Application Tracker</h2>
-                 <p className="text-sm text-zinc-500 dark:text-zinc-400 -mt-2 mb-4">A simple tracker for your applications.</p>
-                 <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} />
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-3"><Target className="h-5 w-5 text-zinc-500" /> Application Tracker</h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 -mt-2 mb-4">A simple tracker for your applications.</p>
+                <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} />
               </div>
 
 
@@ -120,15 +125,15 @@ const App: React.FC = () => {
           {/* Main Content */}
           <div className="lg:col-span-8 xl:col-span-9">
             {!profileExists || isEditingProfile ? (
-              <ProfileForm 
-                existingProfile={userProfile} 
-                onSave={handleProfileSave} 
+              <ProfileForm
+                existingProfile={userProfile}
+                onSave={handleProfileSave}
                 onCancel={() => profileExists && setIsEditingProfile(false)}
                 apiKeySet={apiKeySet}
                 openSettings={() => setIsSettingsOpen(true)}
               />
             ) : (
-              <CVGenerator 
+              <CVGenerator
                 userProfile={userProfile}
                 currentCV={currentCV}
                 setCurrentCV={setCurrentCV}
@@ -140,13 +145,15 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      
-      <SettingsModal 
+
+      <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSave={setApiSettings}
         currentApiSettings={apiSettings}
       />
+
+      <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
     </div>
   );
 };

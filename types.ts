@@ -11,6 +11,7 @@ export interface PersonalInfo {
   linkedin: string;
   website: string;
   github: string;
+  photo?: string; // Base64 encoded image or URL
 }
 
 export interface WorkExperience {
@@ -23,7 +24,7 @@ export interface WorkExperience {
 }
 
 export interface Education {
-  id:string;
+  id: string;
   degree: string;
   school: string;
   graduationYear: string;
@@ -55,48 +56,48 @@ export interface UserProfile {
 // --- Generated CV Data Structure ---
 
 export interface CVExperience {
-    company: string;
-    jobTitle: string;
-    dates: string;
-    startDate: string; // For sorting
-    endDate: string; // For sorting
-    responsibilities: string[];
+  company: string;
+  jobTitle: string;
+  dates: string;
+  startDate: string; // For sorting
+  endDate: string; // For sorting
+  responsibilities: string[];
 }
 
 export interface CVEducation {
-    degree: string;
-    school: string;
-    year: string;
-    description?: string;
+  degree: string;
+  school: string;
+  year: string;
+  description?: string;
 }
 
 export interface CVProject {
-    name: string;
-    description: string;
-    link?: string;
+  name: string;
+  description: string;
+  link?: string;
 }
 
 export interface CVLanguage {
-    name: string;
-    proficiency: string;
+  name: string;
+  proficiency: string;
 }
 
 export interface CVPublication {
-    title: string;
-    authors: string[];
-    journal: string;
-    year: string;
-    link?: string;
+  title: string;
+  authors: string[];
+  journal: string;
+  year: string;
+  link?: string;
 }
 
 export interface CVData {
-    summary: string;
-    skills: string[];
-    experience: CVExperience[];
-    education: CVEducation[];
-    projects?: CVProject[];
-    languages?: CVLanguage[];
-    publications?: CVPublication[];
+  summary: string;
+  skills: string[];
+  experience: CVExperience[];
+  education: CVEducation[];
+  projects?: CVProject[];
+  languages?: CVLanguage[];
+  publications?: CVPublication[];
 }
 
 
@@ -120,20 +121,20 @@ export interface ApiSettings {
 export type ApplicationStatus = 'Wishlist' | 'Applied' | 'Interviewing' | 'Offer' | 'Rejected';
 
 export interface TrackedApplication {
-    id: string;
-    savedCvId: string;
-    savedCvName: string;
-    roleTitle: string;
-    company: string;
-    status: ApplicationStatus;
-    dateApplied: string;
-    notes: string;
+  id: string;
+  savedCvId: string;
+  savedCvName: string;
+  roleTitle: string;
+  company: string;
+  status: ApplicationStatus;
+  dateApplied: string;
+  notes: string;
 }
 
 
 // --- Templates and Fonts ---
 
-export type TemplateName = 
+export type TemplateName =
   | 'professional'
   | 'modern'
   | 'minimalist'
@@ -151,38 +152,38 @@ export type TemplateName =
   | 'classic';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
-    professional: 'Professional',
-    modern: 'Modern',
-    'software-engineer': 'Tech',
-    minimalist: 'Minimalist',
-    corporate: 'Corporate',
-    elegant: 'Elegant',
-    'modern-tech': 'Modern Tech',
-    'twoColumnBlue': 'Two Column',
-    creative: 'Creative',
-    timeline: 'Timeline',
-    executive: 'Executive',
-    technical: 'Technical',
-    compact: 'Compact',
-    infographic: 'Infographic',
-    classic: 'Classic',
+  professional: 'Professional',
+  modern: 'Modern',
+  'software-engineer': 'Tech',
+  minimalist: 'Minimalist',
+  corporate: 'Corporate',
+  elegant: 'Elegant',
+  'modern-tech': 'Modern Tech',
+  'twoColumnBlue': 'Two Column',
+  creative: 'Creative',
+  timeline: 'Timeline',
+  executive: 'Executive',
+  technical: 'Technical',
+  compact: 'Compact',
+  infographic: 'Infographic',
+  classic: 'Classic',
 };
 
 export type FontName = 'inter' | 'lora' | 'roboto-mono' | 'helvetica' | 'times-new-roman';
 
 export const fontDisplayNames: Record<FontName, string> = {
-    'inter': 'Inter (Modern Sans)',
-    'helvetica': 'Helvetica (Classic Sans)',
-    'lora': 'Lora (Elegant Serif)',
-    'times-new-roman': 'Times New Roman (Formal Serif)',
-    'roboto-mono': 'Roboto Mono (Monospace)',
+  'inter': 'Inter (Modern Sans)',
+  'helvetica': 'Helvetica (Classic Sans)',
+  'lora': 'Lora (Elegant Serif)',
+  'times-new-roman': 'Times New Roman (Formal Serif)',
+  'roboto-mono': 'Roboto Mono (Monospace)',
 };
 
 
 // --- API Service Payloads ---
 
 export interface JobAnalysisResult {
-    keywords: string[];
-    skills: string[];
-    companyName?: string;
+  keywords: string[];
+  skills: string[];
+  companyName?: string;
 }

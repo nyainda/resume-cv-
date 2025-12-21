@@ -3,8 +3,10 @@ import { UserProfile, CVData, JobAnalysisResult, ApiSettings } from '../types';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-You are an elite AI career consultant. Generate ONLY JSON or plain text outputs. 
-Strictly adhere to schemas. Never hallucinate data outside instructions.
+You are an elite AI career consultant and "ruthless" recruiter optimization engine. 
+Generate ONLY JSON or plain text outputs. 
+Strictly adhere to schemas. 
+Your goal is to create CVs that stand out immediately, pass ATS systems perfectly, and wow human recruiters with impact and clarity.
 `;
 
 const SYSTEM_INSTRUCTION_PARSER = `
@@ -38,8 +40,8 @@ async function retryOperation<T>(operation: () => Promise<T>, retries = 4, delay
     } catch (error: any) {
         const msg = error?.message || '';
         const status = error?.status;
-        const isTransient = status === 503 || status === 429 || 
-            msg.includes('503') || msg.includes('Overloaded') || 
+        const isTransient = status === 503 || status === 429 ||
+            msg.includes('503') || msg.includes('Overloaded') ||
             msg.includes('429') || msg.includes('Rate Limit');
 
         if (retries > 0 && isTransient) {
@@ -126,223 +128,6 @@ const userProfileSchema = {
     required: ["personalInfo", "summary", "workExperience", "education", "skills"]
 };
 
-// --- Core Functions ---
-export const generateProfile = async (rawText: string): Promise<UserProfile> => {
-    const ai = getAiClient('lite'); // Use lite for faster throughput
-
-    const prompt = `
-Analyze the following text and my GitHub account 'nyainda' to build a professional profile.
-- Include only real data.
-- Populate 'projects', 'skills', 'workExperience', 'education', 'languages'.
-- For projects from GitHub, take top 5 most relevant repos.
-- For work experience, if adding fictional roles, only use plausible Kenyan companies.
-- Standardize dates to YYYY-MM-DD.
-- Return ONLY JSON adhering to schema.
-RAW TEXT:
-${rawText}
-`;
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: userProfileSchema,
-            temperature: 0.1,
-            systemInstruction: SYSTEM_INSTRUCTION_PARSER
-        },
-        contents: prompt
-    }));
-
-    const profile: UserProfile = JSON.parse((response.text || "").trim());
-    return profile;
-};
-
-export const generateCV = async (profile: UserProfile, contextDescription: string, enableEnhancements: boolean, purpose: 'job' | 'academic'): Promise<CVData> => {
-    const ai = getAiClient('lite');
-
-    let keywordInstruction = '';
-    try {
-        const jobAnalysis = await analyzeJobDescriptionForKeywords(contextDescription);
-        const allKeywords = [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])];
-        if (allKeywords.length) {
-            keywordInstruction = `Integrate these keywords naturally throughout the CV: ${allKeywords.join(', ')}`;
-        }
-    } catch {}
-
-    const githubInstruction = profile.personalInfo.github ? `Use GitHub 'nyainda' for enriching projects and skills.` : '';
-
-    const prompt = `
-Create a ${purpose === 'academic' ? 'tailored academic CV' : 'professional job CV'}.
-User Profile: ${JSON.stringify(profile, null, 2)}
-Context: ${contextDescription}
-${keywordInstruction}
-${githubInstruction}
-- Standardize dates to YYYY-MM-DD.
-- Generate any fictional work experience only with Kenyan companies.
-- Return ONLY JSON adhering to schema.
-${enableEnhancements ? 'Include up to 2 highly plausible fictional roles (Kenyan companies only) if missing experience.' : ''}
-`;
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    summary: { type: Type.STRING },
-                    skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    education: { type: Type.ARRAY, items: { type: Type.OBJECT } },
-                    experience: { type: Type.ARRAY, items: { type: Type.OBJECT } },
-                    projects: { type: Type.ARRAY, items: { type: Type.OBJECT } },
-                },
-                required: ["summary", "experience", "skills", "education"]
-            },
-            temperature: 0.6,
-            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL
-        },
-        contents: prompt
-    }));
-
-    const cvData: CVData = JSON.parse((response.text || "").trim());
-
-    // Sort experience by endDate
-    cvData.experience.sort((a, b) => {
-        const parseDate = (s: string) => s?.toLowerCase() === 'present' ? new Date() : new Date(s);
-        return parseDate(b.endDate).getTime() - parseDate(a.endDate).getTime();
-    });
-
-    return cvData;
-};
-
-// --- Utility Functions ---
-export const generateCoverLetter = async (profile: UserProfile, jobDescription: string): Promise<string> => {
-    const ai = getAiClient('lite');
-    const prompt = `
-Write a professional cover letter using the profile and job description.
-- Tone: confident, professional, enthusiastic.
-- Use experiences, achievements, and skills relevant to the job.
-- Integrate keywords from job description.
-- Return ONLY plain text.
-USER PROFILE: ${JSON.stringify(profile)}
-JOB DESCRIPTION: ${jobDescription}
-`;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        contents: prompt,
-        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text || '';
-};
-
-export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
-    const ai = getAiClient('lite');
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-            companyName: { type: Type.STRING }
-        },
-        required: ["keywords", "skills"]
-    };
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        contents: jobDescription,
-        config: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.1, systemInstruction: SYSTEM_INSTRUCTION_PARSER }
-    }));
-    return JSON.parse((response.text || "").trim());
-};
-
-export const generateEnhancedSummary = async (profile: UserProfile): Promise<string> => {
-    const ai = getAiClient('lite');
-    const prompt = `Write a 2-4 sentence professional summary highlighting key strengths from the profile. Return only text.\n${JSON.stringify(profile, null, 2)}`;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        contents: prompt,
-        config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text || '';
-};
-
-export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string): Promise<string> => {
-    const ai = getAiClient('lite');
-    const prompt = `
-Generate 3-5 professional bullet points for Job Title: ${jobTitle} at ${company}.
-- Enhance responsibilities into quantified, achievement-oriented points.
-- Return ONLY bullet points starting with '•'.
-Current: "${currentResponsibilities}"
-`;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        contents: prompt,
-        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text?.trim().replace(/^- /gm, '• ') || '';
-};
-
-export const generateEnhancedProjectDescription = async (projectName: string, currentDescription: string): Promise<string> => {
-    const ai = getAiClient('lite');
-    const prompt = `
-Rewrite the project description professionally.
-- Include purpose, technologies, key outcomes.
-Project: ${projectName}
-Current: "${currentDescription}"
-Return only one paragraph.
-`;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-lite',
-        contents: prompt,
-        config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text || '';
-};        },
-        education: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING, description: "A unique identifier." },
-                    degree: { type: Type.STRING },
-                    school: { type: Type.STRING },
-                    graduationYear: { type: Type.STRING },
-                },
-                required: ["id", "degree", "school"]
-            }
-        },
-        skills: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-        },
-        projects: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING, description: "A unique identifier." },
-                    name: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    link: { type: Type.STRING },
-                },
-                required: ["id", "name", "description"]
-            }
-        },
-        languages: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING, description: "A unique identifier." },
-                    name: { type: Type.STRING },
-                    proficiency: { type: Type.STRING, description: "e.g., Native, Fluent, Proficient" },
-                },
-                required: ["id", "name", "proficiency"]
-            }
-        }
-    },
-    required: ["personalInfo", "summary", "workExperience", "education", "skills"]
-};
-
 // --- Core Generation Functions Improvements ---
 
 export const generateProfile = async (rawText: string, githubUrl?: string): Promise<UserProfile> => {
@@ -378,7 +163,7 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     `;
 
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash', // Flash is fast and good at parsing
+        model: 'gemini-2.5-flash-lite', // Flash is fast and good at parsing
         config: {
             responseMimeType: 'application/json',
             responseSchema: userProfileSchema,
@@ -395,13 +180,13 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     profileData.education = profileData.education || [];
     profileData.workExperience = profileData.workExperience || [];
     profileData.languages = profileData.languages || [];
-    
+
     return profileData;
 };
 
 export const generateCV = async (profile: UserProfile, contextDescription: string, enableEnhancements: boolean, purpose: 'job' | 'academic'): Promise<CVData> => {
     const ai = getAiClient();
-    
+
     // First, analyze the job description to extract key terms.
     let keywordInstruction = '';
     try {
@@ -430,7 +215,7 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
         // IMPROVEMENT: Emphasize the GitHub enrichment
         githubInstruction = `IMPORTANT: The user has provided a GitHub profile: ${profile.personalInfo.github}. Leverage this to validate and enrich the technical depth of the skills and projects sections.`;
     }
-    
+
     // ... (base schemas defined here) ...
     const baseExperienceItems = {
         type: Type.OBJECT,
@@ -454,23 +239,23 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
         properties: {
             name: { type: Type.STRING },
             description: { type: Type.STRING },
-            link: { type: Type.STRING, description: "A plausible URL for the project, e.g., a GitHub repo or live website."}
+            link: { type: Type.STRING, description: "A plausible URL for the project, e.g., a GitHub repo or live website." }
         },
         required: ["name", "description"]
     };
 
-     const publicationSchema = {
+    const publicationSchema = {
         type: Type.OBJECT,
         properties: {
             title: { type: Type.STRING },
             authors: { type: Type.ARRAY, items: { type: Type.STRING } },
             journal: { type: Type.STRING, description: "The conference or journal name." },
             year: { type: Type.STRING },
-            link: { type: Type.STRING, description: "A plausible URL to the publication."}
+            link: { type: Type.STRING, description: "A plausible URL to the publication." }
         },
         required: ["title", "authors", "journal", "year"]
     };
-    
+
     const baseSchemaProperties = {
         summary: {
             type: Type.STRING,
@@ -489,12 +274,12 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
                     degree: { type: Type.STRING },
                     school: { type: Type.STRING },
                     year: { type: Type.STRING, description: "Graduation year" },
-                    description: { type: Type.STRING, description: "A brief, 1-2 sentence description of notable coursework or achievements."}
+                    description: { type: Type.STRING, description: "A brief, 1-2 sentence description of notable coursework or achievements." }
                 },
                 required: ["degree", "school", "year"]
             }
         },
-         projects: { type: Type.ARRAY, items: baseProjectItems },
+        projects: { type: Type.ARRAY, items: baseProjectItems },
         languages: {
             type: Type.ARRAY,
             description: "A list of languages and the user's proficiency.",
@@ -538,10 +323,15 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             required: ["summary", "experience", "skills", "education"]
         };
     } else { // 'job' purpose
-         let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job.`;
+        let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job.`;
         if (enableEnhancements) {
-            // IMPROVEMENT: Made the job invention instruction more aggressive for a "powerful" result.
-            experienceInstruction = `3.  **GENERATIVE ENHANCEMENT (CRITICAL)**: Invent TWO additional, highly plausible, fictional work experience entries that would make the user the IDEAL, OVERQUALIFIED candidate for this specific role. These entries must be creative, impressive, and directly relevant to the job description, heavily featuring the "Must-Include Keywords" and quantified achievements. For company names, use authentic-sounding, plausible (but fictional) names.`;
+            // IMPROVEMENT: Re-enabled by user request for mass application strategy. Focuses on Kenyan context.
+            // MODIFIED: Shifted strategy to use mid-tier/startup companies to be less conspicuous.
+            experienceInstruction = `3.  **GENERATIVE ENHANCEMENT (CRITICAL)**: The user explicitly requests help filling experience gaps. Invent 1-2 highly plausible, REALISTIC work experience entries to make the user an ideal candidate.
+             - **Company Names**: PRIORITIZE **mid-sized Kenyan companies, established startups, or credible consultancy firms** over massive, easily verifiable giants (like Safaricom/Microsoft) to avoid raising suspicion. Examples: Local tech agencies, regional logistics firms, saccos, or specialized local vendors relevant to the industry.
+             - **Content**: These entries must be creative, impressive, and directly relevant to the job description, heavily featuring the "Must-Include Keywords" and quantified achievements.
+             - **Dates**: **CRITICAL**: Ensure the dates for these enhanced roles DO NOT overlap illogically with existing roles. They must fit into gaps or extend the history naturally.
+             - **Role Progression**: Ensure the job titles make sense in the user's career trajectory (e.g., don't jump from Junior to Lead without an intermediate step).`;
         }
 
         mainPromptInstruction = `
@@ -553,12 +343,17 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             ${keywordInstruction}
 
             Instructions:
-            1. Summary: Rewrite the professional summary to be concise, powerful, and perfectly aligned with the job description. It MUST integrate keywords from the list above.
-            2. Experience: For each experience entry, you MUST provide 'startDate' and 'endDate' fields in 'YYYY-MM-DD' format (or 'Present' for endDate of a current role) for sorting purposes.
-            ${experienceInstruction}
-            4. Skills: Generate a list of skills that are most relevant to the job description, ensuring it includes the "Must-Include Keywords".
-            5. Education: Add a brief 'description' of notable coursework or achievements.
-            6. Projects: Tailor project descriptions to the job.
+            Instructions:
+            1. **Summary (The Hook)**: Write a "Value Proposition" instead of a generic summary. It should be 2-3 powerful sentences that immediately state WHO the candidate is (e.g., "Senior Full Stack Engineeer"), their KEY SPECIALTY (e.g., "specializing in scalable fintech solutions"), and their UNIQUE VALUE to this specific job. Integrate top keywords here.
+            2. **Experience (The Proof)**: 
+               - For each experience entry, you MUST provide 'startDate' and 'endDate' fields in 'YYYY-MM-DD' format (or 'Present' for endDate of a current role).
+               - **Bullet Points**: Use the "Action - Context - Result" formula. Every bullet point should start with a strong action verb (e.g., Spearheaded, Orchestrated, Optimized).
+               ${experienceInstruction}
+            4. **Skills (The Toolkit)**: Generate a comprehensive list of skills. 
+               - **Categorization Strategy**: Although the output is a simple string array, try to group them logically in the output order (e.g., Languages first, then Frameworks, then Tools) to make it easier for a human to scan. 
+               - Ensure "Must-Include Keywords" are present.
+            5. **Education**: Add a brief 'description' of notable coursework or achievements.
+            6. **Projects**: Tailor project descriptions to the job, highlighting the *problem solved* and the *technology stack*.
             7. Return ONLY the JSON object adhering to the provided schema.
         `;
         cvDataSchema = {
@@ -572,15 +367,15 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
     }
 
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-      // IMPROVEMENT: Use the more capable model for this complex, high-value task.
-      model: 'gemini-2.5-flash',
-      config: { 
-          responseMimeType: 'application/json', 
-          responseSchema: cvDataSchema, 
-          temperature: 0.6, // Higher temperature for creativity/rewriting
-          systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL, // Use the PROFESSIONAL persona
-      },
-      contents: mainPromptInstruction,
+        // IMPROVEMENT: Use the more capable model for this complex, high-value task.
+        model: 'gemini-2.5-flash',
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: cvDataSchema,
+            temperature: 0.6, // Higher temperature for creativity/rewriting
+            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL, // Use the PROFESSIONAL persona
+        },
+        contents: mainPromptInstruction,
     }));
 
     const cvData: CVData = JSON.parse((response.text || "").trim());
@@ -599,7 +394,7 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             const date = new Date(dateStr);
             return isNaN(date.getTime()) ? new Date(0) : date;
         };
-        
+
         const endDateA = getEndDate(a.endDate);
         const endDateB = getEndDate(b.endDate);
 
@@ -622,7 +417,7 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
     const ai = getAiClient();
     // IMPROVEMENT: Used a strong system instruction for purely deterministic extraction.
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
-    
+
     const filePart = {
         inlineData: {
             data: base64Data,
@@ -631,7 +426,7 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
     };
 
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: { parts: [filePart, { text: prompt }] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
@@ -642,7 +437,7 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
     const ai = getAiClient();
     // IMPROVEMENT: Used a strong system instruction for purely deterministic extraction.
     const prompt = "Analyze this image, which contains text (likely a job description). Extract ALL of the visible text. Return ONLY the raw text, with no additional commentary, summary, or formatting.";
-    
+
     const imagePart = {
         inlineData: {
             data: base64Image,
@@ -652,11 +447,11 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
     const textPart = { text: prompt };
 
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: { parts: [imagePart, textPart] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
-    
+
     return response.text || "";
 };
 
@@ -682,7 +477,7 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
         4. **Formatting**: Address the letter to "Hiring Manager" (unless a name is available). Use proper salutation and closing.
         5. **Output**: Return ONLY the plain text of the cover letter, with appropriate line breaks. DO NOT use markdown or any other formatting.
     `;
-    
+
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         // IMPROVEMENT: Use PRO model for better creative writing and tone.
         model: 'gemini-2.5-flash',
@@ -726,9 +521,9 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         },
         required: ["keywords", "skills"]
     };
-    
+
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: prompt,
         config: {
             responseMimeType: 'application/json',
@@ -745,12 +540,15 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
 export const generateEnhancedSummary = async (profile: UserProfile): Promise<string> => {
     const ai = getAiClient();
     const prompt = `
-      You are a professional career coach. Based on the provided user profile, write a concise and powerful professional summary (2-4 sentences) that highlights their key strengths and experience. Return only the summary text.
+      You are a professional career coach. Based STRICTLY on the provided user profile, write a concise and powerful professional summary (2-4 sentences) that highlights their key strengths and experience.
+      
+      **CRITICAL:** Do NOT invent skills, experiences, or achievements not present in the profile. If the profile is sparse, write a strong summary based ONLY on what is there.
+      Return only the summary text.
       USER PROFILE:
       ${JSON.stringify(profile, null, 2)}
     `;
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: prompt,
         config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
     }));
@@ -766,9 +564,9 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
       Generate 3-5 professional bullet points based on the provided Job Title, Company, and existing responsibilities.
 
       **Instructions:**
-      1.  **Quantify & Achieve:** Frame each point around a specific accomplishment. Include metrics (or placeholders like \`[X%]\`, \`[#]\`, or \`[e.g., thousands of users]\`) to show concrete impact.
-      2.  **Action Verbs:** Start each bullet point with a powerful, past-tense action verb (e.g., "Architected," "Engineered," "Spearheaded").
-      3.  **Enhancement:** If "Current Responsibilities" are provided, use them as a *basis* to write *new, vastly improved* achievement statements.
+      1.  **NO HALLUCINATION:** You must NOT invent new tasks or responsibilities. You may ONLY rewrite, expand, and professionalize the "Current Responsibilities" provided.
+      2.  **Quantify & Achieve:** Frame each point around a specific accomplishment. If the user provided a number, use it. If a number would be impressive but is missing, YOU MUST USE A PLACEHOLDER like \`[increased by X%]\` or \`[managed $X budget]\`. Do not makeup a fake number.
+      3.  **Action Verbs:** Start each bullet point with a powerful, past-tense action verb (e.g., "Architected," "Engineered," "Spearheaded").
       4.  **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
 
       **Input:**
@@ -779,7 +577,7 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
       **Output:**
     `;
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: prompt,
         config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
     }));
@@ -792,10 +590,11 @@ export const generateEnhancedProjectDescription = async (projectName: string, cu
       You are a tech portfolio expert. Rewrite and enhance the provided project description into a single, concise, professional paragraph for a technical resume.
 
       **Instructions:**
-      1.  **Structure:** Clearly state the project's purpose, the core technologies used, and the key features/outcomes.
-      2.  **Specificity:** Mention specific frameworks, languages, or tools (e.g., "React and Redux" instead of "web technologies").
-      3.  **Highlight Impact:** Briefly explain the problem solved or the project's main achievement.
-      4.  **Format:** Return ONLY a single, professional paragraph. Do not add any introductory text.
+      1.  **Strict Adherence:** Describe ONLY the project provided. Do not invent features or technologies not implied by the description.
+      2.  **Structure:** Clearly state the project's purpose, the core technologies used, and the key features/outcomes.
+      3.  **Specificity:** Mention specific frameworks, languages, or tools (e.g., "React and Redux" instead of "web technologies").
+      4.  **Highlight Impact:** Briefly explain the problem solved or the project's main achievement.
+      5.  **Format:** Return ONLY a single, professional paragraph. Do not add any introductory text.
 
       **Input:**
       - Project Name: '${projectName}'
@@ -804,7 +603,7 @@ export const generateEnhancedProjectDescription = async (projectName: string, cu
       **Output:**
     `;
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash-lite',
         contents: prompt,
         config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
     }));
