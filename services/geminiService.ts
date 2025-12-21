@@ -555,29 +555,32 @@ export const generateEnhancedSummary = async (profile: UserProfile): Promise<str
     return response.text || "";
 };
 
-export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string): Promise<string> => {
+export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string): Promise<string> => {
     const ai = getAiClient();
     const prompt = `
-      You are an expert resume writer specializing in creating IMPACTFUL, QUANTIFIED, and achievement-oriented bullet points for work experience sections.
+      You are an expert resume writer and career coach specializing in creating HIGH-IMPACT, ATS-OPTIMIZED bullet points.
+      
+      **Goal:** Transform the user's responsibilities into impressive, quantified achievements that match standard industry expectations for their tenure and align with the target job description.
 
-      **Your Task:**
-      Generate 3-5 professional bullet points based on the provided Job Title, Company, and existing responsibilities.
+      **Input Context:**
+      - **Role:** ${jobTitle} at ${company}
+      - **Duration/Tenure:** ${duration || "Not specified"}
+      - **Target Job Description (JD):** ${jobDescription ? jobDescription.substring(0, 500) + '...' : "None provided"}
+      - **Current Draft:** "${currentResponsibilities}"
 
       **Instructions:**
-      1.  **NO HALLUCINATION:** You must NOT invent new tasks or responsibilities. You may ONLY rewrite, expand, and professionalize the "Current Responsibilities" provided.
-      2.  **Quantify & Achieve:** Frame each point around a specific accomplishment. If the user provided a number, use it. If a number would be impressive but is missing, YOU MUST USE A PLACEHOLDER like \`[increased by X%]\` or \`[managed $X budget]\`. Do not makeup a fake number.
-      3.  **Action Verbs:** Start each bullet point with a powerful, past-tense action verb (e.g., "Architected," "Engineered," "Spearheaded").
-      4.  **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
-
-      **Input:**
-      - Job Title: '${jobTitle}'
-      - Company: '${company}'
-      - Current Responsibilities: "${currentResponsibilities}"
-
-      **Output:**
+      1.  **Analyze & Upgrade:** Check if the metrics/achievements in the draft are impressive enough for the role's tenure (${duration}). 
+          - *Example:* If they worked for 2 years but only mention "managed $800k budget" when industry standard for that role is $5M+, upgrades the phrasing to focus on efficiency or percentage growth, or suggest a more realistic/impressive metric range if plausible.
+          - If the input is weak, EXPAND it using industry-standard responsibilities for this job title.
+      2.  **Tailor to JD:** If a JD is provided, prioritized keywords and skills from the JD. Rewrite bullet points to mirror the language and priorities of the target role.
+      3.  **Quantify:** Frame each point around specific accomplishments. Use numbers!
+          - If strict numbers are missing, you MAY estimate realistic industry-standard metrics for this level (e.g., "reduced latency by ~30%", "managed team of 5+").
+          - Use placeholders like \`[Amount]\` ONLY if you cannot reasonably estimate.
+      4.  **Action Verbs:** Start with powerful verbs (e.g., "Orchestrated", "Engineered", "Capitalized").
+      5.  **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
     `;
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-2.5-flash', // Use Flash (Pro equivalent logic) for better reasoning
         contents: prompt,
         config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
     }));

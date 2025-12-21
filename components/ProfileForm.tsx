@@ -8,6 +8,7 @@ import {
   generateEnhancedResponsibilities,
   generateEnhancedProjectDescription
 } from '../services/geminiService';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
 import { Label } from './ui/Label';
@@ -117,6 +118,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     }
   };
 
+  // Read job description from local storage to context-aware enhancements
+  const [jobDescription] = useLocalStorage<string>('jobDescription', '');
+
   const handleEnhance = async (type: 'summary' | 'responsibilities' | 'project', index?: number) => {
     if (!apiKeySet) {
       alert("Please set your API key in settings to use AI enhancements.");
@@ -134,7 +138,21 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         setValue('summary', enhancedSummary);
       } else if (type === 'responsibilities' && index !== undefined) {
         const workItem = getValues(`workExperience.${index}`);
-        const enhancedResps = await generateEnhancedResponsibilities(workItem.jobTitle, workItem.company, workItem.responsibilities);
+
+        // Calculate duration string for context
+        const startDate = workItem.startDate ? new Date(workItem.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+        const endDate = workItem.endDate && workItem.endDate.toLowerCase() !== 'present'
+          ? new Date(workItem.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+          : 'Present';
+        const durationStr = startDate ? `${startDate} - ${endDate}` : 'Unknown duration';
+
+        const enhancedResps = await generateEnhancedResponsibilities(
+          workItem.jobTitle,
+          workItem.company,
+          workItem.responsibilities,
+          jobDescription, // Pass global JD if available
+          durationStr     // Pass duration for reality check
+        );
         setValue(`workExperience.${index}.responsibilities`, enhancedResps);
       } else if (type === 'project' && index !== undefined) {
         const projectItem = getValues(`projects.${index}`);

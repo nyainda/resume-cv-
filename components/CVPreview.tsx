@@ -67,8 +67,10 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   };
 
   return (
-    <div className="font-['Inter']">
-      {renderTemplate()}
+    <div className="font-['Inter'] w-full overflow-x-auto pb-4">
+      <div className="min-w-[210mm] bg-white shadow-sm mx-auto">
+        {renderTemplate()}
+      </div>
     </div>
   );
 };
