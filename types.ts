@@ -149,7 +149,8 @@ export type TemplateName =
   | 'software-engineer'
   | 'modern-tech'
   | 'infographic'
-  | 'classic';
+  | 'classic'
+  | 'standard-pro';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -167,6 +168,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   compact: 'Compact',
   infographic: 'Infographic',
   classic: 'Classic',
+  'standard-pro': 'Standard Professional',
 };
 
 export type FontName = 'inter' | 'lora' | 'roboto-mono' | 'helvetica' | 'times-new-roman';

@@ -48,7 +48,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const importInputRef = useRef<HTMLInputElement>(null);
 
 
-  const { register, control, handleSubmit, formState: { errors }, reset, getValues, setValue } = useForm<UserProfile>({
+  const methods = useForm<UserProfile>({
     defaultValues: existingProfile || {
       personalInfo: { name: '', email: '', phone: '', location: '', linkedin: '', website: '', github: '', photo: '' },
       summary: '',
@@ -59,6 +59,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       languages: [{ id: '1', name: '', proficiency: '' }],
     },
   });
+
+  const { register, control, handleSubmit, formState: { errors }, reset, getValues, setValue, watch } = methods;
 
   const { fields: workFields, append: appendWork, remove: removeWork } = useFieldArray({ control, name: "workExperience" });
   const { fields: eduFields, append: appendEdu, remove: removeEdu } = useFieldArray({ control, name: "education" });
@@ -314,10 +316,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 {/* Photo Preview */}
                 <div className="flex-shrink-0">
-                  {getValues('personalInfo.photo') ? (
+                  {watch('personalInfo.photo') ? (
                     <div className="relative group">
                       <img
-                        src={getValues('personalInfo.photo')}
+                        src={watch('personalInfo.photo')}
                         alt="Profile"
                         className="w-32 h-32 rounded-full object-cover border-4 border-white dark:border-neutral-700 shadow-lg"
                       />
@@ -363,9 +365,40 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                             alert('File size must be less than 2MB');
                             return;
                           }
+
+                          // Image Compression Logic
                           const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setValue('personalInfo.photo', reader.result as string);
+                          reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              let width = img.width;
+                              let height = img.height;
+
+                              // Maximum dimensions for CV photo
+                              const MAX_SIZE = 400;
+                              if (width > height) {
+                                if (width > MAX_SIZE) {
+                                  height *= MAX_SIZE / width;
+                                  width = MAX_SIZE;
+                                }
+                              } else {
+                                if (height > MAX_SIZE) {
+                                  width *= MAX_SIZE / height;
+                                  height = MAX_SIZE;
+                                }
+                              }
+
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0, width, height);
+
+                              // Save as compressed JPEG (0.7 quality) to keep PDF size small and "clean"
+                              const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                              setValue('personalInfo.photo', compressedDataUrl);
+                            };
+                            img.src = event.target?.result as string;
                           };
                           reader.readAsDataURL(file);
                         }

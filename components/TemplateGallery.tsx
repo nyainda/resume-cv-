@@ -11,7 +11,7 @@ interface TemplateGalleryProps {
 
 // Template categories for better organization
 const templateCategories = {
-  'Professional': ['professional', 'corporate', 'elegant', 'executive'] as TemplateName[],
+  'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro'] as TemplateName[],
   'Modern': ['modern', 'modern-tech', 'twoColumnBlue'] as TemplateName[],
   'Creative': ['creative', 'infographic'] as TemplateName[],
   'Technical': ['software-engineer', 'technical'] as TemplateName[],

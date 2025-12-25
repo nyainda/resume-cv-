@@ -207,6 +207,28 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
           </div>
         );
 
+      case 'standard-pro':
+        return (
+          <div className="p-2 space-y-1.5 flex flex-col h-full">
+            <div className="text-center space-y-0.5 border-b border-slate-300 pb-1">
+              <div className="h-3 bg-slate-800 w-2/3 mx-auto rounded-sm"></div>
+              <div className="h-1 bg-slate-200 w-1/2 mx-auto rounded-sm"></div>
+            </div>
+            <div className="space-y-1 mt-1">
+              <div className="h-1 bg-slate-600 w-1/4 rounded-sm"></div>
+              <div className="h-px bg-slate-400 w-full"></div>
+              <div className="space-y-0.5 mt-1">
+                <div className="flex justify-between">
+                  <div className="h-1.5 bg-slate-700 w-1/3 rounded-sm"></div>
+                  <div className="h-1 bg-slate-400 w-1/5 rounded-sm"></div>
+                </div>
+                <div className="h-1 bg-slate-300 w-full rounded-sm"></div>
+                <div className="h-0.5 bg-slate-200 w-5/6 rounded-sm"></div>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return (
           <div className="p-2 space-y-1">

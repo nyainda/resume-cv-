@@ -848,6 +848,95 @@ const generatePdfForTemplate = (
         h.setY(h.getY() + skillsHeight + 15);
     };
 
+    const standardProPdf = () => {
+        // High-end Professional Template matching HBS/Classic Standard
+        const serifFont = 'times'; // Forced serif for this classic style
+        doc.setFont(serifFont, 'bold');
+        doc.setFontSize(24);
+
+        // Name Centered Bold Uppercase
+        h.writeText(personalInfo.name.toUpperCase(), pageWidth / 2, h.getY() + 10, { font: serifFont, style: 'bold', size: 22, align: 'center' });
+        h.setY(h.getY() + 35);
+
+        // Contact Info Centered
+        const contact = `${personalInfo.location} | ${personalInfo.phone} | ${personalInfo.email}`;
+        h.writeText(contact, pageWidth / 2, h.getY(), { font: serifFont, size: 9, align: 'center' });
+        h.setY(h.getY() + 15);
+
+        // Thick Header Line
+        doc.setLineWidth(1.5);
+        doc.setDrawColor(30, 30, 30);
+        doc.line(margin, h.getY(), pageWidth - margin, h.getY());
+        h.setY(h.getY() + 20);
+
+        // Summary
+        const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: serifFont, style: 'italic', size: 10, width: contentWidth, align: 'center' });
+        h.setY(h.getY() + summaryHeight + 20);
+
+        const drawSectionHeader = (title: string) => {
+            h.checkPageBreak(30, margin);
+            h.writeText(title.toUpperCase(), margin, h.getY(), { font: serifFont, style: 'bold', size: 11 });
+            h.setY(h.getY() + 4);
+            doc.setLineWidth(1);
+            doc.line(margin, h.getY(), pageWidth - margin, h.getY());
+            h.setY(h.getY() + 15);
+        };
+
+        // Experience
+        drawSectionHeader("Work Experience");
+        cvData.experience.forEach(job => {
+            h.checkPageBreak(60, margin);
+            // Org Bold Uppercase
+            h.writeText(job.company.toUpperCase(), margin, h.getY(), { font: serifFont, style: 'bold', size: 10.5 });
+            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: serifFont, style: 'italic', size: 9, align: 'right' });
+            h.setY(h.getY() + 12);
+
+            // Title below
+            h.writeText(job.jobTitle, margin, h.getY(), { font: serifFont, size: 10 });
+            h.setY(h.getY() + 14);
+
+            job.responsibilities.forEach(resp => {
+                const bullet = `• ${decodeHtmlEntities(resp)}`;
+                const rH = h.writeText(bullet, margin + 5, h.getY(), { font: serifFont, size: 9.5, width: contentWidth - 10 });
+                h.checkPageBreak(rH + 2, margin);
+                h.setY(h.getY() + rH + 2);
+            });
+            h.setY(h.getY() + 12);
+        });
+
+        // Education
+        drawSectionHeader("Education");
+        cvData.education.forEach(edu => {
+            h.checkPageBreak(40, margin);
+            h.writeText(edu.school.toUpperCase(), margin, h.getY(), { font: serifFont, style: 'bold', size: 10.5 });
+            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: serifFont, size: 9, align: 'right' });
+            h.setY(h.getY() + 12);
+            h.writeText(edu.degree, margin, h.getY(), { font: serifFont, size: 10 });
+            h.setY(h.getY() + 15);
+        });
+
+        // Skills
+        drawSectionHeader("Additional Skills");
+        const skillsText = cvData.skills.join(" • ");
+        const sH = h.writeText(skillsText, margin, h.getY(), { font: serifFont, size: 9.5, width: contentWidth });
+        h.setY(h.getY() + sH + 20);
+
+        // Projects
+        if (cvData.projects && cvData.projects.length > 0) {
+            drawSectionHeader("Projects");
+            cvData.projects.forEach(proj => {
+                h.checkPageBreak(40, margin);
+                h.writeText(proj.name, margin, h.getY(), { font: serifFont, style: 'bold', size: 10 });
+                if (proj.link) {
+                    h.writeText("[Link]", pageWidth - margin, h.getY(), { font: serifFont, size: 8, align: 'right', link: proj.link, color: [30, 64, 175] });
+                }
+                h.setY(h.getY() + 12);
+                const pdH = h.writeText(proj.description, margin, h.getY(), { font: serifFont, size: 9.5, width: contentWidth });
+                h.setY(h.getY() + pdH + 12);
+            });
+        }
+    };
+
     const infographic = () => {
         // This is a complex visual template
         // For simplicity, we'll draw basic shapes.
@@ -900,6 +989,9 @@ const generatePdfForTemplate = (
             break;
         case 'infographic':
             infographic();
+            break;
+        case 'standard-pro':
+            standardProPdf();
             break;
         default:
             professional();

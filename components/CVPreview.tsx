@@ -15,6 +15,7 @@ import TemplateSoftwareEngineer from './templates/TemplateSoftwareEngineer';
 import TemplateModernTech from './templates/TemplateModernTech';
 import TemplateInfographic from './templates/TemplateInfographic';
 import TemplateClassic from './templates/TemplateClassic';
+import TemplateStandardPro from './templates/TemplateStandardPro';
 
 
 interface CVPreviewProps {
@@ -61,6 +62,8 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         return <TemplateInfographic {...rest} />;
       case 'classic':
         return <TemplateClassic {...rest} />;
+      case 'standard-pro':
+        return <TemplateStandardPro {...rest} />;
       default:
         return <TemplateProfessional {...rest} />;
     }
