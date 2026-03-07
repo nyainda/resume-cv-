@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TemplateName, templateDisplayNames } from '../types';
 import TemplateThumbnail from './TemplateThumbnail';
 import { Label } from './ui/Label';
-import { CheckCircle, Eye } from './icons';
+import { CheckCircle, Eye, FileText } from './icons';
 
 interface TemplateGalleryProps {
   selectedTemplate: TemplateName;
@@ -16,6 +16,16 @@ const templateCategories = {
   'Creative': ['creative', 'infographic'] as TemplateName[],
   'Technical': ['software-engineer', 'technical'] as TemplateName[],
   'Minimal': ['minimalist', 'compact', 'timeline', 'classic'] as TemplateName[],
+};
+
+// Badges displayed on template cards
+const templateBadges: Partial<Record<TemplateName, { label: string; emoji: string; color: string }>> = {
+  'standard-pro': { label: 'ATS King', emoji: '🎯', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  'professional': { label: 'Most Popular', emoji: '⭐', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  'executive': { label: 'Harvard Style', emoji: '🏛️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
+  'minimalist': { label: 'Clean & Safe', emoji: '✨', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' },
+  'modern': { label: 'Trending', emoji: '🔥', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
+  'software-engineer': { label: 'Best for Tech', emoji: '💻', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' },
 };
 
 const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onSelect }) => {
@@ -145,6 +155,14 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
                   {templateDisplayNames[template]}
                 </p>
 
+                {/* Badge */}
+                {templateBadges[template] && (
+                  <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${templateBadges[template]!.color}`}>
+                    <span>{templateBadges[template]!.emoji}</span>
+                    {templateBadges[template]!.label}
+                  </span>
+                )}
+
                 {/* Selection indicator */}
                 {isSelected && (
                   <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-1 font-medium">
@@ -173,7 +191,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
       )}
 
       {/* Quick Tips */}
-      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+      <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
         <div className="flex gap-3">
           <div className="flex-shrink-0">
             <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
@@ -182,13 +200,15 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
           </div>
           <div>
             <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
-              Pro Tip: Choose Based on Your Industry
+              Pro Tip: Match the Template to the Role
             </h4>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Tech/Engineering:</strong> Try "Software Engineer" or "Modern Tech" •
-              <strong className="ml-2">Corporate:</strong> Use "Professional" or "Executive" •
-              <strong className="ml-2">Creative:</strong> Go for "Creative" or "Infographic"
-            </p>
+            <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+              <p>🎯 <strong>Standard Pro (ATS King)</strong> — safest pick for most corporate & tech jobs. Maximum ATS compatibility.</p>
+              <p>⭐ <strong>Professional</strong> — polished and recruiter-loved. Great for finance, consulting, management.</p>
+              <p>🏛️ <strong>Executive</strong> — Harvard-style serif. Senior roles, law, academia, C-suite applications.</p>
+              <p>💻 <strong>Tech / Modern Tech</strong> — ideal for software engineers, data scientists, DevOps roles.</p>
+              <p>✨ <strong>Creative / Infographic</strong> — design, marketing, and creative roles only (not ATS-safe).</p>
+            </div>
           </div>
         </div>
       </div>

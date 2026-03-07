@@ -1,17 +1,38 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
-import { UserProfile, CVData, JobAnalysisResult, ApiSettings } from '../types';
+import { UserProfile, CVData, JobAnalysisResult, ApiSettings, CVGenerationMode, ScholarshipFormat } from '../types';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-You are an elite AI career consultant and "ruthless" recruiter optimization engine. 
-Generate ONLY JSON or plain text outputs. 
-Strictly adhere to schemas. 
-Your goal is to create CVs that stand out immediately, pass ATS systems perfectly, and wow human recruiters with impact and clarity.
+You are a world-class career coach, elite recruiter, and resume strategist with 20+ years of experience placing candidates at Fortune 500 companies and top startups.
+You produce CVs that:
+1. IMMEDIATELY capture recruiter attention in under 6 seconds (the average resume scan time).
+2. Pass ATS keyword filtering with 90%+ match rates.
+3. Use the "Action + Context + Quantified Result" formula for every bullet point.
+4. Position the candidate as the OBVIOUS choice for the role.
+Generate ONLY valid JSON or plain text. Strictly adhere to schemas. NEVER include markdown formatting in JSON values.
 `;
 
 const SYSTEM_INSTRUCTION_PARSER = `
 You are an expert data parser. Convert unstructured text into accurate JSON. 
 Standardize dates. Never invent data unless instructed.
+`;
+
+// --- Humanization System Instruction ---
+// This makes all outputs sound like they were written by a human professional,
+// NOT by an AI. Avoids patterns that AI detectors flag.
+const SYSTEM_INSTRUCTION_HUMANIZER = `
+You are a professional human editor. Your job is to rewrite text so it sounds exactly like it was written by a skilled, experienced human professional — never by an AI.
+
+Critical rules:
+- Use VARIED sentence lengths. Mix short punchy sentences with longer descriptive ones.
+- Avoid AI clichés: never say "delve", "leverage" (sparingly), "utilize", "synergy", "robust", "seamlessly", "cutting-edge", "state-of-the-art", "in today's world", "it's worth noting".
+- Use SPECIFIC, concrete details instead of vague generalizations.
+- Use natural, direct language. Write like a confident human, not a formal report.
+- Vary your action verbs — don't repeat the same verb twice in a document.
+- For CVs: every bullet point should feel like it was lived, not templated.
+- Never use rhetorical questions.
+- Preserve ALL factual details, dates, numbers, company names, and job titles exactly.
+- Return the rewritten text only. No commentary.
 `;
 
 // --- API Client Setup with Multi-Model Support ---
@@ -130,6 +151,85 @@ const userProfileSchema = {
 
 // --- Core Generation Functions Improvements ---
 
+// --- Humanize a block of plain text to remove AI patterns ---
+export const humanizeText = async (text: string): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        contents: prompt,
+        config: { temperature: 0.8, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
+    }));
+    return response.text || text;
+};
+
+// --- Build scholarship format-specific instructions ---
+function buildScholarshipFormatInstruction(format: ScholarshipFormat): string {
+    switch (format) {
+        case 'europass':
+            return `
+            **EUROPASS FORMAT REQUIREMENTS** (EU Standard):
+            - Structure the summary as a 'Personal Statement' in first person, 2-3 sentences.
+            - Include a 'Languages' section with proficiency levels using CEFR scale (A1/A2/B1/B2/C1/C2/Native).
+            - List 'Digital Competencies' in skills (e.g., Microsoft Office, data analysis tools).
+            - Note any voluntary/community work in the experience section if available.
+            - Education descriptions should include ECTS credits or equivalent if known.
+            - The tone should be formal European academic style.
+            `;
+        case 'eu-horizon':
+            return `
+            **EU HORIZON EUROPE / MARIE CURIE / ERC FORMAT REQUIREMENTS**:
+            - Summary = 'Research Excellence Statement': Start with the impact of your research, then methodology, then future vision (3-4 sentences).
+            - Highlight cross-border collaborations and international experience prominently.
+            - Publications: Emphasize only last 5 years. Include impact factor or citation count if inferable.
+            - Experience bullets should explicitly mention: research outputs, grants won, students supervised, and EU/international connections.
+            - Skills: Lead with research methodologies, then domain expertise, then tools.
+            - Include any 'Outreach & Dissemination' activities in projects.
+            - Add a note about 'Commitment to Open Science' principles if relevant.
+            `;
+        case 'nih-nsf':
+            return `
+            **NIH/NSF BIOSKETCH FORMAT REQUIREMENTS** (US Government):
+            - Summary = 'Personal Statement': 4 sentences max. Must state: (1) research area, (2) why uniquely qualified, (3) 1-2 key publications, (4) relevance to this grant.
+            - Experience section = 'Positions, Scientific Appointments, and Honors'.
+            - Publications must be listed with all authors, journal, year, PMID or DOI where possible.
+            - Add 'Contributions to Science' section description in each experience bullet — describe scientific significance.
+            - Skills should include lab techniques, analytical methods, and software (R, SPSS, etc.).
+            - Follow NIH page limit spirit: be concise and specific, no filler.
+            `;
+        case 'chevening':
+            return `
+            **CHEVENING SCHOLARSHIP FORMAT REQUIREMENTS** (UK FCDO):
+            - Summary = 'Leadership & Ambassadorial Potential Statement': Show clear leadership trajectory, influencing others, community impact (3-4 sentences).
+            - Experience bullets must highlight: leadership moments, decisions made, people influenced/led, measurable outcomes.
+            - Include any networking, professional associations, or convening roles prominently.
+            - Projects should demonstrate UK-relevant connections or aspirations.
+            - Add future career vision aligned with post-study return to home country.
+            - Tone: Confident, aspirational, personal. Show a person who will be an ambassador.
+            `;
+        case 'commonwealth':
+            return `
+            **COMMONWEALTH SCHOLARSHIP FORMAT REQUIREMENTS** (CSC):
+            - Summary: Lead with development impact and home country context. Explain how UK study supports national development goals (3-4 sentences).
+            - Experience bullets: Show how work contributes to community/national development goals.
+            - Include any government, NGO, or policy work prominently.
+            - Projects: Frame around societal/development impact, not just technical achievement.
+            - Add commitment to return to home country and apply learning.
+            - Skills: Include languages, community engagement, and policy/advocacy skills.
+            - Tone: Purpose-driven, development-focused, collaborative.
+            `;
+        default: // 'standard'
+            return `
+            **STANDARD ACADEMIC CV FORMAT**:
+            - Summary = 'Research Statement' or 'Academic Objective' (2-4 sentences).
+            - Emphasize research contributions, academic achievements, and teaching experience.
+            - List publications prominently with full citation details.
+            - Skills: Research methods, academic software, statistical tools, domain expertise.
+            - Education: Include GPA/grade, thesis title, and key coursework where available.
+            `;
+    }
+}
+
 export const generateProfile = async (rawText: string, githubUrl?: string): Promise<UserProfile> => {
     const ai = getAiClient();
 
@@ -173,7 +273,6 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         contents: prompt,
     }));
 
-    // ... (rest of the function for parsing and sorting) ...
     const text = (response.text || "").trim();
     const profileData: UserProfile = JSON.parse(text);
     profileData.projects = profileData.projects || [];
@@ -184,26 +283,30 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     return profileData;
 };
 
-export const generateCV = async (profile: UserProfile, contextDescription: string, enableEnhancements: boolean, purpose: 'job' | 'academic'): Promise<CVData> => {
+export const generateCV = async (
+    profile: UserProfile,
+    contextDescription: string,
+    generationMode: CVGenerationMode,
+    purpose: 'job' | 'academic' | 'general',
+    scholarshipFormat: ScholarshipFormat = 'standard'
+): Promise<CVData> => {
     const ai = getAiClient();
 
-    // First, analyze the job description to extract key terms.
+    // Keyword extraction only when a description is provided
     let keywordInstruction = '';
-    try {
-        // IMPROVEMENT: Ensure this is non-blocking but has good retry logic (already in place)
-        const jobAnalysis = await analyzeJobDescriptionForKeywords(contextDescription);
-        const allKeywords = [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])];
-        if (allKeywords.length > 0) {
-            // IMPROVEMENT: Made the keyword instruction a CRITICAL REQUIREMENT
-            keywordInstruction = `
-            **CRITICAL REQUIREMENT: KEYWORD STRATEGY**: You MUST strategically, naturally, and frequently integrate the following keywords and skills throughout the generated CV. The highest priority integration points are the 'summary', the 'responsibilities' bullet points, and the final 'skills' array.
-            - Focus on weaving these terms into quantified, achievement-oriented statements.
-            
-            **Must-Include Keywords**: ${allKeywords.join(', ')}
-            `;
+    if (contextDescription.trim()) {
+        try {
+            const jobAnalysis = await analyzeJobDescriptionForKeywords(contextDescription);
+            const allKeywords = [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])];
+            if (allKeywords.length > 0) {
+                keywordInstruction = `
+                **CRITICAL REQUIREMENT: KEYWORD STRATEGY**: Strategically and naturally integrate the following keywords throughout the CV — in the summary, bullet points, and skills. Weave them in so they feel organic, not stuffed.
+                **Must-Include Keywords**: ${allKeywords.join(', ')}
+                `;
+            }
+        } catch (e) {
+            console.error("Keyword analysis failed, proceeding without explicit keywords.", e);
         }
-    } catch (e) {
-        console.error("Keyword analysis failed, proceeding with CV generation without explicit keywords.", e);
     }
 
     // ... (Schema definitions are unchanged for brevity) ...
@@ -294,24 +397,87 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
         },
     };
 
-    if (purpose === 'academic') {
-        mainPromptInstruction = `
-            You are an expert academic CV writer for grant and scholarship applications.
-            Your task is to create a tailored academic CV based on the user profile and the grant/scholarship description.
-            USER PROFILE: ${JSON.stringify(profile, null, 2)}
-            GRANT/SCHOLARSHIP DESCRIPTION: ${contextDescription}
-            ${githubInstruction}
-            
-            ${keywordInstruction}
+    // HUMANIZATION instruction injected into all prompts
+    const humanizationInstruction = `
+    **CRITICAL — HUMAN WRITING STYLE**:
+    Write ALL text (summary, bullet points, descriptions) as if a senior human professional wrote it personally.
+    - Mix sentence lengths naturally. Short. Then longer ones that elaborate.
+    - NO AI buzzwords: avoid "delve", "robust", "seamlessly", "synergy", "leverage" (use sparingly), "cutting-edge", "in today's fast-paced world".
+    - Be specific and concrete. Replace vague phrases like "contributed to team success" with actual outcomes.
+    - Vary action verbs — never use the same verb twice across all bullet points.
+    - Make every line feel like it came from lived experience, not a template.
+    `;
 
-            Instructions:
-            1.  **Research Statement**: In the 'summary' field, write a compelling 'Research Statement' or 'Objective' (2-4 sentences) that aligns perfectly with the grant's goals and incorporates the keywords.
-            2.  **Experience**: Frame work experience to highlight research, teaching, and academic contributions, infusing relevant keywords. Use the title "Research and Professional Experience". Convert responsibilities into achievements relevant to academia.
-            3.  **Publications**: If the user has projects or experiences that could be framed as publications, create plausible entries for them.
-            4.  **Skills**: Focus on research methodologies, software, and technical skills relevant to the academic field, prioritizing the provided keywords.
-            5.  **Education**: Emphasize academic honors, relevant coursework, and thesis/dissertation titles in the 'description' field for each entry.
-            6.  **Projects**: Highlight projects that demonstrate research capabilities or technical prowess relevant to the grant.
-            7.  Return ONLY the JSON object adhering to the schema.
+    if (purpose === 'general') {
+        // === GENERAL PURPOSE CV (no JD required) ===
+        mainPromptInstruction = `
+            You are a world-class CV writer. Create a powerful, general-purpose CV that presents the candidate at their absolute best across diverse job markets.
+
+            USER PROFILE:
+            ${JSON.stringify(profile, null, 2)}
+            ${githubInstruction}
+
+            === INSTRUCTIONS ===
+
+            1. **SUMMARY — Versatile Value Proposition (3 sentences)**:
+               - Sentence 1: WHO they are, their seniority and domain.
+               - Sentence 2: Their standout achievement or strongest differentiator.
+               - Sentence 3: What kind of impact they create and industries they fit.
+
+            2. **EXPERIENCE — Showcase Full Breadth**:
+               - Transform every bullet into a high-impact achievement: [Verb] + [What you did] + [Measurable result].
+               - Show range: technical skills, leadership, collaboration, delivery.
+               - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
+               - Use 'startDate'/'endDate' in 'YYYY-MM-DD' format.
+
+            3. **SKILLS**: Include 15-20 skills that represent the candidate's full toolkit. Group logically: core skills, tools, platforms, soft skills.
+
+            4. **EDUCATION**: Add a 1-sentence description of relevant coursework or honors.
+
+            5. **PROJECTS**: Problem solved + tech used + outcome.
+
+            ${humanizationInstruction}
+
+            Return ONLY valid JSON. No markdown. No extra text.
+        `;
+        cvDataSchema = {
+            type: Type.OBJECT,
+            properties: {
+                ...baseSchemaProperties,
+                experience: { type: Type.ARRAY, items: baseExperienceItems },
+            },
+            required: ["summary", "experience", "skills", "education"]
+        };
+
+    } else if (purpose === 'academic') {
+        const formatInstruction = buildScholarshipFormatInstruction(scholarshipFormat);
+        const scholarshipContext = contextDescription.trim()
+            ? `GRANT/SCHOLARSHIP DESCRIPTION:\n${contextDescription}`
+            : `No specific grant description provided. Create a strong, general-purpose academic CV that works for most scholarship and grant applications.`;
+
+        mainPromptInstruction = `
+            You are an expert academic CV writer specializing in scholarship and grant applications worldwide.
+            Your task is to create a tailored, compelling academic CV.
+
+            USER PROFILE: ${JSON.stringify(profile, null, 2)}
+            ${scholarshipContext}
+            ${githubInstruction}
+
+            ${keywordInstruction}
+            ${formatInstruction}
+
+            === CORE INSTRUCTIONS ===
+            1.  **Research Statement / Summary**: Follow the format-specific instruction above for the summary field.
+            2.  **Experience**: Frame work experience to highlight research, teaching, academic leadership, and community contributions. Convert responsibilities into achievements with measurable impact.
+            3.  **Publications**: If the user has projects or experiences that could be framed as research outputs/publications, create plausible academic entries with full citations.
+            4.  **Skills**: Focus on research methodologies, statistical tools, academic software, and domain expertise. Prioritize format-specific skills.
+            5.  **Education**: Emphasize academic honors, GPA (if excellent), relevant coursework, and thesis/dissertation titles in the 'description' field.
+            6.  **Projects**: Highlight projects that demonstrate research capabilities and real-world impact relevant to the scholarship goals.
+            7.  **Languages**: For Europass format, include proficiency using CEFR levels.
+
+            ${humanizationInstruction}
+
+            Return ONLY the JSON object adhering to the schema.
         `;
         cvDataSchema = {
             type: Type.OBJECT,
@@ -323,38 +489,75 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
             required: ["summary", "experience", "skills", "education"]
         };
     } else { // 'job' purpose
-        let experienceInstruction = `3.  **Experience**: Use ONLY the work experience provided by the user. Do not invent any jobs. Rewrite the bullet points to use strong action verbs and quantify achievements where possible. Emphasize the experience most relevant to the job.`;
-        if (enableEnhancements) {
-            // IMPROVEMENT: Re-enabled by user request for mass application strategy. Focuses on Kenyan context.
-            // MODIFIED: Shifted strategy to use mid-tier/startup companies to be less conspicuous.
-            experienceInstruction = `3.  **GENERATIVE ENHANCEMENT (CRITICAL)**: The user explicitly requests help filling experience gaps. Invent 1-2 highly plausible, REALISTIC work experience entries to make the user an ideal candidate.
-             - **Company Names**: PRIORITIZE **mid-sized Kenyan companies, established startups, or credible consultancy firms** over massive, easily verifiable giants (like Safaricom/Microsoft) to avoid raising suspicion. Examples: Local tech agencies, regional logistics firms, saccos, or specialized local vendors relevant to the industry.
-             - **Content**: These entries must be creative, impressive, and directly relevant to the job description, heavily featuring the "Must-Include Keywords" and quantified achievements.
-             - **Dates**: **CRITICAL**: Ensure the dates for these enhanced roles DO NOT overlap illogically with existing roles. They must fit into gaps or extend the history naturally.
-             - **Role Progression**: Ensure the job titles make sense in the user's career trajectory (e.g., don't jump from Junior to Lead without an intermediate step).`;
+        // --- GENERATION MODE: Controls how much AI creativity is applied ---
+        let experienceInstruction: string;
+
+        if (generationMode === 'honest') {
+            experienceInstruction = `
+            3.  **Experience — HONEST MODE (STRICT)**:
+                - Use ONLY the work experience provided by the user. Do NOT invent, add, or imply any employers, job titles, or dates that are not in the user's profile.
+                - REWRITE each bullet point to:
+                  a) Start with a powerful action verb (e.g., Spearheaded, Orchestrated, Delivered, Accelerated)
+                  b) Quantify achievements using realistic metrics based on the role context (add estimates if not given, e.g., "~30% efficiency gain")
+                  c) Weave in JD keywords naturally — every bullet should feel directly relevant to the target role
+                - The goal: make the user's REAL experience sound as impressive and relevant as possible. Polish, don't fabricate.
+            `;
+        } else if (generationMode === 'boosted') {
+            experienceInstruction = `
+            3.  **Experience — BOOSTED MODE**:
+                - FIRST: Rewrite all of the user's real experience using powerful action verbs, quantified achievements, and JD-aligned keywords.
+                - THEN: Strategically craft EXACTLY 1 additional plausible experience entry to fill a gap or strengthen the candidacy:
+                  • **Company**: Use a credible mid-sized company (regional tech firm, consultancy, agency) — NOT a verifiable giant like Google/Safaricom.
+                  • **Role & Dates**: Must make logical career sense and NOT overlap with existing roles.
+                  • **Content**: 3-4 bullet points directly targeting the JD's must-have requirements, featuring the "Must-Include Keywords".
+                - Ensure the added role feels like a natural fit in the career timeline.
+            `;
+        } else { // 'aggressive'
+            experienceInstruction = `
+            3.  **Experience — AGGRESSIVE MODE (MAXIMUM IMPACT)**:
+                - FIRST: Completely transform ALL of the user's real experience entries — every bullet must be a high-impact achievement statement with strong action verbs and quantified metrics.
+                - THEN: Craft 1-2 additional strategic experience entries designed to make the user THE ideal candidate:
+                  • **Companies**: Use credible, mid-to-large companies the user would realistically have worked at (NOT directly verifiable household names).
+                  • **Roles**: Position them as impressive stepping stones in the career trajectory.
+                  • **Dates**: Ensure zero date overlaps with existing roles.
+                  • **Content**: 3-5 bullet points each, packed with JD keywords, quantified results, and executive-level language.
+                - The summary should position this candidate as the OBVIOUS first choice for the role.
+            `;
         }
 
+
         mainPromptInstruction = `
-            You are a professional CV writer and career coach. Your task is to create a tailored CV for a job application.
+            You are a world-class CV writer. Create a targeted, powerful CV for a job application that gets interviews.
+            
             USER PROFILE: ${JSON.stringify(profile, null, 2)}
             JOB DESCRIPTION: ${contextDescription}
             ${githubInstruction}
 
             ${keywordInstruction}
 
-            Instructions:
-            Instructions:
-            1. **Summary (The Hook)**: Write a "Value Proposition" instead of a generic summary. It should be 2-3 powerful sentences that immediately state WHO the candidate is (e.g., "Senior Full Stack Engineeer"), their KEY SPECIALTY (e.g., "specializing in scalable fintech solutions"), and their UNIQUE VALUE to this specific job. Integrate top keywords here.
-            2. **Experience (The Proof)**: 
-               - For each experience entry, you MUST provide 'startDate' and 'endDate' fields in 'YYYY-MM-DD' format (or 'Present' for endDate of a current role).
-               - **Bullet Points**: Use the "Action - Context - Result" formula. Every bullet point should start with a strong action verb (e.g., Spearheaded, Orchestrated, Optimized).
+            === CRITICAL INSTRUCTIONS ===
+
+            1. **SUMMARY — Value Proposition Hook (2-3 sentences MAX)**:
+               - Sentence 1: WHO they are + seniority + specialty (e.g., "Results-driven Senior Software Engineer specializing in cloud-native fintech.")
+               - Sentence 2: CORE VALUE + key achievement matching the JD
+               - Sentence 3: UNIQUE FIT for this specific role
+               - Integrate 3-5 must-include keywords. Make the recruiter say "This is our person."
+
+            2. **EXPERIENCE — The Proof**:
+               - For EVERY entry: 'startDate' and 'endDate' in 'YYYY-MM-DD' (use 'Present' for current role).
+               - Every bullet: [Strong Verb] + [Context/Scope] + [Quantified Result]
+               - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
                ${experienceInstruction}
-            4. **Skills (The Toolkit)**: Generate a comprehensive list of skills. 
-               - **Categorization Strategy**: Although the output is a simple string array, try to group them logically in the output order (e.g., Languages first, then Frameworks, then Tools) to make it easier for a human to scan. 
-               - Ensure "Must-Include Keywords" are present.
-            5. **Education**: Add a brief 'description' of notable coursework or achievements.
-            6. **Projects**: Tailor project descriptions to the job, highlighting the *problem solved* and the *technology stack*.
-            7. Return ONLY the JSON object adhering to the provided schema.
+
+            3. **SKILLS**: Core skills first (most relevant to JD), then tools, then adjacent. Include ALL must-include keywords. Aim for 12-20 specific skills.
+
+            4. **EDUCATION**: 1-sentence 'description' with relevant coursework or honors.
+
+            5. **PROJECTS**: Problem solved + technologies + measurable outcome.
+
+            ${humanizationInstruction}
+
+            Return ONLY valid JSON. No markdown. No extra text.
         `;
         cvDataSchema = {
             type: Type.OBJECT,
@@ -366,14 +569,17 @@ export const generateCV = async (profile: UserProfile, contextDescription: strin
         };
     }
 
+    const temperature = purpose === 'academic' ? 0.5 :
+        generationMode === 'honest' ? 0.5 :
+            generationMode === 'boosted' ? 0.65 : 0.75;
+
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        // IMPROVEMENT: Use the more capable model for this complex, high-value task.
         model: 'gemini-2.5-flash',
         config: {
             responseMimeType: 'application/json',
             responseSchema: cvDataSchema,
-            temperature: 0.6, // Higher temperature for creativity/rewriting
-            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL, // Use the PROFESSIONAL persona
+            temperature,
+            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL,
         },
         contents: mainPromptInstruction,
     }));
@@ -610,5 +816,57 @@ export const generateEnhancedProjectDescription = async (projectName: string, cu
         contents: prompt,
         config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
     }));
+    return response.text || "";
+};
+
+export const generateScholarshipEssay = async (params: {
+    profile: UserProfile;
+    essayType: string;
+    essayLabel: string;
+    scholarshipDescription: string;
+    additionalContext: string;
+    wordCount: number;
+    promptHint: string;
+}): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `
+        You are an elite academic consultant and scholarship writer with a 95% success rate for international grants (Commonwealth, Chevening, Fulbright, ERASMUS+, NIH/NSF).
+        
+        ### YOUR GOAL
+        Write a compelling, high-stakes ${params.essayLabel} for the following scholarship/program.
+        The essay must be deeply personal, professionally authoritative, and perfectly aligned with the scholarship's values.
+
+        ### INPUT DATA
+        USER PROFILE (Your source for achievements and background):
+        ${JSON.stringify(params.profile, null, 2)}
+
+        SCHOLARSHIP/PROGRAM DESCRIPTION:
+        ${params.scholarshipDescription}
+
+        ADDITIONAL PERSONAL CONTEXT:
+        ${params.additionalContext || "None provided. Rely on the profile."}
+
+        ### ESSAY GUIDELINES
+        - **Format**: ${params.essayLabel}
+        - **Target Word Count**: ${params.wordCount} words.
+        - **Specific Instruction**: ${params.promptHint}
+        - **Tone**: Academic yet personal. Enthusiastic but humble. Visionary yet grounded in past achievements.
+        - **Structure**: 
+            1.  **Hook**: Start with a powerful opening that captures attention immediately.
+            2.  **The Bridge**: Connect the user's past experiences to why they need this specific scholarship.
+            3.  **The Impact**: Clearly state what the user will do with the knowledge/funding and the broader impact it will have.
+            4.  **Conclusion**: A strong closing statement that leaves a lasting impression.
+
+        ${SYSTEM_INSTRUCTION_HUMANIZER}
+
+        Return ONLY the text of the essay. No titles, no intro text, no placeholders like "[Your Name]".
+    `;
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { temperature: 0.8, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
+    }));
+
     return response.text || "";
 };

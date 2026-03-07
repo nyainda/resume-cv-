@@ -1037,30 +1037,119 @@ export const downloadCVAsPDF = ({
 export const downloadCoverLetterAsPDF = (
     letterText: string,
     fileName: string = 'cover_letter.pdf',
-    template: 'modern' | 'professional' = 'modern'
+    template: 'modern' | 'professional' | 'executive' | 'academic' | 'creative' = 'modern',
+    personalInfo?: PersonalInfo
 ) => {
     const { jsPDF } = jspdf;
-    const pdf = new jsPDF({
+    const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'pt',
         format: 'a4'
     });
 
-    if (template === 'professional') {
-        pdf.setFont('Times-Roman', 'normal');
-    } else {
-        pdf.setFont('Helvetica', 'normal');
-    }
-
-    pdf.setFontSize(11);
-
+    const h = pdfHelpers(doc);
+    const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 50;
-    const pageWidth = pdf.internal.pageSize.getWidth();
     const usableWidth = pageWidth - 2 * margin;
 
-    const lines = pdf.splitTextToSize(letterText, usableWidth);
+    // Font selection based on template
+    const fonts: Record<string, string> = {
+        modern: 'Helvetica',
+        professional: 'Times-Roman',
+        executive: 'Times-Roman',
+        academic: 'Times-Roman',
+        creative: 'Helvetica'
+    };
+    const selectedFont = fonts[template] || 'Helvetica';
+    doc.setFont(selectedFont, 'normal');
 
-    pdf.text(lines, margin, margin);
+    h.setY(margin);
 
-    pdf.save(fileName);
+    // --- Header Section ---
+    if (personalInfo) {
+        if (template === 'executive' || template === 'professional') {
+            // Centered elegant header
+            doc.setFont(selectedFont, 'bold');
+            doc.setFontSize(22);
+            h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { align: 'center' });
+            h.setY(h.getY() + 15);
+
+            doc.setFont(selectedFont, 'normal');
+            doc.setFontSize(9);
+            const contact = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('  •  ');
+            h.writeText(contact, pageWidth / 2, h.getY(), { align: 'center', color: [70, 70, 70] });
+            h.setY(h.getY() + 12);
+
+            const links = [personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean).join('  •  ');
+            if (links) {
+                h.writeText(links, pageWidth / 2, h.getY(), { align: 'center', color: [40, 100, 200] });
+                h.setY(h.getY() + 20);
+            } else {
+                h.setY(h.getY() + 10);
+            }
+            // Line separator
+            doc.setDrawColor(200, 200, 200);
+            doc.line(margin, h.getY(), pageWidth - margin, h.getY());
+            h.setY(h.getY() + 30);
+        } else if (template === 'creative') {
+            // Left aligned with color block
+            doc.setFillColor(79, 70, 229); // Indigo-600
+            doc.rect(0, 0, 15, 120, 'F');
+
+            doc.setFontSize(24);
+            doc.setFont(selectedFont, 'bold');
+            doc.setTextColor(30, 41, 59);
+            h.writeText(personalInfo.name, margin, h.getY());
+            h.setY(h.getY() + 20);
+
+            doc.setFontSize(10);
+            doc.setFont(selectedFont, 'normal');
+            const info = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join(' | ');
+            h.writeText(info, margin, h.getY(), { color: [100, 116, 139] });
+            h.setY(h.getY() + 60);
+        } else {
+            // Modern/Academic standard left header
+            doc.setFont(selectedFont, 'bold');
+            doc.setFontSize(18);
+            h.writeText(personalInfo.name, margin, h.getY());
+            h.setY(h.getY() + 18);
+
+            doc.setFont(selectedFont, 'normal');
+            doc.setFontSize(10);
+            h.writeText(personalInfo.email, margin, h.getY());
+            h.setY(h.getY() + 13);
+            if (personalInfo.phone) {
+                h.writeText(personalInfo.phone, margin, h.getY());
+                h.setY(h.getY() + 13);
+            }
+            if (personalInfo.location) {
+                h.writeText(personalInfo.location, margin, h.getY());
+                h.setY(h.getY() + 25);
+            } else {
+                h.setY(h.getY() + 15);
+            }
+        }
+    }
+
+    // --- Body Section ---
+    doc.setFont(selectedFont, 'normal');
+    doc.setFontSize(template === 'academic' ? 12 : 11);
+    doc.setTextColor(30, 30, 30);
+
+    const lines = doc.splitTextToSize(letterText, usableWidth);
+
+    // Check for page breaks during text rendering
+    let currentY = h.getY();
+    const lineHeight = doc.getFontSize() * 1.5;
+
+    lines.forEach((line: string) => {
+        if (currentY > pdf.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            currentY = margin;
+        }
+        doc.text(line, margin, currentY);
+        currentY += lineHeight;
+    });
+
+    doc.save(fileName);
 };

@@ -108,8 +108,70 @@ export interface SavedCV {
   name: string;
   createdAt: string;
   data: CVData;
-  purpose: 'job' | 'academic';
+  purpose: 'job' | 'academic' | 'general';
 }
+
+// --- Scholarship / Grant Application Formats ---
+export type ScholarshipFormat =
+  | 'standard'        // Generic academic CV
+  | 'europass'        // EU Europass format
+  | 'eu-horizon'      // EU Horizon Europe / Marie Curie / ERC
+  | 'nih-nsf'         // US NIH / NSF Biosketch style
+  | 'chevening'       // UK Chevening Scholarship
+  | 'commonwealth';   // Commonwealth Scholarship
+
+export interface ScholarshipFormatConfig {
+  id: ScholarshipFormat;
+  label: string;
+  flag: string;
+  description: string;
+  keyFields: string[];
+}
+
+export const scholarshipFormats: ScholarshipFormatConfig[] = [
+  {
+    id: 'standard',
+    label: 'Standard Academic',
+    flag: '📄',
+    description: 'General-purpose academic CV for scholarships, fellowships, and grants worldwide.',
+    keyFields: ['Research Statement', 'Publications', 'Awards & Honors', 'Teaching Experience'],
+  },
+  {
+    id: 'europass',
+    label: 'Europass (EU)',
+    flag: '🇪🇺',
+    description: 'European standard CV format required by many EU institutions, Erasmus+, and DAAD.',
+    keyFields: ['Personal Statement', 'Language Skills', 'Digital Competencies', 'Voluntary Work'],
+  },
+  {
+    id: 'eu-horizon',
+    label: 'EU Horizon / ERC',
+    flag: '🇪🇺',
+    description: 'Tailored for Horizon Europe, Marie Skłodowska-Curie Actions, and ERC grants.',
+    keyFields: ['Research Excellence', 'Impact Statement', 'Publications (last 5 yrs)', 'Collaborations'],
+  },
+  {
+    id: 'nih-nsf',
+    label: 'NIH / NSF Biosketch',
+    flag: '🇺🇸',
+    description: 'US government grant format for National Institutes of Health and National Science Foundation.',
+    keyFields: ['Personal Statement', 'Positions & Honours', 'Contributions to Science', 'Research Support'],
+  },
+  {
+    id: 'chevening',
+    label: 'Chevening (UK)',
+    flag: '🇬🇧',
+    description: 'UK Foreign Commonwealth & Development Office scholarship — leadership focused.',
+    keyFields: ['Leadership Narrative', 'Networking', 'Career Vision', 'UK Study Plan'],
+  },
+  {
+    id: 'commonwealth',
+    label: 'Commonwealth',
+    flag: '🌍',
+    description: 'Commonwealth Scholarship Commission format for developing country applicants.',
+    keyFields: ['Development Impact', 'Home Country Return', 'Current Role', 'Academic Record'],
+  },
+];
 
 export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
@@ -170,6 +232,46 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   classic: 'Classic',
   'standard-pro': 'Standard Professional',
 };
+
+// --- CV Generation Mode ---
+// Controls how aggressively the AI enhances the CV beyond the user's real experience.
+export type CVGenerationMode = 'honest' | 'boosted' | 'aggressive';
+
+export interface CVGenerationModeConfig {
+  id: CVGenerationMode;
+  label: string;
+  emoji: string;
+  shortDesc: string;
+  description: string;
+  color: string; // Tailwind color class prefix for styling
+}
+
+export const cvGenerationModes: CVGenerationModeConfig[] = [
+  {
+    id: 'honest',
+    label: 'Honest Mode',
+    emoji: '✅',
+    shortDesc: 'Power up your real story',
+    description: 'Your actual experience, reworded with strong action verbs, quantified achievements, and ATS-optimized keywords from the JD. No fabrication — just your best self.',
+    color: 'emerald',
+  },
+  {
+    id: 'boosted',
+    label: 'Boosted Mode',
+    emoji: '🚀',
+    shortDesc: 'Add plausible extras to stand out',
+    description: 'Your real experience enhanced + 1 strategically crafted extra role from a mid-sized credible company that fills career gaps and strengthens your candidacy.',
+    color: 'blue',
+  },
+  {
+    id: 'aggressive',
+    label: 'Aggressive Mode',
+    emoji: '🔥',
+    shortDesc: 'Full optimization — maximum impact',
+    description: 'Maximum CV power. The AI goes all-in: rewrites every bullet for peak impact, adds 1-2 targeted roles, and crafts a summary that positions you as the ideal candidate.',
+    color: 'orange',
+  },
+];
 
 export type FontName = 'inter' | 'lora' | 'roboto-mono' | 'helvetica' | 'times-new-roman';
 

@@ -1,4 +1,3 @@
-
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
@@ -11,6 +10,8 @@ interface TemplateProps {
     jobDescriptionForATS: string;
 }
 
+// Jake's Resume ATS-Pro Style — #1 ATS-safe format, beloved by FAANG engineers
+// Based on the famous LaTeX template open-sourced by Jake Gutierrez
 const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
 
     const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -36,56 +37,77 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
         onBlur: (e: React.FocusEvent<HTMLElement>) => {
             handleUpdate(path, e.currentTarget.innerText);
         },
-        className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
+        className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
     } : {};
 
     return (
-        <div id="cv-preview-standard-pro" className="bg-white p-10 sm:p-14 text-zinc-900 shadow-lg border font-serif max-w-[210mm] mx-auto min-h-[297mm]">
-            {/* Header */}
-            <header className="text-center mb-6">
-                <h1 className="text-3xl font-bold uppercase tracking-wide text-zinc-900 mb-2" {...editableProps(['personalInfo', 'name'])}>{personalInfo.name}</h1>
-                <div className="text-xs text-zinc-600 space-y-0.5">
-                    <p>{personalInfo.location}</p>
-                    <p>{personalInfo.phone}</p>
-                    <p className="text-blue-600 underline">{personalInfo.email}</p>
+        <div
+            id="cv-preview-standard-pro"
+            className="bg-white text-black shadow-lg border"
+            style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", padding: '36px 48px', maxWidth: '816px', margin: '0 auto' }}
+        >
+            {/* ── NAME & CONTACT ── */}
+            <header className="text-center mb-4">
+                <h1 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '0.5px', margin: 0, lineHeight: 1.1 }}>
+                    {personalInfo.name}
+                </h1>
+                <div style={{ marginTop: '6px', fontSize: '11px', color: '#333' }} className="flex flex-wrap justify-center items-center gap-x-2 gap-y-0.5">
+                    {personalInfo.phone && <span>{personalInfo.phone}</span>}
+                    {personalInfo.phone && personalInfo.email && <span>·</span>}
+                    {personalInfo.email && <a href={`mailto:${personalInfo.email}`} style={{ color: '#1a56db' }}>{personalInfo.email}</a>}
+                    {personalInfo.linkedin && <><span>·</span><a href={personalInfo.linkedin} style={{ color: '#1a56db' }}>linkedin.com/in/{personalInfo.linkedin.replace(/.*\/in\//, '')}</a></>}
+                    {personalInfo.github && <><span>·</span><a href={personalInfo.github} style={{ color: '#1a56db' }}>github.com/{personalInfo.github.replace(/.*github\.com\//, '')}</a></>}
+                    {personalInfo.website && <><span>·</span><a href={personalInfo.website} style={{ color: '#1a56db' }}>{personalInfo.website.replace(/https?:\/\/(www\.)?/, '')}</a></>}
+                    {personalInfo.location && <><span>·</span><span>{personalInfo.location}</span></>}
                 </div>
             </header>
 
-            {/* Header Line */}
-            <div className="border-b-[1.5pt] border-zinc-800 mb-6"></div>
+            <main>
+                {/* ── SUMMARY ── */}
+                {cvData.summary && (
+                    <section style={{ marginBottom: '12px' }}>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: '6px' }}>
+                            <h2 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Summary</h2>
+                        </div>
+                        <p style={{ fontSize: '11px', lineHeight: '1.5', margin: 0 }} dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+                    </section>
+                )}
 
-            <main className="space-y-6">
-                {/* Summary */}
-                <section>
-                    <p className="text-[10pt] leading-snug italic text-center px-4" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-                </section>
-
-                {/* Experience */}
-                <section>
-                    <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b-[1pt] border-zinc-800 mb-3">Work Experience</h2>
-                    <div className="space-y-5">
+                {/* ── EXPERIENCE ── */}
+                <section style={{ marginBottom: '12px' }}>
+                    <div style={{ borderBottom: '1.5px solid #000', marginBottom: '8px' }}>
+                        <h2 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Experience</h2>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {cvData.experience.map((job, index) => (
                             <div key={index} className="relative group">
                                 {isEditing && (
                                     <button
                                         onClick={() => handleDeleteExperience(index)}
-                                        className="absolute -left-10 top-0 p-2 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute -left-8 top-0 p-1.5 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-red-200 bg-white shadow-sm z-10"
+                                        title="Delete this experience entry"
                                     >
-                                        <Trash className="h-4 w-4" />
+                                        <Trash className="h-3.5 w-3.5" />
                                     </button>
                                 )}
-                                <div className="flex flex-col">
-                                    <div className="flex justify-between items-baseline">
-                                        <h3 className="text-[10.5pt] font-bold uppercase text-zinc-900" {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
-                                        <span className="text-[9pt] font-medium italic text-zinc-700" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
-                                    </div>
-                                    <div className="flex justify-between items-baseline mb-1">
-                                        <p className="text-[10pt] font-medium text-zinc-800" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</p>
-                                    </div>
+                                {/* Row 1: Company (left) | Dates (right) */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 700 }} {...editableProps(['experience', index, 'company'])}>{job.company}</span>
+                                    <span style={{ fontSize: '11px', fontStyle: 'italic', color: '#444' }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                 </div>
-                                <ul className="list-disc list-outside ml-5 mt-1 space-y-1 text-[9.5pt] text-zinc-800">
+                                {/* Row 2: Job Title (left) | Location (right, if any) */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '1px' }}>
+                                    <span style={{ fontSize: '11.5px', fontStyle: 'italic' }} {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</span>
+                                </div>
+                                {/* Bullet points */}
+                                <ul style={{ margin: '4px 0 0 16px', padding: 0, listStyleType: 'disc' }}>
                                     {job.responsibilities.map((resp, i) => (
-                                        <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                        <li
+                                            key={i}
+                                            style={{ fontSize: '11px', lineHeight: '1.5', marginBottom: '2px' }}
+                                            dangerouslySetInnerHTML={{ __html: resp }}
+                                            {...editableProps(['experience', index, 'responsibilities', i])}
+                                        />
                                     ))}
                                 </ul>
                             </div>
@@ -93,51 +115,86 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                     </div>
                 </section>
 
-                {/* Education */}
-                <section>
-                    <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b-[1pt] border-zinc-800 mb-3">Education</h2>
-                    <div className="space-y-4">
+                {/* ── EDUCATION ── */}
+                <section style={{ marginBottom: '12px' }}>
+                    <div style={{ borderBottom: '1.5px solid #000', marginBottom: '8px' }}>
+                        <h2 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Education</h2>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {cvData.education.map((edu, index) => (
                             <div key={index}>
-                                <div className="flex justify-between items-baseline">
-                                    <h3 className="text-[10.5pt] font-bold uppercase text-zinc-900" {...editableProps(['education', index, 'school'])}>{edu.school}</h3>
-                                    <span className="text-[9pt] font-medium text-zinc-700" {...editableProps(['education', index, 'year'])}>{edu.year}</span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 700 }} {...editableProps(['education', index, 'school'])}>{edu.school}</span>
+                                    <span style={{ fontSize: '11px', fontStyle: 'italic', color: '#444' }} {...editableProps(['education', index, 'year'])}>{edu.year}</span>
                                 </div>
-                                <p className="text-[10pt] text-zinc-800" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
+                                <div style={{ fontSize: '11px', fontStyle: 'italic', marginTop: '1px' }} {...editableProps(['education', index, 'degree'])}>{edu.degree}</div>
+                                {edu.description && (
+                                    <div style={{ fontSize: '10.5px', color: '#555', marginTop: '2px' }} dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />
+                                )}
                             </div>
                         ))}
                     </div>
                 </section>
 
-                {/* Skills */}
-                <section>
-                    <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b-[1pt] border-zinc-800 mb-3">Additional Skills</h2>
-                    <div className="space-y-1">
-                        <div className="text-[9.5pt] text-zinc-800 flex flex-wrap gap-x-2">
-                            {cvData.skills.map((skill, i) => (
-                                <span key={i}>
-                                    {skill}{i < cvData.skills.length - 1 && " •"}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                {/* Projects */}
+                {/* ── PROJECTS ── */}
                 {cvData.projects && cvData.projects.length > 0 && (
-                    <section>
-                        <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b-[1pt] border-zinc-800 mb-3">Projects</h2>
-                        <div className="space-y-4">
+                    <section style={{ marginBottom: '12px' }}>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: '8px' }}>
+                            <h2 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Projects</h2>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {cvData.projects.map((proj, index) => (
                                 <div key={index}>
-                                    <div className="flex justify-between items-baseline">
-                                        <h3 className="text-[10pt] font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                                        {proj.link && <a href={proj.link} className="text-[8pt] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>Link</a>}
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                        <span style={{ fontSize: '12px', fontWeight: 700 }} {...editableProps(['projects', index, 'name'])}>{proj.name}</span>
+                                        {proj.link && (
+                                            <a href={proj.link} style={{ fontSize: '10px', color: '#1a56db' }} {...editableProps(['projects', index, 'link'])}>
+                                                | {proj.link}
+                                            </a>
+                                        )}
                                     </div>
-                                    <p className="text-[9.5pt] text-zinc-800 leading-tight mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                                    <p style={{ fontSize: '11px', margin: '2px 0 0', lineHeight: '1.5' }} dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                                 </div>
                             ))}
                         </div>
+                    </section>
+                )}
+
+                {/* ── TECHNICAL SKILLS ── */}
+                <section style={{ marginBottom: '12px' }}>
+                    <div style={{ borderBottom: '1.5px solid #000', marginBottom: '6px' }}>
+                        <h2 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Technical Skills</h2>
+                    </div>
+                    <div style={{ fontSize: '11px', lineHeight: '1.7' }}>
+                        {/* Group skills into rows of ~6 */}
+                        {(() => {
+                            const chunkSize = Math.ceil(cvData.skills.length / Math.ceil(cvData.skills.length / 6));
+                            const rows: string[][] = [];
+                            for (let i = 0; i < cvData.skills.length; i += chunkSize) {
+                                rows.push(cvData.skills.slice(i, i + chunkSize));
+                            }
+                            return rows.map((row, ri) => (
+                                <div key={ri} style={{ marginBottom: '2px' }}>
+                                    {row.map((skill, si) => (
+                                        <span key={si}>{skill}{si < row.length - 1 ? ' • ' : ''}</span>
+                                    ))}
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                </section>
+
+                {/* ── LANGUAGES ── */}
+                {cvData.languages && cvData.languages.length > 0 && (
+                    <section style={{ marginBottom: '12px' }}>
+                        <div style={{ borderBottom: '1.5px solid #000', marginBottom: '6px' }}>
+                            <h2 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 2px' }}>Languages</h2>
+                        </div>
+                        <p style={{ fontSize: '11px', margin: 0 }}>
+                            {cvData.languages.map((l, i) => (
+                                <span key={i}>{l.name} ({l.proficiency}){i < cvData.languages!.length - 1 && ' • '}</span>
+                            ))}
+                        </p>
                     </section>
                 )}
             </main>
