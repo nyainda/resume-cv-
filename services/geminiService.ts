@@ -366,7 +366,7 @@ export const generateCV = async (
         },
         skills: {
             type: Type.ARRAY,
-            description: "A list of the most relevant skills for the application.",
+            description: "A list of exactly 15 of the most relevant skills for the application, prioritized by relevance to the JD if provided.",
             items: { type: Type.STRING }
         },
         education: {
@@ -430,7 +430,7 @@ export const generateCV = async (
                - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
                - Use 'startDate'/'endDate' in 'YYYY-MM-DD' format.
 
-            3. **SKILLS**: Include 15-20 skills that represent the candidate's full toolkit. Group logically: core skills, tools, platforms, soft skills.
+            3. **SKILLS**: Include EXACTLY 15 specific skills that represent the candidate's full toolkit and fit the target roles. Group logically but return as a flat list of 15 strings.
 
             4. **EDUCATION**: Add a 1-sentence description of relevant coursework or honors.
 
@@ -549,7 +549,7 @@ export const generateCV = async (
                - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
                ${experienceInstruction}
 
-            3. **SKILLS**: Core skills first (most relevant to JD), then tools, then adjacent. Include ALL must-include keywords. Aim for 12-20 specific skills.
+            3. **SKILLS**: Core skills first (most relevant to JD), then tools, then adjacent. Include ALL must-include keywords from the JD. Return EXACTLY 15 specific skills.
 
             4. **EDUCATION**: 1-sentence 'description' with relevant coursework or honors.
 

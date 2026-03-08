@@ -11,11 +11,12 @@ interface TemplateGalleryProps {
 
 // Template categories for better organization
 const templateCategories = {
-  'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro'] as TemplateName[],
-  'Modern': ['modern', 'modern-tech', 'twoColumnBlue'] as TemplateName[],
-  'Creative': ['creative', 'infographic'] as TemplateName[],
+  'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro', 'london-finance', 'medical-standard'] as TemplateName[],
+  'Modern': ['modern', 'modern-tech', 'twoColumnBlue', 'silicon-valley', 'tokyo-night'] as TemplateName[],
+  'Creative': ['creative', 'infographic', 'sydney-creative', 'berlin-design'] as TemplateName[],
+  'Academic': ['harvard-gold', 'scholarship-pro', 'classic'] as TemplateName[],
+  'Minimal': ['minimalist', 'compact', 'timeline', 'paris-vibe'] as TemplateName[],
   'Technical': ['software-engineer', 'technical'] as TemplateName[],
-  'Minimal': ['minimalist', 'compact', 'timeline', 'classic'] as TemplateName[],
 };
 
 // Badges displayed on template cards
@@ -23,6 +24,10 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'standard-pro': { label: 'ATS King', emoji: '🎯', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
   'professional': { label: 'Most Popular', emoji: '⭐', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
   'executive': { label: 'Harvard Style', emoji: '🏛️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
+  'harvard-gold': { label: 'Premium Scholar', emoji: '🎓', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
+  'tokyo-night': { label: 'Cyberpunk', emoji: '🗼', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300' },
+  'silicon-valley': { label: 'Startup King', emoji: '🦄', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' },
+  'paris-vibe': { label: 'High Fashion', emoji: '🗼', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300' },
   'minimalist': { label: 'Clean & Safe', emoji: '✨', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' },
   'modern': { label: 'Trending', emoji: '🔥', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
   'software-engineer': { label: 'Best for Tech', emoji: '💻', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' },

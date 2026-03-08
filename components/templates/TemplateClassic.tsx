@@ -10,7 +10,7 @@ interface TemplateProps {
 }
 
 const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
-  
+
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
     let current: any = newCvData;
@@ -30,7 +30,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
-  const Section: React.FC<{title: string; children: React.ReactNode}> = ({ title, children }) => (
+  const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section className="mb-8">
       <h2 className="text-center text-sm font-bold uppercase tracking-[0.2em] text-slate-600 mb-5">{title}</h2>
       {children}
@@ -73,32 +73,44 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
             ))}
           </div>
         </Section>
-        
-        <div className="grid grid-cols-2 gap-10">
-            <Section title="Education">
-            {cvData.education.map((edu, index) => (
-                <div key={index} className="text-center">
-                    <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                    <p className="text-base text-slate-700" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                    <p className="text-sm font-medium text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
-                </div>
-            ))}
-            </Section>
 
-            <Section title="Skills">
-                <p className="text-center text-base">
-                    {cvData.skills.join(' &bull; ')}
-                </p>
-            </Section>
+        <div className="grid grid-cols-2 gap-10">
+          <Section title="Education">
+            {cvData.education.map((edu, index) => (
+              <div key={index} className="text-center">
+                <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
+                <p className="text-base text-slate-700" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                <p className="text-sm font-medium text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+              </div>
+            ))}
+          </Section>
+
+          <Section title="Skills">
+            {(() => {
+              const sk = cvData.skills.slice(0, 15);
+              const perCol = Math.ceil(sk.length / 3);
+              return (
+                <div className="grid grid-cols-3 gap-x-6">
+                  {[0, 1, 2].map(ci => (
+                    <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
+                      {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
+                        <li key={si} className="text-sm text-slate-700">{s}</li>
+                      ))}
+                    </ul>
+                  ))}
+                </div>
+              );
+            })()}
+          </Section>
         </div>
 
       </main>
-      
+
       {jobDescriptionForATS && (
-          <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
-            {jobDescriptionForATS}
-          </div>
-        )}
+        <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
+          {jobDescriptionForATS}
+        </div>
+      )}
     </div>
   );
 };

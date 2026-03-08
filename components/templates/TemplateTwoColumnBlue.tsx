@@ -10,7 +10,7 @@ interface TemplateProps {
 }
 
 const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
-  
+
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
     let current: any = newCvData;
@@ -53,21 +53,21 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
             <section>
               <h2 className="text-sm font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-3">Skills</h2>
               <ul className="list-disc list-inside text-sm space-y-1">
-                {cvData.skills.map((skill, i) => <li key={i} {...editableProps(['skills', i])}>{skill}</li>)}
+                {cvData.skills.slice(0, 15).map((skill, i) => <li key={i} {...editableProps(['skills', i])}>{skill}</li>)}
               </ul>
             </section>
-             {cvData.languages && cvData.languages.length > 0 && (
-                 <section>
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-3">Languages</h2>
-                    <ul className="text-sm space-y-2">
-                        {cvData.languages.map((lang, i) => (
-                            <li key={i}>
-                                <p className="font-bold" {...editableProps(['languages', i, 'name'])}>{lang.name}</p>
-                                <p className="text-blue-200" {...editableProps(['languages', i, 'proficiency'])}>{lang.proficiency}</p>
-                            </li>
-                        ))}
-                    </ul>
-                </section>
+            {cvData.languages && cvData.languages.length > 0 && (
+              <section>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-3">Languages</h2>
+                <ul className="text-sm space-y-2">
+                  {cvData.languages.map((lang, i) => (
+                    <li key={i}>
+                      <p className="font-bold" {...editableProps(['languages', i, 'name'])}>{lang.name}</p>
+                      <p className="text-blue-200" {...editableProps(['languages', i, 'proficiency'])}>{lang.proficiency}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
             <section>
               <h2 className="text-sm font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-3">Education</h2>
@@ -112,24 +112,24 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               <section>
                 <h2 className="text-lg font-bold uppercase tracking-wider text-blue-700 border-b-2 border-blue-100 pb-1 mb-3">Projects</h2>
                 <div className="space-y-5">
-                    {cvData.projects.map((proj, index) => (
+                  {cvData.projects.map((proj, index) => (
                     <div key={index}>
-                        <h3 className="text-base font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                        <p className="text-sm" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                        {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
+                      <h3 className="text-base font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                      <p className="text-sm" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
                     </div>
-                    ))}
+                  ))}
                 </div>
               </section>
             )}
           </main>
         </div>
       </div>
-       {jobDescriptionForATS && (
-          <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
-            {jobDescriptionForATS}
-          </div>
-        )}
+      {jobDescriptionForATS && (
+        <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
+          {jobDescriptionForATS}
+        </div>
+      )}
     </div>
   );
 };

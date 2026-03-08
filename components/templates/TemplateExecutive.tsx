@@ -114,11 +114,25 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
         {/* Skills */}
         <section>
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-700 mb-2 pb-1 border-b border-gray-300">Core Competencies</h2>
-          <p className="text-sm text-gray-800 leading-relaxed">
-            {cvData.skills.map((s, i) => (
-              <span key={i}>{s}{i < cvData.skills.length - 1 && <span className="text-gray-400 mx-1.5">•</span>}</span>
-            ))}
-          </p>
+          {cvData.skills && cvData.skills.length > 0 && (() => {
+            const cols = 3;
+            const perCol = Math.ceil(cvData.skills.length / cols);
+            const columns: string[][] = [];
+            for (let i = 0; i < cols; i++) {
+              columns.push(cvData.skills.slice(i * perCol, (i + 1) * perCol));
+            }
+            return (
+              <div className="grid grid-cols-3 gap-x-8 gap-y-1">
+                {columns.map((col, ci) => (
+                  <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
+                    {col.map((skill, si) => (
+                      <li key={si} className="text-sm text-gray-800">{skill}</li>
+                    ))}
+                  </ul>
+                ))}
+              </div>
+            );
+          })()}
         </section>
 
         {/* Languages */}

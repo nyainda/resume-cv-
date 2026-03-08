@@ -212,7 +212,16 @@ export type TemplateName =
   | 'modern-tech'
   | 'infographic'
   | 'classic'
-  | 'standard-pro';
+  | 'standard-pro'
+  | 'harvard-gold'
+  | 'tokyo-night'
+  | 'paris-vibe'
+  | 'london-finance'
+  | 'berlin-design'
+  | 'silicon-valley'
+  | 'sydney-creative'
+  | 'scholarship-pro'
+  | 'medical-standard';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -231,6 +240,15 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   infographic: 'Infographic',
   classic: 'Classic',
   'standard-pro': 'Standard Professional',
+  'harvard-gold': 'Harvard Gold',
+  'tokyo-night': 'Tokyo Night',
+  'paris-vibe': 'Paris Vibe',
+  'london-finance': 'London Finance',
+  'berlin-design': 'Berlin Design',
+  'silicon-valley': 'Silicon Valley',
+  'sydney-creative': 'Sydney Creative',
+  'scholarship-pro': 'Scholarship Pro',
+  'medical-standard': 'Medical Standard',
 };
 
 // --- CV Generation Mode ---

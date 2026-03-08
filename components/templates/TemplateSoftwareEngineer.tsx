@@ -10,7 +10,7 @@ interface TemplateProps {
 }
 
 const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
-  
+
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
     let current: any = newCvData;
@@ -29,8 +29,8 @@ const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInf
     },
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
   } : {};
-  
-  const Section: React.FC<{title: string; children: React.ReactNode}> = ({ title, children }) => (
+
+  const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section className="mb-6">
       <h2 className="text-base font-bold uppercase tracking-wider text-slate-800 border-b-2 border-slate-200 pb-1 mb-3">{title}</h2>
       {children}
@@ -49,10 +49,10 @@ const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInf
           <span>{personalInfo.email}</span>
         </div>
         <div className="flex flex-wrap justify-center gap-x-4 text-sm text-blue-600 mt-1">
-            <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>
-            <span className="text-slate-300">|</span>
-            <a href={personalInfo.github} className="hover:underline">GitHub</a>
-            {personalInfo.website && <><span className="text-slate-300">|</span><a href={personalInfo.website} className="hover:underline">Portfolio</a></>}
+          <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>
+          <span className="text-slate-300">|</span>
+          <a href={personalInfo.github} className="hover:underline">GitHub</a>
+          {personalInfo.website && <><span className="text-slate-300">|</span><a href={personalInfo.website} className="hover:underline">Portfolio</a></>}
         </div>
       </header>
 
@@ -60,13 +60,13 @@ const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInf
         <Section title="Summary">
           <p className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
         </Section>
-        
+
         <Section title="Skills">
-            <div className="font-mono text-xs">
-                {cvData.skills.map((skill, i) => (
-                    <span key={i} className="inline-block bg-slate-100 rounded-sm px-2 py-1 mr-2 mb-2">{skill}</span>
-                ))}
-            </div>
+          <div className="font-mono text-xs">
+            {cvData.skills.slice(0, 15).map((skill, i) => (
+              <span key={i} className="inline-block bg-slate-100 rounded-sm px-2 py-1 mr-2 mb-2">{skill}</span>
+            ))}
+          </div>
         </Section>
 
         <Section title="Experience">
@@ -87,45 +87,45 @@ const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInf
         </Section>
 
         <Section title="Projects">
-             <div className="space-y-4">
-                {cvData.projects.map((proj, index) => (
-                <div key={index}>
-                    <h3 className="text-lg font-semibold inline-block mr-2" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                    {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>[Link]</a>}
-                    <p className="text-sm mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                </div>
-                ))}
-            </div>
+          <div className="space-y-4">
+            {cvData.projects.map((proj, index) => (
+              <div key={index}>
+                <h3 className="text-lg font-semibold inline-block mr-2" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>[Link]</a>}
+                <p className="text-sm mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+              </div>
+            ))}
+          </div>
         </Section>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Section title="Education">
-                {cvData.education.map((edu, index) => (
-                     <div key={index}>
-                        <h3 className="text-lg font-semibold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                        <p className="text-md text-slate-600">{edu.school} - {edu.year}</p>
-                     </div>
+          <Section title="Education">
+            {cvData.education.map((edu, index) => (
+              <div key={index}>
+                <h3 className="text-lg font-semibold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
+                <p className="text-md text-slate-600">{edu.school} - {edu.year}</p>
+              </div>
+            ))}
+          </Section>
+          {cvData.languages && cvData.languages.length > 0 && (
+            <Section title="Languages">
+              <p className="text-sm">
+                {cvData.languages.map((l, i) => (
+                  <span key={i}>
+                    <span className="font-semibold">{l.name}</span> ({l.proficiency}){i < cvData.languages.length - 1 ? ', ' : ''}
+                  </span>
                 ))}
+              </p>
             </Section>
-            {cvData.languages && cvData.languages.length > 0 && (
-                 <Section title="Languages">
-                     <p className="text-sm">
-                        {cvData.languages.map((l, i) => (
-                            <span key={i}>
-                                <span className="font-semibold">{l.name}</span> ({l.proficiency}){i < cvData.languages.length - 1 ? ', ' : ''}
-                            </span>
-                        ))}
-                    </p>
-                 </Section>
-            )}
+          )}
         </div>
       </main>
-      
+
       {jobDescriptionForATS && (
-          <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
-            {jobDescriptionForATS}
-          </div>
-        )}
+        <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
+          {jobDescriptionForATS}
+        </div>
+      )}
     </div>
   );
 };

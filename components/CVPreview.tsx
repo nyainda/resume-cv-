@@ -16,6 +16,15 @@ import TemplateModernTech from './templates/TemplateModernTech';
 import TemplateInfographic from './templates/TemplateInfographic';
 import TemplateClassic from './templates/TemplateClassic';
 import TemplateStandardPro from './templates/TemplateStandardPro';
+import TemplateHarvardGold from './templates/TemplateHarvardGold';
+import TemplateTokyoNight from './templates/TemplateTokyoNight';
+import TemplateParisVibe from './templates/TemplateParisVibe';
+import TemplateLondonFinance from './templates/TemplateLondonFinance';
+import TemplateBerlinDesign from './templates/TemplateBerlinDesign';
+import TemplateSiliconValley from './templates/TemplateSiliconValley';
+import TemplateSydneyCreative from './templates/TemplateSydneyCreative';
+import TemplateScholarshipPro from './templates/TemplateScholarshipPro';
+import TemplateMedicalStandard from './templates/TemplateMedicalStandard';
 
 
 interface CVPreviewProps {
@@ -64,6 +73,24 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         return <TemplateClassic {...rest} />;
       case 'standard-pro':
         return <TemplateStandardPro {...rest} />;
+      case 'harvard-gold':
+        return <TemplateHarvardGold {...rest} />;
+      case 'tokyo-night':
+        return <TemplateTokyoNight {...rest} />;
+      case 'paris-vibe':
+        return <TemplateParisVibe {...rest} />;
+      case 'london-finance':
+        return <TemplateLondonFinance {...rest} />;
+      case 'berlin-design':
+        return <TemplateBerlinDesign {...rest} />;
+      case 'silicon-valley':
+        return <TemplateSiliconValley {...rest} />;
+      case 'sydney-creative':
+        return <TemplateSydneyCreative {...rest} />;
+      case 'scholarship-pro':
+        return <TemplateScholarshipPro {...rest} />;
+      case 'medical-standard':
+        return <TemplateMedicalStandard {...rest} />;
       default:
         return <TemplateProfessional {...rest} />;
     }

@@ -10,7 +10,7 @@ interface TemplateProps {
 }
 
 const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
-  
+
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
     let current: any = newCvData;
@@ -29,8 +29,8 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     },
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
   } : {};
-  
-  const Section: React.FC<{title: string; children: React.ReactNode}> = ({ title, children }) => (
+
+  const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section className="mb-8">
       <div className="flex items-center mb-4">
         <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-700 mr-4">{title}</h2>
@@ -52,10 +52,10 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
           <span>&bull;</span>
           <span>{personalInfo.location}</span>
         </div>
-         <div className="flex flex-wrap justify-center gap-x-4 text-sm text-blue-600 mt-1">
-            <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>
-            {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
-            {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
+        <div className="flex flex-wrap justify-center gap-x-4 text-sm text-blue-600 mt-1">
+          <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>
+          {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
+          {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
         </div>
       </header>
 
@@ -80,40 +80,52 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
             ))}
           </div>
         </Section>
-        
+
         <Section title="Education">
-            {cvData.education.map((edu, index) => (
-                 <div key={index} className="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                        <p className="text-md text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                    </div>
-                    <p className="text-sm text-slate-500 font-medium text-right" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
-                 </div>
-            ))}
+          {cvData.education.map((edu, index) => (
+            <div key={index} className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
+                <p className="text-md text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+              </div>
+              <p className="text-sm text-slate-500 font-medium text-right" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+            </div>
+          ))}
         </Section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Section title="Skills">
-            <p className="text-base leading-relaxed">
-                {cvData.skills.join(' &nbsp;&bull;&nbsp; ')}
-            </p>
+          <Section title="Skills">
+            {(() => {
+              const sk = cvData.skills.slice(0, 15);
+              const perCol = Math.ceil(sk.length / 3);
+              return (
+                <div className="grid grid-cols-3 gap-x-6">
+                  {[0, 1, 2].map(ci => (
+                    <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
+                      {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
+                        <li key={si} className="text-sm text-slate-700">{s}</li>
+                      ))}
+                    </ul>
+                  ))}
+                </div>
+              );
+            })()}
+          </Section>
+          {cvData.languages && cvData.languages.length > 0 && (
+            <Section title="Languages">
+              <p className="text-base leading-relaxed">
+                {cvData.languages.map((l, i) => `${l.name} (${l.proficiency})`).join(' &nbsp;&bull;&nbsp; ')}
+              </p>
             </Section>
-            {cvData.languages && cvData.languages.length > 0 && (
-                <Section title="Languages">
-                    <p className="text-base leading-relaxed">
-                        {cvData.languages.map((l, i) => `${l.name} (${l.proficiency})`).join(' &nbsp;&bull;&nbsp; ')}
-                    </p>
-                </Section>
-            )}
+          )}
         </div>
       </main>
-      
+
       {jobDescriptionForATS && (
-          <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
-            {jobDescriptionForATS}
-          </div>
-        )}
+        <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
+          {jobDescriptionForATS}
+        </div>
+      )}
     </div>
   );
 };
