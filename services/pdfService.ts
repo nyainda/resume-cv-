@@ -1020,7 +1020,18 @@ const generatePdfForTemplate = (
                 size: 10,
                 color: [40, 40, 40],
             });
-            h.setY(h.getY() + 16);
+            h.setY(h.getY() + 13);
+            if (edu.description && edu.description.trim()) {
+                const descH = h.writeText(decodeHtmlEntities(edu.description), M + 2, h.getY(), {
+                    font: serifFont,
+                    size: 9.5,
+                    color: [80, 80, 80],
+                    width: CW - 2,
+                });
+                h.setY(h.getY() + descH + 10);
+            } else {
+                h.setY(h.getY() + 10);
+            }
         });
 
         // ── SKILLS ───────────────────────────────────────────────────────────
