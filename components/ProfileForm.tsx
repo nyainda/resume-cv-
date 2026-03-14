@@ -147,13 +147,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           ? new Date(workItem.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
           : 'Present';
         const durationStr = startDate ? `${startDate} - ${endDate}` : 'Unknown duration';
+        const pointCount = workItem.pointCount ?? 5;
 
         const enhancedResps = await generateEnhancedResponsibilities(
           workItem.jobTitle,
           workItem.company,
           workItem.responsibilities,
           jobDescription, // Pass global JD if available
-          durationStr     // Pass duration for reality check
+          durationStr,    // Pass duration for reality check
+          pointCount      // Pass bullet count
         );
         setValue(`workExperience.${index}.responsibilities`, enhancedResps);
       } else if (type === 'project' && index !== undefined) {
@@ -441,6 +443,30 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                   <Input type="date" placeholder="Start Date" {...register(`workExperience.${index}.startDate`)} />
                   <Input type="date" placeholder="End Date" {...register(`workExperience.${index}.endDate`)} />
                 </div>
+
+                {/* ── Bullet Point Count Selector ── */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Bullet Points:</span>
+                  {[3, 4, 5, 6, 8].map((count) => {
+                    const currentCount = (watch(`workExperience.${index}.pointCount`) as number) ?? 5;
+                    const isSelected = currentCount === count;
+                    return (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setValue(`workExperience.${index}.pointCount`, count)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold border transition-all duration-150 ${isSelected
+                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-neutral-700 border-zinc-300 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                          }`}
+                      >
+                        {count}
+                      </button>
+                    );
+                  })}
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500 italic ml-1">points per entry</span>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <Label className="text-sm font-medium">Responsibilities & Achievements</Label>
                   <button type="button" onClick={() => handleEnhance('responsibilities', index)} disabled={!apiKeySet || !!isEnhancing} className="p-1 text-indigo-500 hover:text-indigo-700 disabled:opacity-50" title="Enhance with AI">
@@ -451,7 +477,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 <button type="button" onClick={() => removeWork(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full"><Trash className="h-4 w-4" /></button>
               </div>
             ))}
-            <Button type="button" variant="secondary" size="sm" onClick={() => appendWork({ id: `${Date.now()}`, company: '', jobTitle: '', startDate: '', endDate: '', responsibilities: '' })}><Plus className="h-4 w-4 mr-2" /> Add Experience</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => appendWork({ id: `${Date.now()}`, company: '', jobTitle: '', startDate: '', endDate: '', responsibilities: '', pointCount: 5 })}><Plus className="h-4 w-4 mr-2" /> Add Experience</Button>
           </div>
 
           <div className="space-y-4">

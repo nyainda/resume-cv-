@@ -21,6 +21,7 @@ export interface WorkExperience {
   startDate: string;
   endDate: string;
   responsibilities: string;
+  pointCount?: number; // Number of bullet points to generate (e.g., 3, 4, 5, 6, 8)
 }
 
 export interface Education {
@@ -308,4 +309,5 @@ export interface JobAnalysisResult {
   keywords: string[];
   skills: string[];
   companyName?: string;
+  jobTitle?: string; // The specific job title being applied for
 }

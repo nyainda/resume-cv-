@@ -39,7 +39,7 @@ const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
                     cy={sqSize / 2}
                     r={radius}
                     strokeWidth={`${strokeWidth}px`}
-                    transform={`rotate(-90 ${sqSize/2} ${sqSize/2})`}
+                    transform={`rotate(-90 ${sqSize / 2} ${sqSize / 2})`}
                     style={{
                         strokeDasharray: dashArray,
                         strokeDashoffset: dashOffset,
@@ -83,9 +83,9 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
 
     const { matchedKeywords, missingKeywords, matchedSkills, missingSkills, matchScore } = useMemo(() => {
         if (!analysis || !cvTextContent) return { matchedKeywords: new Set(), missingKeywords: [], matchedSkills: new Set(), missingSkills: [], matchScore: 0 };
-        
+
         const lowerCvText = cvTextContent.toLowerCase();
-        
+
         const matchedKeywords = new Set<string>();
         const missingKeywords: string[] = [];
         analysis.keywords.forEach(keyword => {
@@ -112,7 +112,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
 
         return { matchedKeywords, missingKeywords, matchedSkills, missingSkills, matchScore: score };
     }, [analysis, cvTextContent]);
-    
+
 
     if (!jobDescription.trim() || jobDescription.length < 50) {
         return null;
@@ -139,10 +139,27 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             {analysis && (
                 <div className="flex flex-col md:flex-row items-start gap-6">
                     <div className="flex-shrink-0 flex flex-col items-center gap-2">
-                         <ScoreGauge score={matchScore} />
-                         <h4 className="font-semibold text-sm text-zinc-800 dark:text-zinc-200">CV Match Score</h4>
+                        <ScoreGauge score={matchScore} />
+                        <h4 className="font-semibold text-sm text-zinc-800 dark:text-zinc-200">CV Match Score</h4>
                     </div>
                     <div className="flex-grow w-full">
+                        {analysis.companyName || analysis.jobTitle ? (
+                            <div className="mb-4 flex items-center gap-4 flex-wrap">
+                                {analysis.companyName && (
+                                    <div>
+                                        <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Company</p>
+                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{analysis.companyName}</p>
+                                    </div>
+                                )}
+                                {analysis.jobTitle && (
+                                    <div>
+                                        <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Target Position</p>
+                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{analysis.jobTitle}</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
+
                         {missingKeywords.length > 0 || missingSkills.length > 0 ? (
                             <div className="mb-4">
                                 <h4 className="font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200">Missing Keywords & Skills</h4>
@@ -150,24 +167,24 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                 <div className="flex flex-wrap gap-2">
                                     {[...missingKeywords, ...missingSkills].map(kw => (
                                         <span key={kw} className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-                                          {kw}
+                                            {kw}
                                         </span>
                                     ))}
                                 </div>
                             </div>
                         ) : (
-                             <div className="mb-4 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-center">
+                            <div className="mb-4 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-center">
                                 <p className="text-sm font-semibold text-green-800 dark:text-green-200">Excellent Match!</p>
                                 <p className="text-xs text-green-700 dark:text-green-300">Your CV includes all top keywords and skills.</p>
                             </div>
                         )}
-                        
+
                         <h4 className="font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200">Matched Keywords & Skills</h4>
-                         <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2">
                             {[...matchedKeywords, ...matchedSkills].map(kw => (
                                 <span key={kw} className="flex items-center text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
-                                  <CheckCircle className="h-3 w-3 mr-1"/>
-                                  {kw}
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    {kw}
                                 </span>
                             ))}
                         </div>

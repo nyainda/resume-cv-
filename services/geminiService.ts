@@ -330,7 +330,7 @@ export const generateCV = async (
             endDate: { type: Type.STRING, description: "The end date in YYYY-MM-DD format, or the string 'Present'. Required for sorting." },
             responsibilities: {
                 type: Type.ARRAY,
-                description: "3-5 bullet points of key achievements and responsibilities, tailored to the context description.",
+                description: "Bullet points of key achievements and responsibilities, tailored to the context description. Exact count is specified per-entry in the prompt.",
                 items: { type: Type.STRING }
             }
         },
@@ -429,6 +429,8 @@ export const generateCV = async (
                - Show range: technical skills, leadership, collaboration, delivery.
                - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
                - Use 'startDate'/'endDate' in 'YYYY-MM-DD' format.
+               - **BULLET COUNT PER ENTRY**: Generate EXACTLY the number of bullets specified for each role below:
+               ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
 
             3. **SKILLS**: Include EXACTLY 15 specific skills that represent the candidate's full toolkit and fit the target roles. Group logically but return as a flat list of 15 strings.
 
@@ -469,6 +471,8 @@ export const generateCV = async (
             === CORE INSTRUCTIONS ===
             1.  **Research Statement / Summary**: Follow the format-specific instruction above for the summary field.
             2.  **Experience**: Frame work experience to highlight research, teaching, academic leadership, and community contributions. Convert responsibilities into achievements with measurable impact.
+               - **BULLET COUNT PER ENTRY**: Generate EXACTLY the number of bullets specified for each role:
+               ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
             3.  **Publications**: If the user has projects or experiences that could be framed as research outputs/publications, create plausible academic entries with full citations.
             4.  **Skills**: Focus on research methodologies, statistical tools, academic software, and domain expertise. Prioritize format-specific skills.
             5.  **Education**: Emphasize academic honors, GPA (if excellent), relevant coursework, and thesis/dissertation titles in the 'description' field.
@@ -492,6 +496,9 @@ export const generateCV = async (
         // --- GENERATION MODE: Controls how much AI creativity is applied ---
         let experienceInstruction: string;
 
+        // Compute the point count to use for AI-fabricated entries (use the max of the user's selections)
+        const maxPointCount = Math.max(...profile.workExperience.map(we => we.pointCount ?? 5), 5);
+
         if (generationMode === 'honest') {
             experienceInstruction = `
             3.  **Experience — HONEST MODE (STRICT)**:
@@ -501,6 +508,8 @@ export const generateCV = async (
                   b) Quantify achievements using realistic metrics based on the role context (add estimates if not given, e.g., "~30% efficiency gain")
                   c) Weave in JD keywords naturally — every bullet should feel directly relevant to the target role
                 - The goal: make the user's REAL experience sound as impressive and relevant as possible. Polish, don't fabricate.
+                - **BULLET COUNT PER ENTRY (STRICT)**: Generate EXACTLY the number of bullets specified for each role:
+                ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
             `;
         } else if (generationMode === 'boosted') {
             experienceInstruction = `
@@ -509,7 +518,10 @@ export const generateCV = async (
                 - THEN: Strategically craft EXACTLY 1 additional plausible experience entry to fill a gap or strengthen the candidacy:
                   • **Company**: Use a credible mid-sized company (regional tech firm, consultancy, agency) — NOT a verifiable giant like Google/Safaricom.
                   • **Role & Dates**: Must make logical career sense and NOT overlap with existing roles.
-                  • **Content**: 3-4 bullet points directly targeting the JD's must-have requirements, featuring the "Must-Include Keywords".
+                  • **Content**: EXACTLY ${maxPointCount} bullet points directly targeting the JD's must-have requirements, featuring the "Must-Include Keywords".
+                - **BULLET COUNT FOR REAL ENTRIES**: Generate EXACTLY the number of bullets specified for each real role:
+                ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
+                - **BULLET COUNT FOR FABRICATED ENTRY**: EXACTLY ${maxPointCount} bullet points.
                 - Ensure the added role feels like a natural fit in the career timeline.
             `;
         } else { // 'aggressive'
@@ -520,7 +532,10 @@ export const generateCV = async (
                   • **Companies**: Use credible, mid-to-large companies the user would realistically have worked at (NOT directly verifiable household names).
                   • **Roles**: Position them as impressive stepping stones in the career trajectory.
                   • **Dates**: Ensure zero date overlaps with existing roles.
-                  • **Content**: 3-5 bullet points each, packed with JD keywords, quantified results, and executive-level language.
+                  • **Content**: EXACTLY ${maxPointCount} bullet points each, packed with JD keywords, quantified results, and executive-level language.
+                - **BULLET COUNT FOR REAL ENTRIES**: Generate EXACTLY the number of bullets specified for each real role:
+                ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
+                - **BULLET COUNT FOR EACH FABRICATED ENTRY**: EXACTLY ${maxPointCount} bullet points.
                 - The summary should position this candidate as the OBVIOUS first choice for the role.
             `;
         }
@@ -700,6 +715,7 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         1. Extract the top 10 most important technical keywords (specific technologies, tools, platforms, methodologies like Agile).
         2. Extract the top 10 essential soft skills and non-technical abilities (communication, leadership, business acumen).
         3. Identify the name of the Company or Organization hiring. If it is not explicitly stated, return "Unknown".
+        4. Identify the specific Job Title or Position being advertised. If it's not clear, return "General Application".
 
         JOB DESCRIPTION:
         ${jobDescription}
@@ -723,6 +739,10 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
             companyName: {
                 type: Type.STRING,
                 description: "The name of the company hiring, if found."
+            },
+            jobTitle: {
+                type: Type.STRING,
+                description: "The specific job title or position being advertised."
             }
         },
         required: ["keywords", "skills"]
@@ -761,7 +781,7 @@ export const generateEnhancedSummary = async (profile: UserProfile): Promise<str
     return response.text || "";
 };
 
-export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string): Promise<string> => {
+export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string, pointCount: number = 5): Promise<string> => {
     const ai = getAiClient();
     const prompt = `
       You are an expert resume writer and career coach specializing in creating HIGH-IMPACT, ATS-OPTIMIZED bullet points.
@@ -773,6 +793,7 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
       - **Duration/Tenure:** ${duration || "Not specified"}
       - **Target Job Description (JD):** ${jobDescription ? jobDescription.substring(0, 500) + '...' : "None provided"}
       - **Current Draft:** "${currentResponsibilities}"
+      - **REQUIRED BULLET COUNT: EXACTLY ${pointCount} bullet points** — no more, no fewer.
 
       **Instructions:**
       1.  **Analyze & Upgrade:** Check if the metrics/achievements in the draft are impressive enough for the role's tenure (${duration}). 
@@ -783,7 +804,8 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
           - If strict numbers are missing, you MAY estimate realistic industry-standard metrics for this level (e.g., "reduced latency by ~30%", "managed team of 5+").
           - Use placeholders like \`[Amount]\` ONLY if you cannot reasonably estimate.
       4.  **Action Verbs:** Start with powerful verbs (e.g., "Orchestrated", "Engineered", "Capitalized").
-      5.  **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
+      5.  **STRICT COUNT:** Output EXACTLY ${pointCount} bullet points — not ${pointCount - 1}, not ${pointCount + 1}. Count them before outputting.
+      6.  **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
     `;
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash', // Use Flash (Pro equivalent logic) for better reasoning

@@ -18,6 +18,7 @@ interface CVGeneratorProps {
   currentCV: CVData | null;
   setCurrentCV: React.Dispatch<React.SetStateAction<CVData | null>>;
   onSaveCV: (cvData: CVData, purpose: 'job' | 'academic' | 'general') => void;
+  onAutoTrack: (details: { roleTitle: string, company: string, savedCvName: string }) => void;
   apiKeySet: boolean;
   openSettings: () => void;
 }
@@ -88,9 +89,10 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, apiKeySet, openSettings }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useState('');
+  const [targetJobTitle, setTargetJobTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
   const [error, setError] = useState<string | null>(null);
@@ -207,9 +209,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     if (!currentCV) return;
     const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     const name = sanitize(userProfile.personalInfo.name).substring(0, 20);
-    const company = targetCompany ? sanitize(targetCompany).substring(0, 20) : '';
-    let fileName = `${name}_CV.pdf`;
-    if (company) fileName = `${name}_${company}_CV.pdf`;
+    const companyName = targetCompany || 'Unknown';
+    const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
+
+    const sanitizeForFileName = (s: string) => sanitize(s).substring(0, 20);
+    const companyPart = targetCompany ? `_${sanitizeForFileName(targetCompany)}` : '';
+    let fileName = `${name}${companyPart}_CV.pdf`;
+
     const wasEmbedded = downloadCVAsPDF({
       cvData: currentCV,
       personalInfo: userProfile.personalInfo,
@@ -219,6 +225,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       jobDescription: jobDescription,
     });
     setAtsDataEmbedded(wasEmbedded);
+
+    // Auto-track that we applied!
+    onAutoTrack({
+      roleTitle: jobTitle,
+      company: companyName,
+      savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
+    });
   };
 
   const cvTextContent = useMemo(() => {
@@ -234,6 +247,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const handleJobAnalysisComplete = useCallback((result: JobAnalysisResult) => {
     if (result.companyName) {
       setTargetCompany(result.companyName);
+    }
+    if (result.jobTitle) {
+      setTargetJobTitle(result.jobTitle);
     }
   }, []);
 

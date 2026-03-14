@@ -66,6 +66,21 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [setCurrentCV]);
 
+  const handleAutoTrack = useCallback((details: { roleTitle: string, company: string, savedCvName: string }) => {
+    const newApp: TrackedApplication = {
+      id: Date.now().toString(),
+      savedCvId: 'auto-generated', // Placeholder for auto-generated
+      savedCvName: details.savedCvName,
+      roleTitle: details.roleTitle,
+      company: details.company,
+      status: 'Applied', // Default to 'Applied' when downloaded
+      dateApplied: new Date().toISOString().split('T')[0],
+      notes: `Automatically tracked after CV download on ${new Date().toLocaleDateString()}.`,
+    };
+    setTrackedApps(prev => [newApp, ...prev]);
+    toast.success('Application Tracked!', `Added "${details.roleTitle}" at ${details.company} to your tracker.`);
+  }, [setTrackedApps, toast]);
+
   const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker'>('generator');
 
   const profileExists = useMemo(() => userProfile !== null, [userProfile]);
@@ -172,11 +187,11 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
-          {/* Sidebar - Conditional based on view */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
+          {/* Sidebar - hidden on mobile, sticky on desktop */}
           {(!profileExists || isEditingProfile || (currentView === 'generator' && profileExists)) && (
-            <aside className="lg:col-span-4 xl:col-span-3 lg:block">
-              <div className="sticky top-24 space-y-6">
+            <aside className="hidden lg:block lg:col-span-4 xl:col-span-3">
+              <div className="sticky top-24 space-y-4">
                 {profileExists && (
                   <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
@@ -206,21 +221,121 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Mini tracker in sidebar for generator view */}
+                {/* Compact Recent Activity widget (sidebar only) */}
                 {currentView === 'generator' && (
                   <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-3"><Target className="h-5 w-5 text-indigo-500" /> Recent Activity</h2>
-                    <Tracker trackedApps={trackedApps.slice(0, 3)} setTrackedApps={setTrackedApps} savedCVs={savedCVs} />
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <Target className="h-4 w-4 text-indigo-500" /> Recent Activity
+                      </h2>
+                      <span className="text-xs font-semibold text-zinc-400">{trackedApps.length} total</span>
+                    </div>
+
+                    {trackedApps.length === 0 ? (
+                      <div className="text-center py-6">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mx-auto mb-3">
+                          <Target className="h-5 w-5 text-indigo-400" />
+                        </div>
+                        <p className="text-xs text-zinc-400 dark:text-zinc-500">No applications tracked yet.</p>
+                        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Go to Job Tracker to add one.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {trackedApps.slice(0, 4).map(app => {
+                          const statusColors: Record<string, string> = {
+                            Wishlist: 'bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-400',
+                            Applied: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+                            Interviewing: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+                            Offer: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+                            Rejected: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+                          };
+                          return (
+                            <div
+                              key={app.id}
+                              onClick={() => setCurrentView('tracker')}
+                              className="group flex items-start gap-3 p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 transition-colors cursor-pointer border border-transparent hover:border-zinc-100 dark:hover:border-neutral-700"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate leading-tight">{app.roleTitle}</p>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{app.company}</p>
+                              </div>
+                              <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[app.status] || statusColors.Applied}`}>
+                                {app.status}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <button
                       onClick={() => setCurrentView('tracker')}
-                      className="w-full mt-4 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline py-2 border border-indigo-100 dark:border-indigo-900/30 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors"
+                      className="w-full mt-4 text-xs font-bold text-indigo-600 dark:text-indigo-400 py-2.5 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-center gap-1.5"
                     >
+                      <Target className="h-3.5 w-3.5" />
                       View All Applications
                     </button>
                   </div>
                 )}
               </div>
             </aside>
+          )}
+
+          {/* Mobile-only Recent Activity strip (shown only when on generator view and profile exists) */}
+          {profileExists && !isEditingProfile && currentView === 'generator' && (
+            <div className="lg:hidden col-span-1">
+              <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold flex items-center gap-2">
+                    <Target className="h-4 w-4 text-indigo-500" /> Recent Activity
+                  </h2>
+                  <button
+                    onClick={() => setCurrentView('tracker')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    View All
+                  </button>
+                </div>
+
+                {trackedApps.length === 0 ? (
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center py-3">
+                    No applications tracked yet. Go to <button onClick={() => setCurrentView('tracker')} className="text-indigo-500 font-bold hover:underline">Job Tracker</button> to add one.
+                  </p>
+                ) : (
+                  <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar snap-x snap-mandatory">
+                    {trackedApps.slice(0, 6).map(app => {
+                      const statusColors: Record<string, string> = {
+                        Wishlist: 'border-zinc-200 dark:border-neutral-700',
+                        Applied: 'border-blue-200 dark:border-blue-800',
+                        Interviewing: 'border-amber-200 dark:border-amber-800',
+                        Offer: 'border-emerald-200 dark:border-emerald-800',
+                        Rejected: 'border-rose-200 dark:border-rose-800',
+                      };
+                      const pillColors: Record<string, string> = {
+                        Wishlist: 'bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-400',
+                        Applied: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+                        Interviewing: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+                        Offer: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+                        Rejected: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+                      };
+                      return (
+                        <div
+                          key={app.id}
+                          onClick={() => setCurrentView('tracker')}
+                          className={`flex-shrink-0 snap-start w-44 bg-white dark:bg-neutral-800 border-2 rounded-xl p-3 cursor-pointer hover:shadow-md transition-all ${statusColors[app.status]}`}
+                        >
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pillColors[app.status]}`}>
+                            {app.status}
+                          </span>
+                          <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 mt-2 truncate">{app.roleTitle}</p>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{app.company}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Main Content Area */}
@@ -246,6 +361,7 @@ const App: React.FC = () => {
                     currentCV={currentCV}
                     setCurrentCV={setCurrentCV}
                     onSaveCV={handleSaveCV}
+                    onAutoTrack={handleAutoTrack}
                     apiKeySet={apiKeySet}
                     openSettings={() => setIsSettingsOpen(true)}
                   />
