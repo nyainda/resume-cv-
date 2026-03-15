@@ -892,3 +892,156 @@ export const generateScholarshipEssay = async (params: {
 
     return response.text || "";
 };
+
+// ─── CV Checker: Score CV against JD ──────────────────────────────────────────
+
+export interface CVCheckResult {
+    overallScore: number;        // 0-100
+    atsScore: number;            // 0-100 ATS compatibility
+    strengths: string[];         // What's good
+    weaknesses: string[];        // What's wrong
+    missingKeywords: string[];   // Keywords in JD but not in CV
+    matchedKeywords: string[];   // Keywords found in both
+    suggestions: string[];       // Actionable improvement tips
+    summary: string;             // Brief overall assessment
+}
+
+export const checkCVAgainstJob = async (
+    profile: UserProfile,
+    jobDescription: string
+): Promise<CVCheckResult> => {
+    const ai = getAiClient();
+    const prompt = `
+        You are an elite CV reviewer and ATS expert. Analyze this CV against the job description.
+
+        ### CV DATA
+        ${JSON.stringify(profile, null, 2)}
+
+        ### JOB DESCRIPTION
+        ${jobDescription}
+
+        ### ANALYSIS INSTRUCTIONS
+        1. **overallScore** (0-100): How well does this CV match the JD? Consider relevance, experience, skills alignment.
+        2. **atsScore** (0-100): How likely is this CV to pass ATS screening? Consider keyword density, formatting, section headers.
+        3. **strengths** (3-5 items): What the CV does well relative to this JD.
+        4. **weaknesses** (3-5 items): Critical gaps, mismatches, or problems.
+        5. **missingKeywords** (5-15 items): Important keywords/skills from the JD that are NOT in the CV.
+        6. **matchedKeywords** (5-15 items): Keywords/skills that appear in BOTH the CV and JD.
+        7. **suggestions** (3-6 items): Specific, actionable suggestions to improve the CV for this role.
+        8. **summary** (2-3 sentences): Overall assessment in plain language.
+
+        Be brutally honest. A 100 score should be near-impossible. Most CVs score 40-70.
+    `;
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            overallScore: { type: Type.NUMBER },
+            atsScore: { type: Type.NUMBER },
+            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
+            missingKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            matchedKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            summary: { type: Type.STRING },
+        },
+        required: ['overallScore', 'atsScore', 'strengths', 'weaknesses', 'missingKeywords', 'matchedKeywords', 'suggestions', 'summary']
+    };
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            temperature: 0.2,
+            systemInstruction: SYSTEM_INSTRUCTION_PARSER
+        }
+    }));
+    return JSON.parse((response.text || "").trim());
+};
+
+// ─── Smart Cover Letter: JD + Company Research ───────────────────────────────
+
+export const generateSmartCoverLetter = async (
+    profile: UserProfile,
+    jobDescription: string,
+    companyResearch: string = ''
+): Promise<string> => {
+    const ai = getAiClient();
+    const companySection = companyResearch
+        ? `\n### COMPANY RESEARCH (use this to show you know the company)\n${companyResearch}\n`
+        : '';
+
+    const prompt = `
+        You are a world-class career coach writing a WINNING cover letter.
+
+        ### CV DATA
+        ${JSON.stringify(profile, null, 2)}
+
+        ### JOB DESCRIPTION
+        ${jobDescription}
+        ${companySection}
+        ### COVER LETTER INSTRUCTIONS
+        1. **Opening**: Name the exact role. If company research is available, mention something specific about the company (recent news, values, product) that excites you. This shows you've done your homework.
+        2. **Body (2-3 paragraphs)**:
+           - Match your 2-3 strongest experiences to the JD's top requirements.
+           - Use STAR method briefly (Situation, Task, Action, Result) for at least one example.
+           - Include specific metrics/numbers from your CV where possible.
+           - If company research is available, connect your values/experience to the company's mission/culture.
+        3. **Closing**: Confident call-to-action. Express genuine enthusiasm.
+        4. **Tone**: Professional, warm, confident — NOT generic or sycophantic.
+        5. **Length**: 250-350 words. Concise is king.
+        6. **Format**: Plain text with proper letter formatting. Address to "Dear Hiring Manager" unless a name is known.
+
+        CRITICAL: This letter must feel unique to THIS job at THIS company. No generic templates.
+        Return ONLY the cover letter text. No commentary.
+    `;
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
+    }));
+    return response.text || "";
+};
+
+// ─── Paraphrase: Rewrite text in different tones ──────────────────────────────
+
+export type ParaphraseTone = 'professional' | 'concise' | 'creative' | 'ats-friendly';
+
+export const paraphraseText = async (
+    text: string,
+    tone: ParaphraseTone = 'professional',
+    context: string = ''
+): Promise<string> => {
+    const ai = getAiClient();
+
+    const toneInstructions: Record<ParaphraseTone, string> = {
+        professional: 'Rewrite in a polished, professional tone suitable for a senior executive. Use strong action verbs, quantify achievements where possible, and maintain formal language.',
+        concise: 'Rewrite to be as concise as possible. Cut filler words, reduce length by 30-40%, but preserve ALL key information and impact. Each bullet should be one powerful line.',
+        creative: 'Rewrite with more engaging, dynamic language. Use vivid descriptions and compelling narrative while staying professional. Make it memorable.',
+        'ats-friendly': 'Rewrite to maximize ATS (Applicant Tracking System) compatibility. Use standard industry keywords, avoid creative formatting, use common section headers, and include relevant buzzwords naturally. Keep it keyword-rich but human-readable.',
+    };
+
+    const prompt = `
+        ${toneInstructions[tone]}
+
+        ${context ? `CONTEXT (job description this text is being tailored for):\n${context}\n` : ''}
+
+        TEXT TO REWRITE:
+        ${text}
+
+        RULES:
+        - Preserve ALL factual details: dates, numbers, company names, job titles, metrics.
+        - Return ONLY the rewritten text, no commentary or explanation.
+        - Maintain the same general structure (if it's bullets, return bullets; if paragraphs, return paragraphs).
+    `;
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { temperature: tone === 'ats-friendly' ? 0.3 : 0.7, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
+    }));
+    return response.text || text;
+};

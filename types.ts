@@ -179,6 +179,23 @@ export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
 export interface ApiSettings {
   provider: AIProvider;
   apiKey: string | null;
+  tavilyApiKey?: string | null; // For job search & company research
+}
+
+export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';
+
+export interface ScrapedJob {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  snippet: string;       // Short description from search result
+  jobDescription: string; // Full JD text (fetched on demand)
+  url: string;
+  source: string;        // e.g. "LinkedIn", "Indeed"
+  dateFound: string;
+  status: PipelineStatus;
+  linkedCvId?: string;   // Saved CV generated for this job
 }
 
 export type ApplicationStatus = 'Wishlist' | 'Applied' | 'Interviewing' | 'Offer' | 'Rejected';

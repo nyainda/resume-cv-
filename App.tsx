@@ -10,7 +10,9 @@ import CVHistory from './components/CVHistory';
 import ScholarshipEssayWriter from './components/ScholarshipEssayWriter';
 import SettingsModal from './components/SettingsModal';
 import Tracker from './components/Tracker';
-import { Edit, User, List, Settings, FileText, Target, Moon, Sun, BookOpen } from './components/icons';
+import JobBoard from './components/JobBoard';
+import CVToolkit from './components/CVToolkit';
+import { Edit, User, List, Settings, FileText, Target, Moon, Sun, BookOpen, Globe, Sparkles } from './components/icons';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useLocalStorage<UserProfile | null>('userProfile', null);
@@ -81,14 +83,17 @@ const App: React.FC = () => {
     toast.success('Application Tracked!', `Added "${details.roleTitle}" at ${details.company} to your tracker.`);
   }, [setTrackedApps, toast]);
 
-  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker'>('generator');
+  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit'>('generator');
 
   const profileExists = useMemo(() => userProfile !== null, [userProfile]);
   const apiKeySet = useMemo(() => !!apiSettings?.apiKey, [apiSettings]);
+  const tavilyApiKey = useMemo(() => apiSettings?.tavilyApiKey || null, [apiSettings]);
 
   const navItems = [
     { id: 'generator', label: 'CV Generator', icon: FileText },
-    { id: 'essays', label: 'Scholarship Essays', icon: BookOpen },
+    { id: 'jobs', label: 'Job Board', icon: Globe },
+    { id: 'toolkit', label: 'CV Toolkit', icon: Sparkles },
+    { id: 'essays', label: 'Scholarship', icon: BookOpen },
     { id: 'history', label: 'CV History', icon: List },
     { id: 'tracker', label: 'Job Tracker', icon: Target },
   ];
@@ -385,6 +390,29 @@ const App: React.FC = () => {
                     onDelete={handleDeleteCV}
                     userProfileName={userProfile.personalInfo.name}
                   />
+                )}
+
+                {currentView === 'jobs' && userProfile && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <JobBoard
+                      tavilyApiKey={tavilyApiKey}
+                      apiKeySet={apiKeySet}
+                      userProfile={userProfile}
+                      openSettings={() => setIsSettingsOpen(true)}
+                      onJobApplied={handleAutoTrack}
+                    />
+                  </div>
+                )}
+
+                {currentView === 'toolkit' && userProfile && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <CVToolkit
+                      userProfile={userProfile}
+                      apiKeySet={apiKeySet}
+                      tavilyApiKey={tavilyApiKey}
+                      openSettings={() => setIsSettingsOpen(true)}
+                    />
+                  </div>
                 )}
 
                 {currentView === 'tracker' && (

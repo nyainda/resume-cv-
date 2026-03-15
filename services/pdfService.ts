@@ -1135,7 +1135,7 @@ const generatePdfForTemplate = (
     const harvardGoldPdf = () => {
         const gold: [number, number, number] = [180, 83, 9];
         const dark: [number, number, number] = [15, 23, 42];
-        const serif = fontMap[font]?.serif || 'Times-Roman';
+        const serif = 'Times-Roman';
 
         h.setY(margin + 20);
 
@@ -1710,188 +1710,225 @@ const generatePdfForTemplate = (
     // ─── CORPORATE PDF ───────────────────────────────────────────────────────────
     // Navy sidebar, bold section headers with coloured underline
     const corporatePdf = () => {
-        const navyBlue: [number, number, number] = [15, 40, 90];
-        const accent: [number, number, number] = [37, 99, 235];
-        const sideW = 52;
+        const darkSlate: [number, number, number] = [15, 23, 42];
+        const accent: [number, number, number] = [29, 78, 216]; // blue-700
+        const midGray: [number, number, number] = [71, 85, 105];
+        const serif = 'Times-Roman';
 
-        // Left navy bar
-        doc.setFillColor(...navyBlue);
-        doc.rect(0, 0, sideW, pageHeight, 'F');
-
-        // Right-margin content start
-        const cX = sideW + 18;
-        const cW = pageWidth - cX - margin / 2;
         h.setY(margin);
 
-        // Name block
-        h.writeText(personalInfo.name, cX, h.getY(), { font: selectedFont, style: 'bold', size: 22, color: [15, 23, 42] });
-        h.setY(h.getY() + 14);
+        // Centered header
+        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: serif, style: 'bold', size: 24, color: darkSlate, align: 'center' });
+        h.setY(h.getY() + 18);
 
-        const jobt = cvData.experience[0]?.jobTitle || '';
-        if (jobt) {
-            h.writeText(jobt, cX, h.getY(), { font: selectedFont, size: 11, color: accent });
+        const contact = [personalInfo.location, personalInfo.phone, personalInfo.email].filter(Boolean).join('  •  ');
+        h.writeText(contact, pageWidth / 2, h.getY(), { font: serif, size: 9, color: midGray, align: 'center' });
+        h.setY(h.getY() + 11);
+
+        const links: string[] = [];
+        if (personalInfo.linkedin) links.push(personalInfo.linkedin);
+        if (personalInfo.website) links.push(personalInfo.website);
+        if (personalInfo.github) links.push(personalInfo.github);
+        if (links.length > 0) {
+            h.writeText(links.join('  •  '), pageWidth / 2, h.getY(), { font: serif, size: 9, color: accent, align: 'center' });
             h.setY(h.getY() + 12);
         }
 
-        const contact = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('   ');
-        h.writeText(contact, cX, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105] });
-        h.setY(h.getY() + 18);
-
-        // Accent rule
-        doc.setDrawColor(...accent);
+        // Double rule
+        doc.setDrawColor(51, 65, 85);
         doc.setLineWidth(2);
-        doc.line(cX, h.getY(), pageWidth - margin / 2, h.getY());
+        doc.line(margin, h.getY(), pageWidth - margin, h.getY());
         h.setY(h.getY() + 14);
 
         const sec = (title: string) => {
             h.checkPageBreak(40, margin);
-            h.writeText(title.toUpperCase(), cX, h.getY(), { font: selectedFont, style: 'bold', size: 9.5, color: navyBlue });
-            h.setY(h.getY() + 4);
-            doc.setDrawColor(200, 210, 230);
-            doc.setLineWidth(0.5);
-            doc.line(cX, h.getY(), pageWidth - margin / 2, h.getY());
-            h.setY(h.getY() + 10);
+            h.writeText(title, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: [71, 85, 105] });
+            h.setY(h.getY() + 14);
         };
 
-        sec('Professional Summary');
-        const sH = h.writeText(cvData.summary, cX, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: cW });
-        h.setY(h.getY() + sH + 14);
+        // PROFESSIONAL SUMMARY
+        sec('PROFESSIONAL SUMMARY');
+        const sH = h.writeText(cvData.summary, margin, h.getY(), { font: serif, size: 10.5, color: darkSlate, width: contentWidth });
+        h.setY(h.getY() + sH + 16);
 
-        sec('Skills');
-        const corpSkH = drawSkillsBlock(cvData.skills, h.getY(), cW, cX);
-        h.setY(h.getY() + corpSkH + 14);
-
-        sec('Professional Experience');
+        // WORK EXPERIENCE — Company bold first, then job title italic (matching preview)
+        sec('WORK EXPERIENCE');
         cvData.experience.forEach(job => {
             h.checkPageBreak(60, margin);
-            h.writeText(job.jobTitle, cX, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [15, 23, 42] });
-            h.writeText(job.dates, pageWidth - margin / 2, h.getY(), { font: selectedFont, size: 9, color: [100, 116, 139], align: 'right' });
-            h.setY(h.getY() + 12);
-            h.writeText(job.company, cX, h.getY(), { font: selectedFont, style: 'bold', size: 10, color: accent });
-            h.setY(h.getY() + 12);
+            // Company name bold + dates on right
+            h.writeText(job.company, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: darkSlate });
+            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: serif, size: 9, color: midGray, align: 'right' });
+            h.setY(h.getY() + 13);
+            // Job title italic below company
+            h.writeText(job.jobTitle, margin, h.getY(), { font: serif, style: 'bolditalic', size: 10.5, color: midGray });
+            h.setY(h.getY() + 13);
+            // Bullets with disc-style •
             job.responsibilities.forEach(r => {
-                const rH = h.writeText(`• ${decodeHtmlEntities(r)}`, cX + 6, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: cW - 6 });
-                h.setY(h.getY() + rH + 2);
+                h.checkPageBreak(14, margin);
+                const rH = h.writeText(`•  ${decodeHtmlEntities(r)}`, margin + 10, h.getY(), { font: serif, size: 10, color: [51, 65, 85], width: contentWidth - 10 });
+                h.setY(h.getY() + rH + 3);
             });
-            h.setY(h.getY() + 12);
+            h.setY(h.getY() + 14);
         });
 
-        sec('Education');
+        // EDUCATION — school bold first, degree italic (matching preview)
+        sec('EDUCATION');
         cvData.education.forEach(edu => {
             h.checkPageBreak(40, margin);
-            h.writeText(edu.degree, cX, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [15, 23, 42] });
-            h.writeText(edu.year, pageWidth - margin / 2, h.getY(), { font: selectedFont, size: 9, align: 'right', color: [100, 116, 139] });
-            h.setY(h.getY() + 12);
-            h.writeText(edu.school, cX, h.getY(), { font: selectedFont, size: 10, color: [71, 85, 105] });
-            h.setY(h.getY() + 16);
+            h.writeText(edu.school, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: darkSlate });
+            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: serif, size: 9, color: midGray, align: 'right' });
+            h.setY(h.getY() + 13);
+            h.writeText(edu.degree, margin, h.getY(), { font: serif, style: 'italic', size: 10.5, color: midGray });
+            h.setY(h.getY() + 13);
+            if (edu.description) {
+                const dH = h.writeText(edu.description, margin, h.getY(), { font: serif, size: 9.5, color: midGray, width: contentWidth });
+                h.setY(h.getY() + dH + 5);
+            }
+            h.setY(h.getY() + 6);
         });
 
-        if (cvData.projects?.length) {
-            sec('Projects');
-            cvData.projects.forEach(p => {
+        // KEY SKILLS & LANGUAGES — 3-column grid matching preview
+        sec('KEY SKILLS & LANGUAGES');
+        const sk = cvData.skills.slice(0, 15);
+        const colW = contentWidth / 3;
+        const perCol = Math.ceil(sk.length / 3);
+        const startSkY = h.getY();
+        let maxColBottom = startSkY;
+        [0, 1, 2].forEach(ci => {
+            let colY = startSkY;
+            sk.slice(ci * perCol, (ci + 1) * perCol).forEach(skill => {
+                const bH = h.writeText(`•  ${skill}`, margin + ci * colW, colY, { font: serif, size: 10, color: darkSlate, width: colW - 8 });
+                colY += bH + 4;
+            });
+            maxColBottom = Math.max(maxColBottom, colY);
+        });
+        h.setY(maxColBottom + 8);
+
+        if (cvData.languages && cvData.languages.length > 0) {
+            const langText = 'Languages: ' + cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(', ');
+            h.writeText(langText, margin, h.getY(), { font: serif, style: 'bold', size: 10, color: darkSlate, width: contentWidth });
+            h.setY(h.getY() + 16);
+        }
+
+        // PROJECTS
+        if (cvData.projects && cvData.projects.length > 0) {
+            sec('PROJECTS');
+            cvData.projects.forEach(proj => {
                 h.checkPageBreak(40, margin);
-                h.writeText(p.name, cX, h.getY(), { font: selectedFont, style: 'bold', size: 10.5, color: [15, 23, 42] });
-                h.setY(h.getY() + 12);
-                const dH = h.writeText(p.description, cX, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: cW });
+                h.writeText(proj.name, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: darkSlate });
+                h.setY(h.getY() + 13);
+                const dH = h.writeText(proj.description, margin, h.getY(), { font: serif, size: 10, color: [51, 65, 85], width: contentWidth });
                 h.setY(h.getY() + dH + 12);
             });
         }
-
-        // Sidebar text: name rotated via vertical strip
-        doc.setFont(selectedFont, 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(200, 220, 255);
-        const contactSide = [personalInfo.linkedin, personalInfo.github, personalInfo.website].filter(Boolean).join(' · ');
-        if (contactSide) {
-            // jsPDF can't rotate cleanly here, just place as column text
-            const sideLines = doc.splitTextToSize(contactSide, pageHeight - 2 * margin);
-            doc.text(sideLines, sideW / 2, margin, { angle: 90, align: 'center' });
-        }
     };
 
+
     // ─── ELEGANT PDF ─────────────────────────────────────────────────────────────
-    // Serif font, gold top-bar, centred header, elegant thin rules
+    // Matches TemplateElegant.tsx exactly: white bg, centered serif header,
+    // Summary → Experience (› bullets) → Education → Skills (3-col) → Languages
     const elegantPdf = () => {
-        const gold: [number, number, number] = [161, 130, 65];
-        const dark: [number, number, number] = [30, 27, 24];
+        const dark: [number, number, number] = [30, 41, 59];     // slate-800
+        const midGray: [number, number, number] = [71, 85, 105]; // slate-500/600
         const serif = 'Times-Roman';
 
-        // Gold top stripe
-        doc.setFillColor(...gold);
-        doc.rect(0, 0, pageWidth, 8, 'F');
+        h.setY(margin);
 
-        h.setY(margin + 8);
-
-        // Centred name
-        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: serif, style: 'bold', size: 26, align: 'center', color: dark });
+        // Centered name — large
+        h.writeText(personalInfo.name, pageWidth / 2, h.getY(), { font: serif, style: 'bold', size: 28, color: dark, align: 'center' });
         h.setY(h.getY() + 20);
 
-        // Gold thin rule
-        doc.setDrawColor(...gold);
-        doc.setLineWidth(0.8);
-        doc.line(margin + 40, h.getY(), pageWidth - margin - 40, h.getY());
-        h.setY(h.getY() + 8);
+        // Contact line
+        const contact = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('   •   ');
+        h.writeText(contact, pageWidth / 2, h.getY(), { font: serif, size: 9.5, color: midGray, align: 'center' });
+        h.setY(h.getY() + 11);
 
-        const contact = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('   ·   ');
-        h.writeText(contact, pageWidth / 2, h.getY(), { font: serif, size: 9, align: 'center', color: [100, 90, 70] });
-        h.setY(h.getY() + 6);
-
-        const links = [personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean).join('   ·   ');
-        if (links) {
-            h.writeText(links, pageWidth / 2, h.getY(), { font: serif, size: 9, align: 'center', color: [120, 100, 50] });
-            h.setY(h.getY() + 8);
+        // Links line
+        const links: string[] = [];
+        if (personalInfo.linkedin) links.push(personalInfo.linkedin);
+        if (personalInfo.website) links.push(personalInfo.website);
+        if (personalInfo.github) links.push(personalInfo.github);
+        if (links.length > 0) {
+            h.writeText(links.join('   •   '), pageWidth / 2, h.getY(), { font: serif, size: 9, color: [37, 99, 235], align: 'center' });
+            h.setY(h.getY() + 12);
         }
 
-        doc.setLineWidth(0.8);
-        doc.line(margin + 40, h.getY(), pageWidth - margin - 40, h.getY());
-        h.setY(h.getY() + 18);
-
+        // Section helper — matches <Section> component (title + thin horizontal rule)
         const sec = (title: string) => {
             h.checkPageBreak(40, margin);
-            h.writeText(title, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: gold });
-            h.setY(h.getY() + 4);
-            doc.setDrawColor(220, 200, 150);
+            h.writeText(title.toUpperCase(), margin, h.getY(), { font: serif, style: 'bold', size: 9.5, color: [51, 65, 85] });
+            h.setY(h.getY() + 5);
+            doc.setDrawColor(203, 213, 225); // slate-200
             doc.setLineWidth(0.5);
             doc.line(margin, h.getY(), pageWidth - margin, h.getY());
-            h.setY(h.getY() + 10);
+            h.setY(h.getY() + 12);
         };
 
-        sec('Professional Profile');
-        const sH = h.writeText(cvData.summary, margin, h.getY(), { font: serif, style: 'italic', size: 10.5, color: [60, 50, 40], width: contentWidth });
-        h.setY(h.getY() + sH + 14);
+        // SUMMARY
+        sec('Summary');
+        const sH = h.writeText(cvData.summary, margin, h.getY(), { font: serif, style: 'italic', size: 10.5, color: dark, width: contentWidth, align: 'center' });
+        h.setY(h.getY() + sH + 18);
 
-        sec('Core Competencies');
-        const elegSkH = drawSkillsBlock(cvData.skills, h.getY(), contentWidth, margin, 'left', [70, 60, 50]);
-        h.setY(h.getY() + elegSkH + 14);
-
-        sec('Professional Experience');
+        // EXPERIENCE — jobTitle bold, company below, › bullets (matching preview rsaquo)
+        sec('Experience');
         cvData.experience.forEach(job => {
             h.checkPageBreak(60, margin);
-            h.writeText(job.jobTitle, margin, h.getY(), { font: serif, style: 'bold', size: 11.5, color: dark });
-            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: serif, style: 'italic', size: 9.5, align: 'right', color: [120, 100, 60] });
+            // Title + dates on same line
+            h.writeText(job.jobTitle, margin, h.getY(), { font: serif, style: 'bold', size: 12, color: dark });
+            h.writeText(job.dates, pageWidth - margin, h.getY(), { font: serif, size: 9.5, color: midGray, align: 'right' });
+            h.setY(h.getY() + 14);
+            // Company name below
+            h.writeText(job.company, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: midGray });
             h.setY(h.getY() + 13);
-            h.writeText(job.company, margin, h.getY(), { font: serif, style: 'italic', size: 10.5, color: [100, 85, 55] });
-            h.setY(h.getY() + 13);
+            // Responsibilities with › arrow bullets (matching &rsaquo; in preview)
             job.responsibilities.forEach(r => {
-                const rH = h.writeText(`◆  ${decodeHtmlEntities(r)}`, margin + 8, h.getY(), { font: serif, size: 10, color: [50, 45, 35], width: contentWidth - 8 });
-                h.setY(h.getY() + rH + 2);
+                h.checkPageBreak(14, margin);
+                const rH = h.writeText(`›  ${decodeHtmlEntities(r)}`, margin + 8, h.getY(), { font: serif, size: 10.5, color: dark, width: contentWidth - 8 });
+                h.setY(h.getY() + rH + 3);
             });
-            h.setY(h.getY() + 12);
+            h.setY(h.getY() + 14);
         });
 
+        // EDUCATION — degree bold, school below
         sec('Education');
         cvData.education.forEach(edu => {
             h.checkPageBreak(40, margin);
-            h.writeText(edu.degree, margin, h.getY(), { font: serif, style: 'bold', size: 11, color: dark });
-            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: serif, size: 9.5, align: 'right', color: [120, 100, 60] });
-            h.setY(h.getY() + 13);
-            h.writeText(edu.school, margin, h.getY(), { font: serif, style: 'italic', size: 10.5, color: [100, 85, 55] });
-            h.setY(h.getY() + 16);
+            h.writeText(edu.degree, margin, h.getY(), { font: serif, style: 'bold', size: 12, color: dark });
+            h.writeText(edu.year, pageWidth - margin, h.getY(), { font: serif, size: 9.5, color: midGray, align: 'right' });
+            h.setY(h.getY() + 14);
+            h.writeText(edu.school, margin, h.getY(), { font: serif, size: 11, color: midGray });
+            h.setY(h.getY() + 14);
+            if (edu.description) {
+                const dH = h.writeText(edu.description, margin, h.getY(), { font: serif, style: 'italic', size: 9.5, color: midGray, width: contentWidth });
+                h.setY(h.getY() + dH + 6);
+            }
+            h.setY(h.getY() + 6);
         });
 
-        // Gold bottom stripe
-        doc.setFillColor(...gold);
-        doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');
+        // SKILLS — 3-column grid list matching preview (list-disc 3 cols)
+        sec('Skills');
+        const sk = cvData.skills.slice(0, 15);
+        const colW = contentWidth / 3;
+        const perCol = Math.ceil(sk.length / 3);
+        const startSkY = h.getY();
+        let maxColBottom = startSkY;
+        [0, 1, 2].forEach(ci => {
+            let colY = startSkY;
+            sk.slice(ci * perCol, (ci + 1) * perCol).forEach(skill => {
+                const bH = h.writeText(`•  ${skill}`, margin + ci * colW, colY, { font: serif, size: 10, color: [71, 85, 105], width: colW - 8 });
+                colY += bH + 4;
+            });
+            maxColBottom = Math.max(maxColBottom, colY);
+        });
+        h.setY(maxColBottom + 14);
+
+        // LANGUAGES (matching preview languages section)
+        if (cvData.languages && cvData.languages.length > 0) {
+            sec('Languages');
+            const langText = cvData.languages.map(l => `${l.name} (${l.proficiency})`).join('   •   ');
+            h.writeText(langText, margin, h.getY(), { font: serif, size: 10.5, color: dark, width: contentWidth });
+            h.setY(h.getY() + 18);
+        }
     };
 
     // ─── EXECUTIVE PDF ────────────────────────────────────────────────────────────
@@ -2508,6 +2545,7 @@ const generatePdfForTemplate = (
         default:
             professional();
     }
+
 };
 
 
