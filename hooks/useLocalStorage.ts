@@ -1,33 +1,71 @@
-// Fix: Import `Dispatch` and `SetStateAction` to resolve 'React' namespace error.
-import { useState, useEffect, Dispatch, SetStateAction } from 'react';
+// hooks/useLocalStorage.ts
+// Drop-in replacement for the old hook.
+// Now ALSO writes every value to IndexedDB so data survives "Clear cache".
+// Reads from localStorage first (instant), with IDB as the durable backup.
 
-// Fix: Removed unnecessary trailing comma from generic type parameter.
-function getValueFromStorage<T>(key: string, initialValue: T): T {
-  if (typeof window === 'undefined') {
-    return initialValue;
-  }
+import { useState, useEffect, useCallback, Dispatch, SetStateAction } from 'react';
+import { idbAppSet, idbAppGet } from '../services/storage/AppDataPersistence';
+
+function lsGet<T>(key: string, initialValue: T): T {
+  if (typeof window === 'undefined') return initialValue;
   try {
     const item = window.localStorage.getItem(key);
-    return item ? JSON.parse(item) : initialValue;
-  } catch (error) {
-    console.error(`Error reading localStorage key "${key}":`, error);
+    return item !== null ? (JSON.parse(item) as T) : initialValue;
+  } catch {
     return initialValue;
   }
 }
 
-// Fix: Update function signature to use imported types and remove unnecessary trailing comma from generic.
-export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<SetStateAction<T>>] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    return getValueFromStorage(key, initialValue);
-  });
+function lsSet<T>(key: string, value: T): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // quota exceeded — IDB copy will still be there
+  }
+}
 
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T
+): [T, Dispatch<SetStateAction<T>>] {
+  // Initialise from localStorage immediately (synchronous — no flash)
+  const [storedValue, setStoredValue] = useState<T>(() => lsGet(key, initialValue));
+
+  // On mount: if localStorage returned the default, try IDB (it may have the real value)
   useEffect(() => {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(storedValue));
-    } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
-    }
-  }, [key, storedValue]);
+    const lsVal = lsGet(key, undefined as unknown as T);
+    // If localStorage already has a non-default value don't bother hitting IDB
+    if (lsVal !== undefined && JSON.stringify(lsVal) !== JSON.stringify(initialValue)) return;
 
-  return [storedValue, setStoredValue];
+    idbAppGet<T>(key).then(idbVal => {
+      if (idbVal !== null) {
+        // Re-hydrate localStorage from IDB
+        lsSet(key, idbVal);
+        setStoredValue(idbVal);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const setValue: Dispatch<SetStateAction<T>> = useCallback(
+    (valueOrUpdater) => {
+      setStoredValue(prev => {
+        const next =
+          typeof valueOrUpdater === 'function'
+            ? (valueOrUpdater as (p: T) => T)(prev)
+            : valueOrUpdater;
+
+        // Write to localStorage synchronously
+        lsSet(key, next);
+
+        // Write to IndexedDB asynchronously (fire-and-forget)
+        idbAppSet(key, next).catch(() => { /* silent */ });
+
+        return next;
+      });
+    },
+    [key]
+  );
+
+  return [storedValue, setValue];
 }

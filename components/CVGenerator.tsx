@@ -21,6 +21,8 @@ interface CVGeneratorProps {
   onAutoTrack: (details: { roleTitle: string, company: string, savedCvName: string }) => void;
   apiKeySet: boolean;
   openSettings: () => void;
+  /** Called when user clicks "Apply via Email" — passes the JD + generated CV */
+  onApplyViaEmail?: (jd: string, cv: CVData) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -89,7 +91,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useState('');
   const [targetJobTitle, setTargetJobTitle] = useState('');
@@ -540,6 +542,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <Download className="h-4 w-4 mr-2" />
                 Download PDF
               </Button>
+              {onApplyViaEmail && cvPurpose === 'job' && (
+                <Button
+                  onClick={() => onApplyViaEmail(jobDescription, currentCV!)}
+                  disabled={isEditing || !jobDescription.trim()}
+                  size="sm"
+                  variant="secondary"
+                  className="bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/40"
+                >
+                  ✉️ Apply via Email
+                </Button>
+              )}
             </div>
           </div>
 

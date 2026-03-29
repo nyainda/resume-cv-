@@ -54,6 +54,35 @@ export interface UserProfile {
   languages?: Language[];
 }
 
+// --- Multiple Profiles ---
+
+export type ProfileColor =
+  | 'indigo'
+  | 'violet'
+  | 'emerald'
+  | 'amber'
+  | 'rose'
+  | 'sky';
+
+export interface UserProfileSlot {
+  id: string;
+  name: string;           // e.g. "Software Engineer", "Product Manager"
+  color: ProfileColor;
+  createdAt: string;
+  profile: UserProfile;
+}
+
+// --- Email Application ---
+
+export interface EmailApplicationDraft {
+  to: string;
+  subject: string;
+  body: string;
+  attachCv: boolean;
+  attachCoverLetter: boolean;
+  coverLetterText?: string;
+}
+
 // --- Generated CV Data Structure ---
 
 export interface CVExperience {
@@ -180,6 +209,7 @@ export interface ApiSettings {
   provider: AIProvider;
   apiKey: string | null;
   tavilyApiKey?: string | null; // For job search & company research
+  brevoApiKey?: string | null;  // For sending emails via Brevo SMTP API
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';
@@ -327,4 +357,6 @@ export interface JobAnalysisResult {
   skills: string[];
   companyName?: string;
   jobTitle?: string; // The specific job title being applied for
+  applicationEmail?: string; // Email address to send application to, if found in JD
+  applicationMethod?: 'email' | 'portal' | 'unknown'; // How to apply
 }

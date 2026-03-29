@@ -1,4 +1,3 @@
-
 const CACHE_NAME = 'ai-cv-builder-v1';
 const URLS_TO_CACHE = [
   '/',
@@ -45,11 +44,10 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('Opened cache');
-        // Use addAll for atomic operation, but handle potential individual failures gracefully
         const cachePromises = URLS_TO_CACHE.map(url => {
-            return cache.add(url).catch(err => {
-                console.warn(`Failed to cache ${url}:`, err);
-            });
+          return cache.add(url).catch(err => {
+            console.warn(`Failed to cache ${url}:`, err);
+          });
         });
         return Promise.all(cachePromises);
       })
@@ -57,10 +55,11 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    // We only want to handle GET requests
-    if (event.request.method !== 'GET') {
-        return;
-    }
+  // Ignore non-GET requests
+  if (event.request.method !== 'GET') return;
+
+  // ✅ Ignore non-http(s) requests (chrome-extension://, etc.)
+  if (!event.request.url.startsWith('http')) return;
 
   event.respondWith(
     caches.match(event.request)
@@ -68,26 +67,31 @@ self.addEventListener('fetch', event => {
         if (response) {
           return response; // Return from cache
         }
-        // Not in cache, fetch from network
-        return fetch(event.request).then(
-          networkResponse => {
-            // Check if we received a valid response
-            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-              return networkResponse;
-            }
 
-            // Clone the response to cache it
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
+        // Not in cache, fetch from network
+        return fetch(event.request).then(networkResponse => {
+          // Only cache valid basic responses
+          if (
+            !networkResponse ||
+            networkResponse.status !== 200 ||
+            networkResponse.type !== 'basic'
+          ) {
             return networkResponse;
           }
-        ).catch(error => {
-            // Network request failed, you could return a fallback page here if needed
-            console.error('Fetch failed:', error);
-            // Example: return caches.match('/offline.html');
+
+          // Clone and cache the response
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            // ✅ Extra safety: only cache http(s) requests
+            if (event.request.url.startsWith('http')) {
+              cache.put(event.request, responseToCache);
+            }
+          });
+
+          return networkResponse;
+        }).catch(error => {
+          console.error('Fetch failed:', error);
+          // Optionally: return caches.match('/offline.html');
         });
       })
   );
