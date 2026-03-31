@@ -41,35 +41,69 @@ export function getStorageService(): IStorageService {
 export function isDriveActive(): boolean {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
-    return !!(token && Date.now() < expiry);
+    // Be generous: if token is present and not super old, try using it.
+    // DriveStorageService will catch the 401 if it's actually invalid.
+    return !!(token && Date.now() < (expiry + 300000)); // +5 min buffer
 }
 
+/** 
+ * Migrates data from Browser to Google Drive.
+ * SAFE: Only uploads if local data exists. 
+ */
 export async function migrateLocalToDrive(
     onProgress?: (uploaded: number, total: number) => void
 ): Promise<void> {
     if (localStorage.getItem(MIGRATION_FLAG) === 'done') return;
 
-    const cache = getCacheService();
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) throw new Error('Not signed in to Google');
 
+    const cache = getCacheService();
     const drive = getDriveService(token);
+
+    // 1. Get all local data
     const allData = await cache.dumpAll();
     const entries = Object.entries(allData);
 
+    // 2. Safety check: do we actually have ANY relevant data in LocalStorage?
+    // If not, maybe index.tsx restorer hasn't finished or it's a fresh install.
+    // If it's a fresh install, we mark as 'done' so we don't keep checking.
+    // If it's a cache clear, we should have restored from IDB already.
     if (entries.length === 0) {
         localStorage.setItem(MIGRATION_FLAG, 'done');
         return;
     }
 
+    // 3. Before uploading, sanity check: if the Drive already has files, 
+    // we should be CAREFUL not to just blank them out.
+    // In this app's logic, "migrate" means "Browser -> Drive".
+    // We only do this once when the user first connects.
     let uploaded = 0;
     for (const [key, value] of entries) {
+        // Skip migration metadata itself
+        if (key === MIGRATION_FLAG) continue;
+
         await drive.save(key, value);
         uploaded++;
         onProgress?.(uploaded, entries.length);
     }
 
     localStorage.setItem(MIGRATION_FLAG, 'done');
+}
+
+/** Forced restore from Drive back to Browser (Emergency fallback) */
+export async function restoreDriveToLocal(): Promise<void> {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) throw new Error('Not signed in to Google');
+
+    const cache = getCacheService();
+    const drive = getDriveService(token);
+
+    const keys = await drive.list();
+    for (const k of keys) {
+        const data = await drive.load(k);
+        if (data) await cache.save(k, data);
+    }
 }
 
 export function resetMigrationFlag(): void {

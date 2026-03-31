@@ -6,10 +6,12 @@
 import { useState, useEffect, useCallback, Dispatch, SetStateAction } from 'react';
 import { idbAppSet, idbAppGet } from '../services/storage/AppDataPersistence';
 
+const CV_PREFIX = 'cv_builder:';
+
 function lsGet<T>(key: string, initialValue: T): T {
   if (typeof window === 'undefined') return initialValue;
   try {
-    const item = window.localStorage.getItem(key);
+    const item = window.localStorage.getItem(CV_PREFIX + key) || window.localStorage.getItem(key);
     return item !== null ? (JSON.parse(item) as T) : initialValue;
   } catch {
     return initialValue;
@@ -18,7 +20,7 @@ function lsGet<T>(key: string, initialValue: T): T {
 
 function lsSet<T>(key: string, value: T): void {
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(CV_PREFIX + key, JSON.stringify(value));
   } catch {
     // quota exceeded — IDB copy will still be there
   }
@@ -37,7 +39,7 @@ export function useLocalStorage<T>(
     // If localStorage already has a non-default value don't bother hitting IDB
     if (lsVal !== undefined && JSON.stringify(lsVal) !== JSON.stringify(initialValue)) return;
 
-    idbAppGet<T>(key).then(idbVal => {
+    idbAppGet<T>(CV_PREFIX + key).then(idbVal => {
       if (idbVal !== null) {
         // Re-hydrate localStorage from IDB
         lsSet(key, idbVal);
@@ -59,7 +61,7 @@ export function useLocalStorage<T>(
         lsSet(key, next);
 
         // Write to IndexedDB asynchronously (fire-and-forget)
-        idbAppSet(key, next).catch(() => { /* silent */ });
+        idbAppSet(CV_PREFIX + key, next).catch(() => { /* silent */ });
 
         return next;
       });

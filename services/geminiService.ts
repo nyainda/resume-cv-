@@ -38,7 +38,7 @@ Critical rules:
 // --- API Client Setup with Multi-Model Support ---
 function getAiClient(modelPreference: 'flash' | 'lite' | 'ultra-lite' = 'lite'): GoogleGenAI {
     let apiKey: string | undefined;
-    const settingsString = localStorage.getItem('apiSettings');
+    const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
     if (settingsString) {
         const settings: ApiSettings = JSON.parse(settingsString);
         if (settings.apiKey && settings.provider === 'gemini') {

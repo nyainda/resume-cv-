@@ -64,16 +64,19 @@
         return;
       }
 
-      // Post the token to the opener (DriveStorageService.openAuthPopup is listening)
-      if (window.opener) {
-        window.opener.postMessage(
+      // Post the token to the opener (for popups) or parent (for iframes)
+      const target = window.opener || window.parent;
+      if (target && target !== window) {
+        target.postMessage(
           { type: 'gdrive_token', access_token: accessToken, expires_in: expiresIn },
           window.location.origin
         );
       }
 
       document.getElementById('msg').textContent = 'Done! Closing…';
-      setTimeout(() => window.close(), 800);
+      if (window.opener) {
+        setTimeout(() => window.close(), 800);
+      }
     })();
   </script>
 </body>

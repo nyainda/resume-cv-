@@ -27,12 +27,19 @@ export class DriveStorageService implements IStorageService {
     }
 
     async load<T = unknown>(key: string): Promise<T | null> {
-        const filename = this.toFilename(key);
-        const fileId = await this.findFileId(filename);
-        if (!fileId) return null;
-        const res = await this.apiFetch(`${DRIVE_FILES_URL}/${fileId}?alt=media`);
-        if (!res.ok) return null;
-        try { return (await res.json()) as T; } catch { return null; }
+        try {
+            const filename = this.toFilename(key);
+            const fileId = await this.findFileId(filename);
+            if (!fileId) return null;
+            const res = await this.apiFetch(`${DRIVE_FILES_URL}/${fileId}?alt=media`);
+            if (!res.ok) return null;
+            const text = await res.text();
+            if (!text) return null;
+            return JSON.parse(text) as T;
+        } catch (err) {
+            console.error(`[DriveStorageService] load failed for "${key}":`, err);
+            return null;
+        }
     }
 
     async list(): Promise<string[]> {
@@ -72,11 +79,17 @@ export class DriveStorageService implements IStorageService {
     }
 
     private async createFile(filename: string, content: string): Promise<void> {
-        const meta = JSON.stringify({ name: filename, parents: ['appDataFolder'] });
-        const form = new FormData();
-        form.append('metadata', new Blob([meta], { type: 'application/json' }));
-        form.append('file', new Blob([content], { type: 'application/json' }));
-        await this.apiFetch(`${DRIVE_UPLOAD_URL}?uploadType=multipart`, { method: 'POST', body: form });
+        // 1. Create file with metadata (empty content)
+        const metaRes = await this.apiFetch(DRIVE_FILES_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: filename, parents: ['appDataFolder'] }),
+        });
+        if (!metaRes.ok) throw new Error(`Could not create file on Drive: ${metaRes.statusText}`);
+        const { id } = await metaRes.json();
+
+        // 2. Upload the content
+        await this.patchFile(id, content);
     }
 
     private async patchFile(fileId: string, content: string): Promise<void> {

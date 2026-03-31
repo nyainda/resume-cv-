@@ -95,22 +95,20 @@ export async function restoreLocalStorageFromIDB(): Promise<void> {
     if (_restored) return;
     _restored = true;
 
-    // Heuristic: if we have any cv_builder: key in localStorage, it wasn't cleared
-    const hasCvData = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-        .some(k => k?.startsWith('cv_builder:'));
+    // Get everything from IDB
+    const idbData = await idbAppGetAll();
+    const entries = Object.entries(idbData);
+    if (entries.length === 0) return;
 
-    if (hasCvData) return; // localStorage intact — nothing to do
-
-    // localStorage is empty — restore from IDB
-    const all = await idbAppGetAll();
-    const entries = Object.entries(all);
-    if (entries.length === 0) return; // first-ever run — nothing to restore
-
+    // For every item in IDB, if it's missing in localStorage, restore it.
+    // This handles both total cache clears AND partial ones.
     for (const [key, value] of entries) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch {
-            break; // quota exceeded — restore what we can
+        if (localStorage.getItem(key) === null) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (err) {
+                console.warn(`[AppDataPersistence] Restore failed for ${key}:`, err);
+            }
         }
     }
 }
