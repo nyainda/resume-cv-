@@ -308,7 +308,7 @@ const AppInner: React.FC = () => {
 
                 {/* Desktop dropdown (hidden on mobile — bottom sheet used instead) */}
                 {showProfileManager && !isMobile && (
-                  <div className="absolute right-0 top-full mt-2 w-[340px] bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 z-50 max-h-[80vh] overflow-hidden flex flex-col">
+                  <div className="absolute right-0 top-full mt-2 w-[380px] bg-white dark:bg-neutral-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-zinc-200 dark:border-neutral-700 p-4 z-50 flex flex-col md:max-h-[70vh]">
                     <ProfileManager
                       profiles={profiles}
                       activeProfileId={activeSlot?.id ?? null}
