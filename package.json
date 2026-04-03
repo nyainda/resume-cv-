@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@google/genai": "^1.22.0",
+    "@react-pdf/renderer": "^4.3.2",
     "lucide-react": "^0.544.0",
+    "lz-string": "^1.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.64.0"

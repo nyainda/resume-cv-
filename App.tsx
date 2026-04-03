@@ -9,6 +9,8 @@ import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/ui/Toast';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
+import SharedCVView from './components/SharedCVView';
+import { decodeSharePayload, SharedCVPayload } from './components/ShareCVModal';
 import SavedCVs from './components/SavedCVs';
 import CVHistory from './components/CVHistory';
 import ScholarshipEssayWriter from './components/ScholarshipEssayWriter';
@@ -113,6 +115,17 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', !!darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#share=')) {
+      const encoded = hash.slice('#share='.length);
+      const payload = decodeSharePayload(encoded);
+      if (payload) {
+        setSharedCVPayload(payload);
+      }
+    }
+  }, []);
 
   // Close profile manager panel on outside click
   useEffect(() => {
@@ -249,6 +262,7 @@ const AppInner: React.FC = () => {
   }, [toast]);
 
   const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit' | 'email'>('generator');
+  const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
 
   const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
   const apiKeySet = useMemo(() => !!apiSettings?.apiKey, [apiSettings]);
@@ -270,6 +284,22 @@ const AppInner: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+      {sharedCVPayload && (
+        <SharedCVView
+          cvData={sharedCVPayload.cvData}
+          personalInfo={sharedCVPayload.personalInfo}
+          template={sharedCVPayload.template}
+          sharedAt={sharedCVPayload.sharedAt}
+          onLoadIntoEditor={userProfile ? (cvData) => {
+            setCurrentCV(cvData);
+            setCurrentView('generator');
+          } : undefined}
+          onDismiss={() => {
+            setSharedCVPayload(null);
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }}
+        />
+      )}
       <header className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-3">
@@ -538,6 +568,7 @@ const AppInner: React.FC = () => {
                     apiKeySet={apiKeySet}
                     openSettings={() => setIsSettingsOpen(true)}
                     onApplyViaEmail={handleApplyViaEmail}
+                    savedCVs={savedCVs}
                   />
                 )}
                 {currentView === 'essays' && <ScholarshipEssayWriter userProfile={userProfile!} apiKeySet={apiKeySet} openSettings={() => setIsSettingsOpen(true)} />}

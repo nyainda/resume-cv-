@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
-import { UserProfile, CVData, JobAnalysisResult, ApiSettings, CVGenerationMode, ScholarshipFormat } from '../types';
+import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, ApiSettings, CVGenerationMode, ScholarshipFormat } from '../types';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
@@ -1150,4 +1150,120 @@ Scoring rubric:
     }));
 
     return JSON.parse((response.text || '').trim()) as CVScore;
+};
+
+// --- AI CV Improvement ---
+export const improveCV = async (
+    cvData: CVData,
+    personalInfo: PersonalInfo,
+    instruction: string,
+    jobDescription?: string,
+): Promise<CVData> => {
+    const ai = getAiClient('lite');
+
+    const cvJson = JSON.stringify(cvData, null, 2);
+
+    const prompt = `
+You are an elite CV writer. The user wants to improve their CV. Apply the instruction below and return the COMPLETE improved CVData JSON.
+
+INSTRUCTION: "${instruction}"
+
+CURRENT CV DATA (JSON):
+${cvJson}
+
+CANDIDATE NAME: ${personalInfo.name}
+${jobDescription ? `TARGET JOB DESCRIPTION:\n${jobDescription}` : ''}
+
+Rules:
+1. Apply the instruction precisely. If it's about bullets, improve bullets. If it's about the summary, improve the summary.
+2. Keep all factual details accurate — don't change company names, job titles, dates, or invent new roles.
+3. Return the COMPLETE CVData object with ALL fields, not just the modified parts.
+4. Every bullet must follow "Strong Verb → Scope → Quantified Result".
+5. Avoid AI clichés. Write like a confident, experienced professional.
+6. Return ONLY valid JSON matching the CVData schema. No markdown, no code fences.
+
+CVData schema:
+{
+  "summary": string,
+  "skills": string[],
+  "experience": [{ "company": string, "jobTitle": string, "dates": string, "startDate": string, "endDate": string, "responsibilities": string[] }],
+  "education": [{ "degree": string, "school": string, "year": string, "description": string? }],
+  "projects": [{ "name": string, "description": string, "link": string? }]?,
+  "languages": [{ "name": string, "proficiency": string }]?,
+  "publications": [{ "title": string, "authors": string[], "journal": string, "year": string, "link": string? }]?
+}
+`;
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            summary: { type: Type.STRING },
+            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            experience: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        company: { type: Type.STRING },
+                        jobTitle: { type: Type.STRING },
+                        dates: { type: Type.STRING },
+                        startDate: { type: Type.STRING },
+                        endDate: { type: Type.STRING },
+                        responsibilities: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    },
+                    required: ['company', 'jobTitle', 'dates', 'startDate', 'endDate', 'responsibilities'],
+                },
+            },
+            education: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        degree: { type: Type.STRING },
+                        school: { type: Type.STRING },
+                        year: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                    },
+                    required: ['degree', 'school', 'year'],
+                },
+            },
+            projects: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        link: { type: Type.STRING },
+                    },
+                    required: ['name', 'description'],
+                },
+            },
+            languages: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        proficiency: { type: Type.STRING },
+                    },
+                    required: ['name', 'proficiency'],
+                },
+            },
+        },
+        required: ['summary', 'skills', 'experience', 'education'],
+    };
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            temperature: 0.4,
+            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL,
+        },
+    }));
+
+    return JSON.parse((response.text || '').trim()) as CVData;
 };

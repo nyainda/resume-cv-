@@ -1,16 +1,64 @@
-import React from 'react';
-import { TemplateName } from '../types';
+import React, { useRef, useState, useEffect, lazy, Suspense } from 'react';
+import { CVData, PersonalInfo, TemplateName } from '../types';
+
+const CVPreview = lazy(() => import('./CVPreview'));
 
 interface TemplateThumbnailProps {
   templateName: TemplateName;
+  cvData?: CVData;
+  personalInfo?: PersonalInfo;
 }
 
-const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) => {
-  const base = "w-full aspect-[1/1.414] flex flex-col overflow-hidden"; // A4 ratio
+const A4_WIDTH_PX = 794;
+
+const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvData, personalInfo }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.22);
+
+  useEffect(() => {
+    if (!cvData || !personalInfo) return;
+    const obs = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setScale(entry.contentRect.width / A4_WIDTH_PX);
+      }
+    });
+    if (containerRef.current) obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, [cvData, personalInfo]);
+
+  if (cvData && personalInfo) {
+    return (
+      <div ref={containerRef} className="w-full overflow-hidden relative bg-white" style={{ aspectRatio: '1/1.414' }}>
+        <Suspense fallback={<div className="w-full h-full bg-gray-50 animate-pulse" />}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: `${A4_WIDTH_PX}px`,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top left',
+              pointerEvents: 'none',
+            }}
+          >
+            <CVPreview
+              cvData={cvData}
+              personalInfo={personalInfo}
+              template={templateName}
+              isEditing={false}
+              onDataChange={() => {}}
+              jobDescriptionForATS=""
+            />
+          </div>
+        </Suspense>
+      </div>
+    );
+  }
+
+  const base = "w-full aspect-[1/1.414] flex flex-col overflow-hidden";
 
   switch (templateName) {
 
-    // ─── STANDARD PRO (Jake's ATS) ───────────────────────────────────────────
     case 'standard-pro':
       return (
         <div className={`${base} bg-white p-2`}>
@@ -32,7 +80,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── PROFESSIONAL ─────────────────────────────────────────────────────────
     case 'professional':
       return (
         <div className={`${base} bg-white p-2`}>
@@ -73,7 +120,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── MODERN (dark sidebar) ────────────────────────────────────────────────
     case 'modern':
       return (
         <div className={`${base} bg-white flex-row gap-0`}>
@@ -108,7 +154,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── EXECUTIVE (Harvard serif) ────────────────────────────────────────────
     case 'executive':
       return (
         <div className={`${base} bg-white p-2.5`}>
@@ -132,7 +177,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── MINIMALIST ───────────────────────────────────────────────────────────
     case 'minimalist':
       return (
         <div className={`${base} bg-white px-3 py-2`}>
@@ -164,7 +208,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── CORPORATE ────────────────────────────────────────────────────────────
     case 'corporate':
       return (
         <div className={`${base} bg-white p-0`}>
@@ -197,7 +240,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── ELEGANT (rose gold/cream) ────────────────────────────────────────────
     case 'elegant':
       return (
         <div className={`${base} bg-stone-50 p-2`}>
@@ -226,7 +268,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── CREATIVE (teal split) ────────────────────────────────────────────────
     case 'creative':
       return (
         <div className={`${base} bg-white p-0 flex-row`}>
@@ -261,7 +302,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── TIMELINE ─────────────────────────────────────────────────────────────
     case 'timeline':
       return (
         <div className={`${base} bg-white p-2`}>
@@ -283,7 +323,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── TWO COLUMN BLUE ──────────────────────────────────────────────────────
     case 'twoColumnBlue':
       return (
         <div className={`${base} bg-white p-0`}>
@@ -313,7 +352,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── TECHNICAL ────────────────────────────────────────────────────────────
     case 'technical':
       return (
         <div className={`${base} bg-white p-2`}>
@@ -337,7 +375,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── SOFTWARE ENGINEER ────────────────────────────────────────────────────
     case 'software-engineer':
       return (
         <div className={`${base} bg-gray-900 p-2`}>
@@ -360,7 +397,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── MODERN TECH ──────────────────────────────────────────────────────────
     case 'modern-tech':
       return (
         <div className={`${base} bg-white p-0`}>
@@ -386,7 +422,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── COMPACT ──────────────────────────────────────────────────────────────
     case 'compact':
       return (
         <div className={`${base} bg-white px-2 py-1.5`}>
@@ -412,7 +447,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── CLASSIC ──────────────────────────────────────────────────────────────
     case 'classic':
       return (
         <div className={`${base} bg-white px-2 py-1.5`}>
@@ -431,7 +465,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── INFOGRAPHIC ──────────────────────────────────────────────────────────
     case 'infographic':
       return (
         <div className={`${base} bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-2`}>
@@ -465,7 +498,6 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName }) =
         </div>
       );
 
-    // ─── DEFAULT ──────────────────────────────────────────────────────────────
     default:
       return (
         <div className={`${base} bg-white p-2 space-y-1`}>

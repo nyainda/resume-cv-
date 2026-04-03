@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TemplateName, templateDisplayNames } from '../types';
+import { TemplateName, templateDisplayNames, CVData, PersonalInfo } from '../types';
 import TemplateThumbnail from './TemplateThumbnail';
 import { Label } from './ui/Label';
 import { CheckCircle, Eye, FileText } from './icons';
@@ -7,6 +7,8 @@ import { CheckCircle, Eye, FileText } from './icons';
 interface TemplateGalleryProps {
   selectedTemplate: TemplateName;
   onSelect: (template: TemplateName) => void;
+  cvData?: CVData;
+  personalInfo?: PersonalInfo;
 }
 
 // Template categories for better organization
@@ -33,7 +35,7 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'software-engineer': { label: 'Best for Tech', emoji: '💻', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' },
 };
 
-const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onSelect }) => {
+const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onSelect, cvData, personalInfo }) => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [hoveredTemplate, setHoveredTemplate] = useState<TemplateName | null>(null);
 
@@ -142,7 +144,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
 
                 {/* Thumbnail */}
                 <div className="bg-white">
-                  <TemplateThumbnail templateName={template} />
+                  <TemplateThumbnail templateName={template} cvData={cvData} personalInfo={personalInfo} />
                 </div>
               </div>
 

@@ -7,7 +7,9 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 - **Frontend**: React 19, TypeScript, Vite 6
 - **Styling**: Tailwind CSS (CDN), custom CSS variables for theming
 - **AI**: Google Gemini via `@google/genai`
-- **PDF Generation**: jsPDF (CDN) + html2canvas (CDN) — WYSIWYG screenshot-based
+- **PDF Generation**: jsPDF (CDN) + html2canvas (CDN) — legacy; `@react-pdf/renderer` for Professional/Standard Pro/Minimalist templates
+- **Sharing**: Privacy-first shareable links via `lz-string` URL hash encoding (no backend)
+- **GitHub Sync**: PAT-based CV backup to private GitHub repos via REST API
 - **Email**: Brevo (Sendinblue) REST API (direct browser calls)
 - **Job Search**: Tavily Search API
 - **Storage**: localStorage + IndexedDB (via custom StorageRouter), optional Google Drive sync
@@ -22,12 +24,18 @@ index.html           — PWA manifest, CDN scripts (Tailwind, jsPDF, html2canvas
 types.ts             — All shared TypeScript types
 
 components/
-  CVGenerator.tsx    — Main CV generation UI (WYSIWYG html2canvas PDF download)
-  CVPreview.tsx      — Renders selected template (React components)
-  ProfileManager.tsx — Multi-profile switcher with add/edit/delete
-  SettingsModal.tsx  — API keys (Gemini, Tavily, Brevo) + Google Drive sync
-  EmailApply.tsx     — Email application wizard (Brevo or mailto fallback)
-  templates/         — 25+ named CV template components
+  CVGenerator.tsx       — Main CV generation UI with Share/AI Coach/GitHub buttons
+  CVPreview.tsx         — Renders selected template (React components)
+  SharedCVView.tsx      — Full-screen view for opened shared CV links
+  ShareCVModal.tsx      — Generates shareable lz-string URL hash links
+  AIImprovementPanel.tsx — AI chat panel for CV improvement (Gemini)
+  GitHubSyncModal.tsx   — GitHub PAT-based CV backup modal
+  PDFDownloadButton.tsx — react-pdf download button (lazy-loaded)
+  TemplateThumbnail.tsx — Scaled live CV thumbnail preview
+  ProfileManager.tsx    — Multi-profile switcher with add/edit/delete
+  SettingsModal.tsx     — API keys (Gemini, Tavily, Brevo) + Google Drive sync
+  EmailApply.tsx        — Email application wizard (Brevo or mailto fallback)
+  templates/            — 25+ named CV template components
   ...
 
 services/
