@@ -170,23 +170,24 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                 )}
                                 <button
                                     onClick={e => openEdit(slot, e)}
-                                    className="text-base px-1.5 py-1 rounded-md text-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
+                                    className="flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-zinc-200 dark:border-neutral-600 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all"
                                     title="Rename / recolor"
                                 >
-                                    ✏️
+                                    <span>✏️</span>
+                                    <span className="hidden sm:inline">Edit</span>
                                 </button>
                                 {profiles.length > 1 && (
                                     confirmDeleteId === slot.id ? (
                                         <div className="flex items-center gap-1">
                                             <button
                                                 onClick={() => { onDelete(slot.id); setConfirmDeleteId(null); }}
-                                                className="text-[10px] px-2 py-1 rounded-md text-red-600 font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                className="text-[11px] px-2.5 py-1.5 rounded-lg text-red-600 font-bold bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
                                             >
-                                                Delete
+                                                Confirm
                                             </button>
                                             <button
                                                 onClick={() => setConfirmDeleteId(null)}
-                                                className="text-[10px] px-1 py-1 rounded-md text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
+                                                className="text-[11px] px-1.5 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 transition-colors"
                                             >
                                                 ✕
                                             </button>
@@ -194,10 +195,11 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                     ) : (
                                         <button
                                             onClick={() => setConfirmDeleteId(slot.id)}
-                                            className="text-base px-1.5 py-1 rounded-md text-zinc-200 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            className="flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-zinc-200 dark:border-neutral-600 hover:border-red-200 dark:hover:border-red-800 transition-all"
                                             title="Delete"
                                         >
-                                            🗑️
+                                            <span>🗑️</span>
+                                            <span className="hidden sm:inline">Delete</span>
                                         </button>
                                     )
                                 )}

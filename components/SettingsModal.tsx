@@ -69,7 +69,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     localStorage.setItem('provider_keys', JSON.stringify(newKeys));
     const clearedSettings = { ...localSettings, apiKey: null };
     setLocalSettings(clearedSettings);
-    onSave({ ...clearedSettings, brevoApiKey: brevoKey.trim() || null });
+    onSave({ ...clearedSettings, tavilyApiKey: tavilyKey.trim() || null, brevoApiKey: brevoKey.trim() || null });
     onClose();
   };
 

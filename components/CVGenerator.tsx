@@ -1,8 +1,6 @@
 
-import React, { useState, useCallback, ChangeEvent, useMemo } from 'react';
+import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats } from '../types';
-import { generateCV, generateCoverLetter, extractProfileTextFromFile } from '../services/geminiService';
-import { downloadCVAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import CoverLetterPreview from './CoverLetterPreview';
@@ -106,6 +104,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [cvPurpose, setCvPurpose] = useState<CVPurpose>('job');
   const [scholarshipFormat, setScholarshipFormat] = useLocalStorage<ScholarshipFormat>('scholarshipFormat', 'standard');
   const [atsDataEmbedded, setAtsDataEmbedded] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
@@ -207,34 +207,62 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
   };
 
-  const handleDownload = () => {
-    if (!currentCV) return;
-    const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-    const name = sanitize(userProfile.personalInfo.name).substring(0, 20);
-    const companyName = targetCompany || 'Unknown';
-    const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
+  const handleDownload = useCallback(async () => {
+    if (!currentCV || !previewRef.current) return;
+    setIsDownloading(true);
 
-    const sanitizeForFileName = (s: string) => sanitize(s).substring(0, 20);
-    const companyPart = targetCompany ? `_${sanitizeForFileName(targetCompany)}` : '';
-    let fileName = `${name}${companyPart}_CV.pdf`;
+    try {
+      const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+      const name = sanitize(userProfile.personalInfo.name).substring(0, 20);
+      const companyName = targetCompany || 'Unknown';
+      const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
+      const companyPart = targetCompany ? `_${sanitize(targetCompany).substring(0, 20)}` : '';
+      const fileName = `${name}${companyPart}_CV.pdf`;
 
-    const wasEmbedded = downloadCVAsPDF({
-      cvData: currentCV,
-      personalInfo: userProfile.personalInfo,
-      template: template,
-      font: font,
-      fileName: fileName,
-      jobDescription: jobDescription,
-    });
-    setAtsDataEmbedded(wasEmbedded);
+      const element = previewRef.current;
+      const html2canvas = (window as any).html2canvas;
+      const { jsPDF } = (window as any).jspdf;
 
-    // Auto-track that we applied!
-    onAutoTrack({
-      roleTitle: jobTitle,
-      company: companyName,
-      savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
-    });
-  };
+      if (html2canvas && jsPDF) {
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+
+        pdf.save(fileName);
+        setAtsDataEmbedded(false);
+      }
+
+      onAutoTrack({
+        roleTitle: jobTitle,
+        company: companyName,
+        savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [currentCV, userProfile, targetCompany, targetJobTitle, onAutoTrack]);
 
   const cvTextContent = useMemo(() => {
     if (!currentCV) return "";
@@ -538,9 +566,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <FileText className="h-4 w-4 mr-2" />
                 {isGeneratingCoverLetter ? "Generating..." : "Cover Letter"}
               </Button>
-              <Button onClick={handleDownload} disabled={isEditing} size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
+              <Button onClick={handleDownload} disabled={isEditing || isDownloading} size="sm">
+                {isDownloading ? (
+                  <><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Generating PDF…</>
+                ) : (
+                  <><Download className="h-4 w-4 mr-2" />Download PDF</>
+                )}
               </Button>
               {onApplyViaEmail && cvPurpose === 'job' && (
                 <Button
@@ -572,7 +603,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
           <TemplateGallery selectedTemplate={template} onSelect={setTemplate} />
 
-          <div className="mt-8 border-t border-zinc-200 dark:border-neutral-700 pt-8">
+          <div ref={previewRef} className="mt-8 border-t border-zinc-200 dark:border-neutral-700 pt-8">
             <CVPreview
               cvData={currentCV}
               personalInfo={userProfile.personalInfo}
