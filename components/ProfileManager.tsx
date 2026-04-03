@@ -217,7 +217,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
         <div
             className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
             style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
-            onClick={() => setModal(null)}
+            onClick={e => { if (e.target === e.currentTarget) setModal(null); }}
         >
             <div
                 className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden"
