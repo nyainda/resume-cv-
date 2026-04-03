@@ -3,6 +3,7 @@
 // Fully responsive: card list on desktop, bottom-sheet feel on mobile.
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
 
 const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string }[] = [
@@ -212,82 +213,122 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
         </div>
     );
 
-    const modalJsx = modal && (
+    const modalJsx = modal && createPortal(
         <div
-            className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
             onClick={() => setModal(null)}
         >
             <div
-                className="bg-white dark:bg-neutral-800 w-full max-w-[400px] rounded-3xl shadow-2xl p-6 space-y-6 max-h-[95vh] overflow-y-auto scrollbar-thin"
+                className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden"
+                style={{ maxHeight: '90vh', overflowY: 'auto' }}
                 onClick={e => e.stopPropagation()}
             >
-                <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-50">
-                        {modal.mode === 'create' ? '✨ New Profile' : '✏️ Edit Profile'}
-                    </h3>
-                    <button onClick={() => setModal(null)} className="text-zinc-400 hover:text-zinc-600">✕</button>
-                </div>
-
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 block mb-2">
-                        Profile Name
-                    </label>
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                        placeholder='e.g. Software Engineer'
-                        className="w-full rounded-xl border-2 border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900 px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                        autoFocus
-                    />
-                </div>
-
-                <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 block mb-3">
-                        Accent Colour
-                    </label>
-                    <div className="flex flex-wrap gap-3">
-                        {COLORS.map(c => (
-                            <button
-                                key={c.id}
-                                onClick={() => setColor(c.id)}
-                                className={`w-10 h-10 rounded-full ${c.bg} transition-all ${color === c.id ? `scale-110 ring-4 ${c.ring} ring-offset-2 ring-offset-white dark:ring-offset-neutral-800` : 'hover:scale-105'}`}
-                                title={c.id}
-                            />
-                        ))}
+                {/* Header bar */}
+                <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 dark:border-neutral-800">
+                    <div>
+                        <h3 className="text-lg font-extrabold text-zinc-900 dark:text-white">
+                            {modal.mode === 'create' ? 'Create New Profile' : 'Edit Profile'}
+                        </h3>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            {modal.mode === 'create' ? 'Each profile stores its own CV data' : 'Update name and color'}
+                        </p>
                     </div>
-                </div>
-
-                {modal.mode === 'create' && currentProfile && (
-                    <label className="flex items-center gap-4 p-3 rounded-2xl bg-indigo-50/50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/30 cursor-pointer" onClick={() => setCloneActive(!cloneActive)}>
-                        <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cloneActive ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-neutral-600'}`}>
-                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${cloneActive ? 'translate-x-5' : ''}`} />
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Clone current data</p>
-                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Copy your existing work & education</p>
-                        </div>
-                    </label>
-                )}
-
-                <div className="flex gap-3 pt-2">
                     <button
                         onClick={() => setModal(null)}
-                        className="flex-1 py-3.5 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-100 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors text-lg font-bold"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-5 space-y-5">
+
+                    {/* Profile Name */}
+                    <div>
+                        <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-2">
+                            Profile Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                            placeholder='e.g. Software Engineer, Product Manager…'
+                            className="w-full rounded-xl border-2 border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition"
+                            autoFocus
+                        />
+                        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">
+                            Use a role or goal name to keep profiles organised
+                        </p>
+                    </div>
+
+                    {/* Accent Colour */}
+                    <div>
+                        <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-3">
+                            Profile Color
+                        </label>
+                        <div className="flex flex-wrap gap-3">
+                            {COLORS.map(c => (
+                                <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => setColor(c.id)}
+                                    className={`w-11 h-11 rounded-full ${c.bg} transition-all flex items-center justify-center ${color === c.id ? `scale-110 ring-4 ${c.ring} ring-offset-2 ring-offset-white dark:ring-offset-neutral-900` : 'opacity-70 hover:opacity-100 hover:scale-105'}`}
+                                    title={c.id.charAt(0).toUpperCase() + c.id.slice(1)}
+                                >
+                                    {color === c.id && (
+                                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Clone toggle (create mode only) */}
+                    {modal.mode === 'create' && currentProfile && (
+                        <div className="rounded-xl border-2 border-indigo-100 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 p-4">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Copy current profile data</p>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Duplicates your existing work experience, skills &amp; education</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setCloneActive(!cloneActive)}
+                                    className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${cloneActive ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-neutral-600'}`}
+                                >
+                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${cloneActive ? 'translate-x-6' : ''}`} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex gap-3 px-6 py-4 border-t border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-900">
+                    <button
+                        type="button"
+                        onClick={() => setModal(null)}
+                        className="flex-1 py-3 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 text-sm font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
+                        type="button"
                         onClick={handleSubmit}
                         disabled={!name.trim()}
-                        className="flex-1 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-extrabold transition-colors shadow-lg"
+                        className="flex-2 flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-extrabold transition-colors shadow-lg shadow-indigo-500/20"
                     >
-                        {modal.mode === 'create' ? 'Create' : 'Save'}
+                        {modal.mode === 'create' ? '+ Create Profile' : 'Save Changes'}
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 
     // Mobile overlay mode: full-screen bottom sheet

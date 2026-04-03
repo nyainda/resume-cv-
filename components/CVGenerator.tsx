@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats } from '../types';
+import { generateCV, generateCoverLetter, extractProfileTextFromFile } from '../services/geminiService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import CoverLetterPreview from './CoverLetterPreview';
