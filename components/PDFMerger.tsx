@@ -160,22 +160,24 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
       const mergedPdf = await PDFDocument.create();
 
       for (const item of items) {
-        let pdfBytes: ArrayBuffer | null = null;
+        let pdfBytes: Uint8Array | null = null;
 
         if (item.source === 'saved-cv') {
           const cv = savedCVs.find(c => c.id === item.cvId);
           if (!cv) continue;
-          pdfBytes = getCVAsPDFBytes({
+          const buf = getCVAsPDFBytes({
             cvData: cv.data,
             personalInfo: userProfile.personalInfo,
             template: item.cvTemplate ?? 'professional',
             font: item.cvFont ?? 'inter',
             fileName: item.label,
           });
+          pdfBytes = new Uint8Array(buf);
         } else if (item.source === 'cover-letter' && item.coverLetterText) {
-          pdfBytes = getCoverLetterAsPDFBytes(item.coverLetterText, userProfile.personalInfo);
+          const buf = getCoverLetterAsPDFBytes(item.coverLetterText, userProfile.personalInfo);
+          pdfBytes = new Uint8Array(buf);
         } else if (item.source === 'uploaded-pdf' && item.uploadedPdfBase64) {
-          pdfBytes = base64ToArrayBuffer(item.uploadedPdfBase64);
+          pdfBytes = new Uint8Array(base64ToArrayBuffer(item.uploadedPdfBase64));
         }
 
         if (!pdfBytes) continue;

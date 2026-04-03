@@ -1,0 +1,64 @@
+TemplateCorporate.tsx:99 In HTML, <ul> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  ...
+    <div onClick={function onClick} onMouseEnter={function onMouseEnter} onMouseLeave={function onMouseLeave} ...>
+      <div className={"\n      ..."}>
+        <div className="bg-white">
+          <TemplateThumbnail templateName="corporate" cvData={{summary:"A...", ...}} personalInfo={{name:"BRUC...", ...}}>
+            <div ref={{...}} className="w-full ove..." style={{...}}>
+              <Suspense fallback={<div>}>
+                <div style={{position:"...", ...}}>
+                  <CVPreview cvData={{summary:"A...", ...}} personalInfo={{name:"BRUC...", ...}} template="corporate" ...>
+                    <div className={"font-['I..."}>
+                      <div className="min-w-[210...">
+                        <TemplateCorporate cvData={{summary:"A...", ...}} personalInfo={{name:"BRUC...", ...}} ...>
+                          <div id="cv-preview..." className="bg-white p...">
+                            <header>
+                            <hr>
+                            <main className="space-y-10">
+                              <section>
+                              <section>
+                              <section>
+                              <section>
+                                <h2>
+>                               <p className="text-base leading-relaxed">
+                                  <span>
+                                  <div className="grid grid-...">
+>                                   <ul className="list-disc list-outside ml-4 space-y-0.5">
+                                    ...
+                              ...
+      ...
+TemplateCorporate.tsx:91 <p> cannot contain a nested <ul>.
+See this log for the ancestor stack trace.
+TemplateCorporate.tsx:97 In HTML, <div> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  ...
+    <div onClick={function onClick} onMouseEnter={function onMouseEnter} onMouseLeave={function onMouseLeave} ...>
+      <div className={"\n      ..."}>
+        <div className="bg-white">
+          <TemplateThumbnail templateName="corporate" cvData={{summary:"A...", ...}} personalInfo={{name:"BRUC...", ...}}>
+            <div ref={{...}} className="w-full ove..." style={{...}}>
+              <Suspense fallback={<div>}>
+                <div style={{position:"...", ...}}>
+                  <CVPreview cvData={{summary:"A...", ...}} personalInfo={{name:"BRUC...", ...}} template="corporate" ...>
+                    <div className={"font-['I..."}>
+                      <div className="min-w-[210...">
+                        <TemplateCorporate cvData={{summary:"A...", ...}} personalInfo={{name:"BRUC...", ...}} ...>
+                          <div id="cv-preview..." className="bg-white p...">
+                            <header>
+                            <hr>
+                            <main className="space-y-10">
+                              <section>
+                              <section>
+                              <section>
+                              <section>
+                                <h2>
+>                               <p className="text-base leading-relaxed">
+                                  <span>
+>                                 <div className="grid grid-cols-3 gap-x-4 mt-2">
+                              ...
+      ...
+﻿
+

@@ -351,18 +351,19 @@ const AppInner: React.FC = () => {
           </div>
 
           {profileExists && !isEditingProfile && (
-            <nav className="hidden md:flex items-center bg-zinc-100 dark:bg-neutral-800 p-1 rounded-xl">
+            <nav className="hidden md:flex items-center bg-zinc-100 dark:bg-neutral-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
               {navItems.map(item => (
                 <button
                   key={item.id}
                   onClick={() => setCurrentView(item.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${currentView === item.id
+                  title={item.label}
+                  className={`flex items-center gap-2 px-2.5 lg:px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${currentView === item.id
                     ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
                     }`}
                 >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
+                  <item.icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden lg:inline">{item.label}</span>
                 </button>
               ))}
             </nav>

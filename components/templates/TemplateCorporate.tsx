@@ -88,7 +88,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
 
         <section>
           <h2 className="text-lg font-semibold tracking-wide text-slate-700 mb-3">KEY SKILLS & LANGUAGES</h2>
-          <p className="text-base leading-relaxed">
+          <div className="text-base leading-relaxed">
             <span className="font-bold">Skills:</span>
             {(() => {
               const sk = cvData.skills.slice(0, 15);
@@ -105,11 +105,11 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                 </div>
               );
             })()}
-          </p>
+          </div>
           {cvData.languages && cvData.languages.length > 0 && (
-            <p className="text-base leading-relaxed mt-2">
+            <div className="text-base leading-relaxed mt-2">
               <span className="font-bold">Languages:</span> {cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(', ')}
-            </p>
+            </div>
           )}
         </section>
 
