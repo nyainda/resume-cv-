@@ -242,8 +242,13 @@ const embedATSData = (doc: any, text: string, pageWidth: number, cvData?: CVData
 const fontMap: Record<FontName, string> = {
     'inter': 'Helvetica',
     'helvetica': 'Helvetica',
+    'century-gothic': 'Helvetica',
+    'trebuchet': 'Helvetica',
     'lora': 'Times-Roman',
     'times-new-roman': 'Times-Roman',
+    'georgia': 'Times-Roman',
+    'garamond': 'Times-Roman',
+    'palatino': 'Times-Roman',
     'roboto-mono': 'Courier',
 };
 

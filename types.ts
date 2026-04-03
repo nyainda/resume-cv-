@@ -230,6 +230,8 @@ export interface ScrapedJob {
 
 export type ApplicationStatus = 'Wishlist' | 'Applied' | 'Interviewing' | 'Offer' | 'Rejected';
 
+export type ApplicationPriority = 'Low' | 'Medium' | 'High' | 'Dream';
+
 export interface TrackedApplication {
   id: string;
   savedCvId: string;
@@ -238,6 +240,11 @@ export interface TrackedApplication {
   company: string;
   status: ApplicationStatus;
   dateApplied: string;
+  deadline?: string;
+  interviewDate?: string;
+  jobUrl?: string;
+  salary?: string;
+  priority?: ApplicationPriority;
   notes: string;
 }
 
@@ -339,12 +346,27 @@ export const cvGenerationModes: CVGenerationModeConfig[] = [
   },
 ];
 
-export type FontName = 'inter' | 'lora' | 'roboto-mono' | 'helvetica' | 'times-new-roman';
+export type FontName =
+  | 'inter'
+  | 'helvetica'
+  | 'lora'
+  | 'times-new-roman'
+  | 'roboto-mono'
+  | 'georgia'
+  | 'garamond'
+  | 'palatino'
+  | 'century-gothic'
+  | 'trebuchet';
 
 export const fontDisplayNames: Record<FontName, string> = {
   'inter': 'Inter (Modern Sans)',
   'helvetica': 'Helvetica (Classic Sans)',
+  'century-gothic': 'Century Gothic (Clean Sans)',
+  'trebuchet': 'Trebuchet (Friendly Sans)',
+  'georgia': 'Georgia (Readable Serif)',
   'lora': 'Lora (Elegant Serif)',
+  'garamond': 'Garamond (Classic Serif)',
+  'palatino': 'Palatino (Editorial Serif)',
   'times-new-roman': 'Times New Roman (Formal Serif)',
   'roboto-mono': 'Roboto Mono (Monospace)',
 };

@@ -17,7 +17,7 @@ Your non-negotiable rules:
   3. KEYWORD DENSITY: The top 10 JD keywords must each appear at least twice across the document.
   4. NEVER use: "responsible for", "helped", "assisted", "worked on", "was part of", "participated in".
   5. NEVER use AI clichés: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "leverage" (use sparingly), "in today's fast-paced world", "passionate about".
-  6. QUANTIFY everything. If the user gave no numbers, estimate realistically (add "~" prefix) based on role level and company size.
+  6. QUANTIFY everything. Use real, research-backed baseline figures for the industry and role level. NEVER prefix numbers with "~". Use natural ranges (e.g., "by 35%", "across 200+ users", "saving 8 hours/week"). If no specific number is available, use scope-based language: team size, revenue impacted, users served, or time saved — never invented percentages.
   7. Each bullet must stand alone as proof of impact — a mini case study in one sentence.
   8. The summary must make a hiring manager say "I need to meet this person."
   9. Skills list: put the EXACT tools/technologies named in the JD first.
@@ -520,7 +520,7 @@ export const generateCV = async (
                 - Use ONLY the work experience provided by the user. Do NOT invent, add, or imply any employers, job titles, or dates that are not in the user's profile.
                 - REWRITE each bullet point to:
                   a) Start with a powerful action verb (e.g., Spearheaded, Orchestrated, Delivered, Accelerated)
-                  b) Quantify achievements using realistic metrics based on the role context (add estimates if not given, e.g., "~30% efficiency gain")
+                  b) Quantify achievements using concrete, believable metrics based on the role context. Use team size, user counts, revenue figures, time saved, or scope scale. NEVER use the "~" prefix. Use ranges like "by 30–40%" or scope language like "for a 50-person department" when exact numbers aren't provided.
                   c) Weave in JD keywords naturally — every bullet should feel directly relevant to the target role
                 - The goal: make the user's REAL experience sound as impressive and relevant as possible. Polish, don't fabricate.
                 - **BULLET COUNT PER ENTRY (STRICT)**: Generate EXACTLY the number of bullets specified for each role:
@@ -582,7 +582,7 @@ export const generateCV = async (
             ② EXPERIENCE — Proof of Greatness:
                • startDate / endDate: YYYY-MM-DD format only (endDate = "Present" if current).
                • EVERY bullet = [Power Verb] + [Specific What/How/Scale] + [Metric/Impact].
-               • Metric requirement: if the user gave no number, estimate one realistically with "~" prefix.
+               • Metric requirement: if the user gave no exact number, use believable industry-appropriate figures (team size, user count, time saved, revenue range). NEVER use "~" prefix — write it as a natural fact.
                • Forbidden openers: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of".
                • Mirror JD language word-for-word where possible (exact phrase matching crushes ATS).
                ${experienceInstruction}
@@ -708,25 +708,33 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
 
 export const generateCoverLetter = async (profile: UserProfile, jobDescription: string): Promise<string> => {
     const ai = getAiClient();
+    const name = profile.personalInfo?.name || 'Applicant';
     const prompt = `
-        You are a top-tier professional career coach. Write a compelling and professional cover letter.
+        You are a top-tier professional career coach and ghostwriter. Write a compelling, human-sounding cover letter.
 
-        ### INPUT DATA
+        ### CONTEXT
+        Applicant Name: ${name}
+        Applicant Email: ${profile.personalInfo?.email || ''}
+        Applicant Location: ${profile.personalInfo?.location || ''}
+
         USER PROFILE (for background and content):
         ${JSON.stringify(profile, null, 2)}
 
-        JOB DESCRIPTION (for context and keywords):
-        ${jobDescription}
+        JOB DESCRIPTION:
+        ${jobDescription || 'General application — highlight the strongest transferable skills.'}
 
-        ### INSTRUCTIONS
-        1. **Tone**: Professional, confident, enthusiastic, and direct.
-        2. **Structure**: 
-           - **Introduction**: State the position and express excitement.
-           - **Body (2-3 Paragraphs)**: Dedicate one paragraph to each of 2-3 of the user's most relevant experiences/skills that directly align with the core requirements of the job description. Use strong action verbs and achievement-oriented language.
-           - **Conclusion**: Reiterate interest and include a clear call to action (e.g., eager to discuss further).
-        3. **Keywords**: Seamlessly integrate keywords from the job description throughout the letter.
-        4. **Formatting**: Address the letter to "Hiring Manager" (unless a name is available). Use proper salutation and closing.
-        5. **Output**: Return ONLY the plain text of the cover letter, with appropriate line breaks. DO NOT use markdown or any other formatting.
+        ### STRICT INSTRUCTIONS
+        1. **DO NOT include any header block** (no name, address, date, or contact information at the top). The header is already shown separately by the template — start the letter DIRECTLY with the salutation.
+        2. **Salutation**: Use "Dear Hiring Manager," (unless a recruiter name is visible in the JD).
+        3. **Structure**:
+           - **Opening paragraph**: State the specific position and express genuine, specific enthusiasm (not generic).
+           - **Body (2 paragraphs)**: Each paragraph focuses on one specific relevant experience or achievement that directly addresses a core requirement from the JD. Use strong action verbs and include at least one concrete result (number, scope, or outcome).
+           - **Closing paragraph**: Reiterate interest, express readiness to contribute, and include a clear call to action.
+           - **Sign-off**: End with "Sincerely," followed by the applicant's name on the next line: ${name}
+        4. **Tone**: Confident, professional, and specific — never generic or sycophantic.
+        5. **Keywords**: Naturally weave in the most important keywords from the job description.
+        6. **Human writing**: Vary sentence length. Avoid AI clichés (no "delve", "passionate about", "excited to leverage", "in today's world").
+        7. **Output**: Return ONLY the plain text of the letter body (starting with "Dear Hiring Manager,"). NO markdown, NO headers, NO meta-commentary.
     `;
 
     const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
