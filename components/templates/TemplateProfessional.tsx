@@ -163,6 +163,23 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </div>
           </section>
         )}
+
+        {cvData.references && cvData.references.length > 0 && (
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">References</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {cvData.references.map((ref, index) => (
+                <div key={index} className="text-sm text-slate-700">
+                  <p className="font-bold text-slate-900">{ref.name}</p>
+                  <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
+                  {ref.relationship && <p className="text-slate-500 italic">{ref.relationship}</p>}
+                  {ref.email && <p>{ref.email}</p>}
+                  {ref.phone && <p>{ref.phone}</p>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       {jobDescriptionForATS && (

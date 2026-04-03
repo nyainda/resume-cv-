@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { UserProfile } from '../types';
+import { UserProfile, Reference } from '../types';
 import {
   generateProfile,
   extractProfileTextFromFile,
@@ -66,6 +66,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const { fields: eduFields, append: appendEdu, remove: removeEdu } = useFieldArray({ control, name: "education" });
   const { fields: projFields, append: appendProj, remove: removeProj } = useFieldArray({ control, name: "projects" });
   const { fields: langFields, append: appendLang, remove: removeLang } = useFieldArray({ control, name: "languages" });
+  const { fields: refFields, append: appendRef, remove: removeRef } = useFieldArray({ control, name: "references" });
 
   const onSubmit = (data: UserProfile) => {
     const skillsArray = typeof data.skills === 'string' ? (data.skills as string).split(',').map(s => s.trim()).filter(Boolean) : data.skills;
@@ -543,6 +544,33 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               </div>
             ))}
             <Button type="button" variant="secondary" size="sm" onClick={() => appendLang({ id: `${Date.now()}`, name: '', proficiency: '' })}><Plus className="h-4 w-4 mr-2" /> Add Language</Button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-neutral-700 pb-3">
+              <div>
+                <h2 className="text-xl font-semibold">References (Optional)</h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Professional contacts who can vouch for your work</p>
+              </div>
+            </div>
+            {refFields.map((item, index) => (
+              <div key={item.id} className="p-4 border border-zinc-200 dark:border-neutral-700/80 rounded-lg space-y-3 relative bg-zinc-50/50 dark:bg-neutral-800/20">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input placeholder="Full Name" {...register(`references.${index}.name`)} />
+                  <Input placeholder="Job Title / Position" {...register(`references.${index}.title`)} />
+                  <Input placeholder="Company / Organisation" {...register(`references.${index}.company`)} />
+                  <Input placeholder="Relationship (e.g., Direct Manager)" {...register(`references.${index}.relationship`)} />
+                  <Input placeholder="Email" type="email" {...register(`references.${index}.email`)} />
+                  <Input placeholder="Phone" {...register(`references.${index}.phone`)} />
+                </div>
+                <button type="button" onClick={() => removeRef(index)} className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full" title="Remove reference">
+                  <Trash className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            <Button type="button" variant="secondary" size="sm" onClick={() => appendRef({ id: `${Date.now()}`, name: '', title: '', company: '', relationship: '', email: '', phone: '' })}>
+              <Plus className="h-4 w-4 mr-2" /> Add Reference
+            </Button>
           </div>
 
           <div className="flex justify-end gap-4 pt-6 border-t border-zinc-200 dark:border-neutral-700">

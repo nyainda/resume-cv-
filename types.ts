@@ -44,6 +44,16 @@ export interface Language {
   proficiency: string;
 }
 
+export interface Reference {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  email: string;
+  phone: string;
+  relationship: string;
+}
+
 export interface UserProfile {
   personalInfo: PersonalInfo;
   summary: string;
@@ -52,6 +62,7 @@ export interface UserProfile {
   skills: string[];
   projects?: Project[];
   languages?: Language[];
+  references?: Reference[];
 }
 
 // --- Multiple Profiles ---
@@ -120,6 +131,15 @@ export interface CVPublication {
   link?: string;
 }
 
+export interface CVReference {
+  name: string;
+  title: string;
+  company: string;
+  email: string;
+  phone: string;
+  relationship: string;
+}
+
 export interface CVData {
   summary: string;
   skills: string[];
@@ -128,6 +148,7 @@ export interface CVData {
   projects?: CVProject[];
   languages?: CVLanguage[];
   publications?: CVPublication[];
+  references?: CVReference[];
 }
 
 

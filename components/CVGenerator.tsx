@@ -158,6 +158,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     try {
       setLoadingMessage('Generating your tailored CV...');
       const generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat);
+      if (userProfile.references && userProfile.references.length > 0) {
+        generatedData.references = userProfile.references.map(ref => ({
+          name: ref.name,
+          title: ref.title,
+          company: ref.company,
+          email: ref.email,
+          phone: ref.phone,
+          relationship: ref.relationship,
+        }));
+      }
       setCurrentCV(generatedData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";

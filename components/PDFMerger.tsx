@@ -4,11 +4,17 @@ import { SavedCV, UserProfile, MergeItem, SavedMerge, TemplateName, FontName } f
 import { getCVAsPDFBytes, getCoverLetterAsPDFBytes } from '../services/pdfService';
 import { Button } from './ui/Button';
 import { Trash, Download, Save, Eye, X } from './icons';
+import { isDriveActive } from '../services/storage/StorageRouter';
+import { DriveStorageService } from '../services/storage/DriveStorageService';
+
+type CompressionLevel = 'none' | 'standard' | 'high';
+
+const TOKEN_KEY = 'cv_gdrive_token';
 
 const ACCEPTED_TYPES = 'application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif';
 const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 
-const imageToPdfBytes = (base64: string, mimeType: string): Promise<Uint8Array> =>
+const imageToPdfBytes = (base64: string, mimeType: string, compression: CompressionLevel = 'standard'): Promise<Uint8Array> =>
   new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = async () => {
@@ -16,10 +22,15 @@ const imageToPdfBytes = (base64: string, mimeType: string): Promise<Uint8Array> 
       const maxH = 842;
       let w = img.naturalWidth;
       let h = img.naturalHeight;
+      // For high compression, scale images down to reduce size
+      const scaleFactor = compression === 'high' ? 0.65 : 1.0;
       if (w > maxW || h > maxH) {
-        const scale = Math.min(maxW / w, maxH / h);
+        const scale = Math.min(maxW / w, maxH / h) * scaleFactor;
         w = Math.round(w * scale);
         h = Math.round(h * scale);
+      } else if (scaleFactor < 1) {
+        w = Math.round(w * scaleFactor);
+        h = Math.round(h * scaleFactor);
       }
       const canvas = document.createElement('canvas');
       canvas.width = w;
@@ -29,15 +40,25 @@ const imageToPdfBytes = (base64: string, mimeType: string): Promise<Uint8Array> 
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
+
+      // Use JPEG for standard/high compression (much smaller than PNG), PNG for none
+      const useJpeg = compression !== 'none';
+      const jpegQuality = compression === 'high' ? 0.55 : 0.82;
+
       canvas.toBlob(async (blob) => {
         if (!blob) return reject(new Error('Canvas conversion failed'));
-        const pngBytes = new Uint8Array(await blob.arrayBuffer());
+        const imgBytes = new Uint8Array(await blob.arrayBuffer());
         const doc = await PDFDocument.create();
-        const pdfImage = await doc.embedPng(pngBytes);
+        let pdfImage;
+        if (useJpeg) {
+          pdfImage = await doc.embedJpg(imgBytes);
+        } else {
+          pdfImage = await doc.embedPng(imgBytes);
+        }
         const page = doc.addPage([w, h]);
         page.drawImage(pdfImage, { x: 0, y: 0, width: w, height: h });
-        resolve(await doc.save());
-      }, 'image/png');
+        resolve(await doc.save({ useObjectStreams: compression !== 'none' }));
+      }, useJpeg ? 'image/jpeg' : 'image/png', useJpeg ? jpegQuality : undefined);
     };
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = `data:${mimeType};base64,${base64}`;
@@ -141,6 +162,12 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>('');
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [compressionLevel, setCompressionLevel] = useState<CompressionLevel>('standard');
+  const [mergedSizeKB, setMergedSizeKB] = useState<number | null>(null);
+  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
+  const [driveLink, setDriveLink] = useState<string | null>(null);
+  const [driveError, setDriveError] = useState<string | null>(null);
+  const mergedBytesRef = useRef<Uint8Array | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<string | null>(null);
 
@@ -287,6 +314,8 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
     }
     setIsMerging(true);
     setMergeError(null);
+    setDriveLink(null);
+    setDriveError(null);
     closePreview();
 
     try {
@@ -312,7 +341,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
         } else if (item.source === 'uploaded-pdf' && item.uploadedPdfBase64) {
           pdfBytes = new Uint8Array(base64ToArrayBuffer(item.uploadedPdfBase64));
         } else if (item.source === 'uploaded-image' && item.uploadedImageBase64 && item.uploadedImageType) {
-          pdfBytes = await imageToPdfBytes(item.uploadedImageBase64, item.uploadedImageType);
+          pdfBytes = await imageToPdfBytes(item.uploadedImageBase64, item.uploadedImageType, compressionLevel);
         }
 
         if (!pdfBytes) continue;
@@ -322,7 +351,11 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
         pages.forEach(page => mergedPdf.addPage(page));
       }
 
-      const mergedBytes = await mergedPdf.save();
+      const saveOptions = compressionLevel !== 'none' ? { useObjectStreams: true } : {};
+      const mergedBytes = await mergedPdf.save(saveOptions);
+      mergedBytesRef.current = mergedBytes;
+      setMergedSizeKB(Math.round(mergedBytes.length / 1024));
+
       const blob = new Blob([mergedBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       previewRef.current = url;
@@ -334,7 +367,28 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
     } finally {
       setIsMerging(false);
     }
-  }, [items, savedCVs, userProfile]);
+  }, [items, savedCVs, userProfile, compressionLevel]);
+
+  const handleSaveToDrive = async () => {
+    if (!mergedBytesRef.current) return;
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setDriveError('Please sign in to Google Drive first.');
+      return;
+    }
+    setIsSavingToDrive(true);
+    setDriveLink(null);
+    setDriveError(null);
+    try {
+      const svc = new DriveStorageService(token);
+      const result = await svc.uploadPDFFile(previewFileName || `merged_${Date.now()}.pdf`, mergedBytesRef.current);
+      setDriveLink(result.webViewLink || null);
+    } catch (err) {
+      setDriveError(err instanceof Error ? err.message : 'Drive upload failed.');
+    } finally {
+      setIsSavingToDrive(false);
+    }
+  };
 
   const handleSaveMerge = () => {
     if (items.length === 0) return;
@@ -612,6 +666,26 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
               </div>
             )}
 
+            {/* Compression options */}
+            {items.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 p-3 bg-zinc-50 dark:bg-neutral-800/40 rounded-xl border border-zinc-200 dark:border-neutral-700">
+                <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">PDF Compression:</span>
+                {(['none', 'standard', 'high'] as CompressionLevel[]).map(level => (
+                  <label key={level} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="compressionLevel"
+                      value={level}
+                      checked={compressionLevel === level}
+                      onChange={() => setCompressionLevel(level)}
+                      className="accent-indigo-500"
+                    />
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">{level === 'none' ? 'None (largest)' : level === 'standard' ? 'Standard' : 'High (smallest)'}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
             {/* Actions */}
             {items.length > 0 && (
               <div className="flex flex-wrap gap-3">
@@ -684,30 +758,59 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
       {/* PDF Preview Panel */}
       {previewUrl && (
         <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-neutral-700">
-            <div className="flex items-center gap-3">
-              <Eye className="h-5 w-5 text-indigo-500" />
-              <div>
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Merged PDF Preview</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">{items.length} document{items.length !== 1 ? 's' : ''} merged · {previewFileName}</p>
+          <div className="flex flex-col gap-2 px-6 py-4 border-b border-zinc-200 dark:border-neutral-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Eye className="h-5 w-5 text-indigo-500" />
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Merged PDF Preview</h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {items.length} document{items.length !== 1 ? 's' : ''} merged · {previewFileName}
+                    {mergedSizeKB !== null && <span className="ml-2 text-emerald-600 dark:text-emerald-400 font-medium">{mergedSizeKB < 1024 ? `${mergedSizeKB} KB` : `${(mergedSizeKB / 1024).toFixed(1)} MB`}</span>}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleDownloadPreview} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </Button>
+                {isDriveActive() && (
+                  <Button
+                    onClick={handleSaveToDrive}
+                    disabled={isSavingToDrive}
+                    variant="secondary"
+                    className="gap-2"
+                    title="Save merged PDF to Google Drive"
+                  >
+                    {isSavingToDrive ? (
+                      <><span className="animate-spin inline-block text-xs">⏳</span> Saving...</>
+                    ) : (
+                      <><Save className="h-4 w-4" /> Save to Drive</>
+                    )}
+                  </Button>
+                )}
+                <button
+                  onClick={closePreview}
+                  className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 text-zinc-500 transition-colors"
+                  title="Close preview"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleDownloadPreview}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
-              </Button>
-              <button
-                onClick={closePreview}
-                className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 text-zinc-500 transition-colors"
-                title="Close preview"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            {driveLink && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-700 dark:text-emerald-300">
+                <Save className="h-4 w-4 flex-shrink-0" />
+                <span>Saved to Google Drive!</span>
+                <a href={driveLink} target="_blank" rel="noopener noreferrer" className="ml-auto font-medium underline hover:opacity-80">Open in Drive</a>
+              </div>
+            )}
+            {driveError && (
+              <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+                {driveError}
+              </div>
+            )}
           </div>
           <div className="relative bg-zinc-100 dark:bg-neutral-900" style={{ height: '75vh' }}>
             <iframe

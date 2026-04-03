@@ -66,6 +66,54 @@ export class DriveStorageService implements IStorageService {
 
     async sync(): Promise<void> { }
 
+    async uploadPDFFile(filename: string, bytes: Uint8Array): Promise<{ id: string; webViewLink: string }> {
+        const DRIVE_FOLDER_NAME = 'AI CV Builder';
+
+        // Find or create the "AI CV Builder" folder in My Drive
+        let folderId: string | null = null;
+        const folderSearch = await this.apiFetch(
+            `${DRIVE_FILES_URL}?q=name%3D%27${encodeURIComponent(DRIVE_FOLDER_NAME)}%27+and+mimeType%3D%27application%2Fvnd.google-apps.folder%27+and+trashed%3Dfalse&fields=files(id)&spaces=drive`
+        );
+        if (folderSearch.ok) {
+            const { files } = await folderSearch.json();
+            folderId = files?.[0]?.id ?? null;
+        }
+        if (!folderId) {
+            const createRes = await this.apiFetch(DRIVE_FILES_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+            });
+            if (!createRes.ok) throw new Error(`Could not create Drive folder: ${createRes.statusText}`);
+            const folder = await createRes.json();
+            folderId = folder.id;
+        }
+
+        const metadata = JSON.stringify({ name: filename, mimeType: 'application/pdf', parents: [folderId] });
+        const boundary = 'cvbuilder_pdf_' + Date.now();
+        const encoder = new TextEncoder();
+        const metaPart = encoder.encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`);
+        const filePart = encoder.encode(`--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`);
+        const closing = encoder.encode(`\r\n--${boundary}--`);
+
+        const combined = new Uint8Array(metaPart.length + filePart.length + bytes.length + closing.length);
+        combined.set(metaPart, 0);
+        combined.set(filePart, metaPart.length);
+        combined.set(bytes, metaPart.length + filePart.length);
+        combined.set(closing, metaPart.length + filePart.length + bytes.length);
+
+        const res = await this.apiFetch(
+            `${DRIVE_UPLOAD_URL}?uploadType=multipart&fields=id,webViewLink`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+                body: combined,
+            }
+        );
+        if (!res.ok) throw new Error(`Drive PDF upload failed: ${res.statusText}`);
+        return await res.json();
+    }
+
     private toFilename(key: string): string {
         return `cvb__${key.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
     }
