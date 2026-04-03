@@ -41,6 +41,15 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     return (
         <div id="cv-preview-minimalist" className="bg-white p-10 text-slate-900 shadow-lg border font-sans">
             <header className="mb-10">
+                {personalInfo.photo && (
+                  <div className="flex justify-end mb-4">
+                    <img
+                      src={personalInfo.photo}
+                      alt={personalInfo.name}
+                      className="w-20 h-20 rounded-full object-cover border-2 border-slate-200"
+                    />
+                  </div>
+                )}
                 <h1 className="text-5xl font-light tracking-tight text-slate-900 mb-2">{personalInfo.name}</h1>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
                     <span>{personalInfo.email}</span>

@@ -276,7 +276,9 @@ export type TemplateName =
   | 'silicon-valley'
   | 'sydney-creative'
   | 'scholarship-pro'
-  | 'medical-standard';
+  | 'medical-standard'
+  | 'navy-sidebar'
+  | 'photo-sidebar';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -304,6 +306,8 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'sydney-creative': 'Sydney Creative',
   'scholarship-pro': 'Scholarship Pro',
   'medical-standard': 'Medical Standard',
+  'navy-sidebar': 'Navy Sidebar',
+  'photo-sidebar': 'Photo Sidebar',
 };
 
 // --- CV Generation Mode ---

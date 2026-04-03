@@ -36,6 +36,15 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
         {/* Left Sidebar */}
         <div className="col-span-4 bg-blue-800 text-white p-8">
           <div className="text-center mb-8">
+            {personalInfo.photo && (
+              <div className="flex justify-center mb-4">
+                <img
+                  src={personalInfo.photo}
+                  alt={personalInfo.name}
+                  className="w-24 h-24 rounded-full object-cover border-4 border-blue-400"
+                />
+              </div>
+            )}
             <h1 className="text-4xl font-bold tracking-tight">{personalInfo.name}</h1>
           </div>
           <div className="space-y-8">

@@ -25,6 +25,8 @@ import TemplateSiliconValley from './templates/TemplateSiliconValley';
 import TemplateSydneyCreative from './templates/TemplateSydneyCreative';
 import TemplateScholarshipPro from './templates/TemplateScholarshipPro';
 import TemplateMedicalStandard from './templates/TemplateMedicalStandard';
+import TemplateNavySidebar from './templates/TemplateNavySidebar';
+import TemplatePhotoSidebar from './templates/TemplatePhotoSidebar';
 
 
 interface CVPreviewProps {
@@ -91,6 +93,10 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         return <TemplateScholarshipPro {...rest} />;
       case 'medical-standard':
         return <TemplateMedicalStandard {...rest} />;
+      case 'navy-sidebar':
+        return <TemplateNavySidebar {...rest} />;
+      case 'photo-sidebar':
+        return <TemplatePhotoSidebar {...rest} />;
       default:
         return <TemplateProfessional {...rest} />;
     }

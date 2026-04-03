@@ -19,10 +19,11 @@ const templateCategories = {
   'Academic': ['harvard-gold', 'scholarship-pro', 'classic'] as TemplateName[],
   'Minimal': ['minimalist', 'compact', 'timeline', 'paris-vibe'] as TemplateName[],
   'Technical': ['software-engineer', 'technical'] as TemplateName[],
+  'Photo': ['photo-sidebar', 'navy-sidebar'] as TemplateName[],
 };
 
 // Templates that support profile photos in PDF output
-const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic'];
+const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar'];
 
 // Badges displayed on template cards
 const templateBadges: Partial<Record<TemplateName, { label: string; emoji: string; color: string }>> = {
@@ -36,6 +37,8 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'minimalist': { label: 'Clean & Safe', emoji: '✨', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' },
   'modern': { label: 'Trending', emoji: '🔥', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
   'software-engineer': { label: 'Best for Tech', emoji: '💻', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' },
+  'navy-sidebar': { label: 'Bold & Sharp', emoji: '🏛️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
+  'photo-sidebar': { label: 'With Photo', emoji: '📷', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
 };
 
 const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onSelect, cvData, personalInfo }) => {

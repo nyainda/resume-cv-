@@ -42,9 +42,19 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
       {/* Sidebar */}
       <div className="col-span-4 bg-teal-700 text-white p-8 space-y-8">
         <div className="flex flex-col items-center text-center">
-          <div className="w-32 h-32 bg-teal-200 rounded-full mb-4 flex items-center justify-center">
-            <span className="text-teal-700 text-sm">Your Photo</span>
-          </div>
+          {personalInfo.photo ? (
+            <img
+              src={personalInfo.photo}
+              alt={personalInfo.name}
+              className="w-32 h-32 rounded-full object-cover mb-4 border-4 border-teal-300"
+            />
+          ) : (
+            <div className="w-32 h-32 bg-teal-200 rounded-full mb-4 flex items-center justify-center">
+              <span className="text-teal-700 text-4xl font-bold">
+                {personalInfo.name ? personalInfo.name.charAt(0).toUpperCase() : '?'}
+              </span>
+            </div>
+          )}
           <h1 className="text-3xl font-bold tracking-tighter">{personalInfo.name}</h1>
         </div>
 

@@ -44,6 +44,15 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
         {/* Left Sidebar */}
         <div className="col-span-4 bg-slate-700 text-white p-8">
           <div className="text-center mb-8">
+            {personalInfo.photo && (
+              <div className="flex justify-center mb-4">
+                <img
+                  src={personalInfo.photo}
+                  alt={personalInfo.name}
+                  className="w-24 h-24 rounded-full object-cover border-4 border-slate-400"
+                />
+              </div>
+            )}
             <h1 className="text-4xl font-bold tracking-tight">{personalInfo.name}</h1>
           </div>
           <div className="space-y-8">

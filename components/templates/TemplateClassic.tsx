@@ -40,6 +40,15 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
   return (
     <div id="cv-preview-classic" className="bg-white p-12 text-slate-900 shadow-lg border font-serif">
       <header className="text-center pb-6 mb-6">
+        {personalInfo.photo && (
+          <div className="flex justify-center mb-4">
+            <img
+              src={personalInfo.photo}
+              alt={personalInfo.name}
+              className="w-24 h-24 rounded-full object-cover border-2 border-slate-300"
+            />
+          </div>
+        )}
         <h1 className="text-5xl font-bold tracking-tight">{personalInfo.name}</h1>
         <hr className="my-4 border-t-2 border-slate-800 w-16 mx-auto" />
         <div className="flex justify-center items-center gap-x-4 text-sm text-slate-600 flex-wrap">

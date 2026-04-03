@@ -498,6 +498,82 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
         </div>
       );
 
+    case 'navy-sidebar':
+      return (
+        <div className={`${base} flex-row gap-0`}>
+          <div className="w-[36%] h-full p-1.5 flex flex-col gap-1.5" style={{ backgroundColor: '#1a2f5a' }}>
+            {['EDUCATION', 'CERTS', 'SKILLS'].map((s, i) => (
+              <div key={i} className="mt-1">
+                <div className="h-0.5 rounded-sm mb-1" style={{ backgroundColor: '#7fa8d8', width: '70%' }} />
+                <div className="space-y-0.5">
+                  <div className="h-0.5 bg-white/30 rounded w-full" />
+                  <div className="h-0.5 bg-white/30 rounded w-4/5" />
+                  <div className="h-0.5 bg-white/30 rounded w-3/5" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 p-1.5 flex flex-col gap-1.5">
+            <div className="h-2 rounded-sm mb-0.5" style={{ backgroundColor: '#1a2f5a', width: '80%' }} />
+            <div className="h-px w-full" style={{ backgroundColor: '#1a2f5a' }} />
+            <div className="h-0.5 rounded-sm" style={{ backgroundColor: '#1a2f5a', width: '50%' }} />
+            <div className="space-y-0.5 mt-1">
+              <div className="h-0.5 bg-gray-300 rounded" />
+              <div className="h-0.5 bg-gray-300 rounded w-5/6" />
+            </div>
+            {[1, 2].map(i => (
+              <div key={i} className="mt-1">
+                <div className="h-1 rounded-sm" style={{ backgroundColor: '#1a2f5a', width: '60%' }} />
+                <div className="space-y-0.5 mt-0.5">
+                  <div className="h-0.5 bg-gray-300 rounded" />
+                  <div className="h-0.5 bg-gray-300 rounded w-4/5" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'photo-sidebar':
+      return (
+        <div className={`${base} flex-row gap-0`}>
+          <div className="w-[38%] h-full p-1.5 flex flex-col gap-1.5" style={{ backgroundColor: '#f5f0e8' }}>
+            <div className="flex flex-col items-center mb-1">
+              <div className="w-7 h-7 rounded-sm mb-0.5" style={{ backgroundColor: '#c8701a' }} />
+              <div className="h-1 bg-zinc-700 rounded-sm w-3/4 mb-0.5" />
+              <div className="h-0.5 rounded-sm w-1/2" style={{ color: '#c8701a', backgroundColor: '#c8701a' }} />
+            </div>
+            {['Contact', 'Summary', 'Skills'].map((s, i) => (
+              <div key={i} className="mt-0.5">
+                <div className="h-0.5 rounded-sm mb-0.5" style={{ backgroundColor: '#555', width: '70%' }} />
+                <div className="space-y-0.5">
+                  <div className="h-0.5 bg-zinc-400 rounded w-full" />
+                  <div className="h-0.5 bg-zinc-400 rounded w-4/5" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 p-1.5 flex flex-col gap-1.5">
+            {['Education', 'Experience', 'Highlights'].map((s, i) => (
+              <div key={i} className="mt-0.5">
+                <div className="h-0.5 bg-zinc-700 rounded-sm mb-0.5" style={{ width: '60%' }} />
+                <div className="h-px bg-zinc-300 w-full mb-0.5" />
+                <div className="space-y-0.5">
+                  <div className="flex items-start gap-0.5">
+                    <div className="w-1 h-1 rounded-full mt-0.5 flex-shrink-0" style={{ backgroundColor: '#c8701a' }} />
+                    <div className="h-0.5 bg-gray-300 rounded flex-1" />
+                  </div>
+                  <div className="flex items-start gap-0.5">
+                    <div className="w-1 h-1 rounded-full mt-0.5 flex-shrink-0" style={{ backgroundColor: '#c8701a' }} />
+                    <div className="h-0.5 bg-gray-300 rounded flex-1 w-4/5" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
     default:
       return (
         <div className={`${base} bg-white p-2 space-y-1`}>
