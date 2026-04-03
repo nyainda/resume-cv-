@@ -72,138 +72,170 @@ const pdfHelpers = (doc: any) => {
 const embedATSData = (doc: any, text: string, pageWidth: number, cvData?: CVData): boolean => {
     if (!text || !text.trim()) return false;
 
-    // ENHANCED ATS STRATEGY FOR AI-POWERED SCANNERS:
-    // Modern ATS uses AI (GPT, Claude, etc.) that understands:
-    // 1. Semantic context (not just keywords)
-    // 2. Achievement patterns (quantified results)
-    // 3. Role-requirement mapping
-    // 4. Natural language structure
-    // 5. Metadata tags and structured data
+    // ── ATS POWER STRATEGY v2 ─────────────────────────────────────────────────
+    // Modern ATS (Greenhouse, Lever, Workday, Taleo, iCIMS, SAP SF) rank by:
+    //   1. Exact keyword / phrase match frequency
+    //   2. Semantic relevance (skills + job titles cluster)
+    //   3. Quantified achievement density
+    //   4. Role-to-requirement alignment
+    //   5. PDF metadata keyword fields
+    // ─────────────────────────────────────────────────────────────────────────
 
-    const extractKeywords = (jobDesc: string): string[] => {
-        // Remove common words and extract meaningful keywords
-        const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'we', 'you', 'they', 'it']);
+    // --- Helpers ---
+    const STOP_WORDS = new Set([
+        'the','a','an','and','or','but','in','on','at','to','for','of','with','by',
+        'from','as','is','was','are','be','been','being','have','has','had','do',
+        'does','did','will','would','should','could','may','might','must','can',
+        'this','that','these','those','we','you','they','it','its','our','your',
+        'their','i','he','she','not','also','such','more','into','than','about',
+        'other','some','which','when','who','all','each','been','were','able',
+    ]);
 
-        const words = jobDesc.toLowerCase()
-            .replace(/[^\w\s]/g, ' ')
-            .split(/\s+/)
-            .filter(w => w.length > 3 && !commonWords.has(w));
-
-        // Count frequency
+    /** Extract high-value single words (length > 3, not stop words) */
+    const extractUnigrams = (src: string): string[] => {
         const freq: Record<string, number> = {};
-        words.forEach(w => freq[w] = (freq[w] || 0) + 1);
-
-        // Get top 30 keywords
-        return Object.entries(freq)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 30)
-            .map(([word]) => word);
+        src.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).forEach(w => {
+            if (w.length > 3 && !STOP_WORDS.has(w)) freq[w] = (freq[w] || 0) + 1;
+        });
+        return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 40).map(([w]) => w);
     };
 
-    // Calculate years of experience for AI context
-    const calculateExperience = (): number => {
-        if (!cvData?.experience || cvData.experience.length === 0) return 0;
-        const totalMonths = cvData.experience.reduce((total, job) => {
+    /** Extract 2-word and 3-word phrases — phrase matching scores very highly in ATS */
+    const extractPhrases = (src: string): string[] => {
+        const tokens = src.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+        const bigramFreq: Record<string, number> = {};
+        const trigramFreq: Record<string, number> = {};
+        for (let i = 0; i < tokens.length - 1; i++) {
+            if (STOP_WORDS.has(tokens[i]) || STOP_WORDS.has(tokens[i + 1])) continue;
+            const bi = `${tokens[i]} ${tokens[i + 1]}`;
+            bigramFreq[bi] = (bigramFreq[bi] || 0) + 1;
+            if (i < tokens.length - 2 && !STOP_WORDS.has(tokens[i + 2])) {
+                const tri = `${tokens[i]} ${tokens[i + 1]} ${tokens[i + 2]}`;
+                trigramFreq[tri] = (trigramFreq[tri] || 0) + 1;
+            }
+        }
+        const bigrams = Object.entries(bigramFreq).filter(([, f]) => f > 1).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([p]) => p);
+        const trigrams = Object.entries(trigramFreq).filter(([, f]) => f > 1).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([p]) => p);
+        return [...trigrams, ...bigrams];
+    };
+
+    /** Total professional experience in years */
+    const yearsOfExperience = (): number => {
+        if (!cvData?.experience?.length) return 0;
+        const totalMonths = cvData.experience.reduce((sum, job) => {
             const start = new Date(job.startDate);
             const end = job.endDate.toLowerCase() === 'present' ? new Date() : new Date(job.endDate);
-            const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-            return total + Math.max(0, months);
+            return sum + Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth());
         }, 0);
         return Math.round(totalMonths / 12);
     };
 
-    // Extract achievement patterns (numbers, percentages, metrics)
-    const extractAchievements = (): string[] => {
+    /** Pull quantified achievements from experience bullets */
+    const quantifiedAchievements = (): string[] => {
         if (!cvData?.experience) return [];
-        const achievements: string[] = [];
+        const hits: string[] = [];
         cvData.experience.forEach(job => {
-            job.responsibilities.forEach(resp => {
-                const hasMetric = /\d+[%$]?|\$\d+|increased|improved|reduced|grew|achieved|delivered/i.test(resp);
-                if (hasMetric) achievements.push(resp.substring(0, 100));
+            job.responsibilities.forEach(r => {
+                if (/\d+[%$kKmM]?|\$[\d,]+|increased|improved|reduced|grew|achieved|delivered|saved|generated/i.test(r)) {
+                    hits.push(r.slice(0, 120));
+                }
             });
         });
-        return achievements.slice(0, 5);
+        return hits.slice(0, 8);
     };
 
-    // Build AI-optimized ATS text with semantic structure
+    // --- Build the ATS corpus ---
+    const unigrams = extractUnigrams(text);
+    const phrases  = extractPhrases(text);
+    const achievements = quantifiedAchievements();
+    const yoe = yearsOfExperience();
+
     let atsText = '';
 
-    // SECTION 1: Metadata tags (AI parsers look for these)
-    atsText += '[CANDIDATE_PROFILE] ';
+    // Block 1 — Candidate identity (ATS parser anchor)
+    atsText += 'CANDIDATE PROFILE. ';
+    if (cvData?.summary) atsText += cvData.summary + ' ';
 
-    // SECTION 2: Experience level (AI context)
-    const yearsExp = calculateExperience();
-    if (yearsExp > 0) atsText += `${yearsExp} years professional experience. `;
-
-    // SECTION 3: Core competencies (semantic grouping)
-    if (cvData?.skills && cvData.skills.length > 0) {
-        atsText += '[CORE_SKILLS] ' + cvData.skills.join(', ') + '. ';
+    // Block 2 — Experience signal
+    if (yoe > 0) atsText += `${yoe} years of professional experience. `;
+    if (cvData?.experience?.length) {
+        atsText += 'Professional roles: ' + cvData.experience.map(e => `${e.jobTitle} at ${e.company}`).join('; ') + '. ';
     }
 
-    // SECTION 4: Role expertise (job titles as semantic markers)
-    if (cvData?.experience && cvData.experience.length > 0) {
-        atsText += '[ROLE_EXPERTISE] ' + cvData.experience.map(e => e.jobTitle).join(', ') + '. ';
+    // Block 3 — Skills (exact-match powerhouse)
+    if (cvData?.skills?.length) {
+        atsText += 'Core skills and competencies: ' + cvData.skills.join(', ') + '. ';
+        // Repeat top skills to increase keyword density
+        atsText += 'Key technical skills: ' + (cvData.skills.slice(0, 8).join(', ')) + '. ';
     }
 
-    // SECTION 5: Key achievements (AI loves quantified results)
-    const achievements = extractAchievements();
-    if (achievements.length > 0) {
-        atsText += '[KEY_ACHIEVEMENTS] ' + achievements.join('. ') + '. ';
+    // Block 4 — Quantified achievements (ATS ranks metrics highly)
+    if (achievements.length) {
+        atsText += 'Key achievements and results: ' + achievements.join(' ') + ' ';
     }
 
-    // SECTION 6: Job requirement keywords
-    const keywords = extractKeywords(text);
-    if (keywords.length > 0) {
-        atsText += '[JOB_MATCH_KEYWORDS] ' + keywords.join(' ') + '. ';
+    // Block 5 — Education
+    if (cvData?.education?.length) {
+        atsText += 'Education: ' + cvData.education.map(e => `${e.degree} ${e.school} ${e.year}`).join('; ') + '. ';
     }
 
-    // SECTION 7: Natural language context
-    atsText += '[CANDIDATE_FIT] ';
-    atsText += `Experienced professional with expertise in ${cvData?.skills?.slice(0, 3).join(', ') || 'multiple domains'}. `;
-    atsText += `Proven track record in ${cvData?.experience?.[0]?.jobTitle || 'relevant field'}. `;
-
-    // SECTION 8: Education context
-    if (cvData?.education && cvData.education.length > 0) {
-        atsText += '[EDUCATION] ' + cvData.education.map(e => `${e.degree} from ${e.school}`).join(', ') + '. ';
+    // Block 6 — JD phrase matching (highest-value ATS signals)
+    if (phrases.length) {
+        atsText += 'Relevant expertise: ' + phrases.join(', ') + '. ';
     }
 
-    // SECTION 9: Job description match
-    atsText += '[JOB_DESCRIPTION_MATCH] ' + text.substring(0, 400) + '. ';
-
-    // SECTION 10: Candidate summary
-    if (cvData?.summary) {
-        atsText += '[CANDIDATE_SUMMARY] ' + cvData.summary.substring(0, 200) + '. ';
+    // Block 7 — JD keyword density layer
+    if (unigrams.length) {
+        atsText += 'Qualified in: ' + unigrams.join(' ') + '. ';
+        // Second pass for density boost (ATS rewards repetition)
+        atsText += unigrams.slice(0, 20).join(' ') + '. ';
     }
 
-    // Embed in multiple locations for redundancy
-    doc.setTextColor(255, 255, 255); // White text (invisible)
-    doc.setFontSize(2); // Size 2pt - readable by ATS but nearly invisible
+    // Block 8 — Full job description (allows ATS to score full semantic context)
+    atsText += 'POSITION REQUIREMENTS AND RESPONSIBILITIES: ' + text + ' ';
+
+    // Block 9 — Skills × JD cross-match sentence
+    if (cvData?.skills?.length && phrases.length) {
+        atsText += `Candidate demonstrates strong alignment with ${phrases.slice(0, 5).join(', ')} through proven experience in ${cvData.skills.slice(0, 5).join(', ')}. `;
+    }
+
+    // Block 10 — Projects (hidden bonus content)
+    if (cvData?.projects?.length) {
+        atsText += 'Projects and deliverables: ' + cvData.projects.map(p => `${p.name}: ${p.description}`).join('; ') + '. ';
+    }
+
+    // --- Inject PDF keyword metadata (parsers read XMP/DocInfo fields) ---
+    const metaKeywords = [
+        ...(cvData?.skills?.slice(0, 10) || []),
+        ...unigrams.slice(0, 10),
+        ...phrases.slice(0, 5),
+    ].join(', ');
+
+    try {
+        doc.setProperties({
+            keywords: metaKeywords,
+        });
+    } catch { /* ignore if already set */ }
+
+    // --- Render invisible text in the PDF ---
+    // White on white: visually invisible, but ATS text-extraction engines read every character.
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(1.5);  // 1.5 pt — below human visibility threshold, above ATS parsing floor
 
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 5;
+    const margin = 2;
+    const usableWidth = pageWidth - margin * 2;
 
-    // Split text to fit page width
-    const textLines = doc.splitTextToSize(atsText, pageWidth - 2 * margin);
+    const lines = doc.splitTextToSize(atsText, usableWidth);
 
-    // Location 1: Top margin (primary AI scan area)
-    doc.text(textLines.slice(0, 5), margin, margin + 5);
+    // Distribute across 4 zones to survive partial-page ATS extraction
+    const quarter = Math.ceil(lines.length / 4);
+    doc.text(lines.slice(0, quarter), margin, margin + 2);                     // zone A: top
+    doc.text(lines.slice(quarter, quarter * 2), margin, pageHeight / 2 - 10); // zone B: mid-top
+    doc.text(lines.slice(quarter * 2, quarter * 3), margin, pageHeight / 2);  // zone C: mid-bottom
+    doc.text(lines.slice(quarter * 3), margin, pageHeight - margin - 5);      // zone D: bottom
 
-    // Location 2: Bottom margin (backup for AI parsers)
-    doc.text(textLines.slice(5, 10), margin, pageHeight - margin - 15);
-
-    // Location 3: Right margin (additional coverage)
-    if (textLines.length > 10) {
-        doc.text(textLines.slice(10, 15), pageWidth - margin - 2, margin + 20);
-    }
-
-    // Location 4: Left margin (some AI parsers scan edges)
-    if (textLines.length > 15) {
-        doc.text(textLines.slice(15, 18), margin, pageHeight / 2);
-    }
-
-    // Reset color
     doc.setTextColor(0, 0, 0);
-
     return true;
 };
 

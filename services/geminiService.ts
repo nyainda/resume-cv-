@@ -3,13 +3,27 @@ import { UserProfile, CVData, JobAnalysisResult, ApiSettings, CVGenerationMode, 
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-You are a world-class career coach, elite recruiter, and resume strategist with 20+ years of experience placing candidates at Fortune 500 companies and top startups.
-You produce CVs that:
-1. IMMEDIATELY capture recruiter attention in under 6 seconds (the average resume scan time).
-2. Pass ATS keyword filtering with 90%+ match rates.
-3. Use the "Action + Context + Quantified Result" formula for every bullet point.
-4. Position the candidate as the OBVIOUS choice for the role.
-Generate ONLY valid JSON or plain text. Strictly adhere to schemas. NEVER include markdown formatting in JSON values.
+You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience.
+
+Your CVs achieve:
+  • 95%+ ATS pass rates across Greenhouse, Lever, Workday, Taleo, iCIMS, and SAP SuccessFactors
+  • Sub-6-second recruiter hook (the proven average scan time before a decision is made)
+  • Interview call rates 3× the industry average
+  • First-page Google ranking for candidate names
+
+Your non-negotiable rules:
+  1. EVERY bullet follows "Strong Verb → Specific Scope → Quantified Result" — no exceptions.
+  2. MIRROR the exact language of the job description. If the JD says "cross-functional collaboration," use those words.
+  3. KEYWORD DENSITY: The top 10 JD keywords must each appear at least twice across the document.
+  4. NEVER use: "responsible for", "helped", "assisted", "worked on", "was part of", "participated in".
+  5. NEVER use AI clichés: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "leverage" (use sparingly), "in today's fast-paced world", "passionate about".
+  6. QUANTIFY everything. If the user gave no numbers, estimate realistically (add "~" prefix) based on role level and company size.
+  7. Each bullet must stand alone as proof of impact — a mini case study in one sentence.
+  8. The summary must make a hiring manager say "I need to meet this person."
+  9. Skills list: put the EXACT tools/technologies named in the JD first.
+  10. Education descriptions highlight GPA (if ≥3.5), thesis, honors, or relevant coursework.
+
+Output ONLY valid JSON or plain text matching the requested schema. NEVER include markdown, code fences, or prose outside the schema.
 `;
 
 const SYSTEM_INSTRUCTION_PARSER = `
@@ -399,13 +413,14 @@ export const generateCV = async (
 
     // HUMANIZATION instruction injected into all prompts
     const humanizationInstruction = `
-    **CRITICAL — HUMAN WRITING STYLE**:
-    Write ALL text (summary, bullet points, descriptions) as if a senior human professional wrote it personally.
-    - Mix sentence lengths naturally. Short. Then longer ones that elaborate.
-    - NO AI buzzwords: avoid "delve", "robust", "seamlessly", "synergy", "leverage" (use sparingly), "cutting-edge", "in today's fast-paced world".
-    - Be specific and concrete. Replace vague phrases like "contributed to team success" with actual outcomes.
-    - Vary action verbs — never use the same verb twice across all bullet points.
-    - Make every line feel like it came from lived experience, not a template.
+    **CRITICAL — AUTHENTIC HUMAN WRITING**:
+    Write as if a top-performing senior professional personally crafted every word. Recruiters and AI detectors must believe a human wrote this.
+    - Sentence rhythm: mix short punchy statements with longer elaborative ones. Never uniform length.
+    - BANNED words/phrases: "delve", "robust", "seamlessly", "synergy", "leverage" (use max once), "cutting-edge", "state-of-the-art", "passionate", "in today's fast-paced world", "it is worth noting", "navigate", "landscape", "groundbreaking".
+    - Be hyper-specific: replace "improved efficiency" with "cut report generation time from 4 hours to 23 minutes".
+    - Action verb variety: every bullet uses a DIFFERENT verb. Use: Spearheaded, Engineered, Orchestrated, Accelerated, Restructured, Championed, Negotiated, Overhauled, Forged, Propelled, Slashed, Tripled, Automated, Mentored, Secured, Delivered.
+    - Numbers make it real: every bullet that can have a metric, must have one.
+    - Zero filler phrases: remove "in order to", "as well as", "a variety of", "various", "etc".
     `;
 
     if (purpose === 'general') {
@@ -542,37 +557,52 @@ export const generateCV = async (
 
 
         mainPromptInstruction = `
-            You are a world-class CV writer. Create a targeted, powerful CV for a job application that gets interviews.
-            
-            USER PROFILE: ${JSON.stringify(profile, null, 2)}
-            JOB DESCRIPTION: ${contextDescription}
-            ${githubInstruction}
+            You are the world's top CV strategist. Your mission: make this candidate IMPOSSIBLE to ignore.
+            Create a targeted CV that clears every ATS filter AND compels the hiring manager to call within 24 hours.
 
+            USER PROFILE:
+            ${JSON.stringify(profile, null, 2)}
+
+            JOB DESCRIPTION:
+            ${contextDescription}
+
+            ${githubInstruction}
             ${keywordInstruction}
 
-            === CRITICAL INSTRUCTIONS ===
+            ════════════════════════════════════════════
+            ABSOLUTE RULES (violating any = failure):
+            ════════════════════════════════════════════
 
-            1. **SUMMARY — Value Proposition Hook (2-3 sentences MAX)**:
-               - Sentence 1: WHO they are + seniority + specialty (e.g., "Results-driven Senior Software Engineer specializing in cloud-native fintech.")
-               - Sentence 2: CORE VALUE + key achievement matching the JD
-               - Sentence 3: UNIQUE FIT for this specific role
-               - Integrate 3-5 must-include keywords. Make the recruiter say "This is our person."
+            ① SUMMARY — "Hire Me in 3 Sentences" (STRICT 3-sentence structure):
+               • S1: [Seniority] [Title] with [X years] of expertise in [core domain matching JD].
+               • S2: Most impressive quantified achievement that directly mirrors the JD's top priority.
+               • S3: Specific value-add for THIS company/role (use company name if in JD, else the role's key outcome).
+               → Embed the top 5 JD keywords naturally. Zero fluff. Every word earns its place.
 
-            2. **EXPERIENCE — The Proof**:
-               - For EVERY entry: 'startDate' and 'endDate' in 'YYYY-MM-DD' (use 'Present' for current role).
-               - Every bullet: [Strong Verb] + [Context/Scope] + [Quantified Result]
-               - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
+            ② EXPERIENCE — Proof of Greatness:
+               • startDate / endDate: YYYY-MM-DD format only (endDate = "Present" if current).
+               • EVERY bullet = [Power Verb] + [Specific What/How/Scale] + [Metric/Impact].
+               • Metric requirement: if the user gave no number, estimate one realistically with "~" prefix.
+               • Forbidden openers: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of".
+               • Mirror JD language word-for-word where possible (exact phrase matching crushes ATS).
                ${experienceInstruction}
 
-            3. **SKILLS**: Core skills first (most relevant to JD), then tools, then adjacent. Include ALL must-include keywords from the JD. Return EXACTLY 15 specific skills.
+            ③ SKILLS (EXACTLY 15 — ordered by JD priority):
+               • Position 1–5: Exact tools/technologies named in the JD.
+               • Position 6–10: Core technical/domain skills.
+               • Position 11–15: Complementary and soft skills that complete the picture.
+               • Include EVERY must-include keyword that fits as a skill.
 
-            4. **EDUCATION**: 1-sentence 'description' with relevant coursework or honors.
+            ④ EDUCATION:
+               • 'description': 1 sentence. Mention GPA if ≥3.5, thesis topic, honors, or 2–3 directly relevant courses.
 
-            5. **PROJECTS**: Problem solved + technologies + measurable outcome.
+            ⑤ PROJECTS — Impact Snapshots:
+               • Format: [Problem] → [Solution using named technologies] → [Measurable outcome].
+               • Link to GitHub/demo if the user provided a GitHub URL.
 
             ${humanizationInstruction}
 
-            Return ONLY valid JSON. No markdown. No extra text.
+            Return ONLY the valid JSON object. No markdown. No commentary. No extra text.
         `;
         cvDataSchema = {
             type: Type.OBJECT,
@@ -1044,4 +1074,80 @@ export const paraphraseText = async (
         config: { temperature: tone === 'ats-friendly' ? 0.3 : 0.7, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
     }));
     return response.text || text;
+};
+
+// ── CV Score / Match Analysis ─────────────────────────────────────────────────
+export interface CVScore {
+    overall: number;           // 0–100
+    ats: number;               // keyword/phrase match score
+    impact: number;            // quantified achievements score
+    relevance: number;         // role-fit alignment score
+    clarity: number;           // writing quality score
+    missingKeywords: string[]; // top JD keywords not found in CV
+    strengths: string[];       // 2-3 things done well
+    improvements: string[];    // 2-3 specific, actionable fixes
+    verdict: string;           // one-line hiring verdict
+}
+
+export const scoreCV = async (cvData: CVData, jobDescription: string): Promise<CVScore> => {
+    const ai = getAiClient('lite');
+
+    const cvText = [
+        cvData.summary,
+        ...cvData.experience.flatMap(e => [e.jobTitle, e.company, ...e.responsibilities]),
+        ...cvData.skills,
+        ...cvData.education.map(e => `${e.degree} ${e.school}`),
+        ...cvData.projects.map(p => p.description),
+    ].join(' ');
+
+    const prompt = `
+You are an expert ATS system and senior hiring manager scoring a CV against a job description.
+Analyse objectively and return a JSON score report.
+
+CV TEXT:
+${cvText}
+
+JOB DESCRIPTION:
+${jobDescription}
+
+Scoring rubric:
+- "ats" (0-100): How many of the JD's key terms/phrases appear in the CV? >80 = strong pass, 60-80 = borderline, <60 = likely rejected.
+- "impact" (0-100): What % of bullet points have a quantified result (number, %, $, time saved)? 100 = all bullets quantified.
+- "relevance" (0-100): How closely does the candidate's experience/skills match the role requirements?
+- "clarity" (0-100): Is the writing concise, free of clichés, and easy to skim in 6 seconds?
+- "overall" (0-100): Weighted average — ats×0.35 + impact×0.25 + relevance×0.30 + clarity×0.10. Round to nearest integer.
+- "missingKeywords": List up to 8 important JD keywords/phrases NOT found in the CV. Empty array if none.
+- "strengths": Exactly 2 specific things this CV does well (be concrete, not generic).
+- "improvements": Exactly 3 specific, immediately actionable fixes (e.g. "Add a metric to the 'Led team' bullet in Role X").
+- "verdict": One punchy sentence a recruiter would say about this CV (e.g. "Strong ATS match — call this candidate.").
+`;
+
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            overall:         { type: Type.NUMBER },
+            ats:             { type: Type.NUMBER },
+            impact:          { type: Type.NUMBER },
+            relevance:       { type: Type.NUMBER },
+            clarity:         { type: Type.NUMBER },
+            missingKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            strengths:       { type: Type.ARRAY, items: { type: Type.STRING } },
+            improvements:    { type: Type.ARRAY, items: { type: Type.STRING } },
+            verdict:         { type: Type.STRING },
+        },
+        required: ['overall','ats','impact','relevance','clarity','missingKeywords','strengths','improvements','verdict'],
+    };
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            temperature: 0.2,
+            systemInstruction: SYSTEM_INSTRUCTION_PARSER,
+        },
+    }));
+
+    return JSON.parse((response.text || '').trim()) as CVScore;
 };

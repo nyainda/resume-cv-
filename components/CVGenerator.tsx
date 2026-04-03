@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats } from '../types';
-import { generateCV, generateCoverLetter, extractProfileTextFromFile } from '../services/geminiService';
+import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, CVScore } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
@@ -107,6 +107,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [scholarshipFormat, setScholarshipFormat] = useLocalStorage<ScholarshipFormat>('scholarshipFormat', 'standard');
   const [atsDataEmbedded, setAtsDataEmbedded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const [cvScore, setCvScore] = useState<CVScore | null>(null);
+  const [isScoringCV, setIsScoringCV] = useState(false);
 
   const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
@@ -207,6 +209,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       if (event.target) event.target.value = '';
     }
   };
+
+  const handleScoreCV = useCallback(async () => {
+    if (!currentCV || !jobDescription.trim() || !apiKeySet) return;
+    setIsScoringCV(true);
+    try {
+      const score = await scoreCV(currentCV, jobDescription);
+      setCvScore(score);
+    } catch {
+      // silently fail — score card just won't appear
+    } finally {
+      setIsScoringCV(false);
+    }
+  }, [currentCV, jobDescription, apiKeySet]);
 
   const handleDownload = useCallback(() => {
     if (!currentCV) return;
@@ -524,7 +539,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <Edit className="h-4 w-4 mr-2" />
                 {isEditing ? 'Finish Editing' : 'Edit CV'}
               </Button>
-              <Button variant="secondary" onClick={handleGenerateCV} disabled={isLoading || isEditing || !apiKeySet} size="sm">
+              <Button variant="secondary" onClick={() => { setCvScore(null); handleGenerateCV(); }} disabled={isLoading || isEditing || !apiKeySet} size="sm">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Regenerate
               </Button>
@@ -536,6 +551,21 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <FileText className="h-4 w-4 mr-2" />
                 {isGeneratingCoverLetter ? "Generating..." : "Cover Letter"}
               </Button>
+              {jobDescription.trim() && apiKeySet && (
+                <Button
+                  variant="secondary"
+                  onClick={handleScoreCV}
+                  disabled={isScoringCV || isEditing}
+                  size="sm"
+                  className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+                >
+                  {isScoringCV ? (
+                    <><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Scoring…</>
+                  ) : (
+                    <>⚡ Score CV</>
+                  )}
+                </Button>
+              )}
               <Button onClick={handleDownload} disabled={isEditing} size="sm">
                 <Download className="h-4 w-4 mr-2" />Download PDF
               </Button>
@@ -554,11 +584,91 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </div>
 
           {atsDataEmbedded && (
-            <div className="mb-6 -mt-2 p-3 text-sm text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center gap-3 border border-green-200 dark:border-green-800">
+            <div className="mb-4 -mt-2 p-3 text-sm text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center gap-3 border border-green-200 dark:border-green-800">
               <CheckCircle className="h-5 w-5 flex-shrink-0" />
-              <span><strong>ATS Optimization Active:</strong> The job description has been embedded as invisible text in your PDF to improve keyword matching.</span>
+              <span><strong>ATS Power Mode Active:</strong> Job description keywords, phrases &amp; semantic context embedded invisibly in your PDF across 4 zones — maximising match scores in Greenhouse, Lever, Workday, Taleo &amp; iCIMS.</span>
             </div>
           )}
+
+          {cvScore && (() => {
+            const score = cvScore.overall;
+            const grade = score >= 85 ? { label: 'Excellent', ring: 'ring-green-400', bar: 'bg-green-500', text: 'text-green-700 dark:text-green-400' }
+              : score >= 70 ? { label: 'Good', ring: 'ring-blue-400', bar: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-400' }
+              : score >= 55 ? { label: 'Fair', ring: 'ring-yellow-400', bar: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-400' }
+              : { label: 'Needs Work', ring: 'ring-red-400', bar: 'bg-red-500', text: 'text-red-700 dark:text-red-400' };
+
+            const dim = (label: string, val: number, colour: string) => (
+              <div key={label}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-zinc-600 dark:text-zinc-400">{label}</span>
+                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">{val}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-zinc-200 dark:bg-neutral-700">
+                  <div className={`h-1.5 rounded-full ${colour}`} style={{ width: `${val}%` }} />
+                </div>
+              </div>
+            );
+
+            return (
+              <div className="mb-6 rounded-2xl border border-violet-200 dark:border-violet-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-sm">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 bg-violet-50 dark:bg-violet-900/20 border-b border-violet-200 dark:border-violet-800">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-14 h-14 rounded-full ring-4 ${grade.ring} flex items-center justify-center bg-white dark:bg-neutral-800`}>
+                      <span className={`text-xl font-extrabold ${grade.text}`}>{score}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">CV Match Score</p>
+                      <p className={`text-lg font-extrabold ${grade.text}`}>{grade.label}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm italic text-zinc-500 dark:text-zinc-400 max-w-xs hidden sm:block">"{cvScore.verdict}"</p>
+                  <button onClick={() => setCvScore(null)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 ml-3 flex-shrink-0" title="Dismiss">✕</button>
+                </div>
+
+                <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {/* Score bars */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-2">Score Breakdown</p>
+                    {dim('ATS Keyword Match', cvScore.ats, 'bg-indigo-500')}
+                    {dim('Quantified Impact', cvScore.impact, 'bg-emerald-500')}
+                    {dim('Role Relevance', cvScore.relevance, 'bg-blue-500')}
+                    {dim('Writing Clarity', cvScore.clarity, 'bg-amber-500')}
+                  </div>
+
+                  {/* Insights */}
+                  <div className="space-y-4">
+                    {cvScore.strengths.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-green-600 dark:text-green-400 mb-1.5">✓ Strengths</p>
+                        <ul className="space-y-1">
+                          {cvScore.strengths.map((s, i) => <li key={i} className="text-xs text-zinc-700 dark:text-zinc-300">• {s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {cvScore.improvements.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-red-600 dark:text-red-400 mb-1.5">→ Quick Wins</p>
+                        <ul className="space-y-1">
+                          {cvScore.improvements.map((s, i) => <li key={i} className="text-xs text-zinc-700 dark:text-zinc-300">• {s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {cvScore.missingKeywords.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 mb-1.5">⚠ Missing Keywords</p>
+                        <div className="flex flex-wrap gap-1">
+                          {cvScore.missingKeywords.map((kw, i) => (
+                            <span key={i} className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">{kw}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Purpose/Mode badge on preview */}
           <div className="flex items-center gap-2 mb-4">

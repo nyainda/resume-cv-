@@ -83,7 +83,17 @@ const AppInner: React.FC = () => {
   const [apiSettings, setApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
   const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
 
-  const [isEditingProfile, setIsEditingProfile] = useState<boolean>(!userProfile);
+  // Synchronously check localStorage to avoid flash-to-profile on refresh
+  const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('cv_builder:profiles') || localStorage.getItem('profiles');
+      if (!raw) return true;
+      const profs = JSON.parse(raw);
+      return !Array.isArray(profs) || profs.length === 0;
+    } catch {
+      return true;
+    }
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showProfileManager, setShowProfileManager] = useState(false);
   const profileManagerRef = useRef<HTMLDivElement>(null);
