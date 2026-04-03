@@ -40,11 +40,12 @@ components/
   ...
 
 services/
-  geminiService.ts   — All Gemini AI calls (CV generation, cover letters, etc.)
-  pdfService.ts      — Legacy programmatic jsPDF (kept but superseded by html2canvas)
-  brevoService.ts    — Brevo email sending
-  tavilyService.ts   — Job board search + full JD fetch
-  storage/           — LocalStorage + IndexedDB + Google Drive storage layer
+  geminiService.ts      — All Gemini AI calls (CV generation, cover letters, etc.)
+  pdfService.ts         — Legacy programmatic jsPDF (kept but superseded by html2canvas)
+  brevoService.ts       — Brevo email sending
+  tavilyService.ts      — Job board search + full JD fetch
+  wordImportService.ts  — Word (.docx) parsing via mammoth + Gemini profile extraction
+  storage/              — LocalStorage + IndexedDB + Google Drive storage layer
 
 hooks/
   useStorage.ts      — Auth-aware async storage hook (LocalStorage or Drive)
@@ -66,6 +67,15 @@ auth/
 - **Google Drive Sync** — Optional cloud backup via Google OAuth
 - **PWA** — Service worker, offline capable, installable
 
+### CV Toolkit (enhanced)
+- **CV Checker** — ATS score, keyword match analysis, strengths/weaknesses, Fix & Regenerate loop
+- **Fix & Regenerate** — CV Checker sends missing keywords + weaknesses directly to CV Generator as a pre-filled suggestion banner
+- **Cover Letter** — Smart AI generation with "Send to Generator" shortcut
+- **Paraphraser** — 4 tone modes with "Use in Generator" shortcut; JD-aware context
+- **Word Import** — Upload any .docx file; mammoth parses it, Gemini extracts structured profile data; imported directly into user profile
+- **Live Status Banner** — Shows active profile name and active job at all times in the Toolkit
+- **Microsoft / OneDrive** — Added to Settings: Azure Client ID input + Microsoft OAuth popup flow for OneDrive sync
+
 ## Environment
 
 - Port: **5000** (Replit webview requirement)
@@ -77,3 +87,4 @@ auth/
 - `GEMINI_API_KEY` — Google AI Studio (required for all AI features)
 - Tavily API key — For job board search (optional)
 - Brevo API key — For direct email sending (optional, falls back to mailto)
+- Microsoft Azure Client ID — For Microsoft/OneDrive integration (optional, user registers Azure app)

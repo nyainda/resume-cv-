@@ -231,6 +231,7 @@ export interface ApiSettings {
   apiKey: string | null;
   tavilyApiKey?: string | null; // For job search & company research
   brevoApiKey?: string | null;  // For sending emails via Brevo SMTP API
+  msClientId?: string | null;   // Azure AD Client ID for Microsoft/OneDrive integration
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';

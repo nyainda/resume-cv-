@@ -40,6 +40,10 @@ interface CVGeneratorProps {
   savedCVs?: SavedCV[];
   /** Called when user clicks "Apply via Email" — passes the JD + generated CV */
   onApplyViaEmail?: (jd: string, cv: CVData) => void;
+  /** Optional suggestions from the CV Toolkit Checker — shown as a dismissible banner */
+  toolkitSuggestions?: string | null;
+  /** Called when user dismisses the toolkit suggestions banner */
+  onDismissToolkitSuggestions?: () => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -108,7 +112,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [] }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useState('');
   const [targetJobTitle, setTargetJobTitle] = useState('');
@@ -314,6 +318,40 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   return (
     <div className="space-y-8">
+      {/* ── CV Toolkit Suggestions Banner ── */}
+      {toolkitSuggestions && (
+        <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border border-violet-300 dark:border-violet-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              <span className="text-sm font-bold text-violet-900 dark:text-violet-100">CV Toolkit Feedback — Ready to Apply</span>
+            </div>
+            <p className="text-xs text-violet-700 dark:text-violet-300 whitespace-pre-line leading-relaxed">
+              {toolkitSuggestions}
+            </p>
+            <button
+              onClick={() => {
+                const appended = jobDescription.trim()
+                  ? `${jobDescription}\n\n${toolkitSuggestions}`
+                  : toolkitSuggestions;
+                setJobDescription(appended);
+                onDismissToolkitSuggestions?.();
+              }}
+              className="mt-3 text-xs font-bold px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors"
+            >
+              ✓ Apply to Job Description &amp; Generate
+            </button>
+          </div>
+          <button
+            onClick={onDismissToolkitSuggestions}
+            className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-200 text-xl leading-none p-1 flex-shrink-0"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* === STEP 1: Purpose Selector === */}
       <div className="bg-white dark:bg-neutral-800/50 p-6 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
         <div className="space-y-2 mb-6">

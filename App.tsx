@@ -112,6 +112,9 @@ const AppInner: React.FC = () => {
   // Email apply pre-fill state (set by CV Generator)
   const [emailJd, setEmailJd] = useState<string>('');
 
+  // Toolkit → Generator feedback loop
+  const [toolkitSuggestions, setToolkitSuggestions] = useState<string | null>(null);
+
   // Detect mobile for ProfileManager overlay
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -287,6 +290,36 @@ const AppInner: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast.success('Email Apply Ready', 'JD pre-filled — AI will compose your email.');
   }, [toast]);
+
+  // Wire CV Toolkit → CV Generator (Fix & Regenerate / Go to Generator)
+  const handleGoToGenerator = useCallback((extraInstructions?: string) => {
+    setCurrentView('generator');
+    if (extraInstructions) {
+      setToolkitSuggestions(extraInstructions);
+      toast.success('CV Toolkit Feedback Ready', 'Open the banner in the CV Generator to apply the fixes.');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [toast]);
+
+  // Wire Word Import → Profile update
+  const handleWordProfileImported = useCallback((profile: UserProfile) => {
+    if (activeSlot) {
+      setUserProfile(profile);
+      toast.success('Profile Imported from Word!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
+    } else {
+      const id = Date.now().toString();
+      const slot: UserProfileSlot = {
+        id,
+        name: profile.personalInfo.name || 'Imported Profile',
+        color: 'violet',
+        createdAt: new Date().toISOString(),
+        profile,
+      };
+      setProfiles([slot]);
+      setActiveProfileId(id);
+      toast.success('Profile Imported!', 'Your Word CV has been imported. Edit your profile or go to the Generator.');
+    }
+  }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId, toast]);
 
   const handleSaveMerge = useCallback((merge: SavedMerge) => {
     setSavedMerges(prev => [merge, ...prev]);
@@ -608,6 +641,8 @@ const AppInner: React.FC = () => {
                     openSettings={() => setIsSettingsOpen(true)}
                     onApplyViaEmail={handleApplyViaEmail}
                     savedCVs={savedCVs}
+                    toolkitSuggestions={toolkitSuggestions}
+                    onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}
                   />
                 )}
                 {currentView === 'essays' && <ScholarshipEssayWriter userProfile={userProfile!} apiKeySet={apiKeySet} openSettings={() => setIsSettingsOpen(true)} />}
@@ -619,7 +654,14 @@ const AppInner: React.FC = () => {
                 )}
                 {currentView === 'toolkit' && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <CVToolkit userProfile={userProfile!} apiKeySet={apiKeySet} tavilyApiKey={tavilyApiKey} openSettings={() => setIsSettingsOpen(true)} />
+                    <CVToolkit
+                      userProfile={userProfile!}
+                      apiKeySet={apiKeySet}
+                      tavilyApiKey={tavilyApiKey}
+                      openSettings={() => setIsSettingsOpen(true)}
+                      onGoToGenerator={handleGoToGenerator}
+                      onProfileImported={handleWordProfileImported}
+                    />
                   </div>
                 )}
                 {currentView === 'email' && (

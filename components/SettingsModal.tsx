@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
 import { ApiSettings, AIProvider } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
-import { Shield } from './icons';
+import { Shield, CheckCircle, AlertCircle, ExternalLink } from './icons';
+
+const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.4 2H2v9.4h9.4V2z" fill="#f25022" />
+    <path d="M22 2h-9.4v9.4H22V2z" fill="#7fba00" />
+    <path d="M11.4 12.6H2V22h9.4v-9.4z" fill="#00a4ef" />
+    <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#ffb900" />
+  </svg>
+);
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -26,6 +35,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [storedKeys, setStoredKeys] = useState<Record<string, string>>({});
   const [tavilyKey, setTavilyKey] = useState(currentApiSettings.tavilyApiKey || '');
   const [brevoKey, setBrevoKey] = useState(currentApiSettings.brevoApiKey || '');
+  const [msClientId, setMsClientId] = useState(currentApiSettings.msClientId || '');
+  const [msConnected, setMsConnected] = useState(false);
+  const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
+  const [msConnecting, setMsConnecting] = useState(false);
+  const [msError, setMsError] = useState<string | null>(null);
 
   useEffect(() => {
     const keys = JSON.parse(localStorage.getItem('provider_keys') || '{}');
@@ -36,7 +50,90 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setLocalSettings(currentApiSettings);
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
     setBrevoKey(currentApiSettings.brevoApiKey || '');
+    setMsClientId(currentApiSettings.msClientId || '');
+
+    const storedMsUser = localStorage.getItem('ms_user');
+    if (storedMsUser) {
+      try { setMsUser(JSON.parse(storedMsUser)); setMsConnected(true); } catch { }
+    }
   }, [currentApiSettings, isOpen]);
+
+  const handleMsConnect = useCallback(async () => {
+    if (!msClientId.trim()) {
+      setMsError('Please enter your Azure App Client ID first.');
+      return;
+    }
+    setMsConnecting(true);
+    setMsError(null);
+
+    const redirectUri = window.location.origin;
+    const scopes = 'openid profile email Files.ReadWrite offline_access';
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+      `client_id=${encodeURIComponent(msClientId.trim())}` +
+      `&response_type=token` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&response_mode=fragment` +
+      `&nonce=${Date.now()}`;
+
+    const popup = window.open(authUrl, 'ms-login', 'width=500,height=700,left=300,top=100');
+    if (!popup) {
+      setMsError('Popup was blocked. Allow popups for this site and try again.');
+      setMsConnecting(false);
+      return;
+    }
+
+    const checker = setInterval(() => {
+      try {
+        if (!popup || popup.closed) {
+          clearInterval(checker);
+          setMsConnecting(false);
+          return;
+        }
+        const hash = popup.location.hash;
+        if (hash && hash.includes('access_token')) {
+          clearInterval(checker);
+          popup.close();
+          const params = new URLSearchParams(hash.slice(1));
+          const token = params.get('access_token');
+          if (token) {
+            localStorage.setItem('ms_access_token', token);
+            fetch('https://graph.microsoft.com/v1.0/me', {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+              .then(r => r.json())
+              .then(data => {
+                const user = { name: data.displayName || 'Microsoft User', email: data.mail || data.userPrincipalName || '' };
+                localStorage.setItem('ms_user', JSON.stringify(user));
+                setMsUser(user);
+                setMsConnected(true);
+                setMsConnecting(false);
+              })
+              .catch(() => {
+                setMsConnected(true);
+                setMsUser({ name: 'Microsoft User', email: '' });
+                setMsConnecting(false);
+              });
+          }
+        }
+      } catch {
+        // cross-origin — still loading
+      }
+    }, 500);
+
+    setTimeout(() => {
+      clearInterval(checker);
+      if (!popup?.closed) popup?.close();
+      setMsConnecting(false);
+    }, 120000);
+  }, [msClientId]);
+
+  const handleMsDisconnect = useCallback(() => {
+    localStorage.removeItem('ms_access_token');
+    localStorage.removeItem('ms_user');
+    setMsConnected(false);
+    setMsUser(null);
+  }, []);
 
   const updateKey = (key: string) => {
     const newKeys = { ...storedKeys, [localSettings.provider]: key };
@@ -58,6 +155,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       apiKey: localSettings.apiKey?.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
+      msClientId: msClientId.trim() || null,
     });
     onClose();
   };
@@ -187,6 +285,92 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             />
             <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
               Powers: Job Board search • Full JD fetching • Company intelligence in CV generation
+            </p>
+          </div>
+
+          {/* ── Microsoft / OneDrive ── */}
+          <div className="rounded-xl border border-blue-200 dark:border-blue-800/40 p-4 space-y-3 bg-blue-50/50 dark:bg-blue-900/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MicrosoftIcon className="h-4 w-4" />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Microsoft / OneDrive</h3>
+              </div>
+              {msConnected ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400">○ Not connected</span>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-blue-100 dark:border-blue-900/40 p-3 space-y-1.5">
+              {[
+                '📄 Import your CV directly from a Word (.docx) file',
+                '☁️ Sync CV data to your personal OneDrive',
+                '📝 Apply our templates to your Word-designed CV',
+                '🔒 All data stays in your browser — no server needed',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            {msConnected && msUser ? (
+              <div className="flex items-center justify-between bg-white dark:bg-neutral-800/60 border border-emerald-200 dark:border-emerald-800/40 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                    {msUser.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{msUser.name}</p>
+                    {msUser.email && <p className="text-[10px] text-zinc-500">{msUser.email}</p>}
+                  </div>
+                </div>
+                <button
+                  onClick={handleMsDisconnect}
+                  className="text-xs text-rose-500 hover:text-rose-700 font-semibold"
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label htmlFor="ms-client-id">Azure App Client ID</Label>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+                    Register a free app at{' '}
+                    <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline font-semibold">
+                      Azure Portal →
+                    </a>{' '}
+                    to get your Client ID. Set redirect URI to <code className="text-[10px] bg-zinc-100 dark:bg-neutral-700 px-1 py-0.5 rounded">{window.location.origin}</code> and enable <strong>Single-page application</strong> as the platform.
+                  </p>
+                  <Input
+                    id="ms-client-id"
+                    type="text"
+                    value={msClientId}
+                    onChange={(e) => setMsClientId(e.target.value)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                {msError && (
+                  <div className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {msError}
+                  </div>
+                )}
+                <button
+                  onClick={handleMsConnect}
+                  disabled={msConnecting || !msClientId.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-white dark:bg-neutral-800 text-sm font-bold text-zinc-700 dark:text-zinc-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <MicrosoftIcon className="h-4 w-4" />
+                  {msConnecting ? 'Connecting…' : 'Sign in with Microsoft'}
+                </button>
+              </>
+            )}
+
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              Powers: Word Import in CV Toolkit • OneDrive CV backup • Microsoft account sync
             </p>
           </div>
 
