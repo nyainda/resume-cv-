@@ -374,7 +374,7 @@ export const fontDisplayNames: Record<FontName, string> = {
 
 // --- PDF Merge ---
 
-export type MergeItemSource = 'saved-cv' | 'cover-letter' | 'uploaded-pdf';
+export type MergeItemSource = 'saved-cv' | 'cover-letter' | 'uploaded-pdf' | 'uploaded-image';
 
 export interface MergeItem {
   id: string;
@@ -388,6 +388,9 @@ export interface MergeItem {
   coverLetterText?: string;
   // For uploaded-pdf: base64 encoded PDF
   uploadedPdfBase64?: string;
+  // For uploaded-image: base64 encoded image + mime type
+  uploadedImageBase64?: string;
+  uploadedImageType?: string;
 }
 
 export interface SavedMerge {

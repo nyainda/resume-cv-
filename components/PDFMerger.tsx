@@ -3,7 +3,45 @@ import { PDFDocument } from 'pdf-lib';
 import { SavedCV, UserProfile, MergeItem, SavedMerge, TemplateName, FontName } from '../types';
 import { getCVAsPDFBytes, getCoverLetterAsPDFBytes } from '../services/pdfService';
 import { Button } from './ui/Button';
-import { Plus, Trash, Download, Save, Eye, X } from './icons';
+import { Trash, Download, Save, Eye, X } from './icons';
+
+const ACCEPTED_TYPES = 'application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif';
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+
+const imageToPdfBytes = (base64: string, mimeType: string): Promise<Uint8Array> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = async () => {
+      const maxW = 595;
+      const maxH = 842;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > maxW || h > maxH) {
+        const scale = Math.min(maxW / w, maxH / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas not available'));
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject(new Error('Canvas conversion failed'));
+        const pngBytes = new Uint8Array(await blob.arrayBuffer());
+        const doc = await PDFDocument.create();
+        const pdfImage = await doc.embedPng(pngBytes);
+        const page = doc.addPage([w, h]);
+        page.drawImage(pdfImage, { x: 0, y: 0, width: w, height: h });
+        resolve(await doc.save());
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = `data:${mimeType};base64,${base64}`;
+  });
 
 interface PDFMergerProps {
   savedCVs: SavedCV[];
@@ -173,17 +211,28 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   };
 
   const addUploadedFile = useCallback(async (file: File) => {
-    if (!file.type.includes('pdf')) {
-      setMergeError('Only PDF files are supported for upload.');
+    const isPDF = file.type === 'application/pdf';
+    const isImage = IMAGE_MIME_TYPES.includes(file.type);
+    if (!isPDF && !isImage) {
+      setMergeError('Unsupported file type. Please upload a PDF or an image (JPG, PNG, WEBP).');
       return;
     }
     const base64 = await fileToBase64(file);
-    const item: MergeItem = {
-      id: Date.now().toString() + Math.random(),
-      source: 'uploaded-pdf',
-      label: file.name.replace(/\.pdf$/i, ''),
-      uploadedPdfBase64: base64,
-    };
+    const cleanName = file.name.replace(/\.[^.]+$/, '');
+    const item: MergeItem = isImage
+      ? {
+          id: Date.now().toString() + Math.random(),
+          source: 'uploaded-image',
+          label: cleanName,
+          uploadedImageBase64: base64,
+          uploadedImageType: file.type,
+        }
+      : {
+          id: Date.now().toString() + Math.random(),
+          source: 'uploaded-pdf',
+          label: cleanName,
+          uploadedPdfBase64: base64,
+        };
     setItemsAndPersist(prev => [...prev, item]);
     setMergeError(null);
   }, []);
@@ -198,7 +247,9 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDraggingOver(false);
-    const files = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type === 'application/pdf');
+    const files = (Array.from(e.dataTransfer.files) as File[]).filter(f =>
+      f.type === 'application/pdf' || IMAGE_MIME_TYPES.includes(f.type)
+    );
     for (const file of files) {
       await addUploadedFile(file);
     }
@@ -260,6 +311,8 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
           pdfBytes = new Uint8Array(buf);
         } else if (item.source === 'uploaded-pdf' && item.uploadedPdfBase64) {
           pdfBytes = new Uint8Array(base64ToArrayBuffer(item.uploadedPdfBase64));
+        } else if (item.source === 'uploaded-image' && item.uploadedImageBase64 && item.uploadedImageType) {
+          pdfBytes = await imageToPdfBytes(item.uploadedImageBase64, item.uploadedImageType);
         }
 
         if (!pdfBytes) continue;
@@ -305,12 +358,14 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   const itemSourceIcon = (source: MergeItem['source']) => {
     if (source === 'saved-cv') return '📄';
     if (source === 'cover-letter') return '✉️';
+    if (source === 'uploaded-image') return '🖼️';
     return '📎';
   };
 
   const itemSourceColor = (source: MergeItem['source']) => {
     if (source === 'saved-cv') return 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-700';
     if (source === 'cover-letter') return 'bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:border-violet-700';
+    if (source === 'uploaded-image') return 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700';
     return 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700';
   };
 
@@ -373,7 +428,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                 >
                   <MergeIcon className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
                   <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">No documents yet</p>
-                  <p className="text-zinc-400 dark:text-zinc-500 text-xs mt-1">Add items below or drop PDF files here</p>
+                  <p className="text-zinc-400 dark:text-zinc-500 text-xs mt-1">Add items below or drop PDF / image files here</p>
                 </div>
               ) : (
                 <div
@@ -396,6 +451,9 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                         )}
                         {item.source === 'uploaded-pdf' && (
                           <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Uploaded PDF</p>
+                        )}
+                        {item.source === 'uploaded-image' && (
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Image → PDF page</p>
                         )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
@@ -471,10 +529,10 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                     className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-amber-200 dark:border-amber-700 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all"
                   >
                     <span className="text-2xl">📎</span>
-                    <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Upload PDF</span>
-                    <span className="text-[11px] text-zinc-500 text-center">Click to browse or drag & drop a PDF</span>
+                    <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Upload File</span>
+                    <span className="text-[11px] text-zinc-500 text-center">PDF, JPG, PNG, WEBP or screenshot</span>
                   </button>
-                  <input ref={uploadRef} type="file" accept="application/pdf" className="hidden" onChange={handleUploadPDF} />
+                  <input ref={uploadRef} type="file" accept={ACCEPTED_TYPES} className="hidden" onChange={handleUploadPDF} />
                 </div>
               )}
 
