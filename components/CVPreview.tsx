@@ -27,6 +27,7 @@ import TemplateScholarshipPro from './templates/TemplateScholarshipPro';
 import TemplateMedicalStandard from './templates/TemplateMedicalStandard';
 import TemplateNavySidebar from './templates/TemplateNavySidebar';
 import TemplatePhotoSidebar from './templates/TemplatePhotoSidebar';
+import TemplateSWEElite from './templates/TemplateSWEElite';
 
 
 interface CVPreviewProps {
@@ -97,6 +98,8 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         return <TemplateNavySidebar {...rest} />;
       case 'photo-sidebar':
         return <TemplatePhotoSidebar {...rest} />;
+      case 'swe-elite':
+        return <TemplateSWEElite {...rest} />;
       default:
         return <TemplateProfessional {...rest} />;
     }

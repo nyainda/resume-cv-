@@ -27,6 +27,7 @@ types.ts             — All shared TypeScript types
 components/
   CVGenerator.tsx       — Main CV generation UI with Share/AI Coach/GitHub buttons
   CVPreview.tsx         — Renders selected template (React components)
+  GitHubImportPanel.tsx — Fetches GitHub repos, lets user select & import as projects + skills
   SharedCVView.tsx      — Full-screen view for opened shared CV links
   ShareCVModal.tsx      — Generates shareable lz-string URL hash links
   AIImprovementPanel.tsx — AI chat panel for CV improvement (Gemini)
@@ -36,7 +37,7 @@ components/
   ProfileManager.tsx    — Multi-profile switcher with add/edit/delete
   SettingsModal.tsx     — API keys (Gemini, Tavily, Brevo) + Google Drive sync
   EmailApply.tsx        — Email application wizard (Brevo or mailto fallback)
-  templates/            — 25+ named CV template components
+  templates/            — 26+ named CV template components (incl. TemplateSWEElite.tsx)
   ...
 
 services/

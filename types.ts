@@ -300,7 +300,8 @@ export type TemplateName =
   | 'scholarship-pro'
   | 'medical-standard'
   | 'navy-sidebar'
-  | 'photo-sidebar';
+  | 'photo-sidebar'
+  | 'swe-elite';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -330,6 +331,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'medical-standard': 'Medical Standard',
   'navy-sidebar': 'Navy Sidebar',
   'photo-sidebar': 'Photo Sidebar',
+  'swe-elite': 'SWE Elite',
 };
 
 // --- CV Generation Mode ---

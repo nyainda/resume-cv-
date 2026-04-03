@@ -397,6 +397,44 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
         </div>
       );
 
+    case 'swe-elite':
+      return (
+        <div className={`${base} bg-[#0f172a] p-0 flex overflow-hidden`}>
+          <div className="w-1/3 bg-[#0f172a] p-1.5 flex flex-col gap-1.5">
+            <div className="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center mx-auto mb-0.5">
+              <div className="h-1.5 w-3 bg-white/80 rounded-sm" />
+            </div>
+            <div className="h-px bg-emerald-500/30 w-full" />
+            {['react', 'ts', 'go', 'k8s'].map(s => (
+              <div key={s} className="h-1 bg-emerald-900 border border-emerald-600/50 rounded text-[3px] px-0.5 text-emerald-400 leading-tight font-mono">{s}</div>
+            ))}
+            <div className="h-px bg-emerald-500/30 w-full mt-0.5" />
+            {[1, 2].map(i => (
+              <div key={i}>
+                <div className="h-0.5 bg-slate-500 rounded w-full mb-0.5" />
+                <div className="h-0.5 bg-slate-700 rounded w-3/4" />
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 bg-white p-1.5 space-y-1.5">
+            {[1, 2].map(i => (
+              <div key={i} className="pl-1 border-l-2 border-emerald-200">
+                <div className="h-0.5 bg-slate-700 rounded w-1/2 mb-0.5" />
+                <div className="h-0.5 bg-emerald-500 rounded w-2/3 mb-0.5" />
+                <div className="h-0.5 bg-slate-200 rounded w-full" />
+              </div>
+            ))}
+            <div className="h-px bg-slate-100" />
+            {[1, 2].map(i => (
+              <div key={i} className="h-3 rounded bg-slate-50 border border-slate-100 p-0.5">
+                <div className="h-0.5 bg-slate-600 rounded w-1/2 mb-0.5" />
+                <div className="h-0.5 bg-slate-200 rounded w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
     case 'modern-tech':
       return (
         <div className={`${base} bg-white p-0`}>

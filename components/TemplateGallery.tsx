@@ -18,7 +18,7 @@ const templateCategories = {
   'Creative': ['creative', 'infographic', 'sydney-creative', 'berlin-design'] as TemplateName[],
   'Academic': ['harvard-gold', 'scholarship-pro', 'classic'] as TemplateName[],
   'Minimal': ['minimalist', 'compact', 'timeline', 'paris-vibe'] as TemplateName[],
-  'Technical': ['software-engineer', 'technical'] as TemplateName[],
+  'Technical': ['swe-elite', 'software-engineer', 'technical'] as TemplateName[],
   'Photo': ['photo-sidebar', 'navy-sidebar'] as TemplateName[],
 };
 
@@ -37,6 +37,7 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'minimalist': { label: 'Clean & Safe', emoji: '✨', color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' },
   'modern': { label: 'Trending', emoji: '🔥', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
   'software-engineer': { label: 'Best for Tech', emoji: '💻', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' },
+  'swe-elite': { label: 'SWE Premium', emoji: '⚡', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
   'navy-sidebar': { label: 'Bold & Sharp', emoji: '🏛️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
   'photo-sidebar': { label: 'With Photo', emoji: '📷', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
 };

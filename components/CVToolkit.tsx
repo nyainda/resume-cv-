@@ -14,6 +14,7 @@ import {
     Target, Shield, FileText, ExternalLink,
 } from './icons';
 import WordImportPanel from './WordImportPanel';
+import GitHubImportPanel from './GitHubImportPanel';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ interface CVToolkitProps {
     onProfileImported?: (profile: UserProfile) => void;
 }
 
-type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import';
+type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import' | 'github-import';
 
 const TONE_OPTIONS: { id: ParaphraseTone; label: string; emoji: string; desc: string }[] = [
     { id: 'professional', label: 'Professional', emoji: '👔', desc: 'Polished, executive tone' },
@@ -191,6 +192,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
         { id: 'cover-letter' as ToolTab, label: 'Cover Letter', emoji: '✉️' },
         { id: 'paraphrase' as ToolTab, label: 'Paraphraser', emoji: '🔄' },
         { id: 'word-import' as ToolTab, label: 'Word Import', emoji: '📄' },
+        { id: 'github-import' as ToolTab, label: 'GitHub Import', emoji: '🐙' },
     ];
 
     const hasProfile = !!(userProfile?.personalInfo?.name);
@@ -249,7 +251,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
             </div>
 
             {/* JD Input (shared across checker, cover-letter, paraphrase tabs) */}
-            {activeTab !== 'word-import' && (
+            {activeTab !== 'word-import' && activeTab !== 'github-import' && (
                 <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4">
                     <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 block">
                         📋 Job Description{' '}
@@ -578,6 +580,25 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                     openSettings={openSettings}
                     onProfileImported={(profile) => {
                         onProfileImported?.(profile);
+                    }}
+                />
+            )}
+
+            {/* ══ GITHUB IMPORT ══ */}
+            {activeTab === 'github-import' && (
+                <GitHubImportPanel
+                    currentProfile={userProfile}
+                    onProjectsImported={(newProjects, extraSkills) => {
+                        const existingProjectIds = new Set((userProfile.projects || []).map(p => p.link));
+                        const dedupedProjects = newProjects.filter(p => !existingProjectIds.has(p.link));
+                        const existingSkills = new Set((userProfile.skills || []).map(s => s.toLowerCase()));
+                        const newSkills = extraSkills.filter(s => !existingSkills.has(s.toLowerCase()));
+                        const updatedProfile: UserProfile = {
+                            ...userProfile,
+                            projects: [...(userProfile.projects || []), ...dedupedProjects],
+                            skills: [...(userProfile.skills || []), ...newSkills],
+                        };
+                        onProfileImported?.(updatedProfile);
                     }}
                 />
             )}
