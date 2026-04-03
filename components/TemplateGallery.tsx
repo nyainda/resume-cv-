@@ -21,6 +21,9 @@ const templateCategories = {
   'Technical': ['software-engineer', 'technical'] as TemplateName[],
 };
 
+// Templates that support profile photos in PDF output
+const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic'];
+
 // Badges displayed on template cards
 const templateBadges: Partial<Record<TemplateName, { label: string; emoji: string; color: string }>> = {
   'standard-pro': { label: 'ATS King', emoji: '🎯', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
@@ -167,6 +170,17 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
                   <span className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${templateBadges[template]!.color}`}>
                     <span>{templateBadges[template]!.emoji}</span>
                     {templateBadges[template]!.label}
+                  </span>
+                )}
+                {/* Photo Support Indicator */}
+                {photoSupportedTemplates.includes(template) && personalInfo?.photo && (
+                  <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                    <span>📷</span> Photo
+                  </span>
+                )}
+                {photoSupportedTemplates.includes(template) && !personalInfo?.photo && (
+                  <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400">
+                    <span>📷</span> Photo OK
                   </span>
                 )}
 

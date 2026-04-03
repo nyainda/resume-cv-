@@ -372,6 +372,31 @@ export const fontDisplayNames: Record<FontName, string> = {
 };
 
 
+// --- PDF Merge ---
+
+export type MergeItemSource = 'saved-cv' | 'cover-letter' | 'uploaded-pdf';
+
+export interface MergeItem {
+  id: string;
+  source: MergeItemSource;
+  label: string;
+  // For saved-cv: cvId + template + font
+  cvId?: string;
+  cvTemplate?: TemplateName;
+  cvFont?: FontName;
+  // For cover-letter: the text itself
+  coverLetterText?: string;
+  // For uploaded-pdf: base64 encoded PDF
+  uploadedPdfBase64?: string;
+}
+
+export interface SavedMerge {
+  id: string;
+  name: string;
+  createdAt: string;
+  items: MergeItem[];
+}
+
 // --- API Service Payloads ---
 
 export interface JobAnalysisResult {

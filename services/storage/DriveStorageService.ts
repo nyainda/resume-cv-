@@ -18,11 +18,17 @@ export class DriveStorageService implements IStorageService {
     async save(key: string, data: unknown): Promise<void> {
         const filename = this.toFilename(key);
         const body = JSON.stringify(data);
-        const existingId = await this.findFileId(filename);
-        if (existingId) {
-            await this.patchFile(existingId, body);
-        } else {
-            await this.createFile(filename, body);
+        try {
+            const existingId = await this.findFileId(filename);
+            if (existingId) {
+                await this.patchFile(existingId, body);
+            } else {
+                await this.createFile(filename, body);
+            }
+            window.dispatchEvent(new CustomEvent('drive-save-success', { detail: { key } }));
+        } catch (err) {
+            window.dispatchEvent(new CustomEvent('drive-save-error', { detail: { key, error: err } }));
+            throw err;
         }
     }
 

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   UserProfile, CVData, SavedCV, ApiSettings, TrackedApplication,
-  UserProfileSlot, ProfileColor,
+  UserProfileSlot, ProfileColor, SavedMerge,
 } from './types';
 import { useStorage } from './hooks/useStorage';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
@@ -19,6 +19,7 @@ import Tracker from './components/Tracker';
 import JobBoard from './components/JobBoard';
 import CVToolkit from './components/CVToolkit';
 import EmailApply from './components/EmailApply';
+import PDFMerger from './components/PDFMerger';
 import { ProfileManager } from './components/ProfileManager';
 import {
   Edit, User, List, Settings, FileText, Target,
@@ -30,6 +31,12 @@ const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="4" width="20" height="16" rx="2" />
     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </svg>
+);
+
+const MergeNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 6H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3" /><path d="M16 6h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3" /><line x1="12" y1="2" x2="12" y2="22" /><path d="M9 9l3-3 3 3" /><path d="M9 15l3 3 3-3" />
   </svg>
 );
 
@@ -84,6 +91,7 @@ const AppInner: React.FC = () => {
   const [trackedApps, setTrackedApps] = useStorage<TrackedApplication[]>('trackedApps', []);
   const [apiSettings, setApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
   const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
+  const [savedMerges, setSavedMerges] = useStorage<SavedMerge[]>('savedMerges', []);
 
   // Synchronously check localStorage to avoid flash-to-profile on refresh
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
@@ -115,6 +123,25 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', !!darkMode);
   }, [darkMode]);
+
+  // Drive save error notifications
+  useEffect(() => {
+    let lastErrorTime = 0;
+    const handleDriveError = (e: Event) => {
+      const now = Date.now();
+      if (now - lastErrorTime < 15000) return; // throttle to once per 15s
+      lastErrorTime = now;
+      const detail = (e as CustomEvent).detail;
+      const msg = detail?.error?.message || 'Unknown error';
+      if (msg.includes('expired') || msg.includes('401')) {
+        toast.error('Cloud Sync Failed', 'Your Google session expired. Please sign in again via Cloud Sync settings.');
+      } else {
+        toast.error('Cloud Sync Failed', 'Could not save to Google Drive. Check your connection and sign-in status.');
+      }
+    };
+    window.addEventListener('drive-save-error', handleDriveError);
+    return () => window.removeEventListener('drive-save-error', handleDriveError);
+  }, [toast]);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -261,7 +288,17 @@ const AppInner: React.FC = () => {
     toast.success('Email Apply Ready', 'JD pre-filled — AI will compose your email.');
   }, [toast]);
 
-  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit' | 'email'>('generator');
+  const handleSaveMerge = useCallback((merge: SavedMerge) => {
+    setSavedMerges(prev => [merge, ...prev]);
+    toast.success('Merge Saved', `"${merge.name}" saved to your merge presets.`);
+  }, [setSavedMerges, toast]);
+
+  const handleDeleteMerge = useCallback((id: string) => {
+    setSavedMerges(prev => prev.filter(m => m.id !== id));
+    toast.success('Merge Deleted', 'Merge preset removed.');
+  }, [setSavedMerges, toast]);
+
+  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit' | 'email' | 'merger'>('generator');
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
 
   const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
@@ -277,6 +314,7 @@ const AppInner: React.FC = () => {
     { id: 'essays', label: 'Scholarship', icon: BookOpen },
     { id: 'history', label: 'CV History', icon: List },
     { id: 'tracker', label: 'Job Tracker', icon: Target },
+    { id: 'merger', label: 'PDF Merge', icon: MergeNavIcon },
   ];
 
   // ── Active slot color badge ────────────────────────────────────────────
@@ -603,6 +641,15 @@ const AppInner: React.FC = () => {
                     </div>
                     <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} />
                   </div>
+                )}
+                {currentView === 'merger' && (
+                  <PDFMerger
+                    savedCVs={savedCVs}
+                    userProfile={userProfile!}
+                    savedMerges={savedMerges}
+                    onSaveMerge={handleSaveMerge}
+                    onDeleteMerge={handleDeleteMerge}
+                  />
                 )}
               </div>
             )}

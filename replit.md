@@ -13,6 +13,7 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 - **Email**: Brevo (Sendinblue) REST API (direct browser calls)
 - **Job Search**: Tavily Search API
 - **Storage**: localStorage + IndexedDB (via custom StorageRouter), optional Google Drive sync
+- **PDF Merge**: `pdf-lib` for merging multiple PDFs into one download
 - **Auth**: Google OAuth (PKCE flow via custom GoogleAuthContext)
 
 ## Project Structure

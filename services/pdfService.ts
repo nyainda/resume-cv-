@@ -2586,6 +2586,60 @@ const generatePdfForTemplate = (
 };
 
 
+export const getCVAsPDFBytes = ({
+    cvData,
+    personalInfo,
+    template,
+    font,
+    fileName = 'cv.pdf',
+    jobDescription,
+}: DownloadCVProps): ArrayBuffer => {
+    const { jsPDF } = jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4', putOnlyUsedFonts: true });
+    doc.setProperties({ title: fileName.replace('.pdf', '').replace(/_/g, ' '), author: personalInfo.name, subject: `CV`, creator: 'AI CV Builder' });
+    embedATSData(doc, jobDescription || '', doc.internal.pageSize.getWidth(), cvData);
+    generatePdfForTemplate(template, doc, cvData, personalInfo, font);
+    return doc.output('arraybuffer') as ArrayBuffer;
+};
+
+export const getCoverLetterAsPDFBytes = (
+    letterText: string,
+    personalInfo?: PersonalInfo
+): ArrayBuffer => {
+    const { jsPDF } = jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const h = pdfHelpers(doc);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 50;
+    const usableWidth = pageWidth - 2 * margin;
+    doc.setFont('Helvetica', 'normal');
+    h.setY(margin);
+    if (personalInfo) {
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(18);
+        h.writeText(personalInfo.name, margin, h.getY());
+        h.setY(h.getY() + 18);
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(10);
+        const info = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join(' | ');
+        h.writeText(info, margin, h.getY(), { color: [100, 116, 139] });
+        h.setY(h.getY() + 30);
+    }
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(30, 30, 30);
+    const lines = doc.splitTextToSize(letterText, usableWidth);
+    let currentY = h.getY();
+    const lineHeight = doc.getFontSize() * 1.5;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    lines.forEach((line: string) => {
+        if (currentY > pageHeight - margin) { doc.addPage(); currentY = margin; }
+        doc.text(line, margin, currentY);
+        currentY += lineHeight;
+    });
+    return doc.output('arraybuffer') as ArrayBuffer;
+};
+
 export const downloadCVAsPDF = ({
     cvData,
     personalInfo,
