@@ -215,13 +215,13 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
 
     const modalJsx = modal && createPortal(
         <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4"
             style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
             onClick={e => { if (e.target === e.currentTarget) setModal(null); }}
         >
             <div
-                className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl overflow-hidden"
-                style={{ maxHeight: '90vh', overflowY: 'auto' }}
+                className="relative w-full sm:max-w-md bg-white dark:bg-neutral-900 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden"
+                style={{ maxHeight: '92dvh', overflowY: 'auto' }}
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header bar */}
@@ -337,8 +337,11 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
             <div className="fixed inset-0 z-50 flex flex-col" onClick={onClose}>
                 <div className="flex-1 bg-black/50" />
                 <div
-                    className="bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl p-6 max-h-[85vh] flex flex-col"
-                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+                    className="bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl p-5 flex flex-col"
+                    style={{
+                        maxHeight: '88dvh',
+                        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)',
+                    }}
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Drag handle */}

@@ -157,8 +157,12 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
-  // Close profile manager panel on outside click
+  // Close profile manager dropdown on outside click — desktop only.
+  // On mobile the bottom-sheet has its own backdrop tap handler, so attaching a
+  // global mousedown listener would immediately close the sheet whenever the user
+  // taps any button inside it (because those elements are outside profileManagerRef).
   useEffect(() => {
+    if (isMobile) return;
     const handler = (e: MouseEvent) => {
       if (profileManagerRef.current && !profileManagerRef.current.contains(e.target as Node)) {
         setShowProfileManager(false);
@@ -166,7 +170,7 @@ const AppInner: React.FC = () => {
     };
     if (showProfileManager) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showProfileManager]);
+  }, [showProfileManager, isMobile]);
 
   // ── Profile Manager handlers ───────────────────────────────────────────
   const handleProfileSave = useCallback((profile: UserProfile) => {
