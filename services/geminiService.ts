@@ -52,15 +52,31 @@ Critical rules:
 // --- API Client Setup with Multi-Model Support ---
 function getAiClient(modelPreference: 'flash' | 'lite' | 'ultra-lite' = 'lite'): GoogleGenAI {
     let apiKey: string | undefined;
+    let provider: string = 'gemini';
+
+    // Primary: read from cv_builder:apiSettings (written directly by SettingsModal)
     const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
     if (settingsString) {
         const settings: ApiSettings = JSON.parse(settingsString);
+        provider = settings.provider || 'gemini';
         if (settings.apiKey && settings.provider === 'gemini') {
             apiKey = settings.apiKey.replace(/^"|"$/g, '');
         } else if (settings.provider !== 'gemini') {
             throw new Error(`The selected provider '${settings.provider}' is not supported. Use 'gemini'.`);
         }
     }
+
+    // Fallback: provider_keys is always written to raw localStorage by SettingsModal
+    // This catches the case where Drive sync swallowed the save above.
+    if (!apiKey) {
+        try {
+            const providerKeys = JSON.parse(localStorage.getItem('provider_keys') || '{}');
+            if (providerKeys[provider]) {
+                apiKey = providerKeys[provider].replace(/^"|"$/g, '');
+            }
+        } catch { /* ignore */ }
+    }
+
     if (!apiKey && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
         apiKey = process.env.GEMINI_API_KEY;
     }

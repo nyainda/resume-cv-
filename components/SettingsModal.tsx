@@ -159,13 +159,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    onSave({
+    const settingsToSave: ApiSettings = {
       ...localSettings,
       apiKey: localSettings.apiKey?.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
       msClientId: msClientId.trim() || null,
-    });
+    };
+
+    // Always write API settings directly to localStorage so services can read
+    // them synchronously even when Google Drive sync is the active storage backend.
+    try {
+      localStorage.setItem('cv_builder:apiSettings', JSON.stringify(settingsToSave));
+    } catch { /* quota */ }
+
+    onSave(settingsToSave);
     onClose();
   };
 
@@ -174,9 +182,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     delete newKeys[localSettings.provider];
     setStoredKeys(newKeys);
     localStorage.setItem('provider_keys', JSON.stringify(newKeys));
-    const clearedSettings = { ...localSettings, apiKey: null };
+    const clearedSettings: ApiSettings = { ...localSettings, apiKey: null, tavilyApiKey: tavilyKey.trim() || null, brevoApiKey: brevoKey.trim() || null };
     setLocalSettings(clearedSettings);
-    onSave({ ...clearedSettings, tavilyApiKey: tavilyKey.trim() || null, brevoApiKey: brevoKey.trim() || null });
+
+    try {
+      localStorage.setItem('cv_builder:apiSettings', JSON.stringify(clearedSettings));
+    } catch { /* quota */ }
+
+    onSave(clearedSettings);
     onClose();
   };
 

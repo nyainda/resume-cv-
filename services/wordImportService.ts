@@ -15,13 +15,27 @@ export async function parseWordTextToProfile(text: string): Promise<UserProfile>
     const { GoogleGenAI } = await import('@google/genai');
 
     let apiKey: string | undefined;
+    let provider: string = 'gemini';
+
     const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
     if (settingsString) {
         const settings = JSON.parse(settingsString);
+        provider = settings.provider || 'gemini';
         if (settings.apiKey && settings.provider === 'gemini') {
             apiKey = settings.apiKey.replace(/^"|"$/g, '');
         }
     }
+
+    // Fallback: provider_keys is always written to raw localStorage by SettingsModal
+    if (!apiKey) {
+        try {
+            const providerKeys = JSON.parse(localStorage.getItem('provider_keys') || '{}');
+            if (providerKeys[provider]) {
+                apiKey = providerKeys[provider].replace(/^"|"$/g, '');
+            }
+        } catch { /* ignore */ }
+    }
+
     if (!apiKey && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
         apiKey = process.env.GEMINI_API_KEY;
     }
