@@ -5,7 +5,7 @@ import { Label } from './ui/Label';
 import { ApiSettings, AIProvider } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
-import { Shield, CheckCircle, AlertCircle, ExternalLink } from './icons';
+import { Shield, AlertCircle } from './icons';
 
 const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -57,6 +57,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       try { setMsUser(JSON.parse(storedMsUser)); setMsConnected(true); } catch { }
     }
   }, [currentApiSettings, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
 
   const handleMsConnect = useCallback(async () => {
     if (!msClientId.trim()) {
@@ -175,19 +184,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 transition-opacity duration-300"
+      className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4 transition-opacity duration-300"
       onClick={onClose}
       aria-modal="true"
       role="dialog"
     >
       <div
-        className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col"
-        style={{ maxHeight: 'calc(100vh - 2rem)' }}
+        className="bg-white dark:bg-neutral-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg flex flex-col"
+        style={{ maxHeight: 'calc(100dvh - 0rem)', height: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* ── Drag handle (mobile only) ── */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-neutral-600" />
+        </div>
+
         {/* ── Sticky header ── */}
-        <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-zinc-200 dark:border-neutral-700 flex-shrink-0">
-          <h2 className="text-2xl font-bold">Settings</h2>
+        <div className="flex justify-between items-center px-4 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-zinc-200 dark:border-neutral-700 flex-shrink-0">
+          <h2 className="text-xl sm:text-2xl font-bold">Settings</h2>
           <button
             onClick={onClose}
             className="p-1 rounded-full hover:bg-zinc-200 dark:hover:bg-neutral-700 text-2xl leading-none"
@@ -197,12 +211,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
         </div>
 
         {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+        <div
+          className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-5 min-h-0"
+          style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+        >
 
           {/* ── Google Drive Backup ── */}
-          <div className="rounded-2xl border-2 border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-5 shadow-sm space-y-3">
+          <div className="rounded-2xl border-2 border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-4 shadow-sm space-y-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-600 rounded-lg">
+              <div className="p-2 bg-indigo-600 rounded-lg flex-shrink-0">
                 <Shield className="h-4 w-4 text-white" />
               </div>
               <div>
@@ -212,8 +229,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </div>
 
             <GoogleSignInButton
-              onSignedIn={() => {/* stays on page — DriveDataPanel refreshes */ }}
-              onSignedOut={() => {/* stays on page */ }}
+              onSignedIn={() => {}}
+              onSignedOut={() => {}}
             />
           </div>
 
@@ -318,7 +335,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             {msConnected && msUser ? (
               <div className="flex items-center justify-between bg-white dark:bg-neutral-800/60 border border-emerald-200 dark:border-emerald-800/40 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                     {msUser.name.charAt(0)}
                   </div>
                   <div>
@@ -328,7 +345,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 </div>
                 <button
                   onClick={handleMsDisconnect}
-                  className="text-xs text-rose-500 hover:text-rose-700 font-semibold"
+                  className="text-xs text-rose-500 hover:text-rose-700 font-semibold ml-2 flex-shrink-0"
                 >
                   Sign out
                 </button>
@@ -342,7 +359,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                     <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline font-semibold">
                       Azure Portal →
                     </a>{' '}
-                    to get your Client ID. Set redirect URI to <code className="text-[10px] bg-zinc-100 dark:bg-neutral-700 px-1 py-0.5 rounded">{window.location.origin}</code> and enable <strong>Single-page application</strong> as the platform.
+                    to get your Client ID. Set redirect URI to <code className="text-[10px] bg-zinc-100 dark:bg-neutral-700 px-1 py-0.5 rounded break-all">{window.location.origin}</code> and enable <strong>Single-page application</strong> as the platform.
                   </p>
                   <Input
                     id="ms-client-id"
@@ -385,7 +402,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               )}
             </div>
 
-            {/* Feature list */}
             <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-sky-100 dark:border-sky-900/40 p-3 space-y-1.5">
               {[
                 '🤖 AI drafts email body from your profile',
@@ -430,11 +446,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </p>
           </div>
 
+          {/* ── Save/Clear buttons inside scroll area on mobile ── */}
+          <div className="sm:hidden flex flex-col gap-2 pb-2">
+            <Button onClick={handleSave} className="w-full py-3 text-base">Save Settings</Button>
+            <div className="flex gap-2">
+              <Button variant="danger" onClick={handleClear} className="flex-1">Clear AI Key</Button>
+              <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
+            </div>
+          </div>
+
         </div>
 
-
-        {/* ── Sticky footer ── */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-neutral-700 flex-shrink-0">
+        {/* ── Sticky footer (desktop only) ── */}
+        <div className="hidden sm:flex justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-neutral-700 flex-shrink-0">
           <Button variant="danger" onClick={handleClear}>Clear AI Key</Button>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave}>Save Settings</Button>
