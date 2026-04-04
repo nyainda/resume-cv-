@@ -103,6 +103,7 @@ export interface CVExperience {
   startDate: string; // For sorting
   endDate: string; // For sorting
   responsibilities: string[];
+  link?: string; // Optional GitHub/project URL for project-based roles
 }
 
 export interface CVEducation {
@@ -301,7 +302,11 @@ export type TemplateName =
   | 'medical-standard'
   | 'navy-sidebar'
   | 'photo-sidebar'
-  | 'swe-elite';
+  | 'swe-elite'
+  | 'swe-neon'
+  | 'swe-clean'
+  | 'swe-vivid'
+  | 'swe-impact';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -332,6 +337,10 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'navy-sidebar': 'Navy Sidebar',
   'photo-sidebar': 'Photo Sidebar',
   'swe-elite': 'SWE Elite',
+  'swe-neon': 'SWE Neon',
+  'swe-clean': 'SWE Clean',
+  'swe-vivid': 'SWE Vivid',
+  'swe-impact': 'SWE Impact',
 };
 
 // --- CV Generation Mode ---
