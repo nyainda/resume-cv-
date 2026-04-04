@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { UserProfile, ScrapedJob } from '../types';
+import { UserProfile, ScrapedJob, CVData } from '../types';
 import {
     checkCVAgainstJob, CVCheckResult,
     generateSmartCoverLetter,
@@ -28,6 +28,8 @@ interface CVToolkitProps {
     onGoToGenerator?: (extraInstructions?: string) => void;
     /** Called when user imports a profile from Word */
     onProfileImported?: (profile: UserProfile) => void;
+    /** Called when AI generates a CV from GitHub repos — navigate to generator */
+    onGitHubCVGenerated?: (cv: CVData) => void;
 }
 
 type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import' | 'github-import';
@@ -89,7 +91,7 @@ const WordDocIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const CVToolkit: React.FC<CVToolkitProps> = ({
     userProfile, apiKeySet, tavilyApiKey, openSettings, selectedJob,
-    onGoToGenerator, onProfileImported,
+    onGoToGenerator, onProfileImported, onGitHubCVGenerated,
 }) => {
     const [activeTab, setActiveTab] = useLocalStorage<ToolTab>('toolkit_tab', 'checker');
     const [jobDescription, setJobDescription] = useLocalStorage<string>('toolkit_jd', selectedJob?.jobDescription || '');
@@ -588,6 +590,9 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
             {activeTab === 'github-import' && (
                 <GitHubImportPanel
                     currentProfile={userProfile}
+                    apiKeySet={apiKeySet}
+                    openSettings={openSettings}
+                    jobDescription={jobDescription}
                     onProjectsImported={(newProjects, extraSkills) => {
                         const existingProjectIds = new Set((userProfile.projects || []).map(p => p.link));
                         const dedupedProjects = newProjects.filter(p => !existingProjectIds.has(p.link));
@@ -599,6 +604,9 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                             skills: [...(userProfile.skills || []), ...newSkills],
                         };
                         onProfileImported?.(updatedProfile);
+                    }}
+                    onGenerateCV={(cv) => {
+                        onGitHubCVGenerated?.(cv);
                     }}
                 />
             )}

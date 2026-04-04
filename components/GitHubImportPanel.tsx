@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { Project, UserProfile } from '../types';
+import { Project, UserProfile, CVData } from '../types';
+import { generateCVFromGitHub, GitHubRepoForCV } from '../services/geminiService';
 import { Button } from './ui/Button';
-import { RefreshCw, CheckCircle, AlertCircle, ExternalLink } from './icons';
+import { RefreshCw, CheckCircle, AlertCircle, ExternalLink, Sparkles } from './icons';
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -49,11 +50,31 @@ interface GitHubUser {
 interface GitHubImportPanelProps {
     onProjectsImported: (projects: Project[], extraSkills: string[]) => void;
     currentProfile: UserProfile;
+    apiKeySet: boolean;
+    openSettings: () => void;
+    onGenerateCV?: (cv: CVData) => void;
+    jobDescription?: string;
 }
+
+const AI_STEPS = [
+    'Analysing your repositories…',
+    'Extracting languages & frameworks…',
+    'Crafting project descriptions with real links…',
+    'Writing impact-driven experience bullets…',
+    'Optimising skills for ATS…',
+    'Finalising your best-possible CV…',
+];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImported, currentProfile }) => {
+const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({
+    onProjectsImported,
+    currentProfile,
+    apiKeySet,
+    openSettings,
+    onGenerateCV,
+    jobDescription,
+}) => {
     const [username, setUsername] = useState('');
     const [pat, setPat] = useState('');
     const [showPat, setShowPat] = useState(false);
@@ -64,6 +85,11 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [imported, setImported] = useState(false);
     const [showOnlyFeatured, setShowOnlyFeatured] = useState(true);
+
+    const [generatingCV, setGeneratingCV] = useState(false);
+    const [aiStep, setAiStep] = useState(0);
+    const [cvGenerated, setCvGenerated] = useState(false);
+    const [cvError, setCvError] = useState<string | null>(null);
 
     const headers: HeadersInit = pat.trim()
         ? { Authorization: `Bearer ${pat.trim()}`, 'X-GitHub-Api-Version': '2022-11-28' }
@@ -78,6 +104,8 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
         setGhUser(null);
         setSelected(new Set());
         setImported(false);
+        setCvGenerated(false);
+        setCvError(null);
 
         try {
             const [userRes, reposRes] = await Promise.all([
@@ -150,6 +178,58 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
         setImported(true);
     }, [repos, selected, onProjectsImported]);
 
+    const handleGenerateCV = useCallback(async () => {
+        if (!apiKeySet) {
+            openSettings();
+            return;
+        }
+        if (!onGenerateCV) return;
+
+        const selectedRepos = repos.filter(r => selected.has(r.id));
+        if (selectedRepos.length === 0) return;
+
+        setGeneratingCV(true);
+        setCvError(null);
+        setAiStep(0);
+
+        const stepInterval = setInterval(() => {
+            setAiStep(prev => (prev < AI_STEPS.length - 1 ? prev + 1 : prev));
+        }, 1800);
+
+        try {
+            const repoData: GitHubRepoForCV[] = selectedRepos.map(r => ({
+                id: r.id,
+                name: r.name,
+                full_name: r.full_name,
+                description: r.description,
+                html_url: r.html_url,
+                homepage: r.homepage,
+                language: r.language,
+                stargazers_count: r.stargazers_count,
+                forks_count: r.forks_count,
+                topics: r.topics,
+                updated_at: r.updated_at,
+            }));
+
+            const cv = await generateCVFromGitHub(
+                repoData,
+                currentProfile,
+                username.trim(),
+                jobDescription
+            );
+
+            clearInterval(stepInterval);
+            setAiStep(AI_STEPS.length - 1);
+            setCvGenerated(true);
+            onGenerateCV(cv);
+        } catch (e) {
+            clearInterval(stepInterval);
+            setCvError(e instanceof Error ? e.message : 'Failed to generate CV from GitHub data.');
+        } finally {
+            setGeneratingCV(false);
+        }
+    }, [repos, selected, currentProfile, username, apiKeySet, openSettings, onGenerateCV, jobDescription]);
+
     const displayedRepos = showOnlyFeatured && repos.length > 10 ? repos.slice(0, 10) : repos;
 
     const getLangColor = (lang: string | null) => {
@@ -176,6 +256,7 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
                         Fetch your GitHub repositories, select the best ones, and import them as Projects into your profile.
                         Languages and topics are also extracted as skills — perfect for the <strong>SWE Elite</strong> template.
+                        Then let AI read your actual repos and generate the best possible CV with real project links.
                     </p>
                 </div>
             </div>
@@ -312,6 +393,9 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
                                                 <StarIcon className="h-2.5 w-2.5" />{repo.stargazers_count}
                                             </span>
                                         )}
+                                        {repo.homepage && (
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full font-medium">live</span>
+                                        )}
                                     </div>
                                     {repo.description && (
                                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">{repo.description}</p>
@@ -323,16 +407,29 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
                                             ))}
                                         </div>
                                     )}
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                        <a
+                                            href={repo.html_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 flex items-center gap-0.5 font-medium"
+                                        >
+                                            <GitHubIcon className="h-3 w-3" /> GitHub
+                                        </a>
+                                        {repo.homepage && (
+                                            <a
+                                                href={repo.homepage}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={e => e.stopPropagation()}
+                                                className="text-[10px] text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-0.5 font-medium"
+                                            >
+                                                <ExternalLink className="h-3 w-3" /> Live
+                                            </a>
+                                        )}
+                                    </div>
                                 </div>
-                                <a
-                                    href={repo.html_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 flex-shrink-0 mt-0.5"
-                                >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
                             </div>
                         ))}
 
@@ -346,7 +443,7 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
                         )}
                     </div>
 
-                    {/* Import button */}
+                    {/* ── Step 1: Import to Profile ── */}
                     {!imported ? (
                         <div className="flex flex-wrap gap-3 items-center pt-2">
                             <Button
@@ -362,14 +459,101 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({ onProjectsImporte
                             </p>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
-                            <CheckCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
-                            <div>
-                                <p className="font-bold text-emerald-800 dark:text-emerald-200 text-sm">Imported successfully!</p>
-                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                                    {selected.size} project{selected.size !== 1 ? 's' : ''} added to your profile. Use the <strong>SWE Elite</strong> template for the best presentation.
-                                </p>
+                        <div className="space-y-3">
+                            {/* Import success */}
+                            <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                                <CheckCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                                <div>
+                                    <p className="font-bold text-emerald-800 dark:text-emerald-200 text-sm">Imported successfully!</p>
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                        {selected.size} project{selected.size !== 1 ? 's' : ''} added to your profile with GitHub links. Use the <strong>SWE Elite</strong> template for the best presentation.
+                                    </p>
+                                </div>
                             </div>
+
+                            {/* ── Step 2: AI Generate CV ── */}
+                            {onGenerateCV && !cvGenerated && (
+                                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 space-y-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-2 bg-indigo-600 rounded-xl flex-shrink-0">
+                                            <Sparkles className="h-4 w-4 text-white" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-indigo-900 dark:text-indigo-100 text-sm">Generate Your Best CV with AI</h4>
+                                            <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
+                                                The AI reads your actual repos — descriptions, languages, topics, and links — and generates a complete, optimised CV.
+                                                Every project gets its real GitHub link (and live URL if available). Skills are extracted from what you actually built.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+                                        {[
+                                            '✓ Real GitHub links on every project',
+                                            '✓ Live demo URLs included',
+                                            '✓ Skills from actual languages & topics',
+                                            '✓ AI-written impact descriptions',
+                                            '✓ ATS-optimised bullets',
+                                            '✓ Works with your existing experience',
+                                        ].map(f => <li key={f} className="font-medium">{f}</li>)}
+                                    </ul>
+
+                                    {generatingCV ? (
+                                        <div className="space-y-2 pt-1">
+                                            <div className="flex items-center gap-2">
+                                                <RefreshCw className="h-4 w-4 animate-spin text-indigo-600" />
+                                                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">
+                                                    {AI_STEPS[aiStep]}
+                                                </p>
+                                            </div>
+                                            <div className="w-full bg-indigo-200 dark:bg-indigo-900 rounded-full h-1.5">
+                                                <div
+                                                    className="bg-indigo-600 h-1.5 rounded-full transition-all duration-700"
+                                                    style={{ width: `${((aiStep + 1) / AI_STEPS.length) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-3 items-center pt-1">
+                                            <Button
+                                                onClick={handleGenerateCV}
+                                                disabled={selected.size === 0}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 rounded-xl px-6 shadow shadow-indigo-500/20"
+                                            >
+                                                <Sparkles className="h-4 w-4 mr-2" />
+                                                Generate Best CV from {selected.size} Repos
+                                            </Button>
+                                            {!apiKeySet && (
+                                                <button
+                                                    onClick={openSettings}
+                                                    className="text-xs text-amber-600 dark:text-amber-400 font-semibold underline"
+                                                >
+                                                    Set API key first →
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {cvError && (
+                                        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-xs flex items-start gap-2">
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {cvError}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* CV generation success */}
+                            {cvGenerated && (
+                                <div className="flex items-center gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl">
+                                    <Sparkles className="h-5 w-5 text-indigo-500 flex-shrink-0" />
+                                    <div>
+                                        <p className="font-bold text-indigo-800 dark:text-indigo-200 text-sm">CV generated from your GitHub!</p>
+                                        <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                                            Your new CV is ready in the CV Generator — complete with real project links and AI-optimised descriptions.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

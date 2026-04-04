@@ -1290,3 +1290,166 @@ CVData schema:
 
     return JSON.parse((response.text || '').trim()) as CVData;
 };
+
+// --- GitHub-Powered CV Generation ---
+
+export interface GitHubRepoForCV {
+    id: number;
+    name: string;
+    full_name: string;
+    description: string | null;
+    html_url: string;
+    homepage: string | null;
+    language: string | null;
+    stargazers_count: number;
+    forks_count: number;
+    topics: string[];
+    updated_at: string;
+}
+
+export const generateCVFromGitHub = async (
+    repos: GitHubRepoForCV[],
+    profile: UserProfile,
+    githubUsername: string,
+    jobDescription?: string
+): Promise<CVData> => {
+    const ai = getAiClient('flash');
+
+    const repoSummaries = repos.map(r => ({
+        name: r.name,
+        description: r.description || '',
+        url: r.html_url,
+        live: r.homepage || '',
+        language: r.language || '',
+        topics: r.topics,
+        stars: r.stargazers_count,
+        forks: r.forks_count,
+        updated: r.updated_at.split('T')[0],
+    }));
+
+    const allLanguages = [...new Set(repos.map(r => r.language).filter(Boolean))] as string[];
+    const allTopics = [...new Set(repos.flatMap(r => r.topics))];
+
+    const jdSection = jobDescription?.trim()
+        ? `\nTARGET JOB DESCRIPTION:\n${jobDescription.trim()}\n\nTailor every bullet, skill, and project description to this role. Mirror the exact language from the JD.`
+        : '\nNo specific JD provided. Write a strong general-purpose software engineering CV.';
+
+    const prompt = `
+You are an elite CV strategist specializing in software engineers. Your task is to generate the absolute best CV for a developer whose actual work is visible on GitHub.
+
+GITHUB USERNAME: ${githubUsername}
+GITHUB PROFILE URL: https://github.com/${githubUsername}
+
+GITHUB REPOSITORIES (${repos.length} repos — these are the candidate's REAL projects):
+${JSON.stringify(repoSummaries, null, 2)}
+
+DETECTED LANGUAGES: ${allLanguages.join(', ')}
+DETECTED TOPICS/FRAMEWORKS: ${allTopics.join(', ')}
+
+USER PROFILE (existing data):
+${JSON.stringify(profile, null, 2)}
+${jdSection}
+
+=== INSTRUCTIONS ===
+
+1. **SUMMARY (3 sentences)**:
+   - Position the candidate as a skilled developer based on what their GitHub actually shows.
+   - Reference their strongest languages and most impressive projects by name.
+   - Be specific — name real technologies, real project types, real impact.
+
+2. **EXPERIENCE**: Transform each work experience into high-impact bullets.
+   - Use EXACTLY ${profile.workExperience.map(we => `${we.pointCount ?? 5} bullets for ${we.jobTitle} at ${we.company}`).join(', ')}.
+   - Start every bullet with a power verb. Quantify impact.
+
+3. **PROJECTS** — CRITICAL: Use ONLY projects from the GitHub repos above.
+   - For each selected repo, write a 1–2 sentence description that explains: WHAT it does, WHY it matters, and WHAT tech stack it uses.
+   - ALWAYS include the real GitHub URL (html_url) or live URL (homepage if available) as the link.
+   - Prioritize repos by: stars, recency, complexity (multiple topics = complex), and relevance to the JD.
+   - Include at least ${Math.min(repos.length, 6)} projects.
+   - DO NOT invent project links — use the exact URLs provided in the repo data.
+
+4. **SKILLS**: Extract EXACTLY 15 skills from the actual repo languages and topics. Put the most prominent languages first, then frameworks/tools.
+
+5. **EDUCATION**: Use the profile's education data. Add a brief 1-sentence description if relevant coursework or honors exist.
+
+HUMANIZATION RULES:
+- Every bullet: Strong Verb → Specific Action → Measurable Result.
+- Mix sentence lengths. No AI clichés.
+- Be concrete and specific — use numbers, team sizes, user counts.
+
+Return ONLY valid JSON. No markdown, no extra text, no code fences.
+`;
+
+    const cvDataSchema = {
+        type: Type.OBJECT,
+        properties: {
+            summary: { type: Type.STRING },
+            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            experience: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        company: { type: Type.STRING },
+                        jobTitle: { type: Type.STRING },
+                        dates: { type: Type.STRING },
+                        startDate: { type: Type.STRING },
+                        endDate: { type: Type.STRING },
+                        responsibilities: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    },
+                    required: ["company", "jobTitle", "dates", "startDate", "endDate", "responsibilities"]
+                }
+            },
+            education: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        degree: { type: Type.STRING },
+                        school: { type: Type.STRING },
+                        year: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                    },
+                    required: ["degree", "school", "year"]
+                }
+            },
+            projects: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        link: { type: Type.STRING },
+                    },
+                    required: ["name", "description", "link"]
+                }
+            },
+            languages: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        proficiency: { type: Type.STRING },
+                    },
+                    required: ["name", "proficiency"]
+                }
+            },
+        },
+        required: ["summary", "skills", "experience", "education", "projects"]
+    };
+
+    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: cvDataSchema,
+            temperature: 0.7,
+            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL,
+        },
+    }));
+
+    return JSON.parse((response.text || '').trim()) as CVData;
+};

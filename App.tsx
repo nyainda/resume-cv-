@@ -305,6 +305,14 @@ const AppInner: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [toast]);
 
+  // Wire GitHub Import → CV Generator (AI-generated CV from repos)
+  const handleGitHubCVGenerated = useCallback((cv: CVData) => {
+    setCurrentCV(cv);
+    setCurrentView('generator');
+    toast.success('GitHub CV Ready!', 'Your AI-generated CV is loaded in the CV Generator — complete with real project links.');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [setCurrentCV, toast]);
+
   // Wire Word Import → Profile update
   const handleWordProfileImported = useCallback((profile: UserProfile) => {
     if (activeSlot) {
@@ -665,6 +673,7 @@ const AppInner: React.FC = () => {
                       openSettings={() => setIsSettingsOpen(true)}
                       onGoToGenerator={handleGoToGenerator}
                       onProfileImported={handleWordProfileImported}
+                      onGitHubCVGenerated={handleGitHubCVGenerated}
                     />
                   </div>
                 )}
