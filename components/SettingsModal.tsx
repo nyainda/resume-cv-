@@ -6,6 +6,16 @@ import { ApiSettings, AIProvider } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield, AlertCircle } from './icons';
+import { idbAppSet } from '../services/storage/AppDataPersistence';
+import { getStorageService } from '../services/storage/StorageRouter';
+
+// Namespaced localStorage keys — all cv_builder: prefix so they are:
+// • Included in IDB backup (AppDataPersistence)
+// • Picked up by Drive migration (StorageRouter.migrateLocalToDrive)
+// • Consistent with LocalStorageService key convention
+const LS_PROVIDER_KEYS = 'cv_builder:provider_keys';
+const LS_MS_TOKEN      = 'cv_builder:ms_access_token';
+const LS_MS_USER       = 'cv_builder:ms_user';
 
 const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -42,7 +52,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [msError, setMsError] = useState<string | null>(null);
 
   useEffect(() => {
-    const keys = JSON.parse(localStorage.getItem('provider_keys') || '{}');
+    const keys = JSON.parse(localStorage.getItem(LS_PROVIDER_KEYS) || '{}');
     if (currentApiSettings.apiKey) {
       keys[currentApiSettings.provider] = currentApiSettings.apiKey;
     }
@@ -52,7 +62,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setBrevoKey(currentApiSettings.brevoApiKey || '');
     setMsClientId(currentApiSettings.msClientId || '');
 
-    const storedMsUser = localStorage.getItem('ms_user');
+    const storedMsUser = localStorage.getItem(LS_MS_USER);
     if (storedMsUser) {
       try { setMsUser(JSON.parse(storedMsUser)); setMsConnected(true); } catch { }
     }
@@ -106,14 +116,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           const params = new URLSearchParams(hash.slice(1));
           const token = params.get('access_token');
           if (token) {
-            localStorage.setItem('ms_access_token', token);
+            localStorage.setItem(LS_MS_TOKEN, token);
+            idbAppSet(LS_MS_TOKEN, token).catch(() => {});
             fetch('https://graph.microsoft.com/v1.0/me', {
               headers: { Authorization: `Bearer ${token}` }
             })
               .then(r => r.json())
               .then(data => {
                 const user = { name: data.displayName || 'Microsoft User', email: data.mail || data.userPrincipalName || '' };
-                localStorage.setItem('ms_user', JSON.stringify(user));
+                localStorage.setItem(LS_MS_USER, JSON.stringify(user));
+                idbAppSet(LS_MS_USER, user).catch(() => {});
                 setMsUser(user);
                 setMsConnected(true);
                 setMsConnecting(false);
@@ -138,8 +150,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   }, [msClientId]);
 
   const handleMsDisconnect = useCallback(() => {
-    localStorage.removeItem('ms_access_token');
-    localStorage.removeItem('ms_user');
+    localStorage.removeItem(LS_MS_TOKEN);
+    localStorage.removeItem(LS_MS_USER);
     setMsConnected(false);
     setMsUser(null);
   }, []);
@@ -147,7 +159,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const updateKey = (key: string) => {
     const newKeys = { ...storedKeys, [localSettings.provider]: key };
     setStoredKeys(newKeys);
-    localStorage.setItem('provider_keys', JSON.stringify(newKeys));
+    // Write immediately to localStorage for real-time access by services.
+    // Also back up to IDB so it survives a cache clear.
+    localStorage.setItem(LS_PROVIDER_KEYS, JSON.stringify(newKeys));
+    idbAppSet(LS_PROVIDER_KEYS, newKeys).catch(() => {});
     setLocalSettings({ ...localSettings, apiKey: key });
   };
 
@@ -173,6 +188,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       localStorage.setItem('cv_builder:apiSettings', JSON.stringify(settingsToSave));
     } catch { /* quota */ }
 
+    // Sync provider_keys (all providers' cached keys) to IDB + Drive too,
+    // so they survive cache clears and are available on other devices.
+    idbAppSet(LS_PROVIDER_KEYS, storedKeys).catch(() => {});
+    getStorageService().save('provider_keys', storedKeys).catch(() => {});
+
     onSave(settingsToSave);
     onClose();
   };
@@ -181,7 +201,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     const newKeys = { ...storedKeys };
     delete newKeys[localSettings.provider];
     setStoredKeys(newKeys);
-    localStorage.setItem('provider_keys', JSON.stringify(newKeys));
+    localStorage.setItem(LS_PROVIDER_KEYS, JSON.stringify(newKeys));
+    idbAppSet(LS_PROVIDER_KEYS, newKeys).catch(() => {});
+    getStorageService().save('provider_keys', newKeys).catch(() => {});
+
     const clearedSettings: ApiSettings = { ...localSettings, apiKey: null, tavilyApiKey: tavilyKey.trim() || null, brevoApiKey: brevoKey.trim() || null };
     setLocalSettings(clearedSettings);
 

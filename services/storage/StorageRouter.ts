@@ -1,7 +1,19 @@
-// src/services/storage/StorageRouter.ts
-// Auth-aware version — no email field needed.
-// DriveStorageService is active whenever there's a valid Google token in localStorage.
-// When the user signs out, we fall back to LocalStorageService automatically.
+// services/storage/StorageRouter.ts
+//
+// Auth-aware storage router with write-through caching.
+//
+// When Google Drive is active:
+//   • save()  → writes to localStorage FIRST (fast, synchronous-ish) then to Drive.
+//               If Drive fails the local copy is still up-to-date.
+//   • load()  → reads from Drive (authoritative), writes result to localStorage cache,
+//               falls back to localStorage if Drive is unreachable.
+//
+// When Drive is not active (not signed in / token expired):
+//   • Falls through to LocalStorageService (localStorage + IndexedDB).
+//
+// This write-through strategy ensures that synchronous consumers (e.g.
+// geminiService reading directly from localStorage) always see fresh data,
+// even when Google Drive is the primary storage backend.
 
 import { IStorageService } from './IStorageService';
 import { LocalStorageService } from './LocalStorageService';
@@ -27,13 +39,76 @@ function getDriveService(token: string): DriveStorageService {
     return _drive;
 }
 
+// ── Write-through Drive wrapper ───────────────────────────────────────────
+//
+// Wraps DriveStorageService so that every save also updates the local
+// cache and every load populates the local cache. This makes localStorage
+// always contain a fresh copy of Drive data for synchronous consumers.
+
+class WriteThroughDriveService implements IStorageService {
+    readonly isPersistent = true;
+    readonly label = 'Google Drive (write-through)';
+
+    private drive: DriveStorageService;
+    private local: LocalStorageService;
+
+    constructor(drive: DriveStorageService, local: LocalStorageService) {
+        this.drive = drive;
+        this.local = local;
+    }
+
+    async save(key: string, data: unknown): Promise<void> {
+        // 1. Write to localStorage immediately so synchronous readers
+        //    (e.g. geminiService) always see the freshest value.
+        await this.local.save(key, data);
+
+        // 2. Write to Drive. If this throws, the local copy is still good.
+        //    The drive-save-error event will surface the error to the user.
+        await this.drive.save(key, data);
+    }
+
+    async load<T = unknown>(key: string): Promise<T | null> {
+        // 1. Try Drive first (it is the authoritative source).
+        try {
+            const driveData = await this.drive.load<T>(key);
+            if (driveData !== null) {
+                // Populate the local cache so synchronous reads are up-to-date.
+                await this.local.save(key, driveData);
+                return driveData;
+            }
+        } catch {
+            // Drive unreachable — fall through to local cache.
+        }
+
+        // 2. Fall back to the local cache (IndexedDB → localStorage).
+        return this.local.load<T>(key);
+    }
+
+    async list(): Promise<string[]> {
+        try {
+            return await this.drive.list();
+        } catch {
+            return this.local.list();
+        }
+    }
+
+    async delete(key: string): Promise<void> {
+        await this.local.delete(key);
+        try { await this.drive.delete(key); } catch { /* best-effort */ }
+    }
+
+    async sync(): Promise<void> { }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 export function getStorageService(): IStorageService {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
     if (token && Date.now() < expiry) {
-        return getDriveService(token);
+        const drive = getDriveService(token);
+        const local = getCacheService();
+        return new WriteThroughDriveService(drive, local);
     }
     return getCacheService();
 }
@@ -41,14 +116,12 @@ export function getStorageService(): IStorageService {
 export function isDriveActive(): boolean {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
-    // Be generous: if token is present and not super old, try using it.
-    // DriveStorageService will catch the 401 if it's actually invalid.
     return !!(token && Date.now() < (expiry + 300000)); // +5 min buffer
 }
 
-/** 
+/**
  * Migrates data from Browser to Google Drive.
- * SAFE: Only uploads if local data exists. 
+ * SAFE: Only uploads if local data exists.
  */
 export async function migrateLocalToDrive(
     onProgress?: (uploaded: number, total: number) => void
@@ -61,28 +134,17 @@ export async function migrateLocalToDrive(
     const cache = getCacheService();
     const drive = getDriveService(token);
 
-    // 1. Get all local data
     const allData = await cache.dumpAll();
     const entries = Object.entries(allData);
 
-    // 2. Safety check: do we actually have ANY relevant data in LocalStorage?
-    // If not, maybe index.tsx restorer hasn't finished or it's a fresh install.
-    // If it's a fresh install, we mark as 'done' so we don't keep checking.
-    // If it's a cache clear, we should have restored from IDB already.
     if (entries.length === 0) {
         localStorage.setItem(MIGRATION_FLAG, 'done');
         return;
     }
 
-    // 3. Before uploading, sanity check: if the Drive already has files, 
-    // we should be CAREFUL not to just blank them out.
-    // In this app's logic, "migrate" means "Browser -> Drive".
-    // We only do this once when the user first connects.
     let uploaded = 0;
     for (const [key, value] of entries) {
-        // Skip migration metadata itself
         if (key === MIGRATION_FLAG) continue;
-
         await drive.save(key, value);
         uploaded++;
         onProgress?.(uploaded, entries.length);

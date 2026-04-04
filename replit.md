@@ -12,7 +12,7 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 - **GitHub Sync**: PAT-based CV backup to private GitHub repos via REST API
 - **Email**: Brevo (Sendinblue) REST API (direct browser calls)
 - **Job Search**: Tavily Search API
-- **Storage**: localStorage + IndexedDB (via custom StorageRouter), optional Google Drive sync
+- **Storage**: Write-through triple-layer storage — localStorage + IndexedDB + optional Google Drive sync (via WriteThroughDriveService in StorageRouter)
 - **PDF Merge**: `pdf-lib` for merging multiple PDFs into one download
 - **Auth**: Google OAuth (PKCE flow via custom GoogleAuthContext)
 

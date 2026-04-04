@@ -26,10 +26,10 @@ export async function parseWordTextToProfile(text: string): Promise<UserProfile>
         }
     }
 
-    // Fallback: provider_keys is always written to raw localStorage by SettingsModal
+    // Fallback: provider_keys cache (namespaced, IDB-backed, Drive-synced)
     if (!apiKey) {
         try {
-            const providerKeys = JSON.parse(localStorage.getItem('provider_keys') || '{}');
+            const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
             if (providerKeys[provider]) {
                 apiKey = providerKeys[provider].replace(/^"|"$/g, '');
             }
