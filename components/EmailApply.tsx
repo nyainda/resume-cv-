@@ -1,16 +1,50 @@
 // components/EmailApply.tsx
 // Full pipeline:
-//   Paste JD (or pre-filled from CV Generator) →
-//   AI extracts application email + composes email body →
-//   Optionally generate cover letter →
-//   Send via Brevo API (direct) OR open mailto: (fallback)
+//   Paste JD → AI extracts email + composes body →
+//   Attach files (PDF / JPG / PNG / DOCX) →
+//   Send via Brevo API  OR  open mailto: fallback
 //
-// Can be launched from CV Generator with pre-filled JD + CV.
+// Launched from CV Generator with pre-filled JD + cover letter.
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { UserProfile, CVData } from '../types';
 import { analyzeJobDescriptionForKeywords, generateCoverLetter } from '../services/geminiService';
-import { sendEmailViaBrevo, buildHtmlEmail } from '../services/brevoService';
+import { sendEmailViaBrevo, buildHtmlEmail, BrevoAttachment } from '../services/brevoService';
+
+/* ── Production-safe Brevo key reader ─────────────────────────────────────
+   The key lives in apiSettings (useStorage / Drive-synced).  In a freshly
+   loaded production tab it may not be in the prop yet — so we also try the
+   raw localStorage key as a fallback (same pattern as geminiService).          */
+function readBrevoKey(propKey: string | null | undefined): string | null {
+  if (propKey?.trim()) return propKey.trim();
+  try {
+    const raw = localStorage.getItem('cv_builder:apiSettings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.brevoApiKey?.trim()) return parsed.brevoApiKey.trim();
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/* ── Brevo error → human-readable message ─────────────────────────────────
+   Brevo returns various error codes/messages. Map the most common ones.       */
+function friendlyBrevoError(raw: string): string {
+  const s = raw.toLowerCase();
+  if (s.includes('sender') && (s.includes('not verified') || s.includes('not allowed') || s.includes('unauthorized'))) {
+    return 'Sender email not verified. Go to your Brevo dashboard → Senders & IPs → verify the email address you entered in your profile, then retry.';
+  }
+  if (s.includes('invalid api') || s.includes('api-key') || s.includes('unauthorized') || s.includes('401')) {
+    return 'Invalid Brevo API key. Double-check the key in Settings — it should start with "xkeysib-".';
+  }
+  if (s.includes('quota') || s.includes('limit') || s.includes('429')) {
+    return 'Brevo daily sending limit reached (300 emails/day on free plan). Try again tomorrow.';
+  }
+  if (s.includes('invalid email') || s.includes('recipient')) {
+    return 'Recipient email address is invalid. Check the "Send To" field.';
+  }
+  return raw;
+}
 
 interface EmailApplyProps {
   userProfile: UserProfile;
@@ -18,7 +52,6 @@ interface EmailApplyProps {
   openSettings: () => void;
   currentCV?: CVData | null;
   brevoApiKey?: string | null;
-  /** Pre-filled from CV Generator "Apply via Email" button */
   initialJd?: string;
   initialCoverLetter?: string;
 }
@@ -26,11 +59,24 @@ interface EmailApplyProps {
 type Step = 'paste' | 'compose' | 'send';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const MAX_ATTACHMENT_MB = 10;
+const MAX_TOTAL_MB = 25;
 
 function extractEmails(text: string): string[] {
   return [...new Set(text.match(EMAIL_RE) ?? [])].filter(
     e => !e.endsWith('.png') && !e.endsWith('.jpg') && !e.endsWith('.gif')
   );
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+interface LocalAttachment extends BrevoAttachment {
+  sizeBytes: number;
+  mimeType: string;
 }
 
 interface Draft {
@@ -66,10 +112,17 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [attachError, setAttachError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const hasBrevo = !!brevoApiKey?.trim();
+  const resolvedBrevoKey = readBrevoKey(brevoApiKey);
+  const hasBrevo = !!resolvedBrevoKey;
 
-  // If launched from CV Generator with a pre-filled JD, auto-analyse on mount
+  const totalAttachBytes = attachments.reduce((s, a) => s + a.sizeBytes, 0);
+  const totalAttachMB = totalAttachBytes / (1024 * 1024);
+
+  // Auto-analyse when launched from CV Generator
   useEffect(() => {
     if (initialJd && initialJd.trim() && apiKeySet) {
       handleAnalyse();
@@ -77,11 +130,58 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── helpers ────────────────────────────────────────────────────── */
+  /* ── Copy helper ─────────────────────────────────────────────────── */
   const copy = async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(id);
     setTimeout(() => setCopied(null), 2500);
+  };
+
+  /* ── File attachment picker ──────────────────────────────────────── */
+  const handleFilesPicked = (files: FileList | null) => {
+    if (!files) return;
+    setAttachError('');
+    const promises: Promise<LocalAttachment | null>[] = Array.from(files).map(file =>
+      new Promise(resolve => {
+        if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+          setAttachError(`"${file.name}" exceeds the ${MAX_ATTACHMENT_MB} MB per-file limit.`);
+          resolve(null);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          // dataUrl = "data:<mime>;base64,<content>"
+          const base64 = dataUrl.split(',')[1];
+          resolve({
+            name: file.name,
+            content: base64,
+            sizeBytes: file.size,
+            mimeType: file.type,
+          });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      })
+    );
+
+    Promise.all(promises).then(results => {
+      const valid = results.filter(Boolean) as LocalAttachment[];
+      setAttachments(prev => {
+        const merged = [...prev, ...valid];
+        const newTotal = merged.reduce((s, a) => s + a.sizeBytes, 0) / (1024 * 1024);
+        if (newTotal > MAX_TOTAL_MB) {
+          setAttachError(`Total attachments exceed ${MAX_TOTAL_MB} MB. Remove some files.`);
+          return prev;
+        }
+        return merged;
+      });
+    });
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+    setAttachError('');
   };
 
   /* ── Analyse JD ─────────────────────────────────────────────────── */
@@ -123,14 +223,9 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
         name,
         emailAddr,
         phone,
-      ].filter((l, i) => i !== 11 || name).join('\n');
+      ].filter((_, i) => i < 11 || [name, emailAddr, phone][i - 11]).join('\n');
 
-      setDraft(prev => ({
-        ...prev,
-        to: toEmail,
-        subject: subjectLine,
-        body,
-      }));
+      setDraft(prev => ({ ...prev, to: toEmail, subject: subjectLine, body }));
       setStep('compose');
     } catch (e) {
       setError((e as Error).message ?? 'Analysis failed. Please try again.');
@@ -155,11 +250,17 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
   };
 
   /* ── Send via Brevo ─────────────────────────────────────────────── */
-  const handleSendViaBrevo = async () => {
-    if (!hasBrevo) { openSettings(); return; }
-    if (!draft.to) { setError('Please enter the recipient email address.'); return; }
+  const handleSendViaBrevo = async (testSelf = false) => {
+    if (!resolvedBrevoKey) { openSettings(); return; }
+    const recipient = testSelf ? userProfile.personalInfo.email : draft.to;
+    if (!recipient) {
+      setError(testSelf
+        ? 'Add your email address in your Profile to send a test.'
+        : 'Please enter the recipient email address.');
+      return;
+    }
     if (!userProfile.personalInfo.email) {
-      setError('Add your email address in your Profile — it is used as the Brevo sender and must be verified.');
+      setError('Add your email address in your Profile — it is used as the Brevo sender and must be verified in Brevo.');
       return;
     }
 
@@ -170,8 +271,8 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
     try {
       const htmlContent = buildHtmlEmail({
         senderName: userProfile.personalInfo.name,
-        recipientEmail: draft.to,
-        subject: draft.subject,
+        recipientEmail: recipient,
+        subject: testSelf ? `[TEST] ${draft.subject}` : draft.subject,
         textBody: draft.body,
         coverLetterText: draft.attachCoverLetter ? draft.coverLetterText : undefined,
       });
@@ -182,23 +283,27 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
       }
 
       const result = await sendEmailViaBrevo({
-        apiKey: brevoApiKey!,
+        apiKey: resolvedBrevoKey,
         sender: { name: userProfile.personalInfo.name || 'Applicant', email: userProfile.personalInfo.email },
-        to: [{ email: draft.to }],
-        subject: draft.subject,
+        to: [{ email: recipient }],
+        subject: testSelf ? `[TEST] ${draft.subject}` : draft.subject,
         textContent,
         htmlContent,
         replyTo: { name: userProfile.personalInfo.name || 'Applicant', email: userProfile.personalInfo.email },
+        attachments: attachments.length > 0 ? attachments.map(a => ({ name: a.name, content: a.content })) : undefined,
       });
 
       if (result.success) {
-        setSendResult({ ok: true, msg: `Email sent! Message ID: ${result.messageId}` });
-        setStep('send');
+        const msg = testSelf
+          ? `Test email sent to ${recipient}! Check your inbox.`
+          : `Email sent! Message ID: ${result.messageId}`;
+        setSendResult({ ok: true, msg });
+        if (!testSelf) setStep('send');
       } else {
-        setError(result.error ?? 'Send failed. Check your Brevo API key and sender verification.');
+        setError(friendlyBrevoError(result.error ?? 'Send failed.'));
       }
     } catch (e) {
-      setError((e as Error).message ?? 'Unexpected error');
+      setError(friendlyBrevoError((e as Error).message ?? 'Unexpected error'));
     } finally {
       setSending(false);
     }
@@ -233,6 +338,17 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
     setSendResult(null);
     setError('');
     setDetectedEmails([]);
+    setAttachments([]);
+    setAttachError('');
+  };
+
+  /* ── File type icon ─────────────────────────────────────────────── */
+  const fileIcon = (name: string) => {
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return '📄';
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext ?? '')) return '🖼️';
+    if (['doc', 'docx'].includes(ext ?? '')) return '📝';
+    return '📎';
   };
 
   /* ── Render ─────────────────────────────────────────────────────── */
@@ -251,8 +367,8 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
             )}
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Paste a JD → AI drafts the email &amp; cover letter →{' '}
-            {hasBrevo ? 'sends via Brevo directly.' : 'opens in your email client.'}
+            Paste a JD → AI drafts the email &amp; cover letter → attach files →{' '}
+            {hasBrevo ? 'send via Brevo directly.' : 'open in your email client.'}
           </p>
         </div>
       </div>
@@ -264,7 +380,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
           <div>
             <p className="text-sm font-bold text-amber-800 dark:text-amber-300">AI key required</p>
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-              Add your Gemini / OpenAI key to analyse the JD.{' '}
+              Add your Gemini key to analyse the JD.{' '}
               <button onClick={openSettings} className="underline font-bold">Open Settings →</button>
             </p>
           </div>
@@ -275,16 +391,30 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
         <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-900/10 p-4 flex gap-3">
           <span className="text-xl flex-shrink-0">💡</span>
           <div>
-            <p className="text-sm font-bold text-sky-800 dark:text-sky-300">Add Brevo for one-click sending</p>
+            <p className="text-sm font-bold text-sky-800 dark:text-sky-300">Add Brevo for one-click sending with attachments</p>
             <p className="text-xs text-sky-700 dark:text-sky-400 mt-0.5">
-              Without Brevo, we open your email client (mailto:). Add your{' '}
+              Without Brevo we open your email client (mailto:). Add your{' '}
               <button onClick={openSettings} className="underline font-bold">Brevo API key in Settings →</button>
             </p>
           </div>
         </div>
       )}
 
-      {/* Step progress bar */}
+      {/* Brevo sender verification reminder */}
+      {hasBrevo && userProfile.personalInfo.email && (
+        <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/60 dark:bg-indigo-950/20 px-4 py-3 flex items-start gap-3">
+          <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
+          <p className="text-xs text-indigo-700 dark:text-indigo-300">
+            <span className="font-bold">Sender:</span>{' '}
+            <span className="font-mono">{userProfile.personalInfo.email}</span>{' '}
+            — this email must be verified in your{' '}
+            <a href="https://app.brevo.com/senders" target="_blank" rel="noreferrer" className="underline font-bold">Brevo Senders dashboard</a>{' '}
+            before sending works.
+          </p>
+        </div>
+      )}
+
+      {/* Step progress */}
       <div className="flex items-center gap-1">
         {(['paste', 'compose', 'send'] as Step[]).map((s, i) => {
           const done = (s === 'paste' && step !== 'paste') || (s === 'compose' && step === 'send');
@@ -296,7 +426,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
                     'bg-zinc-100 dark:bg-neutral-800 text-zinc-400'
                 }`}>
                 {done ? '✓' : <span>{i + 1}</span>}
-                <span className="hidden sm:inline">{s === 'paste' ? 'Paste JD' : s === 'compose' ? 'Compose' : 'Send'}</span>
+                <span className="hidden sm:inline">{s === 'paste' ? 'Paste JD' : s === 'compose' ? 'Compose' : 'Sent'}</span>
               </div>
               {i < 2 && <div className="flex-1 h-px bg-zinc-200 dark:bg-neutral-700" />}
             </React.Fragment>
@@ -312,7 +442,6 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
               ✓ Job description pre-filled from CV Generator. Click below to analyse.
             </div>
           )}
-
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 block mb-2">
               Job Description
@@ -321,13 +450,11 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
               value={jd}
               onChange={e => setJd(e.target.value)}
               rows={12}
-              placeholder={`Paste the full job description here…\n\nThe AI will:\n  📧 Detect the application email\n  🏢 Extract job title & company\n  ✍️ Compose a professional email\n  📝 Generate a tailored cover letter\n  ${hasBrevo ? '📨 Send directly via Brevo' : '🔗 Open pre-filled in your email client'}`}
+              placeholder={`Paste the full job description here…\n\nThe AI will:\n  📧 Detect the application email\n  🏢 Extract job title & company\n  ✍️ Compose a professional email\n  📝 Generate a tailored cover letter\n  ${hasBrevo ? '📨 Send directly via Brevo with attachments' : '🔗 Open pre-filled in your email client'}`}
               className="w-full rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition placeholder:text-zinc-300 dark:placeholder:text-zinc-600 leading-relaxed"
             />
           </div>
-
           {error && <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>}
-
           <button
             onClick={handleAnalyse}
             disabled={analyzing || !jd.trim() || !apiKeySet}
@@ -373,7 +500,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
             </div>
           )}
 
-          {/* To field — always visible, prominent */}
+          {/* To */}
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 block mb-1.5">
               Send To <span className="text-red-400">*</span>
@@ -386,17 +513,13 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
                 className="flex-1 rounded-xl border-2 border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 transition font-mono placeholder:font-sans"
                 placeholder="careers@company.com"
               />
-              <button
-                onClick={() => copy(draft.to, 'to')}
-                className="px-3 py-2 rounded-xl border border-zinc-300 dark:border-neutral-600 text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
-              >
+              <button onClick={() => copy(draft.to, 'to')}
+                className="px-3 py-2 rounded-xl border border-zinc-300 dark:border-neutral-600 text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors">
                 {copied === 'to' ? '✓' : '📋'}
               </button>
             </div>
             {!draft.to && (
-              <p className="text-[11px] text-zinc-400 mt-1">
-                Tip: Look for "apply@…", "careers@…", or "hr@…" in the job posting or company website.
-              </p>
+              <p className="text-[11px] text-zinc-400 mt-1">Look for "apply@…", "careers@…", or "hr@…" in the job posting.</p>
             )}
           </div>
 
@@ -451,11 +574,8 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
             </div>
 
             {!draft.coverLetterText ? (
-              <button
-                onClick={handleGenerateCL}
-                disabled={generatingCL}
-                className="w-full py-2.5 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-              >
+              <button onClick={handleGenerateCL} disabled={generatingCL}
+                className="w-full py-2.5 text-xs font-bold rounded-lg bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
                 {generatingCL ? <><span className="animate-spin">⟳</span> Generating…</> : '✨ Generate Cover Letter with AI'}
               </button>
             ) : (
@@ -481,20 +601,102 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
             )}
           </div>
 
-          {/* Brevo sender info */}
-          {hasBrevo && (
-            <div className="rounded-lg border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-900/10 px-4 py-3 text-xs text-sky-700 dark:text-sky-300 flex items-center gap-2 flex-wrap">
-              <span className="font-bold">📨 Sender:</span>
-              <span className="font-mono">{userProfile.personalInfo.email || '—'}</span>
-              {!userProfile.personalInfo.email && (
-                <span className="text-amber-600 dark:text-amber-400 font-bold">⚠ Add email to your profile</span>
+          {/* ── File Attachments ── */}
+          <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">📎 Attachments</p>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  PDF, JPG, PNG, DOCX · max {MAX_ATTACHMENT_MB} MB each · {MAX_TOTAL_MB} MB total
+                  {attachments.length > 0 && ` · ${fmtSize(totalAttachBytes)} used`}
+                </p>
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-zinc-200 dark:bg-neutral-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-neutral-600 transition-colors"
+              >
+                + Add File
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                className="hidden"
+                onChange={e => { handleFilesPicked(e.target.files); e.target.value = ''; }}
+              />
+            </div>
+
+            {attachError && (
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">{attachError}</p>
+            )}
+
+            {attachments.length === 0 ? (
+              <div
+                className="border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl p-5 text-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); handleFilesPicked(e.dataTransfer.files); }}
+              >
+                <p className="text-2xl mb-1">📂</p>
+                <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Drop files here or click Add File</p>
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Your CV PDF, cover letter, portfolio screenshots…</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {attachments.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-xl px-3 py-2.5">
+                    <span className="text-base flex-shrink-0">{fileIcon(a.name)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200 truncate">{a.name}</p>
+                      <p className="text-[10px] text-zinc-400">{fmtSize(a.sizeBytes)}</p>
+                    </div>
+                    <button
+                      onClick={() => removeAttachment(i)}
+                      className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs font-bold"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2 text-xs font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 border border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl hover:border-zinc-400 transition-colors"
+                >
+                  + Add another file
+                </button>
+              </div>
+            )}
+
+            {!hasBrevo && attachments.length > 0 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                ⚠️ File attachments only work with Brevo. Without it, attach files manually in your email client.
+              </p>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>
+              {error.toLowerCase().includes('sender') && (
+                <a
+                  href="https://app.brevo.com/senders"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-bold text-red-700 dark:text-red-300 underline mt-1 inline-block"
+                >
+                  → Open Brevo Senders Dashboard
+                </a>
               )}
             </div>
           )}
 
-          {error && (
-            <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
-              <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>
+          {/* Success (test send) */}
+          {sendResult?.ok && step === 'compose' && (
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold">✓ {sendResult.msg}</p>
             </div>
           )}
 
@@ -507,22 +709,34 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
 
             {hasBrevo ? (
               <button
-                onClick={handleSendViaBrevo}
+                onClick={() => handleSendViaBrevo(false)}
                 disabled={sending || !draft.to || !draft.subject}
                 className="py-3 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2"
               >
-                {sending ? <><span className="animate-spin text-lg">⟳</span> Sending…</> : <>📨 Send via Brevo</>}
+                {sending
+                  ? <><span className="animate-spin text-lg">⟳</span> Sending…</>
+                  : <>📨 Send via Brevo{attachments.length > 0 ? ` (+${attachments.length} file${attachments.length > 1 ? 's' : ''})` : ''}</>}
               </button>
             ) : (
               <button
                 onClick={handleOpenMailto}
                 disabled={!draft.to || !draft.subject}
-                className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2"
-              >
+                className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm">
                 ✉️ Open in Email Client
               </button>
             )}
           </div>
+
+          {/* Test send to self */}
+          {hasBrevo && (
+            <button
+              onClick={() => handleSendViaBrevo(true)}
+              disabled={sending || !userProfile.personalInfo.email || !draft.subject}
+              className="w-full py-2.5 rounded-xl border border-zinc-300 dark:border-neutral-600 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors flex items-center justify-center gap-1.5"
+            >
+              🧪 Send Test Email to Myself ({userProfile.personalInfo.email || 'set email in profile'})
+            </button>
+          )}
 
           <button onClick={handleCopyAll}
             className="w-full py-2.5 rounded-xl border border-zinc-300 dark:border-neutral-600 text-sm font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors">
@@ -544,8 +758,8 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-md mx-auto">
               {sendResult?.ok && hasBrevo
-                ? `Your application was sent directly via Brevo to ${draft.to}.`
-                : 'Your email client opened with the pre-filled message. Attach your CV PDF (from CV History) and send!'}
+                ? `Your application was sent directly via Brevo to ${draft.to}.${attachments.length > 0 ? ` ${attachments.length} file(s) attached.` : ''}`
+                : 'Your email client opened with the pre-filled message. Attach your CV PDF and send!'}
             </p>
           </div>
 
@@ -555,6 +769,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
               { l: 'Subject:', v: draft.subject },
               { l: 'Sent via:', v: sendResult?.ok && hasBrevo ? 'Brevo API ✓' : 'Email Client' },
               draft.attachCoverLetter && draft.coverLetterText ? { l: 'Cover Letter:', v: 'Included ✓' } : null,
+              attachments.length > 0 ? { l: 'Attachments:', v: `${attachments.length} file(s) ✓` } : null,
             ].filter(Boolean).map((r: any) => (
               <div key={r.l} className="flex justify-between text-xs gap-3">
                 <span className="text-zinc-400 font-medium flex-shrink-0">{r.l}</span>

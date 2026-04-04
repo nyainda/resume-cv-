@@ -95,12 +95,14 @@ export async function sendEmailViaBrevo(params: BrevoSendParams): Promise<BrevoS
             return { success: true, messageId: data.messageId ?? 'sent' };
         }
 
-        // Parse Brevo error body
-        let errMsg = `Brevo API error (${res.status})`;
+        // Parse Brevo error body — Brevo returns {code, message} or {error, message}
+        let errMsg = `Brevo API error (HTTP ${res.status})`;
         try {
             const errData = await res.json();
-            errMsg = errData.message ?? errData.error ?? errMsg;
-        } catch { /* ignore */ }
+            // Brevo error shapes: { code: "...", message: "..." } or { error: "..." }
+            const detail = errData.message ?? errData.error ?? errData.code ?? null;
+            if (detail) errMsg = `${detail} (HTTP ${res.status})`;
+        } catch { /* body is not JSON — keep the generic message */ }
 
         return { success: false, error: errMsg };
     } catch (err) {
