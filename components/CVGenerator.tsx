@@ -3,6 +3,8 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'reac
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, CVScore } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
+import PDFDownloadButton from './PDFDownloadButton';
+import { REACT_PDF_TEMPLATES } from '../services/reactPdfTemplates';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import CoverLetterPreview from './CoverLetterPreview';
@@ -258,21 +260,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
   }, [currentCV, jobDescription, apiKeySet]);
 
-  const handleDownload = useCallback(() => {
-    if (!currentCV) return;
+  const pdfFileName = useMemo(() => {
     const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
     const name = sanitize(userProfile.personalInfo.name).substring(0, 20);
-    const companyName = targetCompany || 'Unknown';
-    const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
     const companyPart = targetCompany ? `_${sanitize(targetCompany).substring(0, 20)}` : '';
-    const fileName = `${name}${companyPart}_CV.pdf`;
+    return `${name}${companyPart}_CV.pdf`;
+  }, [userProfile.personalInfo.name, targetCompany]);
+
+  const handleDownload = useCallback(() => {
+    if (!currentCV) return;
+    const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
+    const companyName = targetCompany || 'Unknown';
 
     const wasEmbedded = downloadCVAsPDF({
       cvData: currentCV,
       personalInfo: userProfile.personalInfo,
       template,
       font,
-      fileName,
+      fileName: pdfFileName,
       jobDescription,
     });
     setAtsDataEmbedded(wasEmbedded);
@@ -282,7 +287,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       company: companyName,
       savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
     });
-  }, [currentCV, userProfile, targetCompany, targetJobTitle, template, font, jobDescription, onAutoTrack]);
+  }, [currentCV, userProfile, targetCompany, targetJobTitle, template, font, jobDescription, onAutoTrack, pdfFileName]);
 
   const cvTextContent = useMemo(() => {
     if (!currentCV) return "";
@@ -635,9 +640,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   )}
                 </Button>
               )}
-              <Button onClick={handleDownload} disabled={isEditing} size="sm">
-                <Download className="h-4 w-4 mr-2" />Download PDF
-              </Button>
+              {currentCV && REACT_PDF_TEMPLATES.includes(template as any) ? (
+                <PDFDownloadButton
+                  cvData={currentCV}
+                  personalInfo={userProfile.personalInfo}
+                  template={template}
+                  fileName={pdfFileName}
+                  onFallback={handleDownload}
+                  disabled={isEditing}
+                />
+              ) : (
+                <Button onClick={handleDownload} disabled={isEditing} size="sm">
+                  <Download className="h-4 w-4 mr-2" />Download PDF
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => setShowShareModal(true)}

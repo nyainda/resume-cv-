@@ -17,6 +17,16 @@ Font.register({
   ],
 });
 
+Font.register({
+  family: 'Tinos',
+  fonts: [
+    { src: 'https://fonts.gstatic.com/s/tinos/v24/buE4poGnedXvwgX8dGVh8TI-.woff2', fontWeight: 400 },
+    { src: 'https://fonts.gstatic.com/s/tinos/v24/buE1poGnedXvwjX-fmFD9CI-4NU.woff2', fontWeight: 400, fontStyle: 'italic' },
+    { src: 'https://fonts.gstatic.com/s/tinos/v24/buE2poGnedXvwgX8dGVh8DI2cg.woff2', fontWeight: 700 },
+    { src: 'https://fonts.gstatic.com/s/tinos/v24/buEzpoGnedXvwjX-fmFD9CI4xNU1sI0.woff2', fontWeight: 700, fontStyle: 'italic' },
+  ],
+});
+
 const decode = (html: string) => html
   .replace(/&amp;/g, '&')
   .replace(/&lt;/g, '<')
@@ -310,9 +320,141 @@ const MinimalistPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = 
   </Page>
 );
 
-export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist';
+const londonFinanceStyles = StyleSheet.create({
+  page: { fontFamily: 'Tinos', fontSize: 10, color: '#1c1c1c', padding: '40 50', lineHeight: 1.4 },
+  header: { textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: 18, marginBottom: 14 },
+  name: { fontSize: 22, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 6 },
+  contactRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 0 },
+  contactItem: { fontSize: 8, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.8 },
+  contactSep: { fontSize: 8, color: '#475569', marginHorizontal: 4 },
+  section: { marginBottom: 10 },
+  sectionHeader: { borderBottom: '1px solid #0f172a', paddingBottom: 2, marginBottom: 6 },
+  sectionTitle: { fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: '#0f172a' },
+  summary: { fontSize: 9, fontStyle: 'italic', lineHeight: 1.6, textAlign: 'justify' },
+  expBlock: { marginBottom: 12 },
+  expTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  company: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase' },
+  dates: { fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase' },
+  expSubRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
+  jobTitle: { fontSize: 9.5, fontStyle: 'italic', color: '#3f3f46' },
+  location: { fontSize: 9, color: '#52525b' },
+  bullet: { flexDirection: 'row', gap: 6, marginBottom: 2, marginLeft: 12 },
+  bulletText: { fontSize: 8.5, flex: 1, lineHeight: 1.5, textAlign: 'justify' },
+  eduBlock: { marginBottom: 8 },
+  eduTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  school: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase' },
+  year: { fontSize: 8.5, fontWeight: 700 },
+  degree: { fontSize: 9.5, fontStyle: 'italic', color: '#3f3f46', marginTop: 1 },
+  addRow: { flexDirection: 'row', marginBottom: 4 },
+  addLabel: { fontSize: 8.5, fontWeight: 700, textTransform: 'uppercase', minWidth: 100 },
+  addValue: { fontSize: 8.5, flex: 1, lineHeight: 1.5 },
+});
 
-export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist'];
+const LondonFinancePDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => {
+  const contacts = [personalInfo.location, personalInfo.phone, personalInfo.email].filter(Boolean);
+  return (
+    <Page size="A4" style={londonFinanceStyles.page}>
+      <View style={londonFinanceStyles.header}>
+        <Text style={londonFinanceStyles.name}>{personalInfo.name}</Text>
+        <View style={londonFinanceStyles.contactRow}>
+          {contacts.map((c, i) => (
+            <React.Fragment key={i}>
+              <Text style={londonFinanceStyles.contactItem}>{c}</Text>
+              {i < contacts.length - 1 && <Text style={londonFinanceStyles.contactSep}>  •  </Text>}
+            </React.Fragment>
+          ))}
+          {personalInfo.linkedin && (
+            <>
+              <Text style={londonFinanceStyles.contactSep}>  •  </Text>
+              <Text style={{ ...londonFinanceStyles.contactItem, fontWeight: 700, color: '#0f172a' }}>LINKEDIN</Text>
+            </>
+          )}
+        </View>
+      </View>
+
+      {cvData.summary ? (
+        <View style={londonFinanceStyles.section}>
+          <View style={londonFinanceStyles.sectionHeader}>
+            <Text style={londonFinanceStyles.sectionTitle}>Professional Profile</Text>
+          </View>
+          <Text style={londonFinanceStyles.summary}>{decode(cvData.summary)}</Text>
+        </View>
+      ) : null}
+
+      {cvData.experience.length > 0 ? (
+        <View style={londonFinanceStyles.section}>
+          <View style={londonFinanceStyles.sectionHeader}>
+            <Text style={londonFinanceStyles.sectionTitle}>Professional Experience</Text>
+          </View>
+          {cvData.experience.map((exp, i) => (
+            <View key={i} style={londonFinanceStyles.expBlock}>
+              <View style={londonFinanceStyles.expTopRow}>
+                <Text style={londonFinanceStyles.company}>{exp.company}</Text>
+                <Text style={londonFinanceStyles.dates}>{exp.dates}</Text>
+              </View>
+              <View style={londonFinanceStyles.expSubRow}>
+                <Text style={londonFinanceStyles.jobTitle}>{exp.jobTitle}</Text>
+                <Text style={londonFinanceStyles.location}>{personalInfo.location}</Text>
+              </View>
+              {exp.responsibilities.map((r, j) => (
+                <View key={j} style={londonFinanceStyles.bullet}>
+                  <Text style={{ fontSize: 8.5 }}>•</Text>
+                  <Text style={londonFinanceStyles.bulletText}>{decode(r)}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {cvData.education.length > 0 ? (
+        <View style={londonFinanceStyles.section}>
+          <View style={londonFinanceStyles.sectionHeader}>
+            <Text style={londonFinanceStyles.sectionTitle}>Education</Text>
+          </View>
+          {cvData.education.map((edu, i) => (
+            <View key={i} style={londonFinanceStyles.eduBlock}>
+              <View style={londonFinanceStyles.eduTopRow}>
+                <Text style={londonFinanceStyles.school}>{edu.school}</Text>
+                <Text style={londonFinanceStyles.year}>{edu.year}</Text>
+              </View>
+              <Text style={londonFinanceStyles.degree}>{edu.degree}</Text>
+              {edu.description ? <Text style={{ fontSize: 8.5, color: '#475569', marginTop: 2 }}>{decode(edu.description)}</Text> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={londonFinanceStyles.section}>
+        <View style={londonFinanceStyles.sectionHeader}>
+          <Text style={londonFinanceStyles.sectionTitle}>Additional Information</Text>
+        </View>
+        {cvData.skills.length > 0 ? (
+          <View style={londonFinanceStyles.addRow}>
+            <Text style={londonFinanceStyles.addLabel}>Technical Skills:</Text>
+            <Text style={londonFinanceStyles.addValue}>{cvData.skills.slice(0, 15).join(', ')}</Text>
+          </View>
+        ) : null}
+        {cvData.languages && cvData.languages.length > 0 ? (
+          <View style={londonFinanceStyles.addRow}>
+            <Text style={londonFinanceStyles.addLabel}>Languages:</Text>
+            <Text style={londonFinanceStyles.addValue}>{cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(', ')}</Text>
+          </View>
+        ) : null}
+        {cvData.projects && cvData.projects.length > 0 ? (
+          <View style={londonFinanceStyles.addRow}>
+            <Text style={londonFinanceStyles.addLabel}>Projects:</Text>
+            <Text style={londonFinanceStyles.addValue}>{cvData.projects.map(p => p.name).join('; ')}</Text>
+          </View>
+        ) : null}
+      </View>
+    </Page>
+  );
+};
+
+export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist' | 'london-finance';
+
+export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist', 'london-finance'];
 
 export function buildReactPDFDocument(
   template: TemplateName,
@@ -323,6 +465,7 @@ export function buildReactPDFDocument(
     switch (template) {
       case 'standard-pro': return <StandardProPDF cvData={cvData} personalInfo={personalInfo} />;
       case 'minimalist': return <MinimalistPDF cvData={cvData} personalInfo={personalInfo} />;
+      case 'london-finance': return <LondonFinancePDF cvData={cvData} personalInfo={personalInfo} />;
       case 'professional':
       default:
         return <ProfessionalPDF cvData={cvData} personalInfo={personalInfo} />;
