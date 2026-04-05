@@ -9,16 +9,11 @@ import {
 } from '@react-pdf/renderer';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiA.woff2', fontWeight: 700 },
-  ],
-});
-
-// Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic are built-in PDF fonts
-// available in @react-pdf/renderer with no download required.
+// Built-in PDF fonts — no network required, always render correctly:
+// Helvetica, Helvetica-Bold, Helvetica-Oblique, Helvetica-BoldOblique
+// Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic
+// Courier, Courier-Bold, Courier-Oblique, Courier-BoldOblique
+// @react-pdf/renderer only supports TTF/OTF for custom fonts — woff2 silently fails.
 
 const decode = (html: string) => html
   .replace(/&amp;/g, '&')
@@ -31,7 +26,7 @@ const decode = (html: string) => html
   .trim();
 
 const professionalStyles = StyleSheet.create({
-  page: { fontFamily: 'Inter', fontSize: 10, color: '#18181b', padding: '30 40', lineHeight: 1.4 },
+  page: { fontFamily: 'Helvetica', fontSize: 10, color: '#18181b', padding: '30 40', lineHeight: 1.4 },
   header: { borderBottom: '2px solid #1e3a8a', paddingBottom: 10, marginBottom: 12 },
   name: { fontSize: 22, fontWeight: 700, color: '#1e3a8a', marginBottom: 3 },
   contact: { fontSize: 8.5, color: '#64748b', flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -148,7 +143,7 @@ const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> 
 );
 
 const standardProStyles = StyleSheet.create({
-  page: { fontFamily: 'Inter', fontSize: 10, color: '#111827', padding: '30 50', lineHeight: 1.4 },
+  page: { fontFamily: 'Helvetica', fontSize: 10, color: '#111827', padding: '30 50', lineHeight: 1.4 },
   header: { textAlign: 'center', borderBottom: '1px solid #111827', paddingBottom: 8, marginBottom: 10 },
   name: { fontSize: 20, fontWeight: 700, marginBottom: 3 },
   contact: { fontSize: 8.5, color: '#374151', flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },
@@ -234,7 +229,7 @@ const StandardProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> =
 );
 
 const minimalistStyles = StyleSheet.create({
-  page: { fontFamily: 'Inter', fontSize: 10, color: '#18181b', padding: '35 45', lineHeight: 1.4 },
+  page: { fontFamily: 'Helvetica', fontSize: 10, color: '#18181b', padding: '35 45', lineHeight: 1.4 },
   name: { fontSize: 24, fontWeight: 700, color: '#09090b', marginBottom: 2 },
   title: { fontSize: 11, color: '#71717a', marginBottom: 8 },
   contact: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14, borderBottom: '1px solid #e4e4e7', paddingBottom: 10 },
