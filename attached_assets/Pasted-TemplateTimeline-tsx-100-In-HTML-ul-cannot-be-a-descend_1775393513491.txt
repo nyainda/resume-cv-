@@ -1,0 +1,59 @@
+TemplateTimeline.tsx:100 In HTML, <ul> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  ...
+    <div className="bg-white">
+      <TemplateThumbnail templateName="timeline" cvData={{summary:"B...", ...}} personalInfo={{name:"BRUC...", ...}}>
+        <div ref={{...}} className="w-full ove..." style={{...}}>
+          <Suspense fallback={<div>}>
+            <div style={{position:"...", ...}}>
+              <CVPreview cvData={{summary:"B...", ...}} personalInfo={{name:"BRUC...", ...}} template="timeline" ...>
+                <div className={"font-['I..."}>
+                  <div className="min-w-[210...">
+                    <TemplateTimeline cvData={{summary:"B...", ...}} personalInfo={{name:"BRUC...", ...}} ...>
+                      <div id="cv-preview..." className={"bg-white..."}>
+                        <header>
+                        <main>
+                          <Section>
+                          <Section>
+                          <div className="grid grid-...">
+                            <Section>
+                            <Section title="Skills">
+                              <section className="mb-8 undef...">
+                                <h2>
+>                               <p className="text-base leading-relaxed">
+                                  <div className="grid grid-...">
+>                                   <ul className="list-disc list-outside ml-4 space-y-0.5">
+                                    ...
+                            ...
+                          ...
+
+TemplateTimeline.tsx:93 <p> cannot contain a nested <ul>.
+See this log for the ancestor stack trace.
+TemplateTimeline.tsx:98 In HTML, <div> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  ...
+    <div className="bg-white">
+      <TemplateThumbnail templateName="timeline" cvData={{summary:"B...", ...}} personalInfo={{name:"BRUC...", ...}}>
+        <div ref={{...}} className="w-full ove..." style={{...}}>
+          <Suspense fallback={<div>}>
+            <div style={{position:"...", ...}}>
+              <CVPreview cvData={{summary:"B...", ...}} personalInfo={{name:"BRUC...", ...}} template="timeline" ...>
+                <div className={"font-['I..."}>
+                  <div className="min-w-[210...">
+                    <TemplateTimeline cvData={{summary:"B...", ...}} personalInfo={{name:"BRUC...", ...}} ...>
+                      <div id="cv-preview..." className={"bg-white..."}>
+                        <header>
+                        <main>
+                          <Section>
+                          <Section>
+                          <div className="grid grid-...">
+                            <Section>
+                            <Section title="Skills">
+                              <section className="mb-8 undef...">
+                                <h2>
+>                               <p className="text-base leading-relaxed">
+>                                 <div className="grid grid-cols-3 gap-x-4">
+                            ...
+                          ...

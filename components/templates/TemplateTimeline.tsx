@@ -90,23 +90,19 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
           </Section>
 
           <Section title="Skills">
-            <p className="text-base leading-relaxed">
+            <div className="grid grid-cols-3 gap-x-4">
               {(() => {
                 const sk = cvData.skills.slice(0, 15);
                 const perCol = Math.ceil(sk.length / 3);
-                return (
-                  <div className="grid grid-cols-3 gap-x-4">
-                    {[0, 1, 2].map(ci => (
-                      <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
-                        {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
-                          <li key={si} className="text-sm text-slate-700">{s}</li>
-                        ))}
-                      </ul>
+                return [0, 1, 2].map(ci => (
+                  <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
+                    {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
+                      <li key={si} className="text-sm text-slate-700">{s}</li>
                     ))}
-                  </div>
-                );
+                  </ul>
+                ));
               })()}
-            </p>
+            </div>
           </Section>
 
           {cvData.languages && cvData.languages.length > 0 && (
