@@ -17,7 +17,7 @@ import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
 
-const REACT_PDF_TEMPLATES = ['professional', 'standard-pro', 'minimalist', 'london-finance'] as const;
+const REACT_PDF_TEMPLATES: string[] = [];
 
 const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

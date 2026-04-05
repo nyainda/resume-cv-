@@ -2,10 +2,9 @@ import React, { Suspense, lazy } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import { Download } from './icons';
 
-// Inlined here so we never statically import reactPdfTemplates.tsx
-// (that file has a top-level @react-pdf/renderer import which bundles its own React)
-const REACT_PDF_TEMPLATES = ['professional', 'standard-pro', 'minimalist', 'london-finance'] as const;
-type ReactPDFTemplateName = typeof REACT_PDF_TEMPLATES[number];
+// @react-pdf/renderer disabled — all templates use jsPDF (reliable, text renders correctly)
+const REACT_PDF_TEMPLATES: string[] = [];
+type ReactPDFTemplateName = string;
 
 const Spinner = () => (
   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
