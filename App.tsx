@@ -347,7 +347,7 @@ const AppInner: React.FC = () => {
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
 
   const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
-  const apiKeySet = useMemo(() => !!apiSettings?.apiKey, [apiSettings]);
+  const apiKeySet = useMemo(() => !!apiSettings?.groqApiKey, [apiSettings]);
   const tavilyApiKey = useMemo(() => apiSettings?.tavilyApiKey || null, [apiSettings]);
   const brevoApiKey = useMemo(() => apiSettings?.brevoApiKey || null, [apiSettings]);
 

@@ -229,10 +229,11 @@ export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
 export interface ApiSettings {
   provider: AIProvider;
-  apiKey: string | null;
-  tavilyApiKey?: string | null; // For job search & company research
-  brevoApiKey?: string | null;  // For sending emails via Brevo SMTP API
-  msClientId?: string | null;   // Azure AD Client ID for Microsoft/OneDrive integration
+  apiKey: string | null;         // Gemini key (for PDF/image parsing)
+  groqApiKey?: string | null;    // Groq key (for CV gen, cover letters, rewriting)
+  tavilyApiKey?: string | null;  // For job search & company research
+  brevoApiKey?: string | null;   // For sending emails via Brevo SMTP API
+  msClientId?: string | null;    // Azure AD Client ID for Microsoft/OneDrive integration
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';

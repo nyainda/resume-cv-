@@ -2,17 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
-import { ApiSettings, AIProvider } from '../types';
+import { ApiSettings } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield, AlertCircle } from './icons';
 import { idbAppSet } from '../services/storage/AppDataPersistence';
 import { getStorageService } from '../services/storage/StorageRouter';
 
-// Namespaced localStorage keys — all cv_builder: prefix so they are:
-// • Included in IDB backup (AppDataPersistence)
-// • Picked up by Drive migration (StorageRouter.migrateLocalToDrive)
-// • Consistent with LocalStorageService key convention
 const LS_PROVIDER_KEYS = 'cv_builder:provider_keys';
 const LS_MS_TOKEN      = 'cv_builder:ms_access_token';
 const LS_MS_USER       = 'cv_builder:ms_user';
@@ -26,6 +22,13 @@ const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const GroqIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path d="M8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm4-2v4m-2-2h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+  </svg>
+);
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -33,18 +36,11 @@ interface SettingsModalProps {
   currentApiSettings: ApiSettings;
 }
 
-const providerDetails: Record<AIProvider, { name: string, url: string }> = {
-  gemini: { name: 'Google Gemini', url: 'https://aistudio.google.com/app/apikey' },
-  openai: { name: 'OpenAI (ChatGPT)', url: 'https://platform.openai.com/api-keys' },
-  anthropic: { name: 'Anthropic (Claude)', url: 'https://console.anthropic.com/settings/keys' },
-  qwen: { name: 'Alibaba (Qwen)', url: 'https://dashscope.console.aliyun.com/apiKey' },
-};
-
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
-  const [localSettings, setLocalSettings] = useState<ApiSettings>(currentApiSettings);
-  const [storedKeys, setStoredKeys] = useState<Record<string, string>>({});
+  const [groqKey, setGroqKey]   = useState(currentApiSettings.groqApiKey || '');
+  const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [tavilyKey, setTavilyKey] = useState(currentApiSettings.tavilyApiKey || '');
-  const [brevoKey, setBrevoKey] = useState(currentApiSettings.brevoApiKey || '');
+  const [brevoKey, setBrevoKey]   = useState(currentApiSettings.brevoApiKey || '');
   const [msClientId, setMsClientId] = useState(currentApiSettings.msClientId || '');
   const [msConnected, setMsConnected] = useState(false);
   const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
@@ -52,12 +48,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [msError, setMsError] = useState<string | null>(null);
 
   useEffect(() => {
-    const keys = JSON.parse(localStorage.getItem(LS_PROVIDER_KEYS) || '{}');
-    if (currentApiSettings.apiKey) {
-      keys[currentApiSettings.provider] = currentApiSettings.apiKey;
-    }
-    setStoredKeys(keys);
-    setLocalSettings(currentApiSettings);
+    setGroqKey(currentApiSettings.groqApiKey || '');
+    setGeminiKey(currentApiSettings.apiKey || '');
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
     setBrevoKey(currentApiSettings.brevoApiKey || '');
     setMsClientId(currentApiSettings.msClientId || '');
@@ -156,67 +148,44 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setMsUser(null);
   }, []);
 
-  const updateKey = (key: string) => {
-    const newKeys = { ...storedKeys, [localSettings.provider]: key };
-    setStoredKeys(newKeys);
-    // Write immediately to localStorage for real-time access by services.
-    // Also back up to IDB so it survives a cache clear.
-    localStorage.setItem(LS_PROVIDER_KEYS, JSON.stringify(newKeys));
-    idbAppSet(LS_PROVIDER_KEYS, newKeys).catch(() => {});
-    setLocalSettings({ ...localSettings, apiKey: key });
-  };
-
-  const handleProviderChange = (provider: AIProvider) => {
-    const apiKey = storedKeys[provider] || null;
-    setLocalSettings({ provider, apiKey });
-  };
-
   if (!isOpen) return null;
 
   const handleSave = () => {
     const settingsToSave: ApiSettings = {
-      ...localSettings,
-      apiKey: localSettings.apiKey?.trim() || null,
+      provider: 'gemini',
+      apiKey: geminiKey.trim() || null,
+      groqApiKey: groqKey.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
       msClientId: msClientId.trim() || null,
     };
 
-    // Always write API settings directly to localStorage so services can read
-    // them synchronously even when Google Drive sync is the active storage backend.
     try {
       localStorage.setItem('cv_builder:apiSettings', JSON.stringify(settingsToSave));
     } catch { /* quota */ }
 
-    // Sync provider_keys (all providers' cached keys) to IDB + Drive too,
-    // so they survive cache clears and are available on other devices.
-    idbAppSet(LS_PROVIDER_KEYS, storedKeys).catch(() => {});
-    getStorageService().save('provider_keys', storedKeys).catch(() => {});
+    const providerKeys = { gemini: geminiKey.trim() || null, groq: groqKey.trim() || null };
+    idbAppSet(LS_PROVIDER_KEYS, providerKeys).catch(() => {});
+    getStorageService().save('provider_keys', providerKeys).catch(() => {});
 
     onSave(settingsToSave);
     onClose();
   };
 
-  const handleClear = () => {
-    const newKeys = { ...storedKeys };
-    delete newKeys[localSettings.provider];
-    setStoredKeys(newKeys);
-    localStorage.setItem(LS_PROVIDER_KEYS, JSON.stringify(newKeys));
-    idbAppSet(LS_PROVIDER_KEYS, newKeys).catch(() => {});
-    getStorageService().save('provider_keys', newKeys).catch(() => {});
-
-    const clearedSettings: ApiSettings = { ...localSettings, apiKey: null, tavilyApiKey: tavilyKey.trim() || null, brevoApiKey: brevoKey.trim() || null };
-    setLocalSettings(clearedSettings);
-
-    try {
-      localStorage.setItem('cv_builder:apiSettings', JSON.stringify(clearedSettings));
-    } catch { /* quota */ }
-
-    onSave(clearedSettings);
+  const handleClearGroq = () => {
+    setGroqKey('');
+    const saved: ApiSettings = {
+      provider: 'gemini',
+      apiKey: geminiKey.trim() || null,
+      groqApiKey: null,
+      tavilyApiKey: tavilyKey.trim() || null,
+      brevoApiKey: brevoKey.trim() || null,
+      msClientId: msClientId.trim() || null,
+    };
+    try { localStorage.setItem('cv_builder:apiSettings', JSON.stringify(saved)); } catch {}
+    onSave(saved);
     onClose();
   };
-
-  const selectedProvider = providerDetails[localSettings.provider];
 
   return (
     <div
@@ -263,48 +232,103 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 font-bold uppercase tracking-widest">Powered by Google Drive</p>
               </div>
             </div>
-
-            <GoogleSignInButton
-              onSignedIn={() => {}}
-              onSignedOut={() => {}}
-            />
+            <GoogleSignInButton onSignedIn={() => {}} onSignedOut={() => {}} />
           </div>
 
           {/* ── Google Drive Data Panel ── */}
           <DriveDataPanel onDataRestored={() => window.location.reload()} />
 
-          {/* ── AI Provider ── */}
-          <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">🤖 AI Generation</h3>
-            <div>
-              <Label htmlFor="ai-provider">AI Provider</Label>
-              <select
-                id="ai-provider"
-                value={localSettings.provider}
-                onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-zinc-300 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-lg"
-              >
-                {Object.entries(providerDetails).map(([key, value]) => (
-                  <option key={key} value={key}>{value.name}</option>
-                ))}
-              </select>
+          {/* ── Groq AI (Primary) ── */}
+          <div className="rounded-xl border-2 border-orange-200 dark:border-orange-700/40 p-4 space-y-3 bg-orange-50/50 dark:bg-orange-900/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚡</span>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">Groq AI — Primary</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">CV generation • Cover letters • Rewriting • ATS analysis</p>
+                </div>
+              </div>
+              {groqKey ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+              )}
             </div>
-            <div>
-              <Label htmlFor="api-key">{selectedProvider.name} API Key</Label>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-                Stored only in your browser. Get your key from{' '}
-                <a href={selectedProvider.url} target="_blank" rel="noopener noreferrer" className="text-indigo-500 underline">
-                  their website
-                </a>.
-              </p>
-              <Input
-                id="api-key"
-                type="password"
-                value={localSettings.apiKey || ''}
-                onChange={(e) => updateKey(e.target.value)}
-                placeholder={`Enter your ${selectedProvider.name} API key`}
-              />
+
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-orange-100 dark:border-orange-900/40 p-3 space-y-1.5">
+              {[
+                '🆓 Free tier with massive daily limits',
+                '🚀 llama-3.3-70b for CV gen, cover letters & rewriting',
+                '⚡ llama-3.1-8b for instant ATS & keyword analysis',
+                '🔒 Key stored only in your browser',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span>{f}</span>
+                </div>
+              ))}
             </div>
+
+            <a
+              href="https://console.groq.com/keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 underline font-semibold"
+            >
+              Get your free Groq API key →
+            </a>
+
+            <Input
+              id="groq-key"
+              type="password"
+              value={groqKey}
+              onChange={(e) => setGroqKey(e.target.value)}
+              placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="font-mono text-sm"
+            />
+          </div>
+
+          {/* ── Google Gemini (Optional — file/image parsing) ── */}
+          <div className="rounded-xl border border-blue-200 dark:border-blue-800/40 p-4 space-y-3 bg-blue-50/30 dark:bg-blue-900/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔍</span>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Google Gemini — Optional</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">PDF upload • Image parsing • File extraction</p>
+                </div>
+              </div>
+              {geminiKey ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+              )}
+            </div>
+
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">
+              Only needed if you want to <strong>upload PDFs or images</strong> of your existing CV or job descriptions. Uses <strong>Gemini 2.5 Flash</strong> for vision/multimodal tasks.
+            </p>
+
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 underline font-semibold"
+            >
+              Get your Gemini API key →
+            </a>
+
+            <Input
+              id="gemini-key"
+              type="password"
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+              placeholder="AIzaSy..."
+              className="font-mono text-sm"
+            />
+
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              Powers: Upload existing CV (PDF/image) • Paste job description screenshot
+            </p>
           </div>
 
           {/* ── Tavily Job Search ── */}
@@ -318,7 +342,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               )}
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Enables the <strong>Job Board</strong> — automatically scrapes live job listings, fetches full JDs, and researches companies to make your CVs smarter. Free tier: <strong>1,000 calls/month</strong>.
+              Enables the <strong>Job Board</strong> — automatically scrapes live job listings, fetches full JDs, and researches companies. Free tier: <strong>1,000 calls/month</strong>.
             </p>
             <a
               href="https://app.tavily.com/home"
@@ -482,20 +506,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </p>
           </div>
 
-          {/* ── Save/Clear buttons inside scroll area on mobile ── */}
+          {/* ── Mobile Save/Clear buttons ── */}
           <div className="sm:hidden flex flex-col gap-2 pb-2">
             <Button onClick={handleSave} className="w-full py-3 text-base">Save Settings</Button>
             <div className="flex gap-2">
-              <Button variant="danger" onClick={handleClear} className="flex-1">Clear AI Key</Button>
+              <Button variant="danger" onClick={handleClearGroq} className="flex-1">Clear Groq Key</Button>
               <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
             </div>
           </div>
 
         </div>
 
-        {/* ── Sticky footer (desktop only) ── */}
+        {/* ── Sticky footer (desktop) ── */}
         <div className="hidden sm:flex justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-neutral-700 flex-shrink-0">
-          <Button variant="danger" onClick={handleClear}>Clear AI Key</Button>
+          <Button variant="danger" onClick={handleClearGroq}>Clear Groq Key</Button>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave}>Save Settings</Button>
         </div>

@@ -6,7 +6,11 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 
 - **Frontend**: React 19, TypeScript, Vite 6
 - **Styling**: Tailwind CSS (CDN), custom CSS variables for theming
-- **AI**: Google Gemini via `@google/genai`
+- **AI — Text Generation**: Groq API (OpenAI-compatible, direct fetch)
+  - `llama-3.3-70b-versatile` → CV generation, cover letters, rewriting, essays
+  - `llama-3.1-8b-instant` → Fast ATS analysis, keyword extraction, CV scoring
+- **AI — Vision/Multimodal**: Google Gemini 2.5 Flash via `@google/genai`
+  - PDF upload, image parsing (file text extraction only)
 - **PDF Generation**: jsPDF (CDN) + html2canvas (CDN) — legacy; `@react-pdf/renderer` for Professional/Standard Pro/Minimalist templates
 - **Sharing**: Privacy-first shareable links via `lz-string` URL hash encoding (no backend)
 - **GitHub Sync**: PAT-based CV backup to private GitHub repos via REST API
@@ -35,17 +39,18 @@ components/
   PDFDownloadButton.tsx — react-pdf download button (lazy-loaded)
   TemplateThumbnail.tsx — Scaled live CV thumbnail preview
   ProfileManager.tsx    — Multi-profile switcher with add/edit/delete
-  SettingsModal.tsx     — API keys (Gemini, Tavily, Brevo) + Google Drive sync
+  SettingsModal.tsx     — API keys (Groq primary + Gemini optional, Tavily, Brevo) + Google Drive sync
   EmailApply.tsx        — Email application wizard (Brevo or mailto fallback)
   templates/            — 26+ named CV template components (incl. TemplateSWEElite.tsx)
   ...
 
 services/
-  geminiService.ts      — All Gemini AI calls (CV generation, cover letters, etc.)
+  groqService.ts        — Groq AI client (OpenAI-compatible fetch) for all text generation
+  geminiService.ts      — Routes text tasks to Groq; keeps Gemini only for PDF/image vision
   pdfService.ts         — Legacy programmatic jsPDF (kept but superseded by html2canvas)
   brevoService.ts       — Brevo email sending
   tavilyService.ts      — Job board search + full JD fetch
-  wordImportService.ts  — Word (.docx) parsing via mammoth + Gemini profile extraction
+  wordImportService.ts  — Word (.docx) parsing via mammoth + Groq profile extraction
   storage/              — LocalStorage + IndexedDB + Google Drive storage layer
 
 hooks/
@@ -85,7 +90,19 @@ auth/
 
 ## API Keys (all stored in Settings modal)
 
-- `GEMINI_API_KEY` — Google AI Studio (required for all AI features)
+### Multi-Model AI Architecture
+- **Groq API key** (primary — required for all text AI features)
+  - Free tier with very generous limits: https://console.groq.com/keys
+  - Powers: CV generation, cover letters, rewriting, scholarship essays, ATS analysis, CV scoring
+  - `llama-3.3-70b-versatile` for quality tasks; `llama-3.1-8b-instant` for fast keyword/scoring tasks
+  - Stored in `apiSettings.groqApiKey`
+- **Gemini API key** (optional — only for file/image uploads)
+  - https://aistudio.google.com/app/apikey
+  - Powers: PDF upload → text extraction, image parsing
+  - Stored in `apiSettings.apiKey`
 - Tavily API key — For job board search (optional)
 - Brevo API key — For direct email sending (optional, falls back to mailto)
 - Microsoft Azure Client ID — For Microsoft/OneDrive integration (optional, user registers Azure app)
+
+### `apiKeySet` flag
+Checks `!!apiSettings?.groqApiKey` — gates all AI generation buttons (Generate CV, Cover Letter, etc.).

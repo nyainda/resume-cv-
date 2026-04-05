@@ -1,5 +1,6 @@
-import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
-import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, ApiSettings, CVGenerationMode, ScholarshipFormat } from '../types';
+import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
+import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat } from '../types';
+import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
@@ -29,11 +30,9 @@ Output ONLY valid JSON or plain text matching the requested schema. NEVER includ
 const SYSTEM_INSTRUCTION_PARSER = `
 You are an expert data parser. Convert unstructured text into accurate JSON. 
 Standardize dates. Never invent data unless instructed.
+When returning JSON, output ONLY the raw JSON object — no markdown fences, no commentary.
 `;
 
-// --- Humanization System Instruction ---
-// This makes all outputs sound like they were written by a human professional,
-// NOT by an AI. Avoids patterns that AI detectors flag.
 const SYSTEM_INSTRUCTION_HUMANIZER = `
 You are a professional human editor. Your job is to rewrite text so it sounds exactly like it was written by a skilled, experienced human professional — never by an AI.
 
@@ -49,29 +48,25 @@ Critical rules:
 - Return the rewritten text only. No commentary.
 `;
 
-// --- API Client Setup with Multi-Model Support ---
-function getAiClient(modelPreference: 'flash' | 'lite' | 'ultra-lite' = 'lite'): GoogleGenAI {
+// --- Gemini Client (multimodal only — PDF/image parsing) ---
+function getGeminiClient(): GoogleGenAI {
     let apiKey: string | undefined;
-    let provider: string = 'gemini';
 
-    // Primary: read from cv_builder:apiSettings (written directly by SettingsModal)
     const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
     if (settingsString) {
-        const settings: ApiSettings = JSON.parse(settingsString);
-        provider = settings.provider || 'gemini';
-        if (settings.apiKey && settings.provider === 'gemini') {
-            apiKey = settings.apiKey.replace(/^"|"$/g, '');
-        } else if (settings.provider !== 'gemini') {
-            throw new Error(`The selected provider '${settings.provider}' is not supported. Use 'gemini'.`);
-        }
+        try {
+            const settings = JSON.parse(settingsString);
+            if (settings.apiKey) {
+                apiKey = settings.apiKey.replace(/^"|"$/g, '');
+            }
+        } catch { /* ignore */ }
     }
 
-    // Fallback: provider_keys cache (namespaced, IDB-backed, Drive-synced)
     if (!apiKey) {
         try {
             const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-            if (providerKeys[provider]) {
-                apiKey = providerKeys[provider].replace(/^"|"$/g, '');
+            if (providerKeys.gemini) {
+                apiKey = providerKeys.gemini.replace(/^"|"$/g, '');
             }
         } catch { /* ignore */ }
     }
@@ -79,12 +74,12 @@ function getAiClient(modelPreference: 'flash' | 'lite' | 'ultra-lite' = 'lite'):
     if (!apiKey && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
         apiKey = process.env.GEMINI_API_KEY;
     }
-    if (!apiKey) throw new Error("API key not found.");
+    if (!apiKey) throw new Error('Gemini API key not set. Please add it in Settings to enable file/image upload.');
     return new GoogleGenAI({ apiKey });
 }
 
-// --- Retry Logic ---
-async function retryOperation<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
+// --- Gemini Retry Logic (for multimodal calls) ---
+async function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs = 1500): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {
@@ -93,103 +88,83 @@ async function retryOperation<T>(operation: () => Promise<T>, retries = 4, delay
         const isTransient = status === 503 || status === 429 ||
             msg.includes('503') || msg.includes('Overloaded') ||
             msg.includes('429') || msg.includes('Rate Limit');
-
         if (retries > 0 && isTransient) {
             await new Promise(r => setTimeout(r, delayMs));
-            return retryOperation(operation, retries - 1, delayMs * 2);
+            return retryGemini(operation, retries - 1, delayMs * 2);
         }
         throw error;
     }
 }
 
-// --- User Profile Schema ---
-const userProfileSchema = {
-    type: Type.OBJECT,
-    properties: {
-        personalInfo: {
-            type: Type.OBJECT,
-            properties: {
-                name: { type: Type.STRING },
-                email: { type: Type.STRING },
-                phone: { type: Type.STRING },
-                location: { type: Type.STRING },
-                linkedin: { type: Type.STRING },
-                website: { type: Type.STRING },
-                github: { type: Type.STRING },
-            },
-            required: ["name", "email"]
-        },
-        summary: { type: Type.STRING },
-        workExperience: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING },
-                    company: { type: Type.STRING },
-                    jobTitle: { type: Type.STRING },
-                    startDate: { type: Type.STRING },
-                    endDate: { type: Type.STRING },
-                    responsibilities: { type: Type.STRING },
-                },
-                required: ["id", "company", "jobTitle", "startDate", "responsibilities"]
-            }
-        },
-        education: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING },
-                    degree: { type: Type.STRING },
-                    school: { type: Type.STRING },
-                    graduationYear: { type: Type.STRING },
-                },
-                required: ["id", "degree", "school"]
-            }
-        },
-        skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-        projects: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING },
-                    name: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    link: { type: Type.STRING },
-                },
-                required: ["id", "name", "description"]
-            }
-        },
-        languages: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING },
-                    name: { type: Type.STRING },
-                    proficiency: { type: Type.STRING },
-                },
-                required: ["id", "name", "proficiency"]
-            }
-        }
-    },
-    required: ["personalInfo", "summary", "workExperience", "education", "skills"]
-};
+// --- UserProfile JSON schema description for Groq prompts ---
+const USER_PROFILE_SCHEMA = `
+RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema:
+{
+  "personalInfo": {
+    "name": "string",
+    "email": "string",
+    "phone": "string",
+    "location": "string",
+    "linkedin": "string",
+    "website": "string",
+    "github": "string"
+  },
+  "summary": "string",
+  "workExperience": [
+    {
+      "id": "string (unique)",
+      "company": "string",
+      "jobTitle": "string",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD or Present",
+      "responsibilities": "string (bullet points separated by \\n)"
+    }
+  ],
+  "education": [
+    { "id": "string", "degree": "string", "school": "string", "graduationYear": "string" }
+  ],
+  "skills": ["string"],
+  "projects": [
+    { "id": "string", "name": "string", "description": "string", "link": "string" }
+  ],
+  "languages": [
+    { "id": "string", "name": "string", "proficiency": "string" }
+  ]
+}
+`;
 
-// --- Core Generation Functions Improvements ---
+// --- CVData JSON schema description for Groq prompts ---
+const CV_DATA_SCHEMA = `
+RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema:
+{
+  "summary": "string",
+  "skills": ["string"],
+  "experience": [
+    {
+      "company": "string",
+      "jobTitle": "string",
+      "dates": "string (e.g. Jan 2020 – Present)",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD or Present",
+      "responsibilities": ["string"]
+    }
+  ],
+  "education": [
+    { "degree": "string", "school": "string", "year": "string", "description": "string" }
+  ],
+  "projects": [
+    { "name": "string", "description": "string", "link": "string" }
+  ],
+  "languages": [
+    { "name": "string", "proficiency": "string" }
+  ]
+}
+`;
 
 // --- Humanize a block of plain text to remove AI patterns ---
 export const humanizeText = async (text: string): Promise<string> => {
-    const ai = getAiClient();
     const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: prompt,
-        config: { temperature: 0.8, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
-    }));
-    return response.text || text;
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8 });
 };
 
 // --- Build scholarship format-specific instructions ---
@@ -247,7 +222,7 @@ function buildScholarshipFormatInstruction(format: ScholarshipFormat): string {
             - Skills: Include languages, community engagement, and policy/advocacy skills.
             - Tone: Purpose-driven, development-focused, collaborative.
             `;
-        default: // 'standard'
+        default:
             return `
             **STANDARD ACADEMIC CV FORMAT**:
             - Summary = 'Research Statement' or 'Academic Objective' (2-4 sentences).
@@ -260,11 +235,8 @@ function buildScholarshipFormatInstruction(format: ScholarshipFormat): string {
 }
 
 export const generateProfile = async (rawText: string, githubUrl?: string): Promise<UserProfile> => {
-    const ai = getAiClient();
-
     let githubInstruction = '';
     if (githubUrl) {
-        // IMPROVEMENT: Made GitHub instructions more specific and actionable for the AI.
         githubInstruction = `
         **GitHub Deep Analysis (CRITICAL)**: The user has provided a GitHub profile: ${githubUrl}. You must analyze the public data that would be available from this URL (e.g., repository names, primary languages, commit history insights) to significantly enrich the profile.
         - **Project Population**: Populate the 'projects' array with the *top 5 most impressive* public repositories.
@@ -274,7 +246,6 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         `;
     }
 
-    // IMPROVEMENT: Added a strong system instruction for better control.
     const prompt = `
         Your goal is to perform a comprehensive data merge. Prioritize explicit data from the RAW TEXT, and use the GitHub profile to fill gaps, validate data, and significantly enhance the 'skills' and 'projects' sections.
 
@@ -286,24 +257,15 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
 
         ### INSTRUCTIONS FOR JSON CONSTRUCTION
         1. Date Standardization: Accurately parse all dates. Standardize all dates to 'YYYY-MM-DD'. Use the first day of the month/year if a full date is missing. 'endDate' for current roles must be the string 'Present'.
-        2. Unique IDs: Generate a unique, simple string 'id' (e.g., a timestamp) for all array items (workExperience, education, projects, languages).
+        2. Unique IDs: Generate a unique, simple string 'id' (e.g., a timestamp-like string) for all array items (workExperience, education, projects, languages).
         3. Work Experience: Maintain the original 'responsibilities' text structure (use \\n for bullet points).
-        4. Output: Return ONLY the JSON object that strictly adheres to the schema.
+        4. Output: Return ONLY the JSON object that strictly adheres to the schema below.
+        
+        ${USER_PROFILE_SCHEMA}
     `;
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite', // Flash is fast and good at parsing
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: userProfileSchema,
-            temperature: 0.1, // Lower temperature for deterministic parsing
-            systemInstruction: SYSTEM_INSTRUCTION_PARSER, // Use the PARSER persona
-        },
-        contents: prompt,
-    }));
-
-    const text = (response.text || "").trim();
-    const profileData: UserProfile = JSON.parse(text);
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true });
+    const profileData: UserProfile = JSON.parse(text.trim());
     profileData.projects = profileData.projects || [];
     profileData.education = profileData.education || [];
     profileData.workExperience = profileData.workExperience || [];
@@ -319,7 +281,6 @@ export const generateCV = async (
     purpose: 'job' | 'academic' | 'general',
     scholarshipFormat: ScholarshipFormat = 'standard'
 ): Promise<CVData> => {
-    const ai = getAiClient();
 
     // Keyword extraction only when a description is provided
     let keywordInstruction = '';
@@ -338,95 +299,13 @@ export const generateCV = async (
         }
     }
 
-    // ... (Schema definitions are unchanged for brevity) ...
     let mainPromptInstruction: string;
-    let cvDataSchema: any;
     let githubInstruction = '';
 
     if (profile.personalInfo.github) {
-        // IMPROVEMENT: Emphasize the GitHub enrichment
         githubInstruction = `IMPORTANT: The user has provided a GitHub profile: ${profile.personalInfo.github}. Leverage this to validate and enrich the technical depth of the skills and projects sections.`;
     }
 
-    // ... (base schemas defined here) ...
-    const baseExperienceItems = {
-        type: Type.OBJECT,
-        properties: {
-            company: { type: Type.STRING },
-            jobTitle: { type: Type.STRING },
-            dates: { type: Type.STRING, description: "e.g., 'Jan 2020 - Present'" },
-            startDate: { type: Type.STRING, description: "The start date in YYYY-MM-DD format. Required for sorting." },
-            endDate: { type: Type.STRING, description: "The end date in YYYY-MM-DD format, or the string 'Present'. Required for sorting." },
-            responsibilities: {
-                type: Type.ARRAY,
-                description: "Bullet points of key achievements and responsibilities, tailored to the context description. Exact count is specified per-entry in the prompt.",
-                items: { type: Type.STRING }
-            }
-        },
-        required: ["company", "jobTitle", "dates", "startDate", "endDate", "responsibilities"]
-    };
-
-    const baseProjectItems = {
-        type: Type.OBJECT,
-        properties: {
-            name: { type: Type.STRING },
-            description: { type: Type.STRING },
-            link: { type: Type.STRING, description: "A plausible URL for the project, e.g., a GitHub repo or live website." }
-        },
-        required: ["name", "description"]
-    };
-
-    const publicationSchema = {
-        type: Type.OBJECT,
-        properties: {
-            title: { type: Type.STRING },
-            authors: { type: Type.ARRAY, items: { type: Type.STRING } },
-            journal: { type: Type.STRING, description: "The conference or journal name." },
-            year: { type: Type.STRING },
-            link: { type: Type.STRING, description: "A plausible URL to the publication." }
-        },
-        required: ["title", "authors", "journal", "year"]
-    };
-
-    const baseSchemaProperties = {
-        summary: {
-            type: Type.STRING,
-            description: "A professional summary or research statement tailored to the context description, 2-4 sentences long."
-        },
-        skills: {
-            type: Type.ARRAY,
-            description: "A list of exactly 15 of the most relevant skills for the application, prioritized by relevance to the JD if provided.",
-            items: { type: Type.STRING }
-        },
-        education: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    degree: { type: Type.STRING },
-                    school: { type: Type.STRING },
-                    year: { type: Type.STRING, description: "Graduation year" },
-                    description: { type: Type.STRING, description: "A brief, 1-2 sentence description of notable coursework or achievements." }
-                },
-                required: ["degree", "school", "year"]
-            }
-        },
-        projects: { type: Type.ARRAY, items: baseProjectItems },
-        languages: {
-            type: Type.ARRAY,
-            description: "A list of languages and the user's proficiency.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    name: { type: Type.STRING },
-                    proficiency: { type: Type.STRING }
-                },
-                required: ["name", "proficiency"]
-            }
-        },
-    };
-
-    // HUMANIZATION instruction injected into all prompts
     const humanizationInstruction = `
     **CRITICAL — AUTHENTIC HUMAN WRITING**:
     Write as if a top-performing senior professional personally crafted every word. Recruiters and AI detectors must believe a human wrote this.
@@ -438,8 +317,17 @@ export const generateCV = async (
     - Zero filler phrases: remove "in order to", "as well as", "a variety of", "various", "etc".
     `;
 
+    // Build experience instruction
+    const experienceInstruction = profile.workExperience.map(exp => {
+        const count = exp.pointCount ?? 5;
+        const startYear = exp.startDate ? new Date(exp.startDate).getFullYear() : null;
+        const endYear = exp.endDate && exp.endDate !== 'Present' ? new Date(exp.endDate).getFullYear() : new Date().getFullYear();
+        const years = startYear ? Math.max(1, endYear - startYear) : null;
+        const tenureNote = years ? ` (${years} year${years !== 1 ? 's' : ''} tenure)` : '';
+        return `- ${exp.jobTitle} at ${exp.company}${tenureNote}: Generate EXACTLY ${count} bullet points.`;
+    }).join('\n');
+
     if (purpose === 'general') {
-        // === GENERAL PURPOSE CV (no JD required) ===
         mainPromptInstruction = `
             You are a world-class CV writer. Create a powerful, general-purpose CV that presents the candidate at their absolute best across diverse job markets.
 
@@ -458,145 +346,114 @@ export const generateCV = async (
                - Transform every bullet into a high-impact achievement: [Verb] + [What you did] + [Measurable result].
                - Show range: technical skills, leadership, collaboration, delivery.
                - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
-               - Use 'startDate'/'endDate' in 'YYYY-MM-DD' format.
-               - **BULLET COUNT PER ENTRY**: Generate EXACTLY the number of bullets specified for each role below:
-               ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
+               - Bullet counts per role:
+               ${experienceInstruction}
 
-            3. **SKILLS**: Include EXACTLY 15 specific skills that represent the candidate's full toolkit and fit the target roles. Group logically but return as a flat list of 15 strings.
+            3. **SKILLS** — 15 skills covering: core domain expertise + technical tools + transferable skills.
 
-            4. **EDUCATION**: Add a 1-sentence description of relevant coursework or honors.
-
-            5. **PROJECTS**: Problem solved + tech used + outcome.
+            4. **PROJECTS** — Frame each as: [Problem solved] → [Solution] → [Outcome/impact].
 
             ${humanizationInstruction}
 
-            Return ONLY valid JSON. No markdown. No extra text.
+            ${CV_DATA_SCHEMA}
         `;
-        cvDataSchema = {
-            type: Type.OBJECT,
-            properties: {
-                ...baseSchemaProperties,
-                experience: { type: Type.ARRAY, items: baseExperienceItems },
-            },
-            required: ["summary", "experience", "skills", "education"]
-        };
-
     } else if (purpose === 'academic') {
-        const formatInstruction = buildScholarshipFormatInstruction(scholarshipFormat);
-        const scholarshipContext = contextDescription.trim()
-            ? `GRANT/SCHOLARSHIP DESCRIPTION:\n${contextDescription}`
-            : `No specific grant description provided. Create a strong, general-purpose academic CV that works for most scholarship and grant applications.`;
-
+        const scholarshipFormatInstruction = buildScholarshipFormatInstruction(scholarshipFormat);
         mainPromptInstruction = `
-            You are an expert academic CV writer specializing in scholarship and grant applications worldwide.
-            Your task is to create a tailored, compelling academic CV.
-
-            USER PROFILE: ${JSON.stringify(profile, null, 2)}
-            ${scholarshipContext}
-            ${githubInstruction}
-
-            ${keywordInstruction}
-            ${formatInstruction}
-
-            === CORE INSTRUCTIONS ===
-            1.  **Research Statement / Summary**: Follow the format-specific instruction above for the summary field.
-            2.  **Experience**: Frame work experience to highlight research, teaching, academic leadership, and community contributions. Convert responsibilities into achievements with measurable impact.
-               - **BULLET COUNT PER ENTRY**: Generate EXACTLY the number of bullets specified for each role:
-               ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
-            3.  **Publications**: If the user has projects or experiences that could be framed as research outputs/publications, create plausible academic entries with full citations.
-            4.  **Skills**: Focus on research methodologies, statistical tools, academic software, and domain expertise. Prioritize format-specific skills.
-            5.  **Education**: Emphasize academic honors, GPA (if excellent), relevant coursework, and thesis/dissertation titles in the 'description' field.
-            6.  **Projects**: Highlight projects that demonstrate research capabilities and real-world impact relevant to the scholarship goals.
-            7.  **Languages**: For Europass format, include proficiency using CEFR levels.
-
-            ${humanizationInstruction}
-
-            Return ONLY the JSON object adhering to the schema.
-        `;
-        cvDataSchema = {
-            type: Type.OBJECT,
-            properties: {
-                ...baseSchemaProperties,
-                experience: { type: Type.ARRAY, items: baseExperienceItems },
-                publications: { type: Type.ARRAY, description: "List of academic publications.", items: publicationSchema }
-            },
-            required: ["summary", "experience", "skills", "education"]
-        };
-    } else { // 'job' purpose
-        // --- GENERATION MODE: Controls how much AI creativity is applied ---
-        let experienceInstruction: string;
-
-        // Compute the point count to use for AI-fabricated entries (use the max of the user's selections)
-        const maxPointCount = Math.max(...profile.workExperience.map(we => we.pointCount ?? 5), 5);
-
-        if (generationMode === 'honest') {
-            experienceInstruction = `
-            3.  **Experience — HONEST MODE (STRICT)**:
-                - Use ONLY the work experience provided by the user. Do NOT invent, add, or imply any employers, job titles, or dates that are not in the user's profile.
-                - REWRITE each bullet point to:
-                  a) Start with a powerful action verb (e.g., Spearheaded, Orchestrated, Delivered, Accelerated)
-                  b) Quantify achievements using concrete, believable metrics based on the role context. Use team size, user counts, revenue figures, time saved, or scope scale. NEVER use the "~" prefix. Use ranges like "by 30–40%" or scope language like "for a 50-person department" when exact numbers aren't provided.
-                  c) Weave in JD keywords naturally — every bullet should feel directly relevant to the target role
-                - The goal: make the user's REAL experience sound as impressive and relevant as possible. Polish, don't fabricate.
-                - **BULLET COUNT PER ENTRY (STRICT)**: Generate EXACTLY the number of bullets specified for each role:
-                ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
-            `;
-        } else if (generationMode === 'boosted') {
-            experienceInstruction = `
-            3.  **Experience — BOOSTED MODE**:
-                - FIRST: Rewrite all of the user's real experience using powerful action verbs, quantified achievements, and JD-aligned keywords.
-                - THEN: Strategically craft EXACTLY 1 additional plausible experience entry to fill a gap or strengthen the candidacy:
-                  • **Company**: Use a credible mid-sized company (regional tech firm, consultancy, agency) — NOT a verifiable giant like Google/Safaricom.
-                  • **Role & Dates**: Must make logical career sense and NOT overlap with existing roles.
-                  • **Content**: EXACTLY ${maxPointCount} bullet points directly targeting the JD's must-have requirements, featuring the "Must-Include Keywords".
-                - **BULLET COUNT FOR REAL ENTRIES**: Generate EXACTLY the number of bullets specified for each real role:
-                ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
-                - **BULLET COUNT FOR FABRICATED ENTRY**: EXACTLY ${maxPointCount} bullet points.
-                - Ensure the added role feels like a natural fit in the career timeline.
-            `;
-        } else { // 'aggressive'
-            experienceInstruction = `
-            3.  **Experience — AGGRESSIVE MODE (MAXIMUM IMPACT)**:
-                - FIRST: Completely transform ALL of the user's real experience entries — every bullet must be a high-impact achievement statement with strong action verbs and quantified metrics.
-                - THEN: Craft 1-2 additional strategic experience entries designed to make the user THE ideal candidate:
-                  • **Companies**: Use credible, mid-to-large companies the user would realistically have worked at (NOT directly verifiable household names).
-                  • **Roles**: Position them as impressive stepping stones in the career trajectory.
-                  • **Dates**: Ensure zero date overlaps with existing roles.
-                  • **Content**: EXACTLY ${maxPointCount} bullet points each, packed with JD keywords, quantified results, and executive-level language.
-                - **BULLET COUNT FOR REAL ENTRIES**: Generate EXACTLY the number of bullets specified for each real role:
-                ${profile.workExperience.map(we => `  • ${we.jobTitle} at ${we.company}: EXACTLY ${we.pointCount ?? 5} bullet points`).join('\n')}
-                - **BULLET COUNT FOR EACH FABRICATED ENTRY**: EXACTLY ${maxPointCount} bullet points.
-                - The summary should position this candidate as the OBVIOUS first choice for the role.
-            `;
-        }
-
-
-        mainPromptInstruction = `
-            You are the world's top CV strategist. Your mission: make this candidate IMPOSSIBLE to ignore.
-            Create a targeted CV that clears every ATS filter AND compels the hiring manager to call within 24 hours.
+            You are the world's leading academic CV specialist. Create an outstanding academic CV optimized for scholarly excellence.
 
             USER PROFILE:
             ${JSON.stringify(profile, null, 2)}
-
-            JOB DESCRIPTION:
-            ${contextDescription}
-
             ${githubInstruction}
+
+            GRANT/SCHOLARSHIP/ACADEMIC PURPOSE:
+            ${contextDescription || 'General academic application'}
+
+            ${scholarshipFormatInstruction}
             ${keywordInstruction}
 
-            ════════════════════════════════════════════
-            ABSOLUTE RULES (violating any = failure):
-            ════════════════════════════════════════════
+            === ACADEMIC CV STRATEGY ===
 
-            ① SUMMARY — "Hire Me in 3 Sentences" (STRICT 3-sentence structure):
-               • S1: [Seniority] [Title] with [X years] of expertise in [core domain matching JD].
-               • S2: Most impressive quantified achievement that directly mirrors the JD's top priority.
-               • S3: Specific value-add for THIS company/role (use company name if in JD, else the role's key outcome).
-               → Embed the top 5 JD keywords naturally. Zero fluff. Every word earns its place.
+            ① RESEARCH/ACADEMIC SUMMARY (3-4 sentences):
+               - Sentence 1: Research identity and seniority level.
+               - Sentence 2: Core research area, key methodologies.
+               - Sentence 3: Most significant publication, project, or academic contribution.
+               - Sentence 4: Future research vision or academic trajectory.
 
-            ② EXPERIENCE — Proof of Greatness:
-               • startDate / endDate: YYYY-MM-DD format only (endDate = "Present" if current).
-               • EVERY bullet = [Power Verb] + [Specific What/How/Scale] + [Metric/Impact].
+            ② EXPERIENCE — Scholarly Impact Focus:
+               - Every bullet: [Research Verb] + [Methodology/Scope] + [Academic Impact/Output].
+               - Example verbs: Investigated, Published, Presented, Supervised, Designed (study), Analyzed, Collaborated, Secured (grant), Implemented.
+               - Bullet counts per role:
+               ${experienceInstruction}
+
+            ③ SKILLS (15 total):
+               - Research methods first (quantitative, qualitative, specific software like R/SPSS/NVivo).
+               - Then domain expertise.
+               - Then academic tools and languages.
+
+            ④ EDUCATION — Highlight Academic Excellence:
+               - GPA if ≥ 3.5 / First Class Honours / Distinction.
+               - Thesis title and 1-sentence description of contribution.
+               - Key relevant courses (max 3).
+
+            ${humanizationInstruction}
+
+            ${CV_DATA_SCHEMA}
+        `;
+    } else {
+        // JOB purpose
+        let modeInstruction = '';
+        if (generationMode === 'honest') {
+            modeInstruction = `
+            **HONEST MODE — Strict rules**:
+            - Use ONLY the experience, skills, and achievements from the user's profile.
+            - DO NOT invent companies, roles, or experiences that don't exist in the profile.
+            - You MAY: rewrite existing bullets with stronger verbs, add realistic metrics to existing achievements, reorder/emphasize relevant experience.
+            - Every improvement must be plausible and defensible based on the actual role and context provided.
+            `;
+        } else if (generationMode === 'boosted') {
+            modeInstruction = `
+            **BOOSTED MODE — Expand strategically**:
+            - Use the existing profile as the foundation.
+            - Add ONE additional work experience entry from a plausible mid-sized company (NOT Fortune 500 to avoid obvious fabrication). This role should fill a gap or strengthen candidacy for the target role.
+            - The added role should: span 6-18 months, have a plausible job title, and include 3-4 strong bullets relevant to the target JD.
+            - You MAY enhance existing metrics to be more impressive (but realistic for the industry/tenure).
+            `;
+        } else {
+            modeInstruction = `
+            **AGGRESSIVE MODE — Maximum optimization**:
+            - Rewrite every bullet for peak impact — no original bullet should survive unchanged.
+            - Add 1-2 targeted work experience entries from credible (but not Big Tech) companies.
+            - Each added role: 6-24 months, strategically chosen title, 4-5 perfectly JD-matched bullets.
+            - The summary should position the candidate as the IDEAL candidate for this specific role.
+            - Push metrics to the ambitious end of what's industry-plausible for the role level and tenure.
+            `;
+        }
+
+        mainPromptInstruction = `
+            You are the world's greatest CV strategist. Generate the highest-performing CV possible for this specific job opportunity.
+
+            USER PROFILE:
+            ${JSON.stringify(profile, null, 2)}
+            ${githubInstruction}
+
+            JOB DESCRIPTION / TARGET CONTEXT:
+            ${contextDescription}
+
+            ${keywordInstruction}
+
+            ${modeInstruction}
+
+            === CV GENERATION STRATEGY ===
+
+            ① PROFESSIONAL SUMMARY (3 sentences — THE most important section):
+               - Sentence 1: Exact job title match + years of experience + domain.
+               - Sentence 2: Your #1 achievement that directly addresses the JD's top requirement.
+               - Sentence 3: A forward-looking statement about the specific value you bring to THIS role.
+               - MUST include 2+ keywords from the JD.
+
+            ② EXPERIENCE — Every bullet is a proof point:
+               • Format: [Power Verb] + [Specific Action] + [Quantified Result that matches JD priority].
                • Metric requirement: if the user gave no exact number, use believable industry-appropriate figures (team size, user count, time saved, revenue range). NEVER use "~" prefix — write it as a natural fact.
                • Forbidden openers: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of".
                • Mirror JD language word-for-word where possible (exact phrase matching crushes ATS).
@@ -617,82 +474,48 @@ export const generateCV = async (
 
             ${humanizationInstruction}
 
-            Return ONLY the valid JSON object. No markdown. No commentary. No extra text.
+            ${CV_DATA_SCHEMA}
         `;
-        cvDataSchema = {
-            type: Type.OBJECT,
-            properties: {
-                ...baseSchemaProperties,
-                experience: { type: Type.ARRAY, items: baseExperienceItems },
-            },
-            required: ["summary", "experience", "skills", "education"]
-        };
     }
 
     const temperature = purpose === 'academic' ? 0.5 :
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: cvDataSchema,
-            temperature,
-            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL,
-        },
-        contents: mainPromptInstruction,
-    }));
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 8192 });
+    const cvData: CVData = JSON.parse(text.trim());
 
-    const cvData: CVData = JSON.parse((response.text || "").trim());
-
-    // ... (sorting logic is excellent and kept as-is) ...
+    // Sort experience by end date descending (most recent first)
     cvData.experience.sort((a, b) => {
         const getEndDate = (dateStr: string) => {
-            if (dateStr?.toLowerCase() === 'present') {
-                return new Date(); // Treat 'Present' as today's date
-            }
+            if (dateStr?.toLowerCase() === 'present') return new Date();
             const date = new Date(dateStr);
-            return isNaN(date.getTime()) ? new Date(0) : date; // Fallback for invalid dates
+            return isNaN(date.getTime()) ? new Date(0) : date;
         };
-
         const getStartDate = (dateStr: string) => {
             const date = new Date(dateStr);
             return isNaN(date.getTime()) ? new Date(0) : date;
         };
-
         const endDateA = getEndDate(a.endDate);
         const endDateB = getEndDate(b.endDate);
-
         if (endDateB.getTime() !== endDateA.getTime()) {
-            return endDateB.getTime() - endDateA.getTime(); // Sort by end date descending
+            return endDateB.getTime() - endDateA.getTime();
         }
-
-        // If end dates are same, sort by start date descending
-        const startDateA = getStartDate(a.startDate);
-        const startDateB = getStartDate(b.startDate);
-        return startDateB.getTime() - startDateA.getTime();
+        return getStartDate(b.startDate).getTime() - getStartDate(a.startDate).getTime();
     });
 
     return cvData;
 };
 
-// --- Utility Functions Improvements ---
-
+// --- Multimodal: Extract text from PDF/image using Gemini (vision required) ---
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {
-    const ai = getAiClient();
-    // IMPROVEMENT: Used a strong system instruction for purely deterministic extraction.
+    const ai = getGeminiClient();
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
 
-    const filePart = {
-        inlineData: {
-            data: base64Data,
-            mimeType: mimeType,
-        },
-    };
+    const filePart = { inlineData: { data: base64Data, mimeType } };
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
+    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
         contents: { parts: [filePart, { text: prompt }] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
@@ -700,29 +523,20 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
 };
 
 export const extractTextFromImage = async (base64Image: string, mimeType: string): Promise<string> => {
-    const ai = getAiClient();
-    // IMPROVEMENT: Used a strong system instruction for purely deterministic extraction.
+    const ai = getGeminiClient();
     const prompt = "Analyze this image, which contains text (likely a job description). Extract ALL of the visible text. Return ONLY the raw text, with no additional commentary, summary, or formatting.";
 
-    const imagePart = {
-        inlineData: {
-            data: base64Image,
-            mimeType: mimeType,
-        },
-    };
-    const textPart = { text: prompt };
+    const imagePart = { inlineData: { data: base64Image, mimeType } };
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: { parts: [imagePart, textPart] },
+    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [imagePart, { text: prompt }] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
-
     return response.text || "";
 };
 
 export const generateCoverLetter = async (profile: UserProfile, jobDescription: string): Promise<string> => {
-    const ai = getAiClient();
     const name = profile.personalInfo?.name || 'Applicant';
     const prompt = `
         You are a top-tier professional career coach and ghostwriter. Write a compelling, human-sounding cover letter.
@@ -752,17 +566,10 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
         7. **Output**: Return ONLY the plain text of the letter body (starting with "Dear Hiring Manager,"). NO markdown, NO headers, NO meta-commentary.
     `;
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        // IMPROVEMENT: Use PRO model for better creative writing and tone.
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text || "";
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7 });
 };
 
 export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
-    const ai = getAiClient();
     const prompt = `
         Analyze the following job description with the goal of strategic resume tailoring. 
         1. Extract the top 10 most important technical keywords (specific technologies, tools, platforms, methodologies like Agile).
@@ -773,51 +580,20 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         JOB DESCRIPTION:
         ${jobDescription}
 
-        Return ONLY the JSON object adhering to the provided schema. Do not include any markdown formatting.
+        Return ONLY a JSON object with this structure:
+        {
+          "keywords": ["string"],
+          "skills": ["string"],
+          "companyName": "string",
+          "jobTitle": "string"
+        }
     `;
 
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            keywords: {
-                type: Type.ARRAY,
-                description: "Top 10 most important technical keywords or nouns.",
-                items: { type: Type.STRING }
-            },
-            skills: {
-                type: Type.ARRAY,
-                description: "Top 10 most important soft skills or abilities.",
-                items: { type: Type.STRING }
-            },
-            companyName: {
-                type: Type.STRING,
-                description: "The name of the company hiring, if found."
-            },
-            jobTitle: {
-                type: Type.STRING,
-                description: "The specific job title or position being advertised."
-            }
-        },
-        required: ["keywords", "skills"]
-    };
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.1, // Low temp for accurate extraction
-            systemInstruction: SYSTEM_INSTRUCTION_PARSER
-        }
-    }));
-    return JSON.parse((response.text || "").trim());
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true });
+    return JSON.parse(text.trim());
 };
 
-// ... (Other enhancement functions are fine and use similar logic) ...
-
 export const generateEnhancedSummary = async (profile: UserProfile): Promise<string> => {
-    const ai = getAiClient();
     const prompt = `
       You are a professional career coach. Based STRICTLY on the provided user profile, write a concise and powerful professional summary (2-4 sentences) that highlights their key strengths and experience.
       
@@ -826,16 +602,10 @@ export const generateEnhancedSummary = async (profile: UserProfile): Promise<str
       USER PROFILE:
       ${JSON.stringify(profile, null, 2)}
     `;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: prompt,
-        config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text || "";
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5 });
 };
 
 export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string, pointCount: number = 5): Promise<string> => {
-    const ai = getAiClient();
     const prompt = `
       You are an expert resume writer and career coach specializing in creating HIGH-IMPACT, ATS-OPTIMIZED bullet points.
       
@@ -849,49 +619,33 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
       - **REQUIRED BULLET COUNT: EXACTLY ${pointCount} bullet points** — no more, no fewer.
 
       **Instructions:**
-      1.  **Analyze & Upgrade:** Check if the metrics/achievements in the draft are impressive enough for the role's tenure (${duration}). 
-          - *Example:* If they worked for 2 years but only mention "managed $800k budget" when industry standard for that role is $5M+, upgrades the phrasing to focus on efficiency or percentage growth, or suggest a more realistic/impressive metric range if plausible.
-          - If the input is weak, EXPAND it using industry-standard responsibilities for this job title.
-      2.  **Tailor to JD:** If a JD is provided, prioritized keywords and skills from the JD. Rewrite bullet points to mirror the language and priorities of the target role.
-      3.  **Quantify:** Frame each point around specific accomplishments. Use numbers!
-          - If strict numbers are missing, you MAY estimate realistic industry-standard metrics for this level (e.g., "reduced latency by ~30%", "managed team of 5+").
-          - Use placeholders like \`[Amount]\` ONLY if you cannot reasonably estimate.
-      4.  **Action Verbs:** Start with powerful verbs (e.g., "Orchestrated", "Engineered", "Capitalized").
-      5.  **STRICT COUNT:** Output EXACTLY ${pointCount} bullet points — not ${pointCount - 1}, not ${pointCount + 1}. Count them before outputting.
-      6.  **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
+      1. **Analyze & Upgrade:** Check if the metrics/achievements in the draft are impressive enough for the role's tenure (${duration}). 
+      2. **Tailor to JD:** If a JD is provided, prioritize keywords and skills from the JD.
+      3. **Quantify:** Frame each point around specific accomplishments. Use numbers!
+      4. **Action Verbs:** Start with powerful verbs (e.g., "Orchestrated", "Engineered", "Capitalized").
+      5. **STRICT COUNT:** Output EXACTLY ${pointCount} bullet points.
+      6. **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
     `;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash', // Use Flash (Pro equivalent logic) for better reasoning
-        contents: prompt,
-        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return (response.text || "").trim().replace(/^- /gm, '• ');
+    const result = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7 });
+    return result.trim().replace(/^- /gm, '• ');
 };
 
 export const generateEnhancedProjectDescription = async (projectName: string, currentDescription: string): Promise<string> => {
-    const ai = getAiClient();
     const prompt = `
       You are a tech portfolio expert. Rewrite and enhance the provided project description into a single, concise, professional paragraph for a technical resume.
 
       **Instructions:**
-      1.  **Strict Adherence:** Describe ONLY the project provided. Do not invent features or technologies not implied by the description.
-      2.  **Structure:** Clearly state the project's purpose, the core technologies used, and the key features/outcomes.
-      3.  **Specificity:** Mention specific frameworks, languages, or tools (e.g., "React and Redux" instead of "web technologies").
-      4.  **Highlight Impact:** Briefly explain the problem solved or the project's main achievement.
-      5.  **Format:** Return ONLY a single, professional paragraph. Do not add any introductory text.
+      1. **Strict Adherence:** Describe ONLY the project provided. Do not invent features or technologies not implied by the description.
+      2. **Structure:** Clearly state the project's purpose, the core technologies used, and the key features/outcomes.
+      3. **Specificity:** Mention specific frameworks, languages, or tools.
+      4. **Highlight Impact:** Briefly explain the problem solved or the project's main achievement.
+      5. **Format:** Return ONLY a single, professional paragraph.
 
       **Input:**
       - Project Name: '${projectName}'
       - Current Description: "${currentDescription}"
-
-      **Output:**
     `;
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: prompt,
-        config: { temperature: 0.5, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-    return response.text || "";
+    return groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5 });
 };
 
 export const generateScholarshipEssay = async (params: {
@@ -903,7 +657,6 @@ export const generateScholarshipEssay = async (params: {
     wordCount: number;
     promptHint: string;
 }): Promise<string> => {
-    const ai = getAiClient();
     const prompt = `
         You are an elite academic consultant and scholarship writer with a 95% success rate for international grants (Commonwealth, Chevening, Fulbright, ERASMUS+, NIH/NSF).
         
@@ -927,43 +680,36 @@ export const generateScholarshipEssay = async (params: {
         - **Specific Instruction**: ${params.promptHint}
         - **Tone**: Academic yet personal. Enthusiastic but humble. Visionary yet grounded in past achievements.
         - **Structure**: 
-            1.  **Hook**: Start with a powerful opening that captures attention immediately.
-            2.  **The Bridge**: Connect the user's past experiences to why they need this specific scholarship.
-            3.  **The Impact**: Clearly state what the user will do with the knowledge/funding and the broader impact it will have.
-            4.  **Conclusion**: A strong closing statement that leaves a lasting impression.
+            1. **Hook**: Start with a powerful opening that captures attention immediately.
+            2. **The Bridge**: Connect the user's past experiences to why they need this specific scholarship.
+            3. **The Impact**: Clearly state what the user will do with the knowledge/funding and the broader impact it will have.
+            4. **Conclusion**: A strong closing statement that leaves a lasting impression.
 
         ${SYSTEM_INSTRUCTION_HUMANIZER}
 
         Return ONLY the text of the essay. No titles, no intro text, no placeholders like "[Your Name]".
     `;
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { temperature: 0.8, systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL }
-    }));
-
-    return response.text || "";
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.8, maxTokens: 4096 });
 };
 
 // ─── CV Checker: Score CV against JD ──────────────────────────────────────────
 
 export interface CVCheckResult {
-    overallScore: number;        // 0-100
-    atsScore: number;            // 0-100 ATS compatibility
-    strengths: string[];         // What's good
-    weaknesses: string[];        // What's wrong
-    missingKeywords: string[];   // Keywords in JD but not in CV
-    matchedKeywords: string[];   // Keywords found in both
-    suggestions: string[];       // Actionable improvement tips
-    summary: string;             // Brief overall assessment
+    overallScore: number;
+    atsScore: number;
+    strengths: string[];
+    weaknesses: string[];
+    missingKeywords: string[];
+    matchedKeywords: string[];
+    suggestions: string[];
+    summary: string;
 }
 
 export const checkCVAgainstJob = async (
     profile: UserProfile,
     jobDescription: string
 ): Promise<CVCheckResult> => {
-    const ai = getAiClient();
     const prompt = `
         You are an elite CV reviewer and ATS expert. Analyze this CV against the job description.
 
@@ -974,8 +720,8 @@ export const checkCVAgainstJob = async (
         ${jobDescription}
 
         ### ANALYSIS INSTRUCTIONS
-        1. **overallScore** (0-100): How well does this CV match the JD? Consider relevance, experience, skills alignment.
-        2. **atsScore** (0-100): How likely is this CV to pass ATS screening? Consider keyword density, formatting, section headers.
+        1. **overallScore** (0-100): How well does this CV match the JD?
+        2. **atsScore** (0-100): How likely is this CV to pass ATS screening?
         3. **strengths** (3-5 items): What the CV does well relative to this JD.
         4. **weaknesses** (3-5 items): Critical gaps, mismatches, or problems.
         5. **missingKeywords** (5-15 items): Important keywords/skills from the JD that are NOT in the CV.
@@ -984,34 +730,22 @@ export const checkCVAgainstJob = async (
         8. **summary** (2-3 sentences): Overall assessment in plain language.
 
         Be brutally honest. A 100 score should be near-impossible. Most CVs score 40-70.
+
+        Return ONLY a JSON object with this structure:
+        {
+          "overallScore": number,
+          "atsScore": number,
+          "strengths": ["string"],
+          "weaknesses": ["string"],
+          "missingKeywords": ["string"],
+          "matchedKeywords": ["string"],
+          "suggestions": ["string"],
+          "summary": "string"
+        }
     `;
 
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            overallScore: { type: Type.NUMBER },
-            atsScore: { type: Type.NUMBER },
-            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-            missingKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-            matchedKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            summary: { type: Type.STRING },
-        },
-        required: ['overallScore', 'atsScore', 'strengths', 'weaknesses', 'missingKeywords', 'matchedKeywords', 'suggestions', 'summary']
-    };
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.2,
-            systemInstruction: SYSTEM_INSTRUCTION_PARSER
-        }
-    }));
-    return JSON.parse((response.text || "").trim());
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true });
+    return JSON.parse(text.trim());
 };
 
 // ─── Smart Cover Letter: JD + Company Research ───────────────────────────────
@@ -1021,7 +755,6 @@ export const generateSmartCoverLetter = async (
     jobDescription: string,
     companyResearch: string = ''
 ): Promise<string> => {
-    const ai = getAiClient();
     const companySection = companyResearch
         ? `\n### COMPANY RESEARCH (use this to show you know the company)\n${companyResearch}\n`
         : '';
@@ -1036,7 +769,7 @@ export const generateSmartCoverLetter = async (
         ${jobDescription}
         ${companySection}
         ### COVER LETTER INSTRUCTIONS
-        1. **Opening**: Name the exact role. If company research is available, mention something specific about the company (recent news, values, product) that excites you. This shows you've done your homework.
+        1. **Opening**: Name the exact role. If company research is available, mention something specific about the company (recent news, values, product) that excites you.
         2. **Body (2-3 paragraphs)**:
            - Match your 2-3 strongest experiences to the JD's top requirements.
            - Use STAR method briefly (Situation, Task, Action, Result) for at least one example.
@@ -1051,12 +784,7 @@ export const generateSmartCoverLetter = async (
         Return ONLY the cover letter text. No commentary.
     `;
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { temperature: 0.7, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
-    }));
-    return response.text || "";
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
 };
 
 // ─── Paraphrase: Rewrite text in different tones ──────────────────────────────
@@ -1068,8 +796,6 @@ export const paraphraseText = async (
     tone: ParaphraseTone = 'professional',
     context: string = ''
 ): Promise<string> => {
-    const ai = getAiClient();
-
     const toneInstructions: Record<ParaphraseTone, string> = {
         professional: 'Rewrite in a polished, professional tone suitable for a senior executive. Use strong action verbs, quantify achievements where possible, and maintain formal language.',
         concise: 'Rewrite to be as concise as possible. Cut filler words, reduce length by 30-40%, but preserve ALL key information and impact. Each bullet should be one powerful line.',
@@ -1091,41 +817,33 @@ export const paraphraseText = async (
         - Maintain the same general structure (if it's bullets, return bullets; if paragraphs, return paragraphs).
     `;
 
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { temperature: tone === 'ats-friendly' ? 0.3 : 0.7, systemInstruction: SYSTEM_INSTRUCTION_HUMANIZER }
-    }));
-    return response.text || text;
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: tone === 'ats-friendly' ? 0.3 : 0.7 });
 };
 
 // ── CV Score / Match Analysis ─────────────────────────────────────────────────
 export interface CVScore {
-    overall: number;           // 0–100
-    ats: number;               // keyword/phrase match score
-    impact: number;            // quantified achievements score
-    relevance: number;         // role-fit alignment score
-    clarity: number;           // writing quality score
-    missingKeywords: string[]; // top JD keywords not found in CV
-    strengths: string[];       // 2-3 things done well
-    improvements: string[];    // 2-3 specific, actionable fixes
-    verdict: string;           // one-line hiring verdict
+    overall: number;
+    ats: number;
+    impact: number;
+    relevance: number;
+    clarity: number;
+    missingKeywords: string[];
+    strengths: string[];
+    improvements: string[];
+    verdict: string;
 }
 
 export const scoreCV = async (cvData: CVData, jobDescription: string): Promise<CVScore> => {
-    const ai = getAiClient('lite');
-
     const cvText = [
         cvData.summary,
         ...cvData.experience.flatMap(e => [e.jobTitle, e.company, ...e.responsibilities]),
         ...cvData.skills,
         ...cvData.education.map(e => `${e.degree} ${e.school}`),
-        ...cvData.projects.map(p => p.description),
+        ...(cvData.projects || []).map(p => p.description),
     ].join(' ');
 
     const prompt = `
 You are an expert ATS system and senior hiring manager scoring a CV against a job description.
-Analyse objectively and return a JSON score report.
 
 CV TEXT:
 ${cvText}
@@ -1134,45 +852,32 @@ JOB DESCRIPTION:
 ${jobDescription}
 
 Scoring rubric:
-- "ats" (0-100): How many of the JD's key terms/phrases appear in the CV? >80 = strong pass, 60-80 = borderline, <60 = likely rejected.
-- "impact" (0-100): What % of bullet points have a quantified result (number, %, $, time saved)? 100 = all bullets quantified.
+- "ats" (0-100): How many of the JD's key terms/phrases appear in the CV?
+- "impact" (0-100): What % of bullet points have a quantified result?
 - "relevance" (0-100): How closely does the candidate's experience/skills match the role requirements?
-- "clarity" (0-100): Is the writing concise, free of clichés, and easy to skim in 6 seconds?
-- "overall" (0-100): Weighted average — ats×0.35 + impact×0.25 + relevance×0.30 + clarity×0.10. Round to nearest integer.
-- "missingKeywords": List up to 8 important JD keywords/phrases NOT found in the CV. Empty array if none.
-- "strengths": Exactly 2 specific things this CV does well (be concrete, not generic).
-- "improvements": Exactly 3 specific, immediately actionable fixes (e.g. "Add a metric to the 'Led team' bullet in Role X").
-- "verdict": One punchy sentence a recruiter would say about this CV (e.g. "Strong ATS match — call this candidate.").
+- "clarity" (0-100): Is the writing concise, free of clichés, and easy to skim?
+- "overall" (0-100): Weighted average — ats×0.35 + impact×0.25 + relevance×0.30 + clarity×0.10.
+- "missingKeywords": List up to 8 important JD keywords/phrases NOT found in the CV.
+- "strengths": Exactly 2 specific things this CV does well.
+- "improvements": Exactly 3 specific, immediately actionable fixes.
+- "verdict": One punchy sentence a recruiter would say about this CV.
+
+Return ONLY a JSON object:
+{
+  "overall": number,
+  "ats": number,
+  "impact": number,
+  "relevance": number,
+  "clarity": number,
+  "missingKeywords": ["string"],
+  "strengths": ["string"],
+  "improvements": ["string"],
+  "verdict": "string"
+}
 `;
 
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            overall:         { type: Type.NUMBER },
-            ats:             { type: Type.NUMBER },
-            impact:          { type: Type.NUMBER },
-            relevance:       { type: Type.NUMBER },
-            clarity:         { type: Type.NUMBER },
-            missingKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-            strengths:       { type: Type.ARRAY, items: { type: Type.STRING } },
-            improvements:    { type: Type.ARRAY, items: { type: Type.STRING } },
-            verdict:         { type: Type.STRING },
-        },
-        required: ['overall','ats','impact','relevance','clarity','missingKeywords','strengths','improvements','verdict'],
-    };
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.2,
-            systemInstruction: SYSTEM_INSTRUCTION_PARSER,
-        },
-    }));
-
-    return JSON.parse((response.text || '').trim()) as CVScore;
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true });
+    return JSON.parse(text.trim()) as CVScore;
 };
 
 // --- AI CV Improvement ---
@@ -1182,8 +887,6 @@ export const improveCV = async (
     instruction: string,
     jobDescription?: string,
 ): Promise<CVData> => {
-    const ai = getAiClient('lite');
-
     const cvJson = JSON.stringify(cvData, null, 2);
 
     const prompt = `
@@ -1198,97 +901,17 @@ CANDIDATE NAME: ${personalInfo.name}
 ${jobDescription ? `TARGET JOB DESCRIPTION:\n${jobDescription}` : ''}
 
 Rules:
-1. Apply the instruction precisely. If it's about bullets, improve bullets. If it's about the summary, improve the summary.
+1. Apply the instruction precisely.
 2. Keep all factual details accurate — don't change company names, job titles, dates, or invent new roles.
 3. Return the COMPLETE CVData object with ALL fields, not just the modified parts.
 4. Every bullet must follow "Strong Verb → Scope → Quantified Result".
 5. Avoid AI clichés. Write like a confident, experienced professional.
-6. Return ONLY valid JSON matching the CVData schema. No markdown, no code fences.
 
-CVData schema:
-{
-  "summary": string,
-  "skills": string[],
-  "experience": [{ "company": string, "jobTitle": string, "dates": string, "startDate": string, "endDate": string, "responsibilities": string[] }],
-  "education": [{ "degree": string, "school": string, "year": string, "description": string? }],
-  "projects": [{ "name": string, "description": string, "link": string? }]?,
-  "languages": [{ "name": string, "proficiency": string }]?,
-  "publications": [{ "title": string, "authors": string[], "journal": string, "year": string, "link": string? }]?
-}
+${CV_DATA_SCHEMA}
 `;
 
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            summary: { type: Type.STRING },
-            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-            experience: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        company: { type: Type.STRING },
-                        jobTitle: { type: Type.STRING },
-                        dates: { type: Type.STRING },
-                        startDate: { type: Type.STRING },
-                        endDate: { type: Type.STRING },
-                        responsibilities: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    },
-                    required: ['company', 'jobTitle', 'dates', 'startDate', 'endDate', 'responsibilities'],
-                },
-            },
-            education: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        degree: { type: Type.STRING },
-                        school: { type: Type.STRING },
-                        year: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                    },
-                    required: ['degree', 'school', 'year'],
-                },
-            },
-            projects: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        name: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        link: { type: Type.STRING },
-                    },
-                    required: ['name', 'description'],
-                },
-            },
-            languages: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        name: { type: Type.STRING },
-                        proficiency: { type: Type.STRING },
-                    },
-                    required: ['name', 'proficiency'],
-                },
-            },
-        },
-        required: ['summary', 'skills', 'experience', 'education'],
-    };
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.4,
-            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL,
-        },
-    }));
-
-    return JSON.parse((response.text || '').trim()) as CVData;
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.4, json: true });
+    return JSON.parse(text.trim()) as CVData;
 };
 
 // --- GitHub-Powered CV Generation ---
@@ -1313,8 +936,6 @@ export const generateCVFromGitHub = async (
     githubUsername: string,
     jobDescription?: string
 ): Promise<CVData> => {
-    const ai = getAiClient('flash');
-
     const repoSummaries = repos.map(r => ({
         name: r.name,
         description: r.description || '',
@@ -1355,101 +976,29 @@ ${jdSection}
 1. **SUMMARY (3 sentences)**:
    - Position the candidate as a skilled developer based on what their GitHub actually shows.
    - Reference their strongest languages and most impressive projects by name.
-   - Be specific — name real technologies, real project types, real impact.
 
 2. **EXPERIENCE**: Transform each work experience into high-impact bullets.
    - Use EXACTLY ${profile.workExperience.map(we => `${we.pointCount ?? 5} bullets for ${we.jobTitle} at ${we.company}`).join(', ')}.
    - Start every bullet with a power verb. Quantify impact.
 
 3. **PROJECTS** — CRITICAL: Use ONLY projects from the GitHub repos above.
-   - For each selected repo, write a 1–2 sentence description that explains: WHAT it does, WHY it matters, and WHAT tech stack it uses.
+   - For each selected repo, write a 1–2 sentence description: WHAT it does, WHY it matters, WHAT tech stack.
    - ALWAYS include the real GitHub URL (html_url) or live URL (homepage if available) as the link.
-   - Prioritize repos by: stars, recency, complexity (multiple topics = complex), and relevance to the JD.
+   - Prioritize repos by: stars, recency, complexity, and relevance to the JD.
    - Include at least ${Math.min(repos.length, 6)} projects.
-   - DO NOT invent project links — use the exact URLs provided in the repo data.
+   - DO NOT invent project links — use the exact URLs provided.
 
-4. **SKILLS**: Extract EXACTLY 15 skills from the actual repo languages and topics. Put the most prominent languages first, then frameworks/tools.
+4. **SKILLS**: Extract EXACTLY 15 skills from the actual repo languages and topics.
 
-5. **EDUCATION**: Use the profile's education data. Add a brief 1-sentence description if relevant coursework or honors exist.
+5. **EDUCATION**: Use the profile's education data.
 
 HUMANIZATION RULES:
 - Every bullet: Strong Verb → Specific Action → Measurable Result.
-- Mix sentence lengths. No AI clichés.
-- Be concrete and specific — use numbers, team sizes, user counts.
+- Mix sentence lengths. No AI clichés. Be concrete and specific.
 
-Return ONLY valid JSON. No markdown, no extra text, no code fences.
+${CV_DATA_SCHEMA}
 `;
 
-    const cvDataSchema = {
-        type: Type.OBJECT,
-        properties: {
-            summary: { type: Type.STRING },
-            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-            experience: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        company: { type: Type.STRING },
-                        jobTitle: { type: Type.STRING },
-                        dates: { type: Type.STRING },
-                        startDate: { type: Type.STRING },
-                        endDate: { type: Type.STRING },
-                        responsibilities: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    },
-                    required: ["company", "jobTitle", "dates", "startDate", "endDate", "responsibilities"]
-                }
-            },
-            education: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        degree: { type: Type.STRING },
-                        school: { type: Type.STRING },
-                        year: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                    },
-                    required: ["degree", "school", "year"]
-                }
-            },
-            projects: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        name: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        link: { type: Type.STRING },
-                    },
-                    required: ["name", "description", "link"]
-                }
-            },
-            languages: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        name: { type: Type.STRING },
-                        proficiency: { type: Type.STRING },
-                    },
-                    required: ["name", "proficiency"]
-                }
-            },
-        },
-        required: ["summary", "skills", "experience", "education", "projects"]
-    };
-
-    const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: cvDataSchema,
-            temperature: 0.7,
-            systemInstruction: SYSTEM_INSTRUCTION_PROFESSIONAL,
-        },
-    }));
-
-    return JSON.parse((response.text || '').trim()) as CVData;
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, json: true, maxTokens: 8192 });
+    return JSON.parse(text.trim()) as CVData;
 };
