@@ -4,7 +4,6 @@ import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnaly
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, CVScore } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
 import PDFDownloadButton from './PDFDownloadButton';
-import { REACT_PDF_TEMPLATES } from '../services/reactPdfTemplates';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import CoverLetterPreview from './CoverLetterPreview';
@@ -17,6 +16,8 @@ import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
+
+const REACT_PDF_TEMPLATES = ['professional', 'standard-pro', 'minimalist', 'london-finance'] as const;
 
 const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
