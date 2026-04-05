@@ -1,7 +1,6 @@
 import mammoth from 'mammoth';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
-
-// ── Parse .docx file to plain text ─────────────────────────────────────────
+import { groqChat, GROQ_LARGE } from './groqService';
 
 export async function extractTextFromDocx(file: File): Promise<string> {
     const arrayBuffer = await file.arrayBuffer();
@@ -9,103 +8,63 @@ export async function extractTextFromDocx(file: File): Promise<string> {
     return result.value;
 }
 
-// ── Use Gemini to parse the extracted text into a UserProfile ──────────────
-
 export async function parseWordTextToProfile(text: string): Promise<UserProfile> {
-    const { GoogleGenAI } = await import('@google/genai');
+    const systemPrompt = `You are an expert CV parser. Extract all structured information from CV/resume text and return it as valid JSON. Do not invent data — only extract what is explicitly present. Return only valid JSON, no markdown, no code fences, no prose.`;
 
-    let apiKey: string | undefined;
-    let provider: string = 'gemini';
+    const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:
 
-    const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
-    if (settingsString) {
-        const settings = JSON.parse(settingsString);
-        provider = settings.provider || 'gemini';
-        if (settings.apiKey && settings.provider === 'gemini') {
-            apiKey = settings.apiKey.replace(/^"|"$/g, '');
-        }
-    }
-
-    // Fallback: provider_keys cache (namespaced, IDB-backed, Drive-synced)
-    if (!apiKey) {
-        try {
-            const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-            if (providerKeys[provider]) {
-                apiKey = providerKeys[provider].replace(/^"|"$/g, '');
-            }
-        } catch { /* ignore */ }
-    }
-
-    if (!apiKey && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
-        apiKey = process.env.GEMINI_API_KEY;
-    }
-    if (!apiKey) throw new Error('API key not found. Please add your Gemini API key in Settings.');
-
-    const ai = new GoogleGenAI({ apiKey });
-
-    const prompt = `You are an expert CV parser. Extract all structured information from the following CV/resume text and return it as valid JSON matching this exact schema. Do not invent data — only extract what is explicitly present.
-
-Schema:
 {
   "personalInfo": {
-    "name": string,
-    "email": string,
-    "phone": string,
-    "location": string,
-    "linkedin": string,
-    "website": string,
-    "github": string
+    "name": "string",
+    "email": "string",
+    "phone": "string",
+    "location": "string",
+    "linkedin": "string",
+    "website": "string",
+    "github": "string"
   },
-  "summary": string,
+  "summary": "string",
   "workExperience": [
     {
-      "id": string (generate a unique id like "exp1"),
-      "company": string,
-      "jobTitle": string,
-      "startDate": string (e.g. "Jan 2020"),
-      "endDate": string (e.g. "Dec 2022" or "Present"),
-      "responsibilities": string (combine all bullet points into one multiline string separated by newlines)
+      "id": "string (e.g. exp1)",
+      "company": "string",
+      "jobTitle": "string",
+      "startDate": "string (e.g. Jan 2020)",
+      "endDate": "string (e.g. Dec 2022 or Present)",
+      "responsibilities": "string (all bullet points joined by newlines)"
     }
   ],
   "education": [
     {
-      "id": string (generate a unique id like "edu1"),
-      "degree": string,
-      "school": string,
-      "graduationYear": string
+      "id": "string (e.g. edu1)",
+      "degree": "string",
+      "school": "string",
+      "graduationYear": "string"
     }
   ],
-  "skills": string[] (flat list of skills),
+  "skills": ["string"],
   "projects": [
     {
-      "id": string (generate a unique id like "proj1"),
-      "name": string,
-      "description": string,
-      "link": string
+      "id": "string (e.g. proj1)",
+      "name": "string",
+      "description": "string",
+      "link": "string"
     }
   ],
   "languages": [
     {
-      "id": string (generate a unique id like "lang1"),
-      "name": string,
-      "proficiency": string (e.g. "Native", "Fluent", "Intermediate", "Basic")
+      "id": "string (e.g. lang1)",
+      "name": "string",
+      "proficiency": "string (e.g. Native, Fluent, Intermediate, Basic)"
     }
   ]
 }
 
 CV Text:
-${text.slice(0, 8000)}
+${text.slice(0, 8000)}`;
 
-Return only valid JSON, no markdown, no code fences, no prose.`;
-
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    });
-
-    const raw = response.text?.trim() || '';
+    const raw = await groqChat(GROQ_LARGE, systemPrompt, userPrompt, { temperature: 0.1 });
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-
     const parsed = JSON.parse(cleaned);
 
     const profile: UserProfile = {
