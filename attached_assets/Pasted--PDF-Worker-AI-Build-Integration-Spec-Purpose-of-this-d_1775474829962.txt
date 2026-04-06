@@ -1,0 +1,821 @@
+# PDF Worker — AI Build & Integration Spec
+
+## Purpose of this document
+
+This document is written for an AI assistant (Claude, GPT, Gemini, etc.) to read
+and act on. It contains everything needed to:
+
+1. Create the Cloudflare Worker project from scratch
+2. Integrate it into the existing `resume-cv` React/TypeScript app
+3. Understand why each decision was made
+4. Know what to watch out for
+
+Read the entire document before writing a single line of code.
+
+---
+
+## Context — what already exists
+
+### The frontend app: `resume-cv`
+
+- **Repo:** https://github.com/nyainda/resume-cv-
+- **Live URL:** https://resume-cv-gold.vercel.app
+- **Stack:** React 18, TypeScript, Vite, Tailwind CSS, deployed on Vercel (free Hobby plan)
+- **AI provider:** Google Gemini API (`@google/genai`) — key stored in browser localStorage
+- **PDF today:** `jspdf` library, runs in the browser — broken on complex templates
+- **Templates:** 24 named templates defined in `types.ts` as `TemplateName` union type
+- **State:** all state in `localStorage` via `useLocalStorage` hook — no backend, no DB
+- **Key files:**
+  - `App.tsx` — root component, routing between views, holds all state
+  - `types.ts` — all TypeScript types including `CVData`, `UserProfile`, `TemplateName`
+  - `components/CVGenerator.tsx` — main CV generation UI, contains the broken PDF download
+  - `components/SavedCVs.tsx` — CV history list
+  - `services/` — currently empty or contains AI service calls
+  - `hooks/useLocalStorage.ts` — localStorage wrapper
+
+### Why jsPDF is broken
+
+`jsPDF` draws PDF primitives (text strings, rectangles, lines) manually. It does not
+render CSS. The 24 templates use Tailwind utility classes, flexbox, grid, custom fonts,
+and multi-column layouts. jsPDF cannot reproduce any of this — it guesses and gets it wrong.
+`html2canvas` was also tried and failed due to canvas scaling artifacts and missing styles.
+
+### Why Vercel serverless won't work
+
+The Vercel Hobby plan has a **10-second hard timeout** on serverless functions.
+Rendering a complex CV with fonts through headless Chrome takes 8–15 seconds.
+This would fail on most downloads. Upgrading to Vercel Pro ($20/month) would fix
+it but that's unnecessary cost when Cloudflare's free tier solves the problem cleanly.
+
+### The chosen solution: Cloudflare Browser Rendering
+
+Cloudflare offers a Browser Rendering API that runs headless Chrome on their edge network.
+The free tier gives 10 minutes of browser time per day — roughly 150–300 PDF renders.
+Each render takes 2–4 seconds. No timeout issues, no cold-start problems, no cost.
+
+The Worker is a **separate small project** deployed independently to Cloudflare Workers.
+It exposes one endpoint: `POST /pdf`. The React app sends the rendered HTML string
+to this endpoint and receives a PDF binary back.
+
+---
+
+## Architecture overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Browser (user on resume-cv-gold.vercel.app)        │
+│                                                     │
+│  User clicks "Download PDF"                         │
+│       │                                             │
+│  getCVHtml()  ← captures live DOM preview           │
+│       │  returns self-contained HTML string         │
+│       │                                             │
+│  generateAndDownloadPDF({ html, filename })         │
+│       │                                             │
+│       │  POST /pdf  { html, filename, format }      │
+│       │  Content-Type: application/json             │
+└───────┼─────────────────────────────────────────────┘
+        │
+        │  (CORS allowed: resume-cv-gold.vercel.app)
+        ▼
+┌─────────────────────────────────────────────────────┐
+│  Cloudflare Worker                                  │
+│  resume-pdf-worker.<subdomain>.workers.dev          │
+│                                                     │
+│  puppeteer.launch(env.BROWSER)                      │
+│  page.setContent(html, { waitUntil: "networkidle0" })│
+│  document.fonts.ready                               │
+│  page.pdf({ format: "A4", printBackground: true })  │
+│                                                     │
+│  Returns: PDF binary (application/pdf)              │
+└───────┬─────────────────────────────────────────────┘
+        │
+        │  PDF binary response
+        ▼
+┌─────────────────────────────────────────────────────┐
+│  Browser                                            │
+│  URL.createObjectURL(blob) → <a>.click() → download │
+└─────────────────────────────────────────────────────┘
+```
+
+The key insight: the React app already renders the CV perfectly in the browser preview.
+`getCVHtml()` captures that exact DOM node, inlines all loaded stylesheets, and sends
+the resulting HTML string to the Worker. The Worker renders the same HTML in headless
+Chrome. What the user sees in the preview = what they get in the PDF.
+
+---
+
+## Part 1 — Cloudflare Worker project
+
+### 1.1 Project structure
+
+Create a new folder **separate from** the resume-cv project:
+
+```
+resume-pdf-worker/          ← new folder, NOT inside resume-cv
+├── src/
+│   └── index.ts            ← the entire Worker (one file)
+├── wrangler.toml           ← Cloudflare config
+├── package.json
+└── tsconfig.json
+```
+
+### 1.2 `package.json`
+
+```json
+{
+  "name": "resume-pdf-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.0.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^3.101.0"
+  }
+}
+```
+
+### 1.3 `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2021"],
+    "strict": true,
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src/**/*.ts"]
+}
+```
+
+### 1.4 `wrangler.toml`
+
+```toml
+name = "resume-pdf-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# This binding gives the Worker access to Cloudflare's headless Chrome
+# The BROWSER name must match env.BROWSER in src/index.ts
+[browser]
+binding = "BROWSER"
+
+# Production env vars
+[vars]
+ALLOWED_ORIGIN = "https://resume-cv-gold.vercel.app"
+
+# Local dev uses real remote Chrome on Cloudflare
+[dev]
+remote = true
+
+# Dev env var overrides
+[env.dev.vars]
+ALLOWED_ORIGIN = "http://localhost:5173"
+```
+
+**Critical notes about wrangler.toml:**
+- The `[browser]` binding is what enables Browser Rendering. Without it, the Worker
+  cannot access headless Chrome. It is NOT optional.
+- `compatibility_flags = ["nodejs_compat"]` is required for `@cloudflare/puppeteer`
+- `[dev] remote = true` makes local dev use a real browser on Cloudflare's servers.
+  Without this, `wrangler dev` would fail because headless Chrome cannot run locally
+  inside the Wrangler sandbox.
+
+### 1.5 `src/index.ts` — the complete Worker
+
+```typescript
+import puppeteer from "@cloudflare/puppeteer";
+
+export interface Env {
+  BROWSER: Fetcher;
+  ALLOWED_ORIGIN: string;
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const origin = request.headers.get("Origin") ?? "";
+
+    // CORS — allow the Vercel frontend + localhost variants for dev
+    const allowedOrigins = [
+      env.ALLOWED_ORIGIN,
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:4173",
+    ];
+    const isAllowed = allowedOrigins.includes(origin);
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": isAllowed ? origin : env.ALLOWED_ORIGIN,
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+
+    // Handle CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // Only accept POST /pdf
+    const url = new URL(request.url);
+    if (request.method !== "POST" || url.pathname !== "/pdf") {
+      return new Response("Not found", { status: 404, headers: corsHeaders });
+    }
+
+    // Parse and validate the request body
+    let html: string;
+    let filename = "cv.pdf";
+    let format: "A4" | "Letter" = "A4";
+
+    try {
+      const body = (await request.json()) as {
+        html?: string;
+        filename?: string;
+        format?: string;
+      };
+
+      if (!body.html || typeof body.html !== "string") {
+        return new Response(JSON.stringify({ error: "html field is required" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Guard against absurdly large payloads (2 MB max)
+      if (body.html.length > 2_000_000) {
+        return new Response(JSON.stringify({ error: "HTML too large (max 2MB)" }), {
+          status: 413,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      html = body.html;
+      if (body.filename) filename = body.filename.replace(/[^\w\-_.]/g, "_");
+      if (body.format === "Letter") format = "Letter";
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Launch headless Chrome and generate the PDF
+    let browser = null;
+    try {
+      browser = await puppeteer.launch(env.BROWSER);
+      const page = await browser.newPage();
+
+      // A4 at 96dpi = 794×1123px
+      await page.setViewport({ width: 794, height: 1123 });
+
+      // Inject the HTML — this is the same HTML the user sees in the preview
+      await page.setContent(html, { waitUntil: "networkidle0" });
+
+      // Wait for all fonts to finish loading before generating PDF
+      await page.evaluateHandle("document.fonts.ready");
+
+      const pdf = await page.pdf({
+        format,
+        printBackground: true,
+        margin: { top: "0.5in", right: "0.5in", bottom: "0.5in", left: "0.5in" },
+        preferCSSPageSize: false,
+      });
+
+      await browser.close();
+
+      return new Response(pdf, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Content-Length": String(pdf.byteLength),
+          ...corsHeaders,
+        },
+      });
+    } catch (err: unknown) {
+      if (browser) {
+        try { await (browser as { close(): Promise<void> }).close(); } catch { /* ignore */ }
+      }
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error("PDF generation failed:", message);
+      return new Response(JSON.stringify({ error: message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+  },
+};
+```
+
+**Why `waitUntil: "networkidle0"`?**
+This waits until there are zero network connections for at least 500ms. It ensures that
+any web fonts loaded via `@import url(...)` have been fetched before the PDF is generated.
+Without this, fonts may fall back to system fonts and the PDF looks wrong.
+
+**Why `page.evaluateHandle("document.fonts.ready")`?**
+Even after `networkidle0`, fonts may still be in the process of being parsed and applied.
+`document.fonts.ready` is a Promise that resolves only when the browser has finished
+loading and applying all fonts on the page. This is the same technique used by career-ops.
+
+**Why `printBackground: true`?**
+Without this, CSS `background-color` and `background-image` properties are stripped from
+the PDF. CV templates use background colours for section headers, sidebars, etc.
+
+---
+
+## Part 2 — Files to add to resume-cv
+
+### 2.1 File placement
+
+```
+resume-cv/
+└── src/
+    └── services/
+        ├── pdfService.ts     ← NEW — communicates with Cloudflare Worker
+        └── getCVHtml.ts      ← NEW — captures live DOM as HTML string
+```
+
+### 2.2 `src/services/pdfService.ts`
+
+```typescript
+/**
+ * pdfService.ts
+ *
+ * Sends the CV HTML to the Cloudflare Worker and triggers a PDF download.
+ * Import VITE_PDF_WORKER_URL from the environment (set in .env.local and Vercel).
+ */
+
+const WORKER_URL =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_PDF_WORKER_URL ??
+  "https://resume-pdf-worker.<YOUR_SUBDOMAIN>.workers.dev";
+
+export type PDFFormat = "A4" | "Letter";
+
+export interface GeneratePDFOptions {
+  /** Full HTML string from getCVHtml() */
+  html: string;
+  /** e.g. "John-Doe-CV.pdf" */
+  filename?: string;
+  /** Default: "A4" */
+  format?: PDFFormat;
+  /** Progress callback for UI feedback */
+  onStatus?: (msg: string) => void;
+}
+
+export interface GeneratePDFResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function generateAndDownloadPDF(
+  opts: GeneratePDFOptions
+): Promise<GeneratePDFResult> {
+  const { html, filename = "cv.pdf", format = "A4", onStatus } = opts;
+
+  try {
+    onStatus?.("Sending to renderer…");
+
+    const res = await fetch(`${WORKER_URL}/pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html, filename, format }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? `Worker error ${res.status}`);
+    }
+
+    onStatus?.("Downloading…");
+
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+
+    return { ok: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[pdfService]", msg);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Health check — useful on component mount to decide whether to show
+ * the Cloudflare button or fall back to a warning.
+ */
+export async function isPDFWorkerOnline(): Promise<boolean> {
+  try {
+    const res = await fetch(`${WORKER_URL}/pdf`, {
+      method: "OPTIONS",
+      signal: AbortSignal.timeout(4000),
+    });
+    return res.status === 204;
+  } catch {
+    return false;
+  }
+}
+```
+
+### 2.3 `src/services/getCVHtml.ts`
+
+```typescript
+/**
+ * getCVHtml.ts
+ *
+ * Captures the rendered CV from the live DOM and returns a self-contained
+ * HTML string. The Worker feeds this string to headless Chrome.
+ *
+ * PREREQUISITE: The outermost wrapper of the active CV template component
+ * must have the attribute  data-cv-preview="true"  so this function can
+ * find it. See Section 2.4 for where to add this.
+ */
+
+export interface GetCVHtmlOptions {
+  selector?: string;    // Default: "[data-cv-preview]"
+  extraStyles?: string; // Optional extra CSS to inject
+}
+
+export function getCVHtml(opts: GetCVHtmlOptions = {}): string | null {
+  const { selector = "[data-cv-preview]", extraStyles = "" } = opts;
+
+  const container = document.querySelector<HTMLElement>(selector);
+  if (!container) {
+    console.warn(`[getCVHtml] Element not found: "${selector}"`);
+    console.warn('Add data-cv-preview="true" to the CV preview wrapper div.');
+    return null;
+  }
+
+  // Clone — never mutate the live UI
+  const clone = container.cloneNode(true) as HTMLElement;
+
+  // Remove UI elements that must not appear in the PDF
+  ["button", "[data-pdf-hide]", ".no-print", '[contenteditable="true"]']
+    .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
+
+  // Collect all stylesheets loaded in the browser
+  // This captures Tailwind, template CSS, Google Fonts @imports — everything
+  const cssBlocks: string[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      cssBlocks.push(
+        Array.from(sheet.cssRules ?? []).map(r => r.cssText).join("\n")
+      );
+    } catch {
+      // Cross-origin sheets (Google Fonts CDN) block cssRules access
+      // Re-add as @import so the Worker fetches them during networkidle0
+      if (sheet.href) cssBlocks.push(`@import url("${sheet.href}");`);
+    }
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: white;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    p, li, h1, h2, h3, h4, section, .cv-section { page-break-inside: avoid; }
+    .no-print, [data-pdf-hide] { display: none !important; }
+    ${cssBlocks.join("\n")}
+    ${extraStyles}
+  </style>
+</head>
+<body>
+  ${clone.outerHTML}
+</body>
+</html>`;
+}
+```
+
+### 2.4 Where to add `data-cv-preview="true"` in the template component
+
+The AI must find whichever component renders the CV preview that the user sees.
+In the resume-cv repo this is most likely inside `components/CVGenerator.tsx` or
+a dedicated preview component it renders. Look for the div that wraps the actual
+template output — the one that changes when the user switches templates.
+
+**Before:**
+```tsx
+<div className={cn("bg-white shadow-lg", templateClass)}>
+  {/* template content */}
+</div>
+```
+
+**After:**
+```tsx
+<div data-cv-preview="true" className={cn("bg-white shadow-lg", templateClass)}>
+  {/* template content */}
+</div>
+```
+
+Only one element in the entire app should have this attribute. If multiple
+elements match `[data-cv-preview]`, `getCVHtml()` takes the first one.
+
+### 2.5 How to update `CVGenerator.tsx`
+
+Find the existing PDF download handler. It will contain a `jspdf` import and
+calls to `jsPDF`, `doc.text()`, `doc.save()` etc. Replace the entire handler body.
+
+**Remove these imports:**
+```typescript
+// DELETE or comment out:
+import jsPDF from 'jspdf';
+// and any html2canvas imports
+```
+
+**Add these imports:**
+```typescript
+import { generateAndDownloadPDF } from '../services/pdfService';
+import { getCVHtml } from '../services/getCVHtml';
+```
+
+**Replace the download handler body:**
+```typescript
+const handleDownloadPDF = async () => {
+  setIsGeneratingPDF(true); // whatever your loading state is called
+  setStatusText("Preparing PDF…"); // whatever your status state is called
+
+  // Step 1: Capture the live DOM preview as a self-contained HTML string
+  const html = getCVHtml();
+  if (!html) {
+    setStatusText("Could not capture CV preview. Check console for details.");
+    setIsGeneratingPDF(false);
+    return;
+  }
+
+  // Step 2: Build filename from user's name
+  const name = userProfile?.personalInfo?.name ?? "CV";
+  const safeName = name.replace(/\s+/g, "-").replace(/[^\w\-]/g, "");
+  const filename = `${safeName}-CV.pdf`;
+
+  // Step 3: Send to Cloudflare Worker — headless Chrome renders → PDF returned
+  const result = await generateAndDownloadPDF({
+    html,
+    filename,
+    format: "A4",
+    onStatus: (msg) => setStatusText(msg),
+  });
+
+  if (!result.ok) {
+    setStatusText(`PDF failed: ${result.error}`);
+  } else {
+    setStatusText("Downloaded!");
+    // Your existing auto-track logic stays here unchanged
+    handleAutoTrack?.({
+      roleTitle: currentCV?.experience?.[0]?.jobTitle ?? "CV Download",
+      company: currentCV?.experience?.[0]?.company ?? "",
+      savedCvName: filename,
+    });
+  }
+
+  setIsGeneratingPDF(false);
+};
+```
+
+**Note to AI:** The exact variable names (`setIsGeneratingPDF`, `setStatusText`,
+`userProfile`, `currentCV`, `handleAutoTrack`) will differ from what's in the actual
+codebase. Read `CVGenerator.tsx` first and adapt the handler to use the real variable
+names that already exist. Do not rename existing variables.
+
+---
+
+## Part 3 — Environment variables
+
+### 3.1 In the resume-cv project
+
+Create `.env.local` in the resume-cv project root (this file is gitignored):
+```
+VITE_PDF_WORKER_URL=https://resume-pdf-worker.<subdomain>.workers.dev
+```
+
+The `<subdomain>` is unique to each Cloudflare account. It is shown in the output
+of `wrangler deploy` and on the Cloudflare Workers dashboard.
+
+### 3.2 In Vercel (for production)
+
+In the Vercel dashboard for the resume-cv project:
+- Settings → Environment Variables → Add new variable
+- Key: `VITE_PDF_WORKER_URL`
+- Value: `https://resume-pdf-worker.<subdomain>.workers.dev`
+- Environments: check Production, Preview, Development
+
+Vite requires the `VITE_` prefix for environment variables to be exposed to the
+client-side bundle. Variables without this prefix are invisible to the browser.
+
+---
+
+## Part 4 — Deployment steps (in order)
+
+### 4.1 Deploy the Worker (do this first)
+
+```bash
+# 1. Create a free Cloudflare account at https://dash.cloudflare.com/sign-up
+#    No credit card required for the free tier.
+
+# 2. Install Wrangler CLI globally
+npm install -g wrangler
+
+# 3. Authenticate with Cloudflare
+wrangler login
+# Opens browser — approve the access request
+
+# 4. Go into the Worker project folder
+cd resume-pdf-worker
+
+# 5. Install dependencies
+npm install
+
+# 6. Test locally (uses real remote Chrome on Cloudflare)
+npm run dev
+# Worker starts at http://localhost:8787
+# Test with curl:
+# curl -X POST http://localhost:8787/pdf \
+#   -H "Content-Type: application/json" \
+#   -d '{"html":"<html><body><h1>Test</h1></body></html>","filename":"test.pdf"}' \
+#   --output /tmp/test.pdf
+
+# 7. Deploy to production
+npm run deploy
+# Output example:
+# Deployed resume-pdf-worker to:
+# https://resume-pdf-worker.nyainda.workers.dev
+# Save this URL — you will need it in step 4.2
+```
+
+### 4.2 Update the Worker ALLOWED_ORIGIN
+
+After deploying, update `wrangler.toml`:
+```toml
+[vars]
+ALLOWED_ORIGIN = "https://resume-cv-gold.vercel.app"
+```
+Then redeploy: `npm run deploy`
+
+### 4.3 Update and deploy resume-cv
+
+```bash
+cd resume-cv
+
+# Create the env file
+echo "VITE_PDF_WORKER_URL=https://resume-pdf-worker.<subdomain>.workers.dev" > .env.local
+
+# Copy the new service files (if not already done)
+# (create src/services/pdfService.ts and src/services/getCVHtml.ts with the code above)
+
+# Add the data attribute to the CV preview wrapper (see Section 2.4)
+# Update CVGenerator.tsx (see Section 2.5)
+
+# Test locally
+npm run dev
+# Click Download PDF — should work without jsPDF
+
+# Deploy to Vercel
+git add .
+git commit -m "feat: replace jsPDF with Cloudflare Browser Rendering"
+git push
+# Vercel auto-deploys on push
+
+# Add env var in Vercel dashboard (see Section 3.2)
+```
+
+---
+
+## Part 5 — Testing checklist
+
+After deployment, verify each of these manually:
+
+- [ ] `curl -X OPTIONS https://resume-pdf-worker.<subdomain>.workers.dev/pdf` returns 204
+- [ ] Posting HTML to `/pdf` from curl returns a valid PDF binary
+- [ ] Opening the Vercel app, clicking Download PDF triggers a real PDF download
+- [ ] The downloaded PDF looks identical to the browser preview
+- [ ] Fonts render correctly in the PDF (not falling back to sans-serif)
+- [ ] Background colours on template sidebars and headers appear in the PDF
+- [ ] Multi-page CVs paginate correctly without cutting through text
+- [ ] Cloudflare dashboard shows browser time usage in Workers analytics
+
+---
+
+## Part 6 — Common errors and fixes
+
+### "No element found for [data-cv-preview]"
+The `data-cv-preview="true"` attribute was not added to the preview wrapper,
+or the preview is conditionally hidden when the download button is clicked.
+Fix: ensure the preview div is always mounted (not conditionally rendered with
+a ternary that hides it) and the attribute is on the correct wrapper.
+
+### CORS error in browser console
+`Access-Control-Allow-Origin` header mismatch. The `ALLOWED_ORIGIN` variable in
+Cloudflare must exactly match the browser's `Origin` header — including the protocol
+(`https://`) and without a trailing slash. Check for typos. Redeploy after fixing.
+
+### PDF fonts are wrong / fall back to sans-serif
+Two possible causes:
+1. Google Fonts are loaded via a `<link>` tag but the Worker is not waiting for them.
+   The `waitUntil: "networkidle0"` in `page.setContent()` should handle this.
+   Check that the `@import url(...)` for Google Fonts appears in the HTML the Worker receives.
+2. Local/custom fonts (woff2 files) are referenced by relative path (`./fonts/file.woff2`).
+   The Worker cannot resolve relative paths. Convert local fonts to base64 and embed
+   them as `@font-face { src: url("data:font/woff2;base64,...") }` in the stylesheet.
+
+### "HTML too large (max 2MB)" error
+The inlined CSS from all loaded stylesheets is making the HTML too big. This can happen
+if the app loads very large stylesheet bundles. Options:
+1. Increase the limit in `src/index.ts` to 4_000_000 (4MB)
+2. Filter out utility-class stylesheets that contain thousands of unused rules
+
+### Browser quota exceeded (10 min/day free limit)
+The Cloudflare free tier allows 10 minutes of browser time per day. If users are
+downloading many PDFs, this limit may be hit. Solutions:
+1. Upgrade to Cloudflare Workers Paid ($5/month) — includes 10 hours/month free
+2. Add rate limiting in the Worker (check IP or a simple counter in KV)
+
+### Worker returns 500 after deploy but works locally
+Check `wrangler tail` for the error message. Common causes:
+- The `[browser]` binding is missing from `wrangler.toml` (Worker cannot find `env.BROWSER`)
+- `compatibility_flags = ["nodejs_compat"]` is missing
+
+---
+
+## Part 7 — What NOT to do
+
+- Do NOT add the Worker code inside the resume-cv repository. Keep them separate.
+- Do NOT use `page.goto(url)` in the Worker. Use `page.setContent(html)` exclusively.
+  The Worker receives raw HTML, not URLs.
+- Do NOT use `import.meta.env.VITE_PDF_WORKER_URL` without the cast — Vite's type
+  definitions may not include this variable and TypeScript will complain.
+- Do NOT forget `await browser.close()` after generating the PDF. Unclosed browser
+  sessions count against the concurrent browser limit.
+- Do NOT commit `.env.local` to git. It is gitignored by default in Vite projects.
+- Do NOT use `html2canvas` anywhere in this flow. It was tried and failed. The entire
+  point is to avoid it.
+
+---
+
+## Part 8 — Free tier limits (Cloudflare Workers)
+
+| Resource | Free limit | Notes |
+|---|---|---|
+| Browser hours | 10 min / day | Each PDF ~2–4s, so ~150–300 PDFs/day |
+| Concurrent browsers | 3 | One at a time for a personal project |
+| Worker requests | 100,000 / day | Not a concern for this use case |
+| Worker CPU time | 10ms / request | Only for JS outside the browser session |
+
+If this app grows beyond personal/portfolio use, upgrade to Workers Paid:
+- $5/month base
+- 10 browser hours/month included
+- $0.09 per additional hour
+
+---
+
+## Part 9 — Summary of all files to create
+
+### In `resume-pdf-worker/` (new project):
+
+| File | Action |
+|---|---|
+| `src/index.ts` | Create — full Worker code from Section 1.5 |
+| `wrangler.toml` | Create — config from Section 1.4 |
+| `package.json` | Create — from Section 1.2 |
+| `tsconfig.json` | Create — from Section 1.3 |
+
+### In `resume-cv/` (existing project):
+
+| File | Action |
+|---|---|
+| `src/services/pdfService.ts` | Create — from Section 2.2 |
+| `src/services/getCVHtml.ts` | Create — from Section 2.3 |
+| `src/components/CVGenerator.tsx` | Edit — remove jsPDF, add new handler (Section 2.5) |
+| Template preview component | Edit — add `data-cv-preview="true"` attribute (Section 2.4) |
+| `.env.local` | Create — add `VITE_PDF_WORKER_URL` (Section 3.1) |
+
+### In Vercel dashboard:
+
+| Setting | Value |
+|---|---|
+| Environment variable key | `VITE_PDF_WORKER_URL` |
+| Environment variable value | `https://resume-pdf-worker.<subdomain>.workers.dev` |
+| Environments | Production, Preview, Development |
