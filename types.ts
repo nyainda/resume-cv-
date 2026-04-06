@@ -307,7 +307,8 @@ export type TemplateName =
   | 'swe-neon'
   | 'swe-clean'
   | 'swe-vivid'
-  | 'swe-impact';
+  | 'swe-impact'
+  | 'ats-clean-pro';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -342,6 +343,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'swe-clean': 'SWE Clean',
   'swe-vivid': 'SWE Vivid',
   'swe-impact': 'SWE Impact',
+  'ats-clean-pro': 'ATS Clean Pro',
 };
 
 // --- CV Generation Mode ---
@@ -447,4 +449,80 @@ export interface JobAnalysisResult {
   jobTitle?: string; // The specific job title being applied for
   applicationEmail?: string; // Email address to send application to, if found in JD
   applicationMethod?: 'email' | 'portal' | 'unknown'; // How to apply
+}
+
+// --- Enhanced 6-Block Job Analysis (career-ops inspired) ---
+
+export type JobArchetype =
+  | 'Full-Stack / Dev Engineer'
+  | 'Solutions Architect'
+  | 'Product Manager'
+  | 'LLMOps / MLOps'
+  | 'Agentic AI'
+  | 'Digital Transformation'
+  | 'Data Scientist'
+  | 'DevOps / Platform'
+  | 'General Engineering'
+  | 'Other';
+
+export type MatchGrade = 'A' | 'B' | 'C' | 'D' | 'F';
+
+export interface CVMatchGap {
+  requirement: string;
+  isBlocker: boolean;
+  mitigation: string;
+}
+
+export interface STARStory {
+  id: string;
+  jobRequirement: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  reflection: string;
+  createdAt: string;
+  linkedCompany?: string;
+  linkedRole?: string;
+}
+
+export interface PersonalizationChange {
+  section: string;
+  currentState: string;
+  proposedChange: string;
+  reason: string;
+}
+
+export interface EnhancedJobAnalysis {
+  // Block A: Role Summary
+  archetype: JobArchetype;
+  domain: string;
+  seniority: string;
+  remote: 'Remote' | 'Hybrid' | 'On-site' | 'Unknown';
+  tldr: string;
+
+  // Block B: CV Match
+  matchedRequirements: string[];
+  gaps: CVMatchGap[];
+  matchScore: number; // 0-100
+  grade: MatchGrade;
+
+  // Block C: Level Strategy
+  levelStrategy: string;
+  seniorPositioningTips: string[];
+
+  // Block D: Salary Research
+  salaryRange: string;
+  salaryNotes: string;
+
+  // Block E: Personalization Plan
+  personalizationChanges: PersonalizationChange[];
+  topKeywords: string[];
+
+  // Block F: Interview STAR+R Prep
+  starStories: Omit<STARStory, 'id' | 'createdAt'>[];
+
+  // Meta
+  companyName: string;
+  jobTitle: string;
 }

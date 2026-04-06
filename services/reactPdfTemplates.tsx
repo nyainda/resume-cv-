@@ -440,9 +440,169 @@ const LondonFinancePDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }>
   );
 };
 
-export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist' | 'london-finance';
+// ============================================================
+// ATS Clean Pro — career-ops inspired single-column template
+// Gradient teal→purple accent, competency tags, ATS-safe layout
+// ============================================================
+const atsCleanStyles = StyleSheet.create({
+  page: { fontFamily: 'Helvetica', fontSize: 10, color: '#1a1a2e', padding: '28 42', lineHeight: 1.5, backgroundColor: '#ffffff' },
+  // Header
+  header: { marginBottom: 14 },
+  name: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#1a1a2e', letterSpacing: -0.3, marginBottom: 4 },
+  gradientBar: { height: 2, backgroundColor: '#0e7490', marginBottom: 6 },
+  contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  contactItem: { fontSize: 9, color: '#555555' },
+  contactSep: { fontSize: 9, color: '#cccccc' },
+  // Section
+  section: { marginBottom: 12 },
+  sectionTitle: { fontSize: 9.5, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 1, color: '#0e7490', borderBottom: '1px solid #e5e5e5', paddingBottom: 3, marginBottom: 6 },
+  // Summary
+  summary: { fontSize: 9.5, color: '#333333', lineHeight: 1.6 },
+  // Competency tags
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  tag: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#0e7490', backgroundColor: '#ecfeff', padding: '2 8', borderRadius: 3 },
+  // Experience
+  expBlock: { marginBottom: 10 },
+  expTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 1 },
+  jobTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1a1a2e' },
+  dates: { fontSize: 8.5, color: '#777777' },
+  company: { fontSize: 9.5, color: '#7c3aed', fontFamily: 'Helvetica-Bold', marginBottom: 3 },
+  bullet: { flexDirection: 'row', gap: 5, marginBottom: 2 },
+  bulletDot: { fontSize: 9, color: '#0e7490', marginTop: 0.5 },
+  bulletText: { fontSize: 9, color: '#374151', flex: 1, lineHeight: 1.5 },
+  // Projects
+  projBlock: { marginBottom: 6 },
+  projName: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1a1a2e', marginBottom: 1 },
+  projDesc: { fontSize: 9, color: '#374151', lineHeight: 1.5 },
+  // Education
+  eduBlock: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  degree: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1a1a2e' },
+  school: { fontSize: 9.5, color: '#7c3aed' },
+  year: { fontSize: 9, color: '#777777' },
+  // Skills
+  skillsText: { fontSize: 9.5, color: '#374151', lineHeight: 1.6 },
+});
 
-export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist', 'london-finance'];
+const ATSCleanProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => {
+  const contacts = [
+    personalInfo.email,
+    personalInfo.phone,
+    personalInfo.location,
+    personalInfo.linkedin ? 'LinkedIn' : null,
+    personalInfo.github ? 'GitHub' : null,
+    personalInfo.website || null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <Page size="A4" style={atsCleanStyles.page}>
+      {/* Header */}
+      <View style={atsCleanStyles.header}>
+        <Text style={atsCleanStyles.name}>{personalInfo.name}</Text>
+        <View style={atsCleanStyles.gradientBar} />
+        <View style={atsCleanStyles.contactRow}>
+          {contacts.map((c, i) => (
+            <React.Fragment key={i}>
+              <Text style={atsCleanStyles.contactItem}>{c}</Text>
+              {i < contacts.length - 1 && <Text style={atsCleanStyles.contactSep}> | </Text>}
+            </React.Fragment>
+          ))}
+        </View>
+      </View>
+
+      {/* Summary */}
+      {cvData.summary ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Professional Summary</Text>
+          <Text style={atsCleanStyles.summary}>{decode(cvData.summary)}</Text>
+        </View>
+      ) : null}
+
+      {/* Core Competencies (top 8 skills as tags) */}
+      {cvData.skills.length > 0 ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Core Competencies</Text>
+          <View style={atsCleanStyles.tagsRow}>
+            {cvData.skills.slice(0, 8).map((s, i) => (
+              <Text key={i} style={atsCleanStyles.tag}>{s}</Text>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Experience */}
+      {cvData.experience.length > 0 ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Work Experience</Text>
+          {cvData.experience.map((exp, i) => (
+            <View key={i} style={atsCleanStyles.expBlock}>
+              <View style={atsCleanStyles.expTop}>
+                <Text style={atsCleanStyles.jobTitle}>{exp.jobTitle}</Text>
+                <Text style={atsCleanStyles.dates}>{exp.dates}</Text>
+              </View>
+              <Text style={atsCleanStyles.company}>{exp.company}</Text>
+              {exp.responsibilities.map((r, j) => (
+                <View key={j} style={atsCleanStyles.bullet}>
+                  <Text style={atsCleanStyles.bulletDot}>•</Text>
+                  <Text style={atsCleanStyles.bulletText}>{decode(r)}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Projects */}
+      {cvData.projects && cvData.projects.length > 0 ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Projects</Text>
+          {cvData.projects.slice(0, 4).map((proj, i) => (
+            <View key={i} style={atsCleanStyles.projBlock}>
+              <Text style={atsCleanStyles.projName}>{proj.name}</Text>
+              <Text style={atsCleanStyles.projDesc}>{decode(proj.description)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Education */}
+      {cvData.education.length > 0 ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Education</Text>
+          {cvData.education.map((edu, i) => (
+            <View key={i} style={{ marginBottom: 5 }}>
+              <View style={atsCleanStyles.eduBlock}>
+                <Text style={atsCleanStyles.degree}>{edu.degree}</Text>
+                <Text style={atsCleanStyles.year}>{edu.year}</Text>
+              </View>
+              <Text style={atsCleanStyles.school}>{edu.school}</Text>
+              {edu.description ? <Text style={{ fontSize: 8.5, color: '#6b7280', marginTop: 1 }}>{decode(edu.description)}</Text> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Certifications / Additional Skills */}
+      {cvData.skills.length > 8 ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Skills</Text>
+          <Text style={atsCleanStyles.skillsText}>{cvData.skills.slice(8).join('  ·  ')}</Text>
+        </View>
+      ) : null}
+
+      {/* Languages */}
+      {cvData.languages && cvData.languages.length > 0 ? (
+        <View style={atsCleanStyles.section}>
+          <Text style={atsCleanStyles.sectionTitle}>Languages</Text>
+          <Text style={atsCleanStyles.skillsText}>{cvData.languages.map(l => `${l.name} (${l.proficiency})`).join('  ·  ')}</Text>
+        </View>
+      ) : null}
+    </Page>
+  );
+};
+
+export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist' | 'london-finance' | 'ats-clean-pro';
+
+export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist', 'london-finance', 'ats-clean-pro'];
 
 export function buildReactPDFDocument(
   template: TemplateName,
@@ -454,6 +614,7 @@ export function buildReactPDFDocument(
       case 'standard-pro': return <StandardProPDF cvData={cvData} personalInfo={personalInfo} />;
       case 'minimalist': return <MinimalistPDF cvData={cvData} personalInfo={personalInfo} />;
       case 'london-finance': return <LondonFinancePDF cvData={cvData} personalInfo={personalInfo} />;
+      case 'ats-clean-pro': return <ATSCleanProPDF cvData={cvData} personalInfo={personalInfo} />;
       case 'professional':
       default:
         return <ProfessionalPDF cvData={cvData} personalInfo={personalInfo} />;

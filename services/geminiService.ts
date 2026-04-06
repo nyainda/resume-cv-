@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
-import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat } from '../types';
+import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 
 // --- System-Level Constants for AI Control ---
@@ -1001,4 +1001,84 @@ ${CV_DATA_SCHEMA}
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, json: true, maxTokens: 8192 });
     return JSON.parse(text.trim()) as CVData;
+};
+
+// --- Enhanced 6-Block Job Analysis (career-ops inspired) ---
+export const analyzeJobEnhanced = async (
+    jobDescription: string,
+    cvText: string,
+): Promise<EnhancedJobAnalysis> => {
+    const prompt = `
+You are an expert career strategist. Analyze the job description against the candidate's CV and return a comprehensive 6-block evaluation.
+
+JOB DESCRIPTION:
+${jobDescription.substring(0, 3000)}
+
+CANDIDATE CV TEXT:
+${cvText.substring(0, 3000)}
+
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "companyName": "string (company name or 'Unknown')",
+  "jobTitle": "string (role title)",
+  "archetype": "one of: Full-Stack / Dev Engineer | Solutions Architect | Product Manager | LLMOps / MLOps | Agentic AI | Digital Transformation | Data Scientist | DevOps / Platform | General Engineering | Other",
+  "domain": "string (e.g. 'Cloud Infrastructure', 'AI/ML', 'FinTech')",
+  "seniority": "string (e.g. 'Senior', 'Mid-level', 'Lead', 'Principal')",
+  "remote": "Remote | Hybrid | On-site | Unknown",
+  "tldr": "string (1-sentence role summary)",
+  "matchedRequirements": ["string array of JD requirements the candidate clearly meets based on CV"],
+  "gaps": [
+    {
+      "requirement": "string (JD requirement not clearly met)",
+      "isBlocker": true or false,
+      "mitigation": "string (specific actionable advice to address this gap in cover letter or interview)"
+    }
+  ],
+  "matchScore": number (0-100, objective match percentage),
+  "grade": "A | B | C | D | F",
+  "levelStrategy": "string (2-3 sentences on how candidate should position their seniority for this role)",
+  "seniorPositioningTips": ["string array of 3-4 specific phrases or framings to appear more senior"],
+  "salaryRange": "string (estimated salary range for this role and location, e.g. '$120k–$160k USD')",
+  "salaryNotes": "string (brief note on comp expectations, negotiation angle, or data confidence)",
+  "personalizationChanges": [
+    {
+      "section": "string (CV section: Summary | Skills | Experience | Projects)",
+      "currentState": "string (brief description of current state)",
+      "proposedChange": "string (specific change to make)",
+      "reason": "string (why this change helps)"
+    }
+  ],
+  "topKeywords": ["string array of 10-15 ATS keywords to inject into the CV from the JD"],
+  "starStories": [
+    {
+      "jobRequirement": "string (JD requirement this story addresses)",
+      "linkedCompany": "string (company from CV this story is from, or '')",
+      "linkedRole": "string (role from CV, or '')",
+      "situation": "string (S in STAR+R - context)",
+      "task": "string (T - challenge or responsibility)",
+      "action": "string (A - specific steps taken)",
+      "result": "string (R - measurable outcome)",
+      "reflection": "string (Reflection - lesson learned or what would be done differently — this signals seniority)"
+    }
+  ]
+}
+
+GRADING RULES (matchScore → grade):
+- 85-100: A (Excellent fit)
+- 70-84: B (Good fit)
+- 55-69: C (Moderate fit, significant tailoring needed)
+- 40-54: D (Weak fit, major gaps)
+- 0-39: F (Poor fit)
+
+ETHICAL RULES:
+- Only reference experience actually present in the CV
+- Never invent skills or achievements
+- Keyword injection means reformulating real experience with JD vocabulary — not fabricating
+- STAR stories must be grounded in CV experience
+
+Return ONLY the JSON. No markdown, no prose.
+`;
+
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.3, json: true, maxTokens: 8192 });
+    return JSON.parse(text.trim()) as EnhancedJobAnalysis;
 };

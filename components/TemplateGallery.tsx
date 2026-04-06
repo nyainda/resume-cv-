@@ -13,7 +13,7 @@ interface TemplateGalleryProps {
 
 // Template categories for better organization
 const templateCategories = {
-  'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro', 'london-finance', 'medical-standard'] as TemplateName[],
+  'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro', 'ats-clean-pro', 'london-finance', 'medical-standard'] as TemplateName[],
   'Modern': ['modern', 'modern-tech', 'twoColumnBlue', 'silicon-valley', 'tokyo-night'] as TemplateName[],
   'Creative': ['creative', 'infographic', 'sydney-creative', 'berlin-design'] as TemplateName[],
   'Academic': ['harvard-gold', 'scholarship-pro', 'classic'] as TemplateName[],
@@ -40,6 +40,7 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'swe-elite': { label: 'SWE Premium', emoji: '⚡', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
   'navy-sidebar': { label: 'Bold & Sharp', emoji: '🏛️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
   'photo-sidebar': { label: 'With Photo', emoji: '📷', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  'ats-clean-pro': { label: 'ATS Optimized', emoji: '🎯', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300' },
 };
 
 const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onSelect, cvData, personalInfo }) => {

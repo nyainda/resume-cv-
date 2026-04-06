@@ -47,6 +47,8 @@ interface CVGeneratorProps {
   toolkitSuggestions?: string | null;
   /** Called when user dismisses the toolkit suggestions banner */
   onDismissToolkitSuggestions?: () => void;
+  /** Called when the user saves STAR+R interview stories from the job analysis */
+  onSaveStories?: (stories: import('../types').STARStory[]) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -115,7 +117,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useState('');
   const [targetJobTitle, setTargetJobTitle] = useState('');
@@ -499,6 +501,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 cvTextContent={cvTextContent}
                 apiKeySet={apiKeySet}
                 onAnalysisComplete={handleJobAnalysisComplete}
+                onSaveStories={onSaveStories}
               />
             )}
           </div>

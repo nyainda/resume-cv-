@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { analyzeJobDescriptionForKeywords } from '../services/geminiService';
-import { JobAnalysisResult } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { analyzeJobDescriptionForKeywords, analyzeJobEnhanced } from '../services/geminiService';
+import { JobAnalysisResult, EnhancedJobAnalysis, MatchGrade, STARStory } from '../types';
 import { CheckCircle } from './icons';
 
 interface JobAnalysisProps {
@@ -9,185 +8,408 @@ interface JobAnalysisProps {
     cvTextContent: string;
     apiKeySet: boolean;
     onAnalysisComplete?: (result: JobAnalysisResult) => void;
+    onSaveStories?: (stories: STARStory[]) => void;
 }
 
-const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
-    const sqSize = 80;
-    const strokeWidth = 8;
+const GRADE_CONFIG: Record<MatchGrade, { label: string; color: string; bg: string; ring: string }> = {
+    A: { label: 'Excellent Fit', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-900/30', ring: 'ring-emerald-400' },
+    B: { label: 'Good Fit', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-900/30', ring: 'ring-blue-400' },
+    C: { label: 'Moderate Fit', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-900/30', ring: 'ring-amber-400' },
+    D: { label: 'Weak Fit', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-50 dark:bg-orange-900/30', ring: 'ring-orange-400' },
+    F: { label: 'Poor Fit', color: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-50 dark:bg-rose-900/30', ring: 'ring-rose-400' },
+};
+
+type Tab = 'overview' | 'match' | 'strategy' | 'personalize' | 'interview';
+
+const TAB_LABELS: { id: Tab; label: string; short: string }[] = [
+    { id: 'overview', label: 'Role Overview', short: 'Role' },
+    { id: 'match', label: 'CV Match & Gaps', short: 'Match' },
+    { id: 'strategy', label: 'Level Strategy', short: 'Strategy' },
+    { id: 'personalize', label: 'Personalization', short: 'Plan' },
+    { id: 'interview', label: 'Interview Prep', short: 'Prep' },
+];
+
+const ScoreGauge: React.FC<{ score: number; grade: MatchGrade }> = ({ score, grade }) => {
+    const cfg = GRADE_CONFIG[grade];
+    const sqSize = 90;
+    const strokeWidth = 9;
     const radius = (sqSize - strokeWidth) / 2;
-    const viewBox = `0 0 ${sqSize} ${sqSize}`;
     const dashArray = radius * Math.PI * 2;
     const dashOffset = dashArray - dashArray * score / 100;
 
-    const scoreColor = score < 50 ? 'text-red-500' : score < 75 ? 'text-yellow-500' : 'text-green-500';
-    const trackColor = score < 50 ? 'stroke-red-200 dark:stroke-red-800/50' : score < 75 ? 'stroke-yellow-200 dark:stroke-yellow-800/50' : 'stroke-green-200 dark:stroke-green-800/50';
-    const progressColor = score < 50 ? 'stroke-red-500' : score < 75 ? 'stroke-yellow-500' : 'stroke-green-500';
-
-
     return (
-        <div className="relative w-20 h-20 flex items-center justify-center">
-            <svg width={sqSize} height={sqSize} viewBox={viewBox}>
-                <circle
-                    className={`fill-none ${trackColor}`}
-                    cx={sqSize / 2}
-                    cy={sqSize / 2}
-                    r={radius}
-                    strokeWidth={`${strokeWidth}px`} />
-                <circle
-                    className={`fill-none transition-all duration-500 ease-in-out ${progressColor}`}
-                    cx={sqSize / 2}
-                    cy={sqSize / 2}
-                    r={radius}
-                    strokeWidth={`${strokeWidth}px`}
-                    transform={`rotate(-90 ${sqSize / 2} ${sqSize / 2})`}
-                    style={{
-                        strokeDasharray: dashArray,
-                        strokeDashoffset: dashOffset,
-                        strokeLinecap: 'round'
-                    }} />
-            </svg>
-            <span className={`absolute text-2xl font-bold ${scoreColor}`}>
-                {score}
-            </span>
+        <div className="relative flex flex-col items-center gap-1">
+            <div className={`relative w-[90px] h-[90px] flex items-center justify-center`}>
+                <svg width={sqSize} height={sqSize} viewBox={`0 0 ${sqSize} ${sqSize}`}>
+                    <circle className="fill-none stroke-zinc-200 dark:stroke-neutral-700" cx={sqSize / 2} cy={sqSize / 2} r={radius} strokeWidth={strokeWidth} />
+                    <circle
+                        className={`fill-none transition-all duration-700 ease-out ${grade === 'A' ? 'stroke-emerald-500' : grade === 'B' ? 'stroke-blue-500' : grade === 'C' ? 'stroke-amber-500' : grade === 'D' ? 'stroke-orange-500' : 'stroke-rose-500'}`}
+                        cx={sqSize / 2} cy={sqSize / 2} r={radius} strokeWidth={strokeWidth}
+                        transform={`rotate(-90 ${sqSize / 2} ${sqSize / 2})`}
+                        style={{ strokeDasharray: dashArray, strokeDashoffset: dashOffset, strokeLinecap: 'round' }}
+                    />
+                </svg>
+                <div className="absolute flex flex-col items-center">
+                    <span className={`text-3xl font-black leading-none ${cfg.color}`}>{grade}</span>
+                    <span className="text-[10px] font-bold text-zinc-400">{score}%</span>
+                </div>
+            </div>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
         </div>
     );
 };
 
-
-const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete }) => {
-    const [analysis, setAnalysis] = useState<JobAnalysisResult | null>(null);
+const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete, onSaveStories }) => {
+    const [analysis, setAnalysis] = useState<EnhancedJobAnalysis | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<Tab>('overview');
+    const [savedStories, setSavedStories] = useState<Set<number>>(new Set());
+
+    const runAnalysis = useCallback(async () => {
+        if (jobDescription.trim().length < 50 || !apiKeySet) return;
+        setIsLoading(true);
+        setError(null);
+        setAnalysis(null);
+        setSavedStories(new Set());
+        try {
+            const [enhanced, basic] = await Promise.all([
+                analyzeJobEnhanced(jobDescription, cvTextContent),
+                analyzeJobDescriptionForKeywords(jobDescription),
+            ]);
+            setAnalysis(enhanced);
+            if (onAnalysisComplete) onAnalysisComplete(basic);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [jobDescription, cvTextContent, apiKeySet, onAnalysisComplete]);
 
     useEffect(() => {
         if (jobDescription.trim().length > 50 && apiKeySet) {
-            const handler = setTimeout(() => {
-                setIsLoading(true);
-                setError(null);
-                setAnalysis(null);
-                analyzeJobDescriptionForKeywords(jobDescription)
-                    .then(result => {
-                        setAnalysis(result);
-                        if (onAnalysisComplete) onAnalysisComplete(result);
-                    })
-                    .catch(err => setError(err instanceof Error ? err.message : "Analysis failed"))
-                    .finally(() => setIsLoading(false));
-            }, 1000); // Debounce
-
-            return () => clearTimeout(handler);
+            const timer = setTimeout(runAnalysis, 1200);
+            return () => clearTimeout(timer);
         } else {
             setAnalysis(null);
             setError(null);
         }
     }, [jobDescription, apiKeySet]);
 
-    const { matchedKeywords, missingKeywords, matchedSkills, missingSkills, matchScore } = useMemo(() => {
-        if (!analysis || !cvTextContent) return { matchedKeywords: new Set(), missingKeywords: [], matchedSkills: new Set(), missingSkills: [], matchScore: 0 };
+    const handleSaveStory = (index: number) => {
+        if (!analysis || !onSaveStories) return;
+        const story = analysis.starStories[index];
+        const newStory: STARStory = {
+            id: Date.now().toString() + '_' + index,
+            createdAt: new Date().toISOString(),
+            jobRequirement: story.jobRequirement,
+            situation: story.situation,
+            task: story.task,
+            action: story.action,
+            result: story.result,
+            reflection: story.reflection,
+            linkedCompany: story.linkedCompany || analysis.companyName,
+            linkedRole: story.linkedRole || analysis.jobTitle,
+        };
+        onSaveStories([newStory]);
+        setSavedStories(prev => new Set([...prev, index]));
+    };
 
-        const lowerCvText = cvTextContent.toLowerCase();
-
-        const matchedKeywords = new Set<string>();
-        const missingKeywords: string[] = [];
-        analysis.keywords.forEach(keyword => {
-            if (lowerCvText.includes(keyword.toLowerCase())) {
-                matchedKeywords.add(keyword);
-            } else {
-                missingKeywords.push(keyword);
-            }
-        });
-
-        const matchedSkills = new Set<string>();
-        const missingSkills: string[] = [];
-        analysis.skills.forEach(skill => {
-            if (lowerCvText.includes(skill.toLowerCase())) {
-                matchedSkills.add(skill);
-            } else {
-                missingSkills.push(skill);
-            }
-        });
-
-        const totalItems = (analysis.keywords?.length || 0) + (analysis.skills?.length || 0);
-        const matchedItems = matchedKeywords.size + matchedSkills.size;
-        const score = totalItems > 0 ? Math.round((matchedItems / totalItems) * 100) : 0;
-
-        return { matchedKeywords, missingKeywords, matchedSkills, missingSkills, matchScore: score };
-    }, [analysis, cvTextContent]);
-
-
-    if (!jobDescription.trim() || jobDescription.length < 50) {
-        return null;
-    }
+    if (!jobDescription.trim() || jobDescription.length < 50) return null;
 
     if (!apiKeySet) {
         return (
-            <div className="mt-6 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20">
-                <p className="text-sm text-amber-700 dark:text-amber-300">Job analysis requires a Gemini API key. Please add one in the settings.</p>
+            <div className="mt-6 p-4 border rounded-xl bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30">
+                <p className="text-sm text-amber-700 dark:text-amber-300">Deep job analysis requires a Groq API key. Please add one in Settings.</p>
             </div>
-        )
+        );
     }
 
     return (
-        <div className="mt-6 p-4 border rounded-lg bg-zinc-50 dark:bg-neutral-700/30 border-zinc-200 dark:border-neutral-700/50">
-            <h3 className="text-lg font-semibold mb-3">Job Analysis</h3>
+        <div className="mt-6 border rounded-2xl bg-white dark:bg-neutral-800/50 border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-neutral-700 bg-zinc-50/80 dark:bg-neutral-800/80">
+                <div>
+                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Deep Job Analysis</h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">6-block career-ops evaluation</p>
+                </div>
+                {analysis && (
+                    <button
+                        onClick={runAnalysis}
+                        disabled={isLoading}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1 disabled:opacity-50"
+                    >
+                        {isLoading ? (
+                            <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                        ) : '↺'} Re-analyze
+                    </button>
+                )}
+            </div>
+
+            {/* Loading state */}
             {isLoading && (
-                <div className="flex items-center text-sm text-zinc-500">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Analyzing job description...
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <div className="relative">
+                        <div className="w-10 h-10 rounded-full border-4 border-indigo-100 dark:border-indigo-900"></div>
+                        <div className="absolute inset-0 w-10 h-10 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+                    </div>
+                    <div className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Running 6-block analysis…</div>
+                    <div className="text-xs text-zinc-400">Evaluating match, gaps, salary & interview prep</div>
                 </div>
             )}
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            {analysis && (
-                <div className="flex flex-col md:flex-row items-start gap-6">
-                    <div className="flex-shrink-0 flex flex-col items-center gap-2">
-                        <ScoreGauge score={matchScore} />
-                        <h4 className="font-semibold text-sm text-zinc-800 dark:text-zinc-200">CV Match Score</h4>
-                    </div>
-                    <div className="flex-grow w-full">
-                        {analysis.companyName || analysis.jobTitle ? (
-                            <div className="mb-4 flex items-center gap-4 flex-wrap">
-                                {analysis.companyName && (
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Company</p>
-                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{analysis.companyName}</p>
-                                    </div>
-                                )}
-                                {analysis.jobTitle && (
-                                    <div>
-                                        <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Target Position</p>
-                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{analysis.jobTitle}</p>
-                                    </div>
+
+            {/* Error state */}
+            {error && !isLoading && (
+                <div className="p-5">
+                    <p className="text-sm text-rose-600 dark:text-rose-400 mb-3">{error}</p>
+                    <button onClick={runAnalysis} className="text-xs font-semibold text-indigo-600 hover:underline">Try again</button>
+                </div>
+            )}
+
+            {/* Analysis results */}
+            {analysis && !isLoading && (
+                <div>
+                    {/* Score bar */}
+                    <div className="px-5 py-4 flex items-center gap-5 border-b border-zinc-100 dark:border-neutral-700/50">
+                        <ScoreGauge score={analysis.matchScore} grade={analysis.grade} />
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="font-bold text-zinc-900 dark:text-zinc-50 text-sm">{analysis.jobTitle}</span>
+                                {analysis.companyName && analysis.companyName !== 'Unknown' && (
+                                    <span className="text-xs text-zinc-500">@ {analysis.companyName}</span>
                                 )}
                             </div>
-                        ) : null}
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{analysis.archetype}</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-300">{analysis.seniority}</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-300">{analysis.remote}</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{analysis.domain}</span>
+                            </div>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-300 italic">"{analysis.tldr}"</p>
+                        </div>
+                    </div>
 
-                        {missingKeywords.length > 0 || missingSkills.length > 0 ? (
-                            <div className="mb-4">
-                                <h4 className="font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200">Missing Keywords & Skills</h4>
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">Try to include these terms in your CV summary or experience.</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {[...missingKeywords, ...missingSkills].map(kw => (
-                                        <span key={kw} className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-                                            {kw}
-                                        </span>
+                    {/* Tabs */}
+                    <div className="flex border-b border-zinc-100 dark:border-neutral-700 overflow-x-auto">
+                        {TAB_LABELS.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap transition-colors border-b-2 -mb-px flex-shrink-0 ${
+                                    activeTab === tab.id
+                                        ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                        : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                                }`}
+                            >
+                                <span className="sm:hidden">{tab.short}</span>
+                                <span className="hidden sm:inline">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Tab content */}
+                    <div className="p-5">
+                        {/* Tab A: Role Overview */}
+                        {activeTab === 'overview' && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {[
+                                        { label: 'Archetype', value: analysis.archetype },
+                                        { label: 'Domain', value: analysis.domain },
+                                        { label: 'Seniority', value: analysis.seniority },
+                                        { label: 'Work Setup', value: analysis.remote },
+                                    ].map(item => (
+                                        <div key={item.label} className="bg-zinc-50 dark:bg-neutral-700/40 rounded-xl p-3">
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-0.5">{item.label}</div>
+                                            <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 leading-tight">{item.value}</div>
+                                        </div>
                                     ))}
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="mb-4 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-center">
-                                <p className="text-sm font-semibold text-green-800 dark:text-green-200">Excellent Match!</p>
-                                <p className="text-xs text-green-700 dark:text-green-300">Your CV includes all top keywords and skills.</p>
+                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Role TL;DR</div>
+                                    <p className="text-sm text-indigo-800 dark:text-indigo-200">{analysis.tldr}</p>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Salary Estimate</div>
+                                    <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3">
+                                        <div className="text-base font-bold text-emerald-700 dark:text-emerald-300">{analysis.salaryRange}</div>
+                                        <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">{analysis.salaryNotes}</div>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
-                        <h4 className="font-semibold text-sm mb-2 text-zinc-800 dark:text-zinc-200">Matched Keywords & Skills</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {[...matchedKeywords, ...matchedSkills].map(kw => (
-                                <span key={kw} className="flex items-center text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    {kw}
-                                </span>
-                            ))}
-                        </div>
+                        {/* Tab B: CV Match & Gaps */}
+                        {activeTab === 'match' && (
+                            <div className="space-y-4">
+                                {analysis.matchedRequirements.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                                            Matched Requirements ({analysis.matchedRequirements.length})
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            {analysis.matchedRequirements.map((req, i) => (
+                                                <div key={i} className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                                                    <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                                    <span>{req}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {analysis.gaps.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                                            Gaps & Mitigation ({analysis.gaps.length})
+                                        </div>
+                                        <div className="space-y-2">
+                                            {analysis.gaps.map((gap, i) => (
+                                                <div key={i} className={`rounded-xl p-3 border ${gap.isBlocker ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/30' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30'}`}>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${gap.isBlocker ? 'bg-rose-200 text-rose-800 dark:bg-rose-800/40 dark:text-rose-300' : 'bg-amber-200 text-amber-800 dark:bg-amber-800/40 dark:text-amber-300'}`}>
+                                                            {gap.isBlocker ? 'Blocker' : 'Nice-to-have'}
+                                                        </span>
+                                                        <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{gap.requirement}</span>
+                                                    </div>
+                                                    <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                                                        <span className="font-semibold">Mitigation: </span>{gap.mitigation}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Tab C: Level Strategy */}
+                        {activeTab === 'strategy' && (
+                            <div className="space-y-4">
+                                <div className="bg-zinc-50 dark:bg-neutral-700/40 rounded-xl p-4">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Positioning Strategy</div>
+                                    <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{analysis.levelStrategy}</p>
+                                </div>
+                                {analysis.seniorPositioningTips.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Senior Positioning Tips</div>
+                                        <div className="space-y-2">
+                                            {analysis.seniorPositioningTips.map((tip, i) => (
+                                                <div key={i} className="flex items-start gap-2 bg-violet-50 dark:bg-violet-900/20 rounded-xl p-3">
+                                                    <span className="text-violet-500 font-bold text-xs mt-0.5 flex-shrink-0">{i + 1}.</span>
+                                                    <p className="text-xs text-violet-800 dark:text-violet-200">{tip}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Salary Negotiation</div>
+                                    <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4">
+                                        <div className="text-lg font-black text-emerald-700 dark:text-emerald-300 mb-1">{analysis.salaryRange}</div>
+                                        <p className="text-xs text-emerald-700 dark:text-emerald-400">{analysis.salaryNotes}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tab D+E: Personalization */}
+                        {activeTab === 'personalize' && (
+                            <div className="space-y-4">
+                                {analysis.topKeywords.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                                            ATS Keywords to Inject ({analysis.topKeywords.length})
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {analysis.topKeywords.map((kw, i) => (
+                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
+                                                    {kw}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {analysis.personalizationChanges.length > 0 && (
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                                            Recommended CV Changes ({analysis.personalizationChanges.length})
+                                        </div>
+                                        <div className="space-y-2">
+                                            {analysis.personalizationChanges.map((change, i) => (
+                                                <div key={i} className="rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-neutral-700/50">
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{change.section}</span>
+                                                        <span className="text-xs text-zinc-500 dark:text-zinc-400 flex-1 line-clamp-1">{change.currentState}</span>
+                                                    </div>
+                                                    <div className="px-3 py-2.5">
+                                                        <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 mb-1">{change.proposedChange}</p>
+                                                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 italic">{change.reason}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Tab F: Interview STAR+R */}
+                        {activeTab === 'interview' && (
+                            <div className="space-y-4">
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                    STAR+R stories — the <span className="font-semibold text-indigo-600 dark:text-indigo-400">Reflection</span> column signals seniority. Save stories to your Story Bank in the Tracker.
+                                </p>
+                                {analysis.starStories.length === 0 && (
+                                    <p className="text-sm text-zinc-400 text-center py-6">No stories generated. Add CV text above to get personalized interview prep.</p>
+                                )}
+                                {analysis.starStories.map((story, i) => (
+                                    <div key={i} className="rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                                        <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 dark:bg-neutral-700/50 border-b border-zinc-100 dark:border-neutral-700">
+                                            <div>
+                                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">JD Requirement</span>
+                                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{story.jobRequirement}</p>
+                                            </div>
+                                            {onSaveStories && (
+                                                <button
+                                                    onClick={() => handleSaveStory(i)}
+                                                    disabled={savedStories.has(i)}
+                                                    className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex-shrink-0 ${
+                                                        savedStories.has(i)
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                                            : 'bg-white dark:bg-neutral-800 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                                                    }`}
+                                                >
+                                                    {savedStories.has(i) ? '✓ Saved' : '+ Save to Bank'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {[
+                                                { key: 'S', label: 'Situation', value: story.situation, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200' },
+                                                { key: 'T', label: 'Task', value: story.task, color: 'bg-violet-50 dark:bg-violet-900/20 text-violet-800 dark:text-violet-200' },
+                                                { key: 'A', label: 'Action', value: story.action, color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200' },
+                                                { key: 'R', label: 'Result', value: story.result, color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200' },
+                                            ].map(item => (
+                                                <div key={item.key} className={`rounded-lg p-3 ${item.color}`}>
+                                                    <div className="flex items-center gap-1 mb-1">
+                                                        <span className="text-[11px] font-black">{item.key}</span>
+                                                        <span className="text-[10px] font-semibold opacity-70">{item.label}</span>
+                                                    </div>
+                                                    <p className="text-xs leading-relaxed">{item.value}</p>
+                                                </div>
+                                            ))}
+                                            <div className="sm:col-span-2 rounded-lg p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-800 dark:text-rose-200 border-l-4 border-rose-400">
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <span className="text-[11px] font-black">+R</span>
+                                                    <span className="text-[10px] font-semibold opacity-70">Reflection — signals seniority</span>
+                                                </div>
+                                                <p className="text-xs leading-relaxed">{story.reflection}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TrackedApplication, SavedCV, ApplicationStatus, ApplicationPriority } from '../types';
+import { TrackedApplication, SavedCV, ApplicationStatus, ApplicationPriority, STARStory } from '../types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
@@ -10,6 +10,8 @@ interface TrackerProps {
   trackedApps: TrackedApplication[];
   setTrackedApps: React.Dispatch<React.SetStateAction<TrackedApplication[]>>;
   savedCVs: SavedCV[];
+  starStories?: STARStory[];
+  setStarStories?: React.Dispatch<React.SetStateAction<STARStory[]>>;
 }
 
 const statusConfig: Record<ApplicationStatus, { label: string; color: string; bg: string; icon: React.FC<{ className?: string }> }> = {
@@ -153,12 +155,14 @@ const AppCard: React.FC<{
   );
 };
 
-const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs }) => {
+const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs, starStories = [], setStarStories }) => {
+  const [mainTab, setMainTab] = useState<'applications' | 'stories'>('applications');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<Omit<TrackedApplication, 'id'> | TrackedApplication>(emptyForm());
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'All'>('All');
   const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
+  const [expandedStory, setExpandedStory] = useState<string | null>(null);
 
   const stats = useMemo(() => ({
     total: trackedApps.length,
@@ -219,8 +223,106 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
     setTrackedApps(prev => prev.map(a => a.id === id ? { ...a, status } : a));
   };
 
+  const handleDeleteStory = (id: string) => {
+    if (window.confirm('Delete this story from your bank?')) {
+      setStarStories?.(prev => prev.filter(s => s.id !== id));
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Main Tab switcher */}
+      <div className="flex items-center gap-1 bg-zinc-100 dark:bg-neutral-800 rounded-xl p-1 self-start w-fit border border-zinc-200 dark:border-neutral-700">
+        <button
+          onClick={() => setMainTab('applications')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${mainTab === 'applications' ? 'bg-white dark:bg-neutral-700 text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+        >
+          Applications
+        </button>
+        <button
+          onClick={() => setMainTab('stories')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${mainTab === 'stories' ? 'bg-white dark:bg-neutral-700 text-violet-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+        >
+          Interview Story Bank
+          {starStories.length > 0 && (
+            <span className="bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">{starStories.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Story Bank Tab */}
+      {mainTab === 'stories' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">STAR+R Interview Story Bank</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Save stories from job analyses to build a reusable bank for any interview.</p>
+            </div>
+          </div>
+          {starStories.length === 0 ? (
+            <div className="p-12 text-center bg-violet-50 dark:bg-violet-900/10 rounded-2xl border-2 border-dashed border-violet-200 dark:border-violet-800/30">
+              <div className="text-3xl mb-3">🎯</div>
+              <p className="text-sm font-semibold text-violet-700 dark:text-violet-300 mb-1">Your story bank is empty</p>
+              <p className="text-xs text-violet-500 dark:text-violet-400 max-w-xs mx-auto">Generate a job analysis in the CV Generator, then save STAR+R stories from the Interview Prep tab.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {starStories.map((story) => (
+                <div key={story.id} className="rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden bg-white dark:bg-neutral-800 shadow-sm">
+                  <button
+                    onClick={() => setExpandedStory(expandedStory === story.id ? null : story.id)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50 dark:hover:bg-neutral-700/50 transition-colors text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        {story.linkedCompany && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{story.linkedCompany}</span>
+                        )}
+                        {story.linkedRole && (
+                          <span className="text-[10px] text-zinc-400">{story.linkedRole}</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-1">{story.jobRequirement}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-1 italic">Situation: {story.situation}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                      <span className="text-[10px] text-zinc-400">{new Date(story.createdAt).toLocaleDateString()}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteStory(story.id); }}
+                        className="p-1.5 text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                      >
+                        <Trash className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="text-zinc-400 text-xs">{expandedStory === story.id ? '▲' : '▼'}</span>
+                    </div>
+                  </button>
+                  {expandedStory === story.id && (
+                    <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-zinc-100 dark:border-neutral-700 pt-3">
+                      {[
+                        { key: 'S', label: 'Situation', value: story.situation, color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200' },
+                        { key: 'T', label: 'Task', value: story.task, color: 'bg-violet-50 dark:bg-violet-900/20 text-violet-800 dark:text-violet-200' },
+                        { key: 'A', label: 'Action', value: story.action, color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200' },
+                        { key: 'R', label: 'Result', value: story.result, color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200' },
+                      ].map(item => (
+                        <div key={item.key} className={`rounded-lg p-3 ${item.color}`}>
+                          <div className="text-[10px] font-black mb-1">{item.key} — {item.label}</div>
+                          <p className="text-xs leading-relaxed">{item.value}</p>
+                        </div>
+                      ))}
+                      <div className="sm:col-span-2 rounded-lg p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-800 dark:text-rose-200 border-l-4 border-rose-400">
+                        <div className="text-[10px] font-black mb-1">+R — Reflection (signals seniority)</div>
+                        <p className="text-xs leading-relaxed">{story.reflection}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mainTab === 'applications' && (<>
       {/* Stats Row */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
         {[
@@ -436,6 +538,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 };

@@ -28,6 +28,7 @@ import TemplateMedicalStandard from './templates/TemplateMedicalStandard';
 import TemplateNavySidebar from './templates/TemplateNavySidebar';
 import TemplatePhotoSidebar from './templates/TemplatePhotoSidebar';
 import TemplateSWEElite from './templates/TemplateSWEElite';
+import TemplateATSCleanPro from './templates/TemplateATSCleanPro';
 
 
 interface CVPreviewProps {
@@ -100,6 +101,8 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         return <TemplatePhotoSidebar {...rest} />;
       case 'swe-elite':
         return <TemplateSWEElite {...rest} />;
+      case 'ats-clean-pro':
+        return <TemplateATSCleanPro {...rest} />;
       default:
         return <TemplateProfessional {...rest} />;
     }

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   UserProfile, CVData, SavedCV, ApiSettings, TrackedApplication,
-  UserProfileSlot, ProfileColor, SavedMerge,
+  UserProfileSlot, ProfileColor, SavedMerge, STARStory,
 } from './types';
 import { useStorage } from './hooks/useStorage';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
@@ -89,6 +89,7 @@ const AppInner: React.FC = () => {
   const [savedCVs, setSavedCVs] = useStorage<SavedCV[]>('savedCVs', []);
   const [currentCV, setCurrentCV] = useStorage<CVData | null>('currentCV', null);
   const [trackedApps, setTrackedApps] = useStorage<TrackedApplication[]>('trackedApps', []);
+  const [starStories, setStarStories] = useStorage<STARStory[]>('starStories', []);
   const [apiSettings, setApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
   const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
   const [savedMerges, setSavedMerges] = useStorage<SavedMerge[]>('savedMerges', []);
@@ -265,6 +266,11 @@ const AppInner: React.FC = () => {
       toast.success('CV Deleted', cvToDelete ? `"${cvToDelete.name}" has been removed.` : 'CV removed.');
     }
   }, [setSavedCVs, savedCVs, toast]);
+
+  const handleSaveStories = useCallback((newStories: STARStory[]) => {
+    setStarStories(prev => [...newStories, ...prev]);
+    toast.success('Stories Saved!', `${newStories.length} STAR+R story added to your Interview Story Bank.`);
+  }, [setStarStories, toast]);
 
   const handleLoadCV = useCallback((cvData: CVData) => {
     setCurrentCV(cvData);
@@ -655,6 +661,7 @@ const AppInner: React.FC = () => {
                     savedCVs={savedCVs}
                     toolkitSuggestions={toolkitSuggestions}
                     onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}
+                    onSaveStories={handleSaveStories}
                   />
                 )}
                 {currentView === 'essays' && <ScholarshipEssayWriter userProfile={userProfile!} apiKeySet={apiKeySet} openSettings={() => setIsSettingsOpen(true)} />}
@@ -695,7 +702,7 @@ const AppInner: React.FC = () => {
                       <h2 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-50">Application Tracker</h2>
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">Manage and track your job applications in one place.</p>
                     </div>
-                    <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} />
+                    <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} starStories={starStories} setStarStories={setStarStories} />
                   </div>
                 )}
                 {currentView === 'merger' && (
