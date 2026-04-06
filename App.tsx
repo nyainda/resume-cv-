@@ -21,6 +21,9 @@ import CVToolkit from './components/CVToolkit';
 import EmailApply from './components/EmailApply';
 import PDFMerger from './components/PDFMerger';
 import { ProfileManager } from './components/ProfileManager';
+import NegotiationCoach from './components/NegotiationCoach';
+import PortalScanner from './components/PortalScanner';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 import {
   Edit, User, List, Settings, FileText, Target,
   Moon, Sun, BookOpen, Globe, Sparkles,
@@ -37,6 +40,24 @@ const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
 const MergeNavIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <path d="M8 6H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3" /><path d="M16 6h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3" /><line x1="12" y1="2" x2="12" y2="22" /><path d="M9 9l3-3 3 3" /><path d="M9 15l3 3 3-3" />
+  </svg>
+);
+
+const ScannerNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6" /><path d="M8 11h6" />
+  </svg>
+);
+
+const NegotiationNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  </svg>
+);
+
+const AnalyticsNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" />
   </svg>
 );
 
@@ -349,7 +370,7 @@ const AppInner: React.FC = () => {
     toast.success('Merge Deleted', 'Merge preset removed.');
   }, [setSavedMerges, toast]);
 
-  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit' | 'email' | 'merger'>('generator');
+  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics'>('generator');
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
 
   const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
@@ -360,11 +381,14 @@ const AppInner: React.FC = () => {
   const navItems = [
     { id: 'generator', label: 'CV Generator', icon: FileText },
     { id: 'jobs', label: 'Job Board', icon: Globe },
+    { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
     { id: 'toolkit', label: 'CV Toolkit', icon: Sparkles },
+    { id: 'negotiation', label: 'Negotiation', icon: NegotiationNavIcon },
     { id: 'email', label: 'Email Apply', icon: MailIcon },
     { id: 'essays', label: 'Scholarship', icon: BookOpen },
     { id: 'history', label: 'CV History', icon: List },
     { id: 'tracker', label: 'Job Tracker', icon: Target },
+    { id: 'analytics', label: 'Analytics', icon: AnalyticsNavIcon },
     { id: 'merger', label: 'PDF Merge', icon: MergeNavIcon },
   ];
 
@@ -713,6 +737,30 @@ const AppInner: React.FC = () => {
                     onSaveMerge={handleSaveMerge}
                     onDeleteMerge={handleDeleteMerge}
                   />
+                )}
+                {currentView === 'negotiation' && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <NegotiationCoach
+                      apiKeySet={apiKeySet}
+                      openSettings={() => setIsSettingsOpen(true)}
+                    />
+                  </div>
+                )}
+                {currentView === 'scanner' && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <PortalScanner
+                      tavilyApiKey={tavilyApiKey}
+                      openSettings={() => setIsSettingsOpen(true)}
+                    />
+                  </div>
+                )}
+                {currentView === 'analytics' && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <AnalyticsDashboard
+                      trackedApps={trackedApps}
+                      onGoToTracker={() => setCurrentView('tracker')}
+                    />
+                  </div>
                 )}
               </div>
             )}
