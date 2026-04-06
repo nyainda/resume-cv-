@@ -1,0 +1,16 @@
+name = "resume-pdf-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[browser]
+binding = "BROWSER"
+
+[vars]
+ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app"
+
+[dev]
+remote = true
+
+[env.dev.vars]
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5000,http://localhost:3000"
