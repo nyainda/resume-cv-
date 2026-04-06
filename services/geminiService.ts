@@ -96,6 +96,22 @@ async function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs 
     }
 }
 
+// --- Compact-serialize a profile for embedding in Groq prompts.
+//     Uses single-line JSON and caps long responsibility strings to keep
+//     input tokens well under Groq's per-request limit.
+function compactProfile(profile: UserProfile, maxResponsibilityChars = 400): string {
+    const p = {
+        ...profile,
+        workExperience: (profile.workExperience || []).map(exp => ({
+            ...exp,
+            responsibilities: typeof exp.responsibilities === 'string'
+                ? exp.responsibilities.substring(0, maxResponsibilityChars)
+                : exp.responsibilities,
+        })),
+    };
+    return JSON.stringify(p);
+}
+
 // --- UserProfile JSON schema description for Groq prompts ---
 const USER_PROFILE_SCHEMA = `
 RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema:
@@ -350,7 +366,7 @@ export const generateCV = async (
             You are a world-class CV writer. Create a powerful, general-purpose CV that presents the candidate at their absolute best across diverse job markets.
 
             USER PROFILE:
-            ${JSON.stringify(profile, null, 2)}
+            ${compactProfile(profile)}
             ${githubInstruction}
 
             === INSTRUCTIONS ===
@@ -390,7 +406,7 @@ export const generateCV = async (
             You are the world's leading academic CV specialist and grant-writing consultant. Create an outstanding academic CV that maximizes the candidate's chances for this specific scholarship, grant, or academic opportunity.
 
             USER PROFILE:
-            ${JSON.stringify(profile, null, 2)}
+            ${compactProfile(profile)}
             ${githubInstruction}
 
             GRANT/SCHOLARSHIP/ACADEMIC PURPOSE:
@@ -471,7 +487,7 @@ export const generateCV = async (
             You are the world's greatest CV strategist. Your sole mission: generate the single highest-performing CV for this specific candidate targeting this specific role. Every word must earn its place.
 
             USER PROFILE:
-            ${JSON.stringify(profile, null, 2)}
+            ${compactProfile(profile)}
             ${githubInstruction}
 
             JOB DESCRIPTION / TARGET CONTEXT:
@@ -530,7 +546,7 @@ export const generateCV = async (
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
 
-    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 8192 });
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 3500 });
     const cvData: CVData = JSON.parse(text.trim());
 
     // Sort experience by end date descending (most recent first)
@@ -595,7 +611,7 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
         Applicant Location: ${profile.personalInfo?.location || ''}
 
         USER PROFILE (for background and content):
-        ${JSON.stringify(profile, null, 2)}
+        ${compactProfile(profile)}
 
         JOB DESCRIPTION:
         ${jobDescription || 'General application — highlight the strongest transferable skills.'}
@@ -648,7 +664,7 @@ export const generateEnhancedSummary = async (profile: UserProfile): Promise<str
       **CRITICAL:** Do NOT invent skills, experiences, or achievements not present in the profile. If the profile is sparse, write a strong summary based ONLY on what is there.
       Return only the summary text.
       USER PROFILE:
-      ${JSON.stringify(profile, null, 2)}
+      ${compactProfile(profile)}
     `;
     return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5 });
 };
@@ -714,7 +730,7 @@ export const generateScholarshipEssay = async (params: {
 
         ### INPUT DATA
         USER PROFILE (Your source for achievements and background):
-        ${JSON.stringify(params.profile, null, 2)}
+        ${compactProfile(params.profile)}
 
         SCHOLARSHIP/PROGRAM DESCRIPTION:
         ${params.scholarshipDescription}
@@ -812,7 +828,7 @@ export const generateSmartCoverLetter = async (
         You are a world-class career coach writing a WINNING cover letter.
 
         ### CV DATA
-        ${JSON.stringify(profile, null, 2)}
+        ${compactProfile(profile)}
 
         ### JOB DESCRIPTION
         ${jobDescription}
@@ -1017,7 +1033,7 @@ DETECTED LANGUAGES: ${allLanguages.join(', ')}
 DETECTED TOPICS/FRAMEWORKS: ${allTopics.join(', ')}
 
 USER PROFILE (existing data):
-${JSON.stringify(profile, null, 2)}
+${compactProfile(profile)}
 ${jdSection}
 
 === INSTRUCTIONS ===
