@@ -4,318 +4,374 @@ interface Props {
   onGetStarted: () => void;
   darkMode: boolean;
   onToggleDark: () => void;
+  hasProfile?: boolean;
+  onGoToApp?: () => void;
 }
 
-const features = [
-  {
-    icon: '✦',
-    color: 'from-indigo-500 to-violet-600',
-    bg: 'bg-indigo-50 dark:bg-indigo-900/20',
-    border: 'border-indigo-100 dark:border-indigo-900/40',
-    title: 'AI CV Generator',
-    desc: 'Tailors your CV to any job description in seconds. Injects ATS-optimised keywords invisibly for maximum screening pass-through.',
-  },
-  {
-    icon: '⊕',
-    color: 'from-emerald-500 to-teal-600',
-    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-    border: 'border-emerald-100 dark:border-emerald-900/40',
-    title: 'Job Portal Scanner',
-    desc: 'Scan 150+ company career portals — Greenhouse, Ashby, Lever, and direct sites — for your target role in one click.',
-  },
-  {
-    icon: '◈',
-    color: 'from-sky-500 to-blue-600',
-    bg: 'bg-sky-50 dark:bg-sky-900/20',
-    border: 'border-sky-100 dark:border-sky-900/40',
-    title: 'Job Board',
-    desc: 'Search live job listings powered by AI. Filter by role, location, and company type with smart relevance ranking.',
-  },
-  {
-    icon: '◉',
-    color: 'from-violet-500 to-purple-600',
-    bg: 'bg-violet-50 dark:bg-violet-900/20',
-    border: 'border-violet-100 dark:border-violet-900/40',
-    title: 'CV Toolkit',
-    desc: 'AI-powered analysis of your CV — identifies weaknesses, rewrites bullet points, and scores ATS compatibility.',
-  },
-  {
-    icon: '⟡',
-    color: 'from-amber-500 to-orange-500',
-    bg: 'bg-amber-50 dark:bg-amber-900/20',
-    border: 'border-amber-100 dark:border-amber-900/40',
-    title: 'Scholarship Essays',
-    desc: 'Generate compelling personal statements and scholarship essays tailored to each institution\'s values and prompts.',
-  },
-  {
-    icon: '◎',
-    color: 'from-rose-500 to-pink-600',
-    bg: 'bg-rose-50 dark:bg-rose-900/20',
-    border: 'border-rose-100 dark:border-rose-900/40',
-    title: 'Negotiation Coach',
-    desc: 'AI-powered salary negotiation scripts, counter-offer strategies, and market rate benchmarking for your role.',
-  },
-  {
-    icon: '⬡',
-    color: 'from-cyan-500 to-sky-600',
-    bg: 'bg-cyan-50 dark:bg-cyan-900/20',
-    border: 'border-cyan-100 dark:border-cyan-900/40',
-    title: 'Email Apply',
-    desc: 'Compose personalised job application emails with AI — auto-filled with your CV data and the job description.',
-  },
-  {
-    icon: '⌘',
-    color: 'from-teal-500 to-emerald-600',
-    bg: 'bg-teal-50 dark:bg-teal-900/20',
-    border: 'border-teal-100 dark:border-teal-900/40',
-    title: 'Job Tracker',
-    desc: 'Track every application, interview stage, and follow-up in a Kanban-style dashboard. Never lose track of a lead.',
-  },
-  {
-    icon: '◭',
-    color: 'from-fuchsia-500 to-violet-600',
-    bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20',
-    border: 'border-fuchsia-100 dark:border-fuchsia-900/40',
-    title: 'Analytics Dashboard',
-    desc: 'Visualise your job search performance — application rates, response rates, and STAR story coverage.',
-  },
-  {
-    icon: '⊞',
-    color: 'from-orange-500 to-red-500',
-    bg: 'bg-orange-50 dark:bg-orange-900/20',
-    border: 'border-orange-100 dark:border-orange-900/40',
-    title: 'PDF Merger',
-    desc: 'Merge multiple PDFs — CV, cover letter, portfolio — into a single polished document ready for upload.',
-  },
-  {
-    icon: '❖',
-    color: 'from-lime-500 to-green-600',
-    bg: 'bg-lime-50 dark:bg-lime-900/20',
-    border: 'border-lime-100 dark:border-lime-900/40',
-    title: 'Multi-Profile Manager',
-    desc: 'Maintain separate profiles for different career tracks. Switch between them instantly with full data isolation.',
-  },
-  {
-    icon: '☁',
-    color: 'from-slate-500 to-zinc-600',
-    bg: 'bg-slate-50 dark:bg-slate-900/20',
-    border: 'border-slate-100 dark:border-slate-900/40',
-    title: 'Cloud Sync',
-    desc: 'Sync all your data to Google Drive automatically. Your profile, CVs, and applications are always backed up.',
-  },
+const tools = [
+  { n: '01', name: 'CV Generator',       desc: 'Tailors every CV to the exact job — keywords, tone, structure — all tuned to beat any screening system.' },
+  { n: '02', name: 'Portal Scanner',      desc: '150+ company portals scanned in one click. Greenhouse, Ashby, Lever, and direct career pages.' },
+  { n: '03', name: 'Job Board',           desc: 'Live job listings filtered by role and location. Curated signal, no noise.' },
+  { n: '04', name: 'CV Toolkit',          desc: 'Deep analysis of your CV — weak bullet points flagged, compatibility scored, rewrite suggestions ready.' },
+  { n: '05', name: 'Scholarship Essays',  desc: 'Personal statements and funding essays tailored to each institution\'s values, written with your voice.' },
+  { n: '06', name: 'Negotiation Coach',   desc: 'Market-rate data, counter-offer scripts, and walk-away strategies for every salary conversation.' },
+  { n: '07', name: 'Email Apply',         desc: 'One-click application emails — pulled from your profile and the job description, ready to send.' },
+  { n: '08', name: 'Application Tracker', desc: 'Kanban pipeline for every role you\'ve applied to. Interviews, follow-ups, deadlines — never missed.' },
+  { n: '09', name: 'Analytics',           desc: 'Application velocity, response rates, and story coverage — your job search quantified.' },
+  { n: '10', name: 'PDF Merger',          desc: 'Combine CV, cover letter, and portfolio into a single clean document in seconds.' },
+  { n: '11', name: 'Profile Manager',     desc: 'Multiple career identities — switch between software, design, finance — with full data separation.' },
+  { n: '12', name: 'Cloud Backup',        desc: 'Your data stays in your browser by default. Link Google Drive for optional encrypted backup.' },
 ];
 
-const stats = [
-  { value: '150+', label: 'Company portals scanned' },
-  { value: '20+', label: 'CV templates' },
-  { value: '100%', label: 'Private — all data stays in your browser' },
-  { value: '0', label: 'Subscriptions required' },
+const guarantees = [
+  { label: 'No server storage',          detail: 'Everything lives in your browser. Nothing is ever uploaded without your consent.' },
+  { label: 'Your keys, your calls',      detail: 'Bring your own API keys. We never touch them, proxy them, or store them server-side.' },
+  { label: 'No tracking, no analytics',  detail: 'Zero telemetry. No session recordings, no event logging, no ad pixels.' },
+  { label: 'Free forever',              detail: 'No subscription, no paywall, no freemium bait-and-switch.' },
 ];
 
-const portals = [
-  { name: 'Greenhouse', color: 'bg-emerald-500', count: '70+' },
-  { name: 'Ashby', color: 'bg-violet-500', count: '25+' },
-  { name: 'Lever', color: 'bg-blue-500', count: '20+' },
-  { name: 'Direct', color: 'bg-zinc-400', count: '35+' },
-];
-
-const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark }) => {
-  const [visible, setVisible] = useState(false);
+const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, hasProfile, onGoToApp }) => {
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 60);
+    const t = setTimeout(() => setReady(true), 40);
     return () => clearTimeout(t);
   }, []);
 
   return (
-    <div className={`min-h-screen bg-white dark:bg-neutral-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300 ${visible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
-
-      {/* ── Top nav ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-xl border-b border-zinc-100 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+    <div
+      className="min-h-screen transition-opacity duration-500"
+      style={{
+        opacity: ready ? 1 : 0,
+        background: darkMode ? '#0c0c0c' : '#f5f2eb',
+        color: darkMode ? '#f0ece0' : '#111111',
+        fontFamily: "'system-ui', '-apple-system', 'sans-serif'",
+      }}
+    >
+      {/* ── Nav ────────────────────────────────────────────────────────────── */}
+      <header
+        className="sticky top-0 z-30"
+        style={{
+          background: darkMode ? 'rgba(12,12,12,0.92)' : 'rgba(245,242,235,0.92)',
+          backdropFilter: 'blur(16px)',
+          borderBottom: `1px solid ${darkMode ? '#222' : '#ddd9cf'}`,
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-14 flex items-center justify-between">
+          {/* Wordmark */}
+          <div className="flex items-center gap-3">
+            <div
+              className="w-7 h-7 flex items-center justify-center font-black text-sm"
+              style={{ background: '#EBFF38', color: '#111', borderRadius: 4 }}
+            >
+              C
             </div>
-            <span className="font-extrabold text-sm text-zinc-900 dark:text-zinc-50">AI CV Builder</span>
+            <span className="font-black tracking-tight text-sm" style={{ letterSpacing: '-0.02em' }}>
+              Career Suite
+            </span>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={onToggleDark}
-              className="p-2 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50 hover:bg-zinc-100 dark:hover:bg-neutral-800 transition"
+              className="p-2 rounded-lg transition-colors"
+              style={{ color: darkMode ? '#aaa' : '#666' }}
             >
               {darkMode ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="5" /><path strokeLinecap="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
               ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
               )}
             </button>
+
+            {hasProfile && onGoToApp && (
+              <button
+                onClick={onGoToApp}
+                className="px-4 py-1.5 text-sm font-bold rounded-lg transition-colors"
+                style={{ background: darkMode ? '#1e1e1e' : '#e8e4db', color: darkMode ? '#ccc' : '#444' }}
+              >
+                ← Back to App
+              </button>
+            )}
+
             <button
               onClick={onGetStarted}
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition shadow-sm"
+              className="px-4 py-1.5 text-sm font-black rounded-lg transition-all"
+              style={{ background: '#EBFF38', color: '#111', letterSpacing: '-0.01em' }}
             >
-              Get Started
+              {hasProfile ? 'Open Suite' : 'Get Started'}
             </button>
           </div>
         </div>
       </header>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden pt-24 pb-20 px-4">
-        {/* Background blobs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-32 -left-32 w-[600px] h-[600px] bg-indigo-100 dark:bg-indigo-950/60 rounded-full blur-3xl opacity-60" />
-          <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-violet-100 dark:bg-violet-950/60 rounded-full blur-3xl opacity-50" />
-        </div>
-
-        <div className="relative max-w-4xl mx-auto text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 tracking-wide uppercase">AI-Powered · Privacy First · Free</span>
-          </div>
-
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 leading-[1.05] mb-6">
-            Land your dream job<br />
-            <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-transparent">
-              faster with AI
-            </span>
-          </h1>
-
-          <p className="text-lg sm:text-xl text-zinc-500 dark:text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-10">
-            The complete AI career suite. Generate ATS-optimised CVs, scan 150+ company portals, track applications, coach your negotiation — all from one place. Your data never leaves your browser.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={onGetStarted}
-              className="group px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-base font-extrabold rounded-2xl transition-all shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5 flex items-center justify-center gap-2"
+      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-20 pb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          {/* Left: text */}
+          <div>
+            <p
+              className="text-xs font-black uppercase tracking-[0.25em] mb-6"
+              style={{ color: '#EBFF38', background: '#111', display: 'inline-block', padding: '4px 10px' }}
             >
-              Build Your CV Now
-              <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-            </button>
-            <button
-              onClick={onGetStarted}
-              className="px-8 py-4 bg-zinc-100 dark:bg-neutral-800 hover:bg-zinc-200 dark:hover:bg-neutral-700 text-zinc-700 dark:text-zinc-200 text-base font-bold rounded-2xl transition-all"
+              The complete career suite
+            </p>
+            <h1
+              className="font-black leading-none mb-8"
+              style={{ fontSize: 'clamp(3rem, 7vw, 5.5rem)', letterSpacing: '-0.04em' }}
             >
-              Explore Features →
-            </button>
-          </div>
-
-          {/* Privacy note */}
-          <p className="mt-6 text-xs text-zinc-400 dark:text-zinc-600 flex items-center justify-center gap-1.5">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-            No account needed · All data stays in your browser · Open Source
-          </p>
-        </div>
-      </section>
-
-      {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <section className="border-y border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-900 py-10 px-4">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
-          {stats.map(s => (
-            <div key={s.label}>
-              <div className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mb-1">{s.value}</div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 font-medium leading-snug">{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Portal logos ─────────────────────────────────────────────────── */}
-      <section className="py-12 px-4 text-center">
-        <p className="text-xs font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest mb-6">Scans portals powered by</p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {portals.map(p => (
-            <span key={p.name} className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-50 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-full text-sm font-bold text-zinc-700 dark:text-zinc-300">
-              <span className={`w-2.5 h-2.5 rounded-full ${p.color}`} />
-              {p.name}
-              <span className="text-xs font-medium text-zinc-400">{p.count} companies</span>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Feature grid ─────────────────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-zinc-50 dark:bg-neutral-900">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-zinc-50 mb-3">Everything you need to get hired</h2>
-            <p className="text-zinc-500 dark:text-zinc-400 max-w-xl mx-auto">12 AI-powered tools working together in a single, privacy-first suite.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {features.map((f, i) => (
-              <div
-                key={f.title}
-                className={`group relative p-5 rounded-2xl border bg-white dark:bg-neutral-800 ${f.border} hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer`}
-                style={{ animationDelay: `${i * 40}ms` }}
-                onClick={onGetStarted}
-              >
-                {/* Icon */}
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${f.color} flex items-center justify-center text-white text-lg font-black mb-4 shadow-sm group-hover:scale-110 transition-transform`}>
-                  {f.icon}
-                </div>
-                <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100 mb-1.5">{f.title}</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{f.desc}</p>
-
-                {/* Hover arrow */}
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Privacy section ───────────────────────────────────────────────── */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-10 sm:p-14 text-white text-center shadow-2xl">
-            {/* Decorative blobs */}
-            <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2 blur-2xl" />
-            <div className="absolute bottom-0 right-0 w-64 h-64 bg-black/10 rounded-full translate-x-1/2 translate-y-1/2 blur-2xl" />
-
-            <div className="relative">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-2xl mb-6 text-3xl">🔒</div>
-              <h2 className="text-3xl sm:text-4xl font-black mb-4 leading-tight">Privacy by design</h2>
-              <p className="text-white/80 text-base sm:text-lg max-w-xl mx-auto mb-8 leading-relaxed">
-                Your API keys, profile data, CVs, and application history are stored exclusively in your browser.
-                Nothing is sent to our servers. Use Google Drive sync if you want a cloud backup — fully optional and OAuth-secured.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3 mb-10">
-                {['No server storage', 'Your API keys only', 'No analytics tracking', 'Optional Google Drive backup'].map(item => (
-                  <span key={item} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-sm font-semibold">
-                    <svg className="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                    {item}
-                  </span>
-                ))}
-              </div>
+              Your career.<br />Your terms.<br />
+              <span style={{ color: '#EBFF38', WebkitTextStroke: darkMode ? '0' : '1px #111' }}>
+                Fully private.
+              </span>
+            </h1>
+            <p
+              className="text-base leading-relaxed max-w-md mb-10"
+              style={{ color: darkMode ? '#888' : '#555' }}
+            >
+              Twelve tools for building CVs, finding jobs, tracking applications, and negotiating offers — without ever giving up your data. No accounts. No subscriptions. No cloud unless you want it.
+            </p>
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={onGetStarted}
-                className="px-8 py-3.5 bg-white text-indigo-700 font-extrabold text-base rounded-2xl hover:bg-zinc-50 transition shadow-lg hover:-translate-y-0.5 hover:shadow-xl"
+                className="px-6 py-3 font-black text-sm transition-all hover:scale-105"
+                style={{ background: '#EBFF38', color: '#111', borderRadius: 8, letterSpacing: '-0.01em' }}
               >
-                Start Building Your CV →
+                {hasProfile ? 'Open Suite →' : 'Start for free →'}
+              </button>
+              <button
+                onClick={onGetStarted}
+                className="px-6 py-3 font-bold text-sm transition-all"
+                style={{
+                  background: 'transparent',
+                  color: darkMode ? '#ccc' : '#444',
+                  border: `1.5px solid ${darkMode ? '#333' : '#ccc9bf'}`,
+                  borderRadius: 8,
+                }}
+              >
+                See all 12 tools
               </button>
             </div>
           </div>
+
+          {/* Right: big number + breakdown */}
+          <div className="lg:pt-4">
+            {/* Big stat */}
+            <div
+              className="p-8 mb-4"
+              style={{ background: darkMode ? '#161616' : '#edeae1', borderRadius: 16 }}
+            >
+              <div
+                className="font-black leading-none mb-2"
+                style={{ fontSize: 'clamp(5rem, 12vw, 9rem)', letterSpacing: '-0.06em', color: '#EBFF38' }}
+              >
+                150+
+              </div>
+              <p className="font-bold text-sm" style={{ color: darkMode ? '#666' : '#777' }}>
+                company career portals scanned in one click
+              </p>
+            </div>
+
+            {/* Three small stats */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { v: '12', l: 'tools' },
+                { v: '20+', l: 'templates' },
+                { v: '0€', l: 'cost' },
+              ].map(s => (
+                <div
+                  key={s.l}
+                  className="p-4 text-center"
+                  style={{ background: darkMode ? '#161616' : '#edeae1', borderRadius: 12 }}
+                >
+                  <div className="font-black text-2xl" style={{ letterSpacing: '-0.04em' }}>{s.v}</div>
+                  <div className="text-xs mt-0.5" style={{ color: darkMode ? '#555' : '#888' }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────────── */}
-      <footer className="border-t border-zinc-100 dark:border-neutral-800 py-8 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+      {/* ── Ticker-style divider ────────────────────────────────────────────── */}
+      <div
+        className="overflow-hidden py-3"
+        style={{ borderTop: `1px solid ${darkMode ? '#222' : '#ddd9cf'}`, borderBottom: `1px solid ${darkMode ? '#222' : '#ddd9cf'}` }}
+      >
+        <div className="flex gap-8 whitespace-nowrap animate-[marquee_20s_linear_infinite]" style={{ width: 'max-content' }}>
+          {['CV Generator', 'Portal Scanner', 'Job Board', 'Negotiation Coach', 'Application Tracker', 'Scholarship Essays', 'Email Apply', 'Analytics', 'PDF Merger', 'Cloud Backup',
+            'CV Generator', 'Portal Scanner', 'Job Board', 'Negotiation Coach', 'Application Tracker', 'Scholarship Essays', 'Email Apply', 'Analytics', 'PDF Merger', 'Cloud Backup',
+            'CV Generator', 'Portal Scanner', 'Job Board', 'Negotiation Coach', 'Application Tracker', 'Scholarship Essays', 'Email Apply', 'Analytics', 'PDF Merger', 'Cloud Backup',
+          ].map((t, i) => (
+            <span
+              key={i}
+              className="text-xs font-bold uppercase tracking-[0.15em] inline-flex items-center gap-4"
+              style={{ color: darkMode ? '#333' : '#bbb9b3' }}
+            >
+              {t}
+              <span style={{ color: '#EBFF38', fontSize: 18 }}>✦</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Tools list ─────────────────────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 py-20">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12">
+          <h2
+            className="font-black leading-none"
+            style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', letterSpacing: '-0.04em' }}
+          >
+            The full suite
+          </h2>
+          <p className="text-sm max-w-xs" style={{ color: darkMode ? '#666' : '#888' }}>
+            Every tool works together. Your data flows between them automatically.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px" style={{ background: darkMode ? '#222' : '#ddd9cf' }}>
+          {tools.map((t) => (
+            <div
+              key={t.n}
+              className="group p-6 cursor-pointer transition-colors"
+              style={{ background: darkMode ? '#0c0c0c' : '#f5f2eb' }}
+              onClick={onGetStarted}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = darkMode ? '#161616' : '#edeae1'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = darkMode ? '#0c0c0c' : '#f5f2eb'; }}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <span
+                  className="font-black text-xs"
+                  style={{ color: '#EBFF38', fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {t.n}
+                </span>
+                <svg
+                  className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity -rotate-45"
+                  style={{ color: darkMode ? '#555' : '#aaa' }}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </div>
+              <h3 className="font-black text-base mb-2" style={{ letterSpacing: '-0.02em' }}>{t.name}</h3>
+              <p className="text-xs leading-relaxed" style={{ color: darkMode ? '#555' : '#888' }}>{t.desc}</p>
             </div>
-            <span className="text-sm font-bold text-zinc-900 dark:text-zinc-50">AI CV Builder</span>
-            <span className="text-xs text-zinc-400">· Elite Career &amp; Scholarship Suite</span>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Privacy ────────────────────────────────────────────────────────── */}
+      <section
+        className="px-6 lg:px-10 py-20"
+        style={{ background: darkMode ? '#111111' : '#111111', color: '#f0ece0' }}
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <p
+                className="text-xs font-black uppercase tracking-[0.2em] mb-6"
+                style={{ color: '#EBFF38' }}
+              >
+                Built different
+              </p>
+              <h2
+                className="font-black mb-6 leading-none"
+                style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', letterSpacing: '-0.04em' }}
+              >
+                Your data stays<br />where it belongs.<br />
+                <span style={{ color: '#EBFF38' }}>With you.</span>
+              </h2>
+              <p className="text-sm leading-relaxed max-w-sm mb-8" style={{ color: '#666' }}>
+                Every CV, every application, every API key — all stored in your browser. Not on our servers, not in a database, not anywhere we can see or sell.
+              </p>
+              <button
+                onClick={onGetStarted}
+                className="px-6 py-3 font-black text-sm transition-all hover:scale-105"
+                style={{ background: '#EBFF38', color: '#111', borderRadius: 8 }}
+              >
+                {hasProfile ? 'Open Suite →' : 'Start for free →'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {guarantees.map(g => (
+                <div
+                  key={g.label}
+                  className="p-5 flex gap-4 items-start"
+                  style={{ background: '#1a1a1a', borderRadius: 12 }}
+                >
+                  <div
+                    className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full mt-0.5"
+                    style={{ background: '#EBFF38' }}
+                  >
+                    <svg className="w-3 h-3" viewBox="0 0 12 10" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 5l3 3 7-7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm mb-0.5" style={{ color: '#f0ece0' }}>{g.label}</p>
+                    <p className="text-xs" style={{ color: '#555' }}>{g.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-xs text-zinc-400">All data stored locally in your browser. Your privacy is guaranteed.</p>
+        </div>
+      </section>
+
+      {/* ── Final CTA ──────────────────────────────────────────────────────── */}
+      <section
+        className="px-6 lg:px-10 py-24 text-center"
+        style={{ background: darkMode ? '#0c0c0c' : '#f5f2eb' }}
+      >
+        <div className="max-w-3xl mx-auto">
+          <h2
+            className="font-black mb-6"
+            style={{ fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', letterSpacing: '-0.04em', lineHeight: 1.05 }}
+          >
+            The job doesn't wait.<br />Neither should you.
+          </h2>
+          <p className="text-sm mb-10 max-w-md mx-auto" style={{ color: darkMode ? '#666' : '#888' }}>
+            Set up your profile once. Every tool in the suite is ready immediately. No tutorial, no onboarding, no credit card.
+          </p>
+          <button
+            onClick={onGetStarted}
+            className="px-10 py-4 font-black text-base transition-all hover:scale-105 inline-flex items-center gap-2"
+            style={{ background: '#EBFF38', color: '#111', borderRadius: 10, letterSpacing: '-0.02em' }}
+          >
+            {hasProfile ? 'Go to Suite' : 'Build your CV — free'}
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+          </button>
+        </div>
+      </section>
+
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <footer
+        className="px-6 lg:px-10 py-8"
+        style={{
+          borderTop: `1px solid ${darkMode ? '#1e1e1e' : '#ddd9cf'}`,
+          background: darkMode ? '#0c0c0c' : '#f5f2eb',
+        }}
+      >
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 font-black text-xs flex items-center justify-center" style={{ background: '#EBFF38', color: '#111', borderRadius: 4 }}>C</div>
+            <span className="font-black text-sm" style={{ letterSpacing: '-0.02em' }}>Career Suite</span>
+          </div>
+          <p className="text-xs" style={{ color: darkMode ? '#444' : '#aaa8a0' }}>
+            No servers touched your data. It all stays in your browser.
+          </p>
         </div>
       </footer>
+
+      {/* Marquee keyframe */}
+      <style>{`
+        @keyframes marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-33.333%); }
+        }
+      `}</style>
     </div>
   );
 };

@@ -413,13 +413,15 @@ const AppInner: React.FC = () => {
     if (profileExists) setShowLanding(false);
   }, [profileExists]);
 
-  // Show landing page when no profile exists yet
-  if (showLanding && !profileExists) {
+  // Show landing page when requested (new users or navigated back)
+  if (showLanding) {
     return (
       <LandingPage
         onGetStarted={() => setShowLanding(false)}
         darkMode={!!darkMode}
         onToggleDark={() => setDarkMode(d => !d)}
+        hasProfile={profileExists}
+        onGoToApp={() => setShowLanding(false)}
       />
     );
   }
@@ -444,15 +446,19 @@ const AppInner: React.FC = () => {
       )}
       <header className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-indigo-600 rounded-lg">
+          <button
+            onClick={() => setShowLanding(true)}
+            className="flex items-center gap-3 group"
+            title="Back to homepage"
+          >
+            <div className="p-1.5 bg-indigo-600 group-hover:bg-indigo-700 rounded-lg transition-colors">
               <FileText className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-lg font-extrabold text-zinc-900 dark:text-zinc-50 leading-none">AI CV Builder</h1>
+            <div className="text-left">
+              <h1 className="text-lg font-extrabold text-zinc-900 dark:text-zinc-50 leading-none group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">AI CV Builder</h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Elite Career &amp; Scholarship Suite</p>
             </div>
-          </div>
+          </button>
 
           {profileExists && !isEditingProfile && (
             <nav className="hidden md:flex items-center bg-zinc-100 dark:bg-neutral-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
