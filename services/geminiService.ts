@@ -629,7 +629,7 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         4. Identify the specific Job Title or Position being advertised. If it's not clear, return "General Application".
 
         JOB DESCRIPTION:
-        ${jobDescription}
+        ${jobDescription.substring(0, 1500)}
 
         Return ONLY a JSON object with this structure:
         {
@@ -640,7 +640,7 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         }
     `;
 
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true });
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 512 });
     return JSON.parse(text.trim());
 };
 
@@ -761,14 +761,15 @@ export const checkCVAgainstJob = async (
     profile: UserProfile,
     jobDescription: string
 ): Promise<CVCheckResult> => {
+    const profileText = JSON.stringify(profile, null, 2).substring(0, 2000);
     const prompt = `
         You are an elite CV reviewer and ATS expert. Analyze this CV against the job description.
 
         ### CV DATA
-        ${JSON.stringify(profile, null, 2)}
+        ${profileText}
 
         ### JOB DESCRIPTION
-        ${jobDescription}
+        ${jobDescription.substring(0, 1500)}
 
         ### ANALYSIS INSTRUCTIONS
         1. **overallScore** (0-100): How well does this CV match the JD?
@@ -795,7 +796,7 @@ export const checkCVAgainstJob = async (
         }
     `;
 
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true });
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 1024 });
     return JSON.parse(text.trim());
 };
 
@@ -891,7 +892,7 @@ export const scoreCV = async (cvData: CVData, jobDescription: string): Promise<C
         ...cvData.skills,
         ...cvData.education.map(e => `${e.degree} ${e.school}`),
         ...(cvData.projects || []).map(p => p.description),
-    ].join(' ');
+    ].join(' ').substring(0, 2000);
 
     const prompt = `
 You are an expert ATS system and senior hiring manager scoring a CV against a job description.
@@ -900,7 +901,7 @@ CV TEXT:
 ${cvText}
 
 JOB DESCRIPTION:
-${jobDescription}
+${jobDescription.substring(0, 1200)}
 
 Scoring rubric:
 - "ats" (0-100): How many of the JD's key terms/phrases appear in the CV?
@@ -927,7 +928,7 @@ Return ONLY a JSON object:
 }
 `;
 
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true });
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 512 });
     return JSON.parse(text.trim()) as CVScore;
 };
 
