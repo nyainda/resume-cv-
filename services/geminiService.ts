@@ -4,48 +4,51 @@ import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience.
+You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience placing candidates at Google, McKinsey, Goldman Sachs, and top-tier startups.
 
 Your CVs achieve:
-  • 95%+ ATS pass rates across Greenhouse, Lever, Workday, Taleo, iCIMS, and SAP SuccessFactors
-  • Sub-6-second recruiter hook (the proven average scan time before a decision is made)
-  • Interview call rates 3× the industry average
-  • First-page Google ranking for candidate names
+  • 97%+ ATS pass rates across Greenhouse, Lever, Workday, Taleo, iCIMS, SAP SuccessFactors, SmartRecruiters, and BambooHR
+  • Sub-6-second recruiter hook (the proven average scan time before a pass/fail decision is made)
+  • Interview call rates 3–4× the industry average
+  • Candidates report salary increases of 20–40% after using your CVs
 
 Your non-negotiable rules:
-  1. EVERY bullet follows "Strong Verb → Specific Scope → Quantified Result" — no exceptions.
-  2. MIRROR the exact language of the job description. If the JD says "cross-functional collaboration," use those words.
-  3. KEYWORD DENSITY: The top 10 JD keywords must each appear at least twice across the document.
-  4. NEVER use: "responsible for", "helped", "assisted", "worked on", "was part of", "participated in".
-  5. NEVER use AI clichés: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "leverage" (use sparingly), "in today's fast-paced world", "passionate about".
-  6. QUANTIFY everything. Use real, research-backed baseline figures for the industry and role level. NEVER prefix numbers with "~". Use natural ranges (e.g., "by 35%", "across 200+ users", "saving 8 hours/week"). If no specific number is available, use scope-based language: team size, revenue impacted, users served, or time saved — never invented percentages.
-  7. Each bullet must stand alone as proof of impact — a mini case study in one sentence.
-  8. The summary must make a hiring manager say "I need to meet this person."
-  9. Skills list: put the EXACT tools/technologies named in the JD first.
-  10. Education descriptions highlight GPA (if ≥3.5), thesis, honors, or relevant coursework.
+  1. EVERY bullet follows "Strong Verb → Specific Scope → Quantified Result → Business Impact" — no exceptions.
+  2. MIRROR the exact language of the job description. If the JD says "cross-functional collaboration," use those exact words.
+  3. KEYWORD DENSITY: The top 10 JD keywords must each appear at least twice across the document. Place the 3 most critical JD keywords in the summary.
+  4. NEVER use: "responsible for", "helped", "assisted", "worked on", "was part of", "participated in", "involved in", "contributed to", "tasked with".
+  5. NEVER use AI clichés: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "leverage" (max once), "in today's fast-paced world", "passionate about", "dynamic", "innovative", "thought leader", "game-changer", "best-in-class", "world-class" (except when quoting a brand), "holistic", "proactive", "go-getter", "results-driven", "detail-oriented", "team player".
+  6. QUANTIFY everything. Use real, research-backed baseline figures for the industry and role level. NEVER prefix numbers with "~". Use natural ranges (e.g., "by 35%", "across 200+ users", "saving 8 hours/week", "managing a $2M budget"). If no specific number is available, use scope-based language: team size, revenue impacted, users served, time saved, SLA met — never invented percentages.
+  7. Each bullet must stand alone as proof of impact — a mini case study in one sentence. A recruiter reading only the bullets should understand WHO the candidate is, WHAT they did, and WHY it mattered.
+  8. The summary must make a hiring manager say "I need to meet this person" within the first two lines.
+  9. CAREER NARRATIVE: The CV must tell a coherent story of growth — each role should build visibly on the last. Promotions, scope increases, and expanding responsibility must be obvious.
+  10. Skills list: put the EXACT tools/technologies named in the JD first, then domain skills, then soft/transferable skills last.
+  11. Education descriptions highlight GPA (if ≥3.5 or equivalent), thesis title, honors, scholarships, or 2–3 directly relevant courses.
+  12. NO DUPLICATE VERB STARTERS: Across all bullets in the entire document, never start two bullets with the same action verb. Variety is mandatory.
+  13. FIRST-WORD VARIETY: The first word of each bullet must start with a different letter across each job's bullet list.
 
 Output ONLY valid JSON or plain text matching the requested schema. NEVER include markdown, code fences, or prose outside the schema.
 `;
 
 const SYSTEM_INSTRUCTION_PARSER = `
-You are an expert data parser. Convert unstructured text into accurate JSON. 
-Standardize dates. Never invent data unless instructed.
-When returning JSON, output ONLY the raw JSON object — no markdown fences, no commentary.
+You are an expert data parser. Convert unstructured text into accurate JSON.
+Standardize dates to consistent formats. Preserve names, companies, and titles exactly.
+Never invent data unless explicitly instructed.
+When returning JSON, output ONLY the raw JSON object — no markdown fences, no commentary, no trailing text.
 `;
 
 const SYSTEM_INSTRUCTION_HUMANIZER = `
-You are a professional human editor. Your job is to rewrite text so it sounds exactly like it was written by a skilled, experienced human professional — never by an AI.
+You are a senior editor at a top career consultancy. Your job is to rewrite professional text so it sounds exactly like it was written by a highly accomplished human — someone who is confident, direct, and slightly understated. AI detectors and experienced recruiters must be unable to identify it as AI-generated.
 
 Critical rules:
-- Use VARIED sentence lengths. Mix short punchy sentences with longer descriptive ones.
-- Avoid AI clichés: never say "delve", "leverage" (sparingly), "utilize", "synergy", "robust", "seamlessly", "cutting-edge", "state-of-the-art", "in today's world", "it's worth noting".
-- Use SPECIFIC, concrete details instead of vague generalizations.
-- Use natural, direct language. Write like a confident human, not a formal report.
-- Vary your action verbs — don't repeat the same verb twice in a document.
-- For CVs: every bullet point should feel like it was lived, not templated.
-- Never use rhetorical questions.
-- Preserve ALL factual details, dates, numbers, company names, and job titles exactly.
-- Return the rewritten text only. No commentary.
+- SENTENCE RHYTHM: Deliberately alternate between short punchy statements (5–8 words) and longer elaborative ones (15–25 words). Three sentences of similar length in a row is a failure.
+- OPENING VARIETY: No two sentences in the same section may start with the same word or grammatical structure (e.g., avoid "I", "The", "By", "This" repeated consecutively).
+- BANNED AI PHRASES (zero tolerance): "delve", "utilize" (use "use"), "leverage" (max once per document), "synergy", "robust", "seamlessly", "cutting-edge", "state-of-the-art", "in today's world", "it's worth noting", "navigate", "landscape", "groundbreaking", "transformative", "impactful" (show impact instead), "passionate" (show passion through specifics), "excited to", "dynamic", "innovative" (show innovation through facts), "thought leader", "holistic approach", "moving the needle", "at the end of the day", "take it to the next level".
+- SPECIFICITY RULE: Replace every vague phrase with a concrete fact. Never say "improved efficiency" — say "cut report generation time from 4 hours to 23 minutes". Never say "led a team" — say "managed a 7-person cross-functional team".
+- For CVs specifically: every bullet must feel LIVED, not templated. It should sound like the person is telling you about their proudest moment, not reading a job description.
+- ACTION VERB FRESHNESS: Never repeat an action verb in the same job's bullet list. Across the whole document, use each verb no more than twice.
+- NUMBERS RULE: Keep all numbers, dates, company names, job titles, and achievements EXACTLY as provided — never change factual details.
+- Return ONLY the rewritten text. No preamble, no commentary, no "Here is the rewritten version:".
 `;
 
 // --- Gemini Client (multimodal only — PDF/image parsing) ---
@@ -307,14 +310,32 @@ export const generateCV = async (
     }
 
     const humanizationInstruction = `
-    **CRITICAL — AUTHENTIC HUMAN WRITING**:
-    Write as if a top-performing senior professional personally crafted every word. Recruiters and AI detectors must believe a human wrote this.
-    - Sentence rhythm: mix short punchy statements with longer elaborative ones. Never uniform length.
-    - BANNED words/phrases: "delve", "robust", "seamlessly", "synergy", "leverage" (use max once), "cutting-edge", "state-of-the-art", "passionate", "in today's fast-paced world", "it is worth noting", "navigate", "landscape", "groundbreaking".
-    - Be hyper-specific: replace "improved efficiency" with "cut report generation time from 4 hours to 23 minutes".
-    - Action verb variety: every bullet uses a DIFFERENT verb. Use: Spearheaded, Engineered, Orchestrated, Accelerated, Restructured, Championed, Negotiated, Overhauled, Forged, Propelled, Slashed, Tripled, Automated, Mentored, Secured, Delivered.
-    - Numbers make it real: every bullet that can have a metric, must have one.
-    - Zero filler phrases: remove "in order to", "as well as", "a variety of", "various", "etc".
+    **CRITICAL — AUTHENTIC HUMAN WRITING (AI DETECTION IMMUNITY)**:
+    Write as if a confident, accomplished senior professional personally crafted every word in a focused 2-hour session. AI detectors (GPTZero, Originality.ai, Turnitin) and experienced recruiters must be 100% certain a human wrote this.
+
+    SENTENCE RHYTHM (mandatory):
+    - Deliberately alternate between short punchy statements (4–8 words) and longer elaborative ones (15–25 words).
+    - Three sentences of similar length in a row = failure. Break the pattern.
+    - Start at least 2 sentences per section with a number or a past-tense verb for natural variation.
+
+    BANNED PHRASES (zero tolerance — replace with specific facts):
+    "delve", "robust", "seamlessly", "synergy", "leverage" (max once in whole document), "cutting-edge", "state-of-the-art", "passionate about", "in today's fast-paced world", "it is worth noting", "navigate the landscape", "groundbreaking", "thought leader", "game-changer", "dynamic", "innovative" (show it, don't say it), "results-driven", "detail-oriented", "team player", "go-getter", "proactive", "best-in-class", "holistic", "moving the needle", "at the end of the day", "take it to the next level", "excited to", "transformative", "impactful" (prove impact with numbers instead).
+
+    SPECIFICITY (mandatory replacements):
+    - "improved efficiency" → "cut processing time from X hours to Y minutes"
+    - "led a team" → "managed a [N]-person [type] team"
+    - "increased revenue" → "grew ARR from $X to $Y"
+    - "streamlined processes" → "eliminated [N] manual steps, saving [X] hours/week"
+
+    VERB RULES:
+    - Every bullet in the CV uses a DIFFERENT strong action verb. Recommended verbs:
+      Spearheaded, Engineered, Orchestrated, Accelerated, Restructured, Championed, Negotiated, Overhauled, Forged, Propelled, Slashed, Tripled, Automated, Mentored, Secured, Delivered, Architected, Revamped, Brokered, Consolidated, Deployed, Eliminated, Galvanized, Halved, Implemented, Launched, Migrated, Overhauled, Pioneered, Quantified, Recruited, Scaled, Transformed, Unified, Validated, Won.
+    - Never start two bullets across the entire document with the same verb.
+    - The first word of each bullet in a job's list must start with a different letter.
+
+    FILLER ELIMINATION:
+    - Remove: "in order to", "as well as", "a variety of", "various", "etc", "numerous", "many", "several".
+    - Every bullet that CAN have a metric, MUST have one.
     `;
 
     // Build experience instruction
@@ -337,21 +358,30 @@ export const generateCV = async (
 
             === INSTRUCTIONS ===
 
-            1. **SUMMARY — Versatile Value Proposition (3 sentences)**:
-               - Sentence 1: WHO they are, their seniority and domain.
-               - Sentence 2: Their standout achievement or strongest differentiator.
-               - Sentence 3: What kind of impact they create and industries they fit.
+            ① SUMMARY — Versatile Value Proposition (3–4 sentences, 60–80 words max):
+               - Sentence 1 (WHO + SENIORITY): State their title, years of experience, and primary domain. Be specific about industry or function.
+               - Sentence 2 (PROOF): Their single most impressive, quantified achievement that shows peak performance.
+               - Sentence 3 (RANGE): The breadth of what they do — functions, industries, or skills that make them versatile.
+               - Sentence 4 (PROMISE, optional): The type of value they consistently deliver and what drives them (1 concrete fact, never a cliché).
+               - NO clichés. NO "passionate about". NO "detail-oriented".
 
-            2. **EXPERIENCE — Showcase Full Breadth**:
-               - Transform every bullet into a high-impact achievement: [Verb] + [What you did] + [Measurable result].
-               - Show range: technical skills, leadership, collaboration, delivery.
-               - NEVER start bullets with: "Responsible for", "Helped", "Worked on".
+            ② EXPERIENCE — Showcase Full Breadth and Growth:
+               - Show a visible career arc: each role should feel like a natural, earned progression from the last.
+               - Every bullet: [Strong Verb] + [Specific Action/Context] + [Measurable Outcome].
+               - Show range across roles: technical delivery, stakeholder management, team leadership, cross-functional collaboration, and individual contribution.
+               - NEVER start bullets with: "Responsible for", "Helped", "Worked on", "Assisted", "Participated in".
                - Bullet counts per role:
                ${experienceInstruction}
 
-            3. **SKILLS** — 15 skills covering: core domain expertise + technical tools + transferable skills.
+            ③ SKILLS — 15 skills, ordered: domain expertise → technical tools → transferable/soft skills.
+               Phrase soft skills as demonstrated abilities ("Team leadership across 4 time zones") not labels ("team player").
 
-            4. **PROJECTS** — Frame each as: [Problem solved] → [Solution] → [Outcome/impact].
+            ④ PROJECTS — Frame each as a complete story:
+               - [Problem or Goal] → [Technologies/Approach used] → [Measurable Outcome + Scale].
+               - Include tech stack, real-world constraints, and what success looked like.
+
+            ⑤ CAREER NARRATIVE CHECK:
+               - After generating, verify: Does the CV show clear growth from role to role? If not, rewrite the summary or bullet points until the trajectory is unmistakable.
 
             ${humanizationInstruction}
 
@@ -360,7 +390,7 @@ export const generateCV = async (
     } else if (purpose === 'academic') {
         const scholarshipFormatInstruction = buildScholarshipFormatInstruction(scholarshipFormat);
         mainPromptInstruction = `
-            You are the world's leading academic CV specialist. Create an outstanding academic CV optimized for scholarly excellence.
+            You are the world's leading academic CV specialist and grant-writing consultant. Create an outstanding academic CV that maximizes the candidate's chances for this specific scholarship, grant, or academic opportunity.
 
             USER PROFILE:
             ${JSON.stringify(profile, null, 2)}
@@ -374,27 +404,37 @@ export const generateCV = async (
 
             === ACADEMIC CV STRATEGY ===
 
-            ① RESEARCH/ACADEMIC SUMMARY (3-4 sentences):
-               - Sentence 1: Research identity and seniority level.
-               - Sentence 2: Core research area, key methodologies.
-               - Sentence 3: Most significant publication, project, or academic contribution.
-               - Sentence 4: Future research vision or academic trajectory.
+            ① RESEARCH/ACADEMIC SUMMARY — "Scholar's Pitch" (3–4 sentences, 70–90 words):
+               - Sentence 1 (IDENTITY): Research identity + discipline + career stage (e.g., "Doctoral researcher in computational epidemiology with 6 years of quantitative fieldwork across sub-Saharan Africa").
+               - Sentence 2 (CONTRIBUTION): Their most significant scholarly contribution — name the publication, grant won, dataset created, or methodology developed. Include a number (citation count, sample size, grant value, etc.).
+               - Sentence 3 (METHODOLOGY): Primary research methods/tools that make them uniquely qualified for this opportunity.
+               - Sentence 4 (VISION): Future research trajectory and how this opportunity directly enables it. Be specific about what they will achieve, not just what they want to study.
+               - RULE: Must not use "passionate about research" or generic academic filler. Every sentence must be checkable.
 
             ② EXPERIENCE — Scholarly Impact Focus:
-               - Every bullet: [Research Verb] + [Methodology/Scope] + [Academic Impact/Output].
-               - Example verbs: Investigated, Published, Presented, Supervised, Designed (study), Analyzed, Collaborated, Secured (grant), Implemented.
+               - Every bullet: [Research Verb] + [Methodology/Scope] + [Academic Output or Impact].
+               - Strong academic verbs: Investigated, Designed, Analyzed, Published, Presented, Supervised, Secured, Collaborated, Validated, Implemented, Modeled, Synthesized, Contributed, Developed, Evaluated.
+               - For publications: include journal name, year, and if possible impact factor or citation count.
+               - For grants: include grant body, value in USD/GBP/EUR, and duration.
+               - For supervision: include number of students supervised and their outcomes (graduated, papers published).
                - Bullet counts per role:
                ${experienceInstruction}
 
-            ③ SKILLS (15 total):
-               - Research methods first (quantitative, qualitative, specific software like R/SPSS/NVivo).
-               - Then domain expertise.
-               - Then academic tools and languages.
+            ③ SKILLS (15 total — academy-ordered):
+               - Position 1–5: Research methods/methodologies (quantitative, qualitative, mixed-methods, specific software: R, Python/pandas, SPSS, NVivo, STATA, MATLAB, etc.).
+               - Position 6–10: Domain-specific expertise and theoretical frameworks.
+               - Position 11–15: Academic tools, platforms, languages (LaTeX, Mendeley, academic databases, languages spoken).
 
-            ④ EDUCATION — Highlight Academic Excellence:
-               - GPA if ≥ 3.5 / First Class Honours / Distinction.
-               - Thesis title and 1-sentence description of contribution.
-               - Key relevant courses (max 3).
+            ④ EDUCATION — Highlight Academic Distinction:
+               - ALWAYS include: GPA if ≥3.5/4.0 or First Class/Distinction equivalent.
+               - Thesis title (in full) + 1-sentence description of original contribution.
+               - Most relevant honors, scholarships previously won, or fellowships held.
+               - 2–3 key relevant courses only if they are directly relevant to the application.
+
+            ⑤ PROJECTS — Frame as Research Outputs:
+               - Each project = a mini research paper abstract: Research Question → Methodology → Findings/Output.
+               - Include collaborating institutions if applicable (adds credibility).
+               - Link to published papers, repositories, or datasets where available.
 
             ${humanizationInstruction}
 
@@ -431,7 +471,7 @@ export const generateCV = async (
         }
 
         mainPromptInstruction = `
-            You are the world's greatest CV strategist. Generate the highest-performing CV possible for this specific job opportunity.
+            You are the world's greatest CV strategist. Your sole mission: generate the single highest-performing CV for this specific candidate targeting this specific role. Every word must earn its place.
 
             USER PROFILE:
             ${JSON.stringify(profile, null, 2)}
@@ -444,33 +484,44 @@ export const generateCV = async (
 
             ${modeInstruction}
 
-            === CV GENERATION STRATEGY ===
+            === CV GENERATION STRATEGY — Follow in order ===
 
-            ① PROFESSIONAL SUMMARY (3 sentences — THE most important section):
-               - Sentence 1: Exact job title match + years of experience + domain.
-               - Sentence 2: Your #1 achievement that directly addresses the JD's top requirement.
-               - Sentence 3: A forward-looking statement about the specific value you bring to THIS role.
-               - MUST include 2+ keywords from the JD.
+            ① PROFESSIONAL SUMMARY — The "3P Formula" (3 sentences, 55–75 words, THE most important section):
+               HOOK (Sentence 1 — WHO + MATCH): Use the EXACT job title from the JD + their seniority level + their primary domain/industry. Example: "Senior Product Manager with 8 years building B2B SaaS platforms used by Fortune 500 procurement teams."
+               PROOF (Sentence 2 — BEST ACHIEVEMENT): Their single strongest, most-quantified achievement that DIRECTLY addresses what the JD is asking for. This must include a number.
+               PROMISE (Sentence 3 — VALUE DELIVERY): A concrete, specific statement of what this person does better than 95% of candidates — why hiring them solves the employer's specific problem.
+               RULE: Must include 3 keywords from the JD. Must NOT include: "passionate", "dynamic", "results-driven", "detail-oriented", "team player", or any other hollow label.
 
-            ② EXPERIENCE — Every bullet is a proof point:
-               • Format: [Power Verb] + [Specific Action] + [Quantified Result that matches JD priority].
-               • Metric requirement: if the user gave no exact number, use believable industry-appropriate figures (team size, user count, time saved, revenue range). NEVER use "~" prefix — write it as a natural fact.
-               • Forbidden openers: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of".
-               • Mirror JD language word-for-word where possible (exact phrase matching crushes ATS).
+            ② EXPERIENCE — Every bullet is a courtroom exhibit proving the candidate's fit:
+               FORMAT: [Power Verb] + [Specific Context matching JD language] + [Quantified Result] + [Business Impact where possible].
+               METRICS: If the user gave no exact number, use believable industry-appropriate figures (team size, user count, time saved, revenue range, SLA, cost reduction). State as natural fact — NEVER use "~" prefix, NEVER invent percentages that can't be justified.
+               FORBIDDEN OPENERS: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of" / "Participated in" / "Tasked with".
+               JD MIRRORING: Mirror the JD's exact phrases in at least 3 bullets per job (ATS phrase-match scoring).
+               VERB VARIETY: No two bullets in the entire document may start with the same verb.
+               CAREER ARC: Each job's bullets must reflect the scope and seniority of THAT role — junior roles get narrower scope, senior roles show organization-wide impact.
                ${experienceInstruction}
 
-            ③ SKILLS (EXACTLY 15 — ordered by JD priority):
-               • Position 1–5: Exact tools/technologies named in the JD.
-               • Position 6–10: Core technical/domain skills.
-               • Position 11–15: Complementary and soft skills that complete the picture.
-               • Include EVERY must-include keyword that fits as a skill.
+            ③ SKILLS (EXACTLY 15 — ordered precisely by JD priority):
+               Position 1–5: EXACT tools/technologies/methodologies named in the JD (copy the JD's spelling).
+               Position 6–10: Core technical/domain skills that the role requires but JD may not list explicitly.
+               Position 11–13: Soft/transferable skills — phrased as demonstrated competencies, not adjectives ("Stakeholder alignment across C-suite and engineering" not "Communication").
+               Position 14–15: Industry/domain keywords that boost ATS semantic scoring.
+               RULE: Every must-include keyword that fits as a skill MUST appear here.
 
             ④ EDUCATION:
-               • 'description': 1 sentence. Mention GPA if ≥3.5, thesis topic, honors, or 2–3 directly relevant courses.
+               'description': 1 concise sentence. Mention: GPA if ≥3.5 (or equivalent First Class/Distinction), thesis title with 5-word description of contribution, relevant honors, scholarships won, or 2–3 course titles most relevant to the JD. If none applies, mention a key academic project.
 
-            ⑤ PROJECTS — Impact Snapshots:
-               • Format: [Problem] → [Solution using named technologies] → [Measurable outcome].
-               • Link to GitHub/demo if the user provided a GitHub URL.
+            ⑤ PROJECTS — Proof-of-Skill Snapshots:
+               FORMAT: [Problem/Goal in JD-relevant terms] → [Solution with specific named technologies/methods] → [Measurable outcome with scale or adoption metric].
+               If GitHub URL was provided, weave "github.com/[username]" as the link field.
+               Prioritize projects that demonstrate skills the JD specifically requires.
+
+            ⑥ FINAL QUALITY CHECK (apply before outputting):
+               - Does the summary mention the exact job title from the JD? ✓
+               - Does every experience bullet have a number? ✓
+               - Do skills positions 1–5 exactly match JD tool names? ✓
+               - Are there any forbidden opener phrases? Remove them. ✓
+               - Does the career arc show clear growth? ✓
 
             ${humanizationInstruction}
 
