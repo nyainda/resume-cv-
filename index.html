@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="icon" type="image/png" href="/icon-192.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <title>AI-Powered CV Builder</title>
 
@@ -12,142 +12,21 @@
   <meta name="theme-color" content="#4f46e5" />
 
   <!-- Apple PWA-specific meta tags -->
-  <link rel="apple-touch-icon" href="/icon-192.svg" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="AI CV Builder" />
 
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF and html2canvas (runtime dependencies, loaded via CDN) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://rsms.me">
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Roboto+Mono:ital,wght@0,400..700;1,400..700&display=swap"
-    rel="stylesheet">
-  <style>
-    :root {
-      --font-sans: 'Inter', sans-serif;
-      --font-serif: 'Lora', serif;
-      --font-mono: 'Roboto Mono', monospace;
-    }
-
-    body {
-      font-family: var(--font-sans);
-    }
-
-    .font-serif {
-      font-family: var(--font-serif);
-    }
-
-    .font-mono {
-      font-family: var(--font-mono);
-    }
-  </style>
-  <script>
-    /* Custom TailwindCSS theme override */
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            border: 'hsl(var(--border))',
-            input: 'hsl(var(--input))',
-            ring: 'hsl(var(--ring))',
-            background: 'hsl(var(--background))',
-            foreground: 'hsl(var(--foreground))',
-            primary: {
-              DEFAULT: 'hsl(var(--primary))',
-              foreground: 'hsl(var(--primary-foreground))',
-            },
-            secondary: {
-              DEFAULT: 'hsl(var(--secondary))',
-              foreground: 'hsl(var(--secondary-foreground))',
-            },
-            destructive: {
-              DEFAULT: 'hsl(var(--destructive))',
-              foreground: 'hsl(var(--destructive-foreground))',
-            },
-            muted: {
-              DEFAULT: 'hsl(var(--muted))',
-              foreground: 'hsl(var(--muted-foreground))',
-            },
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    :root {
-      --background: 0 0% 100%;
-      --foreground: 240 10% 3.9%;
-      --primary: 243 96% 62%;
-      --primary-foreground: 0 0% 100%;
-      --secondary: 240 4.8% 95.9%;
-      --secondary-foreground: 240 5.9% 10%;
-      --destructive: 0 84.2% 60.2%;
-      --destructive-foreground: 0 0% 100%;
-      --border: 240 5.9% 90%;
-      --input: 240 5.9% 90%;
-      --ring: 243 96% 62%;
-      --radius: 0.75rem;
-    }
-
-    .dark {
-      --background: 240 10% 3.9%;
-      --foreground: 0 0% 98%;
-      --primary: 243 96% 62%;
-      --primary-foreground: 0 0% 100%;
-      --secondary: 240 3.7% 15.9%;
-      --secondary-foreground: 0 0% 98%;
-      --destructive: 0 62.8% 30.6%;
-      --destructive-foreground: 0 0% 98%;
-      --border: 240 3.7% 15.9%;
-      --input: 240 3.7% 15.9%;
-      --ring: 243 96% 62%;
-    }
-
-    /* Hide scrollbar but keep functionality */
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
-    }
-
-    .no-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-
-    /* Toast animations */
-    @keyframes slide-in-right {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-
-    .animate-slide-in-right {
-      animation: slide-in-right 0.3s ease-out;
-    }
-  </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.22.0",
-    "react-hook-form": "https://aistudiocdn.com/react-hook-form@^7.64.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.544.0"
-  }
-}
-</script>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Roboto+Mono:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
 </head>
 
 <body class="bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 antialiased">
