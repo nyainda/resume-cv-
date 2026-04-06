@@ -24,6 +24,7 @@ import { ProfileManager } from './components/ProfileManager';
 import NegotiationCoach from './components/NegotiationCoach';
 import PortalScanner from './components/PortalScanner';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import LandingPage from './components/LandingPage';
 import {
   Edit, User, List, Settings, FileText, Target,
   Moon, Sun, BookOpen, Globe, Sparkles,
@@ -126,6 +127,18 @@ const AppInner: React.FC = () => {
       return true;
     }
   });
+  // Show landing page when no profile has ever been created
+  const [showLanding, setShowLanding] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('cv_builder:profiles') || localStorage.getItem('profiles');
+      if (!raw) return true;
+      const profs = JSON.parse(raw);
+      return !Array.isArray(profs) || profs.length === 0;
+    } catch {
+      return true;
+    }
+  });
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showProfileManager, setShowProfileManager] = useState(false);
   const profileManagerRef = useRef<HTMLDivElement>(null);
@@ -394,6 +407,22 @@ const AppInner: React.FC = () => {
 
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? 'indigo';
+
+  // Hide landing once a profile is created
+  useEffect(() => {
+    if (profileExists) setShowLanding(false);
+  }, [profileExists]);
+
+  // Show landing page when no profile exists yet
+  if (showLanding && !profileExists) {
+    return (
+      <LandingPage
+        onGetStarted={() => setShowLanding(false)}
+        darkMode={!!darkMode}
+        onToggleDark={() => setDarkMode(d => !d)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
