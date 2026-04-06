@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 binding = "BROWSER"
 
 [vars]
-ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app"
+ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app,https://5b9b8402-277f-40ab-893b-c26b48fbb6a8-00-84kwqzrifvlg.spock.replit.dev"
 
 [dev]
 remote = true

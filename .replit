@@ -56,3 +56,8 @@ externalPort = 80
 [[ports]]
 localPort = 5001
 externalPort = 3001
+
+[userenv]
+
+[userenv.shared]
+VITE_PDF_WORKER_URL = "https://resume-pdf-worker.dripstech.workers.dev"
