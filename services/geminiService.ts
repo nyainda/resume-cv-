@@ -74,9 +74,6 @@ function getGeminiClient(): GoogleGenAI {
         } catch { /* ignore */ }
     }
 
-    if (!apiKey && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
-        apiKey = process.env.GEMINI_API_KEY;
-    }
     if (!apiKey) throw new Error('Gemini API key not set. Please add it in Settings to enable file/image upload.');
     return new GoogleGenAI({ apiKey });
 }
