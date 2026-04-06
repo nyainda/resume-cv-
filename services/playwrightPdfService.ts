@@ -1,8 +1,11 @@
 /**
  * Playwright PDF Service
- * Calls the server-side Playwright PDF generator (port 5001) for pixel-perfect PDFs.
+ * Calls the server-side Playwright PDF generator (port 3001) for pixel-perfect PDFs.
+ * Captures the full live DOM including all CSS so the output matches the preview exactly.
  * Falls back gracefully if the server is not running.
  */
+
+import { getCVHtml } from './getCVHtml';
 
 const PDF_SERVER_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
 
@@ -26,26 +29,32 @@ export const isPlaywrightServerAvailable = async (): Promise<boolean> => {
 };
 
 /**
- * Capture the current CV preview HTML from the DOM and send to the Playwright server.
- * Returns true if successful, false if the server is not available.
+ * Capture the current CV preview — including ALL CSS from the live app — and
+ * send it as a self-contained HTML document to the Playwright server.
+ * This guarantees the downloaded PDF matches the on-screen preview exactly:
+ * colours, sidebar layouts, partitions, gradients, fonts — everything.
  */
 export const downloadViaPlaywright = async (
     filename = 'cv.pdf',
-    previewElementId = 'cv-preview-area'
 ): Promise<{ success: boolean; error?: string }> => {
-    const el = document.getElementById(previewElementId);
-    if (!el) {
-        return { success: false, error: 'Preview element not found. Please ensure the CV preview is visible.' };
-    }
+    const fullHtml = getCVHtml({
+        extraStyles: `
+            /* Force background colours to print */
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            body { margin: 0; padding: 0; }
+        `,
+    });
 
-    const html = el.outerHTML;
+    if (!fullHtml) {
+        return { success: false, error: 'CV preview element not found. Please ensure the CV is visible on screen.' };
+    }
 
     try {
         const res = await fetch(`${PDF_SERVER_URL}/api/generate-pdf`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ html, filename }),
-            signal: AbortSignal.timeout(30000),
+            body: JSON.stringify({ fullHtml, filename }),
+            signal: AbortSignal.timeout(45000),
         });
 
         if (!res.ok) {
@@ -66,7 +75,7 @@ export const downloadViaPlaywright = async (
         return { success: true };
     } catch (err: any) {
         if (err?.name === 'TimeoutError') {
-            return { success: false, error: 'PDF server timed out. The server may not be running.' };
+            return { success: false, error: 'PDF server timed out.' };
         }
         return { success: false, error: err?.message || 'Failed to connect to PDF server' };
     }

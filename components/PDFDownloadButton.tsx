@@ -108,11 +108,31 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
     onFallback();
   };
 
+  // Primary download: use Playwright (pixel-perfect, matches preview exactly) when
+  // the local server is available; otherwise fall back to the jsPDF path.
+  const handlePrimaryDownload = async () => {
+    setOpen(false);
+    if (playwrightAvailable) {
+      setHdLoading(true);
+      setHdError(null);
+      setHdStatus('Generating pixel-perfect PDF…');
+      const result = await downloadViaPlaywright(fileName);
+      setHdLoading(false);
+      setHdStatus(null);
+      if (!result.success) {
+        // Playwright failed — fall back to jsPDF silently
+        onFallback();
+      }
+    } else {
+      onFallback();
+    }
+  };
+
   return (
     <div className="relative inline-flex flex-col items-end gap-1" ref={menuRef}>
       <div className="inline-flex rounded-lg shadow-sm overflow-visible">
         <button
-          onClick={handleStandardDownload}
+          onClick={handlePrimaryDownload}
           disabled={disabled || hdLoading}
           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg"
         >
@@ -151,8 +171,11 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
               <Download className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Standard PDF</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">Fast · ATS-safe text layer · Works everywhere</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Standard PDF</p>
+                <span className="text-[9px] font-black uppercase bg-slate-100 dark:bg-neutral-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full tracking-wide">Fallback</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">Fast · ATS text layer · Template colours may differ from preview</p>
             </div>
           </button>
 
@@ -182,7 +205,7 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
             </div>
           </button>
 
-          {/* Local HD PDF (Playwright) — only shown if running */}
+          {/* Pixel-perfect PDF (Playwright) — shown when server is running */}
           {playwrightAvailable && (
             <button
               onClick={handlePlaywrightDownload}
@@ -195,10 +218,10 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Local HD PDF</p>
-                  <span className="text-[9px] font-black uppercase bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded-full tracking-wide">Dev</span>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pixel-Perfect PDF</p>
+                  <span className="text-[9px] font-black uppercase bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded-full tracking-wide">✓ Active</span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">Local Chromium · Dev only · Not available on Vercel</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug mt-0.5">Same as "Download PDF" · Exact colours, partitions & layout from preview</p>
               </div>
             </button>
           )}
