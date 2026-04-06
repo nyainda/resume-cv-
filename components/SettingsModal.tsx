@@ -37,8 +37,9 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
-  const [groqKey, setGroqKey]   = useState(currentApiSettings.groqApiKey || '');
+  const [groqKey, setGroqKey]     = useState(currentApiSettings.groqApiKey || '');
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
+  const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [tavilyKey, setTavilyKey] = useState(currentApiSettings.tavilyApiKey || '');
   const [brevoKey, setBrevoKey]   = useState(currentApiSettings.brevoApiKey || '');
   const [msClientId, setMsClientId] = useState(currentApiSettings.msClientId || '');
@@ -50,6 +51,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   useEffect(() => {
     setGroqKey(currentApiSettings.groqApiKey || '');
     setGeminiKey(currentApiSettings.apiKey || '');
+    setClaudeKey(currentApiSettings.claudeApiKey || '');
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
     setBrevoKey(currentApiSettings.brevoApiKey || '');
     setMsClientId(currentApiSettings.msClientId || '');
@@ -155,6 +157,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       provider: 'gemini',
       apiKey: geminiKey.trim() || null,
       groqApiKey: groqKey.trim() || null,
+      claudeApiKey: claudeKey.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
       msClientId: msClientId.trim() || null,
@@ -164,7 +167,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       localStorage.setItem('cv_builder:apiSettings', JSON.stringify(settingsToSave));
     } catch { /* quota */ }
 
-    const providerKeys = { gemini: geminiKey.trim() || null, groq: groqKey.trim() || null };
+    const providerKeys = { gemini: geminiKey.trim() || null, groq: groqKey.trim() || null, claude: claudeKey.trim() || null };
     idbAppSet(LS_PROVIDER_KEYS, providerKeys).catch(() => {});
     getStorageService().save('provider_keys', providerKeys).catch(() => {});
 
@@ -328,6 +331,59 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
             <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
               Powers: Upload existing CV (PDF/image) • Paste job description screenshot
+            </p>
+          </div>
+
+          {/* ── Anthropic Claude (Optional) ── */}
+          <div className="rounded-xl border border-purple-200 dark:border-purple-800/40 p-4 space-y-3 bg-purple-50/30 dark:bg-purple-900/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🧠</span>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-600 dark:text-purple-400">Anthropic Claude — Optional</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Portal scan AI analysis • ATS keyword matching • Job intelligence</p>
+                </div>
+              </div>
+              {claudeKey ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-purple-100 dark:border-purple-900/40 p-3 space-y-1.5">
+              {[
+                '🆓 Free tier via API (claude-haiku is very affordable)',
+                '🔍 Powers portal scan AI summaries & job scoring',
+                '🎯 ATS keyword gap analysis on job descriptions',
+                '🔒 Key stored only in your browser',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="https://console.anthropic.com/settings/keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 underline font-semibold"
+            >
+              Get your Claude API key →
+            </a>
+
+            <Input
+              id="claude-key"
+              type="password"
+              value={claudeKey}
+              onChange={(e) => setClaudeKey(e.target.value)}
+              placeholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="font-mono text-sm"
+            />
+
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              Powers: Portal Scan AI analysis • ATS keyword gap detection • Job description intelligence
             </p>
           </div>
 

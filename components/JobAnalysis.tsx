@@ -315,20 +315,92 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                         {/* Tab D+E: Personalization */}
                         {activeTab === 'personalize' && (
                             <div className="space-y-4">
-                                {analysis.topKeywords.length > 0 && (
-                                    <div>
-                                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
-                                            ATS Keywords to Inject ({analysis.topKeywords.length})
+                                {analysis.topKeywords.length > 0 && (() => {
+                                    const cvLower = cvTextContent.toLowerCase();
+                                    const matched: string[] = [];
+                                    const partial: string[] = [];
+                                    const missing: string[] = [];
+                                    for (const kw of analysis.topKeywords) {
+                                        const kwLower = kw.toLowerCase().trim();
+                                        if (cvLower.includes(kwLower)) {
+                                            matched.push(kw);
+                                        } else {
+                                            const words = kwLower.split(/\s+/).filter(w => w.length > 3);
+                                            if (words.length > 0 && words.some(w => cvLower.includes(w))) {
+                                                partial.push(kw);
+                                            } else {
+                                                missing.push(kw);
+                                            }
+                                        }
+                                    }
+                                    return (
+                                        <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                                            <div className="px-4 py-3 bg-zinc-50 dark:bg-neutral-800/80 border-b border-zinc-100 dark:border-neutral-700 flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-xs font-bold text-zinc-800 dark:text-zinc-100">ATS Keyword Match Panel</div>
+                                                    <div className="text-[10px] text-zinc-400 mt-0.5">{analysis.topKeywords.length} keywords from this job description checked against your profile</div>
+                                                </div>
+                                                <div className="flex gap-2 text-[10px] font-bold">
+                                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">{matched.length} matched</span>
+                                                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{partial.length} partial</span>
+                                                    <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">{missing.length} missing</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="divide-y divide-zinc-100 dark:divide-neutral-700/50">
+                                                {matched.length > 0 && (
+                                                    <div className="px-4 py-3 space-y-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-emerald-500 text-sm">🟢</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Matched — already in your profile</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {matched.map((kw, i) => (
+                                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                                                                    ✓ {kw}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {partial.length > 0 && (
+                                                    <div className="px-4 py-3 space-y-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-amber-500 text-sm">🟡</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Partial — semantically present, not verbatim</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {partial.map((kw, i) => (
+                                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
+                                                                    ~ {kw}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        <p className="text-[10px] text-zinc-400 italic">Consider using these exact phrases in your profile to improve ATS matching.</p>
+                                                    </div>
+                                                )}
+
+                                                {missing.length > 0 && (
+                                                    <div className="px-4 py-3 space-y-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-rose-500 text-sm">🔴</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Missing — not found in your profile</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {missing.map((kw, i) => (
+                                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40">
+                                                                    ✕ {kw}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        <p className="text-[10px] text-zinc-400 italic">Add these keywords to your profile or skills before generating your CV — they will be injected into the PDF automatically.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {analysis.topKeywords.map((kw, i) => (
-                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
-                                                    {kw}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                                 {analysis.personalizationChanges.length > 0 && (
                                     <div>
                                         <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
