@@ -101,7 +101,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
     label: 'Job Application',
     icon: Briefcase,
     color: 'indigo',
-    description: 'Tailored to a specific job description with ATS optimization.',
+    description: 'Paste a JD → get Match Score, Skill Gaps, STAR Stories, Salary Research & Interview Prep. Auto ATS-optimised.',
   },
   general: {
     label: 'General Purpose',
@@ -472,7 +472,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 onChange={(e) => setJobDescription(e.target.value)}
                 placeholder={
                   cvPurpose === 'job'
-                    ? 'Paste the full job description here...'
+                    ? 'Paste the full job description here — the AI will auto-run a 6-block analysis: Match Score, Skill Gaps, Level Strategy, Salary Research & Interview Prep...'
                     : 'Paste the scholarship/grant call, requirements, or criteria here (or leave blank for general academic CV)...'
                 }
                 rows={10}
