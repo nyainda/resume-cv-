@@ -29,6 +29,7 @@ import TemplateNavySidebar from './templates/TemplateNavySidebar';
 import TemplatePhotoSidebar from './templates/TemplatePhotoSidebar';
 import TemplateSWEElite from './templates/TemplateSWEElite';
 import TemplateATSCleanPro from './templates/TemplateATSCleanPro';
+import TemplateExecutiveSidebar from './templates/TemplateExecutiveSidebar';
 
 
 interface CVPreviewProps {
@@ -103,6 +104,8 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         return <TemplateSWEElite {...rest} />;
       case 'ats-clean-pro':
         return <TemplateATSCleanPro {...rest} />;
+      case 'executive-sidebar':
+        return <TemplateExecutiveSidebar {...rest} />;
       default:
         return <TemplateProfessional {...rest} />;
     }

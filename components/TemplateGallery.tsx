@@ -19,11 +19,11 @@ const templateCategories = {
   'Academic': ['harvard-gold', 'scholarship-pro', 'classic'] as TemplateName[],
   'Minimal': ['minimalist', 'compact', 'timeline', 'paris-vibe'] as TemplateName[],
   'Technical': ['swe-elite', 'software-engineer', 'technical'] as TemplateName[],
-  'Photo': ['photo-sidebar', 'navy-sidebar'] as TemplateName[],
+  'Photo': ['photo-sidebar', 'navy-sidebar', 'executive-sidebar'] as TemplateName[],
 };
 
 // Templates that support profile photos in PDF output
-const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar'];
+const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar', 'executive-sidebar'];
 
 // Badges displayed on template cards
 const templateBadges: Partial<Record<TemplateName, { label: string; emoji: string; color: string }>> = {
@@ -40,6 +40,7 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'swe-elite': { label: 'SWE Premium', emoji: '⚡', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
   'navy-sidebar': { label: 'Bold & Sharp', emoji: '🏛️', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' },
   'photo-sidebar': { label: 'With Photo', emoji: '📷', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  'executive-sidebar': { label: 'Premium Photo', emoji: '🏆', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
   'ats-clean-pro': { label: 'ATS Optimized', emoji: '🎯', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300' },
 };
 

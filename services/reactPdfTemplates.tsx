@@ -6,6 +6,7 @@ import {
   View,
   StyleSheet,
   Font,
+  Image,
 } from '@react-pdf/renderer';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 
@@ -600,9 +601,204 @@ const ATSCleanProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> =
   );
 };
 
-export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist' | 'london-finance' | 'ats-clean-pro';
+// ─── Executive Sidebar PDF ────────────────────────────────────────────────────
+const ESBAR_BG    = '#2e2510';
+const ESBAR_GOLD  = '#c8a84b';
+const ESBAR_WHITE = '#ffffff';
+const ESBAR_MUTED = 'rgba(255,255,255,0.80)';
 
-export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist', 'london-finance', 'ats-clean-pro'];
+const esStyles = StyleSheet.create({
+  page:          { flexDirection: 'row', backgroundColor: ESBAR_WHITE, fontFamily: 'Helvetica' },
+  sidebar:       { width: '38%', backgroundColor: ESBAR_BG, padding: '20 14', flexDirection: 'column' },
+  main:          { flex: 1, padding: '20 18', flexDirection: 'column' },
+  photoCircle:   { width: 72, height: 72, borderRadius: 36, backgroundColor: ESBAR_GOLD, alignSelf: 'center', marginBottom: 8, overflow: 'hidden' },
+  photo:         { width: 72, height: 72, borderRadius: 36 },
+  photoInitial:  { width: 72, height: 72, borderRadius: 36, backgroundColor: ESBAR_GOLD, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  photoInitialTxt: { color: ESBAR_WHITE, fontSize: 24, fontFamily: 'Helvetica-Bold' },
+  sName:         { fontFamily: 'Helvetica-Bold', fontSize: 13, color: ESBAR_WHITE, textAlign: 'center', marginBottom: 3 },
+  sTitle:        { fontSize: 9, color: ESBAR_GOLD, textAlign: 'center', marginBottom: 12 },
+  sSection:      { marginBottom: 10 },
+  sSectionTitle: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: ESBAR_GOLD, textTransform: 'uppercase', letterSpacing: 0.8, borderBottom: `1px solid ${ESBAR_GOLD}50`, paddingBottom: 2, marginBottom: 5 },
+  sBulletRow:    { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 2 },
+  sBulletDot:    { width: 4, height: 4, borderRadius: 2, backgroundColor: ESBAR_GOLD, marginTop: 3, marginRight: 5 },
+  sBulletText:   { fontSize: 8.5, color: ESBAR_MUTED, flex: 1, lineHeight: 1.4 },
+  sContactRow:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 3 },
+  sContactLabel: { fontSize: 8.5, color: ESBAR_GOLD, width: 14 },
+  sContactText:  { fontSize: 8.5, color: ESBAR_MUTED, flex: 1, lineHeight: 1.4 },
+  sSummaryText:  { fontSize: 8.5, color: ESBAR_MUTED, lineHeight: 1.5 },
+  mSection:      { marginBottom: 10 },
+  mSectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 11, color: ESBAR_BG, borderBottom: `1.5px solid ${ESBAR_BG}`, paddingBottom: 2, marginBottom: 6 },
+  mDotRow:       { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+  mDot:          { width: 5, height: 5, borderRadius: 2.5, backgroundColor: ESBAR_BG, marginTop: 3, marginRight: 6 },
+  mDegree:       { fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: ESBAR_BG },
+  mSchool:       { fontSize: 8.5, color: '#555', lineHeight: 1.4 },
+  mJobRow:       { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 1 },
+  mJobTitle:     { fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: ESBAR_BG },
+  mDates:        { fontSize: 8, color: '#666' },
+  mCompany:      { fontSize: 8.5, color: '#555', marginBottom: 3 },
+  mBulletRow:    { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 1.5 },
+  mBulletDot:    { fontSize: 8, color: '#888', marginRight: 4, marginTop: 1 },
+  mBulletText:   { fontSize: 8.5, color: '#444', flex: 1, lineHeight: 1.4 },
+});
+
+const ExecutiveSidebarPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => (
+  <Page size="A4" style={esStyles.page}>
+
+    {/* ── Sidebar ── */}
+    <View style={esStyles.sidebar}>
+
+      {/* Photo */}
+      {personalInfo.photo ? (
+        <View style={esStyles.photoCircle}><Image src={personalInfo.photo} style={esStyles.photo} /></View>
+      ) : (
+        <View style={esStyles.photoInitial}>
+          <Text style={esStyles.photoInitialTxt}>{personalInfo.name ? personalInfo.name.charAt(0).toUpperCase() : '?'}</Text>
+        </View>
+      )}
+
+      <Text style={esStyles.sName}>{personalInfo.name}</Text>
+      {cvData.experience.length > 0 && <Text style={esStyles.sTitle}>{cvData.experience[0].jobTitle}</Text>}
+
+      {/* Contact */}
+      <View style={esStyles.sSection}>
+        <Text style={esStyles.sSectionTitle}>Contact</Text>
+        {personalInfo.phone    && <View style={esStyles.sContactRow}><Text style={esStyles.sContactLabel}>☎</Text><Text style={esStyles.sContactText}>{personalInfo.phone}</Text></View>}
+        {personalInfo.email    && <View style={esStyles.sContactRow}><Text style={esStyles.sContactLabel}>@</Text><Text style={esStyles.sContactText}>{personalInfo.email}</Text></View>}
+        {personalInfo.linkedin && <View style={esStyles.sContactRow}><Text style={esStyles.sContactLabel}>in</Text><Text style={esStyles.sContactText}>{personalInfo.linkedin}</Text></View>}
+        {personalInfo.location && <View style={esStyles.sContactRow}><Text style={esStyles.sContactLabel}>📍</Text><Text style={esStyles.sContactText}>{personalInfo.location}</Text></View>}
+      </View>
+
+      {/* Summary */}
+      {cvData.summary ? (
+        <View style={esStyles.sSection}>
+          <Text style={esStyles.sSectionTitle}>Summary</Text>
+          <Text style={esStyles.sSummaryText}>{decode(cvData.summary)}</Text>
+        </View>
+      ) : null}
+
+      {/* Skills */}
+      {cvData.skills.length > 0 ? (
+        <View style={esStyles.sSection}>
+          <Text style={esStyles.sSectionTitle}>Skills</Text>
+          {cvData.skills.map((s, i) => (
+            <View key={i} style={esStyles.sBulletRow}>
+              <View style={esStyles.sBulletDot} />
+              <Text style={esStyles.sBulletText}>{s}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Projects → Certifications */}
+      {cvData.projects && cvData.projects.length > 0 ? (
+        <View style={esStyles.sSection}>
+          <Text style={esStyles.sSectionTitle}>Certifications</Text>
+          {cvData.projects.map((p, i) => (
+            <View key={i} style={esStyles.sBulletRow}>
+              <View style={esStyles.sBulletDot} />
+              <Text style={esStyles.sBulletText}>{p.name}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Languages → Personal Attributes */}
+      {cvData.languages && cvData.languages.length > 0 ? (
+        <View style={esStyles.sSection}>
+          <Text style={esStyles.sSectionTitle}>Personal Attributes</Text>
+          {cvData.languages.map((l, i) => (
+            <View key={i} style={esStyles.sBulletRow}>
+              <View style={esStyles.sBulletDot} />
+              <Text style={esStyles.sBulletText}>{l.name}{l.proficiency ? ` — ${l.proficiency}` : ''}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+
+    {/* ── Main Content ── */}
+    <View style={esStyles.main}>
+
+      {/* Education */}
+      {cvData.education.length > 0 ? (
+        <View style={esStyles.mSection}>
+          <Text style={esStyles.mSectionTitle}>Education</Text>
+          {cvData.education.map((edu, i) => (
+            <View key={i} style={esStyles.mDotRow}>
+              <View style={esStyles.mDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={esStyles.mDegree}>{edu.degree}</Text>
+                <Text style={esStyles.mSchool}>{edu.school}{edu.year ? `  ·  ${edu.year}` : ''}</Text>
+                {edu.description ? <Text style={{ fontSize: 8, color: '#777', lineHeight: 1.4 }}>{decode(edu.description)}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Experience */}
+      {cvData.experience.length > 0 ? (
+        <View style={esStyles.mSection}>
+          <Text style={esStyles.mSectionTitle}>Experience</Text>
+          {cvData.experience.map((job, i) => (
+            <View key={i} style={{ marginBottom: 8 }}>
+              <View style={esStyles.mDotRow}>
+                <View style={esStyles.mDot} />
+                <View style={{ flex: 1 }}>
+                  <View style={esStyles.mJobRow}>
+                    <Text style={esStyles.mJobTitle}>{job.jobTitle}</Text>
+                    <Text style={esStyles.mDates}>{job.dates}</Text>
+                  </View>
+                  <Text style={esStyles.mCompany}>{job.company}</Text>
+                  {job.responsibilities.map((r, j) => (
+                    <View key={j} style={esStyles.mBulletRow}>
+                      <Text style={esStyles.mBulletDot}>•</Text>
+                      <Text style={esStyles.mBulletText}>{decode(r)}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Professional Highlights */}
+      {cvData.projects && cvData.projects.length > 0 ? (
+        <View style={esStyles.mSection}>
+          <Text style={esStyles.mSectionTitle}>Professional Highlights &amp; Metrics</Text>
+          {cvData.projects.map((p, i) => (
+            <View key={i} style={esStyles.mDotRow}>
+              <View style={esStyles.mDot} />
+              <Text style={{ fontSize: 8.5, color: '#444', flex: 1, lineHeight: 1.4 }}>
+                {p.name}{p.description ? ` — ${decode(p.description)}` : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Memberships */}
+      {cvData.languages && cvData.languages.length > 0 ? (
+        <View style={esStyles.mSection}>
+          <Text style={esStyles.mSectionTitle}>Memberships</Text>
+          {cvData.languages.map((l, i) => (
+            <View key={i} style={esStyles.mDotRow}>
+              <View style={esStyles.mDot} />
+              <Text style={{ fontSize: 8.5, color: '#444', flex: 1, lineHeight: 1.4 }}>
+                {l.name}{l.proficiency ? ` (${l.proficiency})` : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  </Page>
+);
+
+export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist' | 'london-finance' | 'ats-clean-pro' | 'executive-sidebar';
+
+export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist', 'london-finance', 'ats-clean-pro', 'executive-sidebar'];
 
 export function buildReactPDFDocument(
   template: TemplateName,
@@ -615,6 +811,7 @@ export function buildReactPDFDocument(
       case 'minimalist': return <MinimalistPDF cvData={cvData} personalInfo={personalInfo} />;
       case 'london-finance': return <LondonFinancePDF cvData={cvData} personalInfo={personalInfo} />;
       case 'ats-clean-pro': return <ATSCleanProPDF cvData={cvData} personalInfo={personalInfo} />;
+      case 'executive-sidebar': return <ExecutiveSidebarPDF cvData={cvData} personalInfo={personalInfo} />;
       case 'professional':
       default:
         return <ProfessionalPDF cvData={cvData} personalInfo={personalInfo} />;

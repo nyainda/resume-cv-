@@ -309,7 +309,8 @@ export type TemplateName =
   | 'swe-clean'
   | 'swe-vivid'
   | 'swe-impact'
-  | 'ats-clean-pro';
+  | 'ats-clean-pro'
+  | 'executive-sidebar';
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -345,6 +346,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'swe-vivid': 'SWE Vivid',
   'swe-impact': 'SWE Impact',
   'ats-clean-pro': 'ATS Clean Pro',
+  'executive-sidebar': 'Executive Sidebar',
 };
 
 // --- CV Generation Mode ---
