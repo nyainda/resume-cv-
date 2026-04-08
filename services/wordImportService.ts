@@ -1,6 +1,7 @@
 import mammoth from 'mammoth';
+import { GoogleGenAI } from '@google/genai';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
-import { groqChat, GROQ_LARGE } from './groqService';
+import { groqChat, GROQ_LARGE, hasGroqKey } from './groqService';
 
 export async function extractTextFromDocx(file: File): Promise<string> {
     const arrayBuffer = await file.arrayBuffer();
@@ -13,66 +14,31 @@ export async function extractTextFromArrayBuffer(arrayBuffer: ArrayBuffer): Prom
     return result.value;
 }
 
-export async function parseWordTextToProfile(text: string): Promise<UserProfile> {
-    const systemPrompt = `You are an expert CV parser. Extract all structured information from CV/resume text and return it as valid JSON. Do not invent data — only extract what is explicitly present. Return only valid JSON, no markdown, no code fences, no prose.`;
-
-    const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:
-
-{
-  "personalInfo": {
-    "name": "string",
-    "email": "string",
-    "phone": "string",
-    "location": "string",
-    "linkedin": "string",
-    "website": "string",
-    "github": "string"
-  },
-  "summary": "string",
-  "workExperience": [
-    {
-      "id": "string (e.g. exp1)",
-      "company": "string",
-      "jobTitle": "string",
-      "startDate": "string (e.g. Jan 2020)",
-      "endDate": "string (e.g. Dec 2022 or Present)",
-      "responsibilities": "string (all bullet points joined by newlines)"
-    }
-  ],
-  "education": [
-    {
-      "id": "string (e.g. edu1)",
-      "degree": "string",
-      "school": "string",
-      "graduationYear": "string"
-    }
-  ],
-  "skills": ["string"],
-  "projects": [
-    {
-      "id": "string (e.g. proj1)",
-      "name": "string",
-      "description": "string",
-      "link": "string"
-    }
-  ],
-  "languages": [
-    {
-      "id": "string (e.g. lang1)",
-      "name": "string",
-      "proficiency": "string (e.g. Native, Fluent, Intermediate, Basic)"
-    }
-  ]
+function getGeminiKey(): string | null {
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const p = JSON.parse(s);
+            if (p.apiKey) return p.apiKey.replace(/^"|"$/g, '');
+        }
+        const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
+        if (pk.gemini) return pk.gemini.replace(/^"|"$/g, '');
+    } catch { }
+    return null;
 }
 
-CV Text:
-${text.slice(0, 8000)}`;
+const PARSE_SCHEMA = `{
+  "personalInfo": { "name": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": "", "github": "" },
+  "summary": "",
+  "workExperience": [{ "id": "", "company": "", "jobTitle": "", "startDate": "", "endDate": "", "responsibilities": "" }],
+  "education": [{ "id": "", "degree": "", "school": "", "graduationYear": "" }],
+  "skills": [],
+  "projects": [{ "id": "", "name": "", "description": "", "link": "" }],
+  "languages": [{ "id": "", "name": "", "proficiency": "" }]
+}`;
 
-    const raw = await groqChat(GROQ_LARGE, systemPrompt, userPrompt, { temperature: 0.1 });
-    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-    const parsed = JSON.parse(cleaned);
-
-    const profile: UserProfile = {
+function buildUserProfile(parsed: any): UserProfile {
+    return {
         personalInfo: {
             name: parsed.personalInfo?.name || '',
             email: parsed.personalInfo?.email || '',
@@ -110,6 +76,40 @@ ${text.slice(0, 8000)}`;
             proficiency: lang.proficiency || '',
         })),
     };
+}
 
-    return profile;
+async function parseWithGroq(text: string): Promise<UserProfile> {
+    const systemPrompt = `You are an expert CV parser. Extract all structured information from CV/resume text and return it as valid JSON. Do not invent data — only extract what is explicitly present. Return only valid JSON, no markdown, no code fences, no prose.`;
+    const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 8000)}`;
+    const raw = await groqChat(GROQ_LARGE, systemPrompt, userPrompt, { temperature: 0.1 });
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+    return buildUserProfile(JSON.parse(cleaned));
+}
+
+async function parseWithGemini(text: string): Promise<UserProfile> {
+    const geminiKey = getGeminiKey();
+    if (!geminiKey) throw new Error('No AI API key configured. Please add a Gemini or Groq key in Settings.');
+
+    const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const prompt = `You are an expert CV parser. Extract all structured information from the following CV/resume text and return ONLY a raw JSON object (no markdown, no code fences, no prose) matching this schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 8000)}`;
+
+    const result = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+    });
+    const raw = result.text || '';
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+    return buildUserProfile(JSON.parse(cleaned));
+}
+
+export async function parseWordTextToProfile(text: string): Promise<UserProfile> {
+    // Try Groq first (faster), fall back to Gemini
+    if (hasGroqKey()) {
+        try {
+            return await parseWithGroq(text);
+        } catch (err) {
+            console.warn('Groq parsing failed, trying Gemini:', err);
+        }
+    }
+    return parseWithGemini(text);
 }

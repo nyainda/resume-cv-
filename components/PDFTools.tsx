@@ -667,15 +667,52 @@ const SignPdfTool: React.FC = () => {
     const [sigMode, setSigMode] = useState<'draw' | 'type'>(() => loadSigSettings().sigMode || 'draw');
     const [typedSig, setTypedSig] = useState<string>(() => loadSigSettings().typedSig || '');
     const [targetPage, setTargetPage] = useState<number>(() => loadSigSettings().targetPage || 1);
-    // sigPos: percentage from top-left corner of the A4 page (0-100)
     const [sigPos, setSigPos] = useState<{ xPct: number; yPct: number }>(() => loadSigSettings().sigPos || { xPct: 70, yPct: 82 });
     const [isDraggingSig, setIsDraggingSig] = useState(false);
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+    const [pageDataUrl, setPageDataUrl] = useState<string | null>(null);
+    const [renderingPage, setRenderingPage] = useState(false);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const positionerRef = useRef<HTMLDivElement>(null);
     const drawing = useRef(false);
     const lastPos = useRef({ x: 0, y: 0 });
+
+    // Render the target PDF page to a canvas image for the positioning preview
+    useEffect(() => {
+        if (!pdfFile) { setPageDataUrl(null); return; }
+        let cancelled = false;
+        setRenderingPage(true);
+        setPageDataUrl(null);
+
+        (async () => {
+            try {
+                const pdfjsLib = await import('pdfjs-dist');
+                pdfjsLib.GlobalWorkerOptions.workerSrc =
+                    `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+                const loadingTask = pdfjsLib.getDocument({ data: pdfFile.bytes.slice() });
+                const pdf = await loadingTask.promise;
+                const pageNum = Math.min(Math.max(1, targetPage), pdf.numPages);
+                const page = await pdf.getPage(pageNum);
+
+                const viewport = page.getViewport({ scale: 1.5 });
+                const offscreen = document.createElement('canvas');
+                offscreen.width = viewport.width;
+                offscreen.height = viewport.height;
+                const ctx = offscreen.getContext('2d')!;
+                await page.render({ canvasContext: ctx, viewport }).promise;
+
+                if (!cancelled) setPageDataUrl(offscreen.toDataURL('image/jpeg', 0.88));
+            } catch (err) {
+                console.warn('PDF page render failed:', err);
+            } finally {
+                if (!cancelled) setRenderingPage(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [pdfFile, targetPage]);
 
     // Persist lightweight settings whenever they change
     useEffect(() => {
@@ -915,7 +952,7 @@ const SignPdfTool: React.FC = () => {
                         </div>
                         <div
                             ref={positionerRef}
-                            className="relative bg-white border-2 border-slate-200 dark:border-neutral-600 rounded-xl overflow-hidden select-none shadow-sm"
+                            className="relative bg-slate-100 dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-600 rounded-xl overflow-hidden select-none shadow-sm"
                             style={{ aspectRatio: '210 / 297', width: '100%', cursor: 'crosshair', touchAction: 'none' }}
                             onMouseDown={handlePositionerMouseDown}
                             onMouseMove={handlePositionerMouseMove}
@@ -925,31 +962,49 @@ const SignPdfTool: React.FC = () => {
                             onTouchMove={handlePositionerTouchMove}
                             onTouchEnd={() => setIsDraggingSig(false)}
                         >
-                            {/* Page guide lines */}
-                            <div className="absolute inset-0 pointer-events-none">
-                                <div className="absolute inset-x-0" style={{ top: '33.3%', borderTop: '1px dashed #e2e8f040' }} />
-                                <div className="absolute inset-x-0" style={{ top: '66.6%', borderTop: '1px dashed #e2e8f040' }} />
-                                <div className="absolute inset-y-0" style={{ left: '33.3%', borderLeft: '1px dashed #e2e8f040' }} />
-                                <div className="absolute inset-y-0" style={{ left: '66.6%', borderLeft: '1px dashed #e2e8f040' }} />
-                            </div>
-                            {/* A4 label */}
-                            <div className="absolute top-2 left-2 text-[9px] text-slate-300 font-mono pointer-events-none">A4 page</div>
+                            {/* Rendered PDF page background */}
+                            {pageDataUrl ? (
+                                <img
+                                    src={pageDataUrl}
+                                    className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                                    alt={`Page ${targetPage}`}
+                                    draggable={false}
+                                />
+                            ) : (
+                                <div className="absolute inset-0 bg-white pointer-events-none" />
+                            )}
+
+                            {/* Loading spinner while rendering */}
+                            {renderingPage && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="bg-white/80 dark:bg-black/60 rounded-xl px-3 py-2 flex items-center gap-2 shadow">
+                                        <svg className="h-4 w-4 animate-spin text-violet-500" viewBox="0 0 24 24" fill="none">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                                        </svg>
+                                        <span className="text-[10px] text-slate-500">Rendering page {targetPage}…</span>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Draggable signature badge */}
                             <div
-                                className="absolute pointer-events-none flex items-center justify-center bg-white/90 border-2 border-violet-400 rounded shadow-lg"
+                                className="absolute pointer-events-none flex items-center justify-center bg-white/95 border-2 border-violet-400 rounded shadow-lg"
                                 style={{
                                     left: `${sigPos.xPct}%`,
                                     top: `${sigPos.yPct}%`,
                                     transform: 'translate(-50%, -50%)',
                                     minWidth: '80px',
                                     padding: '4px 8px',
+                                    zIndex: 10,
                                 }}
                             >
                                 {sigPreviewContent}
                             </div>
-                            {/* Drag hint */}
+
+                            {/* Drag active ring */}
                             {isDraggingSig && (
-                                <div className="absolute inset-0 ring-2 ring-violet-400 ring-inset rounded-xl pointer-events-none" />
+                                <div className="absolute inset-0 ring-2 ring-violet-400 ring-inset rounded-xl pointer-events-none" style={{ zIndex: 11 }} />
                             )}
                         </div>
                         <p className="text-xs text-slate-400 mt-1.5 text-center">Click or drag anywhere on the page to position your signature</p>

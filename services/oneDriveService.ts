@@ -39,8 +39,21 @@ function encodeShareUrl(shareUrl: string): string {
         .replace(/=/g, '');
 }
 
+/**
+ * Normalise any known OneDrive sharing URL format into the most direct
+ * form we can use to download the file.
+ *
+ * Supported formats:
+ *   • onedrive.live.com/edit?resid=...&authkey=...   → direct download URL
+ *   • onedrive.live.com/view?resid=...&authkey=...   → direct download URL
+ *   • 1drv.ms/w/c/{cid}/{itemId}?e={token}          → direct download URL
+ *   • 1drv.ms/b/c/{cid}/{itemId}?e={token}          → direct download URL
+ *   • anything else                                  → unchanged (Graph API handles it)
+ */
 function normaliseShareUrl(raw: string): string {
     const trimmed = raw.trim();
+
+    // Classic onedrive.live.com edit/view links with resid + authkey
     if (trimmed.includes('onedrive.live.com/edit') || trimmed.includes('onedrive.live.com/view')) {
         try {
             const u = new URL(trimmed);
@@ -51,50 +64,84 @@ function normaliseShareUrl(raw: string): string {
             }
         } catch { }
     }
+
+    // Newer 1drv.ms/w/c/{cid}/{itemId}?e={token} format (Word Online sharing links)
+    // Also handles /b/c/ (Excel), /p/c/ (PowerPoint), /f/c/ (generic file)
+    const oneDrvMatch = trimmed.match(/^https?:\/\/1drv\.ms\/[a-z]\/c\/([0-9a-fA-F]+)\/([^?]+)\?e=(.+)$/);
+    if (oneDrvMatch) {
+        const [, cid, itemPath, authkey] = oneDrvMatch;
+        // Build an anonymous download URL using the OneDrive consumer API
+        // The itemPath is the base64url-encoded item reference — use it as the resid
+        return `https://onedrive.live.com/download.aspx?cid=${cid}&resid=${itemPath}&authkey=!${authkey}`;
+    }
+
     return trimmed;
 }
 
 export async function downloadSharedFile(shareUrl: string): Promise<ArrayBuffer> {
     const normalised = normaliseShareUrl(shareUrl);
 
-    if (normalised.includes('/download?resid=') || normalised.includes('/download.aspx')) {
+    // Direct download URLs (both new and classic formats)
+    if (
+        normalised.includes('/download?resid=') ||
+        normalised.includes('/download.aspx?') ||
+        normalised.includes('/download.aspx')
+    ) {
         const resp = await fetch(normalised);
-        if (!resp.ok) throw new Error(`Download failed (${resp.status}). Make sure the link is set to "Anyone with the link can view".`);
-        return resp.arrayBuffer();
+        if (resp.ok) return resp.arrayBuffer();
+        // If the constructed URL fails, fall through to Graph API
     }
 
-    const encoded = encodeShareUrl(normalised);
+    // Microsoft Graph shares API — works for "Anyone with the link" public shares
+    const encoded = encodeShareUrl(normalised.startsWith('https://1drv.ms') ? shareUrl.trim() : normalised);
 
-    const metaResp = await fetch(`${GRAPH_BASE}/shares/${encoded}/driveItem?$select=@microsoft.graph.downloadUrl,name`);
+    const metaResp = await fetch(
+        `${GRAPH_BASE}/shares/${encoded}/driveItem?$select=@microsoft.graph.downloadUrl,name`
+    );
     if (metaResp.ok) {
         const meta = await metaResp.json();
         const dlUrl: string | undefined = meta['@microsoft.graph.downloadUrl'];
         if (dlUrl) {
             const fileResp = await fetch(dlUrl);
-            if (!fileResp.ok) throw new Error(`File download failed: ${fileResp.status}`);
+            if (!fileResp.ok) throw new Error(`File download failed (${fileResp.status}).`);
             return fileResp.arrayBuffer();
         }
+    } else {
+        const errBody = await metaResp.text().catch(() => '');
+        if (metaResp.status === 401 || metaResp.status === 403) {
+            throw new Error(
+                'Access denied (HTTP ' + metaResp.status + ').\n' +
+                'Make sure the sharing link permission is set to "Anyone with the link can view" — ' +
+                'not "Specific people" or "Only me".'
+            );
+        }
+        if (errBody) console.warn('Graph API error:', errBody);
     }
 
+    // Fallback: Graph legacy content endpoint
     const contentResp = await fetch(`${GRAPH_BASE}/shares/${encoded}/driveItem/content`);
     if (contentResp.ok) return contentResp.arrayBuffer();
 
+    // Final fallback: old OneDrive API
     const oldApi = await fetch(`https://api.onedrive.com/v1.0/shares/${encoded}/root/content`);
     if (oldApi.ok) return oldApi.arrayBuffer();
 
     throw new Error(
-        'Could not download the file. Make sure:\n' +
-        '1. The sharing link is set to "Anyone with the link can view"\n' +
-        '2. The link is for a .docx file\n' +
-        '3. The link has not expired'
+        'Could not download the file. Please check:\n' +
+        '1. The sharing permission is "Anyone with the link can view"\n' +
+        '2. The link points to a .docx Word document\n' +
+        '3. The link has not expired\n\n' +
+        'Tip: In OneDrive, open Share → Manage access → set to "Anyone with the link".'
     );
 }
 
 export async function getSharedFileMetadata(shareUrl: string): Promise<SharedFileInfo> {
     const normalised = normaliseShareUrl(shareUrl);
-    const encoded = encodeShareUrl(normalised);
+    // Always encode the original URL (not the normalised download URL) for Graph metadata
+    const toEncode = shareUrl.trim();
+    const encoded = encodeShareUrl(toEncode);
     const resp = await fetch(`${GRAPH_BASE}/shares/${encoded}/driveItem?$select=name,lastModifiedDateTime,eTag`);
-    if (!resp.ok) throw new Error(`Could not read file info: ${resp.status}`);
+    if (!resp.ok) throw new Error(`Could not read file metadata: ${resp.status}`);
     return resp.json() as Promise<SharedFileInfo>;
 }
 
