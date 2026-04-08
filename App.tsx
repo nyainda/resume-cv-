@@ -446,39 +446,21 @@ const AppInner: React.FC = () => {
         />
       )}
       <header className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-4">
+        {/* ── Row 1: Logo + Controls ──────────────────────────────────── */}
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
           <button
             onClick={() => setShowLanding(true)}
-            className="flex items-center gap-3 group"
+            className="flex items-center gap-2.5 group flex-shrink-0"
             title="Back to homepage"
           >
             <div className="p-1.5 bg-indigo-600 group-hover:bg-indigo-700 rounded-lg transition-colors">
               <FileText className="h-5 w-5 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-lg font-extrabold text-zinc-900 dark:text-zinc-50 leading-none group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">AI CV Builder</h1>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Elite Career &amp; Scholarship Suite</p>
+              <h1 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">AI CV Builder</h1>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Elite Career &amp; Scholarship Suite</p>
             </div>
           </button>
-
-          {profileExists && !isEditingProfile && (
-            <nav className="hidden md:flex items-center bg-zinc-100 dark:bg-neutral-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
-              {navItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setCurrentView(item.id as any)}
-                  title={item.label}
-                  className={`flex items-center gap-2 px-2.5 lg:px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${currentView === item.id
-                    ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
-                    }`}
-                >
-                  <item.icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="hidden lg:inline">{item.label}</span>
-                </button>
-              ))}
-            </nav>
-          )}
 
           <div className="flex items-center gap-2">
             {/* ── Profile switcher ───────────────────────────── */}
@@ -557,22 +539,27 @@ const AppInner: React.FC = () => {
           </div>
         </div>
 
+        {/* ── Row 2: Full-width Nav ───────────────────────────────────── */}
         {profileExists && !isEditingProfile && (
-          <div className="md:hidden border-t border-zinc-200 dark:border-neutral-800 overflow-x-auto no-scrollbar">
-            <div className="flex p-2 gap-1 min-w-max">
-              {navItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setCurrentView(item.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${currentView === item.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                    : 'text-zinc-500 dark:text-zinc-400'
+          <div className="border-t border-zinc-200 dark:border-neutral-800 overflow-x-auto no-scrollbar">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex gap-0.5 py-1">
+                {navItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setCurrentView(item.id as any)}
+                    title={item.label}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap flex-shrink-0 ${
+                      currentView === item.id
+                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800'
                     }`}
-                >
-                  <item.icon className="h-3.5 w-3.5" />
-                  {item.label}
-                </button>
-              ))}
+                  >
+                    <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
