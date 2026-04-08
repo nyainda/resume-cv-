@@ -52,7 +52,8 @@ services/
   pdfService.ts         — Legacy programmatic jsPDF (kept but superseded by html2canvas)
   brevoService.ts       — Brevo email sending
   tavilyService.ts      — Job board search + full JD fetch
-  wordImportService.ts  — Word (.docx) parsing via mammoth + Groq profile extraction
+  wordImportService.ts  — Word (.docx) parsing via mammoth + Groq profile extraction (extractTextFromDocx, extractTextFromArrayBuffer, parseWordTextToProfile)
+  oneDriveService.ts    — Microsoft Graph API client (listWordFiles, downloadFile, getFileLastModified)
   storage/              — LocalStorage + IndexedDB + Google Drive storage layer
 
 hooks/
@@ -80,9 +81,10 @@ auth/
 - **Fix & Regenerate** — CV Checker sends missing keywords + weaknesses directly to CV Generator as a pre-filled suggestion banner
 - **Cover Letter** — Smart AI generation with "Send to Generator" shortcut
 - **Paraphraser** — 4 tone modes with "Use in Generator" shortcut; JD-aware context
-- **Word Import** — Upload any .docx file; mammoth parses it, Gemini extracts structured profile data; imported directly into user profile
+- **Word Import (Upload)** — Upload any .docx file; mammoth parses it, Groq AI extracts structured profile data; imported directly into user profile
+- **Word Sync (OneDrive)** — Browse and select Word files from the user's OneDrive via Microsoft Graph API; AI-parses the downloaded file into a profile; Live Sync toggle polls for changes every 30 seconds; "Sync Now" button + last-synced timestamp
 - **Live Status Banner** — Shows active profile name and active job at all times in the Toolkit
-- **Microsoft / OneDrive** — Added to Settings: Azure Client ID input + Microsoft OAuth popup flow for OneDrive sync
+- **Microsoft / OneDrive** — Settings: Azure Client ID + Microsoft OAuth implicit flow popup; token stored in localStorage + IDB
 
 ## Environment
 

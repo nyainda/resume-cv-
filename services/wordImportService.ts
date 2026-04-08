@@ -8,6 +8,11 @@ export async function extractTextFromDocx(file: File): Promise<string> {
     return result.value;
 }
 
+export async function extractTextFromArrayBuffer(arrayBuffer: ArrayBuffer): Promise<string> {
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+}
+
 export async function parseWordTextToProfile(text: string): Promise<UserProfile> {
     const systemPrompt = `You are an expert CV parser. Extract all structured information from CV/resume text and return it as valid JSON. Do not invent data — only extract what is explicitly present. Return only valid JSON, no markdown, no code fences, no prose.`;
 
