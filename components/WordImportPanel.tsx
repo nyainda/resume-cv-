@@ -340,19 +340,19 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
                                 num: '1',
                                 color: 'bg-blue-600',
                                 title: 'Open your CV in Word Online or OneDrive',
-                                detail: 'Go to onedrive.live.com, find your .docx CV file',
+                                detail: 'Go to onedrive.live.com, open your .docx CV file in Word Online',
                             },
                             {
                                 num: '2',
                                 color: 'bg-blue-600',
-                                title: 'Click Share → Copy link',
-                                detail: 'Set permission to "Anyone with the link can view" then click Copy',
+                                title: 'Share → Anyone with the link → Copy',
+                                detail: 'Click Share (top-right) → change permission to "Anyone with the link can view" → click Copy. The link will start with 1drv.ms or onedrive.live.com.',
                             },
                             {
                                 num: '3',
                                 color: 'bg-emerald-600',
                                 title: 'Paste the link below and click Connect',
-                                detail: 'Your CV data is imported automatically — no account login needed',
+                                detail: 'Both 1drv.ms/… and onedrive.live.com/… links are accepted. No account login needed.',
                             },
                         ].map(step => (
                             <div key={step.num} className="flex items-start gap-3">
@@ -418,7 +418,7 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
                                 value={urlInput}
                                 onChange={e => { setUrlInput(e.target.value); setError(null); }}
                                 onKeyDown={e => e.key === 'Enter' && handleConnect()}
-                                placeholder="https://onedrive.live.com/..."
+                                placeholder="https://1drv.ms/… or https://onedrive.live.com/…"
                                 className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
