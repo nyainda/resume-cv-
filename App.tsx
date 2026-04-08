@@ -20,6 +20,7 @@ import JobBoard from './components/JobBoard';
 import CVToolkit from './components/CVToolkit';
 import EmailApply from './components/EmailApply';
 import PDFMerger from './components/PDFMerger';
+import PDFTools from './components/PDFTools';
 import { ProfileManager } from './components/ProfileManager';
 import NegotiationCoach from './components/NegotiationCoach';
 import PortalScanner from './components/PortalScanner';
@@ -402,7 +403,7 @@ const AppInner: React.FC = () => {
     { id: 'history', label: 'CV History', icon: List },
     { id: 'tracker', label: 'Job Tracker', icon: Target },
     { id: 'analytics', label: 'Analytics', icon: AnalyticsNavIcon },
-    { id: 'merger', label: 'PDF Merge', icon: MergeNavIcon },
+    { id: 'merger', label: 'PDF Tools', icon: MergeNavIcon },
   ];
 
   // ── Active slot color badge ────────────────────────────────────────────
@@ -765,13 +766,23 @@ const AppInner: React.FC = () => {
                   </div>
                 )}
                 {currentView === 'merger' && (
-                  <PDFMerger
-                    savedCVs={savedCVs}
-                    userProfile={userProfile!}
-                    savedMerges={savedMerges}
-                    onSaveMerge={handleSaveMerge}
-                    onDeleteMerge={handleDeleteMerge}
-                  />
+                  <div className="space-y-6">
+                    <PDFTools />
+                    <details className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                      <summary className="px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-50 dark:hover:bg-neutral-700 flex items-center gap-2">
+                        <span>📋</span> Advanced Merge (with saved CV layouts)
+                      </summary>
+                      <div className="p-4">
+                        <PDFMerger
+                          savedCVs={savedCVs}
+                          userProfile={userProfile!}
+                          savedMerges={savedMerges}
+                          onSaveMerge={handleSaveMerge}
+                          onDeleteMerge={handleDeleteMerge}
+                        />
+                      </div>
+                    </details>
+                  </div>
                 )}
                 {currentView === 'negotiation' && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">

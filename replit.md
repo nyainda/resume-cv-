@@ -17,7 +17,9 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 - **Email**: Brevo (Sendinblue) REST API (direct browser calls)
 - **Job Search**: Tavily Search API
 - **Storage**: Write-through triple-layer storage — localStorage + IndexedDB + optional Google Drive sync (via WriteThroughDriveService in StorageRouter)
-- **PDF Merge**: `pdf-lib` for merging multiple PDFs into one download
+- **PDF Tools**: `pdf-lib` for merge, split, remove pages, extract pages, image→PDF, sign PDF; `mammoth` for Word→PDF
+- **Playwright PDF Server**: Headless Chromium on port 3001 (Express `server-pdf.cjs`) for pixel-perfect HD PDF export
+- **Analytics**: `@vercel/analytics/react` — auto-tracks page views when deployed to Vercel
 - **Auth**: Google OAuth (PKCE flow via custom GoogleAuthContext)
 
 ## Project Structure
