@@ -20,6 +20,50 @@ app.get('/health', (_req, res) => {
 });
 
 /**
+ * GET /api/fetch-file?url={encoded}
+ * Server-side fetch proxy for CORS-restricted sources (e.g. Google Docs export).
+ * Only allows requests to trusted document-hosting domains.
+ */
+const ALLOWED_PROXY_HOSTS = [
+    'docs.google.com',
+    'drive.google.com',
+    'doc-0a-6o-docs.googleusercontent.com',
+    'doc-14-6o-docs.googleusercontent.com',
+];
+
+app.get('/api/fetch-file', async (req, res) => {
+    const rawUrl = req.query.url;
+    if (!rawUrl || typeof rawUrl !== 'string') {
+        return res.status(400).json({ error: 'url query param required' });
+    }
+    let parsed;
+    try { parsed = new URL(rawUrl); } catch {
+        return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    const allowed = ALLOWED_PROXY_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h));
+    if (!allowed) {
+        return res.status(403).json({ error: 'Domain not allowed' });
+    }
+
+    try {
+        const upstream = await fetch(rawUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CVBuilder/1.0)' },
+            redirect: 'follow',
+        });
+        if (!upstream.ok) {
+            return res.status(upstream.status).json({ error: `Upstream ${upstream.status}` });
+        }
+        const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+        res.set('Content-Type', contentType);
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        res.send(buf);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * POST /api/generate-pdf
  * Body: { html: string, css?: string, filename?: string }
  * Returns: PDF binary (application/pdf)

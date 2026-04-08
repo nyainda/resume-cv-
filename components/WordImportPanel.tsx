@@ -257,7 +257,7 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
         const url = urlInput.trim();
         if (!url) return;
         if (!url.startsWith('http')) {
-            setError('Please paste a valid OneDrive/Word Online sharing link starting with https://');
+            setError('Please paste a valid sharing link (Google Docs, OneDrive, or Word Online) starting with https://');
             return;
         }
         saveSyncUrl(url);
@@ -321,12 +321,25 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
                     <OneDriveIcon className="h-7 w-7" />
                 </div>
                 <div>
-                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Word Online Live Sync</h3>
+                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Document Live Sync</h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                        Edit your CV in Word Online — paste a sharing link here once and your profile updates automatically, no uploads needed.
+                        Paste a sharing link from <strong>Google Docs</strong>, <strong>Word Online</strong>, or <strong>OneDrive</strong> — your profile syncs automatically, no uploads or accounts needed.
                     </p>
                 </div>
             </div>
+
+            {/* Supported sources chips */}
+            {!savedUrl && (
+                <div className="flex flex-wrap gap-2">
+                    {[
+                        { label: 'Google Docs', color: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/40' },
+                        { label: 'Word Online (1drv.ms)', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/40' },
+                        { label: 'OneDrive (onedrive.live.com)', color: 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800/40' },
+                    ].map(s => (
+                        <span key={s.label} className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${s.color}`}>{s.label}</span>
+                    ))}
+                </div>
+            )}
 
             {/* Step-by-step guide — shown when no URL saved */}
             {!savedUrl && (
@@ -334,37 +347,22 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
                     <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-700">
                         <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">How to get the sharing link</p>
                     </div>
-                    <div className="p-4 space-y-3">
-                        {[
-                            {
-                                num: '1',
-                                color: 'bg-blue-600',
-                                title: 'Open your CV in Word Online or OneDrive',
-                                detail: 'Go to onedrive.live.com, open your .docx CV file in Word Online',
-                            },
-                            {
-                                num: '2',
-                                color: 'bg-blue-600',
-                                title: 'Share → Anyone with the link → Copy',
-                                detail: 'Click Share (top-right) → change permission to "Anyone with the link can view" → click Copy. The link will start with 1drv.ms or onedrive.live.com.',
-                            },
-                            {
-                                num: '3',
-                                color: 'bg-emerald-600',
-                                title: 'Paste the link below and click Connect',
-                                detail: 'Both 1drv.ms/… and onedrive.live.com/… links are accepted. No account login needed.',
-                            },
-                        ].map(step => (
-                            <div key={step.num} className="flex items-start gap-3">
-                                <div className={`w-6 h-6 rounded-full ${step.color} text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5`}>
-                                    {step.num}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{step.title}</p>
-                                    <p className="text-xs text-zinc-400 mt-0.5">{step.detail}</p>
-                                </div>
+                    <div className="p-4 space-y-4">
+                        {/* Google Docs */}
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-green-600 dark:text-green-400 mb-2">Google Docs</p>
+                            <div className="space-y-2 pl-1">
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300">Open your CV in Google Docs → click <strong>Share</strong> (top-right) → change to <strong>"Anyone with the link"</strong> → <strong>Copy link</strong>. Paste the <code className="bg-zinc-100 dark:bg-neutral-700 px-1 rounded text-[10px]">docs.google.com/…</code> link below.</p>
                             </div>
-                        ))}
+                        </div>
+                        <div className="border-t border-zinc-100 dark:border-neutral-700" />
+                        {/* OneDrive / Word Online */}
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">OneDrive / Word Online</p>
+                            <div className="space-y-2 pl-1">
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300">Open your .docx in Word Online → click <strong>Share</strong> → set to <strong>"Anyone with the link can view"</strong> → <strong>Copy</strong>. Paste the <code className="bg-zinc-100 dark:bg-neutral-700 px-1 rounded text-[10px]">1drv.ms/…</code> or <code className="bg-zinc-100 dark:bg-neutral-700 px-1 rounded text-[10px]">onedrive.live.com/…</code> link below.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -377,7 +375,7 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                            {fileName || 'Word document'}
+                            {fileName || (savedUrl?.includes('docs.google.com') ? 'Google Document' : 'Word document')}
                         </p>
                         <p className="text-xs text-zinc-400">
                             {lastSynced ? `Last synced: ${relativeTime}` : 'Connected via sharing link'}
@@ -409,7 +407,7 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
             {/* URL input — show when no URL, or when disconnected */}
             {!savedUrl && (
                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">OneDrive / Word Online Sharing Link</label>
+                    <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Paste your sharing link</label>
                     <div className="flex gap-2">
                         <div className="relative flex-1">
                             <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
@@ -418,7 +416,7 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
                                 value={urlInput}
                                 onChange={e => { setUrlInput(e.target.value); setError(null); }}
                                 onKeyDown={e => e.key === 'Enter' && handleConnect()}
-                                placeholder="https://1drv.ms/… or https://onedrive.live.com/…"
+                                placeholder="https://docs.google.com/… or https://1drv.ms/…"
                                 className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
