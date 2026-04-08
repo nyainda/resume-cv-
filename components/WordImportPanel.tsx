@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { extractTextFromDocx, extractTextFromArrayBuffer, parseWordTextToProfile } from '../services/wordImportService';
-import { OneDriveService, OneDriveFile, getMsToken } from '../services/oneDriveService';
+import { downloadSharedFile, getSharedFileMetadata, getSavedSyncUrl, saveSyncUrl, clearSyncUrl } from '../services/oneDriveService';
 import { Button } from './ui/Button';
 import { RefreshCw, CheckCircle, AlertCircle, Download } from './icons';
 
@@ -23,24 +23,18 @@ const UploadIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
-const OneDriveIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M10.5 18H5.75A3.75 3.75 0 0 1 3.5 11.1a6 6 0 0 1 11.4-2.5A4.5 4.5 0 0 1 19.5 13a4.5 4.5 0 0 1-4.5 4.5H10.5z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-);
-
-const SettingsIcon: React.FC<{ className?: string }> = ({ className }) => (
+const LinkIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </svg>
 );
 
-const MsLogoIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M11.4 2H2v9.4h9.4V2z" fill="#f25022" />
-        <path d="M22 2h-9.4v9.4H22V2z" fill="#7fba00" />
-        <path d="M11.4 12.6H2V22h9.4v-9.4z" fill="#00a4ef" />
-        <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#ffb900" />
+const OneDriveIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 48 48" fill="currentColor">
+        <path d="M27.3 13.7a13.5 13.5 0 0 1 19 12.3c0 .4 0 .8-.1 1.2A9 9 0 0 1 45 36H27a9 9 0 0 1-9-9 9 9 0 0 1 9.3-9.3z" fill="#0078d4" />
+        <path d="M20.3 16.8A10.5 10.5 0 0 0 10 27a10.5 10.5 0 0 0 .5 3.2A8 8 0 0 0 11 46H33a9 9 0 0 0 1.8-17.8 13.5 13.5 0 0 0-14.5-11.4z" fill="#1490df" />
+        <path d="M10.5 30.2A8 8 0 0 0 11 46h22a9 9 0 0 0 1.8-17.8A13.7 13.7 0 0 1 27.3 36H18a8 8 0 0 1-7.5-5.8z" fill="#28a8e0" />
     </svg>
 );
 
@@ -64,11 +58,8 @@ function formatRelativeTime(date: Date): string {
 const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, onProfileImported }) => {
     const [mode, setMode] = useState<PanelMode>('upload');
 
-    const msConnected = !!getMsToken();
-
     return (
         <div className="space-y-4">
-            {/* Mode toggle */}
             <div className="flex rounded-xl overflow-hidden border border-zinc-200 dark:border-neutral-700 p-0.5 bg-zinc-100 dark:bg-neutral-800 gap-0.5">
                 <button
                     onClick={() => setMode('upload')}
@@ -87,11 +78,8 @@ const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettin
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                         }`}
                 >
-                    <MsLogoIcon className="h-4 w-4" />
-                    OneDrive Sync
-                    {!msConnected && (
-                        <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-full font-bold">Setup</span>
-                    )}
+                    <LinkIcon className="h-4 w-4" />
+                    Word Online Sync
                 </button>
             </div>
 
@@ -99,7 +87,7 @@ const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettin
                 <UploadMode apiKeySet={apiKeySet} openSettings={openSettings} onProfileImported={onProfileImported} />
             )}
             {mode === 'onedrive' && (
-                <OneDriveMode apiKeySet={apiKeySet} openSettings={openSettings} onProfileImported={onProfileImported} msConnected={msConnected} />
+                <OneDriveMode apiKeySet={apiKeySet} openSettings={openSettings} onProfileImported={onProfileImported} />
             )}
         </div>
     );
@@ -115,12 +103,11 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
     const processFile = useCallback(async (file: File) => {
         if (!file) return;
         if (!file.name.match(/\.docx?$/i)) {
-            setError('Please upload a .docx file (Word document). .doc files are not supported — save as .docx first.');
+            setError('Please upload a .docx file. .doc files are not supported — save as .docx first.');
             setStep('error');
             return;
         }
         if (!apiKeySet) { openSettings(); return; }
-
         setError(null);
         setStep('extracting');
         try {
@@ -166,7 +153,7 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
                 <div>
                     <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Import from Word Document</h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                        Upload your existing CV as a <strong>.docx</strong> file. Our AI will read it, extract all your information, and import it directly into your profile — then you can apply any of our templates.
+                        Upload your existing CV as a <strong>.docx</strong> file. Our AI will extract your information and import it into your profile.
                     </p>
                 </div>
             </div>
@@ -199,13 +186,8 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
             {(step === 'extracting' || step === 'parsing') && <ParseLoadingState step={step} />}
 
             {step === 'preview' && parsedProfile && (
-                <ProfilePreview
-                    parsedProfile={parsedProfile}
-                    onApply={handleApply}
-                    onReset={reset}
-                    applyLabel="Import to My Profile"
-                    resetLabel="Try Another File"
-                />
+                <ProfilePreview parsedProfile={parsedProfile} onApply={handleApply} onReset={reset}
+                    applyLabel="Import to My Profile" resetLabel="Try Another File" />
             )}
 
             {step === 'done' && <DoneState onReset={reset} resetLabel="Import Another File" />}
@@ -213,45 +195,19 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
     );
 };
 
-interface OneDriveModeProps extends WordImportPanelProps {
-    msConnected: boolean;
-}
-
-const OneDriveMode: React.FC<OneDriveModeProps> = ({ apiKeySet, openSettings, onProfileImported, msConnected }) => {
-    const [files, setFiles] = useState<OneDriveFile[]>([]);
-    const [loadingFiles, setLoadingFiles] = useState(false);
-    const [filesError, setFilesError] = useState<string | null>(null);
-    const [selectedFile, setSelectedFile] = useState<OneDriveFile | null>(null);
+const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, onProfileImported }) => {
+    const [urlInput, setUrlInput] = useState('');
+    const [savedUrl, setSavedUrl] = useState<string | null>(getSavedSyncUrl);
+    const [fileName, setFileName] = useState<string | null>(null);
     const [step, setStep] = useState<ImportStep>('idle');
     const [error, setError] = useState<string | null>(null);
     const [parsedProfile, setParsedProfile] = useState<UserProfile | null>(null);
     const [liveSync, setLiveSync] = useState(false);
     const [lastSynced, setLastSynced] = useState<Date | null>(null);
-    const [lastModified, setLastModified] = useState<string | null>(null);
+    const [lastETag, setLastETag] = useState<string | null>(null);
     const [relativeTime, setRelativeTime] = useState('');
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isSyncingRef = useRef(false);
-
-    const token = getMsToken();
-
-    const fetchFiles = useCallback(async () => {
-        if (!token) return;
-        setLoadingFiles(true);
-        setFilesError(null);
-        try {
-            const svc = new OneDriveService(token);
-            const list = await svc.listWordFiles();
-            setFiles(list);
-        } catch (e) {
-            setFilesError(e instanceof Error ? e.message : 'Failed to load files from OneDrive.');
-        } finally {
-            setLoadingFiles(false);
-        }
-    }, [token]);
-
-    useEffect(() => {
-        if (msConnected) fetchFiles();
-    }, [msConnected, fetchFiles]);
 
     useEffect(() => {
         if (!lastSynced) return;
@@ -260,60 +216,91 @@ const OneDriveMode: React.FC<OneDriveModeProps> = ({ apiKeySet, openSettings, on
         return () => clearInterval(t);
     }, [lastSynced]);
 
-    const syncFile = useCallback(async (file: OneDriveFile, checkModified = false) => {
-        if (!token) return;
+    const runSync = useCallback(async (url: string, checkChanged = false) => {
         if (!apiKeySet) { openSettings(); return; }
         if (isSyncingRef.current) return;
         isSyncingRef.current = true;
+        setError(null);
 
         try {
-            const svc = new OneDriveService(token);
-
-            if (checkModified) {
-                const mod = await svc.getFileLastModified(file.id);
-                if (mod === lastModified) { isSyncingRef.current = false; return; }
-                setLastModified(mod);
+            if (checkChanged) {
+                try {
+                    const meta = await getSharedFileMetadata(url);
+                    if (meta.eTag && meta.eTag === lastETag) {
+                        isSyncingRef.current = false;
+                        return;
+                    }
+                    if (meta.eTag) setLastETag(meta.eTag);
+                    if (meta.name) setFileName(meta.name);
+                } catch {
+                    // metadata fetch failed — proceed to full download
+                }
             }
 
             setStep('extracting');
-            setError(null);
-            const buffer = await svc.downloadFile(file.id);
+            const buffer = await downloadSharedFile(url);
             setStep('parsing');
             const text = await extractTextFromArrayBuffer(buffer);
             const profile = await parseWordTextToProfile(text);
             setParsedProfile(profile);
             setLastSynced(new Date());
-            if (!checkModified) setLastModified(file.lastModifiedDateTime);
             setStep('preview');
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'Sync failed.');
+            setError(e instanceof Error ? e.message : 'Sync failed. Check the sharing link and try again.');
             setStep('error');
         } finally {
             isSyncingRef.current = false;
         }
-    }, [token, apiKeySet, openSettings, lastModified]);
+    }, [apiKeySet, openSettings, lastETag]);
 
-    const handleSelectFile = useCallback((file: OneDriveFile) => {
-        setSelectedFile(file);
+    const handleConnect = useCallback(async () => {
+        const url = urlInput.trim();
+        if (!url) return;
+        if (!url.startsWith('http')) {
+            setError('Please paste a valid OneDrive/Word Online sharing link starting with https://');
+            return;
+        }
+        saveSyncUrl(url);
+        setSavedUrl(url);
+        setUrlInput('');
+        setStep('idle');
         setParsedProfile(null);
         setLastSynced(null);
-        setLastModified(null);
+        setLastETag(null);
+        setFileName(null);
+
+        try {
+            const meta = await getSharedFileMetadata(url);
+            if (meta.name) setFileName(meta.name);
+            if (meta.eTag) setLastETag(meta.eTag);
+        } catch { }
+
+        await runSync(url, false);
+    }, [urlInput, runSync]);
+
+    const handleDisconnect = useCallback(() => {
+        clearSyncUrl();
+        setSavedUrl(null);
+        setFileName(null);
+        setParsedProfile(null);
         setStep('idle');
-        syncFile(file, false);
-    }, [syncFile]);
+        setError(null);
+        setLastSynced(null);
+        setLiveSync(false);
+    }, []);
 
     useEffect(() => {
-        if (!liveSync || !selectedFile) {
+        if (!liveSync || !savedUrl) {
             if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
             return;
         }
         syncIntervalRef.current = setInterval(() => {
-            if (selectedFile) syncFile(selectedFile, true);
+            if (savedUrl) runSync(savedUrl, true);
         }, 30000);
         return () => {
             if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
         };
-    }, [liveSync, selectedFile, syncFile]);
+    }, [liveSync, savedUrl, runSync]);
 
     const handleApply = useCallback(() => {
         if (!parsedProfile) return;
@@ -321,200 +308,203 @@ const OneDriveMode: React.FC<OneDriveModeProps> = ({ apiKeySet, openSettings, on
         setStep('done');
     }, [parsedProfile, onProfileImported]);
 
-    const reset = () => {
-        setSelectedFile(null); setParsedProfile(null); setStep('idle');
-        setError(null); setLastSynced(null); setLiveSync(false);
+    const resetPreview = () => {
+        setStep(savedUrl ? 'idle' : 'idle');
+        setParsedProfile(null);
     };
-
-    if (!msConnected) {
-        return (
-            <div className="space-y-4">
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800/40 text-center space-y-4">
-                    <div className="flex justify-center">
-                        <div className="p-3 bg-white dark:bg-neutral-800 rounded-2xl shadow-sm border border-zinc-200 dark:border-neutral-700">
-                            <MsLogoIcon className="h-8 w-8" />
-                        </div>
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Connect your Microsoft account</h3>
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-sm mx-auto">
-                            Sign in with Microsoft to browse your OneDrive and sync your Word CV directly — no file uploading needed.
-                        </p>
-                    </div>
-                    <div className="rounded-xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 p-4 text-left space-y-2 max-w-sm mx-auto">
-                        {['Pick any Word file from your OneDrive', 'AI imports your CV data automatically', 'Live sync: updates every 30s as you type in Word'].map((f, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                                <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
-                                {f}
-                            </div>
-                        ))}
-                    </div>
-                    <Button
-                        onClick={openSettings}
-                        className="bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-xl px-6 mx-auto"
-                    >
-                        <SettingsIcon className="h-4 w-4 mr-2" />
-                        Set up in Settings
-                    </Button>
-                </div>
-
-                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 text-sm text-amber-800 dark:text-amber-300 space-y-1">
-                    <p className="font-semibold">One-time setup required:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-amber-700 dark:text-amber-400">
-                        <li>Open <strong>Settings → Microsoft / OneDrive</strong></li>
-                        <li>Enter your Azure App Client ID <span className="text-xs">(or use a shared one if provided)</span></li>
-                        <li>Click <strong>Sign in with Microsoft</strong></li>
-                    </ol>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-4">
-            {/* File picker */}
-            {!selectedFile || step === 'idle' ? (
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                            Your Word Documents on OneDrive
-                        </h4>
-                        <button
-                            onClick={fetchFiles}
-                            disabled={loadingFiles}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 disabled:opacity-50"
-                        >
-                            <RefreshCw className={`h-3 w-3 ${loadingFiles ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </button>
-                    </div>
-
-                    {loadingFiles && (
-                        <div className="flex items-center justify-center gap-2 py-8 text-zinc-400 text-sm">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            Loading files from OneDrive…
-                        </div>
-                    )}
-
-                    {filesError && (
-                        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm flex items-start gap-2">
-                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {filesError}
-                        </div>
-                    )}
-
-                    {!loadingFiles && !filesError && files.length === 0 && (
-                        <div className="text-center py-8 text-zinc-400 dark:text-zinc-500 text-sm">
-                            <WordIcon className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                            No .docx files found in your OneDrive root.
-                        </div>
-                    )}
-
-                    {!loadingFiles && files.length > 0 && (
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {files.map(file => (
-                                <button
-                                    key={file.id}
-                                    onClick={() => handleSelectFile(file)}
-                                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:border-blue-400 hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-all text-left group"
-                                >
-                                    <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-                                        <WordIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate group-hover:text-blue-700 dark:group-hover:text-blue-300">{file.name}</p>
-                                        <p className="text-xs text-zinc-400 mt-0.5">
-                                            Modified {new Date(file.lastModifiedDateTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                            {file.size ? ` • ${(file.size / 1024).toFixed(0)} KB` : ''}
-                                        </p>
-                                    </div>
-                                    <svg className="h-4 w-4 text-zinc-300 group-hover:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="9 18 15 12 9 6" />
-                                    </svg>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+            {/* Hero banner */}
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-sky-50 dark:from-blue-900/10 dark:to-sky-900/10 border border-blue-200 dark:border-blue-800/40">
+                <div className="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-blue-100 dark:border-blue-900/40 flex-shrink-0 shadow-sm">
+                    <OneDriveIcon className="h-7 w-7" />
                 </div>
-            ) : null}
+                <div>
+                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Word Online Live Sync</h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                        Edit your CV in Word Online — paste a sharing link here once and your profile updates automatically, no uploads needed.
+                    </p>
+                </div>
+            </div>
 
-            {selectedFile && (step === 'extracting' || step === 'parsing') && <ParseLoadingState step={step} />}
-
-            {selectedFile && step === 'error' && error && (
-                <div className="space-y-3">
-                    <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm flex items-start gap-2">
-                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {error}
+            {/* Step-by-step guide — shown when no URL saved */}
+            {!savedUrl && (
+                <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-700">
+                        <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">How to get the sharing link</p>
                     </div>
-                    <Button onClick={reset} className="rounded-xl border border-zinc-200 dark:border-neutral-700 px-5">
-                        Choose Different File
-                    </Button>
+                    <div className="p-4 space-y-3">
+                        {[
+                            {
+                                num: '1',
+                                color: 'bg-blue-600',
+                                title: 'Open your CV in Word Online or OneDrive',
+                                detail: 'Go to onedrive.live.com, find your .docx CV file',
+                            },
+                            {
+                                num: '2',
+                                color: 'bg-blue-600',
+                                title: 'Click Share → Copy link',
+                                detail: 'Set permission to "Anyone with the link can view" then click Copy',
+                            },
+                            {
+                                num: '3',
+                                color: 'bg-emerald-600',
+                                title: 'Paste the link below and click Connect',
+                                detail: 'Your CV data is imported automatically — no account login needed',
+                            },
+                        ].map(step => (
+                            <div key={step.num} className="flex items-start gap-3">
+                                <div className={`w-6 h-6 rounded-full ${step.color} text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5`}>
+                                    {step.num}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{step.title}</p>
+                                    <p className="text-xs text-zinc-400 mt-0.5">{step.detail}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {selectedFile && step === 'preview' && parsedProfile && (
-                <div className="space-y-4">
-                    {/* Selected file + sync controls */}
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50/60 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/40">
-                        <div className="p-1.5 bg-blue-600 rounded-lg flex-shrink-0">
-                            <WordIcon className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">{selectedFile.name}</p>
-                            {lastSynced && (
-                                <p className="text-xs text-zinc-400">Last synced: {relativeTime}</p>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
+            {/* Connected file info */}
+            {savedUrl && step !== 'done' && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50/60 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/40">
+                    <div className="p-1.5 bg-blue-600 rounded-lg flex-shrink-0">
+                        <WordIcon className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                            {fileName || 'Word document'}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                            {lastSynced ? `Last synced: ${relativeTime}` : 'Connected via sharing link'}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {(step === 'preview' || step === 'idle') && savedUrl && (
                             <button
-                                onClick={() => syncFile(selectedFile, false)}
-                                disabled={step === 'extracting' || step === 'parsing'}
-                                className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 disabled:opacity-40 transition-colors"
+                                onClick={() => runSync(savedUrl, false)}
+                                className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors"
                                 title="Sync now"
                             >
                                 <RefreshCw className="h-4 w-4" />
                             </button>
-                            <button onClick={reset} className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 text-zinc-400 transition-colors" title="Choose different file">
-                                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Live sync toggle */}
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
-                        <div>
-                            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Live Sync</p>
-                            <p className="text-xs text-zinc-400 mt-0.5">Auto-updates every 30 seconds when you edit in Word</p>
-                        </div>
+                        )}
                         <button
-                            onClick={() => setLiveSync(v => !v)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${liveSync ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-neutral-600'}`}
+                            onClick={handleDisconnect}
+                            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 text-zinc-400 transition-colors"
+                            title="Disconnect"
                         >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${liveSync ? 'translate-x-6' : 'translate-x-1'}`} />
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
                         </button>
                     </div>
-
-                    {liveSync && (
-                        <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2">
-                            <span className="relative flex h-2 w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                            </span>
-                            Live sync active — checking for changes every 30 seconds
-                        </div>
-                    )}
-
-                    <ProfilePreview
-                        parsedProfile={parsedProfile}
-                        onApply={handleApply}
-                        onReset={reset}
-                        applyLabel="Import to My Profile"
-                        resetLabel="Choose Different File"
-                    />
                 </div>
             )}
 
-            {step === 'done' && <DoneState onReset={reset} resetLabel="Sync Another File" />}
+            {/* URL input — show when no URL, or when disconnected */}
+            {!savedUrl && (
+                <div className="space-y-2">
+                    <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">OneDrive / Word Online Sharing Link</label>
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                            <input
+                                type="url"
+                                value={urlInput}
+                                onChange={e => { setUrlInput(e.target.value); setError(null); }}
+                                onKeyDown={e => e.key === 'Enter' && handleConnect()}
+                                placeholder="https://onedrive.live.com/..."
+                                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <Button
+                            onClick={handleConnect}
+                            disabled={!urlInput.trim() || step === 'extracting' || step === 'parsing'}
+                            className="bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-xl px-4 shrink-0 disabled:opacity-50"
+                        >
+                            Connect
+                        </Button>
+                    </div>
+                    <p className="text-xs text-zinc-400">
+                        The link must be set to <strong>"Anyone with the link can view"</strong> — private links won't work.
+                    </p>
+                </div>
+            )}
+
+            {/* Error */}
+            {step === 'error' && error && (
+                <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm space-y-2">
+                    <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span className="whitespace-pre-line">{error}</span>
+                    </div>
+                    <button onClick={() => { setStep('idle'); setError(null); }} className="text-xs underline text-rose-500 hover:text-rose-700">Try again</button>
+                </div>
+            )}
+
+            {/* Loading */}
+            {(step === 'extracting' || step === 'parsing') && <ParseLoadingState step={step} />}
+
+            {/* Live sync toggle — show when connected and preview is ready */}
+            {savedUrl && step === 'preview' && (
+                <div className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
+                    <div>
+                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Live Sync</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">Auto-checks for changes every 30 seconds</p>
+                    </div>
+                    <button
+                        onClick={() => setLiveSync(v => !v)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${liveSync ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-neutral-600'}`}
+                    >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${liveSync ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                </div>
+            )}
+
+            {liveSync && step === 'preview' && (
+                <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2">
+                    <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                    Live sync active — checks for changes every 30 seconds. Edit in Word Online and your profile updates here.
+                </div>
+            )}
+
+            {/* Preview */}
+            {step === 'preview' && parsedProfile && (
+                <ProfilePreview
+                    parsedProfile={parsedProfile}
+                    onApply={handleApply}
+                    onReset={resetPreview}
+                    applyLabel="Import to My Profile"
+                    resetLabel="Cancel"
+                />
+            )}
+
+            {step === 'done' && (
+                <div className="flex flex-col items-center gap-4 py-8 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <CheckCircle className="h-8 w-8 text-emerald-500" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-xl text-zinc-800 dark:text-zinc-200">Profile Imported!</p>
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                            Head to the CV Generator to apply a template. The sync link is saved — come back anytime to re-sync.
+                        </p>
+                    </div>
+                    {savedUrl && (
+                        <Button onClick={() => { setStep('preview'); setParsedProfile(parsedProfile); }} className="rounded-xl border border-zinc-200 dark:border-neutral-700 px-5">
+                            Back to Preview
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -531,10 +521,10 @@ const ParseLoadingState: React.FC<{ step: 'extracting' | 'parsing' }> = ({ step 
         </div>
         <div className="text-center">
             <p className="font-bold text-zinc-800 dark:text-zinc-200">
-                {step === 'extracting' ? 'Reading your Word document…' : 'AI is extracting your profile data…'}
+                {step === 'extracting' ? 'Downloading your Word document…' : 'AI is extracting your profile data…'}
             </p>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                {step === 'extracting' ? 'Parsing the document structure' : 'This takes about 10–20 seconds'}
+                {step === 'extracting' ? 'Fetching via sharing link' : 'This takes about 10–20 seconds'}
             </p>
         </div>
         <div className="flex gap-1.5">
@@ -629,7 +619,7 @@ const DoneState: React.FC<{ onReset: () => void; resetLabel: string }> = ({ onRe
         </div>
         <div>
             <p className="font-bold text-xl text-zinc-800 dark:text-zinc-200">Profile Imported!</p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Your data is now in your profile. Head to the CV Generator to apply a template and generate your CV.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Your data is now in your profile. Head to the CV Generator to apply a template.</p>
         </div>
         <Button onClick={onReset} className="rounded-xl border border-zinc-200 dark:border-neutral-700 px-5">
             {resetLabel}

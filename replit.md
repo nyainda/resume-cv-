@@ -82,7 +82,7 @@ auth/
 - **Cover Letter** — Smart AI generation with "Send to Generator" shortcut
 - **Paraphraser** — 4 tone modes with "Use in Generator" shortcut; JD-aware context
 - **Word Import (Upload)** — Upload any .docx file; mammoth parses it, Groq AI extracts structured profile data; imported directly into user profile
-- **Word Sync (OneDrive)** — Browse and select Word files from the user's OneDrive via Microsoft Graph API; AI-parses the downloaded file into a profile; Live Sync toggle polls for changes every 30 seconds; "Sync Now" button + last-synced timestamp
+- **Word Online Sync** — Paste a OneDrive sharing link (no Azure account needed); app fetches the .docx directly via Microsoft Graph shares API; AI-parses into profile; Live Sync toggle polls every 30s for changes; saved URL persists in localStorage (`cv_builder:word_sync_url`)
 - **Live Status Banner** — Shows active profile name and active job at all times in the Toolkit
 - **Microsoft / OneDrive** — Settings: Azure Client ID + Microsoft OAuth implicit flow popup; token stored in localStorage + IDB
 
