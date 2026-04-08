@@ -264,10 +264,17 @@ const MergeTool: React.FC = () => {
 
 const SplitTool: React.FC = () => {
     const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
-    const [mode, setMode] = useState<'each' | 'range'>('each');
-    const [rangeInput, setRangeInput] = useState('');
+    const [mode, setMode] = useState<'each' | 'range'>(() => {
+        try { return (localStorage.getItem('cv_builder:pdf_split_mode') as any) || 'each'; } catch { return 'each'; }
+    });
+    const [rangeInput, setRangeInput] = useState(() => {
+        try { return localStorage.getItem('cv_builder:pdf_split_range') || ''; } catch { return ''; }
+    });
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+    useEffect(() => { try { localStorage.setItem('cv_builder:pdf_split_mode', mode); } catch {} }, [mode]);
+    useEffect(() => { try { localStorage.setItem('cv_builder:pdf_split_range', rangeInput); } catch {} }, [rangeInput]);
 
     const loadFile = async (files: File[]) => {
         try {
@@ -348,9 +355,13 @@ const SplitTool: React.FC = () => {
 
 const RemovePagesTool: React.FC = () => {
     const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
-    const [pagesToRemove, setPagesToRemove] = useState('');
+    const [pagesToRemove, setPagesToRemove] = useState(() => {
+        try { return localStorage.getItem('cv_builder:pdf_remove_pages') || ''; } catch { return ''; }
+    });
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+    useEffect(() => { try { localStorage.setItem('cv_builder:pdf_remove_pages', pagesToRemove); } catch {} }, [pagesToRemove]);
 
     const loadFile = async (files: File[]) => {
         try {
@@ -415,9 +426,13 @@ const RemovePagesTool: React.FC = () => {
 
 const ExtractPagesTool: React.FC = () => {
     const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
-    const [rangeInput, setRangeInput] = useState('');
+    const [rangeInput, setRangeInput] = useState(() => {
+        try { return localStorage.getItem('cv_builder:pdf_extract_range') || ''; } catch { return ''; }
+    });
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+    useEffect(() => { try { localStorage.setItem('cv_builder:pdf_extract_range', rangeInput); } catch {} }, [rangeInput]);
 
     const loadFile = async (files: File[]) => {
         try {
@@ -645,12 +660,15 @@ const WordToPdfTool: React.FC = () => {
 // ── Tool: SIGN PDF ────────────────────────────────────────────────────────────
 
 const SignPdfTool: React.FC = () => {
+    const SIG_KEY = 'cv_builder:pdf_sign';
+    const loadSigSettings = () => { try { return JSON.parse(localStorage.getItem(SIG_KEY) || '{}'); } catch { return {}; } };
+
     const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
-    const [sigMode, setSigMode] = useState<'draw' | 'type'>('draw');
-    const [typedSig, setTypedSig] = useState('');
-    const [targetPage, setTargetPage] = useState(1);
+    const [sigMode, setSigMode] = useState<'draw' | 'type'>(() => loadSigSettings().sigMode || 'draw');
+    const [typedSig, setTypedSig] = useState<string>(() => loadSigSettings().typedSig || '');
+    const [targetPage, setTargetPage] = useState<number>(() => loadSigSettings().targetPage || 1);
     // sigPos: percentage from top-left corner of the A4 page (0-100)
-    const [sigPos, setSigPos] = useState({ xPct: 70, yPct: 82 });
+    const [sigPos, setSigPos] = useState<{ xPct: number; yPct: number }>(() => loadSigSettings().sigPos || { xPct: 70, yPct: 82 });
     const [isDraggingSig, setIsDraggingSig] = useState(false);
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -658,6 +676,30 @@ const SignPdfTool: React.FC = () => {
     const positionerRef = useRef<HTMLDivElement>(null);
     const drawing = useRef(false);
     const lastPos = useRef({ x: 0, y: 0 });
+
+    // Persist lightweight settings whenever they change
+    useEffect(() => {
+        try {
+            const prev = loadSigSettings();
+            localStorage.setItem(SIG_KEY, JSON.stringify({ ...prev, sigMode, typedSig, sigPos, targetPage }));
+        } catch {}
+    }, [sigMode, typedSig, sigPos, targetPage]);
+
+    // Restore drawn canvas after mount
+    useEffect(() => {
+        try {
+            const saved = loadSigSettings();
+            if (saved.canvasDataUrl) {
+                const img = new Image();
+                img.onload = () => {
+                    const c = canvasRef.current;
+                    if (!c) return;
+                    c.getContext('2d')?.drawImage(img, 0, 0);
+                };
+                img.src = saved.canvasDataUrl;
+            }
+        } catch {}
+    }, []);
 
     const loadFile = async (files: File[]) => {
         try {
@@ -673,6 +715,20 @@ const SignPdfTool: React.FC = () => {
         if (!c) return;
         const ctx = c.getContext('2d')!;
         ctx.clearRect(0, 0, c.width, c.height);
+        try {
+            const prev = loadSigSettings();
+            localStorage.setItem(SIG_KEY, JSON.stringify({ ...prev, canvasDataUrl: null }));
+        } catch {}
+    };
+
+    const saveCanvas = () => {
+        try {
+            const c = canvasRef.current;
+            if (!c) return;
+            const dataUrl = c.toDataURL('image/png');
+            const prev = loadSigSettings();
+            localStorage.setItem(SIG_KEY, JSON.stringify({ ...prev, canvasDataUrl: dataUrl }));
+        } catch {}
     };
 
     const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
@@ -706,7 +762,7 @@ const SignPdfTool: React.FC = () => {
         lastPos.current = pos;
     };
 
-    const stopDraw = () => { drawing.current = false; };
+    const stopDraw = () => { drawing.current = false; saveCanvas(); };
 
     // Positioner drag handlers
     const handlePositionerMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -932,15 +988,25 @@ const colorMap: Record<string, string> = {
 };
 
 const PDFTools: React.FC = () => {
-    const [activeTool, setActiveTool] = useState<ToolId | null>(null);
+    const [activeTool, setActiveTool] = useState<ToolId | null>(() => {
+        try { return (localStorage.getItem('cv_builder:pdf_active_tool') as ToolId) || null; } catch { return null; }
+    });
     const tool = TOOLS.find(t => t.id === activeTool);
+
+    const setActiveToolPersisted = (id: ToolId | null) => {
+        setActiveTool(id);
+        try {
+            if (id) localStorage.setItem('cv_builder:pdf_active_tool', id);
+            else localStorage.removeItem('cv_builder:pdf_active_tool');
+        } catch {}
+    };
 
     return (
         <div className="max-w-3xl mx-auto space-y-6 p-4 sm:p-6">
             {/* Header */}
             <div className="flex items-center gap-4">
                 {activeTool && (
-                    <button onClick={() => setActiveTool(null)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-neutral-800 text-slate-500 transition-colors flex-shrink-0">
+                    <button onClick={() => setActiveToolPersisted(null)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-neutral-800 text-slate-500 transition-colors flex-shrink-0">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                     </button>
                 )}
@@ -960,7 +1026,7 @@ const PDFTools: React.FC = () => {
                     {TOOLS.map(t => (
                         <button
                             key={t.id}
-                            onClick={() => setActiveTool(t.id)}
+                            onClick={() => setActiveToolPersisted(t.id)}
                             className={`flex flex-col items-start gap-2 p-4 rounded-2xl border text-left transition-all group ${colorMap[t.color]}`}
                         >
                             <span className="text-2xl">{t.icon}</span>
