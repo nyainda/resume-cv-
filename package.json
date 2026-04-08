@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.22.0",
     "@react-pdf/renderer": "^4.3.2",
+    "@vercel/analytics": "^2.0.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "html2canvas": "^1.4.1",
