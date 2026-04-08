@@ -71,8 +71,9 @@ app.post('/api/generate-pdf', async (req, res) => {
 
         await page.setContent(pageContent, { waitUntil: 'networkidle' });
 
-        // Wait for fonts and images to settle
-        await page.waitForTimeout(500);
+        // Wait for all fonts and images to fully load before capturing
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(800);
 
         const pdfBuffer = await page.pdf({
             format: 'A4',

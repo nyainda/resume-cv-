@@ -167,9 +167,13 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   const [isSavingToDrive, setIsSavingToDrive] = useState(false);
   const [driveLink, setDriveLink] = useState<string | null>(null);
   const [driveError, setDriveError] = useState<string | null>(null);
+  const [itemPreviewUrl, setItemPreviewUrl] = useState<string | null>(null);
+  const [itemPreviewLabel, setItemPreviewLabel] = useState<string>('');
+  const [itemPreviewLoading, setItemPreviewLoading] = useState<string | null>(null);
   const mergedBytesRef = useRef<Uint8Array | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<string | null>(null);
+  const itemPreviewRef = useRef<string | null>(null);
 
   const coverLetterFromStorage = localStorage.getItem('coverLetter') || localStorage.getItem('toolkit_cl') || '';
 
@@ -190,8 +194,55 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   useEffect(() => {
     return () => {
       if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+      if (itemPreviewRef.current) URL.revokeObjectURL(itemPreviewRef.current);
     };
   }, []);
+
+  const closeItemPreview = () => {
+    if (itemPreviewRef.current) {
+      URL.revokeObjectURL(itemPreviewRef.current);
+      itemPreviewRef.current = null;
+    }
+    setItemPreviewUrl(null);
+  };
+
+  const handlePreviewItem = async (item: MergeItem) => {
+    setItemPreviewLoading(item.id);
+    try {
+      let pdfBytes: Uint8Array | null = null;
+      if (item.source === 'saved-cv') {
+        const cv = savedCVs.find(c => c.id === item.cvId);
+        if (cv) {
+          const buf = getCVAsPDFBytes({
+            cvData: cv.data,
+            personalInfo: userProfile.personalInfo,
+            template: item.cvTemplate ?? 'professional',
+            font: item.cvFont ?? 'inter',
+            fileName: item.label,
+          });
+          pdfBytes = new Uint8Array(buf);
+        }
+      } else if (item.source === 'cover-letter' && item.coverLetterText) {
+        const buf = getCoverLetterAsPDFBytes(item.coverLetterText, userProfile.personalInfo);
+        pdfBytes = new Uint8Array(buf);
+      } else if (item.source === 'uploaded-pdf' && item.uploadedPdfBase64) {
+        pdfBytes = new Uint8Array(base64ToArrayBuffer(item.uploadedPdfBase64));
+      } else if (item.source === 'uploaded-image' && item.uploadedImageBase64 && item.uploadedImageType) {
+        pdfBytes = await imageToPdfBytes(item.uploadedImageBase64, item.uploadedImageType, 'none');
+      }
+      if (!pdfBytes) return;
+      if (itemPreviewRef.current) URL.revokeObjectURL(itemPreviewRef.current);
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      itemPreviewRef.current = url;
+      setItemPreviewLabel(item.label);
+      setItemPreviewUrl(url);
+    } catch {
+      // silently ignore preview errors
+    } finally {
+      setItemPreviewLoading(null);
+    }
+  };
 
   const setItemsAndPersist = (updater: MergeItem[] | ((prev: MergeItem[]) => MergeItem[])) => {
     setItems(updater);
@@ -425,6 +476,19 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Individual item preview modal */}
+      {itemPreviewUrl && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/80" onClick={closeItemPreview}>
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <span className="text-sm font-semibold text-white truncate max-w-xs">Preview: {itemPreviewLabel}</span>
+            <button onClick={closeItemPreview} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-300 transition-colors text-lg leading-none">✕</button>
+          </div>
+          <div className="flex-1 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <iframe src={itemPreviewUrl} className="w-full h-full border-0" title={itemPreviewLabel} />
+          </div>
+        </div>
+      )}
+
       <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -511,6 +575,16 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                         )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handlePreviewItem(item)}
+                          disabled={itemPreviewLoading === item.id}
+                          className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-500 transition-colors disabled:opacity-40"
+                          title="Preview"
+                        >
+                          {itemPreviewLoading === item.id
+                            ? <span className="h-4 w-4 inline-block animate-spin text-xs">⏳</span>
+                            : <Eye className="h-4 w-4" />}
+                        </button>
                         <button
                           onClick={() => moveItem(index, 'up')}
                           disabled={index === 0}

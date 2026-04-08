@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Download, Trash, UploadCloud, FileText } from './icons';
 
@@ -114,12 +114,43 @@ const StatusBadge: React.FC<{ type: 'success' | 'error' | 'info'; message: strin
     return <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${styles[type]}`}>{message}</div>;
 };
 
+// ── PDF Preview Modal ─────────────────────────────────────────────────────────
+
+const PdfPreviewModal: React.FC<{ url: string; title: string; onClose: () => void; onDownload?: () => void }> = ({ url, title, onClose, onDownload }) => (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/80" onClick={onClose}>
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-900 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <span className="text-sm font-semibold text-white truncate max-w-xs">{title}</span>
+            <div className="flex items-center gap-2">
+                {onDownload && (
+                    <button onClick={onDownload} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                        <Download className="h-3.5 w-3.5" /> Download
+                    </button>
+                )}
+                <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-300 transition-colors text-lg leading-none">✕</button>
+            </div>
+        </div>
+        <div className="flex-1 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <iframe src={url} className="w-full h-full border-0" title={title} />
+        </div>
+    </div>
+);
+
 // ── Tool: MERGE PDFs ──────────────────────────────────────────────────────────
 
 const MergeTool: React.FC = () => {
     const [files, setFiles] = useState<PdfFile[]>([]);
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+    const [previewModal, setPreviewModal] = useState<{ url: string; title: string; downloadFn?: () => void } | null>(null);
+    const [mergedUrl, setMergedUrl] = useState<string | null>(null);
+    const [mergedBytes, setMergedBytes] = useState<Uint8Array | null>(null);
+    const previewUrlsRef = useRef<string[]>([]);
+
+    useEffect(() => {
+        return () => {
+            previewUrlsRef.current.forEach(u => URL.revokeObjectURL(u));
+        };
+    }, []);
 
     const addFiles = useCallback(async (incoming: File[]) => {
         const newFiles: PdfFile[] = [];
@@ -133,13 +164,24 @@ const MergeTool: React.FC = () => {
         setFiles(prev => [...prev, ...newFiles]);
     }, []);
 
-    const remove = (i: number) => setFiles(f => f.filter((_, idx) => idx !== i));
+    const remove = (i: number) => { setFiles(f => f.filter((_, idx) => idx !== i)); setMergedUrl(null); setMergedBytes(null); };
     const moveUp = (i: number) => { if (i === 0) return; setFiles(f => { const a = [...f]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; }); };
     const moveDown = (i: number) => { if (i === files.length - 1) return; setFiles(f => { const a = [...f]; [a[i], a[i + 1]] = [a[i + 1], a[i]]; return a; }); };
 
+    const previewFile = (f: PdfFile) => {
+        const blob = new Blob([f.bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        previewUrlsRef.current.push(url);
+        setPreviewModal({
+            url,
+            title: f.name,
+            downloadFn: () => downloadBytes(f.bytes, f.name),
+        });
+    };
+
     const merge = async () => {
         if (files.length < 2) return setStatus({ type: 'error', msg: 'Please add at least 2 PDF files to merge.' });
-        setLoading(true); setStatus(null);
+        setLoading(true); setStatus(null); setMergedUrl(null); setMergedBytes(null);
         try {
             const merged = await PDFDocument.create();
             for (const f of files) {
@@ -148,8 +190,12 @@ const MergeTool: React.FC = () => {
                 pages.forEach(p => merged.addPage(p));
             }
             const bytes = await merged.save();
-            downloadBytes(bytes, 'merged.pdf');
-            setStatus({ type: 'success', msg: `Merged ${files.length} PDFs (${merged.getPageCount()} pages) successfully!` });
+            setMergedBytes(bytes);
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            previewUrlsRef.current.push(url);
+            setMergedUrl(url);
+            setStatus({ type: 'success', msg: `Merged ${files.length} PDFs into ${merged.getPageCount()} pages.` });
         } catch (e: any) {
             setStatus({ type: 'error', msg: e.message || 'Merge failed.' });
         }
@@ -158,6 +204,14 @@ const MergeTool: React.FC = () => {
 
     return (
         <div className="space-y-5">
+            {previewModal && (
+                <PdfPreviewModal
+                    url={previewModal.url}
+                    title={previewModal.title}
+                    onClose={() => setPreviewModal(null)}
+                    onDownload={previewModal.downloadFn}
+                />
+            )}
             <DropZone accept="application/pdf" multiple label="Drop PDF files here or click to browse" hint="You can add multiple files at once" onFiles={addFiles} />
             {files.length > 0 && (
                 <div className="space-y-2">
@@ -169,18 +223,39 @@ const MergeTool: React.FC = () => {
                                 <p className="text-xs text-slate-400">{f.pageCount} pages · {formatSize(f.size)}</p>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
+                                <button onClick={() => previewFile(f)} title="Preview" className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-500 transition-colors">
+                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                </button>
                                 <button onClick={() => moveUp(i)} disabled={i === 0} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-700 disabled:opacity-30 text-slate-500 text-xs font-bold">↑</button>
                                 <button onClick={() => moveDown(i)} disabled={i === files.length - 1} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-700 disabled:opacity-30 text-slate-500 text-xs font-bold">↓</button>
                                 <button onClick={() => remove(i)} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"><Trash className="h-3.5 w-3.5" /></button>
                             </div>
                         </div>
                     ))}
-                    <button onClick={merge} disabled={loading || files.length < 2} className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
-                        {loading ? 'Merging…' : <><Download className="h-4 w-4" />Merge & Download</>}
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={merge} disabled={loading || files.length < 2} className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
+                            {loading ? 'Merging…' : <><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>Merge & Preview</>}
+                        </button>
+                        {mergedBytes && (
+                            <button onClick={() => downloadBytes(mergedBytes, 'merged.pdf')} className="flex items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors text-sm">
+                                <Download className="h-4 w-4" /> Download
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
             {status && <StatusBadge type={status.type} message={status.msg} />}
+            {mergedUrl && (
+                <div className="rounded-2xl border border-slate-200 dark:border-neutral-700 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-700">
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Merged PDF Preview</span>
+                        <button onClick={() => setPreviewModal({ url: mergedUrl, title: 'merged.pdf', downloadFn: () => mergedBytes && downloadBytes(mergedBytes, 'merged.pdf') })} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+                            Open fullscreen
+                        </button>
+                    </div>
+                    <iframe src={mergedUrl} className="w-full border-0" style={{ height: '60vh' }} title="Merged PDF" />
+                </div>
+            )}
         </div>
     );
 };
@@ -574,10 +649,13 @@ const SignPdfTool: React.FC = () => {
     const [sigMode, setSigMode] = useState<'draw' | 'type'>('draw');
     const [typedSig, setTypedSig] = useState('');
     const [targetPage, setTargetPage] = useState(1);
-    const [position, setPosition] = useState<'bottom-right' | 'bottom-left' | 'bottom-center'>('bottom-right');
+    // sigPos: percentage from top-left corner of the A4 page (0-100)
+    const [sigPos, setSigPos] = useState({ xPct: 70, yPct: 82 });
+    const [isDraggingSig, setIsDraggingSig] = useState(false);
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const positionerRef = useRef<HTMLDivElement>(null);
     const drawing = useRef(false);
     const lastPos = useRef({ x: 0, y: 0 });
 
@@ -630,6 +708,34 @@ const SignPdfTool: React.FC = () => {
 
     const stopDraw = () => { drawing.current = false; };
 
+    // Positioner drag handlers
+    const handlePositionerMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setIsDraggingSig(true);
+        if (!positionerRef.current) return;
+        const rect = positionerRef.current.getBoundingClientRect();
+        const xPct = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+        const yPct = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+        setSigPos({ xPct, yPct });
+    }, []);
+
+    const handlePositionerMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isDraggingSig || !positionerRef.current) return;
+        const rect = positionerRef.current.getBoundingClientRect();
+        const xPct = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+        const yPct = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+        setSigPos({ xPct, yPct });
+    }, [isDraggingSig]);
+
+    const handlePositionerTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (!positionerRef.current) return;
+        e.preventDefault();
+        const rect = positionerRef.current.getBoundingClientRect();
+        const xPct = Math.max(5, Math.min(95, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
+        const yPct = Math.max(5, Math.min(95, ((e.touches[0].clientY - rect.top) / rect.height) * 100));
+        setSigPos({ xPct, yPct });
+    }, []);
+
     const getSignaturePng = async (): Promise<Uint8Array | null> => {
         if (sigMode === 'draw') {
             const c = canvasRef.current;
@@ -664,12 +770,12 @@ const SignPdfTool: React.FC = () => {
             const { width, height } = page.getSize();
 
             const sigImg = await doc.embedPng(sigPng);
-            const sigW = 180, sigH = sigW * sigImg.height / sigImg.width;
-            const margin = 30;
-            let x = width - sigW - margin;
-            if (position === 'bottom-left') x = margin;
-            if (position === 'bottom-center') x = (width - sigW) / 2;
-            const y = margin;
+            const sigW = 180;
+            const sigH = sigW * sigImg.height / sigImg.width;
+
+            // Convert percentage position (from top-left) to PDF coordinates (origin at bottom-left)
+            const x = Math.max(0, Math.min(width - sigW, (sigPos.xPct / 100) * width - sigW / 2));
+            const y = Math.max(0, Math.min(height - sigH, height - (sigPos.yPct / 100) * height - sigH / 2));
 
             page.drawImage(sigImg, { x, y, width: sigW, height: sigH, opacity: 0.92 });
 
@@ -678,6 +784,10 @@ const SignPdfTool: React.FC = () => {
         } catch (e: any) { setStatus({ type: 'error', msg: e.message || 'Signing failed.' }); }
         setLoading(false);
     };
+
+    const sigPreviewContent = sigMode === 'type' && typedSig.trim()
+        ? <span className="text-sm italic text-slate-800 whitespace-nowrap px-1" style={{ fontFamily: 'Georgia, serif' }}>{typedSig}</span>
+        : <span className="text-xs text-slate-400 px-1">✍️ Your signature</span>;
 
     return (
         <div className="space-y-5">
@@ -732,20 +842,61 @@ const SignPdfTool: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Options */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 block">Page</label>
-                            <input type="number" min={1} max={pdfFile.pageCount} value={targetPage} onChange={e => setTargetPage(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 dark:border-neutral-700 rounded-xl text-sm bg-white dark:bg-neutral-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                    {/* Page selector */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 block">Page to sign</label>
+                        <input type="number" min={1} max={pdfFile.pageCount} value={targetPage} onChange={e => setTargetPage(Number(e.target.value))} className="w-32 px-3 py-2.5 border border-slate-200 dark:border-neutral-700 rounded-xl text-sm bg-white dark:bg-neutral-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                        <span className="ml-2 text-xs text-slate-400">of {pdfFile.pageCount}</span>
+                    </div>
+
+                    {/* Draggable signature positioner */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Drag signature to position</label>
+                            <span className="text-[10px] text-slate-400">
+                                {Math.round(sigPos.xPct)}% × {Math.round(sigPos.yPct)}%
+                            </span>
                         </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 block">Position</label>
-                            <select value={position} onChange={e => setPosition(e.target.value as any)} className="w-full px-3 py-2.5 border border-slate-200 dark:border-neutral-700 rounded-xl text-sm bg-white dark:bg-neutral-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-400">
-                                <option value="bottom-right">Bottom Right</option>
-                                <option value="bottom-center">Bottom Center</option>
-                                <option value="bottom-left">Bottom Left</option>
-                            </select>
+                        <div
+                            ref={positionerRef}
+                            className="relative bg-white border-2 border-slate-200 dark:border-neutral-600 rounded-xl overflow-hidden select-none shadow-sm"
+                            style={{ aspectRatio: '210 / 297', width: '100%', cursor: 'crosshair', touchAction: 'none' }}
+                            onMouseDown={handlePositionerMouseDown}
+                            onMouseMove={handlePositionerMouseMove}
+                            onMouseUp={() => setIsDraggingSig(false)}
+                            onMouseLeave={() => setIsDraggingSig(false)}
+                            onTouchStart={e => { e.preventDefault(); handlePositionerTouchMove(e as any); setIsDraggingSig(true); }}
+                            onTouchMove={handlePositionerTouchMove}
+                            onTouchEnd={() => setIsDraggingSig(false)}
+                        >
+                            {/* Page guide lines */}
+                            <div className="absolute inset-0 pointer-events-none">
+                                <div className="absolute inset-x-0" style={{ top: '33.3%', borderTop: '1px dashed #e2e8f040' }} />
+                                <div className="absolute inset-x-0" style={{ top: '66.6%', borderTop: '1px dashed #e2e8f040' }} />
+                                <div className="absolute inset-y-0" style={{ left: '33.3%', borderLeft: '1px dashed #e2e8f040' }} />
+                                <div className="absolute inset-y-0" style={{ left: '66.6%', borderLeft: '1px dashed #e2e8f040' }} />
+                            </div>
+                            {/* A4 label */}
+                            <div className="absolute top-2 left-2 text-[9px] text-slate-300 font-mono pointer-events-none">A4 page</div>
+                            {/* Draggable signature badge */}
+                            <div
+                                className="absolute pointer-events-none flex items-center justify-center bg-white/90 border-2 border-violet-400 rounded shadow-lg"
+                                style={{
+                                    left: `${sigPos.xPct}%`,
+                                    top: `${sigPos.yPct}%`,
+                                    transform: 'translate(-50%, -50%)',
+                                    minWidth: '80px',
+                                    padding: '4px 8px',
+                                }}
+                            >
+                                {sigPreviewContent}
+                            </div>
+                            {/* Drag hint */}
+                            {isDraggingSig && (
+                                <div className="absolute inset-0 ring-2 ring-violet-400 ring-inset rounded-xl pointer-events-none" />
+                            )}
                         </div>
+                        <p className="text-xs text-slate-400 mt-1.5 text-center">Click or drag anywhere on the page to position your signature</p>
                     </div>
 
                     <button onClick={sign} disabled={loading} className="w-full flex items-center justify-center gap-2 py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
