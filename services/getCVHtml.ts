@@ -93,6 +93,7 @@ export function getCVHtml(opts: GetCVHtmlOptions = {}): string | null {
 ${preconnectTags}
 ${linkTags}
   <style>
+    @page { size: A4; margin: 0mm; }
     *, *::before, *::after { box-sizing: border-box; }
     html, body {
       margin: 0;
@@ -100,8 +101,11 @@ ${linkTags}
       background: white;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      width: 210mm;
     }
-    p, li, h1, h2, h3, h4, section, .cv-section { page-break-inside: avoid; }
+    h2, h3, h4 { page-break-after: avoid; }
+    section { page-break-inside: avoid; }
+    li { page-break-inside: avoid; }
     .no-print, [data-pdf-hide] { display: none !important; }
     ${inlinedCSS}
     ${extraStyles}

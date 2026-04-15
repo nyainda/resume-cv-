@@ -31,70 +31,83 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
   } : {};
 
   return (
-    <div id="cv-preview-modern-tech" className="bg-white shadow-lg border">
-      <div className="grid grid-cols-12">
+    <div id="cv-preview-modern-tech" className="bg-white shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      <div className="grid grid-cols-12 min-h-[297mm]">
         {/* Left Sidebar */}
-        <div className="col-span-4 bg-gray-800 text-white p-8">
-          <div className="text-left mb-8">
-            <h1 className="text-4xl font-bold tracking-tight">{personalInfo.name}</h1>
+        <div className="col-span-4 bg-gray-800 text-white p-5 flex flex-col">
+          <div className="mb-5">
+            <h1 className="text-xl font-bold tracking-tight leading-tight">{personalInfo.name}</h1>
+            {cvData.experience.length > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">{cvData.experience[0].jobTitle}</p>
+            )}
           </div>
-          <div className="space-y-6">
+          <div className="space-y-4 flex-1">
             <section>
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 pb-1 mb-3">CONTACT</h2>
-              <ul className="space-y-2 text-sm break-words">
-                <li>{personalInfo.email}</li>
-                <li>{personalInfo.phone}</li>
-                <li>{personalInfo.location}</li>
-                {personalInfo.linkedin && <li><a href={personalInfo.linkedin} className="underline">LinkedIn</a></li>}
-                {personalInfo.github && <li><a href={personalInfo.github} className="underline">GitHub</a></li>}
+              <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600">Contact</h2>
+              <ul className="space-y-1 text-xs break-words">
+                {personalInfo.email && <li className="text-gray-300">{personalInfo.email}</li>}
+                {personalInfo.phone && <li className="text-gray-300">{personalInfo.phone}</li>}
+                {personalInfo.location && <li className="text-gray-300">{personalInfo.location}</li>}
+                {personalInfo.linkedin && <li><a href={personalInfo.linkedin} className="underline text-gray-300">LinkedIn</a></li>}
+                {personalInfo.github && <li><a href={personalInfo.github} className="underline text-gray-300">GitHub</a></li>}
               </ul>
             </section>
             <section>
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 pb-1 mb-3">SKILLS</h2>
-              <div className="flex flex-wrap gap-2">
-                {cvData.skills.slice(0, 15).map((skill, i) => <span key={i} className="bg-gray-700 text-gray-200 text-xs font-medium px-2 py-1 rounded">{skill}</span>)}
+              <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600">Skills</h2>
+              <div className="flex flex-wrap gap-1">
+                {cvData.skills.slice(0, 18).map((skill, i) => (
+                  <span key={i} className="bg-gray-700 text-gray-200 text-[9px] font-medium px-1.5 py-0.5 rounded">{skill}</span>
+                ))}
               </div>
             </section>
             {cvData.languages && cvData.languages.length > 0 && (
               <section>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 pb-1 mb-3">LANGUAGES</h2>
-                <ul className="space-y-1 text-sm">
-                  {cvData.languages.map((lang, i) => <li key={i}>{lang.name} - {lang.proficiency}</li>)}
+                <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600">Languages</h2>
+                <ul className="space-y-0.5 text-xs">
+                  {cvData.languages.map((lang, i) => (
+                    <li key={i} className="text-gray-300">{lang.name} <span className="text-gray-500">— {lang.proficiency}</span></li>
+                  ))}
                 </ul>
               </section>
             )}
             <section>
-              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 pb-1 mb-3">EDUCATION</h2>
-              {cvData.education.map((edu, index) => (
-                <div key={index} className="text-sm">
-                  <h3 className="font-semibold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                  <p className="text-gray-300" {...editableProps(['education', index, 'school'])}>{edu.school}, {edu.year}</p>
-                </div>
-              ))}
+              <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600">Education</h2>
+              <div className="space-y-2">
+                {cvData.education.map((edu, index) => (
+                  <div key={index} className="text-xs">
+                    <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
+                    <p className="text-gray-400 text-[10px]" {...editableProps(['education', index, 'school'])}>{edu.school}, {edu.year}</p>
+                  </div>
+                ))}
+              </div>
             </section>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="col-span-8 p-10">
-          <main className="space-y-8">
-            <section>
-              <h2 className="text-xl font-bold uppercase tracking-wider text-gray-800 pb-1 mb-3">SUMMARY</h2>
-              <p className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-            </section>
+        <div className="col-span-8 p-6">
+          <main className="space-y-5">
+            {cvData.summary && (
+              <section>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-800 pb-1 mb-2 border-b border-gray-200">Summary</h2>
+                <p className="text-xs leading-relaxed text-gray-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+              </section>
+            )}
 
             <section>
-              <h2 className="text-xl font-bold uppercase tracking-wider text-gray-800 pb-1 mb-3">EXPERIENCE</h2>
-              <div className="space-y-6">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-gray-800 pb-1 mb-2 border-b border-gray-200">Experience</h2>
+              <div className="space-y-3">
                 {cvData.experience.map((job, index) => (
                   <div key={index}>
-                    <div className="flex justify-between items-baseline">
-                      <h3 className="text-lg font-semibold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                      <p className="text-xs font-mono text-gray-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                    <div className="flex justify-between items-baseline gap-2">
+                      <h3 className="text-xs font-bold text-gray-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                      <p className="text-[10px] font-mono text-gray-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                     </div>
-                    <p className="text-md font-medium text-gray-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                    <ul className="list-disc list-outside ml-5 mt-2 space-y-1 text-sm text-gray-700">
-                      {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
+                    <p className="text-[10px] font-medium text-gray-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-[10px] text-gray-700">
+                      {job.responsibilities.map((resp, i) => (
+                        <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                      ))}
                     </ul>
                   </div>
                 ))}
@@ -103,13 +116,15 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
 
             {cvData.projects && cvData.projects.length > 0 && (
               <section>
-                <h2 className="text-xl font-bold uppercase tracking-wider text-gray-800 pb-1 mb-3">PROJECTS</h2>
-                <div className="space-y-5">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-800 pb-1 mb-2 border-b border-gray-200">Projects</h2>
+                <div className="space-y-2">
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
-                      <h3 className="text-lg font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-sm" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                      {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
+                      <h3 className="text-xs font-semibold text-gray-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                      <p className="text-[10px] text-gray-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      {proj.link && (
+                        <a href={proj.link} className="text-[10px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -118,6 +133,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
           </main>
         </div>
       </div>
+
       {jobDescriptionForATS && (
         <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
           {jobDescriptionForATS}

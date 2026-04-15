@@ -92,6 +92,10 @@ app.post('/api/generate-pdf', async (req, res) => {
 
         const page = await browser.newPage();
 
+        // Set viewport to A4 width at 96dpi (210mm = 794px) so the rendered layout
+        // matches A4 paper proportions exactly before Playwright splits into pages.
+        await page.setViewportSize({ width: 794, height: 1123 });
+
         // If a complete self-contained HTML document is provided (preferred path),
         // use it directly so the PDF exactly matches the on-screen preview including
         // all colours, sidebars, partitions, fonts and gradients.
