@@ -234,8 +234,16 @@ const JobBoard: React.FC<JobBoardProps> = ({
     const [jsResults, setJsResults] = useLocalStorage<JSearchJob[]>('jb_jsResults', []);
     const [jsPage, setJsPage] = useLocalStorage<number>('jb_jsPage', 1);
     const [jsTotalPages, setJsTotalPages] = useLocalStorage<number>('jb_jsTotalPages', 1);
+    // ── Deduplication & cache ──
+    // seenJobIds: all job IDs ever shown — never show them again across sessions
+    const [seenJobIds, setSeenJobIds] = useLocalStorage<string[]>('jb_seenIds', []);
+    // pageCache: raw API pages keyed by "cacheKey|page" — avoids re-fetching same page
+    const [pageCache, setPageCache] = useLocalStorage<Record<string, { jobs: JSearchJob[]; fetchedAt: number }>>(
+        'jb_pageCache', {}
+    );
     const [isJsSearching, setIsJsSearching] = useState(false);
     const [jsError, setJsError] = useState<string | null>(null);
+    const [jsAutoFetching, setJsAutoFetching] = useState(false); // silent auto-advance indicator
 
     // ── Ephemeral state (resets on refresh — loading/error indicators) ──
     const [pastedUrl, setPastedUrl] = useState('');
@@ -277,38 +285,109 @@ const JobBoard: React.FC<JobBoardProps> = ({
     }, [role, activeTab, tavilyApiKey, visaCountry, scholarshipLevel, openSettings]);
 
     // ─── JSearch ─────────────────────────────────────────────────────────────────
-    const handleJSearch = useCallback(async (page = 1) => {
+    const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+    const MIN_NEW_RESULTS = 3;                // auto-advance if fewer than this
+    const MAX_AUTO_ADVANCE = 5;               // stop auto-advancing after N pages
+
+    const buildCacheKey = useCallback((q: string) =>
+        [q, jsCountry, jsDatePosted, jsEmploymentTypes.sort().join(','), jsRemoteOnly, jsExperience].join('|'),
+    [jsCountry, jsDatePosted, jsEmploymentTypes, jsRemoteOnly, jsExperience]);
+
+    const handleJSearch = useCallback(async (startPage = 1, appendMode = false) => {
         const query = jsRole.trim() || jsCategory;
         if (!query) return;
         if (!jsearchApiKey) { openSettings(); return; }
-        setIsJsSearching(true);
+        if (startPage === 1) {
+            setIsJsSearching(true);
+            if (!appendMode) setJsResults([]);
+        } else {
+            setJsAutoFetching(true);
+        }
         setJsError(null);
+
+        const cacheKey = buildCacheKey(query);
+        const seenSet = new Set(seenJobIds);
+        let newResults: JSearchJob[] = [];
+        let currentPage = startPage;
+        let totalPagesEstimate = jsTotalPages;
+        let apiCalls = 0;
+
         try {
-            const filters: JSearchFilters = {
-                query,
-                country: jsCountry !== 'worldwide' ? jsCountry : undefined,
-                datePosted: jsDatePosted as any,
-                employmentTypes: jsEmploymentTypes.length ? jsEmploymentTypes : undefined,
-                remoteOnly: jsRemoteOnly || undefined,
-                jobRequirements: jsExperience || undefined,
-                page,
-                numPages: 1,
-            };
-            const result = await jsearchSearch(jsearchApiKey, filters);
-            if (page === 1) {
-                setJsResults(result.jobs);
-            } else {
-                setJsResults(prev => [...prev, ...result.jobs]);
+            while (newResults.length < MIN_NEW_RESULTS && currentPage <= Math.max(totalPagesEstimate, MAX_AUTO_ADVANCE)) {
+                const pageCacheKey = `${cacheKey}|${currentPage}`;
+                const cached = pageCache[pageCacheKey];
+                const isFresh = cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS;
+
+                let pageJobs: JSearchJob[];
+
+                if (isFresh) {
+                    // Serve from cache — no API call needed
+                    pageJobs = cached.jobs;
+                } else {
+                    // Fetch from API
+                    apiCalls++;
+                    const result = await jsearchSearch(jsearchApiKey, {
+                        query,
+                        country: jsCountry !== 'worldwide' ? jsCountry : undefined,
+                        datePosted: jsDatePosted as any,
+                        employmentTypes: jsEmploymentTypes.length ? jsEmploymentTypes : undefined,
+                        remoteOnly: jsRemoteOnly || undefined,
+                        jobRequirements: jsExperience || undefined,
+                        page: currentPage,
+                        numPages: 1,
+                    });
+                    pageJobs = result.jobs;
+                    totalPagesEstimate = result.total ? Math.min(Math.ceil(result.total / 10), 10) : totalPagesEstimate;
+                    setJsTotalPages(totalPagesEstimate);
+
+                    // Cache this page
+                    setPageCache(prev => ({
+                        ...prev,
+                        [pageCacheKey]: { jobs: pageJobs, fetchedAt: Date.now() },
+                    }));
+                }
+
+                // Filter out seen jobs
+                const unseen = pageJobs.filter(j => !seenSet.has(j.id));
+                newResults = [...newResults, ...unseen];
+                currentPage++;
+
+                // Stop auto-advancing if we hit an empty page from the API (no more jobs)
+                if (!isFresh && pageJobs.length === 0) break;
             }
-            setJsPage(page);
-            const estimated = result.total ? Math.ceil(result.total / 10) : 1;
-            setJsTotalPages(Math.min(estimated, 10));
+
+            // Mark all returned jobs as seen (even ones already in results, to avoid showing them on the next search)
+            if (newResults.length > 0) {
+                const newIds = newResults.map(j => j.id);
+                setSeenJobIds(prev => {
+                    const merged = new Set([...prev, ...newIds]);
+                    return Array.from(merged);
+                });
+            }
+
+            setJsPage(currentPage - 1);
+            if (appendMode || startPage > 1) {
+                setJsResults(prev => [...prev, ...newResults]);
+            } else {
+                setJsResults(newResults);
+            }
+
         } catch (e) {
             setJsError(e instanceof Error ? e.message : 'Search failed. Check your JSearch API key.');
         } finally {
             setIsJsSearching(false);
+            setJsAutoFetching(false);
         }
-    }, [jsRole, jsCategory, jsCountry, jsDatePosted, jsEmploymentTypes, jsRemoteOnly, jsExperience, jsearchApiKey, openSettings]);
+    }, [jsRole, jsCategory, jsCountry, jsDatePosted, jsEmploymentTypes, jsRemoteOnly, jsExperience,
+        jsearchApiKey, openSettings, buildCacheKey, seenJobIds, pageCache, jsTotalPages]);
+
+    const handleJSearchReset = useCallback(() => {
+        setSeenJobIds([]);
+        setPageCache({});
+        setJsResults([]);
+        setJsPage(1);
+        setJsTotalPages(1);
+    }, []);
 
     const addJSearchJobToPipeline = useCallback((job: JSearchJob) => {
         if (pipeline.some(p => p.url === job.applyLink)) return;
@@ -631,27 +710,25 @@ const JobBoard: React.FC<JobBoardProps> = ({
                                                 {EXPERIENCE_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                                             </select>
                                         </div>
-                                        {/* Row 3: Employment types + Remote toggle + Search */}
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <div className="flex flex-wrap gap-2">
-                                                {EMPLOYMENT_TYPES.map(et => {
-                                                    const active = jsEmploymentTypes.includes(et.value);
-                                                    return (
-                                                        <button
-                                                            key={et.value}
-                                                            onClick={() => setJsEmploymentTypes(prev =>
-                                                                active ? prev.filter(v => v !== et.value) : [...prev, et.value]
-                                                            )}
-                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${active
-                                                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
-                                                                : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-emerald-300 hover:text-emerald-600'
-                                                            }`}
-                                                        >
-                                                            {et.label}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                        {/* Row 3: Employment types + Remote toggle */}
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {EMPLOYMENT_TYPES.map(et => {
+                                                const active = jsEmploymentTypes.includes(et.value);
+                                                return (
+                                                    <button
+                                                        key={et.value}
+                                                        onClick={() => setJsEmploymentTypes(prev =>
+                                                            active ? prev.filter(v => v !== et.value) : [...prev, et.value]
+                                                        )}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${active
+                                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                                            : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-emerald-300 hover:text-emerald-600'
+                                                        }`}
+                                                    >
+                                                        {et.label}
+                                                    </button>
+                                                );
+                                            })}
                                             <button
                                                 onClick={() => setJsRemoteOnly(v => !v)}
                                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${jsRemoteOnly
@@ -661,13 +738,30 @@ const JobBoard: React.FC<JobBoardProps> = ({
                                             >
                                                 🌐 Remote only
                                             </button>
+                                        </div>
+                                        {/* Row 4: Seen counter + Reset + Search */}
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            {seenJobIds.length > 0 && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                                                        <span className="font-bold text-zinc-600 dark:text-zinc-300">{seenJobIds.length}</span> jobs seen &amp; skipped
+                                                    </span>
+                                                    <button
+                                                        onClick={handleJSearchReset}
+                                                        title="Clear seen history and cache — next search will show all jobs again"
+                                                        className="text-xs text-rose-500 hover:text-rose-700 font-semibold underline"
+                                                    >
+                                                        Reset history
+                                                    </button>
+                                                </div>
+                                            )}
                                             <Button
                                                 onClick={() => handleJSearch(1)}
                                                 disabled={isJsSearching || (!jsRole.trim() && !jsCategory)}
                                                 className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow shadow-emerald-500/20 rounded-xl px-6 shrink-0"
                                             >
                                                 {isJsSearching
-                                                    ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                                    ? <><RefreshCw className="h-4 w-4 animate-spin mr-2" />Searching…</>
                                                     : <><Search className="h-4 w-4 mr-2" />Search</>}
                                             </Button>
                                         </div>
@@ -695,15 +789,39 @@ const JobBoard: React.FC<JobBoardProps> = ({
                                             <div className="text-5xl mb-4">🔎</div>
                                             <p className="font-medium">Select a category or enter keywords, then search</p>
                                             <p className="text-sm mt-1">Real-time results from LinkedIn, Indeed, Glassdoor & 50+ sources</p>
+                                            {seenJobIds.length > 0 && (
+                                                <p className="text-xs mt-3 text-zinc-400">
+                                                    {seenJobIds.length} previously seen jobs are being filtered.{' '}
+                                                    <button onClick={handleJSearchReset} className="text-rose-500 underline">Reset history</button>
+                                                    {' '}to see them again.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Auto-fetching indicator */}
+                                    {jsAutoFetching && !isJsSearching && (
+                                        <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500 px-1">
+                                            <RefreshCw className="h-3 w-3 animate-spin" />
+                                            Skipping seen jobs, fetching more…
                                         </div>
                                     )}
 
                                     {/* JSearch Results */}
                                     {!isJsSearching && jsResults.length > 0 && (
                                         <div className="space-y-4">
-                                            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                                                {jsResults.length} listings · Page {jsPage} of {jsTotalPages}
-                                            </p>
+                                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                                <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                                                    <span className="font-semibold text-zinc-600 dark:text-zinc-300">{jsResults.length}</span> new listings
+                                                    {seenJobIds.length > 0 && <span> · <span className="font-semibold">{seenJobIds.length}</span> already seen &amp; skipped</span>}
+                                                    {jsAutoFetching && <span className="ml-2 text-emerald-500 animate-pulse">· fetching more…</span>}
+                                                </p>
+                                                {seenJobIds.length > 0 && (
+                                                    <button onClick={handleJSearchReset} className="text-xs text-rose-400 hover:text-rose-600 underline shrink-0">
+                                                        Reset history
+                                                    </button>
+                                                )}
+                                            </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {jsResults.map(job => {
                                                     const alreadyQueued = pipeline.some(p => p.url === job.applyLink);
@@ -766,11 +884,13 @@ const JobBoard: React.FC<JobBoardProps> = ({
                                             {jsPage < jsTotalPages && (
                                                 <div className="flex justify-center pt-2">
                                                     <Button
-                                                        onClick={() => handleJSearch(jsPage + 1)}
-                                                        disabled={isJsSearching}
+                                                        onClick={() => handleJSearch(jsPage + 1, true)}
+                                                        disabled={isJsSearching || jsAutoFetching}
                                                         className="border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 rounded-xl px-8"
                                                     >
-                                                        {isJsSearching ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Load more jobs →'}
+                                                        {(isJsSearching || jsAutoFetching)
+                                                            ? <><RefreshCw className="h-4 w-4 animate-spin mr-2" />Loading…</>
+                                                            : 'Load more jobs →'}
                                                     </Button>
                                                 </div>
                                             )}
