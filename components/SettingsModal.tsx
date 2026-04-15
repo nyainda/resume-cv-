@@ -37,12 +37,13 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
-  const [groqKey, setGroqKey]     = useState(currentApiSettings.groqApiKey || '');
-  const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
-  const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
-  const [tavilyKey, setTavilyKey] = useState(currentApiSettings.tavilyApiKey || '');
-  const [brevoKey, setBrevoKey]   = useState(currentApiSettings.brevoApiKey || '');
-  const [msClientId, setMsClientId] = useState(currentApiSettings.msClientId || '');
+  const [groqKey, setGroqKey]         = useState(currentApiSettings.groqApiKey || '');
+  const [geminiKey, setGeminiKey]     = useState(currentApiSettings.apiKey || '');
+  const [claudeKey, setClaudeKey]     = useState(currentApiSettings.claudeApiKey || '');
+  const [tavilyKey, setTavilyKey]     = useState(currentApiSettings.tavilyApiKey || '');
+  const [brevoKey, setBrevoKey]       = useState(currentApiSettings.brevoApiKey || '');
+  const [msClientId, setMsClientId]   = useState(currentApiSettings.msClientId || '');
+  const [jsearchKey, setJsearchKey]   = useState(currentApiSettings.jsearchApiKey || '');
   const [msConnected, setMsConnected] = useState(false);
   const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
   const [msConnecting, setMsConnecting] = useState(false);
@@ -55,6 +56,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
     setBrevoKey(currentApiSettings.brevoApiKey || '');
     setMsClientId(currentApiSettings.msClientId || '');
+    setJsearchKey(currentApiSettings.jsearchApiKey || '');
 
     const storedMsUser = localStorage.getItem(LS_MS_USER);
     if (storedMsUser) {
@@ -161,6 +163,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
       msClientId: msClientId.trim() || null,
+      jsearchApiKey: jsearchKey.trim() || null,
     };
 
     try {
@@ -418,6 +421,56 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             />
             <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
               Powers: Job Board search • Full JD fetching • Company intelligence in CV generation
+            </p>
+          </div>
+
+          {/* ── JSearch Live Jobs (RapidAPI) ── */}
+          <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-700/40 p-4 space-y-3 bg-emerald-50/50 dark:bg-emerald-900/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔎</span>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">JSearch — Live Job Board</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Real-time job listings · Rich filters · 10M+ jobs</p>
+                </div>
+              </div>
+              {jsearchKey ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+              )}
+            </div>
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-emerald-100 dark:border-emerald-900/40 p-3 space-y-1.5">
+              {[
+                '🆓 Free plan: 200 searches/month on RapidAPI',
+                '🌍 Filter by country, date posted, employment type',
+                '💼 10+ job categories (Tech, Finance, Healthcare, etc.)',
+                '💰 Salary data included where available',
+                '🔒 Key stored only in your browser',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+            <a
+              href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 underline font-semibold"
+            >
+              Get your free JSearch API key on RapidAPI →
+            </a>
+            <Input
+              id="jsearch-key"
+              type="password"
+              value={jsearchKey}
+              onChange={(e) => setJsearchKey(e.target.value)}
+              placeholder="your-rapidapi-key"
+              className="font-mono text-sm"
+            />
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              Powers: Live Job Board tab · Real-time listings from LinkedIn, Indeed, Glassdoor & 50+ sources
             </p>
           </div>
 

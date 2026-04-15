@@ -391,6 +391,7 @@ const AppInner: React.FC = () => {
   const apiKeySet = useMemo(() => !!(apiSettings?.groqApiKey || apiSettings?.apiKey), [apiSettings]);
   const tavilyApiKey = useMemo(() => apiSettings?.tavilyApiKey || null, [apiSettings]);
   const brevoApiKey = useMemo(() => apiSettings?.brevoApiKey || null, [apiSettings]);
+  const jsearchApiKey = useMemo(() => apiSettings?.jsearchApiKey || null, [apiSettings]);
 
   const navItems = [
     { id: 'generator', label: 'CV Generator', icon: FileText },
@@ -715,7 +716,7 @@ const AppInner: React.FC = () => {
                 {currentView === 'history' && <CVHistory savedCVs={savedCVs} onLoad={(cv) => { handleLoadCV(cv); setCurrentView('generator'); }} onDelete={handleDeleteCV} userProfileName={userProfile!.personalInfo.name} />}
                 {currentView === 'jobs' && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <JobBoard tavilyApiKey={tavilyApiKey} apiKeySet={apiKeySet} userProfile={userProfile!} openSettings={() => setIsSettingsOpen(true)} onJobApplied={handleAutoTrack} />
+                    <JobBoard tavilyApiKey={tavilyApiKey} jsearchApiKey={jsearchApiKey} apiKeySet={apiKeySet} userProfile={userProfile!} openSettings={() => setIsSettingsOpen(true)} onJobApplied={handleAutoTrack} />
                   </div>
                 )}
                 {currentView === 'toolkit' && (

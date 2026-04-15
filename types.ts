@@ -235,6 +235,7 @@ export interface ApiSettings {
   tavilyApiKey?: string | null;  // For job search & company research
   brevoApiKey?: string | null;   // For sending emails via Brevo SMTP API
   msClientId?: string | null;    // Azure AD Client ID for Microsoft/OneDrive integration
+  jsearchApiKey?: string | null; // RapidAPI JSearch — live job listings
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';

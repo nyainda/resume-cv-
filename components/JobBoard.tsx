@@ -5,6 +5,11 @@ import {
     JobCategory, getRemainingCalls, getUsage, getCacheAge,
     shouldRefresh, PLATFORMS,
 } from '../services/tavilyService';
+import {
+    searchJobs as jsearchSearch, JSearchJob, JSearchFilters,
+    EMPLOYMENT_TYPES, DATE_POSTED_OPTIONS, EXPERIENCE_LEVELS, COUNTRIES, JOB_CATEGORIES,
+    formatSalary, timeAgo,
+} from '../services/jsearchService';
 import { generateCV } from '../services/geminiService';
 import { downloadCVAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -19,13 +24,14 @@ import {
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface JobBoardProps {
     tavilyApiKey: string | null | undefined;
+    jsearchApiKey: string | null | undefined;
     apiKeySet: boolean;
     userProfile: UserProfile;
     openSettings: () => void;
     onJobApplied: (details: { roleTitle: string; company: string; savedCvName: string }) => void;
 }
 
-type TabId = 'remote' | 'kenya' | 'visa' | 'scholarships' | 'url';
+type TabId = 'remote' | 'kenya' | 'visa' | 'scholarships' | 'url' | 'jsearch';
 
 interface SearchResult extends Omit<ScrapedJob, 'status' | 'jobDescription' | 'linkedCvId'> {
     snippet: string;
@@ -34,6 +40,7 @@ interface SearchResult extends Omit<ScrapedJob, 'status' | 'jobDescription' | 'l
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const TABS: { id: TabId; label: string; emoji: string; desc: string }[] = [
+    { id: 'jsearch', label: 'Live Jobs', emoji: '🔎', desc: 'Real-time listings from LinkedIn, Indeed, Glassdoor & 50+ sources' },
     { id: 'remote', label: 'Remote', emoji: '🌍', desc: 'Work-from-anywhere jobs worldwide' },
     { id: 'kenya', label: 'Kenya', emoji: '🇰🇪', desc: 'Nairobi & East Africa opportunities' },
     { id: 'visa', label: 'Visa Jobs', emoji: '🛂', desc: 'Jobs with visa/work-permit sponsorship' },
@@ -205,16 +212,30 @@ const PipelineCard: React.FC<{
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 const JobBoard: React.FC<JobBoardProps> = ({
-    tavilyApiKey, apiKeySet, userProfile, openSettings, onJobApplied
+    tavilyApiKey, jsearchApiKey, apiKeySet, userProfile, openSettings, onJobApplied
 }) => {
     // ── Persisted state (survives page refresh) ──
-    const [activeTab, setActiveTab] = useLocalStorage<TabId>('jb_activeTab', 'remote');
+    const [activeTab, setActiveTab] = useLocalStorage<TabId>('jb_activeTab', 'jsearch');
     const [mainTab, setMainTab] = useLocalStorage<'search' | 'pipeline'>('jb_mainTab', 'search');
     const [role, setRole] = useLocalStorage<string>('jb_role', '');
     const [visaCountry, setVisaCountry] = useLocalStorage<string>('jb_visaCountry', 'UK');
     const [scholarshipLevel, setScholarshipLevel] = useLocalStorage<string>('jb_scholarshipLevel', 'Masters');
     const [searchResults, setSearchResults] = useLocalStorage<SearchResult[]>('jb_searchResults', []);
     const [pipeline, setPipeline] = useLocalStorage<ScrapedJob[]>('jb_pipeline', []);
+
+    // ── JSearch state ──
+    const [jsRole, setJsRole] = useLocalStorage<string>('jb_jsRole', '');
+    const [jsCategory, setJsCategory] = useLocalStorage<string>('jb_jsCategory', '');
+    const [jsCountry, setJsCountry] = useLocalStorage<string>('jb_jsCountry', 'worldwide');
+    const [jsDatePosted, setJsDatePosted] = useLocalStorage<string>('jb_jsDatePosted', 'all');
+    const [jsEmploymentTypes, setJsEmploymentTypes] = useLocalStorage<string[]>('jb_jsEmpTypes', []);
+    const [jsRemoteOnly, setJsRemoteOnly] = useLocalStorage<boolean>('jb_jsRemote', false);
+    const [jsExperience, setJsExperience] = useLocalStorage<string>('jb_jsExperience', '');
+    const [jsResults, setJsResults] = useLocalStorage<JSearchJob[]>('jb_jsResults', []);
+    const [jsPage, setJsPage] = useLocalStorage<number>('jb_jsPage', 1);
+    const [jsTotalPages, setJsTotalPages] = useLocalStorage<number>('jb_jsTotalPages', 1);
+    const [isJsSearching, setIsJsSearching] = useState(false);
+    const [jsError, setJsError] = useState<string | null>(null);
 
     // ── Ephemeral state (resets on refresh — loading/error indicators) ──
     const [pastedUrl, setPastedUrl] = useState('');
@@ -254,6 +275,58 @@ const JobBoard: React.FC<JobBoardProps> = ({
             setIsSearching(false);
         }
     }, [role, activeTab, tavilyApiKey, visaCountry, scholarshipLevel, openSettings]);
+
+    // ─── JSearch ─────────────────────────────────────────────────────────────────
+    const handleJSearch = useCallback(async (page = 1) => {
+        const query = jsRole.trim() || jsCategory;
+        if (!query) return;
+        if (!jsearchApiKey) { openSettings(); return; }
+        setIsJsSearching(true);
+        setJsError(null);
+        try {
+            const filters: JSearchFilters = {
+                query,
+                country: jsCountry !== 'worldwide' ? jsCountry : undefined,
+                datePosted: jsDatePosted as any,
+                employmentTypes: jsEmploymentTypes.length ? jsEmploymentTypes : undefined,
+                remoteOnly: jsRemoteOnly || undefined,
+                jobRequirements: jsExperience || undefined,
+                page,
+                numPages: 1,
+            };
+            const result = await jsearchSearch(jsearchApiKey, filters);
+            if (page === 1) {
+                setJsResults(result.jobs);
+            } else {
+                setJsResults(prev => [...prev, ...result.jobs]);
+            }
+            setJsPage(page);
+            const estimated = result.total ? Math.ceil(result.total / 10) : 1;
+            setJsTotalPages(Math.min(estimated, 10));
+        } catch (e) {
+            setJsError(e instanceof Error ? e.message : 'Search failed. Check your JSearch API key.');
+        } finally {
+            setIsJsSearching(false);
+        }
+    }, [jsRole, jsCategory, jsCountry, jsDatePosted, jsEmploymentTypes, jsRemoteOnly, jsExperience, jsearchApiKey, openSettings]);
+
+    const addJSearchJobToPipeline = useCallback((job: JSearchJob) => {
+        if (pipeline.some(p => p.url === job.applyLink)) return;
+        const newJob: ScrapedJob = {
+            id: `jsearch-${job.id}`,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            snippet: job.description.slice(0, 300),
+            jobDescription: job.description,
+            url: job.applyLink,
+            source: job.publisher,
+            dateFound: new Date().toISOString(),
+            status: 'queued',
+        };
+        setPipeline(prev => [newJob, ...prev]);
+        setMainTab('pipeline');
+    }, [pipeline]);
 
     // ─── URL Paste ────────────────────────────────────────────────────────────────
     const handleFetchUrl = useCallback(async () => {
@@ -333,8 +406,8 @@ const JobBoard: React.FC<JobBoardProps> = ({
 
     const removeFromPipeline = (id: string) => setPipeline(prev => prev.filter(p => p.id !== id));
 
-    // ─── Guard: no Tavily key ─────────────────────────────────────────────────────
-    if (!tavilyApiKey) {
+    // ─── Guard: no API keys at all ────────────────────────────────────────────────
+    if (!tavilyApiKey && !jsearchApiKey) {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-5">
                 <div className="w-20 h-20 rounded-2xl bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
@@ -342,21 +415,21 @@ const JobBoard: React.FC<JobBoardProps> = ({
                 </div>
                 <h2 className="text-2xl font-bold">Job Board</h2>
                 <p className="text-zinc-500 dark:text-zinc-400 max-w-sm">
-                    Connect your <strong className="text-violet-600 dark:text-violet-400">free Tavily API key</strong> to unlock:
+                    Connect a job search API to unlock live listings, CV generation, and your pipeline.
                 </p>
-                <ul className="text-sm text-left space-y-2 text-zinc-600 dark:text-zinc-400">
-                    {['🌍 Remote jobs worldwide', '🇰🇪 Kenya & East Africa jobs', '🛂 Visa-sponsored positions by country',
-                        '🎓 Funded scholarships & fellowships', '🔗 Paste any job URL → auto-extract JD',
-                        '🔒 Scam job filtering (trusted platforms only)', '⚡ One-click CV generation per job'].map(f => (
-                            <li key={f} className="flex items-start gap-2">{f}</li>
-                        ))}
-                </ul>
+                <div className="grid sm:grid-cols-2 gap-4 text-left max-w-lg w-full">
+                    <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-800 p-4 space-y-2 bg-emerald-50/50 dark:bg-emerald-900/10">
+                        <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">🔎 JSearch (Recommended)</p>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400">Real-time jobs from LinkedIn, Indeed, Glassdoor & 50+ sources. 200 free searches/month on RapidAPI.</p>
+                    </div>
+                    <div className="rounded-xl border border-violet-200 dark:border-violet-800 p-4 space-y-2 bg-violet-50/50 dark:bg-violet-900/10">
+                        <p className="text-xs font-bold uppercase tracking-widest text-violet-500">🔍 Tavily (Alternative)</p>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400">AI-powered web search for jobs, scholarships & visa postings. 1,000 free searches/month.</p>
+                    </div>
+                </div>
                 <Button onClick={openSettings} className="bg-violet-600 hover:bg-violet-700 text-white border-0 shadow-lg shadow-violet-500/25 px-8 rounded-xl">
-                    🔑 Connect Tavily in Settings
+                    🔑 Connect API Key in Settings
                 </Button>
-                <a href="https://app.tavily.com/home" target="_blank" rel="noopener noreferrer" className="text-sm text-violet-500 underline">
-                    Get your free key (1,000 searches/month) →
-                </a>
             </div>
         );
     }
@@ -423,7 +496,12 @@ const JobBoard: React.FC<JobBoardProps> = ({
                     {/* Category description */}
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">
                         {TABS.find(t => t.id === activeTab)?.desc}
-                        {activeTab !== 'url' && <span className="ml-2">· Searching {activeTab === 'remote' ? PLATFORMS.remote.length : activeTab === 'kenya' ? PLATFORMS.kenya.length : activeTab === 'visa' ? PLATFORMS.visa.length : PLATFORMS.scholarships.length}+ trusted platforms · Scam sites blocked</span>}
+                        {activeTab !== 'url' && activeTab !== 'jsearch' && (
+                            <span className="ml-2">· Searching {activeTab === 'remote' ? PLATFORMS.remote.length : activeTab === 'kenya' ? PLATFORMS.kenya.length : activeTab === 'visa' ? PLATFORMS.visa.length : PLATFORMS.scholarships.length}+ trusted platforms · Scam sites blocked</span>
+                        )}
+                        {activeTab === 'jsearch' && !jsearchApiKey && (
+                            <button onClick={openSettings} className="ml-2 text-emerald-600 dark:text-emerald-400 underline font-semibold">Connect JSearch API key →</button>
+                        )}
                     </p>
 
                     {/* ─ URL Paste Tab ─ */}
@@ -488,8 +566,223 @@ const JobBoard: React.FC<JobBoardProps> = ({
                         </div>
                     )}
 
-                    {/* ─ Search Bar (non-URL tabs) ─ */}
-                    {activeTab !== 'url' && (
+                    {/* ─ JSearch Panel ─ */}
+                    {activeTab === 'jsearch' && (
+                        <div className="space-y-4">
+                            {!jsearchApiKey ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-800">
+                                    <div className="text-4xl">🔎</div>
+                                    <div>
+                                        <p className="font-bold text-zinc-800 dark:text-zinc-200">JSearch API key not connected</p>
+                                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs">Real-time job listings from LinkedIn, Indeed, Glassdoor & 50+ sources.</p>
+                                    </div>
+                                    <Button onClick={openSettings} className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 rounded-xl px-6">
+                                        Connect JSearch in Settings
+                                    </Button>
+                                    <a href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch" target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 dark:text-emerald-400 underline">
+                                        Get your free API key on RapidAPI (200 searches/month) →
+                                    </a>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* ── Filters ── */}
+                                    <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-4">
+                                        {/* Row 1: Category + Role */}
+                                        <div className="flex flex-wrap gap-3">
+                                            <select
+                                                value={jsCategory}
+                                                onChange={e => { setJsCategory(e.target.value); if (!jsRole.trim()) setJsRole(''); }}
+                                                className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[200px]"
+                                            >
+                                                {JOB_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                            </select>
+                                            <div className="relative flex-1 min-w-[180px]">
+                                                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                                                <Input
+                                                    value={jsRole}
+                                                    onChange={e => setJsRole(e.target.value)}
+                                                    onKeyDown={e => e.key === 'Enter' && handleJSearch(1)}
+                                                    placeholder={jsCategory ? `Refine: e.g. "Senior ${jsCategory}"` : 'Job title or keywords…'}
+                                                    className="pl-10 rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
+                                        {/* Row 2: Country + Date + Experience */}
+                                        <div className="flex flex-wrap gap-3">
+                                            <select
+                                                value={jsCountry}
+                                                onChange={e => setJsCountry(e.target.value)}
+                                                className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                            >
+                                                {COUNTRIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                            </select>
+                                            <select
+                                                value={jsDatePosted}
+                                                onChange={e => setJsDatePosted(e.target.value)}
+                                                className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                            >
+                                                {DATE_POSTED_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                                            </select>
+                                            <select
+                                                value={jsExperience}
+                                                onChange={e => setJsExperience(e.target.value)}
+                                                className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                            >
+                                                {EXPERIENCE_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                                            </select>
+                                        </div>
+                                        {/* Row 3: Employment types + Remote toggle + Search */}
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex flex-wrap gap-2">
+                                                {EMPLOYMENT_TYPES.map(et => {
+                                                    const active = jsEmploymentTypes.includes(et.value);
+                                                    return (
+                                                        <button
+                                                            key={et.value}
+                                                            onClick={() => setJsEmploymentTypes(prev =>
+                                                                active ? prev.filter(v => v !== et.value) : [...prev, et.value]
+                                                            )}
+                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${active
+                                                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                                                : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-emerald-300 hover:text-emerald-600'
+                                                            }`}
+                                                        >
+                                                            {et.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <button
+                                                onClick={() => setJsRemoteOnly(v => !v)}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${jsRemoteOnly
+                                                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                                    : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-emerald-300'
+                                                }`}
+                                            >
+                                                🌐 Remote only
+                                            </button>
+                                            <Button
+                                                onClick={() => handleJSearch(1)}
+                                                disabled={isJsSearching || (!jsRole.trim() && !jsCategory)}
+                                                className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow shadow-emerald-500/20 rounded-xl px-6 shrink-0"
+                                            >
+                                                {isJsSearching
+                                                    ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                                    : <><Search className="h-4 w-4 mr-2" />Search</>}
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* JSearch Error */}
+                                    {jsError && (
+                                        <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm">
+                                            <AlertCircle className="h-5 w-5 shrink-0" /> {jsError}
+                                        </div>
+                                    )}
+
+                                    {/* JSearch Skeletons */}
+                                    {isJsSearching && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                                <div key={i} className="animate-pulse bg-zinc-100 dark:bg-neutral-800 rounded-2xl h-52" />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* JSearch Empty */}
+                                    {!isJsSearching && !jsError && jsResults.length === 0 && (
+                                        <div className="text-center py-16 text-zinc-400">
+                                            <div className="text-5xl mb-4">🔎</div>
+                                            <p className="font-medium">Select a category or enter keywords, then search</p>
+                                            <p className="text-sm mt-1">Real-time results from LinkedIn, Indeed, Glassdoor & 50+ sources</p>
+                                        </div>
+                                    )}
+
+                                    {/* JSearch Results */}
+                                    {!isJsSearching && jsResults.length > 0 && (
+                                        <div className="space-y-4">
+                                            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                                                {jsResults.length} listings · Page {jsPage} of {jsTotalPages}
+                                            </p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {jsResults.map(job => {
+                                                    const alreadyQueued = pipeline.some(p => p.url === job.applyLink);
+                                                    const salary = formatSalary(job);
+                                                    return (
+                                                        <div key={job.id} className="bg-white dark:bg-neutral-800 rounded-2xl border-2 border-zinc-100 dark:border-neutral-700 p-4 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all shadow-sm hover:shadow-md flex flex-col">
+                                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white bg-emerald-600 shrink-0">
+                                                                        {job.publisher}
+                                                                    </span>
+                                                                    {job.isRemote && (
+                                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 shrink-0">
+                                                                            Remote
+                                                                        </span>
+                                                                    )}
+                                                                    {job.employmentType && (
+                                                                        <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500">
+                                                                            {job.employmentType.replace('_', '-').toLowerCase()}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <a href={job.applyLink} target="_blank" rel="noopener noreferrer"
+                                                                    className="text-zinc-400 hover:text-emerald-500 transition-colors shrink-0">
+                                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                                </a>
+                                                            </div>
+                                                            <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-sm leading-snug mb-1 line-clamp-2">
+                                                                {job.title}
+                                                            </h3>
+                                                            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mb-0.5">
+                                                                <Building className="h-3 w-3 shrink-0" /> {job.company}
+                                                            </p>
+                                                            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                                                                {job.location}
+                                                                {job.postedAt && <span className="ml-2 text-zinc-300 dark:text-zinc-600">· {timeAgo(job.postedAt)}</span>}
+                                                            </p>
+                                                            {salary && (
+                                                                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1">💰 {salary}</p>
+                                                            )}
+                                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-3 mb-3 flex-1">
+                                                                {job.description.slice(0, 220)}
+                                                            </p>
+                                                            <Button
+                                                                onClick={() => addJSearchJobToPipeline(job)}
+                                                                disabled={alreadyQueued}
+                                                                className={`w-full rounded-xl text-xs font-bold h-8 border-0 mt-auto ${alreadyQueued
+                                                                    ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 cursor-not-allowed'
+                                                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow shadow-emerald-500/20'
+                                                                }`}
+                                                            >
+                                                                {alreadyQueued
+                                                                    ? <><CheckCircle className="h-3 w-3 mr-1" />In Pipeline</>
+                                                                    : <><Plus className="h-3 w-3 mr-1" />Add to Pipeline</>}
+                                                            </Button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {jsPage < jsTotalPages && (
+                                                <div className="flex justify-center pt-2">
+                                                    <Button
+                                                        onClick={() => handleJSearch(jsPage + 1)}
+                                                        disabled={isJsSearching}
+                                                        className="border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 rounded-xl px-8"
+                                                    >
+                                                        {isJsSearching ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Load more jobs →'}
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ─ Search Bar (non-URL, non-JSearch tabs) ─ */}
+                    {activeTab !== 'url' && activeTab !== 'jsearch' && (
                         <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4">
                             <div className="flex flex-wrap gap-3">
                                 {/* Role input */}
@@ -552,15 +845,15 @@ const JobBoard: React.FC<JobBoardProps> = ({
                         </div>
                     )}
 
-                    {/* Error */}
-                    {searchError && (
+                    {/* Error (Tavily tabs only) */}
+                    {searchError && activeTab !== 'jsearch' && (
                         <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm">
                             <AlertCircle className="h-5 w-5 shrink-0" /> {searchError}
                         </div>
                     )}
 
-                    {/* Skeletons */}
-                    {isSearching && (
+                    {/* Skeletons (Tavily tabs only) */}
+                    {isSearching && activeTab !== 'jsearch' && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {[1, 2, 3, 4, 5, 6].map(i => (
                                 <div key={i} className="animate-pulse bg-zinc-100 dark:bg-neutral-800 rounded-2xl h-48" />
@@ -569,7 +862,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
                     )}
 
                     {/* Empty */}
-                    {!isSearching && !searchError && searchResults.length === 0 && activeTab !== 'url' && (
+                    {!isSearching && !searchError && searchResults.length === 0 && activeTab !== 'url' && activeTab !== 'jsearch' && (
                         <div className="text-center py-16 text-zinc-400">
                             {activeTab === 'remote' && <Globe className="h-12 w-12 mx-auto mb-4 opacity-30" />}
                             {activeTab === 'kenya' && <div className="text-5xl mb-4">🇰🇪</div>}
@@ -585,8 +878,8 @@ const JobBoard: React.FC<JobBoardProps> = ({
                         </div>
                     )}
 
-                    {/* Results grid */}
-                    {searchResults.length > 0 && (
+                    {/* Results grid (Tavily tabs only) */}
+                    {searchResults.length > 0 && activeTab !== 'jsearch' && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {searchResults.map(job => (
                                 <JobCard

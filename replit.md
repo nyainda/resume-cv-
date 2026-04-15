@@ -15,7 +15,7 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 - **Sharing**: Privacy-first shareable links via `lz-string` URL hash encoding (no backend)
 - **GitHub Sync**: PAT-based CV backup to private GitHub repos via REST API
 - **Email**: Brevo (Sendinblue) REST API (direct browser calls)
-- **Job Search**: Tavily Search API
+- **Job Search**: Tavily Search API + JSearch (RapidAPI) for real-time listings
 - **Storage**: Write-through triple-layer storage — localStorage + IndexedDB + optional Google Drive sync (via WriteThroughDriveService in StorageRouter)
 - **PDF Tools**: `pdf-lib` for merge, split, remove pages, extract pages, image→PDF, sign PDF; `mammoth` for Word→PDF
 - **Playwright PDF Server**: Headless Chromium on port 3001 (Express `server-pdf.cjs`) for pixel-perfect HD PDF export
