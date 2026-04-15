@@ -228,7 +228,44 @@ const AppInner: React.FC = () => {
       setActiveProfileId(id);
       setIsEditingProfile(false);
     }
-  }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId]);
+
+    // Immediately sync profile fields into the current CV so the preview
+    // reflects changes without requiring a full regeneration.
+    setCurrentCV(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        // Keep AI-generated text but refresh optional/user-controlled data
+        skills: profile.skills.length > 0 ? profile.skills : prev.skills,
+        projects: profile.projects && profile.projects.length > 0
+          ? profile.projects
+              .filter(p => p.name.trim())
+              .map(p => ({ name: p.name, description: p.description, link: p.link }))
+          : prev.projects,
+        languages: profile.languages && profile.languages.length > 0
+          ? profile.languages
+              .filter(l => l.name.trim())
+              .map(l => ({ name: l.name, proficiency: l.proficiency }))
+          : prev.languages,
+        references: profile.references && profile.references.length > 0
+          ? profile.references
+              .filter(r => r.name.trim())
+              .map(r => ({
+                name: r.name,
+                title: r.title,
+                company: r.company,
+                email: r.email,
+                phone: r.phone,
+                relationship: r.relationship,
+              }))
+          : prev.references,
+        customSections: (profile.customSections || []).filter(
+          s => s.items.some(i => i.title.trim().length > 0)
+        ),
+        sectionOrder: profile.sectionOrder,
+      };
+    });
+  }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId, setCurrentCV]);
 
   const handleCreateProfile = useCallback((name: string, color: ProfileColor, cloneFrom?: UserProfile) => {
     const id = Date.now().toString();

@@ -595,6 +595,11 @@ export const generateCV = async (
         );
     }
 
+    // Carry through section order preference
+    if (profile.sectionOrder && profile.sectionOrder.length > 0) {
+        cvData.sectionOrder = profile.sectionOrder;
+    }
+
     // Sort experience by end date descending (most recent first)
     cvData.experience.sort((a, b) => {
         const getEndDate = (dateStr: string) => {

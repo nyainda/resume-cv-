@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 
 interface TemplateProps {
   cvData: CVData;
@@ -30,12 +30,117 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
-  const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section className="mb-8">
-      <h2 className="text-center text-sm font-bold uppercase tracking-[0.2em] text-slate-600 mb-5">{title}</h2>
-      {children}
-    </section>
+  const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+    <h2 className="text-center text-sm font-bold uppercase tracking-[0.2em] text-slate-600 mb-5">{title}</h2>
   );
+
+  const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
+
+  const renderSection = (key: ProfileSectionKey): React.ReactNode => {
+    switch (key) {
+      case 'summary':
+        return (
+          <section key="summary" className="mb-8">
+            <SectionHeader title="Summary" />
+            <p className="text-base leading-relaxed text-center" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+          </section>
+        );
+      case 'workExperience':
+        return (
+          <section key="workExperience" className="mb-8">
+            <SectionHeader title="Experience" />
+            <div className="space-y-8">
+              {cvData.experience.map((job, index) => (
+                <div key={index}>
+                  <div className="flex justify-between items-baseline mb-1">
+                    <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}, <span className="font-semibold text-slate-700" {...editableProps(['experience', index, 'company'])}>{job.company}</span></h3>
+                    <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                  </div>
+                  <ul className="list-disc list-outside ml-5 mt-2 space-y-2 text-base text-slate-700">
+                    {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      case 'education':
+        return cvData.education.length > 0 ? (
+          <section key="education" className="mb-8">
+            <SectionHeader title="Education" />
+            {cvData.education.map((edu, index) => (
+              <div key={index} className="text-center mb-4">
+                <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
+                <p className="text-base text-slate-700" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                <p className="text-sm font-medium text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+              </div>
+            ))}
+          </section>
+        ) : null;
+      case 'skills':
+        return cvData.skills.length > 0 ? (
+          <section key="skills" className="mb-8">
+            <SectionHeader title="Skills" />
+            {(() => {
+              const sk = cvData.skills.slice(0, 15);
+              const perCol = Math.ceil(sk.length / 3);
+              return (
+                <div className="grid grid-cols-3 gap-x-6">
+                  {[0, 1, 2].map(ci => (
+                    <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
+                      {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
+                        <li key={si} className="text-sm text-slate-700">{s}</li>
+                      ))}
+                    </ul>
+                  ))}
+                </div>
+              );
+            })()}
+          </section>
+        ) : null;
+      case 'projects':
+        return cvData.projects && cvData.projects.length > 0 ? (
+          <section key="projects" className="mb-8">
+            <SectionHeader title="Projects" />
+            <div className="space-y-6">
+              {cvData.projects.map((proj, index) => (
+                <div key={index}>
+                  <h3 className="text-lg font-bold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                  <p className="text-base text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                  {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline">{proj.link}</a>}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null;
+      case 'languages':
+        return cvData.languages && cvData.languages.length > 0 ? (
+          <section key="languages" className="mb-8">
+            <SectionHeader title="Languages" />
+            <p className="text-base text-center">
+              {cvData.languages.map((l, i) => <span key={i}>{l.name} ({l.proficiency}){i < (cvData.languages?.length ?? 0) - 1 && ' • '}</span>)}
+            </p>
+          </section>
+        ) : null;
+      case 'references':
+        return cvData.references && cvData.references.length > 0 ? (
+          <section key="references" className="mb-8">
+            <SectionHeader title="References" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {cvData.references.map((ref, index) => (
+                <div key={index} className="text-center text-sm text-slate-700">
+                  <p className="font-bold text-slate-900">{ref.name}</p>
+                  <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
+                  {ref.email && <p>{ref.email}</p>}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div id="cv-preview-classic" className="bg-white p-12 text-slate-900 shadow-lg border font-serif">
@@ -57,62 +162,13 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
           <span>{personalInfo.phone}</span>
           <span>&bull;</span>
           <span>{personalInfo.location}</span>
-          <span>&bull;</span>
-          <a href={personalInfo.linkedin} className="text-blue-700 hover:underline">LinkedIn</a>
+          {personalInfo.linkedin && (<><span>&bull;</span><a href={personalInfo.linkedin} className="text-blue-700 hover:underline">LinkedIn</a></>)}
+          {personalInfo.website && (<><span>&bull;</span><a href={personalInfo.website} className="text-blue-700 hover:underline">Website</a></>)}
         </div>
       </header>
 
       <main>
-        <Section title="Summary">
-          <p className="text-base leading-relaxed text-center" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-        </Section>
-
-        <Section title="Experience">
-          <div className="space-y-8">
-            {cvData.experience.map((job, index) => (
-              <div key={index}>
-                <div className="flex justify-between items-baseline mb-1">
-                  <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}, <span className="font-semibold text-slate-700" {...editableProps(['experience', index, 'company'])}>{job.company}</span></h3>
-                  <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
-                </div>
-                <ul className="list-disc list-outside ml-5 mt-2 space-y-2 text-base text-slate-700">
-                  {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        <div className="grid grid-cols-2 gap-10">
-          <Section title="Education">
-            {cvData.education.map((edu, index) => (
-              <div key={index} className="text-center">
-                <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                <p className="text-base text-slate-700" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                <p className="text-sm font-medium text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
-              </div>
-            ))}
-          </Section>
-
-          <Section title="Skills">
-            {(() => {
-              const sk = cvData.skills.slice(0, 15);
-              const perCol = Math.ceil(sk.length / 3);
-              return (
-                <div className="grid grid-cols-3 gap-x-6">
-                  {[0, 1, 2].map(ci => (
-                    <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
-                      {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
-                        <li key={si} className="text-sm text-slate-700">{s}</li>
-                      ))}
-                    </ul>
-                  ))}
-                </div>
-              );
-            })()}
-          </Section>
-        </div>
-
+        {orderedSections.map(key => renderSection(key))}
       </main>
 
       {jobDescriptionForATS && (

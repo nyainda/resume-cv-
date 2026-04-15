@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 
 interface TemplateProps {
     cvData: CVData;
@@ -31,10 +31,131 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
         style: { outline: 'none', borderBottom: '1px dashed #d1d5db', cursor: 'text' },
     } : {};
 
+    const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
+
+    const renderSection = (key: ProfileSectionKey): React.ReactNode => {
+        switch (key) {
+            case 'skills':
+                return cvData.skills && cvData.skills.length > 0 ? (
+                    <section key="skills" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Skills</h2>
+                        <div className="flex flex-wrap gap-1.5">
+                            {cvData.skills.map((s, i) => (
+                                <span key={i} className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded text-gray-700" style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>{s}</span>
+                            ))}
+                        </div>
+                    </section>
+                ) : null;
+            case 'summary':
+                return cvData.summary ? (
+                    <section key="summary" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Summary</h2>
+                        <p className="text-xs text-gray-700 leading-relaxed" {...ed(['summary'])} dangerouslySetInnerHTML={{ __html: cvData.summary }} />
+                    </section>
+                ) : null;
+            case 'workExperience':
+                return cvData.experience.length > 0 ? (
+                    <section key="workExperience" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3">Experience</h2>
+                        <div className="space-y-4">
+                            {cvData.experience.map((job, i) => (
+                                <div key={i}>
+                                    <div className="flex items-start justify-between gap-4 mb-1">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="font-bold text-gray-900 text-sm" {...ed(['experience', i, 'jobTitle'])} dangerouslySetInnerHTML={{ __html: job.jobTitle }} />
+                                                {(job as any).link && (
+                                                    <a href={(job as any).link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-gray-500 hover:text-gray-900">
+                                                        <GitHubIcon /><span>repo</span>
+                                                    </a>
+                                                )}
+                                            </div>
+                                            <p className="text-xs font-semibold text-gray-500 mt-0.5" {...ed(['experience', i, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
+                                        </div>
+                                        <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap flex-shrink-0" {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
+                                    </div>
+                                    <ul className="space-y-0.5 mt-1.5">
+                                        {job.responsibilities.map((r, j) => (
+                                            <li key={j} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
+                                                <span className="text-gray-400 flex-shrink-0 mt-0.5 font-bold">—</span>
+                                                <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: r }} />
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    {i < cvData.experience.length - 1 && <div className="mt-3 h-px bg-gray-100" />}
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                ) : null;
+            case 'projects':
+                return cvData.projects && cvData.projects.length > 0 ? (
+                    <section key="projects" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3">Projects</h2>
+                        <div className="space-y-2">
+                            {cvData.projects.map((proj, i) => (
+                                <div key={i} className="flex items-start gap-3">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <h3 className="font-bold text-gray-900 text-xs font-mono" {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
+                                            {proj.link && (
+                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] text-gray-500 font-mono font-semibold hover:text-gray-900">
+                                                    <GitHubIcon /><span>github</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-gray-500 leading-relaxed" {...ed(['projects', i, 'description'])} dangerouslySetInnerHTML={{ __html: proj.description }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                ) : null;
+            case 'education':
+                return cvData.education.length > 0 ? (
+                    <section key="education" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Education</h2>
+                        {cvData.education.map((edu, i) => (
+                            <div key={i} className="mb-1.5">
+                                <p className="font-bold text-gray-900 text-xs" {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
+                                <p className="text-[10px] text-gray-500" {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
+                                <p className="text-[9px] text-gray-400">{edu.year}</p>
+                            </div>
+                        ))}
+                    </section>
+                ) : null;
+            case 'languages':
+                return cvData.languages && cvData.languages.length > 0 ? (
+                    <section key="languages" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Languages</h2>
+                        {cvData.languages.map((l, i) => (
+                            <div key={i} className="flex justify-between text-[10px] mb-0.5">
+                                <span className="text-gray-700 font-medium">{l.name}</span>
+                                <span className="text-gray-400 font-mono">{l.proficiency}</span>
+                            </div>
+                        ))}
+                    </section>
+                ) : null;
+            case 'references':
+                return cvData.references && cvData.references.length > 0 ? (
+                    <section key="references" className="mb-5">
+                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">References</h2>
+                        {cvData.references.map((ref, i) => (
+                            <div key={i} className="mb-1.5 text-[10px]">
+                                <p className="font-bold text-gray-900">{ref.name}</p>
+                                <p className="text-gray-500">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
+                                {ref.email && <p className="text-gray-400">{ref.email}</p>}
+                            </div>
+                        ))}
+                    </section>
+                ) : null;
+            default:
+                return null;
+        }
+    };
+
     return (
         <div className="bg-white font-sans" style={{ minHeight: '297mm', fontFamily: "'Inter', system-ui, sans-serif", padding: '12mm 14mm' }}>
-
-            {/* HEADER */}
             <header className="mb-6 pb-5" style={{ borderBottom: '2px solid #111827' }}>
                 <div className="flex items-start justify-between gap-4">
                     <div>
@@ -60,112 +181,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 </div>
             </header>
 
-            {/* SKILLS — inline chips */}
-            {cvData.skills && cvData.skills.length > 0 && (
-                <section className="mb-5">
-                    <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Skills</h2>
-                    <div className="flex flex-wrap gap-1.5">
-                        {cvData.skills.map((s, i) => (
-                            <span key={i} className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded text-gray-700" style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}>{s}</span>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* SUMMARY */}
-            {cvData.summary && (
-                <section className="mb-5">
-                    <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Summary</h2>
-                    <p className="text-xs text-gray-700 leading-relaxed" {...ed(['summary'])} dangerouslySetInnerHTML={{ __html: cvData.summary }} />
-                </section>
-            )}
-
-            {/* EXPERIENCE */}
-            {cvData.experience.length > 0 && (
-                <section className="mb-5">
-                    <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3">Experience</h2>
-                    <div className="space-y-4">
-                        {cvData.experience.map((job, i) => (
-                            <div key={i}>
-                                <div className="flex items-start justify-between gap-4 mb-1">
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-gray-900 text-sm" {...ed(['experience', i, 'jobTitle'])} dangerouslySetInnerHTML={{ __html: job.jobTitle }} />
-                                            {job.link && (
-                                                <a href={job.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-gray-500 hover:text-gray-900">
-                                                    <GitHubIcon /><span>repo</span>
-                                                </a>
-                                            )}
-                                        </div>
-                                        <p className="text-xs font-semibold text-gray-500 mt-0.5" {...ed(['experience', i, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
-                                    </div>
-                                    <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap flex-shrink-0" {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
-                                </div>
-                                <ul className="space-y-0.5 mt-1.5">
-                                    {job.responsibilities.map((r, j) => (
-                                        <li key={j} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
-                                            <span className="text-gray-400 flex-shrink-0 mt-0.5 font-bold">—</span>
-                                            <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: r }} />
-                                        </li>
-                                    ))}
-                                </ul>
-                                {i < cvData.experience.length - 1 && <div className="mt-3 h-px bg-gray-100" />}
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* PROJECTS */}
-            {cvData.projects && cvData.projects.length > 0 && (
-                <section className="mb-5">
-                    <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-3">Projects</h2>
-                    <div className="space-y-2">
-                        {cvData.projects.map((proj, i) => (
-                            <div key={i} className="flex items-start gap-3">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        <h3 className="font-bold text-gray-900 text-xs font-mono" {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
-                                        {proj.link && (
-                                            <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] text-gray-500 font-mono font-semibold hover:text-gray-900">
-                                                <GitHubIcon /><span>github</span>
-                                            </a>
-                                        )}
-                                    </div>
-                                    <p className="text-[10px] text-gray-500 leading-relaxed" {...ed(['projects', i, 'description'])} dangerouslySetInnerHTML={{ __html: proj.description }} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* EDUCATION + LANGUAGES — two columns */}
-            <div className="grid grid-cols-2 gap-8">
-                {cvData.education.length > 0 && (
-                    <section>
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Education</h2>
-                        {cvData.education.map((edu, i) => (
-                            <div key={i} className="mb-1.5">
-                                <p className="font-bold text-gray-900 text-xs" {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
-                                <p className="text-[10px] text-gray-500" {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[9px] text-gray-400">{edu.year}</p>
-                            </div>
-                        ))}
-                    </section>
-                )}
-                {cvData.languages && cvData.languages.length > 0 && (
-                    <section>
-                        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">Languages</h2>
-                        {cvData.languages.map((l, i) => (
-                            <div key={i} className="flex justify-between text-[10px] mb-0.5">
-                                <span className="text-gray-700 font-medium">{l.name}</span>
-                                <span className="text-gray-400 font-mono">{l.proficiency}</span>
-                            </div>
-                        ))}
-                    </section>
-                )}
-            </div>
+            {orderedSections.map(key => renderSection(key))}
         </div>
     );
 };

@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 
 interface TemplateProps {
   cvData: CVData;
@@ -30,54 +30,44 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
-  const Section: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
-    <section className={`mb-8 ${className}`}>
+  const SectionShell: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
+    <section className={`mb-8 ${className ?? ''}`}>
       <h2 className="text-lg font-bold uppercase tracking-wider text-slate-700 border-b-2 border-slate-200 pb-2 mb-4">{title}</h2>
       {children}
     </section>
   );
 
-  return (
-    <div id="cv-preview-timeline" className="bg-white p-10 text-slate-800 shadow-lg border font-['Inter']">
-      <header className="text-center mb-10">
-        <h1 className="text-5xl font-extrabold tracking-tight">{personalInfo.name}</h1>
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-md text-slate-500 mt-4">
-          <span>{personalInfo.email}</span>
-          <span>&bull;</span>
-          <span>{personalInfo.phone}</span>
-          <span>&bull;</span>
-          <span>{personalInfo.location}</span>
-        </div>
-        <div className="flex flex-wrap justify-center gap-x-4 text-md text-blue-600 mt-2">
-          <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>
-          {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
-          {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
-        </div>
-      </header>
+  const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
-      <main>
-        <Section title="Summary">
-          <p className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-        </Section>
-
-        <Section title="Experience">
-          <div className="relative border-l-2 border-slate-200 pl-8 space-y-10">
-            {cvData.experience.map((job, index) => (
-              <div key={index} className="relative">
-                <div className="absolute -left-[38px] top-1 h-3 w-3 rounded-full bg-slate-500 border-2 border-white"></div>
-                <p className="text-sm font-semibold text-slate-500 mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
-                <h3 className="text-xl font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                <p className="text-md text-slate-600 font-medium" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-base">
-                  {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Section title="Education" className="md:col-span-2">
+  const renderSection = (key: ProfileSectionKey): React.ReactNode => {
+    switch (key) {
+      case 'summary':
+        return (
+          <SectionShell key="summary" title="Summary">
+            <p className="text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+          </SectionShell>
+        );
+      case 'workExperience':
+        return (
+          <SectionShell key="workExperience" title="Experience">
+            <div className="relative border-l-2 border-slate-200 pl-8 space-y-10">
+              {cvData.experience.map((job, index) => (
+                <div key={index} className="relative">
+                  <div className="absolute -left-[38px] top-1 h-3 w-3 rounded-full bg-slate-500 border-2 border-white"></div>
+                  <p className="text-sm font-semibold text-slate-500 mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                  <h3 className="text-xl font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                  <p className="text-md text-slate-600 font-medium" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                  <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-base">
+                    {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </SectionShell>
+        );
+      case 'education':
+        return cvData.education.length > 0 ? (
+          <SectionShell key="education" title="Education">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {cvData.education.map((edu, index) => (
                 <div key={index} className="mb-4">
@@ -87,9 +77,11 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 </div>
               ))}
             </div>
-          </Section>
-
-          <Section title="Skills">
+          </SectionShell>
+        ) : null;
+      case 'skills':
+        return cvData.skills.length > 0 ? (
+          <SectionShell key="skills" title="Skills">
             <div className="grid grid-cols-3 gap-x-4">
               {(() => {
                 const sk = cvData.skills.slice(0, 15);
@@ -103,21 +95,11 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 ));
               })()}
             </div>
-          </Section>
-
-          {cvData.languages && cvData.languages.length > 0 && (
-            <Section title="Languages">
-              <ul className="space-y-1">
-                {cvData.languages.map((l, i) => (
-                  <li key={i}><span className="font-semibold">{l.name}:</span> {l.proficiency}</li>
-                ))}
-              </ul>
-            </Section>
-          )}
-        </div>
-
-        {cvData.projects && cvData.projects.length > 0 && (
-          <Section title="Projects">
+          </SectionShell>
+        ) : null;
+      case 'projects':
+        return cvData.projects && cvData.projects.length > 0 ? (
+          <SectionShell key="projects" title="Projects">
             <div className="space-y-6">
               {cvData.projects.map((proj, index) => (
                 <div key={index}>
@@ -127,8 +109,57 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 </div>
               ))}
             </div>
-          </Section>
-        )}
+          </SectionShell>
+        ) : null;
+      case 'languages':
+        return cvData.languages && cvData.languages.length > 0 ? (
+          <SectionShell key="languages" title="Languages">
+            <ul className="space-y-1">
+              {cvData.languages.map((l, i) => (
+                <li key={i}><span className="font-semibold">{l.name}:</span> {l.proficiency}</li>
+              ))}
+            </ul>
+          </SectionShell>
+        ) : null;
+      case 'references':
+        return cvData.references && cvData.references.length > 0 ? (
+          <SectionShell key="references" title="References">
+            <div className="grid grid-cols-2 gap-4">
+              {cvData.references.map((ref, index) => (
+                <div key={index} className="text-sm text-slate-700">
+                  <p className="font-bold text-slate-900">{ref.name}</p>
+                  <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
+                  {ref.email && <p>{ref.email}</p>}
+                </div>
+              ))}
+            </div>
+          </SectionShell>
+        ) : null;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div id="cv-preview-timeline" className="bg-white p-10 text-slate-800 shadow-lg border font-['Inter']">
+      <header className="text-center mb-10">
+        <h1 className="text-5xl font-extrabold tracking-tight">{personalInfo.name}</h1>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-md text-slate-500 mt-4">
+          <span>{personalInfo.email}</span>
+          <span>&bull;</span>
+          <span>{personalInfo.phone}</span>
+          <span>&bull;</span>
+          <span>{personalInfo.location}</span>
+        </div>
+        <div className="flex flex-wrap justify-center gap-x-4 text-md text-blue-600 mt-2">
+          {personalInfo.linkedin && <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>}
+          {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
+          {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
+        </div>
+      </header>
+
+      <main>
+        {orderedSections.map(key => renderSection(key))}
       </main>
 
       {jobDescriptionForATS && (

@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 
 interface TemplateProps {
   cvData: CVData;
@@ -30,7 +30,7 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
-  const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  const SectionShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section className="mb-8">
       <div className="flex items-center mb-4">
         <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-700 mr-4">{title}</h2>
@@ -40,61 +40,52 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     </section>
   );
 
-  return (
-    <div id="cv-preview-elegant" className="bg-white p-10 text-slate-800 shadow-lg border font-serif">
-      <header className="text-center mb-10">
-        <h1 className="text-5xl font-bold tracking-tight">{personalInfo.name}</h1>
-        <p className="text-lg text-slate-500 mt-2">Professional Title or Tagline</p>
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-slate-600 mt-4">
-          <span>{personalInfo.email}</span>
-          <span>&bull;</span>
-          <span>{personalInfo.phone}</span>
-          <span>&bull;</span>
-          <span>{personalInfo.location}</span>
-        </div>
-        <div className="flex flex-wrap justify-center gap-x-4 text-sm text-blue-600 mt-1">
-          <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>
-          {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
-          {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
-        </div>
-      </header>
+  const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
-      <main>
-        <Section title="Summary">
-          <p className="text-base leading-relaxed text-center" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-        </Section>
-
-        <Section title="Experience">
-          <div className="space-y-6">
-            {cvData.experience.map((job, index) => (
-              <div key={index}>
-                <div className="flex justify-between items-baseline">
-                  <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                  <p className="text-sm font-medium text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+  const renderSection = (key: ProfileSectionKey): React.ReactNode => {
+    switch (key) {
+      case 'summary':
+        return (
+          <SectionShell key="summary" title="Summary">
+            <p className="text-base leading-relaxed text-center" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+          </SectionShell>
+        );
+      case 'workExperience':
+        return (
+          <SectionShell key="workExperience" title="Experience">
+            <div className="space-y-6">
+              {cvData.experience.map((job, index) => (
+                <div key={index}>
+                  <div className="flex justify-between items-baseline">
+                    <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                    <p className="text-sm font-medium text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                  </div>
+                  <p className="text-md text-slate-600 font-semibold" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                  <ul className="list-none mt-2 space-y-1 text-base">
+                    {job.responsibilities.map((resp, i) => <li key={i} className="flex items-start"><span className="mr-2 text-slate-400">&rsaquo;</span><span className="flex-1" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} /></li>)}
+                  </ul>
                 </div>
-                <p className="text-md text-slate-600 font-semibold" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                <ul className="list-none mt-2 space-y-1 text-base">
-                  {job.responsibilities.map((resp, i) => <li key={i} className="flex items-start"><span className="mr-2 text-slate-400">&rsaquo;</span><span className="flex-1" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} /></li>)}
-                </ul>
+              ))}
+            </div>
+          </SectionShell>
+        );
+      case 'education':
+        return cvData.education.length > 0 ? (
+          <SectionShell key="education" title="Education">
+            {cvData.education.map((edu, index) => (
+              <div key={index} className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
+                  <p className="text-md text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                </div>
+                <p className="text-sm text-slate-500 font-medium text-right" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
               </div>
             ))}
-          </div>
-        </Section>
-
-        <Section title="Education">
-          {cvData.education.map((edu, index) => (
-            <div key={index} className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                <p className="text-md text-slate-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-              </div>
-              <p className="text-sm text-slate-500 font-medium text-right" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
-            </div>
-          ))}
-        </Section>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Section title="Skills">
+          </SectionShell>
+        ) : null;
+      case 'skills':
+        return cvData.skills.length > 0 ? (
+          <SectionShell key="skills" title="Skills">
             {(() => {
               const sk = cvData.skills.slice(0, 15);
               const perCol = Math.ceil(sk.length / 3);
@@ -110,15 +101,71 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                 </div>
               );
             })()}
-          </Section>
-          {cvData.languages && cvData.languages.length > 0 && (
-            <Section title="Languages">
-              <p className="text-base leading-relaxed">
-                {cvData.languages.map((l, i) => `${l.name} (${l.proficiency})`).join(' &nbsp;&bull;&nbsp; ')}
-              </p>
-            </Section>
-          )}
+          </SectionShell>
+        ) : null;
+      case 'projects':
+        return cvData.projects && cvData.projects.length > 0 ? (
+          <SectionShell key="projects" title="Projects">
+            <div className="space-y-4">
+              {cvData.projects.map((proj, index) => (
+                <div key={index}>
+                  <div className="flex items-baseline gap-2">
+                    <h3 className="text-lg font-bold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                    {proj.link && <a href={proj.link} className="text-xs text-blue-600 hover:underline">[link]</a>}
+                  </div>
+                  <p className="text-base text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                </div>
+              ))}
+            </div>
+          </SectionShell>
+        ) : null;
+      case 'languages':
+        return cvData.languages && cvData.languages.length > 0 ? (
+          <SectionShell key="languages" title="Languages">
+            <p className="text-base leading-relaxed">
+              {cvData.languages.map((l, i) => <span key={i}>{l.name} ({l.proficiency}){i < (cvData.languages?.length ?? 0) - 1 && ' • '}</span>)}
+            </p>
+          </SectionShell>
+        ) : null;
+      case 'references':
+        return cvData.references && cvData.references.length > 0 ? (
+          <SectionShell key="references" title="References">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {cvData.references.map((ref, index) => (
+                <div key={index} className="text-sm text-slate-700">
+                  <p className="font-bold text-slate-900">{ref.name}</p>
+                  <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
+                  {ref.email && <p>{ref.email}</p>}
+                </div>
+              ))}
+            </div>
+          </SectionShell>
+        ) : null;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div id="cv-preview-elegant" className="bg-white p-10 text-slate-800 shadow-lg border font-serif">
+      <header className="text-center mb-10">
+        <h1 className="text-5xl font-bold tracking-tight">{personalInfo.name}</h1>
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-slate-600 mt-4">
+          <span>{personalInfo.email}</span>
+          <span>&bull;</span>
+          <span>{personalInfo.phone}</span>
+          <span>&bull;</span>
+          <span>{personalInfo.location}</span>
         </div>
+        <div className="flex flex-wrap justify-center gap-x-4 text-sm text-blue-600 mt-1">
+          {personalInfo.linkedin && <a href={personalInfo.linkedin} className="hover:underline">LinkedIn</a>}
+          {personalInfo.website && <a href={personalInfo.website} className="hover:underline">Website</a>}
+          {personalInfo.github && <a href={personalInfo.github} className="hover:underline">GitHub</a>}
+        </div>
+      </header>
+
+      <main>
+        {orderedSections.map(key => renderSection(key))}
       </main>
 
       {jobDescriptionForATS && (

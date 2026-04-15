@@ -199,6 +199,7 @@ export interface CVData {
   publications?: CVPublication[];
   references?: CVReference[];
   customSections?: CustomSection[]; // user-defined extra sections
+  sectionOrder?: ProfileSectionKey[]; // mirrors the profile's preferred section ordering
 }
 
 
