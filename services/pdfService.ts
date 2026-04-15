@@ -2583,6 +2583,104 @@ const generatePdfForTemplate = (
             professional();
     }
 
+    // ── Additional Sections (appended for all templates) ──────────────────────
+    // References
+    if (cvData.references && cvData.references.length > 0) {
+        h.checkPageBreak(60, margin);
+        drawSectionTitle('References', { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+
+        cvData.references.forEach(ref => {
+            h.checkPageBreak(55, margin);
+
+            doc.setFont(selectedFont, 'bold');
+            doc.setFontSize(10.5);
+            doc.setTextColor(15, 23, 42);
+            doc.text(ref.name, margin, h.getY());
+            h.setY(h.getY() + 13);
+
+            if (ref.title || ref.company) {
+                const subtitle = [ref.title, ref.company].filter(Boolean).join(', ');
+                doc.setFont(selectedFont, 'normal');
+                doc.setFontSize(9.5);
+                doc.setTextColor(71, 85, 105);
+                const subtitleLines = doc.splitTextToSize(subtitle, contentWidth);
+                doc.text(subtitleLines, margin, h.getY());
+                h.setY(h.getY() + subtitleLines.length * 11);
+            }
+            if (ref.relationship) {
+                doc.setFont(selectedFont, 'italic');
+                doc.setFontSize(9);
+                doc.setTextColor(100, 116, 139);
+                doc.text(ref.relationship, margin, h.getY());
+                h.setY(h.getY() + 11);
+            }
+            if (ref.email) {
+                doc.setFont(selectedFont, 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(37, 99, 235);
+                doc.text(ref.email, margin, h.getY());
+                h.setY(h.getY() + 11);
+            }
+            if (ref.phone) {
+                doc.setFont(selectedFont, 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(45, 55, 72);
+                doc.text(ref.phone, margin, h.getY());
+                h.setY(h.getY() + 11);
+            }
+            h.setY(h.getY() + 8);
+        });
+        h.setY(h.getY() + 5);
+    }
+
+    // Custom Sections
+    if (cvData.customSections && cvData.customSections.length > 0) {
+        cvData.customSections.forEach(section => {
+            h.checkPageBreak(50, margin);
+            drawSectionTitle(section.label, { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+
+            section.items.forEach(item => {
+                h.checkPageBreak(40, margin);
+                const headerParts: string[] = [item.title];
+                if (item.subtitle) headerParts.push(`— ${item.subtitle}`);
+
+                doc.setFont(selectedFont, 'bold');
+                doc.setFontSize(10.5);
+                doc.setTextColor(15, 23, 42);
+
+                if (item.year) {
+                    const yearWidth = doc.getTextWidth(item.year) + 4;
+                    doc.text(headerParts.join(' '), margin, h.getY(), { maxWidth: contentWidth - yearWidth });
+                    doc.setFont(selectedFont, 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text(item.year, pageWidth - margin, h.getY(), { align: 'right' });
+                } else {
+                    const titleLines = doc.splitTextToSize(headerParts.join(' '), contentWidth);
+                    doc.text(titleLines, margin, h.getY());
+                }
+                h.setY(h.getY() + 13);
+
+                if (item.description) {
+                    doc.setFont(selectedFont, 'normal');
+                    doc.setFontSize(9.5);
+                    doc.setTextColor(45, 55, 72);
+                    const descLines = doc.splitTextToSize(item.description, contentWidth);
+                    doc.text(descLines, margin, h.getY());
+                    h.setY(h.getY() + descLines.length * 11 + 4);
+                }
+                if (item.link) {
+                    doc.setFont(selectedFont, 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(37, 99, 235);
+                    doc.text(item.link, margin, h.getY());
+                    h.setY(h.getY() + 11);
+                }
+                h.setY(h.getY() + 4);
+            });
+        });
+    }
+
 };
 
 
