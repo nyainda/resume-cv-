@@ -22,6 +22,15 @@ const decodeHtmlEntities = (text: string): string => {
     return textarea.value;
 };
 
+// Helper function to strip HTML tags and decode entities for plain-text PDF rendering
+const stripHtml = (html: string): string => {
+    if (!html) return '';
+    if (typeof document === 'undefined') return html.replace(/<[^>]*>/g, '');
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+};
+
 // --- PDF GENERATION LOGIC ---
 
 // A set of helper functions to build PDFs programmatically
@@ -978,7 +987,7 @@ const generatePdfForTemplate = (
 
         // ── PROFESSIONAL SUMMARY ─────────────────────────────────────────────
         drawSectionHeader('Professional Summary');
-        const summaryH = h.writeText(cvData.summary, M, h.getY(), {
+        const summaryH = h.writeText(stripHtml(cvData.summary), M, h.getY(), {
             font: serifFont,
             style: 'italic',
             size: 10.5,
@@ -1059,7 +1068,7 @@ const generatePdfForTemplate = (
             });
             h.setY(h.getY() + 13);
             if (edu.description && edu.description.trim()) {
-                const descH = h.writeText(decodeHtmlEntities(edu.description), M + 2, h.getY(), {
+                const descH = h.writeText(stripHtml(edu.description), M + 2, h.getY(), {
                     font: serifFont,
                     size: 9.5,
                     color: [80, 80, 80],
@@ -1134,7 +1143,7 @@ const generatePdfForTemplate = (
                     });
                 }
                 h.setY(h.getY() + 13);
-                const pdH = h.writeText(proj.description, M + 2, h.getY(), {
+                const pdH = h.writeText(stripHtml(proj.description), M + 2, h.getY(), {
                     font: serifFont,
                     size: 10,
                     color: [40, 40, 40],

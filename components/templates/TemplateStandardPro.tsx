@@ -232,7 +232,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
         <div
             id="cv-preview-standard-pro"
             className="bg-white text-black shadow-lg border"
-            style={{ fontFamily: "'Times New Roman', Georgia, serif", padding: '40px 52px', maxWidth: '816px', margin: '0 auto' }}
+            style={{ fontFamily: "'Lora', 'Times New Roman', Georgia, serif", padding: '40px 52px', maxWidth: '816px', margin: '0 auto' }}
         >
             <header style={{ textAlign: 'center', marginBottom: '10px' }}>
                 <h1 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, lineHeight: 1.1 }}>
