@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { ScrapedJob, UserProfile, CVData, PipelineStatus } from '../types';
+import { ScrapedJob, UserProfile, CVData, PipelineStatus, SavedCV } from '../types';
 import {
     searchJobsByCategory, fetchJobFromUrl, fetchJobDescription,
     JobCategory, getRemainingCalls, getUsage, getCacheAge,
@@ -10,15 +10,14 @@ import {
     EMPLOYMENT_TYPES, DATE_POSTED_OPTIONS, EXPERIENCE_LEVELS, COUNTRIES, JOB_CATEGORIES,
     formatSalary, timeAgo,
 } from '../services/jsearchService';
-import { generateCV } from '../services/geminiService';
-import { downloadCVAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import JobPipelineModal from './JobPipelineModal';
 import {
     Search, Briefcase, Building, ExternalLink, Plus, Trash, CheckCircle,
-    Clock, RefreshCw, Target, AlertCircle, Globe, Sparkles, Download, Link,
-    BookOpen, Shield,
+    Clock, RefreshCw, AlertCircle, Globe, Sparkles, Link,
+    BookOpen, Shield, FileText,
 } from './icons';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -29,6 +28,9 @@ interface JobBoardProps {
     userProfile: UserProfile;
     openSettings: () => void;
     onJobApplied: (details: { roleTitle: string; company: string; savedCvName: string }) => void;
+    onSaveCVFromPipeline: (cvData: CVData, name: string) => void;
+    onSaveCoverLetter: (text: string, name: string) => void;
+    savedCVs: SavedCV[];
 }
 
 type TabId = 'remote' | 'kenya' | 'visa' | 'scholarships' | 'url' | 'jsearch';
@@ -159,21 +161,36 @@ const JobCard: React.FC<{
     );
 };
 
+const GRADE_COLORS: Record<string, string> = {
+    A: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    B: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    C: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    D: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    F: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+};
+
 const PipelineCard: React.FC<{
     job: ScrapedJob;
     isFetching: boolean;
-    isGenerating: boolean;
-    onGenerate: () => void;
+    matchGrade?: string;
+    matchScore?: number;
+    onOpen: () => void;
     onRemove: () => void;
-}> = ({ job, isFetching, isGenerating, onGenerate, onRemove }) => {
+}> = ({ job, isFetching, matchGrade, matchScore, onOpen, onRemove }) => {
     const s = STATUS_CONFIG[job.status];
+    const gradeColor = matchGrade ? GRADE_COLORS[matchGrade] : '';
     return (
         <div className="bg-white dark:bg-neutral-800 rounded-2xl border-2 border-zinc-100 dark:border-neutral-700 p-5 transition-all shadow-sm hover:border-violet-200 dark:hover:border-violet-800">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
                         {isFetching && <span className="text-[10px] text-blue-500 animate-pulse">Fetching full JD…</span>}
+                        {matchGrade && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${gradeColor}`}>
+                                Match: {matchGrade} {matchScore !== undefined ? `(${matchScore}%)` : ''}
+                            </span>
+                        )}
                     </div>
                     <h3 className="font-bold text-zinc-900 dark:text-zinc-100">{job.title}</h3>
                     <p className="text-sm text-violet-600 dark:text-violet-400 font-semibold flex items-center gap-1">
@@ -185,19 +202,14 @@ const PipelineCard: React.FC<{
                 </div>
                 <div className="flex sm:flex-col gap-2 shrink-0">
                     <Button
-                        onClick={onGenerate}
-                        disabled={isGenerating || job.status === 'generating'}
+                        onClick={onOpen}
                         className="bg-violet-600 hover:bg-violet-700 text-white border-0 shadow shadow-violet-500/20 rounded-xl text-xs font-bold px-4 h-9 flex items-center gap-1.5"
                     >
-                        {isGenerating
-                            ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Generating…</>
-                            : job.status === 'cv-ready'
-                                ? <><Download className="h-3.5 w-3.5" />Re-download</>
-                                : <><Sparkles className="h-3.5 w-3.5" />Generate CV</>}
+                        <FileText className="h-3.5 w-3.5" />View Details
                     </Button>
                     <a href={job.url} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-1.5 text-xs font-bold px-3 h-9 rounded-xl border border-zinc-200 dark:border-neutral-700 text-zinc-600 dark:text-zinc-400 hover:border-violet-400 hover:text-violet-600 transition-colors">
-                        <ExternalLink className="h-3.5 w-3.5" />View
+                        <ExternalLink className="h-3.5 w-3.5" />Apply
                     </a>
                     <button onClick={onRemove}
                         className="h-9 w-9 flex items-center justify-center rounded-xl text-zinc-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20 transition-colors">
@@ -211,8 +223,21 @@ const PipelineCard: React.FC<{
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
+// Lightweight client-side match grade for pipeline cards
+function quickMatchGrade(userProfile: UserProfile, jd: string): { grade: string; score: number } {
+    const STOP = new Set(['the','and','or','in','on','at','to','for','of','with','by','a','an','is','are','was','be','not','this','that','will','have','has','do','we','you','our','your','its','work','team','role','job','position']);
+    const tok = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s+#]/g,' ').split(/\s+/).filter(w => w.length > 2 && !STOP.has(w));
+    const jdTok = new Set(tok(jd));
+    const userTok = [...new Set([...userProfile.skills, ...userProfile.workExperience.map(e=>e.jobTitle)].flatMap(s => tok(s)))];
+    const matched = userTok.filter(t => jdTok.has(t)).length;
+    const score = userTok.length === 0 ? 50 : Math.min(Math.round((matched / Math.min(userTok.length, 20)) * 100), 100);
+    const grade = score >= 75 ? 'A' : score >= 55 ? 'B' : score >= 35 ? 'C' : score >= 20 ? 'D' : 'F';
+    return { grade, score };
+}
+
 const JobBoard: React.FC<JobBoardProps> = ({
-    tavilyApiKey, jsearchApiKey, apiKeySet, userProfile, openSettings, onJobApplied
+    tavilyApiKey, jsearchApiKey, apiKeySet, userProfile, openSettings, onJobApplied,
+    onSaveCVFromPipeline, onSaveCoverLetter, savedCVs,
 }) => {
     // ── Persisted state (survives page refresh) ──
     const [activeTab, setActiveTab] = useLocalStorage<TabId>('jb_activeTab', 'jsearch');
@@ -255,8 +280,8 @@ const JobBoard: React.FC<JobBoardProps> = ({
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [fetchingId, setFetchingId] = useState<string | null>(null);
-    const [generatingId, setGeneratingId] = useState<string | null>(null);
     const [remaining, setRemaining] = useState(getRemainingCalls());
+    const [selectedPipelineJob, setSelectedPipelineJob] = useState<ScrapedJob | null>(null);
 
     const refreshBudget = () => setRemaining(getRemainingCalls());
 
@@ -463,27 +488,13 @@ const JobBoard: React.FC<JobBoardProps> = ({
         }
     }, [pipeline, tavilyApiKey]);
 
-    // ─── Generate CV ─────────────────────────────────────────────────────────────
-    const handleGenerateCV = useCallback(async (job: ScrapedJob) => {
-        if (!apiKeySet) { openSettings(); return; }
-        setPipeline(prev => prev.map(p => p.id === job.id ? { ...p, status: 'generating' } : p));
-        setGeneratingId(job.id);
-        try {
-            const cvData: CVData = await generateCV(userProfile, job.jobDescription, 'honest', 'job', 'standard');
-            const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-            const fileName = `${sanitize(userProfile.personalInfo.name)}_${sanitize(job.company)}_CV.pdf`;
-            downloadCVAsPDF({ cvData, personalInfo: userProfile.personalInfo, template: 'standard-pro', font: 'inter', fileName, jobDescription: job.jobDescription });
-            setPipeline(prev => prev.map(p => p.id === job.id ? { ...p, status: 'cv-ready' } : p));
-            onJobApplied({ roleTitle: job.title, company: job.company, savedCvName: `${job.title} @ ${job.company}` });
-        } catch (e) {
-            console.error(e);
-            setPipeline(prev => prev.map(p => p.id === job.id ? { ...p, status: 'queued' } : p));
-        } finally {
-            setGeneratingId(null);
-        }
-    }, [apiKeySet, userProfile, openSettings, onJobApplied]);
+    // ─── Pipeline actions ─────────────────────────────────────────────────────────
+    const removeFromPipeline = useCallback((id: string) => setPipeline(prev => prev.filter(p => p.id !== id)), []);
 
-    const removeFromPipeline = (id: string) => setPipeline(prev => prev.filter(p => p.id !== id));
+    const handleMarkApplied = useCallback((job: ScrapedJob) => {
+        setPipeline(prev => prev.map(p => p.id === job.id ? { ...p, status: 'applied' } : p));
+        onJobApplied({ roleTitle: job.title, company: job.company, savedCvName: `${job.title} @ ${job.company}` });
+    }, [onJobApplied]);
 
     // ─── Guard: no API keys at all ────────────────────────────────────────────────
     if (!tavilyApiKey && !jsearchApiKey) {
@@ -1014,6 +1025,20 @@ const JobBoard: React.FC<JobBoardProps> = ({
                 </div>
             )}
 
+            {/* ══ PIPELINE DETAIL MODAL ══ */}
+            {selectedPipelineJob && (
+                <JobPipelineModal
+                    job={selectedPipelineJob}
+                    userProfile={userProfile}
+                    apiKeySet={apiKeySet}
+                    onClose={() => setSelectedPipelineJob(null)}
+                    onSaveCV={onSaveCVFromPipeline}
+                    onSaveCoverLetter={onSaveCoverLetter}
+                    onMarkApplied={() => handleMarkApplied(selectedPipelineJob)}
+                    openSettings={openSettings}
+                />
+            )}
+
             {/* ══ PIPELINE TAB ══ */}
             {mainTab === 'pipeline' && (
                 <div className="space-y-4">
@@ -1029,19 +1054,23 @@ const JobBoard: React.FC<JobBoardProps> = ({
                     ) : (
                         <>
                             <p className="text-sm text-zinc-500">
-                                {pipeline.length} job{pipeline.length !== 1 ? 's' : ''} queued · Click <strong>Generate CV</strong> to create a tailored PDF and auto-log the application.
+                                {pipeline.length} job{pipeline.length !== 1 ? 's' : ''} queued · Click <strong>View Details</strong> to pick a template, generate a tailored CV, cover letter, and see your match score.
                             </p>
                             <div className="space-y-3">
-                                {pipeline.map(job => (
-                                    <PipelineCard
-                                        key={job.id}
-                                        job={job}
-                                        isFetching={fetchingId === job.id}
-                                        isGenerating={generatingId === job.id}
-                                        onGenerate={() => handleGenerateCV(job)}
-                                        onRemove={() => removeFromPipeline(job.id)}
-                                    />
-                                ))}
+                                {pipeline.map(job => {
+                                    const { grade, score } = quickMatchGrade(userProfile, job.jobDescription || job.snippet);
+                                    return (
+                                        <PipelineCard
+                                            key={job.id}
+                                            job={job}
+                                            isFetching={fetchingId === job.id}
+                                            matchGrade={grade}
+                                            matchScore={score}
+                                            onOpen={() => setSelectedPipelineJob(job)}
+                                            onRemove={() => removeFromPipeline(job.id)}
+                                        />
+                                    );
+                                })}
                             </div>
                         </>
                     )}

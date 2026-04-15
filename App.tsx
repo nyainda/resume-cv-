@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  UserProfile, CVData, SavedCV, ApiSettings, TrackedApplication,
+  UserProfile, CVData, SavedCV, SavedCoverLetter, ApiSettings, TrackedApplication,
   UserProfileSlot, ProfileColor, SavedMerge, STARStory,
 } from './types';
 import { useStorage } from './hooks/useStorage';
@@ -110,6 +110,7 @@ const AppInner: React.FC = () => {
 
   // ── Other app-level state ───────────────────────────────────────────────
   const [savedCVs, setSavedCVs] = useStorage<SavedCV[]>('savedCVs', []);
+  const [savedCoverLetters, setSavedCoverLetters] = useStorage<SavedCoverLetter[]>('savedCoverLetters', []);
   const [currentCV, setCurrentCV] = useStorage<CVData | null>('currentCV', null);
   const [trackedApps, setTrackedApps] = useStorage<TrackedApplication[]>('trackedApps', []);
   const [starStories, setStarStories] = useStorage<STARStory[]>('starStories', []);
@@ -293,6 +294,29 @@ const AppInner: React.FC = () => {
       toast.success('CV Saved Successfully!', `"${cvName}" has been saved to your library.`);
     }
   };
+
+  const handleSaveCVFromPipeline = useCallback((cvData: CVData, name: string) => {
+    const newSavedCV: SavedCV = {
+      id: Date.now().toString(),
+      name,
+      createdAt: new Date().toISOString(),
+      data: cvData,
+      purpose: 'job',
+    };
+    setSavedCVs(prev => [newSavedCV, ...prev]);
+    toast.success('CV Saved!', `"${name}" saved to your CV library.`);
+  }, [setSavedCVs, toast]);
+
+  const handleSaveCoverLetter = useCallback((text: string, name: string) => {
+    const newCL: SavedCoverLetter = {
+      id: Date.now().toString(),
+      name,
+      createdAt: new Date().toISOString(),
+      text,
+    };
+    setSavedCoverLetters(prev => [newCL, ...prev]);
+    toast.success('Cover Letter Saved!', `"${name}" saved to your library.`);
+  }, [setSavedCoverLetters, toast]);
 
   const handleDeleteCV = useCallback((id: string) => {
     const cvToDelete = savedCVs.find(cv => cv.id === id);
@@ -716,7 +740,17 @@ const AppInner: React.FC = () => {
                 {currentView === 'history' && <CVHistory savedCVs={savedCVs} onLoad={(cv) => { handleLoadCV(cv); setCurrentView('generator'); }} onDelete={handleDeleteCV} userProfileName={userProfile!.personalInfo.name} />}
                 {currentView === 'jobs' && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <JobBoard tavilyApiKey={tavilyApiKey} jsearchApiKey={jsearchApiKey} apiKeySet={apiKeySet} userProfile={userProfile!} openSettings={() => setIsSettingsOpen(true)} onJobApplied={handleAutoTrack} />
+                    <JobBoard
+                      tavilyApiKey={tavilyApiKey}
+                      jsearchApiKey={jsearchApiKey}
+                      apiKeySet={apiKeySet}
+                      userProfile={userProfile!}
+                      openSettings={() => setIsSettingsOpen(true)}
+                      onJobApplied={handleAutoTrack}
+                      onSaveCVFromPipeline={handleSaveCVFromPipeline}
+                      onSaveCoverLetter={handleSaveCoverLetter}
+                      savedCVs={savedCVs}
+                    />
                   </div>
                 )}
                 {currentView === 'toolkit' && (

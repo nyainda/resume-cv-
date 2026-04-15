@@ -163,6 +163,13 @@ export interface SavedCV {
   purpose: 'job' | 'academic' | 'general';
 }
 
+export interface SavedCoverLetter {
+  id: string;
+  name: string;
+  createdAt: string;
+  text: string;
+}
+
 // --- Scholarship / Grant Application Formats ---
 export type ScholarshipFormat =
   | 'standard'        // Generic academic CV
