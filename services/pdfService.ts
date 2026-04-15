@@ -1175,6 +1175,60 @@ const generatePdfForTemplate = (
                 h.setY(h.getY() + 16);
             });
         }
+
+        // ── REFERENCES ────────────────────────────────────────────────────────
+        if (cvData.references && cvData.references.length > 0) {
+            drawSectionHeader('References');
+            const refColWidth = (CW - 16) / 2;
+            let refColY = h.getY();
+            let leftColMaxY = refColY;
+            cvData.references.forEach((ref, idx) => {
+                h.checkPageBreak(55, M);
+                const colX = idx % 2 === 0 ? M : M + refColWidth + 16;
+                if (idx % 2 === 0) {
+                    refColY = Math.max(leftColMaxY, h.getY());
+                    leftColMaxY = refColY;
+                }
+                let rowY = refColY;
+                doc.setFont(serifFont, 'bold');
+                doc.setFontSize(10.5);
+                doc.setTextColor(10, 10, 10);
+                doc.text(ref.name, colX, rowY);
+                rowY += 13;
+                if (ref.title || ref.company) {
+                    const sub = [ref.title, ref.company].filter(Boolean).join(', ');
+                    doc.setFont(serifFont, 'italic');
+                    doc.setFontSize(9.5);
+                    doc.setTextColor(60, 60, 60);
+                    const subLines = doc.splitTextToSize(sub, refColWidth);
+                    doc.text(subLines, colX, rowY);
+                    rowY += subLines.length * 11;
+                }
+                if (ref.email) {
+                    doc.setFont(serifFont, 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(30, 64, 175);
+                    doc.text(ref.email, colX, rowY);
+                    rowY += 11;
+                }
+                if (ref.phone) {
+                    doc.setFont(serifFont, 'normal');
+                    doc.setFontSize(9);
+                    doc.setTextColor(30, 30, 30);
+                    doc.text(ref.phone, colX, rowY);
+                    rowY += 11;
+                }
+                if (idx % 2 === 0) {
+                    leftColMaxY = rowY + 8;
+                } else {
+                    h.setY(Math.max(leftColMaxY, rowY + 8));
+                    leftColMaxY = h.getY();
+                }
+            });
+            if (cvData.references.length % 2 !== 0) {
+                h.setY(leftColMaxY);
+            }
+        }
     };
 
     // ─── HARVARD GOLD PDF ────────────────────────────────────────────────────────
@@ -2593,8 +2647,8 @@ const generatePdfForTemplate = (
     }
 
     // ── Additional Sections (appended for all templates) ──────────────────────
-    // References
-    if (cvData.references && cvData.references.length > 0) {
+    // References (standard-pro handles references internally with its own serifFont)
+    if (template !== 'standard-pro' && cvData.references && cvData.references.length > 0) {
         h.checkPageBreak(60, margin);
         drawSectionTitle('References', { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
 

@@ -229,6 +229,12 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     };
 
     return (
+        <>
+        <style>{`
+            #cv-preview-standard-pro * {
+                font-family: 'Lora', 'Times New Roman', Georgia, serif !important;
+            }
+        `}</style>
         <div
             id="cv-preview-standard-pro"
             className="bg-white text-black shadow-lg border"
@@ -287,6 +293,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                 </div>
             )}
         </div>
+        </>
     );
 };
 
