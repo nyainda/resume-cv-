@@ -66,10 +66,10 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
 
   return (
     <div id="cv-preview-photo-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="flex min-h-[297mm]">
+      <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${sidebarBg} 38%, white 38%)` }}>
 
-        {/* Left Sidebar */}
-        <div className="w-[38%] flex-shrink-0 p-5" style={{ backgroundColor: sidebarBg }}>
+        {/* Left Sidebar — background from parent gradient */}
+        <div className="w-[38%] flex-shrink-0 p-5">
 
           {/* Photo + Name */}
           <div className="mb-5 flex flex-col items-center text-center">

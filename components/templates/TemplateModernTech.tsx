@@ -32,9 +32,10 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
 
   return (
     <div id="cv-preview-modern-tech" className="bg-white shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="grid grid-cols-12 min-h-[297mm]">
-        {/* Left Sidebar */}
-        <div className="col-span-4 bg-gray-800 text-white p-5 flex flex-col">
+      {/* gradient paints the two-column background on every page when content overflows */}
+      <div className="flex min-h-[297mm]" style={{ backgroundImage: 'linear-gradient(to right, #1f2937 33.33%, white 33.33%)' }}>
+        {/* Left Sidebar — background comes from parent gradient, not this div */}
+        <div className="w-[33.33%] flex-shrink-0 text-white p-5 flex flex-col">
           <div className="mb-5">
             <h1 className="text-xl font-bold tracking-tight leading-tight">{personalInfo.name}</h1>
             {cvData.experience.length > 0 && (
@@ -85,7 +86,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
         </div>
 
         {/* Main Content */}
-        <div className="col-span-8 p-6">
+        <div className="flex-1 p-6">
           <main className="space-y-5">
             {cvData.summary && (
               <section>

@@ -54,9 +54,9 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
 
   return (
     <div id="cv-preview-navy-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="flex min-h-[297mm]">
-        {/* Left Navy Sidebar */}
-        <div className="w-[35%] text-white p-6 flex-shrink-0" style={{ backgroundColor: navyBg }}>
+      <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${navyBg} 35%, white 35%)` }}>
+        {/* Left Navy Sidebar — background from parent gradient */}
+        <div className="w-[35%] text-white p-6 flex-shrink-0">
 
           <SidebarSection title="Education">
             <div className="space-y-4">

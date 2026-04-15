@@ -62,10 +62,10 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
   return (
     <div id="cv-preview-executive-sidebar" className="bg-white text-zinc-900 shadow-xl border border-zinc-200"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="flex min-h-[297mm]">
+      <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${SIDEBAR_BG} 38%, white 38%)` }}>
 
-        {/* ── Left Sidebar ── */}
-        <div className="w-[38%] flex-shrink-0 px-5 py-6" style={{ backgroundColor: SIDEBAR_BG }}>
+        {/* ── Left Sidebar — background from parent gradient ── */}
+        <div className="w-[38%] flex-shrink-0 px-5 py-6">
 
           {/* Photo + Name */}
           <div className="flex flex-col items-center text-center mb-5">

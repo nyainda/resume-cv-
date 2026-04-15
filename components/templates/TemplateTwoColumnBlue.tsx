@@ -32,9 +32,9 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
   return (
     <div id="cv-preview-twoColumnBlue" className="bg-white text-slate-800 shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="flex min-h-[297mm]">
-        {/* Left Sidebar */}
-        <div className="w-[34%] flex-shrink-0 bg-blue-800 text-white p-5 flex flex-col">
+      <div className="flex min-h-[297mm]" style={{ backgroundImage: 'linear-gradient(to right, #1e40af 34%, white 34%)' }}>
+        {/* Left Sidebar — background from parent gradient */}
+        <div className="w-[34%] flex-shrink-0 text-white p-5 flex flex-col">
           <div className="mb-4">
             {personalInfo.photo && (
               <div className="flex justify-center mb-3">
