@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Mail, Phone, MapPin, Linkedin, Github } from 'lucide-react';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
   cvData: CVData;
@@ -122,7 +123,18 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                         ))}
                     </div>
                 </Section>
-            </main>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-xl font-bold text-blue-800 flex items-center gap-2 mb-3">{title}</h2>}
+          sectionClassName="mb-6"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-blue-600"
+          descClass="text-xs text-slate-600 mt-0.5"
+          yearClass="text-xs text-slate-400"
+        />
+</main>
         </div>
       {jobDescriptionForATS && (
           <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">

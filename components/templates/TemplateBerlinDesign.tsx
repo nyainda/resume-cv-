@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
   cvData: CVData;
@@ -139,7 +140,18 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
          </div>
       </footer>
 
-      {jobDescriptionForATS && (
+      
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-xl font-black uppercase tracking-tighter text-zinc-900 border-b-4 border-yellow-400 inline-block mb-4">{title}</h2>}
+          sectionClassName="mb-8"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-zinc-500"
+          descClass="text-xs text-zinc-600 mt-0.5"
+          yearClass="text-xs text-zinc-400"
+        />
+{jobDescriptionForATS && (
         <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
           {jobDescriptionForATS}
         </div>

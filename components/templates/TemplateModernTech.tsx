@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
   cvData: CVData;
@@ -135,7 +136,18 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
         </div>
       </div>
 
-      {jobDescriptionForATS && (
+      
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-xs font-bold uppercase tracking-wider text-gray-800 pb-1 mb-2 border-b border-gray-200">{title}</h2>}
+          sectionClassName="mb-5"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-gray-500"
+          descClass="text-xs text-gray-600 mt-0.5"
+          yearClass="text-xs text-gray-400"
+        />
+{jobDescriptionForATS && (
         <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
           {jobDescriptionForATS}
         </div>

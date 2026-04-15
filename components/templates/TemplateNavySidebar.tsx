@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
   cvData: CVData;
@@ -188,7 +189,18 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
         </div>
       </div>
 
-      {jobDescriptionForATS && (
+      
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-sm font-black uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: navyBg, borderColor: navyBg }}>{title}</h2>}
+          sectionClassName="mt-5"
+          titleClass="text-xs font-bold"
+          subtitleClass="text-xs text-zinc-500"
+          descClass="text-xs text-zinc-600 mt-0.5"
+          yearClass="text-xs text-zinc-400"
+        />
+{jobDescriptionForATS && (
         <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
           {jobDescriptionForATS}
         </div>

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -244,7 +245,18 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                         </div>
                     </section>
                 )}
-            </main>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <div className="flex items-center gap-3 mb-3"><h2 className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: '#22d3ee' }}>{title}</h2><div className="flex-1 h-px" style={{ background: 'rgba(6,182,212,0.15)' }} /></div>}
+          sectionClassName="mt-5"
+          titleClass="font-bold text-xs font-mono"
+          subtitleClass="text-xs text-slate-400"
+          descClass="text-xs text-slate-400 mt-0.5"
+          yearClass="text-xs text-slate-500"
+        />
+</main>
         </div>
     );
 };

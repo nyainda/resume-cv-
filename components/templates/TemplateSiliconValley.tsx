@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -126,7 +127,18 @@ const TemplateSiliconValley: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
             <footer className="mt-20 text-center">
                 <p className="text-xs font-black uppercase tracking-[1em] text-slate-200">Innovation / Scale / Impact</p>
-            </footer>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-xs font-black uppercase tracking-[0.2em] text-blue-600 mb-4 px-3 py-1 bg-blue-50 rounded-full inline-block">{title}</h2>}
+          sectionClassName="mb-8"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-slate-400"
+          descClass="text-xs text-slate-500 mt-0.5"
+          yearClass="text-xs text-slate-400"
+        />
+</footer>
 
             {jobDescriptionForATS && (
                 <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-[#fcfcfc] whitespace-pre-wrap text-[1px]" aria-hidden="true">

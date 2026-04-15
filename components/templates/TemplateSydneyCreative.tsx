@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -132,7 +133,18 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                 <p className="text-3xl font-black uppercase tracking-tighter text-white">Let's Create Something Epic.</p>
             </footer>
 
-            {jobDescriptionForATS && (
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600 mb-4">{title}</h2>}
+          sectionClassName="mb-8"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-slate-500"
+          descClass="text-xs text-slate-600 mt-0.5"
+          yearClass="text-xs text-slate-400"
+        />
+{jobDescriptionForATS && (
                 <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
                     {jobDescriptionForATS}
                 </div>

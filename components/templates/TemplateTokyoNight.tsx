@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -135,7 +136,18 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                         </section>
                     )}
                 </div>
-            </main>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <SectionHeader title={title} />}
+          sectionClassName="mb-6"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs opacity-60"
+          descClass="text-xs opacity-70 mt-0.5"
+          yearClass="text-xs opacity-50"
+        />
+</main>
 
             {jobDescriptionForATS && (
                 <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-[#1a1b26] whitespace-pre-wrap text-[1px]" aria-hidden="true">

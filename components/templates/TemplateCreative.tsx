@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
   cvData: CVData;
@@ -156,7 +157,18 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 </div>
               </section>
             )}
-          </main>
+          
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-xs font-bold uppercase tracking-wider pb-1 mb-2 border-b" style={{ color: SIDEBAR_COLOR, borderColor: '#99f6e4' }}>{title}</h2>}
+          sectionClassName="mb-5"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-slate-500"
+          descClass="text-xs text-slate-600 mt-0.5"
+          yearClass="text-xs text-slate-500"
+        />
+</main>
         </div>
       </div>
 

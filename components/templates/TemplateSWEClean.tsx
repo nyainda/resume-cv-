@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -182,6 +183,17 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             </header>
 
             {orderedSections.map(key => renderSection(key))}
+
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          skipReferences
+          renderHeader={title => <SectionHeader title={title} />}
+          sectionClassName="mb-8"
+          titleClass="font-semibold"
+          subtitleClass="text-sm opacity-70"
+          descClass="text-sm opacity-80 mt-0.5"
+          yearClass="text-xs opacity-60"
+        />
         </div>
     );
 };

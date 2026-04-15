@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -174,7 +175,18 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
             <footer className="mt-20 pt-12 border-t border-slate-100 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
                 <span>Scholarship Ready CV</span>
                 <span>Verification Hash: {personalInfo.name.substring(0, 3).toUpperCase()}-{(Math.random() * 1000).toFixed(0)}</span>
-            </footer>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <SectionHeader>{title}</SectionHeader>}
+          sectionClassName="mb-8"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-teal-600"
+          descClass="text-xs text-slate-600 mt-0.5"
+          yearClass="text-xs text-slate-400"
+        />
+</footer>
 
             {jobDescriptionForATS && (
                 <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">

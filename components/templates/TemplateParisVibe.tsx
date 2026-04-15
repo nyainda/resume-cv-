@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -129,7 +130,18 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                         </div>
                     </section>
                 </div>
-            </main>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-900 mb-6 border-b border-zinc-900 pb-2 inline-block">{title}</h2>}
+          sectionClassName="mb-8"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-zinc-500"
+          descClass="text-xs text-zinc-600 mt-0.5"
+          yearClass="text-xs text-zinc-400"
+        />
+</main>
 
             {jobDescriptionForATS && (
                 <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-[#fafafa] whitespace-pre-wrap text-[1px]" aria-hidden="true">

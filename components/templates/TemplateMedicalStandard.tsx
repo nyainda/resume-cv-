@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
     cvData: CVData;
@@ -153,7 +154,18 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
 
             <footer className="mt-20 pt-12 border-t border-slate-200 text-center">
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-300">Confidential Medical Professional Document</p>
-            </footer>
+            
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <SectionHeader>{title}</SectionHeader>}
+          sectionClassName="mb-8"
+          titleClass="font-semibold text-sm"
+          subtitleClass="text-xs text-slate-500"
+          descClass="text-xs text-slate-600 mt-0.5"
+          yearClass="text-xs text-slate-400"
+        />
+</footer>
 
             {jobDescriptionForATS && (
                 <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-[#f0f4f8] whitespace-pre-wrap text-[1px]" aria-hidden="true">

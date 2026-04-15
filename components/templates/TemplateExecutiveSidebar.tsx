@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
+import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
   cvData: CVData;
@@ -283,7 +284,18 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
         </div>
       </div>
 
-      {/* ATS hidden keywords */}
+      
+        <TemplateCustomSections
+          customSections={cvData.customSections}
+          references={cvData.references}
+          renderHeader={title => <h2 className="text-sm font-bold mb-2 pb-1" style={{ color: SIDEBAR_BG, borderBottom: `2px solid ${SIDEBAR_BG}` }}>{title}</h2>}
+          sectionClassName="mt-5"
+          titleClass="text-xs font-bold"
+          subtitleClass="text-xs text-zinc-500"
+          descClass="text-xs text-zinc-600 mt-0.5"
+          yearClass="text-xs text-zinc-400"
+        />
+{/* ATS hidden keywords */}
       {jobDescriptionForATS && (
         <div className="absolute left-[-9999px] top-[-9999px] w-px h-px overflow-hidden text-white text-[1px]" aria-hidden="true">
           {jobDescriptionForATS}
