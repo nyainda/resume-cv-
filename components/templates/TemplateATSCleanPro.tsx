@@ -44,6 +44,10 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
         personalInfo.website || null,
     ].filter(Boolean) as string[];
 
+    const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+      <h2 className="text-[10px] font-black uppercase tracking-widest text-cyan-700 border-b border-slate-200 pb-1 mb-2">{title}</h2>
+    );
+
     const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
     const renderSection = (key: ProfileSectionKey): React.ReactNode => {

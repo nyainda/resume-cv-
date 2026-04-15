@@ -38,6 +38,10 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
     </section>
   );
 
+  const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+    <h2 className="text-lg font-bold uppercase tracking-wider text-slate-700 border-b-2 border-slate-200 pb-2 mb-4">{title}</h2>
+  );
+
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
   const renderSection = (key: ProfileSectionKey): React.ReactNode => {

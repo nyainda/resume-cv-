@@ -39,6 +39,10 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
         className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
     } : {};
 
+    const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+      <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">{title}</h2>
+    );
+
     const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
     const renderSection = (key: ProfileSectionKey): React.ReactNode => {

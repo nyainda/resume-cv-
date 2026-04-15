@@ -41,6 +41,10 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     </section>
   );
 
+  const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+    <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-700">{title}</h2>
+  );
+
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
   const renderSection = (key: ProfileSectionKey): React.ReactNode => {

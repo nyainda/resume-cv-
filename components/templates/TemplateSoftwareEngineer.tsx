@@ -38,6 +38,10 @@ const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInf
     </section>
   );
 
+  const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+    <h2 className="text-base font-bold uppercase tracking-wider text-slate-800 border-b-2 border-slate-200 pb-1 mb-3">{title}</h2>
+  );
+
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
   const renderSection = (key: ProfileSectionKey): React.ReactNode => {

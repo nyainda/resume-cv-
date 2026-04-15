@@ -38,6 +38,10 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
+  const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+    <h2 className="text-xs font-bold uppercase tracking-widest text-gray-700 mb-2 pb-1 border-b border-gray-300">{title}</h2>
+  );
+
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
   const renderSection = (key: ProfileSectionKey): React.ReactNode => {

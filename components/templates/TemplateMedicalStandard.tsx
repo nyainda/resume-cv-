@@ -158,7 +158,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
         <TemplateCustomSections
           customSections={cvData.customSections}
           references={cvData.references}
-          renderHeader={title => <SectionHeader>{title}</SectionHeader>}
+          renderHeader={title => <SectionHeading>{title}</SectionHeading>}
           sectionClassName="mb-8"
           titleClass="font-semibold text-sm"
           subtitleClass="text-xs text-slate-500"

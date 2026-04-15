@@ -1,0 +1,115 @@
+TemplateProfessional.tsx:206 Uncaught ReferenceError: SectionHeader is not defined
+    at renderHeader (TemplateProfessional.tsx:206:35)
+    at sharedSections.tsx:69:14
+    at Array.map (<anonymous>)
+    at TemplateCustomSections (sharedSections.tsx:64:23)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=f4c564a4:18509:20)
+    at renderWithHooks (react-dom_client.js?v=f4c564a4:5654:24)
+    at updateFunctionComponent (react-dom_client.js?v=f4c564a4:7475:21)
+    at beginWork (react-dom_client.js?v=f4c564a4:8525:20)
+    at runWithFiberInDEV (react-dom_client.js?v=f4c564a4:997:72)
+    at performUnitOfWork (react-dom_client.js?v=f4c564a4:12561:98)
+    at workLoopSync (react-dom_client.js?v=f4c564a4:12424:43)
+    at renderRootSync (react-dom_client.js?v=f4c564a4:12408:13)
+    at performWorkOnRoot (react-dom_client.js?v=f4c564a4:11827:37)
+    at performWorkOnRootViaSchedulerTask (react-dom_client.js?v=f4c564a4:13505:9)
+    at MessagePort.performWorkUntilDeadline (react-dom_client.js?v=f4c564a4:36:50)
+renderHeader @ TemplateProfessional.tsx:206
+(anonymous) @ sharedSections.tsx:69
+TemplateCustomSections @ sharedSections.tsx:64
+react_stack_bottom_frame @ react-dom_client.js?v=f4c564a4:18509
+renderWithHooks @ react-dom_client.js?v=f4c564a4:5654
+updateFunctionComponent @ react-dom_client.js?v=f4c564a4:7475
+beginWork @ react-dom_client.js?v=f4c564a4:8525
+runWithFiberInDEV @ react-dom_client.js?v=f4c564a4:997
+performUnitOfWork @ react-dom_client.js?v=f4c564a4:12561
+workLoopSync @ react-dom_client.js?v=f4c564a4:12424
+renderRootSync @ react-dom_client.js?v=f4c564a4:12408
+performWorkOnRoot @ react-dom_client.js?v=f4c564a4:11827
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=f4c564a4:13505
+performWorkUntilDeadline @ react-dom_client.js?v=f4c564a4:36
+<TemplateCustomSections>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=f4c564a4:247
+TemplateProfessional @ TemplateProfessional.tsx:203
+react_stack_bottom_frame @ react-dom_client.js?v=f4c564a4:18509
+renderWithHooksAgain @ react-dom_client.js?v=f4c564a4:5729
+renderWithHooks @ react-dom_client.js?v=f4c564a4:5665
+updateFunctionComponent @ react-dom_client.js?v=f4c564a4:7475
+beginWork @ react-dom_client.js?v=f4c564a4:8525
+runWithFiberInDEV @ react-dom_client.js?v=f4c564a4:997
+performUnitOfWork @ react-dom_client.js?v=f4c564a4:12561
+workLoopSync @ react-dom_client.js?v=f4c564a4:12424
+renderRootSync @ react-dom_client.js?v=f4c564a4:12408
+performWorkOnRoot @ react-dom_client.js?v=f4c564a4:11827
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=f4c564a4:13505
+performWorkUntilDeadline @ react-dom_client.js?v=f4c564a4:36
+<TemplateProfessional>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=f4c564a4:247
+renderTemplate @ CVPreview.tsx:61
+CVPreview @ CVPreview.tsx:97
+react_stack_bottom_frame @ react-dom_client.js?v=f4c564a4:18509
+renderWithHooksAgain @ react-dom_client.js?v=f4c564a4:5729
+renderWithHooks @ react-dom_client.js?v=f4c564a4:5665
+updateFunctionComponent @ react-dom_client.js?v=f4c564a4:7475
+beginWork @ react-dom_client.js?v=f4c564a4:8525
+runWithFiberInDEV @ react-dom_client.js?v=f4c564a4:997
+performUnitOfWork @ react-dom_client.js?v=f4c564a4:12561
+workLoopSync @ react-dom_client.js?v=f4c564a4:12424
+renderRootSync @ react-dom_client.js?v=f4c564a4:12408
+performWorkOnRoot @ react-dom_client.js?v=f4c564a4:11827
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=f4c564a4:13505
+performWorkUntilDeadline @ react-dom_client.js?v=f4c564a4:36
+<CVPreview>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=f4c564a4:247
+CVGenerator @ CVGenerator.tsx:804
+react_stack_bottom_frame @ react-dom_client.js?v=f4c564a4:18509
+renderWithHooksAgain @ react-dom_client.js?v=f4c564a4:5729
+renderWithHooks @ react-dom_client.js?v=f4c564a4:5665
+updateFunctionComponent @ react-dom_client.js?v=f4c564a4:7475
+beginWork @ react-dom_client.js?v=f4c564a4:8525
+runWithFiberInDEV @ react-dom_client.js?v=f4c564a4:997
+performUnitOfWork @ react-dom_client.js?v=f4c564a4:12561
+workLoopSync @ react-dom_client.js?v=f4c564a4:12424
+renderRootSync @ react-dom_client.js?v=f4c564a4:12408
+performWorkOnRoot @ react-dom_client.js?v=f4c564a4:11827
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=f4c564a4:13505
+performWorkUntilDeadline @ react-dom_client.js?v=f4c564a4:36
+<CVGenerator>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=f4c564a4:247
+AppInner @ App.tsx:761
+react_stack_bottom_frame @ react-dom_client.js?v=f4c564a4:18509
+renderWithHooksAgain @ react-dom_client.js?v=f4c564a4:5729
+renderWithHooks @ react-dom_client.js?v=f4c564a4:5665
+updateFunctionComponent @ react-dom_client.js?v=f4c564a4:7475
+beginWork @ react-dom_client.js?v=f4c564a4:8525
+runWithFiberInDEV @ react-dom_client.js?v=f4c564a4:997
+performUnitOfWork @ react-dom_client.js?v=f4c564a4:12561
+workLoopSync @ react-dom_client.js?v=f4c564a4:12424
+renderRootSync @ react-dom_client.js?v=f4c564a4:12408
+performWorkOnRoot @ react-dom_client.js?v=f4c564a4:11827
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=f4c564a4:13505
+performWorkUntilDeadline @ react-dom_client.js?v=f4c564a4:36
+<AppInner>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=f4c564a4:247
+App @ App.tsx:900
+react_stack_bottom_frame @ react-dom_client.js?v=f4c564a4:18509
+renderWithHooksAgain @ react-dom_client.js?v=f4c564a4:5729
+renderWithHooks @ react-dom_client.js?v=f4c564a4:5665
+updateFunctionComponent @ react-dom_client.js?v=f4c564a4:7475
+beginWork @ react-dom_client.js?v=f4c564a4:8525
+runWithFiberInDEV @ react-dom_client.js?v=f4c564a4:997
+performUnitOfWork @ react-dom_client.js?v=f4c564a4:12561
+workLoopSync @ react-dom_client.js?v=f4c564a4:12424
+renderRootSync @ react-dom_client.js?v=f4c564a4:12408
+performWorkOnRoot @ react-dom_client.js?v=f4c564a4:11827
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=f4c564a4:13505
+performWorkUntilDeadline @ react-dom_client.js?v=f4c564a4:36
+<App>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=f4c564a4:247
+(anonymous) @ index.tsx:21
+Promise.finally
+(anonymous) @ index.tsx:17Understand this error
+TemplateProfessional.tsx:203 An error occurred in the <TemplateCustomSections> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error

@@ -32,6 +32,10 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
         style: { outline: 'none', borderBottom: '1px dashed #d1d5db', cursor: 'text' },
     } : {};
 
+    const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+        <h2 className="font-mono font-black text-gray-900 text-[10px] uppercase tracking-widest mb-2">{title}</h2>
+    );
+
     const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
 
     const renderSection = (key: ProfileSectionKey): React.ReactNode => {
