@@ -1,0 +1,40 @@
+THE PROBLEM: The browser preview looks perfect but the downloaded PDF looks broken/different.
+
+The server code (server-pdf.cjs) is already correct — it has printBackground:true, fonts.ready, networkidle, 0mm margins. The bug is UPSTREAM in how the frontend builds and sends the HTML.
+
+Please diagnose by checking these files in this order:
+
+PDFDownloadButton.tsx (or wherever /api/generate-pdf is called)
+
+How is fullHtml or html being built?
+Is it using outerHTML, innerHTML, or renderToString?
+Is the Tailwind CDN <link> tag included in what gets sent?
+Are CSS custom properties/variables included?
+Are Google Fonts <link> tags included?
+CVPreview.tsx
+
+What className does the root CV container have?
+Are there any inline styles vs Tailwind classes?
+Is there a ref on the preview element?
+index.html
+
+What CDN scripts and stylesheets are loaded?
+Paste the full <head> section
+Any service or utility file that serializes the DOM
+(search for: outerHTML, innerHTML, getComputedStyle, cloneNode, renderToString)
+
+After checking those files, diagnose which of these is the actual bug:
+
+A) Tailwind CDN stylesheet not included in the HTML sent to Playwright
+B) Google Fonts not included or timing out in headless Chrome
+C) CSS custom properties (--variables) not resolving in the serialized HTML
+D) The HTML being sent is the wrong element (capturing wrapper instead of CV content)
+E) Computed styles lost during DOM serialization
+F) Something else entirely
+Bug 1 — Tailwind CDN @import fails in headless Chrome
+Playwright's headless context doesn't always fetch external stylesheets from CDN. Your @import url("https://cdn.tailwindcss.com") just silently fails, taking ALL your utility classes with it.
+Bug 2 — Google Fonts @import has the same problem
+Font loads, falls back to system font, different letter spacing, entire layout shifts by a few pixels, sections overflow their boxesalso check that every colors fonts are being passed well when downloading like every small details is donloadedd please
+
+
+Show
