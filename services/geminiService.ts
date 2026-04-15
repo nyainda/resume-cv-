@@ -112,6 +112,38 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 400): str
     return JSON.stringify(p);
 }
 
+/**
+ * Returns an instruction string about the user's preferred section order and custom sections.
+ * This is injected into the generateCV prompt so the AI honours the user's preferences.
+ */
+function buildSectionOrderInstruction(profile: UserProfile): string {
+    const sectionLabels: Record<string, string> = {
+        summary: 'Professional Summary',
+        workExperience: 'Work Experience',
+        education: 'Education',
+        skills: 'Skills',
+        projects: 'Projects',
+        languages: 'Languages',
+        references: 'References',
+    };
+
+    let instruction = '';
+
+    if (profile.sectionOrder && profile.sectionOrder.length > 0) {
+        const ordered = profile.sectionOrder
+            .map((k, i) => `${i + 1}. ${sectionLabels[k] || k}`)
+            .join(', ');
+        instruction += `**SECTION ORDER PREFERENCE**: The user prefers sections in this order: ${ordered}. Please generate the CV with content prioritised and structured to reflect this ordering.\n`;
+    }
+
+    if (profile.customSections && profile.customSections.length > 0) {
+        const names = profile.customSections.map(s => s.label).join(', ');
+        instruction += `**ADDITIONAL SECTIONS**: The user has custom profile sections (${names}) which will be appended automatically after the template. You do not need to generate content for these — they are pre-filled by the user.\n`;
+    }
+
+    return instruction;
+}
+
 // --- UserProfile JSON schema description for Groq prompts ---
 const USER_PROFILE_SCHEMA = `
 RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema:
@@ -321,6 +353,8 @@ export const generateCV = async (
     if (profile.personalInfo.github) {
         githubInstruction = `IMPORTANT: The user has provided a GitHub profile: ${profile.personalInfo.github}. Leverage this to validate and enrich the technical depth of the skills and projects sections.`;
     }
+
+    const sectionOrderInstruction = buildSectionOrderInstruction(profile);
 
     const humanizationInstruction = `
     **CRITICAL — AUTHENTIC HUMAN WRITING (AI DETECTION IMMUNITY)**:
@@ -542,12 +576,24 @@ export const generateCV = async (
         `;
     }
 
+    // Prepend section order + custom section notes (if any) to the prompt
+    if (sectionOrderInstruction) {
+        mainPromptInstruction = `${sectionOrderInstruction}\n\n${mainPromptInstruction}`;
+    }
+
     const temperature = purpose === 'academic' ? 0.5 :
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 3500 });
     const cvData: CVData = JSON.parse(text.trim());
+
+    // Carry through user's pre-filled custom sections (not AI-generated)
+    if (profile.customSections && profile.customSections.length > 0) {
+        cvData.customSections = profile.customSections.filter(
+            s => s.items.some(i => i.title.trim().length > 0)
+        );
+    }
 
     // Sort experience by end date descending (most recent first)
     cvData.experience.sort((a, b) => {

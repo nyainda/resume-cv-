@@ -1,6 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { UserProfile, Reference } from '../types';
+import {
+  UserProfile, Reference,
+  CustomSection, CustomSectionItem, CustomSectionType,
+  ProfileSectionKey, DEFAULT_SECTION_ORDER,
+} from '../types';
 import {
   generateProfile,
   extractProfileTextFromFile,
@@ -14,6 +18,41 @@ import { Textarea } from './ui/Textarea';
 import { Label } from './ui/Label';
 import { Button } from './ui/Button';
 import { Plus, Trash, Sparkles, UploadCloud, DownloadCloud, User } from './icons';
+
+// ─── Custom Section Helpers ───────────────────────────────────────────────────
+const PREDEFINED_SECTION_OPTIONS: { type: CustomSectionType; label: string }[] = [
+  { type: 'awards',         label: 'Awards & Honours' },
+  { type: 'certifications', label: 'Certifications & Licences' },
+  { type: 'publications',   label: 'Publications' },
+  { type: 'volunteer',      label: 'Volunteer Work' },
+  { type: 'presentations',  label: 'Presentations & Talks' },
+  { type: 'patents',        label: 'Patents' },
+  { type: 'courses',        label: 'Courses & Training' },
+  { type: 'memberships',    label: 'Professional Memberships' },
+  { type: 'achievements',   label: 'Key Achievements' },
+  { type: 'hobbies',        label: 'Hobbies & Interests' },
+  { type: 'interests',      label: 'Interests' },
+  { type: 'custom',         label: 'Custom Section' },
+];
+
+const SECTION_LABELS: Record<ProfileSectionKey, string> = {
+  summary: 'Professional Summary',
+  workExperience: 'Work Experience',
+  education: 'Education',
+  skills: 'Skills',
+  projects: 'Projects',
+  languages: 'Languages',
+  references: 'References',
+};
+
+const newItem = (): CustomSectionItem => ({
+  id: `item-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  title: '',
+  subtitle: '',
+  year: '',
+  description: '',
+  link: '',
+});
 
 interface ProfileFormProps {
   existingProfile: UserProfile | null;
@@ -44,8 +83,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [isEnhancing, setIsEnhancing] = useState<string | null>(null); // e.g., 'summary', 'work.0', 'project.1'
+  const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Custom Sections & Section Order state (managed outside react-hook-form) ──
+  const [customSections, setCustomSections] = useState<CustomSection[]>(
+    existingProfile?.customSections || []
+  );
+  const [sectionOrder, setSectionOrder] = useState<ProfileSectionKey[]>(
+    existingProfile?.sectionOrder || [...DEFAULT_SECTION_ORDER]
+  );
+  const [newSectionType, setNewSectionType] = useState<CustomSectionType>('awards');
+  const [customLabelInput, setCustomLabelInput] = useState('');
 
 
   const methods = useForm<UserProfile>({
@@ -69,8 +118,99 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const { fields: refFields, append: appendRef, remove: removeRef } = useFieldArray({ control, name: "references" });
 
   const onSubmit = (data: UserProfile) => {
-    const skillsArray = typeof data.skills === 'string' ? (data.skills as string).split(',').map(s => s.trim()).filter(Boolean) : data.skills;
-    onSave({ ...data, skills: skillsArray });
+    const skillsArray = typeof data.skills === 'string'
+      ? (data.skills as string).split(',').map(s => s.trim()).filter(Boolean)
+      : data.skills;
+    onSave({
+      ...data,
+      skills: skillsArray,
+      customSections: customSections.filter(s => s.items.length > 0),
+      sectionOrder,
+    });
+  };
+
+  // ── Custom Sections helpers ───────────────────────────────────────────────
+  const handleAddSection = () => {
+    const option = PREDEFINED_SECTION_OPTIONS.find(o => o.type === newSectionType);
+    const label = newSectionType === 'custom'
+      ? (customLabelInput.trim() || 'Custom Section')
+      : (option?.label || 'Custom');
+
+    const section: CustomSection = {
+      id: `sec-${Date.now()}`,
+      type: newSectionType,
+      label,
+      items: [newItem()],
+    };
+    setCustomSections(prev => [...prev, section]);
+    setCustomLabelInput('');
+  };
+
+  const handleDeleteSection = (sectionId: string) => {
+    setCustomSections(prev => prev.filter(s => s.id !== sectionId));
+  };
+
+  const handleUpdateSectionLabel = (sectionId: string, label: string) => {
+    setCustomSections(prev => prev.map(s => s.id === sectionId ? { ...s, label } : s));
+  };
+
+  const handleAddItem = (sectionId: string) => {
+    setCustomSections(prev => prev.map(s =>
+      s.id === sectionId ? { ...s, items: [...s.items, newItem()] } : s
+    ));
+  };
+
+  const handleDeleteItem = (sectionId: string, itemId: string) => {
+    setCustomSections(prev => prev.map(s =>
+      s.id === sectionId ? { ...s, items: s.items.filter(i => i.id !== itemId) } : s
+    ));
+  };
+
+  const handleUpdateItem = (sectionId: string, itemId: string, field: keyof CustomSectionItem, value: string) => {
+    setCustomSections(prev => prev.map(s =>
+      s.id === sectionId
+        ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, [field]: value } : i) }
+        : s
+    ));
+  };
+
+  const handleMoveSectionUp = (sectionId: string) => {
+    setCustomSections(prev => {
+      const idx = prev.findIndex(s => s.id === sectionId);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  };
+
+  const handleMoveSectionDown = (sectionId: string) => {
+    setCustomSections(prev => {
+      const idx = prev.findIndex(s => s.id === sectionId);
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  };
+
+  // ── Section Order helpers ─────────────────────────────────────────────────
+  const handleMoveOrderUp = (index: number) => {
+    if (index <= 0) return;
+    setSectionOrder(prev => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+  };
+
+  const handleMoveOrderDown = (index: number) => {
+    setSectionOrder(prev => {
+      if (index >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next;
+    });
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -571,6 +711,220 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             <Button type="button" variant="secondary" size="sm" onClick={() => appendRef({ id: `${Date.now()}`, name: '', title: '', company: '', relationship: '', email: '', phone: '' })}>
               <Plus className="h-4 w-4 mr-2" /> Add Reference
             </Button>
+          </div>
+
+          {/* ── Section Order ──────────────────────────────────────────────── */}
+          <div className="space-y-4">
+            <div className="border-b border-zinc-200 dark:border-neutral-700 pb-3">
+              <h2 className="text-xl font-semibold">Section Order</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                Drag the sections into your preferred order. The AI will generate your CV with this structure.
+              </p>
+            </div>
+            <div className="space-y-2">
+              {sectionOrder.map((key, idx) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 w-5 text-center">{idx + 1}</span>
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{SECTION_LABELS[key]}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveOrderUp(idx)}
+                      disabled={idx === 0}
+                      className="p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Move up"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 15l-6-6-6 6"/></svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveOrderDown(idx)}
+                      disabled={idx === sectionOrder.length - 1}
+                      className="p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Move down"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {customSections.length > 0 && customSections.map((cs, idx) => (
+                <div
+                  key={cs.id}
+                  className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-indigo-400 w-5 text-center">{sectionOrder.length + idx + 1}</span>
+                    <span className="text-sm font-medium text-indigo-800 dark:text-indigo-200">{cs.label}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded font-medium">custom</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => handleMoveSectionUp(cs.id)} disabled={idx === 0}
+                      className="p-1 rounded text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 15l-6-6-6 6"/></svg>
+                    </button>
+                    <button type="button" onClick={() => handleMoveSectionDown(cs.id)} disabled={idx === customSections.length - 1}
+                      className="p-1 rounded text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Custom Sections ────────────────────────────────────────────── */}
+          <div className="space-y-4">
+            <div className="border-b border-zinc-200 dark:border-neutral-700 pb-3">
+              <h2 className="text-xl font-semibold">Additional Sections</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                Add extra sections like Awards, Certifications, Volunteer Work, etc. They'll automatically appear at the bottom of every CV template.
+              </p>
+            </div>
+
+            {/* Add new section controls */}
+            <div className="flex flex-wrap items-end gap-3 p-4 bg-zinc-50 dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-700">
+              <div className="flex-1 min-w-[180px]">
+                <Label className="text-xs font-semibold text-zinc-500 mb-1 block">Section Type</Label>
+                <select
+                  value={newSectionType}
+                  onChange={e => setNewSectionType(e.target.value as CustomSectionType)}
+                  className="w-full h-10 px-3 rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {PREDEFINED_SECTION_OPTIONS.map(o => (
+                    <option key={o.type} value={o.type}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              {newSectionType === 'custom' && (
+                <div className="flex-1 min-w-[160px]">
+                  <Label className="text-xs font-semibold text-zinc-500 mb-1 block">Custom Name</Label>
+                  <Input
+                    value={customLabelInput}
+                    onChange={e => setCustomLabelInput(e.target.value)}
+                    placeholder="e.g. Patents, Grants…"
+                    className="h-10"
+                  />
+                </div>
+              )}
+              <Button type="button" onClick={handleAddSection} className="h-10 flex-shrink-0">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add Section
+              </Button>
+            </div>
+
+            {/* Existing custom sections */}
+            {customSections.length === 0 ? (
+              <p className="text-sm text-zinc-400 dark:text-zinc-500 text-center py-4 italic">No additional sections yet. Add one above.</p>
+            ) : (
+              <div className="space-y-6">
+                {customSections.map((section, sIdx) => (
+                  <div key={section.id} className="p-4 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-900/10 space-y-4">
+                    {/* Section header */}
+                    <div className="flex items-center gap-3 justify-between">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-xs font-bold text-indigo-500 flex-shrink-0">{sIdx + 1}.</span>
+                        <Input
+                          value={section.label}
+                          onChange={e => handleUpdateSectionLabel(section.id, e.target.value)}
+                          className="font-semibold text-sm !h-8 !py-1"
+                          placeholder="Section name"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSection(section.id)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex-shrink-0"
+                        title="Remove section"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Items */}
+                    <div className="space-y-3">
+                      {section.items.map((item, iIdx) => (
+                        <div key={item.id} className="p-3 bg-white dark:bg-neutral-800 rounded-lg border border-zinc-200 dark:border-neutral-700 space-y-2 relative">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-zinc-500 mb-1 block">Title *</Label>
+                              <Input
+                                value={item.title}
+                                onChange={e => handleUpdateItem(section.id, item.id, 'title', e.target.value)}
+                                placeholder="e.g. Best Innovation Award"
+                                className="!h-8 !text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-zinc-500 mb-1 block">Issuer / Institution</Label>
+                              <Input
+                                value={item.subtitle || ''}
+                                onChange={e => handleUpdateItem(section.id, item.id, 'subtitle', e.target.value)}
+                                placeholder="e.g. TechCorp, Coursera"
+                                className="!h-8 !text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-zinc-500 mb-1 block">Year / Date</Label>
+                              <Input
+                                value={item.year || ''}
+                                onChange={e => handleUpdateItem(section.id, item.id, 'year', e.target.value)}
+                                placeholder="e.g. 2023, 2021–2022"
+                                className="!h-8 !text-sm"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-zinc-500 mb-1 block">Link (Optional)</Label>
+                              <Input
+                                value={item.link || ''}
+                                onChange={e => handleUpdateItem(section.id, item.id, 'link', e.target.value)}
+                                placeholder="https://..."
+                                className="!h-8 !text-sm"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-[11px] text-zinc-500 mb-1 block">Description (Optional)</Label>
+                            <Textarea
+                              value={item.description || ''}
+                              onChange={e => handleUpdateItem(section.id, item.id, 'description', e.target.value)}
+                              placeholder="Brief description…"
+                              rows={2}
+                              className="!text-sm"
+                            />
+                          </div>
+                          {section.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteItem(section.id, item.id)}
+                              className="absolute top-2 right-2 p-1 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full"
+                              title="Remove entry"
+                            >
+                              <Trash className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleAddItem(section.id)}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Add Entry
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-4 pt-6 border-t border-zinc-200 dark:border-neutral-700">

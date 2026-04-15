@@ -54,6 +54,52 @@ export interface Reference {
   relationship: string;
 }
 
+// --- Custom Sections (user-defined profile extras) ---
+
+export type CustomSectionType =
+  | 'awards'
+  | 'certifications'
+  | 'publications'
+  | 'volunteer'
+  | 'presentations'
+  | 'patents'
+  | 'courses'
+  | 'memberships'
+  | 'hobbies'
+  | 'interests'
+  | 'achievements'
+  | 'custom';
+
+export interface CustomSectionItem {
+  id: string;
+  title: string;       // e.g. "Best Innovation Award", "AWS Solutions Architect"
+  subtitle?: string;   // e.g. issuer, institution, company
+  year?: string;       // e.g. "2023", "2021–2022"
+  description?: string;
+  link?: string;
+}
+
+export interface CustomSection {
+  id: string;
+  type: CustomSectionType;
+  label: string;       // display label — e.g. "Awards & Honours"
+  items: CustomSectionItem[];
+}
+
+// Section order keys — controls AI emphasis & template hint
+export type ProfileSectionKey =
+  | 'summary'
+  | 'workExperience'
+  | 'education'
+  | 'skills'
+  | 'projects'
+  | 'languages'
+  | 'references';
+
+export const DEFAULT_SECTION_ORDER: ProfileSectionKey[] = [
+  'summary', 'workExperience', 'education', 'skills', 'projects', 'languages', 'references',
+];
+
 export interface UserProfile {
   personalInfo: PersonalInfo;
   summary: string;
@@ -63,6 +109,8 @@ export interface UserProfile {
   projects?: Project[];
   languages?: Language[];
   references?: Reference[];
+  customSections?: CustomSection[];   // extra sections the user adds
+  sectionOrder?: ProfileSectionKey[]; // preferred section order
 }
 
 // --- Multiple Profiles ---
@@ -150,6 +198,7 @@ export interface CVData {
   languages?: CVLanguage[];
   publications?: CVPublication[];
   references?: CVReference[];
+  customSections?: CustomSection[]; // user-defined extra sections
 }
 
 
@@ -161,6 +210,7 @@ export interface SavedCV {
   createdAt: string;
   data: CVData;
   purpose: 'job' | 'academic' | 'general';
+  template?: TemplateName;  // template used when saved
 }
 
 export interface SavedCoverLetter {
