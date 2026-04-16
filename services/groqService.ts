@@ -1,17 +1,24 @@
+import { getGroqKey as _rtGroq } from './security/RuntimeKeys';
+
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 export const GROQ_LARGE = 'llama-3.3-70b-versatile';
 export const GROQ_FAST  = 'llama-3.1-8b-instant';
 
 export function getGroqApiKey(): string {
+    // 1. In-memory decrypted key (primary — populated by KeyVault on app start)
+    const rt = _rtGroq();
+    if (rt) return rt;
+
+    // 2. Legacy plaintext fallback (migration path — only works for old unencrypted data)
     try {
         const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
         if (settingsString) {
             const s = JSON.parse(settingsString);
-            if (s.groqApiKey) return s.groqApiKey.replace(/^"|"$/g, '');
+            if (s.groqApiKey && !s.groqApiKey.startsWith('enc:v1:')) return s.groqApiKey.replace(/^"|"$/g, '');
         }
         const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-        if (providerKeys.groq) return providerKeys.groq.replace(/^"|"$/g, '');
+        if (providerKeys.groq && !providerKeys.groq.startsWith('enc:v1:')) return providerKeys.groq.replace(/^"|"$/g, '');
     } catch {}
     throw new Error('Groq API key not set. Please add it in Settings.');
 }

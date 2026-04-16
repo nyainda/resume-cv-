@@ -4,6 +4,8 @@ import {
   UserProfileSlot, ProfileColor, SavedMerge, STARStory,
 } from './types';
 import { useStorage } from './hooks/useStorage';
+import * as KeyVault from './services/security/KeyVault';
+import { setRuntimeKeys } from './services/security/RuntimeKeys';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/ui/Toast';
@@ -114,7 +116,9 @@ const AppInner: React.FC = () => {
   const [currentCV, setCurrentCV] = useStorage<CVData | null>('currentCV', null);
   const [trackedApps, setTrackedApps] = useStorage<TrackedApplication[]>('trackedApps', []);
   const [starStories, setStarStories] = useStorage<STARStory[]>('starStories', []);
-  const [apiSettings, setApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
+  // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
+  const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
+  const [apiSettings, setApiSettings] = useState<ApiSettings>({ provider: 'gemini', apiKey: null });
   const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
   const [savedMerges, setSavedMerges] = useStorage<SavedMerge[]>('savedMerges', []);
 
@@ -159,6 +163,32 @@ const AppInner: React.FC = () => {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
+  // KeyVault: init once, then decrypt rawApiSettings → apiSettings + RuntimeKeys
+  useEffect(() => {
+    let cancelled = false;
+    KeyVault.init().then(async () => {
+      try {
+        const decrypted = await KeyVault.decryptApiSettings(rawApiSettings as Record<string, unknown>);
+        if (!cancelled) {
+          const s = decrypted as ApiSettings;
+          setApiSettings(s);
+          setRuntimeKeys({
+            apiKey:       s.apiKey       ?? null,
+            groqApiKey:   s.groqApiKey   ?? null,
+            claudeApiKey: (s as any).claudeApiKey ?? null,
+            tavilyApiKey: (s as any).tavilyApiKey ?? null,
+            brevoApiKey:  (s as any).brevoApiKey  ?? null,
+            jsearchApiKey:(s as any).jsearchApiKey ?? null,
+          });
+        }
+      } catch {
+        if (!cancelled) setApiSettings(rawApiSettings);
+      }
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(rawApiSettings)]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', !!darkMode);
@@ -208,6 +238,28 @@ const AppInner: React.FC = () => {
     if (showProfileManager) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showProfileManager, isMobile]);
+
+  // ── API settings save: encrypt before persisting ──────────────────────
+  const handleApiSettingsSave = useCallback(async (plaintext: ApiSettings) => {
+    try {
+      await KeyVault.init();
+      const encrypted = await KeyVault.encryptApiSettings(plaintext as Record<string, unknown>);
+      setRawApiSettings(encrypted as unknown as ApiSettings);
+      setApiSettings(plaintext);
+      setRuntimeKeys({
+        apiKey:        plaintext.apiKey       ?? null,
+        groqApiKey:    plaintext.groqApiKey   ?? null,
+        claudeApiKey:  (plaintext as any).claudeApiKey ?? null,
+        tavilyApiKey:  (plaintext as any).tavilyApiKey ?? null,
+        brevoApiKey:   (plaintext as any).brevoApiKey  ?? null,
+        jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
+      });
+    } catch {
+      // Fallback: save without encryption rather than silently fail
+      setRawApiSettings(plaintext);
+      setApiSettings(plaintext);
+    }
+  }, [setRawApiSettings]);
 
   // ── Profile Manager handlers ───────────────────────────────────────────
   const handleProfileSave = useCallback((profile: UserProfile) => {
@@ -874,7 +926,7 @@ const AppInner: React.FC = () => {
         </div>
       </main>
 
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSave={setApiSettings} currentApiSettings={apiSettings} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSave={handleApiSettingsSave} currentApiSettings={apiSettings} />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
       {/* ── Mobile ProfileManager bottom-sheet ── */}

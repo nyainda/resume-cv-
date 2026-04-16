@@ -1,6 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
+import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
@@ -53,22 +54,26 @@ Critical rules:
 
 // --- Gemini Client (multimodal only — PDF/image parsing) ---
 function getGeminiClient(): GoogleGenAI {
-    let apiKey: string | undefined;
+    // 1. In-memory decrypted key (primary — populated by KeyVault on app start)
+    let apiKey: string | undefined = _rtGemini() ?? undefined;
 
-    const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
-    if (settingsString) {
-        try {
-            const settings = JSON.parse(settingsString);
-            if (settings.apiKey) {
-                apiKey = settings.apiKey.replace(/^"|"$/g, '');
-            }
-        } catch { /* ignore */ }
+    // 2. Legacy plaintext fallback (migration path)
+    if (!apiKey) {
+        const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (settingsString) {
+            try {
+                const settings = JSON.parse(settingsString);
+                if (settings.apiKey && !settings.apiKey.startsWith('enc:v1:')) {
+                    apiKey = settings.apiKey.replace(/^"|"$/g, '');
+                }
+            } catch { /* ignore */ }
+        }
     }
 
     if (!apiKey) {
         try {
             const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-            if (providerKeys.gemini) {
+            if (providerKeys.gemini && !providerKeys.gemini.startsWith('enc:v1:')) {
                 apiKey = providerKeys.gemini.replace(/^"|"$/g, '');
             }
         } catch { /* ignore */ }

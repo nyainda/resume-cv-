@@ -2,6 +2,7 @@ import mammoth from 'mammoth';
 import { GoogleGenAI } from '@google/genai';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
 import { groqChat, GROQ_LARGE, hasGroqKey } from './groqService';
+import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 
 export async function extractTextFromDocx(file: File): Promise<string> {
     const arrayBuffer = await file.arrayBuffer();
@@ -15,14 +16,19 @@ export async function extractTextFromArrayBuffer(arrayBuffer: ArrayBuffer): Prom
 }
 
 function getGeminiKey(): string | null {
+    // 1. In-memory decrypted key (primary)
+    const rt = _rtGemini();
+    if (rt) return rt;
+
+    // 2. Legacy plaintext fallback (migration path)
     try {
         const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
         if (s) {
             const p = JSON.parse(s);
-            if (p.apiKey) return p.apiKey.replace(/^"|"$/g, '');
+            if (p.apiKey && !p.apiKey.startsWith('enc:v1:')) return p.apiKey.replace(/^"|"$/g, '');
         }
         const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-        if (pk.gemini) return pk.gemini.replace(/^"|"$/g, '');
+        if (pk.gemini && !pk.gemini.startsWith('enc:v1:')) return pk.gemini.replace(/^"|"$/g, '');
     } catch { }
     return null;
 }

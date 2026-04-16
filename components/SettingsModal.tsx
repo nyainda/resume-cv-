@@ -7,11 +7,9 @@ import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield, AlertCircle } from './icons';
 import { idbAppSet } from '../services/storage/AppDataPersistence';
-import { getStorageService } from '../services/storage/StorageRouter';
 
-const LS_PROVIDER_KEYS = 'cv_builder:provider_keys';
-const LS_MS_TOKEN      = 'cv_builder:ms_access_token';
-const LS_MS_USER       = 'cv_builder:ms_user';
+const LS_MS_TOKEN = 'cv_builder:ms_access_token';
+const LS_MS_USER  = 'cv_builder:ms_user';
 
 const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -165,15 +163,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       msClientId: msClientId.trim() || null,
       jsearchApiKey: jsearchKey.trim() || null,
     };
-
-    try {
-      localStorage.setItem('cv_builder:apiSettings', JSON.stringify(settingsToSave));
-    } catch { /* quota */ }
-
-    const providerKeys = { gemini: geminiKey.trim() || null, groq: groqKey.trim() || null, claude: claudeKey.trim() || null };
-    idbAppSet(LS_PROVIDER_KEYS, providerKeys).catch(() => {});
-    getStorageService().save('provider_keys', providerKeys).catch(() => {});
-
     onSave(settingsToSave);
     onClose();
   };
@@ -188,7 +177,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       brevoApiKey: brevoKey.trim() || null,
       msClientId: msClientId.trim() || null,
     };
-    try { localStorage.setItem('cv_builder:apiSettings', JSON.stringify(saved)); } catch {}
     onSave(saved);
     onClose();
   };
@@ -266,7 +254,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 '🆓 Free tier with massive daily limits',
                 '🚀 llama-3.3-70b for CV gen, cover letters & rewriting',
                 '⚡ llama-3.1-8b for instant ATS & keyword analysis',
-                '🔒 Key stored only in your browser',
+                '🔒 Encrypted & stored securely in your browser',
               ].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                   <span>{f}</span>
@@ -359,7 +347,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 '🆓 Free tier via API (claude-haiku is very affordable)',
                 '🔍 Powers portal scan AI summaries & job scoring',
                 '🎯 ATS keyword gap analysis on job descriptions',
-                '🔒 Key stored only in your browser',
+                '🔒 Encrypted & stored securely in your browser',
               ].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                   <span>{f}</span>
@@ -446,7 +434,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 '🌍 Filter by country, date posted, employment type',
                 '💼 10+ job categories (Tech, Finance, Healthcare, etc.)',
                 '💰 Salary data included where available',
-                '🔒 Key stored only in your browser',
+                '🔒 Encrypted & stored securely in your browser',
               ].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                   <span>{f}</span>
@@ -493,7 +481,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 '📄 Import your CV directly from a Word (.docx) file',
                 '☁️ Sync CV data to your personal OneDrive',
                 '📝 Apply our templates to your Word-designed CV',
-                '🔒 All data stays in your browser — no server needed',
+                '🔒 All data encrypted & stored securely — no server needed',
               ].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                   <span>{f}</span>
