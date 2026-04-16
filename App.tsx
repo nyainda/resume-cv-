@@ -852,7 +852,7 @@ const AppInner: React.FC = () => {
                   </div>
                 )}
                 {currentView === 'scanner' && (
-                  <div className="rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden" style={{ height: 'calc(100vh - 140px)', minHeight: 600 }}>
+                  <div className="rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden">
                     <PortalScanner
                       tavilyApiKey={tavilyApiKey}
                       openSettings={() => setIsSettingsOpen(true)}
