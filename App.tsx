@@ -29,6 +29,10 @@ import PortalScanner from './components/PortalScanner';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import LandingPage from './components/LandingPage';
 import DriveConflictModal from './components/DriveConflictModal';
+import AutoSaveIndicator from './components/AutoSaveIndicator';
+import OfflineBanner from './components/OfflineBanner';
+import { useAutoSave } from './hooks/useAutoSave';
+import { useAutoSync } from './hooks/useAutoSync';
 import {
   Edit, User, List, Settings, FileText, Target,
   Moon, Sun, BookOpen, Globe, Sparkles,
@@ -89,6 +93,8 @@ function colorBg(c: ProfileColor) {
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated } = useGoogleAuth();
+  const saveStatus = useAutoSave();
+  useAutoSync(isAuthenticated);
 
   // ── Multi-profile storage ──────────────────────────────────────────────
   const [profiles, setProfiles] = useStorage<UserProfileSlot[]>('profiles', []);
@@ -420,12 +426,28 @@ const AppInner: React.FC = () => {
     toast.success('Cover Letter Saved!', `"${name}" saved to your library.`);
   }, [setSavedCoverLetters, toast]);
 
+  const deleteCVTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleDeleteCV = useCallback((id: string) => {
     const cvToDelete = savedCVs.find(cv => cv.id === id);
-    if (window.confirm('Are you sure you want to delete this CV?')) {
-      setSavedCVs(prev => prev.filter(cv => cv.id !== id));
-      toast.success('CV Deleted', cvToDelete ? `"${cvToDelete.name}" has been removed.` : 'CV removed.');
-    }
+    if (!cvToDelete) return;
+    // Optimistically remove immediately
+    setSavedCVs(prev => prev.filter(cv => cv.id !== id));
+    // Show undo toast
+    if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
+    toast.info(
+      'CV Deleted',
+      `"${cvToDelete.name}" removed.`,
+      () => {
+        // Undo: restore the CV
+        if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
+        setSavedCVs(prev => [cvToDelete, ...prev]);
+        toast.success('Restored', `"${cvToDelete.name}" has been restored.`);
+      }
+    );
+    // After 6 seconds the deletion is final — nothing to do since it's already removed from state
+    deleteCVTimerRef.current = setTimeout(() => {
+      deleteCVTimerRef.current = null;
+    }, 6000);
   }, [setSavedCVs, savedCVs, toast]);
 
   const handleSaveStories = useCallback((newStories: STARStory[]) => {
@@ -572,6 +594,7 @@ const AppInner: React.FC = () => {
           }}
         />
       )}
+      <OfflineBanner />
       <header className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
         {/* ── Row 1: Logo + Controls ──────────────────────────────────── */}
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
@@ -632,6 +655,8 @@ const AppInner: React.FC = () => {
                 <span className="hidden sm:inline">Edit Profile</span>
               </button>
             )}
+
+            <AutoSaveIndicator status={saveStatus} />
 
             <button
               onClick={() => setDarkMode(!darkMode)}

@@ -8,6 +8,7 @@ interface ToastProps {
     message: string;
     description?: string;
     onClose: () => void;
+    onUndo?: () => void;
     autoClose?: boolean;
     duration?: number;
 }
@@ -17,6 +18,7 @@ export const Toast: React.FC<ToastProps> = ({
     message,
     description,
     onClose,
+    onUndo,
     autoClose = true,
     duration = 5000
 }) => {
@@ -35,6 +37,7 @@ export const Toast: React.FC<ToastProps> = ({
             iconColor: 'text-green-600 dark:text-green-400',
             textColor: 'text-green-900 dark:text-green-100',
             descColor: 'text-green-700 dark:text-green-300',
+            undoColor: 'text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100 border-green-300 dark:border-green-700',
         },
         error: {
             icon: XCircle,
@@ -43,6 +46,7 @@ export const Toast: React.FC<ToastProps> = ({
             iconColor: 'text-red-600 dark:text-red-400',
             textColor: 'text-red-900 dark:text-red-100',
             descColor: 'text-red-700 dark:text-red-300',
+            undoColor: 'text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 border-red-300 dark:border-red-700',
         },
         warning: {
             icon: AlertCircle,
@@ -51,6 +55,7 @@ export const Toast: React.FC<ToastProps> = ({
             iconColor: 'text-amber-600 dark:text-amber-400',
             textColor: 'text-amber-900 dark:text-amber-100',
             descColor: 'text-amber-700 dark:text-amber-300',
+            undoColor: 'text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 border-amber-300 dark:border-amber-700',
         },
         info: {
             icon: Info,
@@ -59,10 +64,11 @@ export const Toast: React.FC<ToastProps> = ({
             iconColor: 'text-blue-600 dark:text-blue-400',
             textColor: 'text-blue-900 dark:text-blue-100',
             descColor: 'text-blue-700 dark:text-blue-300',
+            undoColor: 'text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 border-blue-300 dark:border-blue-700',
         },
     };
 
-    const { icon: Icon, bgColor, borderColor, iconColor, textColor, descColor } = config[type];
+    const { icon: Icon, bgColor, borderColor, iconColor, textColor, descColor, undoColor } = config[type];
 
     return (
         <div className={`${bgColor} ${borderColor} border rounded-lg p-4 shadow-lg animate-slide-in-right`}>
@@ -72,6 +78,14 @@ export const Toast: React.FC<ToastProps> = ({
                     <p className={`text-sm font-semibold ${textColor}`}>{message}</p>
                     {description && (
                         <p className={`text-sm ${descColor} mt-1`}>{description}</p>
+                    )}
+                    {onUndo && (
+                        <button
+                            onClick={() => { onUndo(); onClose(); }}
+                            className={`mt-2 text-xs font-bold px-2.5 py-1 rounded border ${undoColor} transition-colors`}
+                        >
+                            ↩ Undo
+                        </button>
                     )}
                 </div>
                 <button
@@ -86,8 +100,16 @@ export const Toast: React.FC<ToastProps> = ({
     );
 };
 
+interface ToastItem {
+    id: string;
+    type: ToastType;
+    message: string;
+    description?: string;
+    onUndo?: () => void;
+}
+
 interface ToastContainerProps {
-    toasts: Array<{ id: string; type: ToastType; message: string; description?: string }>;
+    toasts: ToastItem[];
     onRemove: (id: string) => void;
 }
 
@@ -101,6 +123,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onRemove
                         type={toast.type}
                         message={toast.message}
                         description={toast.description}
+                        onUndo={toast.onUndo}
                         onClose={() => onRemove(toast.id)}
                     />
                 ))}

@@ -2,6 +2,7 @@
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, CVScore } from '../services/geminiService';
+import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCVAsPDF } from '../services/pdfService';
 import PDFDownloadButton from './PDFDownloadButton';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -359,6 +360,56 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </button>
         </div>
       )}
+
+      {/* === CV Completeness Bar === */}
+      {(() => {
+        const { percent, missing, grade } = scoreCVCompleteness(currentCV, userProfile);
+        const gradeConfig = {
+          weak:   { color: 'bg-red-500',    text: 'text-red-600 dark:text-red-400',    label: 'Weak',   tip: 'Add more details to get started.' },
+          fair:   { color: 'bg-amber-500',  text: 'text-amber-600 dark:text-amber-400', label: 'Fair',  tip: 'Good progress — keep going!' },
+          good:   { color: 'bg-blue-500',   text: 'text-blue-600 dark:text-blue-400',   label: 'Good',  tip: 'Strong profile — nearly there.' },
+          strong: { color: 'bg-emerald-500',text: 'text-emerald-600 dark:text-emerald-400', label: 'Strong', tip: 'Excellent! Your CV is highly complete.' },
+        }[grade];
+        return (
+          <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Ring */}
+            <div className="flex-shrink-0 flex items-center gap-3">
+              <div className="relative w-14 h-14">
+                <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                  <circle cx="28" cy="28" r="23" fill="none" stroke="currentColor" strokeWidth="5" className="text-zinc-200 dark:text-neutral-700" />
+                  <circle
+                    cx="28" cy="28" r="23" fill="none" strokeWidth="5"
+                    strokeDasharray={`${2 * Math.PI * 23}`}
+                    strokeDashoffset={`${2 * Math.PI * 23 * (1 - percent / 100)}`}
+                    strokeLinecap="round"
+                    className={`${gradeConfig.color.replace('bg-', 'text-')} transition-all duration-700`}
+                    stroke="currentColor"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[13px] font-extrabold text-zinc-800 dark:text-zinc-100">{percent}%</span>
+              </div>
+              <div>
+                <p className={`text-sm font-bold ${gradeConfig.text}`}>{gradeConfig.label} CV</p>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{gradeConfig.tip}</p>
+              </div>
+            </div>
+            {/* Missing fields */}
+            {missing.length > 0 && (
+              <div className="flex-1 border-t sm:border-t-0 sm:border-l border-zinc-200 dark:border-neutral-700 sm:pl-4 pt-3 sm:pt-0">
+                <p className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-1.5">Missing to reach 100%</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {missing.slice(0, 6).map(m => (
+                    <span key={m} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300">{m}</span>
+                  ))}
+                  {missing.length > 6 && (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-neutral-700 text-zinc-500">+{missing.length - 6} more</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* === STEP 1: Purpose Selector === */}
       <div className="bg-white dark:bg-neutral-800/50 p-6 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">

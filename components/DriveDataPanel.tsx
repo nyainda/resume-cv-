@@ -31,6 +31,30 @@ interface DriveDataPanelProps {
     onDataRestored?: () => void;
 }
 
+function useLastSync() {
+    const [lastSync, setLastSync] = useState<string | null>(
+        localStorage.getItem('cv_drive_last_sync')
+    );
+    useEffect(() => {
+        const handler = () => setLastSync(localStorage.getItem('cv_drive_last_sync'));
+        window.addEventListener('drive-save-success', handler);
+        return () => window.removeEventListener('drive-save-success', handler);
+    }, []);
+    return lastSync;
+}
+
+function formatLastSync(iso: string | null): string {
+    if (!iso) return 'Never';
+    try {
+        const d = new Date(iso);
+        const diff = Date.now() - d.getTime();
+        if (diff < 60_000) return 'Just now';
+        if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min ago`;
+        if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} hr ago`;
+        return d.toLocaleDateString();
+    } catch { return iso; }
+}
+
 export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }) => {
     const { user, isAuthenticated, signIn } = useGoogleAuth();
     const [files, setFiles] = useState<FileEntry[]>([]);
@@ -39,6 +63,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
     const [restoring, setRestoring] = useState<string | null>(null);
     const [syncMsg, setSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [migrationProgress, setMigrationProgress] = useState<{ done: number; total: number } | null>(null);
+    const lastSync = useLastSync();
 
     const driveActive = isDriveActive();
 
@@ -150,6 +175,13 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                     {driveActive ? '● Drive Active' : '○ Local Only'}
                 </span>
             </div>
+            {driveActive && (
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 -mt-1">
+                    Last synced: <span className="font-semibold text-zinc-500 dark:text-zinc-400">{formatLastSync(lastSync)}</span>
+                    <span className="mx-1.5">·</span>
+                    Auto-sync every 5 min
+                </p>
+            )}
 
             {/* Connected user info */}
             {user && (

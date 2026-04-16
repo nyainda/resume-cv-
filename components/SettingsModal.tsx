@@ -7,6 +7,7 @@ import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield, AlertCircle } from './icons';
 import { idbAppSet } from '../services/storage/AppDataPersistence';
+import { LocalStorageService } from '../services/storage/LocalStorageService';
 
 const LS_MS_TOKEN = 'cv_builder:ms_access_token';
 const LS_MS_USER  = 'cv_builder:ms_user';
@@ -214,6 +215,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-5 min-h-0"
           style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
         >
+
+          {/* ── Browser Storage Meter + Export ── */}
+          {(() => {
+            const usage = LocalStorageService.estimateUsage();
+            const pct = Math.min(100, Math.round(usage * 100));
+            const barColor = pct > 80 ? 'bg-red-500' : pct > 55 ? 'bg-amber-500' : 'bg-emerald-500';
+            const handleExport = () => {
+              const data: Record<string, unknown> = {};
+              for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k?.startsWith('cv_builder:')) {
+                  try { data[k] = JSON.parse(localStorage.getItem(k) ?? 'null'); } catch { data[k] = null; }
+                }
+              }
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `cv-builder-backup-${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            };
+            return (
+              <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-3 bg-zinc-50 dark:bg-neutral-800/40">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">💾 Browser Storage</h3>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pct > 80 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400'}`}>
+                    ~{pct}% used
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="w-full bg-zinc-200 dark:bg-neutral-700 rounded-full h-2">
+                    <div className={`${barColor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    Approx. {(usage * 5).toFixed(1)} MB of ~5 MB used · IndexedDB provides an additional fallback.
+                    {pct > 70 && <span className="text-amber-600 dark:text-amber-400 font-semibold"> Enable Google Drive sync to free space.</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={handleExport}
+                  className="w-full py-2 px-3 text-xs font-bold rounded-lg border border-zinc-300 dark:border-neutral-600 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  ⬇️ Export all data as backup (.json)
+                </button>
+              </div>
+            );
+          })()}
 
           {/* ── Google Drive Backup ── */}
           <div className="rounded-2xl border-2 border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-4 shadow-sm space-y-3">
