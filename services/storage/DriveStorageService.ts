@@ -1,10 +1,27 @@
-// src/services/storage/DriveStorageService.ts
+// services/storage/DriveStorageService.ts
 // Token is injected from GoogleAuthContext — no popup logic here.
+//
+// Optimistic Locking:
+//   Every save() reads the remote file's modifiedTime first.
+//   If it differs from the timestamp we stored when we last loaded/saved,
+//   someone else modified it since — we throw DriveConflictError instead
+//   of blindly overwriting. The caller (StorageRouter) surfaces this to the UI.
+//
+// modifiedTime tracking:
+//   Stored in localStorage as `cv_drv_mtime:{filename}` so it persists
+//   across page reloads. Updated on every successful save or load.
 
 import { IStorageService } from './IStorageService';
+import { DriveConflictError } from './storageErrors';
 
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
+const MTIME_PREFIX = 'cv_drv_mtime:';
+
+interface FileMeta {
+    id: string;
+    modifiedTime: string;
+}
 
 export class DriveStorageService implements IStorageService {
     readonly isPersistent = true;
@@ -15,18 +32,26 @@ export class DriveStorageService implements IStorageService {
         this.currentToken = token;
     }
 
-    async save(key: string, data: unknown): Promise<void> {
+    // ── Public API ─────────────────────────────────────────────────────────────
+
+    async save(key: string, data: unknown, skipConflictCheck = false): Promise<void> {
         const filename = this.toFilename(key);
         const body = JSON.stringify(data);
         try {
-            const existingId = await this.findFileId(filename);
-            if (existingId) {
-                await this.patchFile(existingId, body);
+            const meta = await this.findFileWithMeta(filename);
+            if (meta) {
+                if (!skipConflictCheck) {
+                    await this.checkConflict(key, filename, meta, data);
+                }
+                const newMtime = await this.patchFile(meta.id, body);
+                this.storeMtime(filename, newMtime ?? meta.modifiedTime);
             } else {
-                await this.createFile(filename, body);
+                const newMtime = await this.createFile(filename, body);
+                if (newMtime) this.storeMtime(filename, newMtime);
             }
             window.dispatchEvent(new CustomEvent('drive-save-success', { detail: { key } }));
         } catch (err) {
+            if (err instanceof DriveConflictError) throw err; // let caller handle
             window.dispatchEvent(new CustomEvent('drive-save-error', { detail: { key, error: err } }));
             throw err;
         }
@@ -35,12 +60,14 @@ export class DriveStorageService implements IStorageService {
     async load<T = unknown>(key: string): Promise<T | null> {
         try {
             const filename = this.toFilename(key);
-            const fileId = await this.findFileId(filename);
-            if (!fileId) return null;
-            const res = await this.apiFetch(`${DRIVE_FILES_URL}/${fileId}?alt=media`);
+            const meta = await this.findFileWithMeta(filename);
+            if (!meta) return null;
+            const res = await this.apiFetch(`${DRIVE_FILES_URL}/${meta.id}?alt=media`);
             if (!res.ok) return null;
             const text = await res.text();
             if (!text) return null;
+            // Record the mtime we just loaded — this is our conflict baseline
+            this.storeMtime(filename, meta.modifiedTime);
             return JSON.parse(text) as T;
         } catch (err) {
             console.error(`[DriveStorageService] load failed for "${key}":`, err);
@@ -60,16 +87,32 @@ export class DriveStorageService implements IStorageService {
     }
 
     async delete(key: string): Promise<void> {
-        const fileId = await this.findFileId(this.toFilename(key));
-        if (fileId) await this.apiFetch(`${DRIVE_FILES_URL}/${fileId}`, { method: 'DELETE' });
+        const meta = await this.findFileWithMeta(this.toFilename(key));
+        if (meta) {
+            await this.apiFetch(`${DRIVE_FILES_URL}/${meta.id}`, { method: 'DELETE' });
+            this.clearMtime(this.toFilename(key));
+        }
     }
 
     async sync(): Promise<void> { }
 
+    // ── Conflict resolution helpers ────────────────────────────────────────────
+
+    /** Force-save, ignoring any conflict — used after user clicks "Overwrite". */
+    async forceSave(key: string, data: unknown): Promise<void> {
+        return this.save(key, data, true);
+    }
+
+    /** Fetch the latest Drive data for a key — used in conflict resolution. */
+    async fetchDriveData<T = unknown>(key: string): Promise<T | null> {
+        return this.load<T>(key);
+    }
+
+    // ── PDF upload (unchanged) ─────────────────────────────────────────────────
+
     async uploadPDFFile(filename: string, bytes: Uint8Array): Promise<{ id: string; webViewLink: string }> {
         const DRIVE_FOLDER_NAME = 'AI CV Builder';
 
-        // Find or create the "AI CV Builder" folder in My Drive
         let folderId: string | null = null;
         const folderSearch = await this.apiFetch(
             `${DRIVE_FILES_URL}?q=name%3D%27${encodeURIComponent(DRIVE_FOLDER_NAME)}%27+and+mimeType%3D%27application%2Fvnd.google-apps.folder%27+and+trashed%3Dfalse&fields=files(id)&spaces=drive`
@@ -114,6 +157,8 @@ export class DriveStorageService implements IStorageService {
         return await res.json();
     }
 
+    // ── Private helpers ────────────────────────────────────────────────────────
+
     private toFilename(key: string): string {
         return `cvb__${key.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
     }
@@ -123,17 +168,61 @@ export class DriveStorageService implements IStorageService {
         return m ? m[1] : '';
     }
 
-    private async findFileId(filename: string): Promise<string | null> {
+    private storeMtime(filename: string, mtime: string): void {
+        try {
+            localStorage.setItem(MTIME_PREFIX + filename, mtime);
+        } catch { /* quota — mtime is best-effort */ }
+    }
+
+    private getStoredMtime(filename: string): string | null {
+        return localStorage.getItem(MTIME_PREFIX + filename);
+    }
+
+    private clearMtime(filename: string): void {
+        localStorage.removeItem(MTIME_PREFIX + filename);
+    }
+
+    private async checkConflict(
+        key: string,
+        filename: string,
+        remoteMeta: FileMeta,
+        localData: unknown,
+    ): Promise<void> {
+        const storedMtime = this.getStoredMtime(filename);
+
+        // No stored mtime → first time saving from this browser → no conflict
+        if (!storedMtime) return;
+
+        // Timestamps match → we're the last writer → safe to overwrite
+        if (storedMtime === remoteMeta.modifiedTime) return;
+
+        // Mismatch → someone else (or another tab/device) modified the file
+        // Load the Drive version so we can show it in the conflict dialog
+        let driveData: unknown = null;
+        try {
+            const res = await this.apiFetch(`${DRIVE_FILES_URL}/${remoteMeta.id}?alt=media`);
+            if (res.ok) {
+                const text = await res.text();
+                if (text) driveData = JSON.parse(text);
+            }
+        } catch { /* best-effort */ }
+
+        throw new DriveConflictError(key, localData, driveData, remoteMeta.modifiedTime, storedMtime);
+    }
+
+    /** Find a file in appDataFolder and return its id + modifiedTime. */
+    private async findFileWithMeta(filename: string): Promise<FileMeta | null> {
         const res = await this.apiFetch(
-            `${DRIVE_FILES_URL}?spaces=appDataFolder&q=name%3D%27${encodeURIComponent(filename)}%27&fields=files(id)`
+            `${DRIVE_FILES_URL}?spaces=appDataFolder&q=name%3D%27${encodeURIComponent(filename)}%27&fields=files(id,modifiedTime)`
         );
         if (!res.ok) return null;
         const json = await res.json();
-        return json.files?.[0]?.id ?? null;
+        const file = json.files?.[0];
+        if (!file?.id) return null;
+        return { id: file.id, modifiedTime: file.modifiedTime };
     }
 
-    private async createFile(filename: string, content: string): Promise<void> {
-        // 1. Create file with metadata (empty content)
+    private async createFile(filename: string, content: string): Promise<string | null> {
         const metaRes = await this.apiFetch(DRIVE_FILES_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -141,17 +230,26 @@ export class DriveStorageService implements IStorageService {
         });
         if (!metaRes.ok) throw new Error(`Could not create file on Drive: ${metaRes.statusText}`);
         const { id } = await metaRes.json();
-
-        // 2. Upload the content
-        await this.patchFile(id, content);
+        return this.patchFile(id, content);
     }
 
-    private async patchFile(fileId: string, content: string): Promise<void> {
-        await this.apiFetch(`${DRIVE_UPLOAD_URL}/${fileId}?uploadType=media`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: content,
-        });
+    /** Patch file content and return the new modifiedTime from Drive. */
+    private async patchFile(fileId: string, content: string): Promise<string | null> {
+        const res = await this.apiFetch(
+            `${DRIVE_UPLOAD_URL}/${fileId}?uploadType=media&fields=modifiedTime`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: content,
+            }
+        );
+        if (!res.ok) return null;
+        try {
+            const json = await res.json();
+            return json.modifiedTime ?? null;
+        } catch {
+            return null;
+        }
     }
 
     private async apiFetch(url: string, init: RequestInit = {}): Promise<Response> {

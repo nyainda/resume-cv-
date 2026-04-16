@@ -9,11 +9,35 @@
 //   - Every read tries localStorage first (instant), falls back to IndexedDB.
 //   - On load, if localStorage is empty (cache cleared) we restore from IndexedDB.
 //
-// This module is intentionally simple — no reactivity, just raw get/set/restore.
+// Quota handling:
+//   - If IDB write fails with QuotaExceededError, we evict the largest
+//     non-critical entries and retry once. If it still fails we log a warning
+//     but never crash — localStorage still has the data.
 
 const DB_NAME = 'cv_builder_appdata';
 const DB_VERSION = 1;
 const STORE = 'kv';
+
+// Keys we can safely evict from IDB when quota is hit
+const EVICTABLE_IDB_KEYS = [
+    'cv_builder:jb_pageCache',
+    'cv_builder:jb_jsResults',
+    'cv_builder:jb_searchResults',
+    'cv_builder:jb_seenIds',
+];
+
+// Keys that must never be auto-evicted
+const PROTECTED_SUFFIXES = [
+    'userProfile', 'savedCVs', 'profiles', 'trackedApps', 'currentCV',
+    'apiSettings', 'activeProfileId',
+];
+
+function isQuotaError(err: unknown): boolean {
+    if (err instanceof DOMException) {
+        return err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED';
+    }
+    return false;
+}
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
@@ -29,17 +53,92 @@ function openDB(): Promise<IDBDatabase> {
     });
 }
 
-export async function idbAppSet(key: string, value: unknown): Promise<void> {
+async function idbPut(key: string, value: unknown): Promise<void> {
+    const db = await openDB();
+    return new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite');
+        const req = tx.objectStore(STORE).put(JSON.stringify(value), key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function idbDelete(key: string): Promise<void> {
     try {
         const db = await openDB();
         await new Promise<void>((resolve, reject) => {
             const tx = db.transaction(STORE, 'readwrite');
-            const req = tx.objectStore(STORE).put(JSON.stringify(value), key);
+            const req = tx.objectStore(STORE).delete(key);
             req.onsuccess = () => resolve();
             req.onerror = () => reject(req.error);
         });
-    } catch {
-        // IDB not available — localStorage-only is acceptable fallback
+    } catch { /* best-effort */ }
+}
+
+async function evictIDBCacheKeys(): Promise<void> {
+    for (const key of EVICTABLE_IDB_KEYS) {
+        await idbDelete(key);
+    }
+}
+
+async function evictLargestIDBEntries(): Promise<void> {
+    try {
+        const db = await openDB();
+        const entries: { key: string; size: number }[] = [];
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(STORE, 'readonly');
+            const req = tx.objectStore(STORE).openCursor();
+            req.onsuccess = () => {
+                const cursor = req.result;
+                if (cursor) {
+                    const k = cursor.key as string;
+                    const isProtected = PROTECTED_SUFFIXES.some(s => k.endsWith(s));
+                    if (!isProtected) {
+                        const size = typeof cursor.value === 'string' ? cursor.value.length : 0;
+                        entries.push({ key: k, size });
+                    }
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            req.onerror = () => reject(req.error);
+        });
+        // Evict the 5 largest non-protected entries
+        entries.sort((a, b) => b.size - a.size);
+        for (const e of entries.slice(0, 5)) {
+            await idbDelete(e.key);
+        }
+    } catch { /* best-effort */ }
+}
+
+export async function idbAppSet(key: string, value: unknown): Promise<void> {
+    try {
+        await idbPut(key, value);
+    } catch (err) {
+        if (!isQuotaError(err)) {
+            // Non-quota error — log but don't crash (localStorage is our primary)
+            console.warn('[AppDataPersistence] IDB write failed (non-quota):', err);
+            return;
+        }
+
+        // Quota hit — try to free space
+        try {
+            await evictIDBCacheKeys();
+            await idbPut(key, value);
+            return;
+        } catch (err2) {
+            if (!isQuotaError(err2)) return; // still non-quota, give up
+        }
+
+        // Second eviction round: remove largest non-protected
+        try {
+            await evictLargestIDBEntries();
+            await idbPut(key, value);
+        } catch {
+            // IDB is critically full — localStorage still has the data, just warn
+            console.warn(`[AppDataPersistence] IDB quota full — key "${key}" only saved to localStorage.`);
+        }
     }
 }
 
@@ -95,19 +194,21 @@ export async function restoreLocalStorageFromIDB(): Promise<void> {
     if (_restored) return;
     _restored = true;
 
-    // Get everything from IDB
     const idbData = await idbAppGetAll();
     const entries = Object.entries(idbData);
     if (entries.length === 0) return;
 
-    // For every item in IDB, if it's missing in localStorage, restore it.
-    // This handles both total cache clears AND partial ones.
     for (const [key, value] of entries) {
         if (localStorage.getItem(key) === null) {
             try {
                 localStorage.setItem(key, JSON.stringify(value));
             } catch (err) {
-                console.warn(`[AppDataPersistence] Restore failed for ${key}:`, err);
+                // localStorage is full even on restore — skip non-critical keys
+                const isProtected = PROTECTED_SUFFIXES.some(s => key.endsWith(s));
+                if (isProtected) {
+                    console.warn(`[AppDataPersistence] Restore failed for critical key ${key}:`, err);
+                }
+                // Non-critical keys are fine to skip
             }
         }
     }

@@ -28,6 +28,7 @@ import NegotiationCoach from './components/NegotiationCoach';
 import PortalScanner from './components/PortalScanner';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import LandingPage from './components/LandingPage';
+import DriveConflictModal from './components/DriveConflictModal';
 import {
   Edit, User, List, Settings, FileText, Target,
   Moon, Sun, BookOpen, Globe, Sparkles,
@@ -211,6 +212,18 @@ const AppInner: React.FC = () => {
     };
     window.addEventListener('drive-save-error', handleDriveError);
     return () => window.removeEventListener('drive-save-error', handleDriveError);
+  }, [toast]);
+
+  // ── Storage quota warning toast ──────────────────────────────────────────
+  useEffect(() => {
+    const handleQuota = () => {
+      toast.warning(
+        'Storage Almost Full',
+        'Your browser storage is nearly full. Some temporary job search cache was removed. Consider clearing unused data or enabling Google Drive sync.',
+      );
+    };
+    window.addEventListener('storage-quota-warning', handleQuota);
+    return () => window.removeEventListener('storage-quota-warning', handleQuota);
   }, [toast]);
 
   useEffect(() => {
@@ -943,6 +956,17 @@ const AppInner: React.FC = () => {
           onClose={() => setShowProfileManager(false)}
         />
       )}
+
+      {/* ── Google Drive conflict resolution modal ── */}
+      <DriveConflictModal
+        onResolved={(key, action) => {
+          if (action === 'overwrite') {
+            toast.success('Conflict Resolved', `Your local version of "${key}" was pushed to Drive.`);
+          } else if (action === 'pull') {
+            toast.success('Conflict Resolved', `Drive version of "${key}" loaded — refreshing data.`);
+          }
+        }}
+      />
     </div>
   );
 };

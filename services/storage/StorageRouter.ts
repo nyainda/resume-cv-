@@ -5,19 +5,18 @@
 // When Google Drive is active:
 //   • save()  → writes to localStorage FIRST (fast, synchronous-ish) then to Drive.
 //               If Drive fails the local copy is still up-to-date.
+//               If Drive returns a CONFLICT, we dispatch drive-conflict and skip
+//               overwriting Drive — the user will decide what to do.
 //   • load()  → reads from Drive (authoritative), writes result to localStorage cache,
 //               falls back to localStorage if Drive is unreachable.
 //
 // When Drive is not active (not signed in / token expired):
 //   • Falls through to LocalStorageService (localStorage + IndexedDB).
-//
-// This write-through strategy ensures that synchronous consumers (e.g.
-// geminiService reading directly from localStorage) always see fresh data,
-// even when Google Drive is the primary storage backend.
 
 import { IStorageService } from './IStorageService';
 import { LocalStorageService } from './LocalStorageService';
 import { DriveStorageService } from './DriveStorageService';
+import { DriveConflictError, dispatchConflict } from './storageErrors';
 
 const TOKEN_KEY = 'cv_gdrive_token';
 const EXPIRY_KEY = 'cv_gdrive_expiry';
@@ -40,10 +39,6 @@ function getDriveService(token: string): DriveStorageService {
 }
 
 // ── Write-through Drive wrapper ───────────────────────────────────────────
-//
-// Wraps DriveStorageService so that every save also updates the local
-// cache and every load populates the local cache. This makes localStorage
-// always contain a fresh copy of Drive data for synchronous consumers.
 
 class WriteThroughDriveService implements IStorageService {
     readonly isPersistent = true;
@@ -58,17 +53,34 @@ class WriteThroughDriveService implements IStorageService {
     }
 
     async save(key: string, data: unknown): Promise<void> {
-        // 1. Write to localStorage immediately so synchronous readers
-        //    (e.g. geminiService) always see the freshest value.
+        // 1. Write to localStorage immediately so synchronous readers always
+        //    see the freshest value, regardless of Drive outcome.
         await this.local.save(key, data);
 
-        // 2. Write to Drive. If this throws, the local copy is still good.
-        //    The drive-save-error event will surface the error to the user.
-        await this.drive.save(key, data);
+        // 2. Write to Drive with optimistic-locking conflict check.
+        try {
+            await this.drive.save(key, data);
+        } catch (err) {
+            if (err instanceof DriveConflictError) {
+                // Dispatch an event so the UI can show the conflict dialog.
+                // We do NOT overwrite Drive — local has the user's edits, which
+                // they can choose to push or discard via the conflict UI.
+                dispatchConflict({
+                    key: err.key,
+                    localData: err.localData,
+                    driveData: err.driveData,
+                    driveModifiedAt: err.driveModifiedAt,
+                    storedModifiedAt: err.storedModifiedAt,
+                });
+                return; // don't re-throw — local write already succeeded
+            }
+            // Non-conflict Drive error — surface it but local write is good.
+            throw err;
+        }
     }
 
     async load<T = unknown>(key: string): Promise<T | null> {
-        // 1. Try Drive first (it is the authoritative source).
+        // 1. Try Drive first (authoritative source).
         try {
             const driveData = await this.drive.load<T>(key);
             if (driveData !== null) {
@@ -98,6 +110,22 @@ class WriteThroughDriveService implements IStorageService {
     }
 
     async sync(): Promise<void> { }
+
+    // ── Conflict resolution helpers exposed to UI ─────────────────────────
+
+    /** Force-push local data to Drive, bypassing conflict check. */
+    async forceSaveToDrive(key: string, data: unknown): Promise<void> {
+        await this.drive.forceSave(key, data);
+    }
+
+    /** Pull Drive version of a key into localStorage (discards local). */
+    async pullFromDrive(key: string): Promise<unknown> {
+        const driveData = await this.drive.fetchDriveData(key);
+        if (driveData !== null) {
+            await this.local.save(key, driveData);
+        }
+        return driveData;
+    }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────
@@ -111,6 +139,18 @@ export function getStorageService(): IStorageService {
         return new WriteThroughDriveService(drive, local);
     }
     return getCacheService();
+}
+
+/** Returns the WriteThroughDriveService if Drive is active, null otherwise. */
+export function getDriveRouter(): WriteThroughDriveService | null {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
+    if (token && Date.now() < expiry) {
+        const drive = getDriveService(token);
+        const local = getCacheService();
+        return new WriteThroughDriveService(drive, local);
+    }
+    return null;
 }
 
 export function isDriveActive(): boolean {
@@ -145,7 +185,8 @@ export async function migrateLocalToDrive(
     let uploaded = 0;
     for (const [key, value] of entries) {
         if (key === MIGRATION_FLAG) continue;
-        await drive.save(key, value);
+        // Skip conflict check during migration — we are the authoritative source
+        await drive.forceSave(key, value);
         uploaded++;
         onProgress?.(uploaded, entries.length);
     }
