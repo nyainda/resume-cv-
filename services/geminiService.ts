@@ -758,6 +758,49 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
     return result.trim().replace(/^- /gm, '• ');
 };
 
+export const generateQuantifiedAchievements = async (
+    responsibilities: string,
+    jobTitle: string,
+    company: string,
+): Promise<Array<{ original: string; quantified: string; hasMetric: boolean }>> => {
+    const bullets = responsibilities
+        .split('\n')
+        .map(l => l.replace(/^[\u2022\-\*]|\d+\.\s*/, '').trim())
+        .filter(b => b.length > 4);
+
+    if (bullets.length === 0) throw new Error('No bullet points found. Add some responsibilities first.');
+
+    const prompt = `
+You are a career coach who specialises in achievement quantification for resumes.
+
+For each bullet point from a ${jobTitle} at ${company}, do the following:
+- Determine if it already contains a quantifiable metric (%, a number, $, timeframe, team size, etc.).
+- If it does NOT have a metric, rewrite it to include one realistic, plausible metric based on typical industry standards for this role. Never invent an implausible number.
+- If it already HAS a clear metric, return it unchanged and mark hasMetric as true.
+- Keep rewrites under 25 words. Preserve the original action verb.
+- Do not add commentary. Do not change facts.
+
+Bullet points to analyse:
+${bullets.map((b, i) => `${i + 1}. ${b}`).join('\n')}
+
+Return ONLY a valid JSON array — no markdown fences, no explanation:
+[
+  { "original": "exact original text", "quantified": "improved version", "hasMetric": false }
+]
+`;
+    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.55 });
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('Could not parse AI response. Please try again.');
+
+    const parsed = JSON.parse(match[0]) as Array<{ original: string; quantified: string; hasMetric: boolean }>;
+
+    // Ensure count matches input
+    const out = bullets.map((b, i) =>
+        parsed[i] ?? { original: b, quantified: b, hasMetric: true }
+    );
+    return out;
+};
+
 export const generateEnhancedProjectDescription = async (projectName: string, currentDescription: string): Promise<string> => {
     const prompt = `
       You are a tech portfolio expert. Rewrite and enhance the provided project description into a single, concise, professional paragraph for a technical resume.

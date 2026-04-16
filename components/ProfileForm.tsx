@@ -10,8 +10,9 @@ import {
   extractProfileTextFromFile,
   generateEnhancedSummary,
   generateEnhancedResponsibilities,
-  generateEnhancedProjectDescription
+  generateEnhancedProjectDescription,
 } from '../services/geminiService';
+import QuantifyPanel from './QuantifyPanel';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
@@ -159,6 +160,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
+  const [quantifyingEntry, setQuantifyingEntry] = useState<number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const [customSections, setCustomSections] = useState<CustomSection[]>(existingProfile?.customSections || []);
@@ -548,13 +550,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                   <Label className="text-xs">Responsibilities & Achievements</Label>
-                  <EnhanceBtn
-                    loading={isEnhancing === `responsibilities.${index}`}
-                    disabled={!apiKeySet || !!isEnhancing}
-                    onClick={() => handleEnhance('responsibilities', index)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!apiKeySet || !!isEnhancing || quantifyingEntry !== null}
+                      onClick={() => setQuantifyingEntry(index)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      title="Add numbers and metrics to each bullet point"
+                    >
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      </svg>
+                      <span>Quantify</span>
+                    </button>
+                    <EnhanceBtn
+                      loading={isEnhancing === `responsibilities.${index}`}
+                      disabled={!apiKeySet || !!isEnhancing}
+                      onClick={() => handleEnhance('responsibilities', index)}
+                    />
+                  </div>
                 </div>
                 <Textarea
                   {...register(`workExperience.${index}.responsibilities`, { required: true })}
@@ -1047,6 +1063,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   };
 
   return (
+    <>
+    {quantifyingEntry !== null && (
+      <QuantifyPanel
+        responsibilities={watch(`workExperience.${quantifyingEntry}.responsibilities`) || ''}
+        jobTitle={watch(`workExperience.${quantifyingEntry}.jobTitle`) || ''}
+        company={watch(`workExperience.${quantifyingEntry}.company`) || ''}
+        onApply={(newText) => setValue(`workExperience.${quantifyingEntry}.responsibilities`, newText)}
+        onClose={() => setQuantifyingEntry(null)}
+      />
+    )}
     <div className="bg-white dark:bg-neutral-800/50 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800 overflow-hidden">
 
       {/* ── Top header ───────────────────────────────────────────────────── */}
@@ -1162,6 +1188,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         </div>
       </form>
     </div>
+    </>
   );
 };
 
