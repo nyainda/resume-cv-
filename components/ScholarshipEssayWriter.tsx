@@ -129,8 +129,8 @@ const ScholarshipEssayWriter: React.FC<ScholarshipEssayWriterProps> = ({ userPro
             });
             setGeneratedEssay(essay);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Unknown error';
-            setError(`Essay generation failed: ${msg}`);
+            const e = err as any;
+            setError(e?.isUserFacing ? e.message : `Essay generation failed: ${e?.message || 'Unknown error'}`);
         } finally {
             setIsLoading(false);
         }

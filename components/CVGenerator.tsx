@@ -19,6 +19,36 @@ import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
 
+/**
+ * Converts any caught error into a short, user-readable string.
+ * Respects the `isUserFacing` flag set by groqService/geminiService for
+ * already-humanised messages (rate limits, quota, etc.).
+ */
+function friendlyError(err: unknown, action = 'complete that action'): string {
+  if (err instanceof Error) {
+    if ((err as any).isUserFacing) return err.message;
+    const m = err.message.toLowerCase();
+    if (m.includes('api key') || m.includes('invalid_api_key')) {
+      return 'Invalid API key — please check your key in Settings.';
+    }
+    if (m.includes('rate') || m.includes('429')) {
+      return 'Rate limit reached. Wait 30–60 seconds and try again.';
+    }
+    if (m.includes('quota') || m.includes('daily')) {
+      return 'Daily AI limit reached. Usage resets at midnight UTC.';
+    }
+    if (m.includes('503') || m.includes('overload') || m.includes('unavailable')) {
+      return 'The AI service is temporarily overloaded. Please try again in a few seconds.';
+    }
+    // Truncate raw tech messages but keep them readable
+    const clean = err.message.replace(/^Groq \d+:\s*/i, '').replace(/\{[\s\S]*\}/, '').trim();
+    return clean.length > 0
+      ? `Could not ${action}: ${clean.substring(0, 140)}${clean.length > 140 ? '…' : ''}`
+      : `Could not ${action}. Please try again.`;
+  }
+  return `Could not ${action}. Please try again.`;
+}
+
 const REACT_PDF_TEMPLATES: string[] = [];
 
 const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -191,12 +221,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       }
       setCurrentCV(generatedData);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-      let displayError = `Failed to generate CV: ${errorMessage}`;
-      if (errorMessage.toLowerCase().includes('api key')) {
-        displayError = "Failed to generate CV. Your API Key seems to be invalid. Please check it in the settings.";
-      }
-      setError(displayError);
+      setError(friendlyError(err, 'generate your CV'));
     } finally {
       setIsLoading(false);
       setLoadingMessage('Generating...');
@@ -219,12 +244,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       const letter = await generateCoverLetter(userProfile, jobDescription);
       setCoverLetter(letter);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-      let displayError = `Failed to generate cover letter: ${errorMessage}`;
-      if (errorMessage.toLowerCase().includes('api key')) {
-        displayError = "Failed to generate cover letter. Your API Key seems to be invalid. Please check it in the settings.";
-      }
-      setCoverLetterError(displayError);
+      setCoverLetterError(friendlyError(err, 'generate your cover letter'));
     } finally {
       setIsGeneratingCoverLetter(false);
     }
@@ -253,8 +273,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       }
       setJobDescription(prev => `${prev}\n\n${extractedTexts.join('\n\n---\n\n')}`.trim());
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-      setError(`Failed to process files: ${errorMessage}`);
+      setError(friendlyError(err, 'process your files'));
     } finally {
       setIsLoading(false);
       setLoadingMessage('Generating...');

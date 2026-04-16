@@ -29,6 +29,50 @@ export function hasGroqKey(): boolean {
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
+/**
+ * Converts a raw Groq API error response into a short, user-readable message.
+ * Called whenever the HTTP response is not OK.
+ */
+function parseGroqError(status: number, rawBody: string): string {
+    let code = '';
+    let apiMsg = '';
+    try {
+        const parsed = JSON.parse(rawBody);
+        code   = parsed?.error?.code    || parsed?.error?.type    || '';
+        apiMsg = parsed?.error?.message || '';
+    } catch { /* body wasn't JSON */ }
+
+    const c = code.toLowerCase();
+    const m = apiMsg.toLowerCase();
+
+    if (status === 429 || c.includes('rate') || m.includes('rate limit')) {
+        if (c.includes('daily') || c.includes('quota') || m.includes('daily') || m.includes('quota') || m.includes('exceeded your')) {
+            return 'Daily AI limit reached on your Groq account. Usage resets at midnight UTC — or check console.groq.com to upgrade.';
+        }
+        // Extract retry-after hint if present
+        const seconds = m.match(/try again in (\d+(?:\.\d+)?)\s*s/i)?.[1];
+        const wait = seconds ? ` Wait about ${Math.ceil(Number(seconds))} seconds.` : ' Wait 30–60 seconds.';
+        return `Rate limit reached on your Groq account.${wait} Then try again.`;
+    }
+
+    if (status === 401 || c.includes('invalid_api_key') || m.includes('invalid api key')) {
+        return 'Invalid Groq API key — please check it in Settings.';
+    }
+
+    if (status === 503 || c.includes('overload') || m.includes('overload') || m.includes('unavailable')) {
+        return 'The AI service is temporarily overloaded. Please try again in a few seconds.';
+    }
+
+    if (status === 400) {
+        return `Bad request sent to the AI (${c || 'unknown'}). If this keeps happening, try regenerating.`;
+    }
+
+    // Fallback — show a short clean message, never the raw JSON
+    return apiMsg
+        ? apiMsg.length > 120 ? apiMsg.substring(0, 117) + '…' : apiMsg
+        : `AI request failed (status ${status}). Please try again.`;
+}
+
 async function retryGroq<T>(fn: () => Promise<T>, retries = 3, delay = 1200): Promise<T> {
     try {
         return await fn();
@@ -75,8 +119,10 @@ export async function groqChat(
         });
         if (!res.ok) {
             const text = await res.text();
-            const err: any = new Error(`Groq ${res.status}: ${text}`);
+            const friendly = parseGroqError(res.status, text);
+            const err: any = new Error(friendly);
             err.status = res.status;
+            err.isUserFacing = true;
             throw err;
         }
         const data = await res.json();
