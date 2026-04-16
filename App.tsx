@@ -607,7 +607,7 @@ const AppInner: React.FC = () => {
               <FileText className="h-5 w-5 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">AI CV Builder</h1>
+              <h1 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">CraftCV</h1>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Elite Career &amp; Scholarship Suite</p>
             </div>
           </button>

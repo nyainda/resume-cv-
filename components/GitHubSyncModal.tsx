@@ -69,7 +69,7 @@ async function ensureRepoExists(token: string, owner: string, repo: string): Pro
   } catch {
     await githubRequest('POST', '/user/repos', token, {
       name: repo,
-      description: 'CV backups — created by AI CV Builder',
+      description: 'CV backups — created by CraftCV',
       private: true,
       auto_init: true,
     });

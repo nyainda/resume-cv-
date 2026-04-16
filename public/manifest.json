@@ -1,7 +1,7 @@
 {
-  "name": "AI CV Builder",
-  "short_name": "CV Builder",
-  "description": "AI-powered CV and cover letter builder",
+  "name": "CraftCV — Build Your Career Story",
+  "short_name": "CraftCV",
+  "description": "Professional CV and cover letter builder with smart career tools",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

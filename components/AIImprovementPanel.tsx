@@ -112,8 +112,8 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-50">AI CV Coach</h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Reads, edits & improves your CV</p>
+              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Career Coach</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Reads, edits & strengthens your CV</p>
             </div>
           </div>
           <button

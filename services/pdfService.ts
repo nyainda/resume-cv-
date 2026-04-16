@@ -2757,7 +2757,7 @@ export const getCVAsPDFBytes = ({
 }: DownloadCVProps): ArrayBuffer => {
     const { jsPDF } = jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4', putOnlyUsedFonts: true });
-    doc.setProperties({ title: fileName.replace('.pdf', '').replace(/_/g, ' '), author: personalInfo.name, subject: `CV`, creator: 'AI CV Builder' });
+    doc.setProperties({ title: fileName.replace('.pdf', '').replace(/_/g, ' '), author: personalInfo.name, subject: `CV`, creator: 'CraftCV' });
     embedATSData(doc, jobDescription || '', doc.internal.pageSize.getWidth(), cvData);
     generatePdfForTemplate(template, doc, cvData, personalInfo, font);
     return doc.output('arraybuffer') as ArrayBuffer;
@@ -2822,7 +2822,7 @@ export const downloadCVAsPDF = ({
         title: fileName.replace('.pdf', '').replace(/_/g, ' '),
         author: personalInfo.name,
         subject: `CV for ${cvData.experience[0]?.jobTitle || 'Job Application'}`,
-        creator: 'AI CV Builder'
+        creator: 'CraftCV'
     });
 
     // ATS Optimization: Enhanced embedding with keyword extraction

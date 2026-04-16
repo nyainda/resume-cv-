@@ -144,8 +144,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
       >
         <div className="max-w-7xl mx-auto px-6 lg:px-10 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 flex items-center justify-center font-black text-sm" style={{ background: Y, color: '#111', borderRadius: 4 }}>C</div>
-            <span className="font-black tracking-tight text-sm" style={{ letterSpacing: '-0.02em' }}>Career Suite</span>
+            <div className="w-7 h-7 flex items-center justify-center font-black text-sm" style={{ background: Y, color: '#111', borderRadius: 4 }}>CV</div>
+            <span className="font-black tracking-tight text-sm" style={{ letterSpacing: '-0.02em' }}>CraftCV</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={onToggleDark} className="p-2 rounded-lg transition-colors" style={{ color: muted }}>
