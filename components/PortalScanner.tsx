@@ -760,9 +760,7 @@ const JobCard: React.FC<JobCardProps> = ({
 }) => {
   const [hovered, setHovered] = useState(false);
   const badge = pm(job.source);
-  const [c1, c2] = (['#4f46e5', '#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6']
-    .slice((job.company.charCodeAt(0) % 8), (job.company.charCodeAt(0) % 8) + 1)
-    .concat(['#7c3aed']));
+  const [c1, c2] = companyColor(job.company);
 
   return (
     <div
