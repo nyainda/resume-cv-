@@ -2,6 +2,7 @@
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, CVScore } from '../services/geminiService';
+import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCVAsPDF } from '../services/pdfService';
 import PDFDownloadButton from './PDFDownloadButton';
@@ -160,14 +161,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       return;
     }
     setIsLoading(true);
-    setLoadingMessage('Analyzing description...');
     setError(null);
     setIsEditing(false);
     setCoverLetter(null);
     setAtsDataEmbedded(false);
+
+    // Phase 1 — Market research (silent fail)
+    let marketResearch: MarketResearchResult | null = null;
+    try {
+      const { role } = detectRoleAndIndustry(userProfile, jobDescription);
+      setLoadingMessage(`Researching ${role} market trends...`);
+      marketResearch = await conductMarketResearch(userProfile, jobDescription);
+    } catch (err) {
+      console.warn('[CVGenerator] Market research failed silently:', err);
+    }
+
     try {
       setLoadingMessage('Generating your tailored CV...');
-      const generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat);
+      const generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch);
       if (userProfile.references && userProfile.references.length > 0) {
         generatedData.references = userProfile.references.map(ref => ({
           name: ref.name,
@@ -546,6 +557,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
             {!apiKeySet && inputMode === 'upload' && <p className="text-amber-600 text-sm mt-2">Please set your API key in settings to enable file uploads.</p>}
 
+            {/* Market research hint — shown when JD is blank in academic mode */}
+            {cvPurpose === 'academic' && inputMode === 'text' && !jobDescription.trim() && (
+              <p className="mt-2 text-xs text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                No description? We'll automatically research current market trends for your field before generating.
+              </p>
+            )}
+
             {cvPurpose === 'job' && (
               <JobAnalysis
                 jobDescription={jobDescription}
@@ -565,7 +584,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             <div>
               <p className="text-sm font-semibold text-violet-800 dark:text-violet-200">No job description needed</p>
               <p className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">
-                The AI will craft a powerful, well-rounded CV from your profile that works across multiple industries and roles. Great for cold applications, LinkedIn optimization, and networking.
+                We'll automatically research current market trends for your field before generating — then craft a powerful, well-rounded CV that works across industries. Great for cold applications, LinkedIn optimization, and networking.
               </p>
             </div>
           </div>

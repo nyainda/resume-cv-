@@ -1,0 +1,100 @@
+
+We want to add a Gemini web search step BEFORE Grok generates 
+the CV, to research current job market demands for the role.
+
+### Three scenarios to handle
+
+**Scenario A — No job description provided**
+- Analyse user profile data to detect their industry and role
+- Use that to drive the market research
+- Generate a strong general CV optimised for their field
+
+**Scenario B — Job title only (short input, under 100 words)**
+- Treat it as a role/company hint not a full JD
+- Use Gemini to build a virtual job description from web research
+- Search what that role/company typically requires
+
+**Scenario C — Full job description provided (100+ words)**
+- Extract role, industry, seniority, required tools/skills
+- Use Gemini to ENRICH beyond the JD
+- Find implicit market expectations not stated in the JD
+
+### Gemini search service to create
+
+Create services/marketResearch.ts
+
+The service should:
+
+1. Detect which scenario we are in (A, B or C) based on 
+   job description length and content
+
+2. Build appropriate Gemini search queries:
+   - "most in demand skills [role] [year]"
+   - "ATS keywords [industry] CV"
+   - "what recruiters look for [role]"
+   - "top tools and software [industry]"
+   - For engineering roles specifically also search:
+     "technical depth expected [engineering discipline] CV"
+     "certifications valued [role] [region]"
+
+3. Use Gemini with Google Search grounding enabled:
+   model: "gemini-2.0-flash"
+   tools: [{ googleSearch: {} }]
+
+4. Return a structured market research object:
+{
+  detectedRole: string,
+  detectedIndustry: string,
+  topSkills: string[],
+  atsKeywords: string[],
+  expectedTools: string[],
+  industryInsights: string, // narrative summary
+  scenario: 'A' | 'B' | 'C',
+  searchedAt: timestamp
+}
+
+### How it plugs into generation
+
+In the existing CV generation flow, BEFORE calling Grok:
+1. Call marketResearch service
+2. Pass the result as additional context to Grok's prompt:
+
+"Use this current market intelligence to inform the CV:
+ Top skills: [topSkills]
+ ATS keywords: [atsKeywords]  
+ Expected tools: [expectedTools]
+ Industry insights: [industryInsights]
+ 
+ Important rules based on industry insights:
+ - Show contributions not just duties
+ - Include specific tools used in each role
+ - Highlight project types with technical detail
+ - Surface strongest projects prominently
+ - Every bullet point must show impact or value"
+
+### Gemini API call structure
+
+const genAI = new GoogleGenerativeAI(apiKey)
+const model = genAI.getGenerativeModel({ 
+  model: "gemini-2.0-flash",
+  tools: [{ googleSearch: {} }]
+})
+
+### UI changes needed
+
+In the CV generation form:
+- If job description field is empty, show helper text:
+  "No job description? We'll research your industry 
+   automatically"
+- Show a small indicator during generation:
+  "Researching [detected role] market..." 
+  then "Generating your CV..."
+- Do not block generation if search fails — 
+  fall back to generating without market data gracefully
+
+### Error handling
+- If Gemini search fails → log error, continue to Grok 
+  without market data, do not show error to user
+- If role/industry cannot be detected → use user's most 
+  recent job title from their profile as fallback
+- Never block CV generation due to search failure

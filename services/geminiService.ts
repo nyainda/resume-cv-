@@ -2,6 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
+import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
@@ -332,7 +333,8 @@ export const generateCV = async (
     contextDescription: string,
     generationMode: CVGenerationMode,
     purpose: 'job' | 'academic' | 'general',
-    scholarshipFormat: ScholarshipFormat = 'standard'
+    scholarshipFormat: ScholarshipFormat = 'standard',
+    marketResearch?: MarketResearchResult | null
 ): Promise<CVData> => {
 
     // Keyword extraction only when a description is provided
@@ -584,6 +586,12 @@ export const generateCV = async (
     // Prepend section order + custom section notes (if any) to the prompt
     if (sectionOrderInstruction) {
         mainPromptInstruction = `${sectionOrderInstruction}\n\n${mainPromptInstruction}`;
+    }
+
+    // Prepend live market intelligence (if research succeeded)
+    if (marketResearch) {
+        const marketBlock = buildMarketIntelligencePrompt(marketResearch);
+        mainPromptInstruction = `${marketBlock}\n\n${mainPromptInstruction}`;
     }
 
     const temperature = purpose === 'academic' ? 0.5 :

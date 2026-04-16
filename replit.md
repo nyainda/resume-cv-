@@ -9,8 +9,9 @@ A full-featured React + Vite PWA for building, managing, and downloading profess
 - **AI — Text Generation**: Groq API (OpenAI-compatible, direct fetch)
   - `llama-3.3-70b-versatile` → CV generation, cover letters, rewriting, essays
   - `llama-3.1-8b-instant` → Fast ATS analysis, keyword extraction, CV scoring
-- **AI — Vision/Multimodal**: Google Gemini 2.5 Flash via `@google/genai`
+- **AI — Vision/Multimodal + Market Research**: Google Gemini 2.5 Flash / 2.0 Flash via `@google/genai`
   - PDF upload, image parsing (file text extraction only)
+  - **Google Search grounding** (gemini-2.0-flash): Pre-generation market research via `services/marketResearch.ts`
 - **PDF Generation**: jsPDF (CDN) + html2canvas (CDN) — legacy; `@react-pdf/renderer` for Professional/Standard Pro/Minimalist templates
 - **Sharing**: Privacy-first shareable links via `lz-string` URL hash encoding (no backend)
 - **GitHub Sync**: PAT-based CV backup to private GitHub repos via REST API
@@ -48,7 +49,8 @@ components/
 
 services/
   groqService.ts        — Groq AI client (OpenAI-compatible fetch) for all text generation
-  geminiService.ts      — Routes text tasks to Groq; keeps Gemini only for PDF/image vision
+  geminiService.ts      — Routes text tasks to Groq; keeps Gemini only for PDF/image vision; accepts optional MarketResearchResult to inject market context into CV generation prompt
+  marketResearch.ts     — Pre-generation market intelligence service: Gemini 2.0 Flash + Google Search grounding; detects Scenario A/B/C; returns topSkills, atsKeywords, expectedTools, industryInsights; always fails silently
   pdfService.ts         — Legacy programmatic jsPDF (kept but superseded by html2canvas)
   brevoService.ts       — Brevo email sending
   tavilyService.ts      — Job board search + full JD fetch
@@ -68,7 +70,7 @@ auth/
 ## Key Features
 
 - **Multiple profiles** — Create, switch, rename, color-code, and delete named profiles
-- **AI CV Generation** — Tailored CVs using Gemini with honest/boosted/aggressive modes
+- **AI CV Generation** — Two-phase: Gemini Google Search grounding researches live market trends first (topSkills, ATS keywords, expected tools), then Groq generates the CV using that market intelligence. Three scenarios: A (no JD — profile-based research), B (short hint — builds virtual JD), C (full JD — enriches implicit expectations). Supports honest/boosted/aggressive modes
 - **25+ Templates** — All categories (professional, modern, creative, academic, technical)
 - **WYSIWYG PDF** — html2canvas captures the exact preview, ensuring download matches preview
 - **Email Apply** — Paste a JD, AI composes email + cover letter, send via Brevo directly
@@ -100,9 +102,10 @@ auth/
   - Powers: CV generation, cover letters, rewriting, scholarship essays, ATS analysis, CV scoring
   - `llama-3.3-70b-versatile` for quality tasks; `llama-3.1-8b-instant` for fast keyword/scoring tasks
   - Stored in `apiSettings.groqApiKey`
-- **Gemini API key** (optional — only for file/image uploads)
+- **Gemini API key** (optional — enables file uploads AND market research)
   - https://aistudio.google.com/app/apikey
-  - Powers: PDF upload → text extraction, image parsing
+  - Powers: PDF upload → text extraction, image parsing, pre-generation market research (Google Search grounding via gemini-2.0-flash)
+  - Market research always fails silently — CV generation proceeds with or without it
   - Stored in `apiSettings.apiKey`
 - Tavily API key — For job board search (optional)
 - Brevo API key — For direct email sending (optional, falls back to mailto)
