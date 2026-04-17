@@ -77,8 +77,16 @@ app.post('/api/generate-pdf', async (req, res) => {
 
     let browser = null;
     try {
+        const { execSync } = require('child_process');
+        let executablePath;
+        try {
+            executablePath = execSync('which chromium').toString().trim();
+        } catch {
+            executablePath = undefined;
+        }
         browser = await chromium.launch({
             headless: true,
+            ...(executablePath ? { executablePath } : {}),
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
