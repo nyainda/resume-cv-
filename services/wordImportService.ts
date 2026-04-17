@@ -87,7 +87,7 @@ function buildUserProfile(parsed: any): UserProfile {
 async function parseWithGroq(text: string): Promise<UserProfile> {
     const systemPrompt = `You are an expert CV parser. Extract all structured information from CV/resume text and return it as valid JSON. Do not invent data — only extract what is explicitly present. Return only valid JSON, no markdown, no code fences, no prose.`;
     const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 8000)}`;
-    const raw = await groqChat(GROQ_LARGE, systemPrompt, userPrompt, { temperature: 0.1 });
+    const raw = await groqChat(GROQ_FAST, systemPrompt, userPrompt, { temperature: 0.1 });
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
     return buildUserProfile(JSON.parse(cleaned));
 }

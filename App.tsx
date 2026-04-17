@@ -358,17 +358,20 @@ const AppInner: React.FC = () => {
     };
     setProfiles(prev => [...prev, slot]);
     setActiveProfileId(id);
+    // Clear the current CV so the new profile starts fresh
+    if (!cloneFrom) setCurrentCV(null);
     setIsEditingProfile(!cloneFrom); // jump to edit if blank
     setShowProfileManager(false);
     toast.success('Profile Created', `"${name}" is now your active profile.`);
-  }, [setProfiles, setActiveProfileId, toast]);
+  }, [setProfiles, setActiveProfileId, setCurrentCV, toast]);
 
   const handleSwitchProfile = useCallback((slot: UserProfileSlot) => {
     setActiveProfileId(slot.id);
+    setCurrentCV(null); // Clear old CV so the new profile starts fresh
     setIsEditingProfile(false);
     setShowProfileManager(false);
     toast.success('Profile Switched', `Now using "${slot.name}".`);
-  }, [setActiveProfileId, toast]);
+  }, [setActiveProfileId, setCurrentCV, toast]);
 
   const handleDeleteProfile = useCallback((id: string) => {
     setProfiles(prev => {
