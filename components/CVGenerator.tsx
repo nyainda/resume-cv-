@@ -145,6 +145,8 @@ interface CVGeneratorProps {
   onDismissToolkitSuggestions?: () => void;
   /** Called when the user saves STAR+R interview stories from the job analysis */
   onSaveStories?: (stories: import('../types').STARStory[]) => void;
+  /** Called when user clicks "Interview Prep" — passes the JD to pre-fill the prep tool */
+  onGoToInterviewPrep?: (jd: string) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -213,7 +215,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useState('');
   const [targetJobTitle, setTargetJobTitle] = useState('');
@@ -269,20 +271,26 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setIsEditing(false);
     setCoverLetter(null);
     setAtsDataEmbedded(false);
+    setCvScore(null);
 
     // Phase 1 — Market research (silent fail)
     let marketResearch: MarketResearchResult | null = null;
     try {
       const { role } = detectRoleAndIndustry(userProfile, jobDescription);
-      setLoadingMessage(`Researching ${role} market trends...`);
+      setLoadingMessage(`Researching ${role} market & salary benchmarks...`);
       marketResearch = await conductMarketResearch(userProfile, jobDescription);
     } catch (err) {
       console.warn('[CVGenerator] Market research failed silently:', err);
     }
 
+    let generatedData: CVData | null = null;
     try {
-      setLoadingMessage('Generating your tailored CV...');
-      const generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch, targetLanguage);
+      setLoadingMessage('Extracting JD keywords & role signals...');
+      await new Promise(r => setTimeout(r, 400));
+      setLoadingMessage('Crafting your tailored summary & bullets...');
+      generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch, targetLanguage);
+      setLoadingMessage('Applying ATS optimisation & humanisation...');
+      await new Promise(r => setTimeout(r, 300));
       if (userProfile.references && userProfile.references.length > 0) {
         generatedData.references = userProfile.references.map(ref => ({
           name: ref.name,
@@ -296,11 +304,25 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       setCurrentCV(generatedData);
     } catch (err) {
       setError(friendlyError(err, 'generate your CV'));
-    } finally {
       setIsLoading(false);
       setLoadingMessage('Generating...');
+      return;
     }
-  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired]);
+
+    // Phase 3 — Auto-score against JD (job mode only, silent fail)
+    if (generatedData && jobDescription.trim() && cvPurpose === 'job') {
+      try {
+        setLoadingMessage('Scoring CV against job description...');
+        const score = await scoreCV(generatedData, jobDescription);
+        setCvScore(score);
+      } catch {
+        // silent — score card just won't appear
+      }
+    }
+
+    setIsLoading(false);
+    setLoadingMessage('Generating...');
+  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage]);
 
   const handleGenerateCoverLetter = useCallback(async () => {
     if (!apiKeySet) {
@@ -897,6 +919,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   className="bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/40"
                 >
                   ✉️ Apply via Email
+                </Button>
+              )}
+              {onGoToInterviewPrep && cvPurpose === 'job' && jobDescription.trim() && (
+                <Button
+                  onClick={() => onGoToInterviewPrep(jobDescription)}
+                  disabled={isEditing}
+                  size="sm"
+                  variant="secondary"
+                  className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+                >
+                  🎤 Interview Prep
                 </Button>
               )}
             </div>

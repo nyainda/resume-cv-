@@ -614,7 +614,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
 
-    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 3500 });
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
     const cvData: CVData = JSON.parse(text.trim());
 
     // Carry through user's pre-filled custom sections (not AI-generated)
@@ -1152,6 +1152,86 @@ export const checkCVAgainstJob = async (
 
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 1024 });
     return JSON.parse(text.trim());
+};
+
+// ─── LinkedIn Profile Generator ──────────────────────────────────────────────
+
+export interface LinkedInProfileResult {
+    headline: string;
+    about: string;
+    summaryBullets: string[];
+    skills: string[];
+    featuredPost: string;
+    connectionMessage: string;
+    profileTips: string[];
+}
+
+export const generateLinkedInProfile = async (
+    profile: UserProfile,
+    targetRole?: string
+): Promise<LinkedInProfileResult> => {
+    const roleContext = targetRole ? `Target role/industry: ${targetRole}` : '';
+    const prompt = `
+You are an elite LinkedIn profile writer and personal branding strategist who has helped thousands of professionals land jobs at Google, Amazon, McKinsey, and top startups. You write profiles that get 10x more recruiter messages.
+
+CANDIDATE PROFILE:
+${compactProfile(profile)}
+${roleContext}
+
+Generate a complete, world-class LinkedIn profile package. Everything must sound like a real, accomplished human wrote it — NOT a template. Be specific, use real details from the profile.
+
+Return ONLY a JSON object:
+{
+  "headline": "string (120 chars max — NOT just job title. Formula: [What you do] | [Who you help] | [Key achievement or USP]. Make it irresistible to click. Include 2-3 JD keywords if target role provided. NEVER just 'Software Engineer at Company'.)",
+  "about": "string (2,000 chars max — the 'About' section. Structure: Hook sentence (fascinating fact or bold claim about them, 1-2 sentences). Core value prop (what they do and who they do it for, 2 sentences). Career highlight reel (3-4 specific achievements with numbers from their profile). Current focus (what they are working on and excited about, 1-2 sentences). Call to action (how to reach them and what for). Write in first person. Vary sentence length — mix punchy 5-word sentences with longer elaborative ones. NO AI clichés: no 'passionate', 'leverage', 'synergy', 'results-driven', 'dynamic', 'innovative'.)",
+  "summaryBullets": ["string array of 5 achievement bullets for the 'Featured' bullet summary style — each under 150 chars, starts with an emoji, has a metric"],
+  "skills": ["string array of 20 LinkedIn skills to add — ordered by endorsability and searchability for their role"],
+  "featuredPost": "string (a ready-to-post LinkedIn update, 150-200 words, announcing something impressive — a project, milestone, lesson learned. Professional but personal. Not 'excited to announce'. End with 3 relevant hashtags.)",
+  "connectionMessage": "string (a 300-char LinkedIn connection request message template — warm, specific, not salesy. Use [NAME] as placeholder.)",
+  "profileTips": ["string array of 5 specific, actionable tips to improve their LinkedIn presence based on their actual profile gaps — be specific about what to add/change"]
+}
+`;
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, json: true, maxTokens: 3000 });
+    return JSON.parse(text.trim()) as LinkedInProfileResult;
+};
+
+// ─── Thank-You Letter Generator ───────────────────────────────────────────────
+
+export const generateThankYouLetter = async (
+    profile: UserProfile,
+    jobDescription: string,
+    interviewerName?: string,
+    interviewType?: string
+): Promise<string> => {
+    const interviewer = interviewerName?.trim() || 'the hiring team';
+    const type = interviewType || 'interview';
+    const name = profile.personalInfo?.name || 'Candidate';
+
+    const prompt = `
+You are a top executive career coach. Write a compelling, human-sounding post-${type} thank-you letter that stands out and reinforces the candidate's candidacy.
+
+CANDIDATE NAME: ${name}
+INTERVIEWER: ${interviewer}
+
+CANDIDATE PROFILE:
+${compactProfile(profile)}
+
+JOB DESCRIPTION:
+${jobDescription.substring(0, 1500)}
+
+STRICT INSTRUCTIONS:
+1. Start DIRECTLY with "Dear ${interviewer}," — no header block.
+2. Opening (1 sentence): Thank them warmly and reference something specific from the ${type}.
+3. Reinforcement paragraph: Tie one specific thing discussed to a concrete achievement from the profile. Show you were listening and thinking.
+4. Value-add paragraph: Briefly mention one additional reason you are the right fit that didn't come up, or expand on something that was covered too briefly.
+5. Closing (1 sentence): Express genuine enthusiasm, confirm interest, offer next steps.
+6. Sign-off: "Warm regards," then the candidate's name on the next line: ${name}
+7. Length: 180-250 words. Concise, human, specific.
+8. Tone: Professional, warm, confident. NOT generic or gushing.
+9. NO AI clichés: no "excited", "thrilled", "leverage", "passionate".
+10. Return ONLY the letter text. No commentary.
+`;
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
 };
 
 // ─── Smart Cover Letter: JD + Company Research ───────────────────────────────

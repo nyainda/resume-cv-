@@ -9,18 +9,20 @@ interface Props {
 }
 
 const tools = [
-  { n: '01', name: 'CV Generator',       icon: '✦', desc: 'Tailors every CV to the exact job — keywords, tone, structure — tuned to beat any screening system.' },
-  { n: '02', name: 'Portal Scanner',      icon: '⊙', desc: '150+ company portals scanned in one click. Greenhouse, Ashby, Lever, and direct career pages.' },
-  { n: '03', name: 'Job Board',           icon: '◈', desc: 'Live job listings filtered by role and location. Curated signal, no noise.' },
-  { n: '04', name: 'CV Toolkit',          icon: '◎', desc: 'Deep analysis of your CV — weak bullet points flagged, compatibility scored, rewrite suggestions ready.' },
-  { n: '05', name: 'Scholarship Essays',  icon: '◇', desc: 'Personal statements and funding essays tailored to each institution\'s values, written with your voice.' },
-  { n: '06', name: 'Negotiation Coach',   icon: '▲', desc: 'Market-rate data, counter-offer scripts, and walk-away strategies for every salary conversation.' },
-  { n: '07', name: 'Email Apply',         icon: '▷', desc: 'One-click application emails — pulled from your profile and the job description, ready to send.' },
-  { n: '08', name: 'Application Tracker', icon: '⬡', desc: 'Kanban pipeline for every role you\'ve applied to. Interviews, follow-ups, deadlines — never missed.' },
-  { n: '09', name: 'Analytics',           icon: '◉', desc: 'Application velocity, response rates, and story coverage — your job search quantified.' },
-  { n: '10', name: 'PDF Merger',          icon: '⬢', desc: 'Combine CV, cover letter, and portfolio into a single clean document in seconds.' },
-  { n: '11', name: 'Profile Manager',     icon: '◑', desc: 'Multiple career identities — switch between software, design, finance — with full data separation.' },
-  { n: '12', name: 'Cloud Backup',        icon: '◐', desc: 'Your data stays in your browser by default. Link Google Drive for optional encrypted backup.' },
+  { n: '01', name: 'CV Generator',        icon: '✦', desc: 'Tailors every CV to the exact job — keywords, tone, structure — tuned to beat any screening system. Auto-scores against the JD.' },
+  { n: '02', name: 'LinkedIn Generator',  icon: '⬛', desc: 'AI-crafted headline, About section, 20 ranked skills, a ready-to-post update, and connection message. Copy-paste straight into LinkedIn.' },
+  { n: '03', name: 'Interview Prep',      icon: '◈', desc: '10 tailored interview questions with model answers — Behavioural, Technical, Situational, Culture, and Strength. Plus a post-interview thank-you letter.' },
+  { n: '04', name: 'Portal Scanner',      icon: '⊙', desc: '150+ company portals scanned in one click. Greenhouse, Ashby, Lever, and direct career pages.' },
+  { n: '05', name: 'Job Board',           icon: '◇', desc: 'Live job listings filtered by role and location. Curated signal, no noise.' },
+  { n: '06', name: 'CV Toolkit',          icon: '◎', desc: 'Deep analysis of your CV — weak bullet points flagged, compatibility scored, rewrite suggestions ready.' },
+  { n: '07', name: 'Scholarship Essays',  icon: '▽', desc: 'Personal statements and funding essays tailored to each institution\'s values, written with your voice.' },
+  { n: '08', name: 'Negotiation Coach',   icon: '▲', desc: 'Market-rate data, counter-offer scripts, and walk-away strategies for every salary conversation.' },
+  { n: '09', name: 'Email Apply',         icon: '▷', desc: 'One-click application emails — pulled from your profile and the job description, ready to send.' },
+  { n: '10', name: 'Application Tracker', icon: '⬡', desc: 'Kanban pipeline for every role you\'ve applied to. Interviews, follow-ups, deadlines — never missed.' },
+  { n: '11', name: 'Analytics',           icon: '◉', desc: 'Application velocity, response rates, and story coverage — your job search quantified.' },
+  { n: '12', name: 'PDF Merger',          icon: '⬢', desc: 'Combine CV, cover letter, and portfolio into a single clean document in seconds.' },
+  { n: '13', name: 'Profile Manager',     icon: '◑', desc: 'Multiple career identities — switch between software, design, finance — with full data separation.' },
+  { n: '14', name: 'Cloud Backup',        icon: '◐', desc: 'Your data stays in your browser by default. Link Google Drive for optional encrypted backup.' },
 ];
 
 const guarantees = [
@@ -188,7 +190,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               }}>Fully private.</span>
             </h1>
             <p className="text-base leading-relaxed max-w-md mb-8" style={{ color: muted }}>
-              Twelve AI-powered tools for building CVs, finding jobs, tracking applications, and negotiating offers —
+              Fourteen AI-powered tools for building CVs, optimising your LinkedIn, acing interviews, finding jobs, and negotiating offers —
               without ever giving up your data. No accounts. No subscriptions.
             </p>
 
@@ -211,7 +213,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               <button onClick={onGetStarted}
                 className="px-6 py-3 font-bold text-sm transition-all hover:opacity-70"
                 style={{ background: 'transparent', color: darkMode ? '#ccc' : '#333', border: `1.5px solid ${border}`, borderRadius: 8 }}>
-                See all 12 tools
+                See all 14 tools
               </button>
             </div>
           </div>

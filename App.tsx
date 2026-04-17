@@ -31,6 +31,8 @@ import LandingPage from './components/LandingPage';
 import DriveConflictModal from './components/DriveConflictModal';
 import AutoSaveIndicator from './components/AutoSaveIndicator';
 import OfflineBanner from './components/OfflineBanner';
+import LinkedInGenerator from './components/LinkedInGenerator';
+import InterviewPrep from './components/InterviewPrep';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoSync } from './hooks/useAutoSync';
 import {
@@ -55,6 +57,21 @@ const MergeNavIcon: React.FC<{ className?: string }> = ({ className }) => (
 const ScannerNavIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6" /><path d="M8 11h6" />
+  </svg>
+);
+
+const LinkedInNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+  </svg>
+);
+
+const InterviewNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <line x1="12" x2="12" y1="19" y2="22" />
+    <line x1="8" x2="16" y1="22" y2="22" />
   </svg>
 );
 
@@ -189,6 +206,9 @@ const AppInner: React.FC = () => {
 
   // Email apply pre-fill state (set by CV Generator)
   const [emailJd, setEmailJd] = useState<string>('');
+
+  // Interview prep pre-fill state (set by CV Generator)
+  const [interviewPrepJd, setInterviewPrepJd] = useState<string>('');
 
   // Toolkit → Generator feedback loop
   const [toolkitSuggestions, setToolkitSuggestions] = useState<string | null>(null);
@@ -514,6 +534,14 @@ const AppInner: React.FC = () => {
     toast.success('Email Apply Ready', 'JD pre-filled — AI will compose your email.');
   }, [toast]);
 
+  // Wire CV Generator → Interview Prep
+  const handleGoToInterviewPrep = useCallback((jd: string) => {
+    setInterviewPrepJd(jd);
+    setCurrentView('interview');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast.success('Interview Prep Ready', 'JD pre-filled — generating tailored questions.');
+  }, [toast]);
+
   // Wire CV Toolkit → CV Generator (Fix & Regenerate / Go to Generator)
   const handleGoToGenerator = useCallback((extraInstructions?: string) => {
     setCurrentView('generator');
@@ -573,6 +601,8 @@ const AppInner: React.FC = () => {
 
   const navItems = [
     { id: 'generator', label: 'CV Generator', icon: FileText },
+    { id: 'linkedin', label: 'LinkedIn', icon: LinkedInNavIcon },
+    { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
     { id: 'jobs', label: 'Job Board', icon: Globe },
     { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
     { id: 'toolkit', label: 'CV Toolkit', icon: Sparkles },
@@ -887,11 +917,31 @@ const AppInner: React.FC = () => {
                     apiKeySet={apiKeySet}
                     openSettings={() => setIsSettingsOpen(true)}
                     onApplyViaEmail={handleApplyViaEmail}
+                    onGoToInterviewPrep={handleGoToInterviewPrep}
                     savedCVs={savedCVs}
                     toolkitSuggestions={toolkitSuggestions}
                     onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}
                     onSaveStories={handleSaveStories}
                   />
+                )}
+                {currentView === 'linkedin' && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <LinkedInGenerator
+                      userProfile={userProfile!}
+                      apiKeySet={apiKeySet}
+                      openSettings={() => setIsSettingsOpen(true)}
+                    />
+                  </div>
+                )}
+                {currentView === 'interview' && (
+                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
+                    <InterviewPrep
+                      userProfile={userProfile!}
+                      apiKeySet={apiKeySet}
+                      openSettings={() => setIsSettingsOpen(true)}
+                      initialJd={interviewPrepJd}
+                    />
+                  </div>
                 )}
                 {currentView === 'essays' && <ScholarshipEssayWriter userProfile={userProfile!} apiKeySet={apiKeySet} openSettings={() => setIsSettingsOpen(true)} />}
                 {currentView === 'history' && <CVHistory savedCVs={savedCVs} onLoad={(cv) => { handleLoadCV(cv); setCurrentView('generator'); }} onDelete={handleDeleteCV} userProfile={userProfile!} />}

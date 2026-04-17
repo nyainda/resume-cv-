@@ -32,7 +32,9 @@ index.html           — PWA manifest, CDN scripts (Tailwind, jsPDF, html2canvas
 types.ts             — All shared TypeScript types
 
 components/
-  CVGenerator.tsx       — Main CV generation UI with Share/AI Coach/GitHub buttons
+  CVGenerator.tsx       — Main CV generation UI with Share/AI Coach/GitHub buttons; auto-scores CV after generation; 🎤 Interview Prep shortcut button
+  LinkedInGenerator.tsx — LinkedIn profile package generator (headline, About, skills, post, connection message, tips)
+  InterviewPrep.tsx     — Interview prep tool: 10 tailored Q&A, practice mode, category filters, + thank-you letter generator
   CVPreview.tsx         — Renders selected template (React components)
   GitHubImportPanel.tsx — Fetches GitHub repos, lets user select & import as projects + skills
   SharedCVView.tsx      — Full-screen view for opened shared CV links
