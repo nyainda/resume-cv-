@@ -9,6 +9,7 @@ interface SharedCVViewProps {
   personalInfo: PersonalInfo;
   template: TemplateName;
   sharedAt: string;
+  coverLetterText?: string;
   onLoadIntoEditor?: (cvData: CVData) => void;
   onDismiss: () => void;
 }
@@ -25,11 +26,18 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   personalInfo,
   template,
   sharedAt,
+  coverLetterText,
   onLoadIntoEditor,
   onDismiss,
 }) => {
   const [downloading, setDownloading] = useState(false);
   const [contactCopied, setContactCopied] = useState(false);
+  const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
+
+  // When opened via a share link, onLoadIntoEditor is undefined (external viewer).
+  // We hide the dismiss button for external viewers so they can't fall through to the workspace.
+  const isOwner = !!onLoadIntoEditor;
+  const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
   const handleDownload = () => {
     setDownloading(true);
@@ -160,15 +168,18 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                 )}
               </button>
 
-              <button
-                onClick={onDismiss}
-                className="p-1.5 rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
-                title="Close"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
+              {/* Only show X/close for the owner — external viewers can't dismiss to the workspace */}
+              {isOwner && (
+                <button
+                  onClick={onDismiss}
+                  className="p-1.5 rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
+                  title="Close preview"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
 
@@ -204,27 +215,56 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
               Shared {formattedDate}
             </span>
           </div>
+
+          {/* CV / Cover Letter tab switcher */}
+          {hasCoverLetter && (
+            <div className="mt-3 flex gap-1 border-b border-zinc-200 dark:border-neutral-800">
+              {(['cv', 'coverletter'] as const).map(doc => (
+                <button
+                  key={doc}
+                  onClick={() => setActiveDoc(doc)}
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+                    activeDoc === doc
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                      : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  {doc === 'cv' ? 'CV' : 'Cover Letter'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
-      {/* ── CV preview ── */}
+      {/* ── Document preview ── */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-          <CVPreview
-            cvData={cvData}
-            personalInfo={personalInfo}
-            template={template}
-            isEditing={false}
-            onDataChange={() => {}}
-            jobDescriptionForATS=""
-          />
-        </div>
+        {activeDoc === 'cv' ? (
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+            <CVPreview
+              cvData={cvData}
+              personalInfo={personalInfo}
+              template={template}
+              isEditing={false}
+              onDataChange={() => {}}
+              jobDescriptionForATS=""
+            />
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm p-8 md:p-12 max-w-3xl mx-auto">
+            <div className="prose prose-zinc dark:prose-invert max-w-none">
+              <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                {coverLetterText}
+              </pre>
+            </div>
+          </div>
+        )}
 
         {/* Editor CTA (less prominent — for the candidate themselves) */}
-        {onLoadIntoEditor && (
+        {isOwner && (
           <div className="mt-6 flex justify-center">
             <button
-              onClick={() => { onLoadIntoEditor(cvData); onDismiss(); }}
+              onClick={() => { onLoadIntoEditor!(cvData); onDismiss(); }}
               className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline underline-offset-2 transition-colors"
             >
               Is this your CV? Load it into the editor →

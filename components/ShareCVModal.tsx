@@ -6,6 +6,7 @@ interface ShareCVModalProps {
   cvData: CVData;
   personalInfo: PersonalInfo;
   template: TemplateName;
+  coverLetterText?: string | null;
   onClose: () => void;
 }
 
@@ -14,6 +15,7 @@ export interface SharedCVPayload {
   personalInfo: PersonalInfo;
   template: TemplateName;
   sharedAt: string;
+  coverLetterText?: string;
 }
 
 export function encodeSharePayload(payload: SharedCVPayload): string {
@@ -36,12 +38,15 @@ export function buildShareUrl(payload: SharedCVPayload): string {
   return `${base}#share=${encoded}`;
 }
 
-const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, template, onClose }) => {
+const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, template, coverLetterText, onClose }) => {
   const [copied, setCopied] = useState(false);
   const [linkGenerated, setLinkGenerated] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'link' | 'qr'>('link');
+  const [includeCoverLetter, setIncludeCoverLetter] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
   const generateLink = useCallback(() => {
     const payload: SharedCVPayload = {
@@ -49,11 +54,12 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
       personalInfo,
       template,
       sharedAt: new Date().toISOString(),
+      ...(includeCoverLetter && hasCoverLetter ? { coverLetterText: coverLetterText! } : {}),
     };
     const url = buildShareUrl(payload);
     setShareUrl(url);
     setLinkGenerated(true);
-  }, [cvData, personalInfo, template]);
+  }, [cvData, personalInfo, template, includeCoverLetter, hasCoverLetter, coverLetterText]);
 
   const copyToClipboard = useCallback(async () => {
     try {
@@ -75,6 +81,12 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
   const qrSrc = qrOk
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(shareUrl)}`
     : null;
+
+  const regenerate = () => {
+    setLinkGenerated(false);
+    setShareUrl('');
+    setCopied(false);
+  };
 
   return (
     <div
@@ -112,10 +124,38 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
             </svg>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
               <span className="font-semibold text-zinc-800 dark:text-zinc-200">Your data stays on your device.</span>{' '}
-              The CV is encoded inside the link itself — no server involved.
-              Only people you send the link to can view it.
+              The CV is encoded inside the link itself — no server involved. Recipients see{' '}
+              <span className="font-semibold text-zinc-800 dark:text-zinc-200">only your CV</span>, not your workspace.
             </p>
           </div>
+
+          {/* Cover letter toggle */}
+          {hasCoverLetter && (
+            <label className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 dark:border-neutral-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors">
+              <div className="flex items-center gap-2.5">
+                <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Include cover letter</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Recruiter can toggle between CV and cover letter</p>
+                </div>
+              </div>
+              <div className="relative flex-shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={includeCoverLetter}
+                  onChange={e => { setIncludeCoverLetter(e.target.checked); setLinkGenerated(false); setShareUrl(''); }}
+                />
+                <div className={`w-10 h-5 rounded-full transition-colors ${includeCoverLetter ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-neutral-600'}`} />
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${includeCoverLetter ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+            </label>
+          )}
 
           {!linkGenerated ? (
             <button
@@ -231,7 +271,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                       Preview
                     </a>
                     <button
-                      onClick={() => { setLinkGenerated(false); setShareUrl(''); setCopied(false); }}
+                      onClick={regenerate}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 text-xs font-medium rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors ml-auto"
                     >
                       Regenerate

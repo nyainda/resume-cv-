@@ -746,6 +746,7 @@ const AppInner: React.FC = () => {
           personalInfo={sharedCVPayload.personalInfo}
           template={sharedCVPayload.template}
           sharedAt={sharedCVPayload.sharedAt}
+          coverLetterText={sharedCVPayload.coverLetterText}
           onLoadIntoEditor={userProfile ? (cvData) => {
             setCurrentCV(cvData);
             setCurrentView('generator');

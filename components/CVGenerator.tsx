@@ -1066,6 +1066,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           cvData={currentCV}
           personalInfo={userProfile.personalInfo}
           template={template}
+          coverLetterText={coverLetter ?? undefined}
           onClose={() => setShowShareModal(false)}
         />
       )}
