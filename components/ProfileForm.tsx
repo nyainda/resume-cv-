@@ -262,7 +262,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const handleGenerateProfile = async () => {
     if (!apiKeySet) { setAiError('Please set your API key in settings.'); openSettings(); return; }
     if (!rawText.trim() && !uploadedFile && !githubUrl.trim()) {
-      setAiError('Please paste your info, upload a file, or provide a GitHub URL.'); return;
+      setAiError('Please paste your resume text, upload a file, or enter a GitHub URL to continue.'); return;
     }
     setIsGenerating(true); setAiError(null);
     try {
@@ -968,8 +968,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
   const renderAI = () => (
     <div className="space-y-6">
-      <SectionTitle subtitle="Paste your resume, upload a file, or provide a GitHub URL and let AI structure your profile.">
-        Generate Profile with AI
+      <SectionTitle subtitle="Already have a CV or resume? Import it and Gemini AI will instantly read and structure your full profile — no manual typing needed.">
+        Import Your Existing Profile
       </SectionTitle>
 
       <div className="border-b border-zinc-200 dark:border-neutral-700">
@@ -979,7 +979,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               className={`py-2.5 px-1 border-b-2 text-sm font-medium transition-colors ${profileInputMode === mode
                 ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                 : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-300'}`}>
-              {mode === 'text' ? 'Paste Text' : 'Upload File'}
+              {mode === 'text' ? 'Paste Resume Text' : 'Upload CV / Resume'}
             </button>
           ))}
         </nav>
@@ -989,7 +989,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         <Textarea
           value={rawText}
           onChange={e => { setRawText(e.target.value); setUploadedFile(null); }}
-          placeholder="Paste your full resume or career information here..."
+          placeholder="Paste the full text of your resume or CV here. Include your work history, education, skills, and anything else you'd like in your profile..."
           rows={10}
           disabled={isGenerating || !apiKeySet}
         />
@@ -1001,8 +1001,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           ) : (
             <>
               <UploadCloud className="h-8 w-8 text-zinc-400 mb-2" />
-              <p className="text-sm text-zinc-500"><span className="font-semibold">Click to upload</span> or drag & drop</p>
-              <p className="text-xs text-zinc-400 mt-1">PDF, PNG, JPG, WEBP</p>
+              <p className="text-sm text-zinc-500"><span className="font-semibold">Click to upload</span> or drag & drop your CV</p>
+              <p className="text-xs text-zinc-400 mt-1">PDF, PNG, JPG, WEBP — Gemini will read and extract your details</p>
             </>
           )}
           <input id="profile-upload" type="file" className="hidden"
@@ -1015,7 +1015,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         <Label className="mb-1 block">GitHub Profile URL <span className="text-zinc-400 font-normal">(Optional)</span></Label>
         <Input value={githubUrl} onChange={e => setGithubUrl(e.target.value)}
           placeholder="https://github.com/username" disabled={isGenerating || !apiKeySet} />
-        <p className="text-xs text-zinc-400 mt-1">The AI will pull your public repositories and projects.</p>
+        <p className="text-xs text-zinc-400 mt-1">Your public repositories and projects will be pulled in to enrich your profile automatically.</p>
       </div>
 
       {aiError && (
@@ -1025,12 +1025,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       )}
       {!apiKeySet && (
         <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <p className="text-amber-700 dark:text-amber-400 text-sm">Please set your API key in settings to use AI features.</p>
+          <p className="text-amber-700 dark:text-amber-400 text-sm">A Gemini API key is required to use this feature. Please add it in Settings to get started.</p>
         </div>
       )}
 
       <Button onClick={handleGenerateProfile} disabled={isGenerating || !apiKeySet} className="w-full sm:w-auto">
-        {isGenerating ? <><SpinnerIcon /><span className="ml-2">Generating...</span></> : <>Generate Profile</>}
+        {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing Profile...</span></> : <>Import &amp; Build My Profile</>}
       </Button>
     </div>
   );
@@ -1093,7 +1093,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             title={!apiKeySet ? 'Please set your API key in settings' : ''}
           >
             <Sparkles className="h-4 w-4 mr-1.5 text-indigo-500" />
-            {activeTab === 'ai' ? 'Back to Form' : 'AI Generate'}
+            {activeTab === 'ai' ? 'Back to Form' : 'Import Profile'}
           </Button>
         </div>
       </div>
@@ -1145,7 +1145,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 }`}
               >
                 <Sparkles className="h-4 w-4 text-indigo-400" />
-                AI Generate
+                Import Profile
               </button>
             </div>
           </nav>
