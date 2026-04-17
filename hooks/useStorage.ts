@@ -8,6 +8,22 @@ type Setter<T> = (newValue: T | ((prev: T) => T)) => Promise<void>;
 const CV_PREFIX = 'cv_builder:';
 
 /**
+ * Verify the parsed value matches the structural type of the fallback.
+ * Prevents crashes when a key is found in localStorage but holds a value
+ * of the wrong type (e.g. a string stored where an array is expected).
+ */
+function isCompatibleType<T>(parsed: unknown, fallback: T): boolean {
+    if (fallback === null || fallback === undefined) return true;
+    if (Array.isArray(fallback)) return Array.isArray(parsed);
+    const ft = typeof fallback;
+    const pt = typeof parsed;
+    // For primitives (string, number, boolean) the types must match exactly.
+    // For objects we allow any object (not array), which covers all our record types.
+    if (ft === 'object') return pt === 'object' && !Array.isArray(parsed) && parsed !== null;
+    return ft === pt;
+}
+
+/**
  * Read from localStorage synchronously so the very first render already has
  * the persisted value — no flash of empty / default state on refresh.
  */
@@ -17,7 +33,16 @@ function readLocalSync<T>(key: string, fallback: T): T {
         const raw =
             window.localStorage.getItem(CV_PREFIX + key) ??
             window.localStorage.getItem(key);
-        if (raw !== null) return JSON.parse(raw) as T;
+        if (raw !== null) {
+            const parsed = JSON.parse(raw);
+            if (!isCompatibleType(parsed, fallback)) {
+                console.warn(
+                    `[useStorage] Type mismatch for key "${key}" — expected ${Array.isArray(fallback) ? 'array' : typeof fallback}, got ${Array.isArray(parsed) ? 'array' : typeof parsed}. Using default.`
+                );
+                return fallback;
+            }
+            return parsed as T;
+        }
     } catch {
         // ignore parse errors
     }
@@ -52,7 +77,7 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
             if (!driveActive) {
                 // Try IDB in case localStorage was just partially cleared
                 idbAppGet<T>(CV_PREFIX + key).then(idbVal => {
-                    if (!cancelled && idbVal !== null) {
+                    if (!cancelled && idbVal !== null && isCompatibleType(idbVal, initialValue)) {
                         // Update localStorage so future reads are fast
                         try {
                             window.localStorage.setItem(CV_PREFIX + key, JSON.stringify(idbVal));
@@ -71,7 +96,7 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
         getStorageService()
             .load<T>(key)
             .then((loaded) => {
-                if (!cancelled && loaded !== null) {
+                if (!cancelled && loaded !== null && isCompatibleType(loaded, initialValue)) {
                     setValue(prev =>
                         JSON.stringify(prev) !== JSON.stringify(loaded) ? loaded : prev
                     );
