@@ -109,13 +109,14 @@ async function parseWithGemini(text: string): Promise<UserProfile> {
 }
 
 export async function parseWordTextToProfile(text: string): Promise<UserProfile> {
-    // Try Groq first (faster), fall back to Gemini
-    if (hasGroqKey()) {
+    // Try Gemini first (best for document parsing), fall back to Groq
+    const geminiKey = getGeminiKey();
+    if (geminiKey) {
         try {
-            return await parseWithGroq(text);
+            return await parseWithGemini(text);
         } catch (err) {
-            console.warn('Groq parsing failed, trying Gemini:', err);
+            console.warn('Gemini parsing failed, trying Groq:', err);
         }
     }
-    return parseWithGemini(text);
+    return parseWithGroq(text);
 }
