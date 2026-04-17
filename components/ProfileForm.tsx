@@ -1098,15 +1098,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     <div className="bg-white dark:bg-neutral-800/50 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800 overflow-hidden">
 
       {/* ── Top header ───────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/80">
-        <h1 className="text-xl font-bold">My Profile</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/80">
+        <h1 className="text-lg sm:text-xl font-bold">My Profile</h1>
+        <div className="flex items-center gap-1.5 flex-wrap">
           <input type="file" accept=".json" ref={importInputRef} onChange={handleImportProfile} className="hidden" />
           <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()} title="Import profile">
-            <UploadCloud className="h-4 w-4 mr-1.5" /> Import
+            <UploadCloud className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Import</span>
           </Button>
           <Button variant="ghost" size="sm" onClick={handleExportProfile} title="Export profile">
-            <DownloadCloud className="h-4 w-4 mr-1.5" /> Export
+            <DownloadCloud className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
           <Button
             variant={activeTab === 'ai' ? 'primary' : 'secondary'}
@@ -1114,16 +1116,53 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             onClick={() => setActiveTab(activeTab === 'ai' ? 'personal' : 'ai')}
             title={!apiKeySet ? 'Please set your API key in settings' : ''}
           >
-            <Sparkles className="h-4 w-4 mr-1.5 text-indigo-500" />
-            {activeTab === 'ai' ? 'Back to Form' : 'Import Profile'}
+            <Sparkles className="h-4 w-4 sm:mr-1.5 text-indigo-500" />
+            <span className="hidden sm:inline">{activeTab === 'ai' ? 'Back to Form' : 'Import CV'}</span>
           </Button>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="flex min-h-[600px]">
+        <div className="flex flex-col sm:flex-row sm:min-h-[600px]">
 
-          {/* ── Left sidebar navigation ──────────────────────────────────── */}
+          {/* ── Mobile tab strip (horizontal scroll, in flow) ─────────── */}
+          <div className="sm:hidden border-b border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/60 overflow-x-auto">
+            <div className="flex min-w-max px-2 py-1.5 gap-1">
+              {TABS.map(tab => {
+                const active = activeTab === tab.key;
+                const count = itemCounts[tab.key];
+                return (
+                  <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
+                    className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                      active
+                        ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    <span className={active ? 'text-indigo-500' : 'text-zinc-400'}>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                    {count !== undefined && count > 0 && (
+                      <span className="ml-0.5 text-[9px] font-bold bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 px-1 py-0.5 rounded-full">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => setActiveTab(activeTab === 'ai' ? 'personal' : 'ai')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                  activeTab === 'ai'
+                    ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                Import
+              </button>
+            </div>
+          </div>
+
+          {/* ── Left sidebar navigation (sm and up) ──────────────────────── */}
           <nav className="hidden sm:flex flex-col w-52 flex-shrink-0 border-r border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/60 py-3">
             {TABS.map(tab => {
               const active = activeTab === tab.key;
@@ -1155,7 +1194,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               );
             })}
 
-            {/* AI tab separator */}
+            {/* AI tab at bottom of sidebar */}
             <div className="mt-auto pt-3 border-t border-zinc-200 dark:border-neutral-700 mx-3 mb-2">
               <button
                 type="button"
@@ -1172,40 +1211,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             </div>
           </nav>
 
-          {/* ── Mobile tab strip ─────────────────────────────────────────── */}
-          <div className="sm:hidden w-full border-b border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/60 overflow-x-auto absolute">
-            <div className="flex min-w-max px-2 py-1 gap-1">
-              {TABS.map(tab => (
-                <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                    activeTab === tab.key
-                      ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                      : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  {tab.icon}
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* ── Main content area ─────────────────────────────────────────── */}
-          <div className="flex-1 p-6 overflow-y-auto sm:pt-6 pt-16 min-w-0">
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-w-0">
             {renderActiveTab()}
           </div>
         </div>
 
-        {/* ── Sticky footer ─────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-t border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/80">
+        {/* ── Footer ────────────────────────────────────────────────────── */}
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/80">
           <p className="text-xs text-zinc-400 hidden sm:block">
             Changes are saved when you click "Save Profile"
           </p>
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
             {onCancel && (
-              <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+              <Button type="button" variant="secondary" onClick={onCancel} className="flex-1 sm:flex-none">Cancel</Button>
             )}
-            <Button type="submit">Save Profile</Button>
+            <Button type="submit" className="flex-1 sm:flex-none">Save Profile</Button>
           </div>
         </div>
       </form>
