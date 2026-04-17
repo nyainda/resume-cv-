@@ -117,10 +117,40 @@ const AppInner: React.FC = () => {
     }));
   }, [activeSlot, setProfiles]);
 
+  // ── currentCV is stored per-profile inside the slot ───────────────────
+  // Derive the current CV directly from the active slot so switching profiles
+  // automatically shows that profile's CV (or nothing for a brand-new profile).
+  const currentCV: CVData | null = activeSlot?.currentCV ?? null;
+
+  const setCurrentCV = useCallback((next: CVData | null | ((prev: CVData | null) => CVData | null)) => {
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== (activeSlot?.id ?? null)) return p;
+      const resolved = typeof next === 'function' ? next(p.currentCV ?? null) : next;
+      return { ...p, currentCV: resolved };
+    }));
+  }, [activeSlot, setProfiles]);
+
+  // One-time migration: move any existing global currentCV into the active slot
+  useEffect(() => {
+    if (!activeSlot) return;
+    if (activeSlot.currentCV !== undefined) return; // already migrated
+    try {
+      const raw = localStorage.getItem('cv_builder:currentCV') || localStorage.getItem('currentCV');
+      if (raw) {
+        const cv = JSON.parse(raw) as CVData;
+        setProfiles(prev => prev.map(p =>
+          p.id === activeSlot.id ? { ...p, currentCV: cv } : p
+        ));
+        localStorage.removeItem('cv_builder:currentCV');
+        localStorage.removeItem('currentCV');
+      }
+    } catch { /* ignore parse errors */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlot?.id]);
+
   // ── Other app-level state ───────────────────────────────────────────────
   const [savedCVs, setSavedCVs] = useStorage<SavedCV[]>('savedCVs', []);
   const [savedCoverLetters, setSavedCoverLetters] = useStorage<SavedCoverLetter[]>('savedCoverLetters', []);
-  const [currentCV, setCurrentCV] = useStorage<CVData | null>('currentCV', null);
   const [trackedApps, setTrackedApps] = useStorage<TrackedApplication[]>('trackedApps', []);
   const [starStories, setStarStories] = useStorage<STARStory[]>('starStories', []);
   // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
@@ -358,20 +388,17 @@ const AppInner: React.FC = () => {
     };
     setProfiles(prev => [...prev, slot]);
     setActiveProfileId(id);
-    // Clear the current CV so the new profile starts fresh
-    if (!cloneFrom) setCurrentCV(null);
     setIsEditingProfile(!cloneFrom); // jump to edit if blank
     setShowProfileManager(false);
     toast.success('Profile Created', `"${name}" is now your active profile.`);
-  }, [setProfiles, setActiveProfileId, setCurrentCV, toast]);
+  }, [setProfiles, setActiveProfileId, toast]);
 
   const handleSwitchProfile = useCallback((slot: UserProfileSlot) => {
     setActiveProfileId(slot.id);
-    setCurrentCV(null); // Clear old CV so the new profile starts fresh
     setIsEditingProfile(false);
     setShowProfileManager(false);
     toast.success('Profile Switched', `Now using "${slot.name}".`);
-  }, [setActiveProfileId, setCurrentCV, toast]);
+  }, [setActiveProfileId, toast]);
 
   const handleDeleteProfile = useCallback((id: string) => {
     setProfiles(prev => {

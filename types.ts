@@ -129,6 +129,7 @@ export interface UserProfileSlot {
   color: ProfileColor;
   createdAt: string;
   profile: UserProfile;
+  currentCV?: CVData | null; // per-profile CV state
 }
 
 // --- Email Application ---
