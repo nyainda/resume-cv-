@@ -4,6 +4,46 @@ import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
 
+// ─── CV Generation Cache ──────────────────────────────────────────────────────
+// In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
+// Entries expire after 30 minutes or when the cache reaches its size limit.
+const CV_CACHE_MAX = 12;
+const CV_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface CacheEntry { result: CVData; ts: number; }
+const cvCache = new Map<string, CacheEntry>();
+
+function cvCacheKey(profile: UserProfile, jd: string, mode: string, purpose: string): string {
+    const profileSnap = JSON.stringify({
+        name: profile.personalInfo?.name,
+        exp: (profile.workExperience || []).map(e => `${e.jobTitle}@${e.company}:${e.startDate}-${e.endDate}`),
+        edu: (profile.education || []).map(e => `${e.degree}@${e.school}`),
+        skills: (profile.skills || []).slice(0, 20).join(','),
+    });
+    return `${profileSnap}|${jd.substring(0, 400)}|${mode}|${purpose}`;
+}
+
+function cvCacheGet(key: string): CVData | null {
+    const entry = cvCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.ts > CV_CACHE_TTL_MS) { cvCache.delete(key); return null; }
+    return entry.result;
+}
+
+function cvCacheSet(key: string, result: CVData): void {
+    if (cvCache.size >= CV_CACHE_MAX) {
+        // Evict the oldest entry
+        const oldest = [...cvCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+        if (oldest) cvCache.delete(oldest[0]);
+    }
+    cvCache.set(key, { result, ts: Date.now() });
+}
+
+/** Call this when the user saves their profile — invalidates all cached CVs for that profile. */
+export function invalidateCVCache(): void {
+    cvCache.clear();
+}
+
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
 You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience placing candidates at Google, McKinsey, Goldman Sachs, and top-tier startups.
@@ -338,6 +378,14 @@ export const generateCV = async (
     targetLanguage?: string
 ): Promise<CVData> => {
 
+    // ── Cache check: return immediately if profile+JD+mode haven't changed ──
+    const cacheKey = cvCacheKey(profile, contextDescription, generationMode, purpose);
+    const cached = cvCacheGet(cacheKey);
+    if (cached) {
+        console.log('[CV Cache] Hit — returning cached result (no tokens used)');
+        return cached;
+    }
+
     // Keyword extraction only when a description is provided
     let keywordInstruction = '';
     if (contextDescription.trim()) {
@@ -648,6 +696,9 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         return getStartDate(b.startDate).getTime() - getStartDate(a.startDate).getTime();
     });
 
+    // ── Store result in cache ──
+    cvCacheSet(cacheKey, cvData);
+
     return cvData;
 };
 
@@ -927,7 +978,7 @@ For each question, write a TAILORED model answer based on the candidate's ACTUAL
 Return ONLY a JSON array of 10 objects:
 [{ "question": "string", "answer": "string", "category": "Behavioural|Technical|Situational|Culture|Strength" }]
 `;
-    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, json: true, maxTokens: 3000 });
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, json: true, maxTokens: 3000 });
     return JSON.parse(text.trim());
 };
 
@@ -964,7 +1015,7 @@ export const generateEnhancedSummary = async (profile: UserProfile): Promise<str
       USER PROFILE:
       ${compactProfile(profile)}
     `;
-    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5 });
+    return groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5 });
 };
 
 export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string, pointCount: number = 5): Promise<string> => {
@@ -1022,7 +1073,7 @@ Return ONLY a valid JSON array — no markdown fences, no explanation:
   { "original": "exact original text", "quantified": "improved version", "hasMetric": false }
 ]
 `;
-    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.55 });
+    const raw = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.55 });
     const match = raw.match(/\[[\s\S]*\]/);
     if (!match) throw new Error('Could not parse AI response. Please try again.');
 
@@ -1231,7 +1282,7 @@ STRICT INSTRUCTIONS:
 9. NO AI clichés: no "excited", "thrilled", "leverage", "passionate".
 10. Return ONLY the letter text. No commentary.
 `;
-    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
+    return groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
 };
 
 // ─── Smart Cover Letter: JD + Company Research ───────────────────────────────

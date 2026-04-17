@@ -129,7 +129,13 @@ export interface UserProfileSlot {
   color: ProfileColor;
   createdAt: string;
   profile: UserProfile;
-  currentCV?: CVData | null; // per-profile CV state
+  currentCV?: CVData | null;         // per-profile CV state
+  savedCVs?: SavedCV[];              // per-profile saved CVs
+  savedCoverLetters?: SavedCoverLetter[]; // per-profile cover letters
+  trackedApps?: TrackedApplication[]; // per-profile job tracker
+  starStories?: STARStory[];         // per-profile STAR stories
+  currentJobDescription?: string;   // last JD used per profile
+  activeTab?: string;               // last active tab per profile
 }
 
 // --- Email Application ---

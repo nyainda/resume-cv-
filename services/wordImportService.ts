@@ -1,7 +1,7 @@
 import mammoth from 'mammoth';
 import { GoogleGenAI } from '@google/genai';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
-import { groqChat, GROQ_LARGE, hasGroqKey } from './groqService';
+import { groqChat, GROQ_LARGE, GROQ_FAST, hasGroqKey } from './groqService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 
 export async function extractTextFromDocx(file: File): Promise<string> {

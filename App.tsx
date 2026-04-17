@@ -6,6 +6,7 @@ import {
 import { useStorage } from './hooks/useStorage';
 import * as KeyVault from './services/security/KeyVault';
 import { setRuntimeKeys } from './services/security/RuntimeKeys';
+import { invalidateCVCache } from './services/geminiService';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/ui/Toast';
@@ -124,9 +125,11 @@ const AppInner: React.FC = () => {
   );
   const userProfile: UserProfile | null = activeSlot?.profile ?? null;
 
-  // Wrap setUserProfile so it writes back into the active slot
+  // Wrap setUserProfile so it writes back into the active slot.
+  // Also clears the CV cache so the next generation uses the updated profile.
   const setUserProfile = useCallback((next: UserProfile | null | ((prev: UserProfile | null) => UserProfile | null)) => {
     if (!next) return;
+    invalidateCVCache();
     setProfiles(prev => prev.map(p => {
       if (p.id !== (activeSlot?.id ?? null)) return p;
       const resolved = typeof next === 'function' ? next(p.profile) : next;
@@ -165,11 +168,75 @@ const AppInner: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlot?.id]);
 
-  // ── Other app-level state ───────────────────────────────────────────────
-  const [savedCVs, setSavedCVs] = useStorage<SavedCV[]>('savedCVs', []);
-  const [savedCoverLetters, setSavedCoverLetters] = useStorage<SavedCoverLetter[]>('savedCoverLetters', []);
-  const [trackedApps, setTrackedApps] = useStorage<TrackedApplication[]>('trackedApps', []);
-  const [starStories, setStarStories] = useStorage<STARStory[]>('starStories', []);
+  // One-time migration: move global savedCVs/trackedApps/etc into the active slot
+  useEffect(() => {
+    if (!activeSlot) return;
+    if (activeSlot.savedCVs !== undefined) return; // already initialised for this slot
+
+    let savedCVsMig: SavedCV[] | undefined;
+    let savedCLsMig: SavedCoverLetter[] | undefined;
+    let trackedAppsMig: TrackedApplication[] | undefined;
+    let starStoriesMig: STARStory[] | undefined;
+
+    try { const r = localStorage.getItem('cv_builder:savedCVs') || localStorage.getItem('savedCVs'); if (r) savedCVsMig = JSON.parse(r); } catch {}
+    try { const r = localStorage.getItem('cv_builder:savedCoverLetters') || localStorage.getItem('savedCoverLetters'); if (r) savedCLsMig = JSON.parse(r); } catch {}
+    try { const r = localStorage.getItem('cv_builder:trackedApps') || localStorage.getItem('trackedApps'); if (r) trackedAppsMig = JSON.parse(r); } catch {}
+    try { const r = localStorage.getItem('cv_builder:starStories') || localStorage.getItem('starStories'); if (r) starStoriesMig = JSON.parse(r); } catch {}
+
+    setProfiles(prev => prev.map(p =>
+      p.id === activeSlot.id ? {
+        ...p,
+        savedCVs: savedCVsMig ?? [],
+        savedCoverLetters: savedCLsMig ?? [],
+        trackedApps: trackedAppsMig ?? [],
+        starStories: starStoriesMig ?? [],
+      } : p
+    ));
+
+    // Clear global keys so they don't get migrated to other profiles
+    ['cv_builder:savedCVs','savedCVs','cv_builder:savedCoverLetters','savedCoverLetters',
+     'cv_builder:trackedApps','trackedApps','cv_builder:starStories','starStories']
+      .forEach(k => localStorage.removeItem(k));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlot?.id]);
+
+  // ── Per-profile isolated state (each profile has its own data) ────────
+  // Derived from the active slot — switching profiles gives a clean slate.
+  const savedCVs: SavedCV[] = activeSlot?.savedCVs ?? [];
+  const setSavedCVs = useCallback((next: SavedCV[] | ((prev: SavedCV[]) => SavedCV[])) => {
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== (activeSlot?.id ?? null)) return p;
+      const resolved = typeof next === 'function' ? next(p.savedCVs ?? []) : next;
+      return { ...p, savedCVs: resolved };
+    }));
+  }, [activeSlot, setProfiles]);
+
+  const savedCoverLetters: SavedCoverLetter[] = activeSlot?.savedCoverLetters ?? [];
+  const setSavedCoverLetters = useCallback((next: SavedCoverLetter[] | ((prev: SavedCoverLetter[]) => SavedCoverLetter[])) => {
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== (activeSlot?.id ?? null)) return p;
+      const resolved = typeof next === 'function' ? next(p.savedCoverLetters ?? []) : next;
+      return { ...p, savedCoverLetters: resolved };
+    }));
+  }, [activeSlot, setProfiles]);
+
+  const trackedApps: TrackedApplication[] = activeSlot?.trackedApps ?? [];
+  const setTrackedApps = useCallback((next: TrackedApplication[] | ((prev: TrackedApplication[]) => TrackedApplication[])) => {
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== (activeSlot?.id ?? null)) return p;
+      const resolved = typeof next === 'function' ? next(p.trackedApps ?? []) : next;
+      return { ...p, trackedApps: resolved };
+    }));
+  }, [activeSlot, setProfiles]);
+
+  const starStories: STARStory[] = activeSlot?.starStories ?? [];
+  const setStarStories = useCallback((next: STARStory[] | ((prev: STARStory[]) => STARStory[])) => {
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== (activeSlot?.id ?? null)) return p;
+      const resolved = typeof next === 'function' ? next(p.starStories ?? []) : next;
+      return { ...p, starStories: resolved };
+    }));
+  }, [activeSlot, setProfiles]);
   // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
   const [apiSettings, setApiSettings] = useState<ApiSettings>({ provider: 'gemini', apiKey: null });
