@@ -51,6 +51,70 @@ function friendlyError(err: unknown, action = 'complete that action'): string {
 
 const REACT_PDF_TEMPLATES: string[] = [];
 
+/**
+ * Directly converts a UserProfile into CVData without any AI call.
+ * Used for the "Use Template" (no-AI) path so users can just pick a template
+ * and render their existing data without any API key or JD required.
+ */
+function profileToCV(profile: UserProfile): CVData {
+  const formatDate = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
+    if (dateStr.toLowerCase() === 'present') return 'Present';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  const formatDateRange = (start: string | undefined, end: string | undefined): string => {
+    const s = formatDate(start);
+    const e = (end?.toLowerCase() === 'present') ? 'Present' : formatDate(end);
+    if (!s && !e) return '';
+    if (!s) return e;
+    if (!e) return s;
+    return `${s} – ${e}`;
+  };
+
+  return {
+    summary: profile.summary || '',
+    skills: profile.skills || [],
+    experience: (profile.workExperience || []).map(exp => ({
+      company: exp.company || '',
+      jobTitle: exp.jobTitle || '',
+      dates: formatDateRange(exp.startDate, exp.endDate),
+      startDate: exp.startDate || '',
+      endDate: exp.endDate || '',
+      responsibilities: typeof exp.responsibilities === 'string'
+        ? exp.responsibilities.split('\n').map(r => r.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+        : (exp.responsibilities || []),
+    })),
+    education: (profile.education || []).map(edu => ({
+      degree: edu.degree || '',
+      school: edu.school || '',
+      year: edu.graduationYear || '',
+      description: (edu as any).description || '',
+    })),
+    projects: (profile.projects || []).map(p => ({
+      name: p.name || '',
+      description: p.description || '',
+      link: p.link || '',
+    })),
+    languages: (profile.languages || []).map(l => ({
+      name: l.name || '',
+      proficiency: l.proficiency || '',
+    })),
+    references: (profile.references || []).map(r => ({
+      name: r.name || '',
+      title: r.title || '',
+      company: r.company || '',
+      email: r.email || '',
+      phone: r.phone || '',
+      relationship: r.relationship || '',
+    })),
+    customSections: profile.customSections || [],
+    sectionOrder: profile.sectionOrder || [],
+  };
+}
+
 const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
@@ -175,6 +239,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showShareModal, setShowShareModal] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showGitHubModal, setShowGitHubModal] = useState(false);
+
+  const handleApplyTemplate = useCallback(() => {
+    const cvData = profileToCV(userProfile);
+    setCurrentCV(cvData);
+    setError(null);
+    setCoverLetter(null);
+    setAtsDataEmbedded(false);
+  }, [userProfile, setCurrentCV, setCoverLetter]);
 
   // JD is required only for job mode
   const jdRequired = cvPurpose === 'job';
@@ -665,7 +737,22 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </div>
         )}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Use Template (no AI) — always available */}
+          <div className="flex flex-col">
+            <button
+              onClick={handleApplyTemplate}
+              disabled={isLoading}
+              className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+              title="Instantly apply your profile data to the selected template — no AI, no API key needed"
+            >
+              <FileText className="h-4 w-4 text-zinc-500" />
+              Use Template Only
+            </button>
+            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 ml-1">Your existing data, no AI rewriting</p>
+          </div>
+
+          {/* AI Generate — full pipeline */}
           <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet} size="lg">
             {isLoading ? (
               <>
@@ -675,7 +762,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 </svg>
                 {loadingMessage}
               </>
-            ) : <><Sparkles className="h-5 w-5 mr-2" />Generate CV</>}
+            ) : <><Sparkles className="h-5 w-5 mr-2" />Generate CV with AI</>}
           </Button>
         </div>
       </div>
