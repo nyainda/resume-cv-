@@ -824,7 +824,7 @@ const AppInner: React.FC = () => {
                   </button>
 
                   {showMoreMenu && (
-                    <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-neutral-700 p-2 z-50">
+                    <div className="animate-nav-slide-down absolute left-0 top-full mt-1 w-64 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-neutral-700 p-2 z-50">
                       {moreNavGroups.map(group => (
                         <div key={group.label} className="mb-1 last:mb-0">
                           <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{group.label}</p>
@@ -881,7 +881,7 @@ const AppInner: React.FC = () => {
 
               {/* ── Mobile slide-down full menu ── */}
               {showMobileMenu && (
-                <div className="sm:hidden pb-3 border-t border-zinc-100 dark:border-neutral-700 pt-2">
+                <div className="animate-mobile-menu sm:hidden pb-3 border-t border-zinc-100 dark:border-neutral-700 pt-2">
                   {/* Job Board (4th primary item that doesn't fit) */}
                   <div className="mb-2">
                     {[primaryNav[3]].map(item => (

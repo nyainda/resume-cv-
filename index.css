@@ -71,3 +71,39 @@ body {
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out;
 }
+
+/* Nav dropdown slide-down */
+@keyframes nav-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+.animate-nav-slide-down {
+  animation: nav-slide-down 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
+  transform-origin: top;
+}
+
+/* Mobile menu slide-down */
+@keyframes mobile-menu-open {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    max-height: 600px;
+    transform: translateY(0);
+  }
+}
+
+.animate-mobile-menu {
+  animation: mobile-menu-open 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+  overflow: hidden;
+}
