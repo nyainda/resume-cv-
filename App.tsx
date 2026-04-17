@@ -201,7 +201,10 @@ const AppInner: React.FC = () => {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showProfileManager, setShowProfileManager] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const profileManagerRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
   // Email apply pre-fill state (set by CV Generator)
@@ -292,6 +295,17 @@ const AppInner: React.FC = () => {
       }
     }
   }, []);
+
+  // Close More menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    if (showMoreMenu) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMoreMenu]);
 
   // Close profile manager dropdown on outside click — desktop only.
   // On mobile the bottom-sheet has its own backdrop tap handler, so attaching a
@@ -590,7 +604,7 @@ const AppInner: React.FC = () => {
     toast.success('Merge Deleted', 'Merge preset removed.');
   }, [setSavedMerges, toast]);
 
-  const [currentView, setCurrentView] = useState<'generator' | 'essays' | 'history' | 'tracker' | 'jobs' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics'>('generator');
+  const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics'>('generator');
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
 
   const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
@@ -599,21 +613,42 @@ const AppInner: React.FC = () => {
   const brevoApiKey = useMemo(() => apiSettings?.brevoApiKey || null, [apiSettings]);
   const jsearchApiKey = useMemo(() => apiSettings?.jsearchApiKey || null, [apiSettings]);
 
-  const navItems = [
+  const primaryNav = [
     { id: 'generator', label: 'CV Generator', icon: FileText },
     { id: 'linkedin', label: 'LinkedIn', icon: LinkedInNavIcon },
     { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
     { id: 'jobs', label: 'Job Board', icon: Globe },
-    { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
-    { id: 'toolkit', label: 'CV Toolkit', icon: Sparkles },
-    { id: 'negotiation', label: 'Negotiation', icon: NegotiationNavIcon },
-    { id: 'email', label: 'Email Apply', icon: MailIcon },
-    { id: 'essays', label: 'Scholarship', icon: BookOpen },
-    { id: 'history', label: 'CV History', icon: List },
-    { id: 'tracker', label: 'Job Tracker', icon: Target },
-    { id: 'analytics', label: 'Analytics', icon: AnalyticsNavIcon },
-    { id: 'merger', label: 'PDF Tools', icon: MergeNavIcon },
   ];
+
+  const moreNavGroups = [
+    {
+      label: 'Apply',
+      items: [
+        { id: 'email', label: 'Email Apply', icon: MailIcon },
+        { id: 'negotiation', label: 'Salary Negotiation', icon: NegotiationNavIcon },
+        { id: 'essays', label: 'Scholarship', icon: BookOpen },
+      ],
+    },
+    {
+      label: 'Tools',
+      items: [
+        { id: 'toolkit', label: 'CV Toolkit', icon: Sparkles },
+        { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
+        { id: 'merger', label: 'PDF Tools', icon: MergeNavIcon },
+      ],
+    },
+    {
+      label: 'Track',
+      items: [
+        { id: 'history', label: 'CV History', icon: List },
+        { id: 'tracker', label: 'Job Tracker', icon: Target },
+        { id: 'analytics', label: 'Analytics', icon: AnalyticsNavIcon },
+      ],
+    },
+  ];
+
+  const allMoreItems = moreNavGroups.flatMap(g => g.items);
+  const isMoreActive = allMoreItems.some(item => item.id === currentView);
 
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? 'indigo';
@@ -751,17 +786,19 @@ const AppInner: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Row 2: Full-width Nav ───────────────────────────────────── */}
+        {/* ── Row 2: Responsive Nav ───────────────────────────────────── */}
         {profileExists && !isEditingProfile && (
-          <div className="border-t border-zinc-200 dark:border-neutral-800 overflow-x-auto no-scrollbar">
+          <div className="border-t border-zinc-200 dark:border-neutral-800">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex gap-0.5 py-1">
-                {navItems.map(item => (
+
+              {/* ── Desktop nav ── */}
+              <div className="hidden sm:flex items-center gap-0.5 py-1">
+                {primaryNav.map(item => (
                   <button
                     key={item.id}
-                    onClick={() => setCurrentView(item.id as any)}
+                    onClick={() => { setCurrentView(item.id as any); setShowMoreMenu(false); }}
                     title={item.label}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap flex-shrink-0 ${
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
                       currentView === item.id
                         ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800'
@@ -771,7 +808,121 @@ const AppInner: React.FC = () => {
                     <span>{item.label}</span>
                   </button>
                 ))}
+
+                {/* ── More dropdown ── */}
+                <div className="relative ml-1" ref={moreMenuRef}>
+                  <button
+                    onClick={() => setShowMoreMenu(v => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
+                      isMoreActive || showMoreMenu
+                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                    }`}
+                  >
+                    <span>More</span>
+                    <svg className={`h-3 w-3 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
+
+                  {showMoreMenu && (
+                    <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-neutral-700 p-2 z-50">
+                      {moreNavGroups.map(group => (
+                        <div key={group.label} className="mb-1 last:mb-0">
+                          <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{group.label}</p>
+                          {group.items.map(item => (
+                            <button
+                              key={item.id}
+                              onClick={() => { setCurrentView(item.id as any); setShowMoreMenu(false); }}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+                                currentView === item.id
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                  : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+                              }`}
+                            >
+                              <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* ── Mobile nav: hamburger + slide-down ── */}
+              <div className="sm:hidden flex items-center justify-between py-1.5">
+                <div className="flex gap-0.5 overflow-x-auto no-scrollbar">
+                  {primaryNav.slice(0, 3).map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
+                        currentView === item.id
+                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                          : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                      }`}
+                    >
+                      <item.icon className="h-3 w-3 flex-shrink-0" />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowMobileMenu(v => !v)}
+                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ml-1 ${
+                    showMobileMenu || (currentView === 'jobs') || isMoreActive
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                      : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                </button>
+              </div>
+
+              {/* ── Mobile slide-down full menu ── */}
+              {showMobileMenu && (
+                <div className="sm:hidden pb-3 border-t border-zinc-100 dark:border-neutral-700 pt-2">
+                  {/* Job Board (4th primary item that doesn't fit) */}
+                  <div className="mb-2">
+                    {[primaryNav[3]].map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+                          currentView === item.id
+                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                            : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+                        }`}
+                      >
+                        <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  {moreNavGroups.map(group => (
+                    <div key={group.label} className="mb-1">
+                      <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{group.label}</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {group.items.map(item => (
+                          <button
+                            key={item.id}
+                            onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+                              currentView === item.id
+                                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+                            }`}
+                          >
+                            <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
             </div>
           </div>
         )}
