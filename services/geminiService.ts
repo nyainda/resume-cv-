@@ -650,6 +650,112 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
     return response.text || "";
 };
 
+/**
+ * Gemini-only: reads a file (PDF/image) AND structures it into a UserProfile JSON
+ * in a single multimodal call. Does not require Groq.
+ */
+export const generateProfileFromFileWithGemini = async (
+    base64Data: string,
+    mimeType: string,
+    githubUrl?: string
+): Promise<UserProfile> => {
+    const ai = getGeminiClient();
+
+    let githubInstruction = '';
+    if (githubUrl) {
+        githubInstruction = `
+        **GitHub Deep Analysis (CRITICAL)**: The user has also provided a GitHub profile: ${githubUrl}. Analyse the public data available (repositories, languages, commit history) to enrich the profile.
+        - Populate the 'projects' array with the top 5 most impressive public repositories.
+        - Add ALL key programming languages, frameworks, and tools to the 'skills' list.
+        - Infer missing personal details (name, location, summary) from GitHub if not visible in the file.
+        `;
+    }
+
+    const prompt = `
+        You are looking at a resume, CV, or professional profile document. Your job is to read it thoroughly and convert ALL information into the structured JSON schema below.
+
+        ### INSTRUCTIONS
+        1. Extract every piece of information visible in the document — work experience, education, skills, projects, personal info, languages.
+        2. Standardize all dates to 'YYYY-MM-DD'. Use the first day of the month/year if only month/year is given. Current roles must have endDate = 'Present'.
+        3. Generate a unique simple string 'id' for every array item.
+        4. Keep responsibilities text as-is, using \\n for bullet separators.
+        5. Do NOT invent data — only extract what is present.
+        ${githubInstruction}
+        6. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+
+        ${USER_PROFILE_SCHEMA}
+    `;
+
+    const filePart = { inlineData: { data: base64Data, mimeType } };
+
+    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [filePart, { text: prompt }] },
+        config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
+    }));
+
+    const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
+    const profileData: UserProfile = JSON.parse(raw);
+    profileData.projects = profileData.projects || [];
+    profileData.education = profileData.education || [];
+    profileData.workExperience = profileData.workExperience || [];
+    profileData.languages = profileData.languages || [];
+    return profileData;
+};
+
+/**
+ * Gemini-only: structures plain text into a UserProfile JSON.
+ * Used as a fallback when Groq is unavailable or quota-exhausted.
+ */
+export const generateProfileFromTextWithGemini = async (
+    rawText: string,
+    githubUrl?: string
+): Promise<UserProfile> => {
+    const ai = getGeminiClient();
+
+    let githubInstruction = '';
+    if (githubUrl) {
+        githubInstruction = `
+        **GitHub Deep Analysis (CRITICAL)**: The user has provided a GitHub profile: ${githubUrl}. Analyse the public repositories, languages, and commit history to enrich the profile.
+        - Populate 'projects' with the top 5 most impressive public repositories.
+        - Add all key languages, frameworks, and tools to 'skills'.
+        - Infer any missing personal details from the GitHub profile.
+        `;
+    }
+
+    const prompt = `
+        Your goal is to convert the following resume/career text into a structured JSON profile.
+
+        ### SOURCE DATA
+        RAW TEXT:
+        ${rawText || 'No raw text provided. Rely entirely on GitHub analysis.'}
+
+        ${githubInstruction}
+
+        ### INSTRUCTIONS
+        1. Standardize all dates to 'YYYY-MM-DD'. Current roles: endDate = 'Present'.
+        2. Generate a unique simple string 'id' for every array item.
+        3. Keep responsibilities text as-is, using \\n for bullet separators.
+        4. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+
+        ${USER_PROFILE_SCHEMA}
+    `;
+
+    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: prompt }] },
+        config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER, temperature: 0.1 }
+    }));
+
+    const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
+    const profileData: UserProfile = JSON.parse(raw);
+    profileData.projects = profileData.projects || [];
+    profileData.education = profileData.education || [];
+    profileData.workExperience = profileData.workExperience || [];
+    profileData.languages = profileData.languages || [];
+    return profileData;
+};
+
 export const extractTextFromImage = async (base64Image: string, mimeType: string): Promise<string> => {
     const ai = getGeminiClient();
     const prompt = "Analyze this image, which contains text (likely a job description). Extract ALL of the visible text. Return ONLY the raw text, with no additional commentary, summary, or formatting.";

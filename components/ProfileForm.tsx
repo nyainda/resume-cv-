@@ -7,7 +7,8 @@ import {
 } from '../types';
 import {
   generateProfile,
-  extractProfileTextFromFile,
+  generateProfileFromFileWithGemini,
+  generateProfileFromTextWithGemini,
   generateEnhancedSummary,
   generateEnhancedResponsibilities,
   generateEnhancedProjectDescription,
@@ -266,21 +267,42 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     }
     setIsGenerating(true); setAiError(null);
     try {
-      let textToParse = rawText;
+      let profile;
+
       if (uploadedFile) {
+        // File path: use Gemini end-to-end (read + structure in one call — no Groq needed)
         const { base64, mimeType } = await fileToBase64(uploadedFile);
-        textToParse = await extractProfileTextFromFile(base64, mimeType);
+        profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
+      } else {
+        // Text / GitHub path: try Groq first, fall back to Gemini if Groq is unavailable
+        try {
+          profile = await generateProfile(rawText, githubUrl || undefined);
+        } catch (groqErr) {
+          const groqMsg = groqErr instanceof Error ? groqErr.message : '';
+          const isGroqUnavailable =
+            groqMsg.toLowerCase().includes('groq') ||
+            groqMsg.toLowerCase().includes('rate limit') ||
+            groqMsg.toLowerCase().includes('daily') ||
+            groqMsg.toLowerCase().includes('quota') ||
+            groqMsg.toLowerCase().includes('overload') ||
+            groqMsg.toLowerCase().includes('api key');
+          if (isGroqUnavailable) {
+            // Silently fall back to Gemini
+            profile = await generateProfileFromTextWithGemini(rawText, githubUrl || undefined);
+          } else {
+            throw groqErr;
+          }
+        }
       }
-      if (!textToParse.trim() && !githubUrl.trim()) throw new Error('Could not extract text from the file.');
-      const profile = await generateProfile(textToParse, githubUrl);
+
       reset(profile);
       setActiveTab('personal');
-      alert('Profile generated! Please review and save.');
+      alert('Profile imported successfully! Please review your details and save.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setAiError(msg.toLowerCase().includes('api key')
-        ? 'API Key seems invalid. Please check settings.'
-        : `Failed to generate: ${msg}`
+      setAiError(msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key not set')
+        ? 'Your API key appears to be invalid or missing. Please check your settings.'
+        : `Import failed: ${msg}`
       );
     } finally {
       setIsGenerating(false);
