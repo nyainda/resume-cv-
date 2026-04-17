@@ -334,7 +334,8 @@ export const generateCV = async (
     generationMode: CVGenerationMode,
     purpose: 'job' | 'academic' | 'general',
     scholarshipFormat: ScholarshipFormat = 'standard',
-    marketResearch?: MarketResearchResult | null
+    marketResearch?: MarketResearchResult | null,
+    targetLanguage?: string
 ): Promise<CVData> => {
 
     // Keyword extraction only when a description is provided
@@ -532,7 +533,7 @@ export const generateCV = async (
             ${githubInstruction}
 
             JOB DESCRIPTION / TARGET CONTEXT:
-            ${contextDescription}
+            ${contextDescription.substring(0, 3000)}
 
             ${keywordInstruction}
 
@@ -592,6 +593,21 @@ export const generateCV = async (
     if (marketResearch) {
         const marketBlock = buildMarketIntelligencePrompt(marketResearch);
         mainPromptInstruction = `${marketBlock}\n\n${mainPromptInstruction}`;
+    }
+
+    // Language instruction — append if a non-English language is requested
+    if (targetLanguage && targetLanguage !== 'English') {
+        mainPromptInstruction += `
+
+**LANGUAGE REQUIREMENT (MANDATORY)**:
+Write ALL content in ${targetLanguage}. This includes: the professional summary, all experience bullet points, skills list items, education descriptions, and project descriptions.
+EXCEPTIONS — keep in original language:
+- Proper nouns: company names, university names, product names, tool/technology names, programming language names (e.g. "Python", "React", "Google", "Stanford").
+- Dates and numbers.
+- The applicant's personal information (name, email, location).
+- Any direct quotes or certifications.
+Output must be fluent, professional-grade ${targetLanguage} — not a literal translation. Adapt idioms and phrasing to be natural for native ${targetLanguage} speakers in a professional context.
+`;
     }
 
     const temperature = purpose === 'academic' ? 0.5 :
@@ -801,6 +817,118 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
     `;
 
     return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7 });
+};
+
+/**
+ * Token-efficient targeted CV optimizer.
+ * Rewrites only summary + skills + experience bullets to fill identified JD gaps.
+ * ~60% fewer tokens than a full CV regeneration.
+ */
+export const optimizeCVForJob = async (
+    cv: CVData,
+    jd: string,
+    gaps: Array<{ requirement: string; isBlocker: boolean }>,
+    missingKeywords: string[]
+): Promise<Partial<CVData>> => {
+    const jdCapped = jd.substring(0, 2500);
+    const gapList = gaps.map(g => `- ${g.isBlocker ? '[BLOCKER] ' : ''}${g.requirement}`).join('\n');
+    const keywordList = missingKeywords.join(', ');
+
+    const currentSummary = cv.summary || '';
+    const currentSkills = (cv.skills || []).join(', ');
+    const currentExperience = (cv.experience || []).map(e =>
+        `### ${e.jobTitle} @ ${e.company}\n${(e.responsibilities || []).join('\n')}`
+    ).join('\n\n');
+
+    const prompt = `
+You are an expert CV optimizer. The candidate's CV has been analyzed against the job description and has identified GAPS and MISSING KEYWORDS. Your job is to perform a TARGETED rewrite of ONLY the affected sections — do NOT change names, companies, dates, or invent new experiences.
+
+JOB DESCRIPTION:
+${jdCapped}
+
+IDENTIFIED GAPS:
+${gapList || 'None identified.'}
+
+MISSING KEYWORDS TO WEAVE IN NATURALLY:
+${keywordList || 'None identified.'}
+
+CURRENT CV SECTIONS TO REWRITE:
+
+SUMMARY:
+${currentSummary}
+
+SKILLS (current):
+${currentSkills}
+
+EXPERIENCE BULLETS (current):
+${currentExperience}
+
+STRICT RULES:
+1. Rewrite the summary to incorporate the 3 most critical missing keywords naturally. Keep it 55–75 words.
+2. Update the skills list: add missing keywords that are genuine skills. Keep total at ≤18 skills. Put JD-matching skills first.
+3. Rewrite experience bullets to naturally include missing keywords where plausible. DO NOT change job titles, company names, or invent new experiences. Just reframe existing bullets using JD language.
+4. Every rewritten bullet must still have a strong action verb and a metric.
+5. Preserve the exact number of bullets per role.
+6. Return ONLY a JSON object with keys: "summary" (string), "skills" (string[]), "experience" (array of {jobTitle, company, responsibilities: string[]}).
+`;
+
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5, json: true, maxTokens: 2500 });
+    const result = JSON.parse(text.trim());
+
+    // Merge back into full experience array preserving dates etc.
+    const updatedExperience = (cv.experience || []).map(exp => {
+        const updated = (result.experience || []).find((e: any) =>
+            e.jobTitle === exp.jobTitle && e.company === exp.company
+        );
+        if (updated && Array.isArray(updated.responsibilities)) {
+            return { ...exp, responsibilities: updated.responsibilities };
+        }
+        return exp;
+    });
+
+    return {
+        summary: result.summary || cv.summary,
+        skills: Array.isArray(result.skills) ? result.skills : cv.skills,
+        experience: updatedExperience,
+    };
+};
+
+/**
+ * Generates tailored interview Q&A pairs from the CV + JD.
+ * Uses GROQ_FAST for token efficiency (≈60% cheaper than GROQ_LARGE).
+ */
+export const generateInterviewQA = async (
+    profile: UserProfile,
+    jd: string,
+    companyName?: string
+): Promise<Array<{ question: string; answer: string; category: string }>> => {
+    const jdCapped = jd.substring(0, 2000);
+    const company = companyName || 'the company';
+    const prompt = `
+You are an expert interview coach preparing a candidate for a specific job interview.
+
+CANDIDATE PROFILE (compact):
+${compactProfile(profile)}
+
+JOB DESCRIPTION:
+${jdCapped}
+
+TARGET COMPANY: ${company}
+
+Generate exactly 10 tailored interview questions with model answers. Questions must be specific to this role and company — NOT generic. Mix these categories:
+- 2 Behavioural (STAR format — "Tell me about a time when...")
+- 2 Technical / Role-specific (test core skills from JD)
+- 2 Situational (hypothetical scenarios from the JD)
+- 2 Culture / Motivation (why this company, role, why now)
+- 2 Strength / Weakness probes (digging into the CV)
+
+For each question, write a TAILORED model answer based on the candidate's ACTUAL experience. Reference real companies, skills, and achievements from their profile.
+
+Return ONLY a JSON array of 10 objects:
+[{ "question": "string", "answer": "string", "category": "Behavioural|Technical|Situational|Culture|Strength" }]
+`;
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, json: true, maxTokens: 3000 });
+    return JSON.parse(text.trim());
 };
 
 export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {

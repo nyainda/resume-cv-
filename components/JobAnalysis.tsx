@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { analyzeJobDescriptionForKeywords, analyzeJobEnhanced } from '../services/geminiService';
-import { JobAnalysisResult, EnhancedJobAnalysis, MatchGrade, STARStory } from '../types';
+import { analyzeJobDescriptionForKeywords, analyzeJobEnhanced, optimizeCVForJob, generateInterviewQA } from '../services/geminiService';
+import { JobAnalysisResult, EnhancedJobAnalysis, MatchGrade, STARStory, CVData } from '../types';
 import { CheckCircle } from './icons';
 
 interface JobAnalysisProps {
@@ -9,6 +9,8 @@ interface JobAnalysisProps {
     apiKeySet: boolean;
     onAnalysisComplete?: (result: JobAnalysisResult) => void;
     onSaveStories?: (stories: STARStory[]) => void;
+    currentCV?: CVData | null;
+    onCVUpdate?: (cv: CVData) => void;
 }
 
 const GRADE_CONFIG: Record<MatchGrade, { label: string; color: string; bg: string; ring: string }> = {
@@ -59,12 +61,19 @@ const ScoreGauge: React.FC<{ score: number; grade: MatchGrade }> = ({ score, gra
     );
 };
 
-const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete, onSaveStories }) => {
+const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete, onSaveStories, currentCV, onCVUpdate }) => {
     const [analysis, setAnalysis] = useState<EnhancedJobAnalysis | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [savedStories, setSavedStories] = useState<Set<number>>(new Set());
+    const [isFixingCV, setIsFixingCV] = useState(false);
+    const [fixSuccess, setFixSuccess] = useState(false);
+    const [fixError, setFixError] = useState<string | null>(null);
+    const [qaList, setQaList] = useState<Array<{ question: string; answer: string; category: string }>>([]);
+    const [isLoadingQA, setIsLoadingQA] = useState(false);
+    const [qaError, setQaError] = useState<string | null>(null);
+    const [expandedQA, setExpandedQA] = useState<Set<number>>(new Set());
 
     const runAnalysis = useCallback(async () => {
         if (jobDescription.trim().length < 50 || !apiKeySet) return;
@@ -95,6 +104,49 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             setError(null);
         }
     }, [jobDescription, apiKeySet]);
+
+    const handleFixCV = async () => {
+        if (!analysis || !currentCV || !onCVUpdate) return;
+        setIsFixingCV(true);
+        setFixError(null);
+        setFixSuccess(false);
+        try {
+            const cvLower = cvTextContent.toLowerCase();
+            const missingKeywords = (analysis.topKeywords || []).filter(kw => {
+                const kwLower = kw.toLowerCase().trim();
+                if (cvLower.includes(kwLower)) return false;
+                const words = kwLower.split(/\s+/).filter(w => w.length > 3);
+                return words.length === 0 || !words.some(w => cvLower.includes(w));
+            });
+            const optimized = await optimizeCVForJob(currentCV, jobDescription, analysis.gaps || [], missingKeywords);
+            onCVUpdate({ ...currentCV, ...optimized });
+            setFixSuccess(true);
+            setTimeout(() => setFixSuccess(false), 4000);
+        } catch (e: any) {
+            setFixError(e.message || 'Could not optimize CV. Please try again.');
+        } finally {
+            setIsFixingCV(false);
+        }
+    };
+
+    const handleGenerateQA = async () => {
+        if (!analysis || !apiKeySet) return;
+        setIsLoadingQA(true);
+        setQaError(null);
+        try {
+            const qa = await generateInterviewQA(
+                { personalInfo: { name: '', email: '', phone: '', location: '', linkedin: '', website: '', github: '' }, summary: cvTextContent, workExperience: [], education: [], skills: [], projects: [], languages: [] } as any,
+                jobDescription,
+                analysis.companyName
+            );
+            setQaList(qa);
+            setExpandedQA(new Set([0]));
+        } catch (e: any) {
+            setQaError(e.message || 'Could not generate Q&A. Please try again.');
+        } finally {
+            setIsLoadingQA(false);
+        }
+    };
 
     const handleSaveStory = (index: number) => {
         if (!analysis || !onSaveStories) return;
@@ -279,6 +331,40 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                         </div>
                                     </div>
                                 )}
+
+                                {/* ── Fix My CV button ── */}
+                                {currentCV && onCVUpdate && (
+                                    <div className="pt-2 border-t border-zinc-100 dark:border-neutral-700">
+                                        {fixSuccess ? (
+                                            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/30">
+                                                <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">CV updated!</p>
+                                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Summary, skills, and bullets have been rewritten to address the gaps above.</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                                                    Automatically rewrite your CV summary, skills, and bullets to address the gaps above — without changing your actual experience.
+                                                </p>
+                                                <button
+                                                    onClick={handleFixCV}
+                                                    disabled={isFixingCV}
+                                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm transition-all"
+                                                    style={{ background: isFixingCV ? '#e5e7eb' : '#111', color: isFixingCV ? '#6b7280' : '#EBFF38', cursor: isFixingCV ? 'not-allowed' : 'pointer' }}
+                                                >
+                                                    {isFixingCV ? (
+                                                        <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Optimizing CV for this job…</>
+                                                    ) : (
+                                                        <>🎯 Fix My CV for This Job</>
+                                                    )}
+                                                </button>
+                                                {fixError && <p className="text-xs text-rose-500">{fixError}</p>}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -425,14 +511,82 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                             </div>
                         )}
 
-                        {/* Tab F: Interview STAR+R */}
+                        {/* Tab F: Interview STAR+R + Q&A */}
                         {activeTab === 'interview' && (
-                            <div className="space-y-4">
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                    STAR+R stories — the <span className="font-semibold text-indigo-600 dark:text-indigo-400">Reflection</span> column signals seniority. Save stories to your Story Bank in the Tracker.
+                            <div className="space-y-5">
+                                {/* Q&A Generator */}
+                                <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-neutral-800/80 border-b border-zinc-100 dark:border-neutral-700">
+                                        <div>
+                                            <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100">Interview Q&amp;A Prep</p>
+                                            <p className="text-[10px] text-zinc-400 mt-0.5">10 tailored questions with model answers based on your CV + this JD</p>
+                                        </div>
+                                        <button
+                                            onClick={handleGenerateQA}
+                                            disabled={isLoadingQA}
+                                            className="text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all"
+                                            style={{ background: isLoadingQA ? '#e5e7eb' : '#111', color: isLoadingQA ? '#6b7280' : '#EBFF38', cursor: isLoadingQA ? 'not-allowed' : 'pointer' }}
+                                        >
+                                            {isLoadingQA ? (
+                                                <><svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generating…</>
+                                            ) : qaList.length > 0 ? '↺ Regenerate' : '✨ Generate Q&A'}
+                                        </button>
+                                    </div>
+                                    {qaError && <p className="text-xs text-rose-500 px-4 py-2">{qaError}</p>}
+                                    {qaList.length > 0 && (
+                                        <div className="divide-y divide-zinc-100 dark:divide-neutral-700/50">
+                                            {qaList.map((qa, i) => {
+                                                const isOpen = expandedQA.has(i);
+                                                const catColors: Record<string, string> = {
+                                                    Behavioural: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                                                    Technical: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                                                    Situational: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                                                    Culture: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                                                    Strength: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+                                                };
+                                                return (
+                                                    <div key={i}>
+                                                        <button
+                                                            onClick={() => setExpandedQA(prev => { const s = new Set(prev); if (s.has(i)) s.delete(i); else s.add(i); return s; })}
+                                                            className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-neutral-700/30 transition-colors"
+                                                        >
+                                                            <span className="text-xs font-black text-zinc-400 mt-0.5 flex-shrink-0 w-5">Q{i + 1}</span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 leading-snug">{qa.question}</p>
+                                                                <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${catColors[qa.category] || catColors.Technical}`}>{qa.category}</span>
+                                                            </div>
+                                                            <svg className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-zinc-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M19 9l-7 7-7-7" /></svg>
+                                                        </button>
+                                                        {isOpen && (
+                                                            <div className="px-4 pb-3 ml-8">
+                                                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800/30">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Model Answer</p>
+                                                                    <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">{qa.answer}</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {qaList.length === 0 && !isLoadingQA && (
+                                        <div className="px-4 py-6 text-center">
+                                            <p className="text-xs text-zinc-400">Click "Generate Q&amp;A" to get 10 tailored interview questions with model answers.</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* STAR+R Stories */}
+                                <div>
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                                    STAR+R Story Bank
+                                </p>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
+                                    The <span className="font-semibold text-indigo-600 dark:text-indigo-400">Reflection</span> column signals seniority to interviewers. Save stories to your Story Bank in the Tracker.
                                 </p>
                                 {analysis.starStories.length === 0 && (
-                                    <p className="text-sm text-zinc-400 text-center py-6">No stories generated. Add CV text above to get personalized interview prep.</p>
+                                    <p className="text-sm text-zinc-400 text-center py-6">No stories generated. Add CV text above to get personalized stories.</p>
                                 )}
                                 {analysis.starStories.map((story, i) => (
                                     <div key={i} className="rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
@@ -481,12 +635,13 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                     </div>
                                 ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        )}
+    </div>
+);
 };
 
 export default JobAnalysis;

@@ -232,6 +232,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
 
+  const [targetLanguage, setTargetLanguage] = useLocalStorage<string>('cv:targetLanguage', 'English');
+
   const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
@@ -280,7 +282,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
     try {
       setLoadingMessage('Generating your tailored CV...');
-      const generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch);
+      const generatedData = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch, targetLanguage);
       if (userProfile.references && userProfile.references.length > 0) {
         generatedData.references = userProfile.references.map(ref => ({
           name: ref.name,
@@ -663,6 +665,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 apiKeySet={apiKeySet}
                 onAnalysisComplete={handleJobAnalysisComplete}
                 onSaveStories={onSaveStories}
+                currentCV={currentCV}
+                onCVUpdate={(updated) => setCurrentCV(updated)}
               />
             )}
           </div>
@@ -737,7 +741,30 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </div>
         )}
 
-        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Language selector */}
+        <div className="mt-6 mb-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">CV Language</span>
+              <select
+                value={targetLanguage}
+                onChange={e => setTargetLanguage(e.target.value)}
+                className="text-sm font-medium rounded-lg px-3 py-1.5 border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                {['English','French','Spanish','German','Arabic','Portuguese','Italian','Dutch','Chinese (Simplified)','Japanese'].map(lang => (
+                  <option key={lang} value={lang}>{lang}</option>
+                ))}
+              </select>
+            </div>
+            {targetLanguage !== 'English' && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-medium">
+                CV will be generated in {targetLanguage}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           {/* Use Template (no AI) — always available */}
           <div className="flex flex-col">
             <button
