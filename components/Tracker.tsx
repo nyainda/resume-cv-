@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrackedApplication, SavedCV, ApplicationStatus, ApplicationPriority, STARStory } from '../types';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -163,6 +163,38 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'All'>('All');
   const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('grid');
   const [expandedStory, setExpandedStory] = useState<string | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
+  const shownNotifIds = useRef<Set<string>>(new Set());
+
+  // ── Deadline browser notifications ────────────────────────────────────────
+  useEffect(() => {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const now = new Date();
+    trackedApps.forEach(app => {
+      if (!app.deadline) return;
+      const deadlineDate = new Date(app.deadline);
+      const msUntil = deadlineDate.getTime() - now.getTime();
+      const daysLeft = Math.ceil(msUntil / (1000 * 60 * 60 * 24));
+      if (daysLeft < 0 || daysLeft > 3) return;
+      const notifId = `deadline-${app.id}-${app.deadline}`;
+      if (shownNotifIds.current.has(notifId)) return;
+      shownNotifIds.current.add(notifId);
+      const urgency = daysLeft === 0 ? 'Today!' : daysLeft === 1 ? 'Tomorrow!' : `in ${daysLeft} days`;
+      new Notification(`Application Deadline ${urgency}`, {
+        body: `${app.roleTitle} at ${app.company} — deadline ${urgency}`,
+        icon: '/favicon.ico',
+        tag: notifId,
+      });
+    });
+  }, [trackedApps]);
+
+  const requestNotifications = async () => {
+    if (typeof Notification === 'undefined') return;
+    const perm = await Notification.requestPermission();
+    setNotifPermission(perm);
+  };
 
   const stats = useMemo(() => ({
     total: trackedApps.length,
@@ -231,7 +263,8 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
 
   return (
     <div className="space-y-6">
-      {/* Main Tab switcher */}
+      {/* Main Tab switcher + notification toggle */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
       <div className="flex items-center gap-1 bg-zinc-100 dark:bg-neutral-800 rounded-xl p-1 self-start w-fit border border-zinc-200 dark:border-neutral-700">
         <button
           onClick={() => setMainTab('applications')}
@@ -248,6 +281,24 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
             <span className="bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">{starStories.length}</span>
           )}
         </button>
+      </div>
+      {/* Deadline notification bell */}
+      {typeof Notification !== 'undefined' && notifPermission !== 'granted' && (
+        <button
+          onClick={requestNotifications}
+          title="Enable deadline reminders"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+        >
+          <Calendar className="h-3.5 w-3.5" />
+          Enable deadline alerts
+        </button>
+      )}
+      {typeof Notification !== 'undefined' && notifPermission === 'granted' && (
+        <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+          <Calendar className="h-3.5 w-3.5" />
+          Deadline alerts on
+        </span>
+      )}
       </div>
 
       {/* Story Bank Tab */}

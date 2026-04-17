@@ -38,7 +38,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/10 rounded px-1 -mx-1 transition-all"
   } : {};
 
-  const navyBg = '#1a2f5a';
+  const navyBg = cvData.accentColor ?? '#1a2f5a';
 
   const SidebarSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section className="mb-6">

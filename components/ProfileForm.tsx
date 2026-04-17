@@ -14,6 +14,7 @@ import {
   generateEnhancedProjectDescription,
 } from '../services/geminiService';
 import QuantifyPanel from './QuantifyPanel';
+import WordImportPanel from './WordImportPanel';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
@@ -75,6 +76,7 @@ interface ProfileFormProps {
   onCancel?: () => void;
   apiKeySet: boolean;
   openSettings: () => void;
+  onProfileImported?: (profile: UserProfile) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -152,8 +154,9 @@ const EmptyState: React.FC<{ message: string; action?: React.ReactNode }> = ({ m
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
+  const [showWordImport, setShowWordImport] = useState(false);
   const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload'>('text');
   const [rawText, setRawText] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
@@ -1110,6 +1113,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             <DownloadCloud className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Export</span>
           </Button>
+          {onProfileImported && (
+            <Button
+              variant={showWordImport ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setShowWordImport(v => !v)}
+              title="Import profile from a Word (.docx) or PDF CV"
+            >
+              <FileText className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">{showWordImport ? 'Close Import' : 'Import from Word'}</span>
+              <span className="inline sm:hidden">Word</span>
+            </Button>
+          )}
           <Button
             variant={activeTab === 'ai' ? 'primary' : 'secondary'}
             size="sm"
@@ -1121,6 +1136,24 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           </Button>
         </div>
       </div>
+
+      {/* ── Word / PDF Import panel ────────────────────────────────────── */}
+      {showWordImport && onProfileImported && (
+        <div className="border-b border-zinc-200 dark:border-neutral-700 bg-indigo-50/60 dark:bg-indigo-900/10 p-4">
+          <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-3 flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            Import your existing CV from a Word (.docx) or PDF file — fields are auto-filled from your document
+          </p>
+          <WordImportPanel
+            apiKeySet={apiKeySet}
+            openSettings={openSettings}
+            onProfileImported={(profile) => {
+              onProfileImported(profile);
+              setShowWordImport(false);
+            }}
+          />
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col sm:flex-row sm:min-h-[600px]">

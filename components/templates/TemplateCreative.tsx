@@ -14,6 +14,9 @@ const SIDEBAR_COLOR = '#0f766e';
 const SIDEBAR_WIDTH = '33.33%';
 
 const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+  // Allow accent color override from cvData — shadows module-level constant
+  // eslint-disable-next-line no-shadow
+  const SIDEBAR_COLOR = cvData.accentColor ?? '#0f766e';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));

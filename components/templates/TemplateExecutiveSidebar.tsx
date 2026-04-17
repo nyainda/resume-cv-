@@ -15,6 +15,9 @@ const SIDEBAR_BG = '#2e2510';
 const ACCENT    = '#c8a84b';
 
 const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+  // Allow accent color override from cvData — shadows module-level constant
+  // eslint-disable-next-line no-shadow
+  const ACCENT = cvData.accentColor ?? '#c8a84b';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));

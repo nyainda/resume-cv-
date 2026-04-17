@@ -38,7 +38,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     className: "outline-none ring-1 ring-transparent focus:ring-orange-400 focus:bg-orange-50/30 rounded px-1 -mx-1 transition-all"
   } : {};
 
-  const accentColor = '#c8701a';
+  const accentColor = cvData.accentColor ?? '#c8701a';
   const sidebarBg = '#f5f0e8';
 
   const SidebarSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (

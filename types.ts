@@ -207,6 +207,7 @@ export interface CVData {
   references?: CVReference[];
   customSections?: CustomSection[]; // user-defined extra sections
   sectionOrder?: ProfileSectionKey[]; // mirrors the profile's preferred section ordering
+  accentColor?: string; // custom accent color for the selected template
 }
 
 

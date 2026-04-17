@@ -1123,6 +1123,7 @@ const AppInner: React.FC = () => {
                 onCancel={() => profileExists && setIsEditingProfile(false)}
                 apiKeySet={apiKeySet}
                 openSettings={() => setIsSettingsOpen(true)}
+                onProfileImported={handleWordProfileImported}
               />
             ) : (
               <div className="space-y-6">

@@ -1036,6 +1036,57 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             personalInfo={userProfile.personalInfo}
           />
 
+          {/* ── Accent color picker ── */}
+          {currentCV && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 px-1">
+              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Accent colour</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { hex: '#4f46e5', label: 'Indigo' },
+                  { hex: '#2563eb', label: 'Blue' },
+                  { hex: '#0d9488', label: 'Teal' },
+                  { hex: '#059669', label: 'Emerald' },
+                  { hex: '#7c3aed', label: 'Violet' },
+                  { hex: '#c8701a', label: 'Amber' },
+                  { hex: '#dc2626', label: 'Red' },
+                  { hex: '#be185d', label: 'Pink' },
+                  { hex: '#1a2f5a', label: 'Navy' },
+                  { hex: '#2e2510', label: 'Bronze' },
+                ].map(({ hex, label }) => (
+                  <button
+                    key={hex}
+                    title={label}
+                    onClick={() => setCurrentCV({ ...currentCV, accentColor: hex })}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                      (currentCV.accentColor ?? '#4f46e5') === hex
+                        ? 'border-zinc-900 dark:border-white scale-110'
+                        : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: hex }}
+                  />
+                ))}
+                {/* Custom color input */}
+                <label title="Custom colour" className="relative w-6 h-6 rounded-full border-2 border-dashed border-zinc-400 dark:border-zinc-500 overflow-hidden cursor-pointer hover:scale-110 transition-transform flex items-center justify-center">
+                  <span className="text-[10px] text-zinc-400">+</span>
+                  <input
+                    type="color"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={currentCV.accentColor ?? '#4f46e5'}
+                    onChange={e => setCurrentCV({ ...currentCV, accentColor: e.target.value })}
+                  />
+                </label>
+              </div>
+              {currentCV.accentColor && (
+                <button
+                  onClick={() => setCurrentCV({ ...currentCV, accentColor: undefined })}
+                  className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+
           <div ref={previewRef} className="mt-8 border-t border-zinc-200 dark:border-neutral-700 pt-8">
             <CVPreview
               cvData={currentCV}
