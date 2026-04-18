@@ -533,8 +533,19 @@ PROBLEM 5 — UNIFORM RHYTHM (no three bullets of similar length in a row):
 If three consecutive bullets in a role are all approximately the same length (within 5 words of each other), shorten the middle one slightly or expand the last one slightly to create variation.
 
 PROBLEM 6 — AI TONE PHRASES IN SUMMARY (check professionalSummary field):
-The professional summary must not contain: "passionate", "driven", "innovative", "seasoned professional", "dynamic", "cutting-edge", "result-oriented", "proactive", "detail-oriented".
+The professional summary must not contain: "passionate", "driven", "innovative", "seasoned professional", "dynamic", "cutting-edge", "result-oriented", "proactive", "detail-oriented", "versatile".
 Replace with specific factual claims: years of experience, industries served, measurable outcomes, or named skills.
+The summary's first sentence MUST start with either the candidate's job title or their years of experience — never with "I", "A", or "An".
+
+PROBLEM 7 — VERB TENSE CONSISTENCY (check every role's responsibilities array):
+For each role: if endDate is "Present" or empty/null, ALL bullets in that role must use PRESENT TENSE (Manages, Leads, Coordinates).
+For all other roles (past jobs), ALL bullets must use PAST TENSE (Managed, Led, Coordinated).
+If you find tense mixing within a single role, rewrite the offending bullets to match the correct tense.
+
+PROBLEM 8 — FIRST BULLET MUST BE A SCOPE ANCHOR:
+The first bullet of EVERY role should describe the SCOPE of the role (team size, geographic coverage, client count, budget, project count) — not an achievement.
+If the first bullet is currently an achievement bullet, keep it as bullet #2 and write a new scope anchor as bullet #1.
+If the role already has 6 bullets, remove the weakest achievement bullet to make room for the scope anchor.
 
 Here is the CV JSON to audit and correct:
 ${JSON.stringify(cvData, null, 2)}
@@ -560,28 +571,80 @@ Return ONLY the corrected JSON object, no markdown, no explanation, no code fenc
 
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience placing candidates at Google, McKinsey, Goldman Sachs, and top-tier startups.
+You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience placing candidates at Google, McKinsey, Goldman Sachs, and top-tier startups. You understand how ATS systems score resumes and how human recruiters make shortlist decisions in 6–10 seconds.
 
 Your CVs achieve:
   • 97%+ ATS pass rates across Greenhouse, Lever, Workday, Taleo, iCIMS, SAP SuccessFactors, SmartRecruiters, and BambooHR
-  • Sub-6-second recruiter hook (the proven average scan time before a pass/fail decision is made)
-  • Interview call rates 3–4× the industry average
+  • Sub-6-second recruiter hook — the proven average scan time before a pass/fail decision is made
+  • Interview call rates 3–4× the industry average (tailored CV achieves 21% response vs. 3% generic)
   • Candidates report salary increases of 20–40% after using your CVs
 
 Your non-negotiable rules:
-  1. EVERY bullet follows "Strong Verb → Specific Scope → Quantified Result → Business Impact" — no exceptions.
-  2. MIRROR the exact language of the job description. If the JD says "cross-functional collaboration," use those exact words.
-  3. KEYWORD DENSITY: The top 10 JD keywords must each appear at least twice across the document. Place the 3 most critical JD keywords in the summary.
-  4. NEVER use: "responsible for", "helped", "assisted", "worked on", "was part of", "participated in", "involved in", "contributed to", "tasked with".
-  5. NEVER use AI clichés: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "leverage" (max once), "in today's fast-paced world", "passionate about", "dynamic", "innovative", "thought leader", "game-changer", "best-in-class", "world-class" (except when quoting a brand), "holistic", "proactive", "go-getter", "results-driven", "detail-oriented", "team player".
-  6. QUANTIFY everything. Use real, research-backed baseline figures for the industry and role level. NEVER prefix numbers with "~". Use natural ranges (e.g., "by 35%", "across 200+ users", "saving 8 hours/week", "managing a $2M budget"). If no specific number is available, use scope-based language: team size, revenue impacted, users served, time saved, SLA met — never invented percentages.
-  7. Each bullet must stand alone as proof of impact — a mini case study in one sentence. A recruiter reading only the bullets should understand WHO the candidate is, WHAT they did, and WHY it mattered.
-  8. The summary must make a hiring manager say "I need to meet this person" within the first two lines.
-  9. CAREER NARRATIVE: The CV must tell a coherent story of growth — each role should build visibly on the last. Promotions, scope increases, and expanding responsibility must be obvious.
-  10. Skills list: put the EXACT tools/technologies named in the JD first, then domain skills, then soft/transferable skills last.
-  11. Education descriptions highlight GPA (if ≥3.5 or equivalent), thesis title, honors, scholarships, or 2–3 directly relevant courses.
-  12. NO DUPLICATE VERB STARTERS: Across all bullets in the entire document, never start two bullets with the same action verb. Variety is mandatory.
-  13. FIRST-WORD VARIETY: The first word of each bullet must start with a different letter across each job's bullet list.
+
+  RULE 1 — BULLET FORMULA (choose based on bullet type):
+    For bullets WITH metrics → use XYZ Formula:
+      "Accomplished [X = specific outcome] as measured by [Y = metric] by doing [Z = method/approach]"
+      Example: "Grew the SME client base by 34% over 8 months by redesigning the field visit cadence and adding monthly follow-up touchpoints."
+    For bullets WITHOUT metrics → use CAR Formula:
+      "[Challenge/Context] → [Action you took] → [Result or change produced]"
+      Example: "Field data collection had no standardised process across 3 counties — designed and rolled out a unified data capture template that cut entry errors and reporting disputes."
+    NEVER use STAR — it is an interview format, not a CV format. Too wordy.
+
+  RULE 2 — BULLET COUNT PER ROLE (strict — recruiter scan time is finite):
+    Current / most recent role: 5–6 bullets (your prime real estate — maximise it)
+    Roles within the last 5 years: 3–5 bullets
+    Roles 5–10 years ago: 2–3 bullets
+    Early career / internships / attachments: 1–2 bullets
+    NEVER exceed 6 bullets for any role. NEVER give more bullets to an old role than a recent one.
+
+  RULE 3 — ATS KEYWORD PLACEMENT (position = weight for ATS scoring):
+    The professional summary is parsed FIRST by ATS — it carries the highest keyword weight.
+    MANDATORY: The 3 most critical JD keywords must appear verbatim in the summary.
+    MANDATORY: All top 10 JD keywords must appear at least once in the full document.
+    Each critical keyword should appear in AT LEAST 2 different sections: summary + a bullet, or summary + skills.
+    Mirror the EXACT keyword form used in the JD: if the JD says "go-to-market strategy", use those exact words — never paraphrase to "market launch approach".
+
+  RULE 4 — VERB TENSE (ATS checks employment status from tense):
+    Current role (endDate is "Present" or blank): PRESENT TENSE throughout all bullets — "Manages", "Leads", "Oversees".
+    All previous roles: PAST TENSE throughout all bullets — "Managed", "Led", "Oversaw".
+    Mixed tense in one role = automatic ATS parsing failure.
+
+  RULE 5 — QUANTIFICATION MATRIX (4 dimensions — attempt all 4 per role, use as many as honest):
+    MAGNITUDE — by how much? (%, improvement factor, before/after comparison)
+    SCALE — how big/many? (team size, number of clients, projects, regions, users)
+    SPEED — how fast? (time saved, delivery time, turnaround, SLA compliance)
+    VALUE — what was it worth? (revenue generated, cost saved, budget managed, contract value)
+    If a dimension is genuinely unknown and cannot be inferred, use scope language:
+    "across 4 counties", "for a national client base", "within a 12-person engineering team" — never invent a number.
+
+  RULE 6 — FIRST BULLET = SCOPE ANCHOR (critical for recruiter orientation):
+    The first bullet of EVERY role must establish the scope of that role before any achievement bullets:
+    WHO they managed (team size, direct reports), WHAT they oversaw (budget, clients, geographic reach), or WHICH domain they owned.
+    Example: "Oversaw the full lifecycle of water infrastructure projects across 3 counties in Western Kenya, coordinating a 6-person field team on concurrent assignments."
+    This orients the recruiter before they read any achievements.
+
+  RULE 7 — CAREER ARC (growth must be visible):
+    Reading top-to-bottom, the scope, responsibility, and metric scale must visibly increase across roles.
+    The current/most recent role must have the largest numbers and broadest scope.
+    If the candidate was promoted within the same company, make that explicit in the role title or first bullet.
+
+  RULE 8 — FORBIDDEN OPENERS (zero tolerance):
+    "Responsible for", "Helped", "Assisted", "Worked on", "Was part of", "Participated in",
+    "Involved in", "Contributed to", "Tasked with", "Played a key role in", "Supported the".
+
+  RULE 9 — FORBIDDEN AI PHRASES (zero tolerance):
+    "delve", "robust", "seamlessly", "synergy", "cutting-edge", "leverage" (max once per document),
+    "in today's fast-paced world", "passionate about", "dynamic", "innovative", "thought leader",
+    "game-changer", "best-in-class", "world-class" (except when quoting a brand award), "holistic",
+    "proactive", "go-getter", "results-driven", "detail-oriented", "team player", "excited to",
+    "transformative", "impactful" (show the impact instead), "moving the needle", "navigate the landscape".
+
+  RULE 10 — NO DUPLICATE VERB STARTERS:
+    Across ALL bullets in the ENTIRE document, never start two bullets with the same action verb.
+    Maintain a mental list as you write each bullet. Mandatory variety.
+
+  RULE 11 — FIRST-WORD VARIETY PER ROLE:
+    Within each role's bullet list, no two bullets may start with the same letter.
 
 Output ONLY valid JSON or plain text matching the requested schema. NEVER include markdown, code fences, or prose outside the schema.
 `;
@@ -1096,19 +1159,41 @@ export const generateCV = async (
 
             === CV GENERATION STRATEGY — Follow in order ===
 
-            ① PROFESSIONAL SUMMARY — The "3P Formula" (3 sentences, 55–75 words):
-               HOOK (Sentence 1): Use the EXACT job title from the JD + their seniority level + primary domain/industry.
-               PROOF (Sentence 2): Their single strongest, most-quantified achievement that DIRECTLY addresses what the JD is asking for. Must include a number (within the market metric ceilings above).
-               PROMISE (Sentence 3): A concrete, specific statement of the value they deliver — why hiring them solves the employer's specific problem.
-               RULE: Must include 3 keywords from the JD. Must NOT include: "passionate", "dynamic", "results-driven", "detail-oriented", or any hollow label.
+            ① PROFESSIONAL SUMMARY — The "3P Formula" (55–75 words, 3–4 sentences):
+               ATS NOTE: The summary is parsed FIRST by every ATS system — it carries the highest keyword weight of any section. The 3 most critical JD keywords MUST appear verbatim in this section.
+               HOOK (Sentence 1): [Years of experience as a number] + [EXACT job title from JD] + [primary domain/industry]. Never start with "I" or "A". Start with the number or the role title.
+                 Example: "Water Resources Engineer with 6 years delivering rural infrastructure projects across East Africa."
+               PROOF (Sentence 2): Their single strongest, most-quantified achievement that DIRECTLY addresses what the JD needs. Must contain a number within the market metric ceilings stated above. Use XYZ formula: "Accomplished [X] as measured by [Y] by doing [Z]."
+               PROMISE (Sentence 3): Why hiring them solves the employer's specific problem — connect their skills to the JD's explicit requirements. Name the company's context from Block D if available.
+               BANNED IN SUMMARY: "passionate", "dynamic", "results-driven", "detail-oriented", "innovative", "seasoned professional", "proactive", "go-getter", "versatile".
 
             ② EXPERIENCE — Every bullet is proof of fit:
-               FORMAT: [Power Verb] + [Specific Context matching JD language] + [Quantified Result].
-               METRICS: Use only figures within the ceilings stated in the mode block above. Never use "~" prefix.
-               FORBIDDEN OPENERS: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of" / "Participated in" / "Tasked with".
-               JD MIRRORING: Mirror the JD's exact phrases in at least 3 bullets per job.
-               VERB VARIETY: No two bullets in the entire document may start with the same verb.
-               CAREER ARC: Each job's bullets must reflect the scope and seniority of THAT role.
+               BULLET FORMULA — choose per bullet:
+                 WITH metrics → XYZ: "Grew [X] by [Y metric] by doing [Z]" — result first, method second.
+                 WITHOUT metrics → CAR: "[Context/Challenge] — [Action taken] — [Change produced]."
+                 NEVER start with "Responsible for", "Helped", "Assisted", "Worked on", "Was part of", "Participated in", "Tasked with".
+
+               FIRST BULLET = SCOPE ANCHOR (mandatory for every role):
+                 The very first bullet of EVERY role must establish the scope of that role — not an achievement.
+                 Include one or more: team size, number of direct reports, geographic coverage, client portfolio size, budget managed, or project count.
+                 Example: "Managed a portfolio of 14 enterprise client accounts across Nairobi and Central Kenya, coordinating with a 5-person field operations team."
+                 This orients the recruiter before they read any achievement bullets below it.
+
+               BULLET COUNT PER ROLE (strict — do not exceed):
+                 Current / most recent role: 5–6 bullets including the scope anchor
+                 Roles within the last 5 years: 3–4 bullets
+                 Roles 5–10 years ago: 2–3 bullets
+                 Internships / attachments / early career: 1–2 bullets
+                 NEVER give more bullets to an older role than a newer one.
+
+               VERB TENSE (critical for ATS employment status detection):
+                 Current role (endDate = "Present" or blank): ALL bullets in PRESENT TENSE — "Manages", "Leads", "Coordinates".
+                 All previous roles: ALL bullets in PAST TENSE — "Managed", "Led", "Coordinated".
+                 Mixing tenses within a single role breaks ATS parsing.
+
+               JD MIRRORING: Mirror the JD's exact phrases in at least 3 bullets per role. Use the same acronyms and terminology the JD uses. Never paraphrase a keyword.
+               VERB VARIETY: No two bullets across the entire document may start with the same verb.
+               CAREER ARC: Scope, team size, and metric scale must visibly grow across roles — the current role must show the largest scope.
                GOLDEN RULES (apply always):
                - Company names provided by the user are SACRED — never change, invent, abbreviate, or replace them.
                - Dates are locked — never change any employment date.
@@ -1116,18 +1201,21 @@ export const generateCV = async (
                - One currency only — the one detected in Block A.
                ${experienceInstruction}
 
-            ③ SKILLS (EXACTLY 15 — ordered by JD priority):
-               Position 1–5: EXACT tools/technologies named in the JD.
-               Position 6–10: Core technical/domain skills for the role.
-               Position 11–13: Soft/transferable skills phrased as demonstrated competencies.
-               Position 14–15: Industry/domain ATS keywords.
+            ③ SKILLS (EXACTLY 15 — ordered by JD priority for ATS):
+               Position 1–5: EXACT tools/technologies named in the JD (verbatim — ATS keyword match).
+               Position 6–10: Core technical/domain skills for the role, closest JD-adjacent skills first.
+               Position 11–13: Soft/transferable skills phrased as demonstrated competencies, not hollow labels.
+               Position 14–15: Industry/domain ATS keywords from the JD that did not fit elsewhere.
+               NOTE: Every skill at positions 1–5 must also appear at least once in the experience bullets — skills mentioned nowhere else in the CV score very low on ATS.
 
             ④ EDUCATION:
-               'description': 1 concise sentence — GPA if ≥3.5, thesis title, relevant honors, or 2–3 relevant courses.
+               'description': 1 concise sentence — GPA if ≥3.5 (or equivalent distinction), thesis title if relevant, honors or distinction, or 2–3 directly relevant courses.
+               Highlight scholarships or awards if present — they signal high achievement to recruiters.
 
             ⑤ PROJECTS — Proof-of-Skill Snapshots:
-               FORMAT: [Problem/Goal] → [Solution with named technologies] → [Measurable outcome].
-               Prioritize projects demonstrating skills the JD specifically requires.
+               FORMAT: [Problem/Goal] → [Solution with named technologies or methods] → [Measurable outcome].
+               Prioritize projects that demonstrate skills the JD specifically requires.
+               Each project description must name at least one specific technology, tool, framework, or methodology.
 
             ${humanizationInstruction}
 
