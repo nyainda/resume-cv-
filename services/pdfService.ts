@@ -261,6 +261,20 @@ const fontMap: Record<FontName, string> = {
     'roboto-mono': 'Courier',
 };
 
+/**
+ * Convert a CSS hex colour (#rrggbb or #rgb) to an [R, G, B] tuple.
+ * Returns the fallback tuple unchanged if the hex string is invalid.
+ */
+function hexToRgb(hex: string, fallback: [number, number, number]): [number, number, number] {
+    if (!hex) return fallback;
+    const clean = hex.replace('#', '');
+    const full = clean.length === 3
+        ? clean.split('').map(c => c + c).join('')
+        : clean;
+    if (!/^[0-9a-fA-F]{6}$/.test(full)) return fallback;
+    const n = parseInt(full, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 
 const generatePdfForTemplate = (
     template: TemplateName,
@@ -275,6 +289,10 @@ const generatePdfForTemplate = (
     const margin = 40;
     const contentWidth = pageWidth - 2 * margin;
     const selectedFont = fontMap[font] || 'Helvetica';
+
+    // Resolve user-chosen accent colour for all templates that support it.
+    // Falls back to per-template defaults when no custom colour is selected.
+    const accentHex = cvData.accentColor ?? null;
 
     // Common function to draw a section title
     const drawSectionTitle = (title: string, options: any = {}) => {
@@ -2582,15 +2600,21 @@ const generatePdfForTemplate = (
         case 'classic':
             classic();
             break;
-        case 'modern':
-            twoColumn([45, 55, 72], [71, 85, 105]);
+        case 'modern': {
+            const sidebarRgb = hexToRgb(accentHex ?? '', [45, 55, 72]);
+            twoColumn(sidebarRgb, sidebarRgb);
             break;
-        case 'twoColumnBlue':
-            twoColumn([30, 64, 175], [30, 64, 175]);
+        }
+        case 'twoColumnBlue': {
+            const sidebarRgb = hexToRgb(accentHex ?? '', [30, 64, 175]);
+            twoColumn(sidebarRgb, sidebarRgb);
             break;
-        case 'creative':
-            twoColumn([13, 148, 136], [13, 148, 136]);
+        }
+        case 'creative': {
+            const sidebarRgb = hexToRgb(accentHex ?? '', [13, 148, 136]);
+            twoColumn(sidebarRgb, sidebarRgb);
             break;
+        }
         case 'software-engineer':
             softwareEngineerPdf();
             break;

@@ -720,19 +720,92 @@ async function retryGemini<T>(operation: () => Promise<T>, retries = 4, delayMs 
 }
 
 // --- Compact-serialize a profile for embedding in Groq prompts.
-//     Uses single-line JSON and caps long responsibility strings to keep
-//     input tokens well under Groq's per-request limit.
-function compactProfile(profile: UserProfile, maxResponsibilityChars = 400): string {
-    const p = {
-        ...profile,
+//     Aggressively strips empty fields, redundant IDs, and oversized text to
+//     keep input tokens well under Groq's per-request limits while preserving
+//     all information the LLM actually needs.
+function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): string {
+    // Remove undefined/null/empty-string/empty-array values recursively
+    function strip(obj: any): any {
+        if (Array.isArray(obj)) {
+            return obj.map(strip).filter(v => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0));
+        }
+        if (obj && typeof obj === 'object') {
+            const out: any = {};
+            for (const [k, v] of Object.entries(obj)) {
+                // Skip internal IDs — LLM doesn't need them in the prompt
+                if (k === 'id') continue;
+                const stripped = strip(v);
+                if (stripped !== null && stripped !== undefined && stripped !== '' && !(Array.isArray(stripped) && stripped.length === 0)) {
+                    out[k] = stripped;
+                }
+            }
+            return out;
+        }
+        return obj;
+    }
+
+    const p = strip({
+        personalInfo: profile.personalInfo,
+        // Cap skills to 20 most relevant — LLM doesn't benefit from 50+ skills
+        skills: (profile.skills || []).slice(0, 20),
+        // Cap projects to 6 most recent/relevant
+        projects: (profile.projects || []).slice(0, 6).map(pr => ({
+            name: pr.name,
+            description: typeof pr.description === 'string'
+                ? pr.description.substring(0, 200)
+                : pr.description,
+            link: pr.link,
+        })),
         workExperience: (profile.workExperience || []).map(exp => ({
-            ...exp,
+            company: exp.company,
+            jobTitle: exp.jobTitle,
+            startDate: exp.startDate,
+            endDate: exp.endDate,
+            pointCount: exp.pointCount,
             responsibilities: typeof exp.responsibilities === 'string'
                 ? exp.responsibilities.substring(0, maxResponsibilityChars)
-                : exp.responsibilities,
+                : (Array.isArray(exp.responsibilities)
+                    ? (exp.responsibilities as string[]).slice(0, 6).join('\n').substring(0, maxResponsibilityChars)
+                    : ''),
         })),
-    };
+        education: (profile.education || []).map(edu => ({
+            degree: edu.degree,
+            school: edu.school,
+            graduationYear: edu.graduationYear,
+            description: typeof (edu as any).description === 'string'
+                ? (edu as any).description.substring(0, 150)
+                : undefined,
+        })),
+        languages: profile.languages,
+        customSections: profile.customSections,
+        sectionOrder: profile.sectionOrder,
+    });
+
     return JSON.stringify(p);
+}
+
+/**
+ * Smartly truncate a job description to a target character limit while
+ * preserving as much keyword signal as possible.
+ * Strategy: keep the first block (role summary), then keyword-dense middle,
+ * then requirements/skills section — discarding boilerplate filler.
+ */
+function smartTruncateJD(jd: string, maxChars = 2500): string {
+    if (!jd || jd.length <= maxChars) return jd;
+
+    // Try to find a "requirements" or "responsibilities" section boundary
+    const reqMatch = jd.search(/\b(requirements|qualifications|what you('ll| will) (need|bring)|must have|key skills|about you)\b/i);
+    if (reqMatch > 0 && reqMatch < jd.length * 0.7) {
+        // Keep first 900 chars (role overview) + requirements section
+        const overview   = jd.substring(0, 900);
+        const reqSection = jd.substring(reqMatch, reqMatch + (maxChars - 900));
+        return `${overview}\n\n${reqSection}`;
+    }
+
+    // No clear boundary — keep first 60% + last 15% (often skills/requirements appear at end)
+    const head = jd.substring(0, Math.floor(maxChars * 0.75));
+    const tail = jd.substring(jd.length - Math.floor(maxChars * 0.25));
+    return `${head}\n…\n${tail}`;
 }
 
 /**
@@ -835,7 +908,7 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
 // --- Humanize a block of plain text to remove AI patterns ---
 export const humanizeText = async (text: string): Promise<string> => {
     const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
-    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8 });
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8, maxTokens: 2500 });
 };
 
 // --- Build scholarship format-specific instructions ---
@@ -935,7 +1008,7 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         ${USER_PROFILE_SCHEMA}
     `;
 
-    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true });
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
     const profileData: UserProfile = JSON.parse(text.trim());
     profileData.projects = profileData.projects || [];
     profileData.education = profileData.education || [];
@@ -955,8 +1028,12 @@ export const generateCV = async (
     targetLanguage?: string
 ): Promise<CVData> => {
 
+    // Smart-truncate the JD before anything else to reduce token spend on every
+    // downstream call (keyword analysis, mode prompt, market intel, etc.)
+    const jd = smartTruncateJD(contextDescription.trim());
+
     // ── Cache check: return immediately if profile+JD+mode haven't changed ──
-    const cacheKey = cvCacheKey(profile, contextDescription, generationMode, purpose);
+    const cacheKey = cvCacheKey(profile, jd, generationMode, purpose);
     const cached = cvCacheGet(cacheKey);
     if (cached) {
         console.log('[CV Cache] Hit — returning cached result (no tokens used)');
@@ -965,9 +1042,9 @@ export const generateCV = async (
 
     // Keyword extraction only when a description is provided
     let keywordInstruction = '';
-    if (contextDescription.trim()) {
+    if (jd) {
         try {
-            const jobAnalysis = await analyzeJobDescriptionForKeywords(contextDescription);
+            const jobAnalysis = await analyzeJobDescriptionForKeywords(jd);
             const allKeywords = [...(jobAnalysis.keywords || []), ...(jobAnalysis.skills || [])];
             if (allKeywords.length > 0) {
                 keywordInstruction = `
@@ -1077,7 +1154,7 @@ export const generateCV = async (
             ${githubInstruction}
 
             GRANT/SCHOLARSHIP/ACADEMIC PURPOSE:
-            ${contextDescription || 'General academic application'}
+            ${jd || 'General academic application'}
 
             ${scholarshipFormatInstruction}
             ${keywordInstruction}
@@ -1122,7 +1199,7 @@ export const generateCV = async (
         `;
     } else {
         // JOB purpose — run the full pre-generation pipeline (Blocks A, B, C, D)
-        const currency = detectCurrency(contextDescription, profile.personalInfo?.location || '');
+        const currency = detectCurrency(jd, profile.personalInfo?.location || '');
         const seniority = detectSeniority(profile.workExperience || []);
         const market = detectMarket(currency);
 
@@ -1130,8 +1207,8 @@ export const generateCV = async (
         let blockD = '';
         if (marketResearch) {
             blockD = buildMarketIntelligencePrompt(marketResearch);
-        } else if (contextDescription.trim()) {
-            blockD = `Extracted from JD: ${contextDescription.substring(0, 600)}`;
+        } else if (jd) {
+            blockD = `Extracted from JD: ${jd.substring(0, 600)}`;
         }
 
         // Gap detection — pass employment gaps to the mode prompt for intelligent handling
@@ -1153,7 +1230,7 @@ export const generateCV = async (
             ${githubInstruction}
 
             JOB DESCRIPTION / TARGET CONTEXT:
-            ${contextDescription.substring(0, 3000)}
+            ${jd}
 
             ${keywordInstruction}
 
@@ -1266,7 +1343,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // Honest Mode and non-job purposes skip validation (cannot invent companies or metrics).
     if (purpose === 'job' && (generationMode === 'boosted' || generationMode === 'aggressive')) {
         try {
-            const currency = detectCurrency(contextDescription, profile.personalInfo?.location || '');
+            const currency = detectCurrency(jd, profile.personalInfo?.location || '');
             const seniority = detectSeniority(profile.workExperience || []);
             const market = detectMarket(currency);
             const rawExperience = JSON.stringify((profile.workExperience || []).map(e => ({
@@ -1493,7 +1570,7 @@ export const generateCoverLetter = async (profile: UserProfile, jobDescription: 
         7. **Output**: Return ONLY the plain text of the letter body (starting with "Dear Hiring Manager,"). NO markdown, NO headers, NO meta-commentary.
     `;
 
-    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7 });
+    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
 };
 
 /**
@@ -1665,7 +1742,7 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
       5. **STRICT COUNT:** Output EXACTLY ${pointCount} bullet points.
       6. **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
     `;
-    const result = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7 });
+    const result = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 900 });
     return result.trim().replace(/^- /gm, '• ');
 };
 
