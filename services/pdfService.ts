@@ -358,13 +358,15 @@ const generatePdfForTemplate = (
     const professional = () => {
         h.setY(margin);
 
+        // Resolve accent colour — default to professional blue #1e3a5f
+        const proAccent = hexToRgb(accentHex ?? '', [30, 58, 95]);
+
         // Compact Header
         doc.setFont(selectedFont, 'bold');
         doc.setFontSize(24);
         doc.setTextColor(15, 23, 42);
-        const nameWidth = doc.getTextWidth(personalInfo.name);
         doc.text(personalInfo.name, pageWidth / 2, h.getY(), { align: 'center' });
-        h.setY(h.getY() + 20); // Reduced spacing after name
+        h.setY(h.getY() + 20);
 
         const contactInfo = [personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('  •  ');
         h.writeText(contactInfo, pageWidth / 2, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105], align: 'center' });
@@ -372,7 +374,7 @@ const generatePdfForTemplate = (
 
         const links = [personalInfo.linkedin, personalInfo.website, personalInfo.github].filter(Boolean).join('  •  ');
         if (links) {
-            h.writeText(links, pageWidth / 2, h.getY(), { font: selectedFont, size: 9, color: [37, 99, 235], align: 'center' });
+            h.writeText(links, pageWidth / 2, h.getY(), { font: selectedFont, size: 9, color: proAccent, align: 'center' });
             h.setY(h.getY() + 18);
         } else {
             h.setY(h.getY() + 6);
@@ -382,22 +384,25 @@ const generatePdfForTemplate = (
         doc.setLineWidth(0.5);
         doc.line(margin, h.getY(), pageWidth - margin, h.getY());
 
-        // Slightly reduced top margin for first section
-        drawSectionTitle("Professional Summary", { yPos: h.getY(), font: selectedFont, lineWidth: 0, yMarginTop: 12, yMarginBottom: 8 });
+        const secOpts = (extra: object = {}) => ({
+            font: selectedFont, color: proAccent, lineColor: [203, 213, 224] as [number, number, number], ...extra,
+        });
+
+        drawSectionTitle("Professional Summary", { yPos: h.getY(), lineWidth: 0, yMarginTop: 12, yMarginBottom: 8, ...secOpts() });
         const summaryHeight = h.writeText(cvData.summary, margin, h.getY(), { font: selectedFont, size: 10, color: [45, 55, 72], width: contentWidth });
         h.setY(h.getY() + summaryHeight + 8);
 
-        drawSectionTitle("Skills", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+        drawSectionTitle("Skills", { yPos: h.getY(), lineWidth: 1, ...secOpts() });
         const skillsHeight = drawSkillsBlock(cvData.skills, h.getY());
         h.setY(h.getY() + skillsHeight + 8);
 
-        drawSectionTitle("Experience", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+        drawSectionTitle("Experience", { yPos: h.getY(), lineWidth: 1, ...secOpts() });
         cvData.experience.forEach(job => {
             h.checkPageBreak(80, margin);
             h.writeText(job.jobTitle, margin, h.getY(), { font: selectedFont, style: 'bold', size: 12, color: [15, 23, 42] });
             h.writeText(job.dates, pageWidth - margin, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105], align: 'right' });
             h.setY(h.getY() + 14);
-            h.writeText(job.company, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [71, 85, 105] });
+            h.writeText(job.company, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: proAccent });
             h.setY(h.getY() + 16);
             job.responsibilities.forEach(resp => {
                 const bulletPoint = `• ${decodeHtmlEntities(resp)}`;
@@ -408,16 +413,15 @@ const generatePdfForTemplate = (
             h.setY(h.getY() + 15);
         });
 
+        drawLanguagesSection(h.getY(), drawSectionTitle, { title: { lineWidth: 1, ...secOpts() } });
 
-        drawLanguagesSection(h.getY(), drawSectionTitle, { title: { font: selectedFont, lineWidth: 1 } });
-
-        drawSectionTitle("Education", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+        drawSectionTitle("Education", { yPos: h.getY(), lineWidth: 1, ...secOpts() });
         cvData.education.forEach(edu => {
             h.checkPageBreak(50, margin);
             h.writeText(edu.degree, margin, h.getY(), { font: selectedFont, style: 'bold', size: 12, color: [15, 23, 42] });
             h.writeText(edu.year, pageWidth - margin, h.getY(), { font: selectedFont, size: 9, color: [71, 85, 105], align: 'right' });
             h.setY(h.getY() + 14);
-            h.writeText(edu.school, margin, h.getY(), { font: selectedFont, size: 11, color: [71, 85, 105] });
+            h.writeText(edu.school, margin, h.getY(), { font: selectedFont, size: 11, color: proAccent });
             h.setY(h.getY() + 14);
             if (edu.description) {
                 const descHeight = h.writeText(edu.description, margin, h.getY(), { font: selectedFont, style: 'italic', size: 9, color: [71, 85, 105], width: contentWidth });
@@ -426,9 +430,8 @@ const generatePdfForTemplate = (
             h.setY(h.getY() + 15);
         });
 
-        // Projects & Publications
         if (cvData.publications && cvData.publications.length > 0) {
-            drawSectionTitle("Publications", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+            drawSectionTitle("Publications", { yPos: h.getY(), lineWidth: 1, ...secOpts() });
             cvData.publications.forEach(pub => {
                 h.checkPageBreak(50, margin);
                 h.writeText(pub.title, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [15, 23, 42], width: contentWidth });
@@ -441,13 +444,13 @@ const generatePdfForTemplate = (
         }
 
         if (cvData.projects && cvData.projects.length > 0) {
-            drawSectionTitle("Projects", { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
+            drawSectionTitle("Projects", { yPos: h.getY(), lineWidth: 1, ...secOpts() });
             cvData.projects.forEach(proj => {
                 h.checkPageBreak(45, margin);
                 h.writeText(proj.name, margin, h.getY(), { font: selectedFont, style: 'bold', size: 11, color: [15, 23, 42] });
                 if (proj.link) {
                     const linkWidth = doc.getTextWidth(proj.name);
-                    h.writeText('[Link]', margin + linkWidth + 10, h.getY(), { font: selectedFont, size: 9, color: [37, 99, 235], link: proj.link });
+                    h.writeText('[Link]', margin + linkWidth + 10, h.getY(), { font: selectedFont, size: 9, color: proAccent, link: proj.link });
                 }
                 h.setY(h.getY() + 14);
                 const descHeight = h.writeText(proj.description, margin, h.getY(), { font: selectedFont, size: 10, width: contentWidth, color: [45, 55, 72] });
@@ -1829,7 +1832,7 @@ const generatePdfForTemplate = (
     // Navy sidebar, bold section headers with coloured underline
     const corporatePdf = () => {
         const darkSlate: [number, number, number] = [15, 23, 42];
-        const accent: [number, number, number] = [29, 78, 216]; // blue-700
+        const accent = hexToRgb(accentHex ?? '', [29, 78, 216]); // blue-700 default
         const midGray: [number, number, number] = [71, 85, 105];
         const serif = 'Times-Roman';
 
@@ -1946,8 +1949,9 @@ const generatePdfForTemplate = (
     // Matches TemplateElegant.tsx exactly: white bg, centered serif header,
     // Summary → Experience (› bullets) → Education → Skills (3-col) → Languages
     const elegantPdf = () => {
-        const dark: [number, number, number] = [30, 41, 59];     // slate-800
-        const midGray: [number, number, number] = [71, 85, 105]; // slate-500/600
+        const dark: [number, number, number] = [30, 41, 59];
+        const midGray: [number, number, number] = [71, 85, 105];
+        const elegAccent = hexToRgb(accentHex ?? '', [37, 99, 235]); // blue-600 default
         const serif = 'Times-Roman';
 
         h.setY(margin);
@@ -1967,16 +1971,15 @@ const generatePdfForTemplate = (
         if (personalInfo.website) links.push(personalInfo.website);
         if (personalInfo.github) links.push(personalInfo.github);
         if (links.length > 0) {
-            h.writeText(links.join('   •   '), pageWidth / 2, h.getY(), { font: serif, size: 9, color: [37, 99, 235], align: 'center' });
+            h.writeText(links.join('   •   '), pageWidth / 2, h.getY(), { font: serif, size: 9, color: elegAccent, align: 'center' });
             h.setY(h.getY() + 12);
         }
 
-        // Section helper — matches <Section> component (title + thin horizontal rule)
         const sec = (title: string) => {
             h.checkPageBreak(40, margin);
-            h.writeText(title.toUpperCase(), margin, h.getY(), { font: serif, style: 'bold', size: 9.5, color: [51, 65, 85] });
+            h.writeText(title.toUpperCase(), margin, h.getY(), { font: serif, style: 'bold', size: 9.5, color: elegAccent });
             h.setY(h.getY() + 5);
-            doc.setDrawColor(203, 213, 225); // slate-200
+            doc.setDrawColor(203, 213, 225);
             doc.setLineWidth(0.5);
             doc.line(margin, h.getY(), pageWidth - margin, h.getY());
             h.setY(h.getY() + 12);
@@ -2054,7 +2057,7 @@ const generatePdfForTemplate = (
     const executivePdf = () => {
         const headerH = 120;
         const charcoal: [number, number, number] = [15, 20, 30];
-        const teal: [number, number, number] = [20, 180, 160];
+        const teal = hexToRgb(accentHex ?? '', [20, 180, 160]); // teal default
         const serif = 'Times-Roman';
 
         // Full-width dark header
