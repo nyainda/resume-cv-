@@ -105,6 +105,50 @@ function detectMarket(currency: string): string {
     return map[currency] || 'Unknown — counts and percentages only';
 }
 
+/** Gap detection — finds employment gaps longer than 3 months and describes them. */
+interface GapInfo {
+    gapMonths: number;
+    fromRole: string;
+    toRole: string;
+    gapStart: string; // e.g. "Jun 2020"
+    gapEnd: string;   // e.g. "Jan 2024"
+}
+
+function detectGaps(workExperience: Array<{ company: string; jobTitle: string; startDate: string; endDate: string }>): GapInfo[] {
+    if (!workExperience || workExperience.length < 2) return [];
+    const now = new Date();
+    const sorted = [...workExperience].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    const gaps: GapInfo[] = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+        const curr = sorted[i];
+        const next = sorted[i + 1];
+        const currEnd = curr.endDate?.toLowerCase() === 'present' ? now : new Date(curr.endDate);
+        const nextStart = new Date(next.startDate);
+        if (isNaN(currEnd.getTime()) || isNaN(nextStart.getTime())) continue;
+        const gapMonths = (nextStart.getFullYear() - currEnd.getFullYear()) * 12 + (nextStart.getMonth() - currEnd.getMonth());
+        if (gapMonths > 3) {
+            const fmt = (d: Date) => d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+            gaps.push({
+                gapMonths,
+                fromRole: `${curr.jobTitle} at ${curr.company}`,
+                toRole: `${next.jobTitle} at ${next.company}`,
+                gapStart: fmt(currEnd),
+                gapEnd: fmt(nextStart),
+            });
+        }
+    }
+    return gaps;
+}
+
+/** Builds a human-readable gap context string to inject into mode prompts. */
+function buildGapContext(gaps: GapInfo[]): string {
+    if (gaps.length === 0) return '';
+    const lines = gaps.map(g =>
+        `• ${g.gapMonths}-month gap between "${g.fromRole}" (ended ${g.gapStart}) and "${g.toRole}" (started ${g.gapEnd})`
+    );
+    return `\nDETECTED EMPLOYMENT GAPS — handle intelligently in the narrative:\n${lines.join('\n')}\n`;
+}
+
 /** Returns the relevant metrics ceiling string for the validator prompt. */
 function buildMetricsCeiling(seniority: string, currency: string): string {
     type SeniorityKey = 'intern' | 'junior' | 'mid' | 'senior';
@@ -164,16 +208,65 @@ function buildModePromptBlock(
     currency: string,
     seniority: string,
     market: string,
-    blockD: string
+    blockD: string,
+    gaps: GapInfo[] = []
 ): string {
     const blocks = `
 BLOCK A — DETECTED CURRENCY: ${currency === 'NONE' ? 'NONE — use no monetary figures anywhere. Counts, percentages, and units only.' : currency}
 BLOCK B — DETECTED SENIORITY: ${seniority}
 BLOCK C — DETECTED MARKET: ${market}
 BLOCK D — COMPANY CONTEXT: ${blockD || 'No company identified — proceed on JD signals alone.'}
-`;
+${buildGapContext(gaps)}`;
 
     const metricsCeiling = buildMetricsCeiling(seniority, currency);
+
+    // ─── Shared rules injected into every mode ────────────────────────────────
+    const sharedHumanizationRules = `
+BULLET LENGTH RULES (critical — short bullets kill credibility):
+- Every bullet must be 15–25 words minimum. Aim for 18–22 words as the sweet spot.
+- A bullet under 12 words is a failure. Expand it with context, scope, and outcome.
+- Structure: [Strong Verb] + [What + How/Where/Who] + [Measurable Outcome or Observable Impact].
+- Example of too short: "Managed client accounts." (3 words — failure)
+- Example of correct:   "Managed 9 commercial client accounts across Central Kenya, maintaining monthly field visits and 96% satisfaction scores over 14 months."
+
+METRIC DENSITY RULES (critical — too many numbers reads as AI-generated):
+- Maximum 55% of bullets in any one role may contain a number. If a role has 5 bullets, at most 3 should have metrics.
+- Mix metric types across bullets: percentages, headcounts, currency figures, time saved, volume, scale — never repeat the same metric type consecutively.
+- Bullets WITHOUT numbers must still be vivid and specific — use scope language: "across 4 counties", "for a portfolio of enterprise clients", "within a 6-person engineering team".
+- NEVER write a metric just to have one. An honest descriptive bullet is better than a forced or implausible number.
+
+HUMAN WRITING RULES (zero tolerance — AI patterns kill applications):
+BANNED PHRASES — replace with specifics:
+  "delve" → describe the actual action
+  "robust" → name what made it strong
+  "seamlessly" → describe what made it smooth
+  "synergy" / "leverage" (max once entire document) → use plain English
+  "cutting-edge" / "state-of-the-art" → name the actual technology
+  "passionate about" → show it through what they built or achieved
+  "dynamic" / "innovative" → prove it with a fact
+  "results-driven" / "detail-oriented" / "team player" / "go-getter" → delete entirely
+  "responsible for" / "helped with" / "assisted in" / "tasked with" → replace with direct action verb
+
+SENTENCE RHYTHM (mandatory — uniform rhythm is the AI tell):
+- Vary sentence length deliberately: short (5–9 words) punchy sentences mixed with longer (16–24 words) elaborative ones.
+- Never write three bullets of the same approximate length in a row within the same role.
+- First word of each bullet must start with a different letter within the same role's list.
+- No two bullets across the entire document may start with the same verb.
+
+TONE RULE:
+- Write as a confident, experienced human professional speaking about their own work — direct, precise, slightly understated.
+- Avoid superlatives ("best", "world-class", "outstanding") unless quoting an award.
+- Replace vague scope with specific scope: not "large team" but "11-person cross-functional team".
+
+GAP HANDLING RULES:
+${gaps.length === 0
+    ? '- No significant gaps detected in this profile.'
+    : `- Gaps detected (see Block context above). Handle each intelligently:
+  - If the gap is under 12 months: address it subtly in the summary or the adjacent role bullets ("while pursuing independent professional development", "during a period of focused study and certification").
+  - If the gap is 12+ months: in Honest/Boosted modes, reference it briefly in the summary with a neutral, human framing. In Aggressive mode, you may use the self-directed entry rules below to fill the most significant gap.
+  - Never leave a long gap completely unacknowledged if it appears suspicious — a recruiter will notice it and make negative assumptions. Control the narrative.
+  - If the gap appears to coincide with a period of studying (e.g., 2020 attachment → 2024 intern suggests degree completion), frame the intervening period as academic: "Following completion of [degree/studies] in [year]..."`}
+`;
 
     if (mode === 'honest') {
         return `
@@ -185,17 +278,20 @@ YOUR JOB IN THIS MODE:
 Rewrite the user's real experience to be the strongest, clearest, most ATS-optimised version of itself. You are not adding anything that did not happen. You are making what did happen communicated in the most compelling way possible for this specific job in this specific market.
 
 WHAT YOU CAN DO:
-- Rewrite bullet points using strong, precise action verbs that match the job description's own language.
-- Mirror exact keywords and terminology from the job description — if the JD says "stakeholder engagement", use that exact phrase.
-- Reorder bullet points within each role so the most JD-relevant achievement appears first.
-- Improve grammar, sentence structure, and clarity. Remove filler phrases.
-- Use Block D company context to align language and tone.
+- Rewrite bullet points using strong, precise action verbs that match the job description's own language. Every verb must be different.
+- Mirror exact keywords and terminology from the job description — if the JD says "stakeholder engagement", use those exact words. Place the 3 most critical JD keywords in the summary.
+- Reorder bullet points within each role so the most JD-relevant achievement appears first, least relevant last.
+- Improve grammar, sentence structure, and clarity throughout. Remove all filler phrases immediately.
+- Use Block D company context to align language and tone precisely. A corporate firm gets precise, formal language. A startup gets action-focused, impact-driven language. An NGO gets mission-oriented, beneficiary-focused language.
 
 METRIC RULE — CONTEXTUAL INFERENCE ONLY:
 You may add a metric ONLY when there is enough context in what the user wrote to reasonably infer it.
-- ALLOWED: User wrote "managed projects for 2 years" → you may write "Managed 4–6 projects" (use LOW end of ${seniority} range for ${market}).
-- NOT ALLOWED: User gave zero context about quantity or scale → describe without metrics.
-- THE TEST: Can you reasonably infer this number from what the user wrote, their role type, and their total years of experience? YES → use conservative LOW end. NO → describe without any number.
+  ALLOWED: User wrote "managed projects for 2 years" → infer "Managed 4–6 [project type] projects" (LOW end of ${seniority} range in ${market}).
+  ALLOWED: User wrote "handled client accounts in Nairobi region" → infer "Managed 8–12 client accounts across Nairobi and surroundings".
+  ALLOWED: User wrote "exceeded sales targets" → infer "Exceeded sales targets by 10–12%" (conservative LOW end).
+  NOT ALLOWED: User gave zero context about quantity, scale, or value → describe without any number at all.
+  NOT ALLOWED: Adding monetary figures when no financial scope was mentioned.
+  THE TEST: Can you reasonably infer this number from what the user wrote? YES → use LOW end. NO → describe without a number.
 
 METRIC CEILINGS for ${seniority} in ${market}: ${metricsCeiling}
 
@@ -204,10 +300,12 @@ ${currency === 'NONE'
     ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Express everything as percentages, counts, and units.'
     : `Use only ${currency} throughout. If more than one currency symbol appears anywhere in the document, remove ALL monetary figures and rewrite using percentages and counts only.`}
 
+${sharedHumanizationRules}
+
 WHAT YOU CANNOT DO:
 - Add any company, role, or experience not provided by the user
 - Change any employment dates for any reason
-- Invent any metric the user did not mention or imply in context
+- Invent any metric the user did not mention or clearly imply
 - Add skills the user did not list anywhere in their profile
 - Change a job title to something grander than what was held
 - Write any currency other than ${currency === 'NONE' ? 'none (no monetary figures at all)' : currency}
@@ -222,33 +320,37 @@ ${blocks}
 
 You are a professional CV writer operating in BOOSTED MODE for the global job market.
 
-THE LOCK: Company names and employment dates provided by the user are locked. They cannot be changed. No new companies or employed roles may be added. This is absolute.
+THE LOCK: Company names and employment dates provided by the user are locked. They cannot be changed. No new companies or employed roles may be added. This is absolute and non-negotiable.
 
 YOUR JOB IN THIS MODE:
-Take the user's real experience and make it as strong as it can plausibly be — using implied responsibilities that are standard for this role type and seniority level in the detected market, and quantifying vague achievements using the low-to-mid range of the detected market metrics. Everything added must be plausible to any recruiter who interviews the candidate about it.
+Take the user's real experience and make it as strong as it can plausibly be — using implied responsibilities standard for this role type and seniority in the detected market, and quantifying vague achievements using the low-to-mid range of the detected market metrics. Everything added must be something the candidate could confidently discuss and defend in an interview.
 
 WHAT YOU CAN DO (everything in Honest Mode, plus):
-- Add implied responsibilities that are genuinely standard for this role type at this seniority level. These are responsibilities any experienced recruiter would assume someone in this role carried, even if the user did not explicitly list them.
-- Quantify vague achievements using the LOW-TO-MID end of the metrics table for ${market} at ${seniority} level. NEVER use the high end — that is Aggressive Mode.
-- Add 1–2 relevant skills from the job description that are plausible given the user's industry and background. Test: Would any recruiter believe someone in this role, at this seniority, in this market plausibly has this skill? If any doubt — do not add it.
-- Strengthen the professional summary to match the JD more closely using Block D company context.
+- Add implied responsibilities that are genuinely standard for this role type at this seniority level. These are tasks any experienced recruiter would assume someone in this position carried out, even if the user did not list them explicitly. A junior water engineer who listed "site surveys" implicitly also coordinated with contractors, reviewed technical specs, and reported to a senior engineer — these can be added as bullets.
+- Quantify vague achievements using the LOW-TO-MID end of the metrics table for ${market} at ${seniority} level. Never use the high end — that belongs to Aggressive Mode.
+- Add 1–2 relevant skills from the job description that are genuinely plausible for this role type, industry, and background. The test: would any experienced recruiter believe someone in this position plausibly has this skill? If any doubt — do not add it.
+- Strengthen the professional summary using Block D company context. Align language, terminology, and tone to what this specific company values and how they talk about their work publicly.
+- For significant gaps (shown in Block context above): include a brief, natural-sounding reference in the summary or in the bullets adjacent to the gap period.
 
-NUMBERS MUST LOOK REAL — never use suspiciously round numbers:
-- Use 2.3M not 2M exactly. Use 11% not 10% exactly. Use 14 clients not 15 exactly. Use 7 projects not 5 or 10 exactly.
+NUMBERS MUST LOOK REAL — the moment a number looks invented, the whole CV is suspect:
+- Use 2.3M, not 2M. Use 11%, not 10%. Use 14 clients, not 15. Use 7 projects, not 5 or 10.
+- Irregular, specific numbers read as real. Clean, round numbers read as made up.
 
 METRIC CEILINGS (MAXIMUM allowed — midpoint of range):
 ${metricsCeiling}
 
 CURRENCY RULE:
 ${currency === 'NONE'
-    ? 'Block A detected NO currency. Use ZERO monetary figures. Counts, percentages, and units only.'
-    : `Use only ${currency} throughout the entire document. Never mix currencies.`}
+    ? 'Block A detected NO currency. Use ZERO monetary figures. Counts, percentages, and units only throughout the entire document.'
+    : `Use only ${currency} throughout the entire document. Never mix currencies. Never use a currency that was not detected.`}
+
+${sharedHumanizationRules}
 
 WHAT YOU CANNOT DO:
 - Add any company or employed role not provided by the user
 - Change any employment dates for any reason
 - Use metrics above the MIDPOINT of the detected market table
-- Add skills implausible for the background and industry
+- Add skills that are implausible for the background, industry, or role type
 - Write any currency other than ${currency === 'NONE' ? 'none' : currency}
 - Mix two currencies anywhere in the document
 - Use suspiciously round numbers
@@ -262,48 +364,53 @@ ${blocks}
 
 You are a professional CV writer operating in AGGRESSIVE MODE for the global job market.
 
-THE LOCK: Company names and employment dates provided by the user are locked and sacred. They cannot be changed, abbreviated, extended, or replaced under any circumstances whatsoever. This is the one rule in this mode that has zero flexibility.
+THE LOCK: Company names and employment dates provided by the user are locked and sacred. They cannot be changed, abbreviated, extended, or replaced under any circumstances whatsoever. This is the one rule in this mode that has zero flexibility. Every other decision is subordinate to it.
 
 YOUR JOB IN THIS MODE:
-Produce the most powerful version of this CV that is still fully credible to a recruiter in the detected market. Bold, targeted, keyword-saturated, and deeply aligned to the target company. Every single claim must still be defensible if a recruiter asks the candidate about it face-to-face in an interview. If a claim cannot be defended — remove it.
+Produce the most powerful version of this CV that is still fully credible to a recruiter in the detected market. Bold, targeted, keyword-saturated, and deeply aligned to the target company. Every single claim must still be defensible if a recruiter asks the candidate about it face-to-face in an interview. If a claim cannot be defended in an interview — remove it.
 
 WHAT YOU CAN DO (everything in Boosted Mode, plus):
-- Use the MID-TO-HIGH end of the metrics table for ${market} at ${seniority} level. The HIGH end is the absolute hard ceiling — never exceed it.
-- Add strong stretch responsibilities that are plausible for someone performing at the very top of their current role — not someone already promoted beyond it.
-- Write a highly targeted, executive-style professional summary positioning the user as the ideal candidate for this specific role at this specific company. Every sentence connects the user's real experience to what the JD and Block D say the company needs. No generic sentences. No filler.
-- Maximise keyword density from the job description throughout every section. Every keyword appears inside a sentence demonstrating genuine competence — not just mentioned.
-- Use Block D company context deeply and specifically. Mirror their language, values, and industry terminology.
+- Use the MID-TO-HIGH end of the metrics table for ${market} at ${seniority} level. The HIGH end of the range is the absolute hard ceiling — never exceed it, never get close to exceeding it.
+- Add strong stretch responsibilities that are plausible for someone performing at the very top of their current role — not someone who has already been promoted beyond it. A high-performing junior engineer leads complex projects and mentors new hires. They do NOT manage a team of 15 or control a multi-million portfolio.
+- Write a highly targeted, executive-quality professional summary positioning the user as the ideal candidate for this specific role at this specific company. Every sentence earns its place by connecting the user's real experience to what the JD and Block D say the company needs. No generic sentences. No filler. No padding.
+- Maximise keyword density from the JD throughout every section. Every keyword appears inside a sentence that demonstrates genuine competence — not just mentioned. The CV must read like a human wrote it, not a keyword list.
+- Use Block D company context deeply and specifically. Mirror their language, their values, their industry terminology. A recruiter at that company should feel the CV was written by someone who already understands their world from the inside.
 
-FILLING A GENUINE EXPERIENCE GAP (only if a gap longer than 3 months exists):
-If and only if the user has a genuine gap in their timeline, you may add ONE self-directed work entry:
-- RULE A: Self-directed work only (freelance, independent project, contract, voluntary). NEVER an employed role at a named company.
-- RULE B: The work type must exactly match the user's real skills — a natural extension of existing experience.
-- RULE C: Dates must sit entirely within the gap — no overlap with any real employment.
-- RULE D: Seniority must match the surrounding roles.
-- RULE E: Use the LOW end of metrics for this entry — it must be the most modest entry on the CV.
-- RULE F: Only ONE self-directed entry per CV maximum.
-If any rule cannot be satisfied — do not add the entry at all. An unfilled gap is better than a fabricated record.
+FILLING A GENUINE EXPERIENCE GAP:
+${gaps.length === 0
+    ? 'No significant gaps detected — do not add any self-directed entry.'
+    : `Gaps detected (see Block context above). You may add ONE self-directed work entry to fill the most significant gap only, if and only if ALL of these rules are satisfied:
+- RULE A: Self-directed work only — freelance, independent project, short-term contract, or voluntary work. NEVER an employed role at a named company. The reason: a named employed role can be checked by calling HR. A freelance or consulting entry cannot be disproved in the same way — freelancers commonly work without formal contracts or payroll records.
+- RULE B: The work type must exactly match the user's real skills. A water engineer's self-directed entry involves water engineering. A sales professional's entry involves sales consulting. Do not introduce any skill type that does not already exist in the profile.
+- RULE C: Dates must sit entirely within the gap. No overlap with any real employment on either side. Cannot extend beyond today's date.
+- RULE D: Seniority must match the surrounding roles. No sudden title promotion within the self-directed entry.
+- RULE E: Use the LOW end of metrics for this entry — it must be the most modest entry on the CV. The real jobs must look more impressive than the gap filler.
+- RULE F: Only ONE self-directed entry maximum. If there are multiple gaps, fill only the most professionally damaging one. Leave all others unfilled.
+If ANY rule cannot be satisfied — do not add the entry. An unfilled gap is better than a fabricated record that can destroy the candidate's credibility.`}
 
-NUMBERS MUST LOOK REAL — never suspiciously clean or round:
-- Use 13% not 15%. Use KES 3.8M not KES 4M. Use 22 clients not 20 or 25. Use 7 projects not 5 or 10. Use USD 287K not USD 300K.
+NUMBERS MUST LOOK REAL — experienced recruiters catch inflated CVs by the numbers first:
+- Use 13%, not 15%. Use KES 3.8M, not KES 4M. Use 22 clients, not 20 or 25. Use 7 projects, not 5 or 10. Use USD 287K, not USD 300K.
+- Suspiciously round numbers are the single most common tell on an inflated CV.
 
-METRIC CEILINGS (ABSOLUTE MAXIMUM — high end of range):
+METRIC CEILINGS (ABSOLUTE MAXIMUM — high end of range — never exceed):
 ${metricsCeiling}
 
 CURRENCY RULE:
 ${currency === 'NONE'
-    ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Percentages, counts, and units only.'
-    : `Use only ${currency} throughout. Final pass before returning: scan every bullet point for currency symbols. If more than one appears anywhere, remove ALL monetary figures and rewrite using percentages and counts only.`}
+    ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Percentages, counts, and units only throughout.'
+    : `Use only ${currency} throughout. Final pass before returning: scan every bullet for currency symbols. If more than one appears anywhere in the entire document, remove ALL monetary figures and rewrite those bullets using percentages and counts only.`}
+
+${sharedHumanizationRules}
 
 WHAT YOU CANNOT DO:
 - Change any provided company name or date for any reason
-- Add an employed role at any company the user did not work at
+- Add an employed role at any company the user did not actually work at
 - Invent skills or experience types the user does not have
 - Use metrics above the HIGH end of the detected market table
 - Apply senior-level metrics to a junior-level profile
 - Create a backwards career timeline
 - Add more than one self-directed entry per CV
-- Use a self-directed entry that overlaps with real employment
+- Use a self-directed entry that overlaps with real employment dates
 - Write any currency other than ${currency === 'NONE' ? 'none' : currency}
 - Mix two currencies anywhere in the document
 - Use suspiciously round numbers
@@ -389,6 +496,64 @@ CRITICAL: The goal is a CV that is impressive and completely impossible to catch
         return parsed.cv || cvData;
     } catch (e) {
         console.error('[CV Validator] Validation failed, returning original:', e);
+        return cvData;
+    }
+}
+
+/**
+ * PART 7 — Humanization Audit Pass.
+ * Runs after the Groq validator (or after Gemini generation in Honest mode).
+ * Checks and fixes: short bullets, banned phrases, metric overload, and uniform rhythm.
+ */
+async function runHumanizationAudit(cvData: CVData): Promise<CVData> {
+    const auditPrompt = `
+You are a senior career writing editor with 20 years of experience. You are reviewing a CV JSON object.
+Your ONLY job is to fix the specific problems listed below. Do not rewrite anything that isn't broken. Do not change dates, company names, job titles, or skills. Return the complete, corrected JSON.
+
+PROBLEMS TO FIX — check every experience role's responsibilities array:
+
+PROBLEM 1 — SHORT BULLETS (expand any bullet under 12 words):
+A bullet under 12 words is too thin. Expand it by adding context: what was the scope, who was affected, what was the outcome, or how was it done. Keep it truthful to what the bullet was saying.
+Example fix:
+  BEFORE: "Managed client accounts across Kenya."  (5 words)
+  AFTER:  "Managed a portfolio of 11 commercial client accounts across Central and Eastern Kenya, conducting quarterly reviews and maintaining service continuity."
+
+PROBLEM 2 — BANNED PHRASES (replace these with specific, direct language):
+Scan for and replace: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "state-of-the-art", "passionate about", "dynamic team", "innovative solutions", "results-driven", "detail-oriented", "team player", "go-getter", "responsible for", "helped with", "assisted in", "tasked with", "worked on", "was part of", "participated in", "contributed to".
+Replace each with a direct action verb or a specific description of what was actually done.
+
+PROBLEM 3 — METRIC OVERLOAD (cap at 55% of bullets per role having a number):
+Count bullets per role. If more than 55% contain a number (%, count, currency, or ratio), rewrite the excess bullets to remove numbers but keep them vivid using scope language: "across 4 counties", "for a national client base", "within a small cross-functional team", etc.
+Priority: keep numbers in the bullets with the STRONGEST outcomes. Remove numbers from the weakest.
+
+PROBLEM 4 — DUPLICATE VERB STARTERS (no two bullets across the whole document may start with the same verb):
+Scan all responsibilities across ALL roles. If two bullets start with the same verb, rewrite the second one to start with a different strong action verb.
+
+PROBLEM 5 — UNIFORM RHYTHM (no three bullets of similar length in a row):
+If three consecutive bullets in a role are all approximately the same length (within 5 words of each other), shorten the middle one slightly or expand the last one slightly to create variation.
+
+PROBLEM 6 — AI TONE PHRASES IN SUMMARY (check professionalSummary field):
+The professional summary must not contain: "passionate", "driven", "innovative", "seasoned professional", "dynamic", "cutting-edge", "result-oriented", "proactive", "detail-oriented".
+Replace with specific factual claims: years of experience, industries served, measurable outcomes, or named skills.
+
+Here is the CV JSON to audit and correct:
+${JSON.stringify(cvData, null, 2)}
+
+Return ONLY the corrected JSON object, no markdown, no explanation, no code fences.
+`.trim();
+
+    try {
+        const result = await groqChat(
+            GROQ_LARGE,
+            'You are a strict CV editor. Fix only the listed problems. Return only valid JSON.',
+            auditPrompt,
+            { temperature: 0.15, json: true, maxTokens: 10000 }
+        );
+        const parsed = JSON.parse(result.trim());
+        console.log('[CV Humanizer] Audit pass complete.');
+        return parsed as CVData;
+    } catch (e) {
+        console.error('[CV Humanizer] Audit pass failed, returning original:', e);
         return cvData;
     }
 }
@@ -906,7 +1071,13 @@ export const generateCV = async (
             blockD = `Extracted from JD: ${contextDescription.substring(0, 600)}`;
         }
 
-        const modeBlock = buildModePromptBlock(generationMode, currency, seniority, market, blockD);
+        // Gap detection — pass employment gaps to the mode prompt for intelligent handling
+        const gaps = detectGaps(profile.workExperience || []);
+        if (gaps.length > 0) {
+            console.log(`[CV Gen] Detected ${gaps.length} employment gap(s):`, gaps.map(g => `${g.gapMonths}mo between "${g.fromRole}" and "${g.toRole}"`));
+        }
+
+        const modeBlock = buildModePromptBlock(generationMode, currency, seniority, market, blockD, gaps);
 
         mainPromptInstruction = `
             You are the world's greatest CV strategist operating under strict market-calibrated rules.
@@ -1019,6 +1190,16 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             cvData = await runGroqValidator(cvData, rawExperience, currency, seniority, market);
         } catch (validatorError) {
             console.error('[CV Validator] Skipped due to error:', validatorError);
+        }
+    }
+
+    // ── PART 7 — Humanization Audit: runs after all job CV generations ──
+    // Fixes short bullets, banned phrases, metric overload, duplicate verb starters, and uniform rhythm.
+    if (purpose === 'job') {
+        try {
+            cvData = await runHumanizationAudit(cvData);
+        } catch (auditError) {
+            console.error('[CV Humanizer] Audit skipped due to error:', auditError);
         }
     }
 
