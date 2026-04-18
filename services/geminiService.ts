@@ -44,6 +44,355 @@ export function invalidateCVCache(): void {
     cvCache.clear();
 }
 
+// ─── PRE-GENERATION PIPELINE ─────────────────────────────────────────────────
+// Implements Blocks A, B, C, D from the Master AI Generation Instructions.
+
+/** BLOCK A — Detect currency from job description and profile location. */
+function detectCurrency(jd: string, location: string): string {
+    const src = `${jd} ${location}`.toLowerCase();
+
+    // Step 1 — explicit currency symbols/words
+    if (/\bkes\b|ksh|kenya shilling|kenyan shilling/.test(src)) return 'KES';
+    if (/\busd\b|us\$|\bdollars?\b|\bunited states\b/.test(src)) return 'USD';
+    if (/\bgbp\b|£|pounds? sterling|british pounds?|\buk\b|united kingdom/.test(src)) return 'GBP';
+    if (/\beur\b|€|\beuros?\b|\beuropean\b/.test(src)) return 'EUR';
+    if (/\bngn\b|₦|\bnaira\b|\bnigeria\b/.test(src)) return 'NGN';
+    if (/\bzar\b|\brand\b|south african rand|south africa/.test(src)) return 'ZAR';
+    if (/\bugx\b|uganda shilling|\buganda\b/.test(src)) return 'UGX';
+    if (/\btzs\b|tanzanian shilling|\btanzania\b/.test(src)) return 'TZS';
+    if (/\baed\b|\bdirham\b|\buae\b|\bdubai\b|abu dhabi/.test(src)) return 'AED';
+
+    // Step 2 — location keywords
+    if (/nairobi|mombasa|kisumu|\bkenya\b/.test(src)) return 'KES';
+    if (/lagos|abuja|port harcourt|\bnigeria\b/.test(src)) return 'NGN';
+    if (/johannesburg|cape town|durban|south africa/.test(src)) return 'ZAR';
+    if (/london|manchester|birmingham|\buk\b|united kingdom/.test(src)) return 'GBP';
+    if (/new york|san francisco|chicago|\busa\b|united states/.test(src)) return 'USD';
+    if (/kampala|\buganda\b/.test(src)) return 'UGX';
+    if (/dar es salaam|\btanzania\b/.test(src)) return 'TZS';
+    if (/\bdubai\b|abu dhabi|\buae\b/.test(src)) return 'AED';
+    if (/paris|berlin|amsterdam|brussels/.test(src)) return 'EUR';
+
+    // Step 3 — no currency detected
+    return 'NONE';
+}
+
+/** BLOCK B — Detect seniority from work experience dates. */
+function detectSeniority(workExperience: Array<{ startDate: string; endDate: string }>): string {
+    let totalMonths = 0;
+    const now = new Date();
+    for (const exp of workExperience || []) {
+        const start = new Date(exp.startDate);
+        const end = exp.endDate?.toLowerCase() === 'present' ? now : new Date(exp.endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
+        const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        if (months > 0) totalMonths += months;
+    }
+    if (totalMonths < 6) return 'intern';
+    if (totalMonths < 24) return 'junior';
+    if (totalMonths < 60) return 'mid';
+    return 'senior';
+}
+
+/** BLOCK C — Derive market from detected currency. */
+function detectMarket(currency: string): string {
+    const map: Record<string, string> = {
+        KES: 'East Africa', UGX: 'East Africa', TZS: 'East Africa',
+        NGN: 'West Africa', ZAR: 'Southern Africa',
+        GBP: 'UK', USD: 'USA / Global', EUR: 'European', AED: 'Gulf',
+        NONE: 'Unknown — counts and percentages only',
+    };
+    return map[currency] || 'Unknown — counts and percentages only';
+}
+
+/** Returns the relevant metrics ceiling string for the validator prompt. */
+function buildMetricsCeiling(seniority: string, currency: string): string {
+    type SeniorityKey = 'intern' | 'junior' | 'mid' | 'senior';
+    type CurrencyKey = 'KES' | 'NGN' | 'ZAR' | 'GBP' | 'USD' | 'EUR' | 'AED' | 'NONE';
+
+    const ceilings: Record<SeniorityKey, Record<CurrencyKey, string>> = {
+        intern: {
+            KES: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            NGN: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            ZAR: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            GBP: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            USD: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            EUR: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            AED: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+            NONE: 'Max projects: 2 (assisted). Max team: 0. No monetary figures.',
+        },
+        junior: {
+            KES: 'Max project value: KES 4M. Max revenue/yr: KES 6M. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            NGN: 'Max project value: NGN 40M. Max revenue/yr: NGN 60M. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            ZAR: 'Max project value: ZAR 400K. Max revenue/yr: ZAR 600K. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            GBP: 'Max project value: GBP 250K. Max revenue/yr: GBP 500K. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            USD: 'Max project value: USD 300K. Max revenue/yr: USD 600K. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            EUR: 'Max project value: EUR 280K. Max revenue/yr: EUR 550K. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            AED: 'Max project value: AED 1.1M. Max revenue/yr: AED 2.2M. Max team: 3. Max projects: 8. Max efficiency gain: 18%.',
+            NONE: 'No monetary figures. Max projects: 8. Max team: 3. Max efficiency gain: 18%.',
+        },
+        mid: {
+            KES: 'Max project value: KES 18M. Max revenue/yr: KES 22M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            NGN: 'Max project value: NGN 180M. Max revenue/yr: NGN 220M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            ZAR: 'Max project value: ZAR 1.8M. Max revenue/yr: ZAR 2.2M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            GBP: 'Max project value: GBP 1.1M. Max revenue/yr: GBP 1.4M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            USD: 'Max project value: USD 1.3M. Max revenue/yr: USD 1.6M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            EUR: 'Max project value: EUR 1.2M. Max revenue/yr: EUR 1.5M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            AED: 'Max project value: AED 4.8M. Max revenue/yr: AED 5.9M. Max team: 10. Max projects: 18. Max efficiency gain: 28%.',
+            NONE: 'No monetary figures. Max projects: 18. Max team: 10. Max efficiency gain: 28%.',
+        },
+        senior: {
+            KES: 'Max project value: KES 120M. Max revenue/yr: KES 90M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            NGN: 'Max project value: NGN 1.2B. Max revenue/yr: NGN 900M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            ZAR: 'Max project value: ZAR 12M. Max revenue/yr: ZAR 9M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            GBP: 'Max project value: GBP 7.2M. Max revenue/yr: GBP 5.4M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            USD: 'Max project value: USD 8.5M. Max revenue/yr: USD 6.4M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            EUR: 'Max project value: EUR 7.8M. Max revenue/yr: EUR 5.9M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            AED: 'Max project value: AED 31M. Max revenue/yr: AED 23M. Max team: 25. Max projects: 45. Max efficiency gain: 42%.',
+            NONE: 'No monetary figures. Max projects: 45. Max team: 25. Max efficiency gain: 42%.',
+        },
+    };
+
+    const s = (seniority as SeniorityKey) in ceilings ? (seniority as SeniorityKey) : 'junior';
+    const c = (currency as CurrencyKey) in ceilings[s] ? (currency as CurrencyKey) : 'NONE';
+    return ceilings[s][c];
+}
+
+/** Build the mode-specific prompt block (Part 5 of Master Instructions). */
+function buildModePromptBlock(
+    mode: string,
+    currency: string,
+    seniority: string,
+    market: string,
+    blockD: string
+): string {
+    const blocks = `
+BLOCK A — DETECTED CURRENCY: ${currency === 'NONE' ? 'NONE — use no monetary figures anywhere. Counts, percentages, and units only.' : currency}
+BLOCK B — DETECTED SENIORITY: ${seniority}
+BLOCK C — DETECTED MARKET: ${market}
+BLOCK D — COMPANY CONTEXT: ${blockD || 'No company identified — proceed on JD signals alone.'}
+`;
+
+    const metricsCeiling = buildMetricsCeiling(seniority, currency);
+
+    if (mode === 'honest') {
+        return `
+${blocks}
+
+You are a professional CV writer operating in HONEST MODE for the global job market.
+
+YOUR JOB IN THIS MODE:
+Rewrite the user's real experience to be the strongest, clearest, most ATS-optimised version of itself. You are not adding anything that did not happen. You are making what did happen communicated in the most compelling way possible for this specific job in this specific market.
+
+WHAT YOU CAN DO:
+- Rewrite bullet points using strong, precise action verbs that match the job description's own language.
+- Mirror exact keywords and terminology from the job description — if the JD says "stakeholder engagement", use that exact phrase.
+- Reorder bullet points within each role so the most JD-relevant achievement appears first.
+- Improve grammar, sentence structure, and clarity. Remove filler phrases.
+- Use Block D company context to align language and tone.
+
+METRIC RULE — CONTEXTUAL INFERENCE ONLY:
+You may add a metric ONLY when there is enough context in what the user wrote to reasonably infer it.
+- ALLOWED: User wrote "managed projects for 2 years" → you may write "Managed 4–6 projects" (use LOW end of ${seniority} range for ${market}).
+- NOT ALLOWED: User gave zero context about quantity or scale → describe without metrics.
+- THE TEST: Can you reasonably infer this number from what the user wrote, their role type, and their total years of experience? YES → use conservative LOW end. NO → describe without any number.
+
+METRIC CEILINGS for ${seniority} in ${market}: ${metricsCeiling}
+
+CURRENCY RULE:
+${currency === 'NONE'
+    ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Express everything as percentages, counts, and units.'
+    : `Use only ${currency} throughout. If more than one currency symbol appears anywhere in the document, remove ALL monetary figures and rewrite using percentages and counts only.`}
+
+WHAT YOU CANNOT DO:
+- Add any company, role, or experience not provided by the user
+- Change any employment dates for any reason
+- Invent any metric the user did not mention or imply in context
+- Add skills the user did not list anywhere in their profile
+- Change a job title to something grander than what was held
+- Write any currency other than ${currency === 'NONE' ? 'none (no monetary figures at all)' : currency}
+- Mix two currencies anywhere in the same document
+- Ignore the company context in Block D
+`;
+    }
+
+    if (mode === 'boosted') {
+        return `
+${blocks}
+
+You are a professional CV writer operating in BOOSTED MODE for the global job market.
+
+THE LOCK: Company names and employment dates provided by the user are locked. They cannot be changed. No new companies or employed roles may be added. This is absolute.
+
+YOUR JOB IN THIS MODE:
+Take the user's real experience and make it as strong as it can plausibly be — using implied responsibilities that are standard for this role type and seniority level in the detected market, and quantifying vague achievements using the low-to-mid range of the detected market metrics. Everything added must be plausible to any recruiter who interviews the candidate about it.
+
+WHAT YOU CAN DO (everything in Honest Mode, plus):
+- Add implied responsibilities that are genuinely standard for this role type at this seniority level. These are responsibilities any experienced recruiter would assume someone in this role carried, even if the user did not explicitly list them.
+- Quantify vague achievements using the LOW-TO-MID end of the metrics table for ${market} at ${seniority} level. NEVER use the high end — that is Aggressive Mode.
+- Add 1–2 relevant skills from the job description that are plausible given the user's industry and background. Test: Would any recruiter believe someone in this role, at this seniority, in this market plausibly has this skill? If any doubt — do not add it.
+- Strengthen the professional summary to match the JD more closely using Block D company context.
+
+NUMBERS MUST LOOK REAL — never use suspiciously round numbers:
+- Use 2.3M not 2M exactly. Use 11% not 10% exactly. Use 14 clients not 15 exactly. Use 7 projects not 5 or 10 exactly.
+
+METRIC CEILINGS (MAXIMUM allowed — midpoint of range):
+${metricsCeiling}
+
+CURRENCY RULE:
+${currency === 'NONE'
+    ? 'Block A detected NO currency. Use ZERO monetary figures. Counts, percentages, and units only.'
+    : `Use only ${currency} throughout the entire document. Never mix currencies.`}
+
+WHAT YOU CANNOT DO:
+- Add any company or employed role not provided by the user
+- Change any employment dates for any reason
+- Use metrics above the MIDPOINT of the detected market table
+- Add skills implausible for the background and industry
+- Write any currency other than ${currency === 'NONE' ? 'none' : currency}
+- Mix two currencies anywhere in the document
+- Use suspiciously round numbers
+- Ignore the company context in Block D
+`;
+    }
+
+    // aggressive
+    return `
+${blocks}
+
+You are a professional CV writer operating in AGGRESSIVE MODE for the global job market.
+
+THE LOCK: Company names and employment dates provided by the user are locked and sacred. They cannot be changed, abbreviated, extended, or replaced under any circumstances whatsoever. This is the one rule in this mode that has zero flexibility.
+
+YOUR JOB IN THIS MODE:
+Produce the most powerful version of this CV that is still fully credible to a recruiter in the detected market. Bold, targeted, keyword-saturated, and deeply aligned to the target company. Every single claim must still be defensible if a recruiter asks the candidate about it face-to-face in an interview. If a claim cannot be defended — remove it.
+
+WHAT YOU CAN DO (everything in Boosted Mode, plus):
+- Use the MID-TO-HIGH end of the metrics table for ${market} at ${seniority} level. The HIGH end is the absolute hard ceiling — never exceed it.
+- Add strong stretch responsibilities that are plausible for someone performing at the very top of their current role — not someone already promoted beyond it.
+- Write a highly targeted, executive-style professional summary positioning the user as the ideal candidate for this specific role at this specific company. Every sentence connects the user's real experience to what the JD and Block D say the company needs. No generic sentences. No filler.
+- Maximise keyword density from the job description throughout every section. Every keyword appears inside a sentence demonstrating genuine competence — not just mentioned.
+- Use Block D company context deeply and specifically. Mirror their language, values, and industry terminology.
+
+FILLING A GENUINE EXPERIENCE GAP (only if a gap longer than 3 months exists):
+If and only if the user has a genuine gap in their timeline, you may add ONE self-directed work entry:
+- RULE A: Self-directed work only (freelance, independent project, contract, voluntary). NEVER an employed role at a named company.
+- RULE B: The work type must exactly match the user's real skills — a natural extension of existing experience.
+- RULE C: Dates must sit entirely within the gap — no overlap with any real employment.
+- RULE D: Seniority must match the surrounding roles.
+- RULE E: Use the LOW end of metrics for this entry — it must be the most modest entry on the CV.
+- RULE F: Only ONE self-directed entry per CV maximum.
+If any rule cannot be satisfied — do not add the entry at all. An unfilled gap is better than a fabricated record.
+
+NUMBERS MUST LOOK REAL — never suspiciously clean or round:
+- Use 13% not 15%. Use KES 3.8M not KES 4M. Use 22 clients not 20 or 25. Use 7 projects not 5 or 10. Use USD 287K not USD 300K.
+
+METRIC CEILINGS (ABSOLUTE MAXIMUM — high end of range):
+${metricsCeiling}
+
+CURRENCY RULE:
+${currency === 'NONE'
+    ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Percentages, counts, and units only.'
+    : `Use only ${currency} throughout. Final pass before returning: scan every bullet point for currency symbols. If more than one appears anywhere, remove ALL monetary figures and rewrite using percentages and counts only.`}
+
+WHAT YOU CANNOT DO:
+- Change any provided company name or date for any reason
+- Add an employed role at any company the user did not work at
+- Invent skills or experience types the user does not have
+- Use metrics above the HIGH end of the detected market table
+- Apply senior-level metrics to a junior-level profile
+- Create a backwards career timeline
+- Add more than one self-directed entry per CV
+- Use a self-directed entry that overlaps with real employment
+- Write any currency other than ${currency === 'NONE' ? 'none' : currency}
+- Mix two currencies anywhere in the document
+- Use suspiciously round numbers
+- Ignore the company context in Block D
+`;
+}
+
+/** PART 6 — Groq validator. Runs after Boosted and Aggressive generation. */
+async function runGroqValidator(
+    cvData: CVData,
+    rawExperience: string,
+    currency: string,
+    seniority: string,
+    market: string
+): Promise<CVData> {
+    const metricsCeiling = buildMetricsCeiling(seniority, currency);
+
+    const validatorPrompt = `
+You are a strict CV quality validator for the global job market.
+
+You have received:
+- The generated CV to validate (below)
+- The user's original raw work experience (source of truth)
+- DETECTED CURRENCY: ${currency}
+- DETECTED SENIORITY: ${seniority}
+- DETECTED MARKET: ${market}
+- METRIC CEILINGS: ${metricsCeiling}
+
+USER'S ORIGINAL RAW EXPERIENCE (source of truth — company names from here are the ONLY valid ones):
+${rawExperience}
+
+GENERATED CV TO VALIDATE:
+${JSON.stringify(cvData)}
+
+Run all six checks below in order. Do not skip any check.
+
+CHECK 1 — COMPANY INTEGRITY
+Every company name in the generated CV must be one of:
+  a) A company provided by the user in their original experience
+  b) A self-directed freelance/consulting entry with no company name ("Independent Consultant" or "Freelance [Role]")
+Any invented company name → FLAG "Unverifiable company: [name]" → Remove the entire experience entry.
+
+CHECK 2 — TIMELINE LOGIC
+Verify: no role's start date is after its own end date, no internship appears after a full-time role without logical reason, no two full-time roles at different employers impossibly overlap for more than 1 month, any self-directed entry sits cleanly within a gap.
+Any timeline violation → FLAG and correct where obvious, remove where it cannot be explained.
+
+CHECK 3 — METRIC BELIEVABILITY
+Apply the metric ceilings above. Anything above the ceiling → FLAG "Metric too high for ${seniority} in ${market}: [metric]" → Reduce to the top of the acceptable range.
+Also flag: suspiciously round numbers (exactly 50 clients, exactly 10M, exactly 20%) → make them specific and slightly irregular.
+
+CHECK 4 — CURRENCY CONSISTENCY
+Scan every bullet, section, and summary for currency symbols. If more than one distinct currency appears → FLAG "Currency mixing detected" → Remove all monetary figures from affected sections, rewrite using percentages and counts only.
+If any currency symbol appears when DETECTED CURRENCY is NONE → FLAG → Remove all monetary figures.
+
+CHECK 5 — SENIORITY CONSISTENCY
+Job titles and responsibilities must match ${seniority} level.
+Intern/Junior titles with team leadership of 10+ → FLAG.
+Junior titles with multi-million portfolio claims → FLAG.
+"Director", "Head of", "VP" titles for under 5 years total experience → FLAG.
+Any mismatch → FLAG and rewrite to correct seniority level.
+
+CHECK 6 — SKILLS PLAUSIBILITY
+Every skill must make sense for the user's industry, role type, and background.
+Completely disconnected skills (blockchain on a water engineer, dermatology on a salesperson) → FLAG "Implausible skill: [name]" → Remove.
+
+OUTPUT FORMAT — return JSON only, no markdown, no explanation:
+
+If ALL checks pass:
+{"valid": true, "cv": <full corrected cv data object>}
+
+If ANY check fails:
+{"valid": false, "flags": ["Flag description 1", "Flag description 2"], "cv": <full cv data object with all flagged items corrected or removed>}
+
+CRITICAL: The goal is a CV that is impressive and completely impossible to catch in the target market. Believability in the detected market is the ultimate standard.
+`;
+
+    try {
+        const result = await groqChat(GROQ_LARGE, 'You are a strict CV quality validator. Return only valid JSON.', validatorPrompt, { temperature: 0.1, json: true, maxTokens: 8000 });
+        const parsed = JSON.parse(result.trim());
+        if (parsed.flags && parsed.flags.length > 0) {
+            console.warn('[CV Validator] Flags raised:', parsed.flags);
+        }
+        return parsed.cv || cvData;
+    } catch (e) {
+        console.error('[CV Validator] Validation failed, returning original:', e);
+        return cvData;
+    }
+}
+
 // --- System-Level Constants for AI Control ---
 const SYSTEM_INSTRUCTION_PROFESSIONAL = `
 You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience placing candidates at Google, McKinsey, Goldman Sachs, and top-tier startups.
@@ -544,37 +893,26 @@ export const generateCV = async (
             ${CV_DATA_SCHEMA}
         `;
     } else {
-        // JOB purpose
-        let modeInstruction = '';
-        if (generationMode === 'honest') {
-            modeInstruction = `
-            **HONEST MODE — Strict rules**:
-            - Use ONLY the experience, skills, and achievements from the user's profile.
-            - DO NOT invent companies, roles, or experiences that don't exist in the profile.
-            - You MAY: rewrite existing bullets with stronger verbs, add realistic metrics to existing achievements, reorder/emphasize relevant experience.
-            - Every improvement must be plausible and defensible based on the actual role and context provided.
-            `;
-        } else if (generationMode === 'boosted') {
-            modeInstruction = `
-            **BOOSTED MODE — Expand strategically**:
-            - Use the existing profile as the foundation.
-            - Add ONE additional work experience entry from a plausible mid-sized company (NOT Fortune 500 to avoid obvious fabrication). This role should fill a gap or strengthen candidacy for the target role.
-            - The added role should: span 6-18 months, have a plausible job title, and include 3-4 strong bullets relevant to the target JD.
-            - You MAY enhance existing metrics to be more impressive (but realistic for the industry/tenure).
-            `;
-        } else {
-            modeInstruction = `
-            **AGGRESSIVE MODE — Maximum optimization**:
-            - Rewrite every bullet for peak impact — no original bullet should survive unchanged.
-            - Add 1-2 targeted work experience entries from credible (but not Big Tech) companies.
-            - Each added role: 6-24 months, strategically chosen title, 4-5 perfectly JD-matched bullets.
-            - The summary should position the candidate as the IDEAL candidate for this specific role.
-            - Push metrics to the ambitious end of what's industry-plausible for the role level and tenure.
-            `;
+        // JOB purpose — run the full pre-generation pipeline (Blocks A, B, C, D)
+        const currency = detectCurrency(contextDescription, profile.personalInfo?.location || '');
+        const seniority = detectSeniority(profile.workExperience || []);
+        const market = detectMarket(currency);
+
+        // Block D — company context from market research or JD signals
+        let blockD = '';
+        if (marketResearch) {
+            blockD = buildMarketIntelligencePrompt(marketResearch);
+        } else if (contextDescription.trim()) {
+            blockD = `Extracted from JD: ${contextDescription.substring(0, 600)}`;
         }
 
+        const modeBlock = buildModePromptBlock(generationMode, currency, seniority, market, blockD);
+
         mainPromptInstruction = `
-            You are the world's greatest CV strategist. Your sole mission: generate the single highest-performing CV for this specific candidate targeting this specific role. Every word must earn its place.
+            You are the world's greatest CV strategist operating under strict market-calibrated rules.
+            Your sole mission: generate the single highest-performing CV for this specific candidate targeting this specific role.
+
+            ${modeBlock}
 
             USER PROFILE:
             ${compactProfile(profile)}
@@ -585,51 +923,50 @@ export const generateCV = async (
 
             ${keywordInstruction}
 
-            ${modeInstruction}
-
             === CV GENERATION STRATEGY — Follow in order ===
 
-            ① PROFESSIONAL SUMMARY — The "3P Formula" (3 sentences, 55–75 words, THE most important section):
-               HOOK (Sentence 1 — WHO + MATCH): Use the EXACT job title from the JD + their seniority level + their primary domain/industry. Example: "Senior Product Manager with 8 years building B2B SaaS platforms used by Fortune 500 procurement teams."
-               PROOF (Sentence 2 — BEST ACHIEVEMENT): Their single strongest, most-quantified achievement that DIRECTLY addresses what the JD is asking for. This must include a number.
-               PROMISE (Sentence 3 — VALUE DELIVERY): A concrete, specific statement of what this person does better than 95% of candidates — why hiring them solves the employer's specific problem.
-               RULE: Must include 3 keywords from the JD. Must NOT include: "passionate", "dynamic", "results-driven", "detail-oriented", "team player", or any other hollow label.
+            ① PROFESSIONAL SUMMARY — The "3P Formula" (3 sentences, 55–75 words):
+               HOOK (Sentence 1): Use the EXACT job title from the JD + their seniority level + primary domain/industry.
+               PROOF (Sentence 2): Their single strongest, most-quantified achievement that DIRECTLY addresses what the JD is asking for. Must include a number (within the market metric ceilings above).
+               PROMISE (Sentence 3): A concrete, specific statement of the value they deliver — why hiring them solves the employer's specific problem.
+               RULE: Must include 3 keywords from the JD. Must NOT include: "passionate", "dynamic", "results-driven", "detail-oriented", or any hollow label.
 
-            ② EXPERIENCE — Every bullet is a courtroom exhibit proving the candidate's fit:
-               FORMAT: [Power Verb] + [Specific Context matching JD language] + [Quantified Result] + [Business Impact where possible].
-               METRICS: If the user gave no exact number, use believable industry-appropriate figures (team size, user count, time saved, revenue range, SLA, cost reduction). State as natural fact — NEVER use "~" prefix, NEVER invent percentages that can't be justified.
+            ② EXPERIENCE — Every bullet is proof of fit:
+               FORMAT: [Power Verb] + [Specific Context matching JD language] + [Quantified Result].
+               METRICS: Use only figures within the ceilings stated in the mode block above. Never use "~" prefix.
                FORBIDDEN OPENERS: "Responsible for" / "Helped" / "Assisted" / "Worked on" / "Was part of" / "Participated in" / "Tasked with".
-               JD MIRRORING: Mirror the JD's exact phrases in at least 3 bullets per job (ATS phrase-match scoring).
+               JD MIRRORING: Mirror the JD's exact phrases in at least 3 bullets per job.
                VERB VARIETY: No two bullets in the entire document may start with the same verb.
-               CAREER ARC: Each job's bullets must reflect the scope and seniority of THAT role — junior roles get narrower scope, senior roles show organization-wide impact.
+               CAREER ARC: Each job's bullets must reflect the scope and seniority of THAT role.
+               GOLDEN RULES (apply always):
+               - Company names provided by the user are SACRED — never change, invent, abbreviate, or replace them.
+               - Dates are locked — never change any employment date.
+               - Career must progress forward — never create a backwards timeline.
+               - One currency only — the one detected in Block A.
                ${experienceInstruction}
 
-            ③ SKILLS (EXACTLY 15 — ordered precisely by JD priority):
-               Position 1–5: EXACT tools/technologies/methodologies named in the JD (copy the JD's spelling).
-               Position 6–10: Core technical/domain skills that the role requires but JD may not list explicitly.
-               Position 11–13: Soft/transferable skills — phrased as demonstrated competencies, not adjectives ("Stakeholder alignment across C-suite and engineering" not "Communication").
-               Position 14–15: Industry/domain keywords that boost ATS semantic scoring.
-               RULE: Every must-include keyword that fits as a skill MUST appear here.
+            ③ SKILLS (EXACTLY 15 — ordered by JD priority):
+               Position 1–5: EXACT tools/technologies named in the JD.
+               Position 6–10: Core technical/domain skills for the role.
+               Position 11–13: Soft/transferable skills phrased as demonstrated competencies.
+               Position 14–15: Industry/domain ATS keywords.
 
             ④ EDUCATION:
-               'description': 1 concise sentence. Mention: GPA if ≥3.5 (or equivalent First Class/Distinction), thesis title with 5-word description of contribution, relevant honors, scholarships won, or 2–3 course titles most relevant to the JD. If none applies, mention a key academic project.
+               'description': 1 concise sentence — GPA if ≥3.5, thesis title, relevant honors, or 2–3 relevant courses.
 
             ⑤ PROJECTS — Proof-of-Skill Snapshots:
-               FORMAT: [Problem/Goal in JD-relevant terms] → [Solution with specific named technologies/methods] → [Measurable outcome with scale or adoption metric].
-               If GitHub URL was provided, weave "github.com/[username]" as the link field.
-               Prioritize projects that demonstrate skills the JD specifically requires.
-
-            ⑥ FINAL QUALITY CHECK (apply before outputting):
-               - Does the summary mention the exact job title from the JD? ✓
-               - Does every experience bullet have a number? ✓
-               - Do skills positions 1–5 exactly match JD tool names? ✓
-               - Are there any forbidden opener phrases? Remove them. ✓
-               - Does the career arc show clear growth? ✓
+               FORMAT: [Problem/Goal] → [Solution with named technologies] → [Measurable outcome].
+               Prioritize projects demonstrating skills the JD specifically requires.
 
             ${humanizationInstruction}
 
             ${CV_DATA_SCHEMA}
         `;
+
+        // Store detection results on the instruction for the validator to use
+        (mainPromptInstruction as any).__currency = currency;
+        (mainPromptInstruction as any).__seniority = seniority;
+        (mainPromptInstruction as any).__market = market;
     }
 
     // Prepend section order + custom section notes (if any) to the prompt
@@ -637,8 +974,9 @@ export const generateCV = async (
         mainPromptInstruction = `${sectionOrderInstruction}\n\n${mainPromptInstruction}`;
     }
 
-    // Prepend live market intelligence (if research succeeded)
-    if (marketResearch) {
+    // Prepend live market intelligence for non-job modes only
+    // (job mode already injects market research into Block D of the mode prompt)
+    if (marketResearch && purpose !== 'job') {
         const marketBlock = buildMarketIntelligencePrompt(marketResearch);
         mainPromptInstruction = `${marketBlock}\n\n${mainPromptInstruction}`;
     }
@@ -663,7 +1001,26 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             generationMode === 'boosted' ? 0.65 : 0.75;
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
-    const cvData: CVData = JSON.parse(text.trim());
+    let cvData: CVData = JSON.parse(text.trim());
+
+    // ── PART 6 — Groq Validator: runs after Boosted and Aggressive for job CVs ──
+    // Honest Mode and non-job purposes skip validation (cannot invent companies or metrics).
+    if (purpose === 'job' && (generationMode === 'boosted' || generationMode === 'aggressive')) {
+        try {
+            const currency = detectCurrency(contextDescription, profile.personalInfo?.location || '');
+            const seniority = detectSeniority(profile.workExperience || []);
+            const market = detectMarket(currency);
+            const rawExperience = JSON.stringify((profile.workExperience || []).map(e => ({
+                company: e.company,
+                jobTitle: e.jobTitle,
+                startDate: e.startDate,
+                endDate: e.endDate,
+            })));
+            cvData = await runGroqValidator(cvData, rawExperience, currency, seniority, market);
+        } catch (validatorError) {
+            console.error('[CV Validator] Skipped due to error:', validatorError);
+        }
+    }
 
     // Carry through user's pre-filled custom sections (not AI-generated)
     if (profile.customSections && profile.customSections.length > 0) {
