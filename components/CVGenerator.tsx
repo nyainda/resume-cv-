@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef } from 'react';
-import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
+import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, CVScore } from '../services/geminiService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
@@ -8,6 +8,7 @@ import { downloadCVAsPDF } from '../services/pdfService';
 import PDFDownloadButton from './PDFDownloadButton';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
+import TemplateThumbnail from './TemplateThumbnail';
 import CoverLetterPreview from './CoverLetterPreview';
 import TemplateGallery from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
@@ -18,6 +19,19 @@ import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
+
+const ACCENT_COLORS = [
+  { hex: '#4f46e5', label: 'Indigo' },
+  { hex: '#2563eb', label: 'Blue' },
+  { hex: '#0d9488', label: 'Teal' },
+  { hex: '#059669', label: 'Emerald' },
+  { hex: '#7c3aed', label: 'Violet' },
+  { hex: '#c8701a', label: 'Amber' },
+  { hex: '#dc2626', label: 'Red' },
+  { hex: '#be185d', label: 'Pink' },
+  { hex: '#1a2f5a', label: 'Navy' },
+  { hex: '#2e2510', label: 'Bronze' },
+] as const;
 
 /**
  * Converts any caught error into a short, user-readable string.
@@ -824,20 +838,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template, choose a font, and make final edits.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div>
-                <Label htmlFor="font-select" className="sr-only">Font</Label>
-                <select
-                  id="font-select"
-                  value={font}
-                  onChange={(e) => setFont(e.target.value as FontName)}
-                  className="text-sm rounded-lg border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 focus:ring-[#C9A84C] focus:border-[#1B2B4B] h-9"
-                  disabled={isEditing}
-                >
-                  {Object.entries(fontDisplayNames).map(([key, value]) => (
-                    <option key={key} value={key}>{value}</option>
-                  ))}
-                </select>
-              </div>
               <Button variant="secondary" onClick={() => setIsEditing(!isEditing)} size="sm">
                 <Edit className="h-4 w-4 mr-2" />
                 {isEditing ? 'Finish Editing' : 'Edit CV'}
@@ -1036,58 +1036,127 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             personalInfo={userProfile.personalInfo}
           />
 
-          {/* ── Accent color picker ── */}
-          {currentCV && (
-            <div className="mt-4 flex flex-wrap items-center gap-3 px-1">
-              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Accent colour</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { hex: '#4f46e5', label: 'Indigo' },
-                  { hex: '#2563eb', label: 'Blue' },
-                  { hex: '#0d9488', label: 'Teal' },
-                  { hex: '#059669', label: 'Emerald' },
-                  { hex: '#7c3aed', label: 'Violet' },
-                  { hex: '#c8701a', label: 'Amber' },
-                  { hex: '#dc2626', label: 'Red' },
-                  { hex: '#be185d', label: 'Pink' },
-                  { hex: '#1a2f5a', label: 'Navy' },
-                  { hex: '#2e2510', label: 'Bronze' },
-                ].map(({ hex, label }) => (
-                  <button
-                    key={hex}
-                    title={label}
-                    onClick={() => setCurrentCV({ ...currentCV, accentColor: hex })}
-                    className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
-                      (currentCV.accentColor ?? '#4f46e5') === hex
-                        ? 'border-zinc-900 dark:border-white scale-110'
-                        : 'border-transparent'
-                    }`}
-                    style={{ backgroundColor: hex }}
-                  />
-                ))}
-                {/* Custom color input */}
-                <label title="Custom colour" className="relative w-6 h-6 rounded-full border-2 border-dashed border-zinc-400 dark:border-zinc-500 overflow-hidden cursor-pointer hover:scale-110 transition-transform flex items-center justify-center">
-                  <span className="text-[10px] text-zinc-400">+</span>
-                  <input
-                    type="color"
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={currentCV.accentColor ?? '#4f46e5'}
-                    onChange={e => setCurrentCV({ ...currentCV, accentColor: e.target.value })}
-                  />
-                </label>
-              </div>
-              {currentCV.accentColor && (
-                <button
-                  onClick={() => setCurrentCV({ ...currentCV, accentColor: undefined })}
-                  className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          )}
+          {/* ── Customisation Panel: Font + Accent Colour ── */}
+          <div className="mt-5 p-4 bg-zinc-50 dark:bg-neutral-800/60 rounded-xl border border-zinc-200 dark:border-neutral-700 space-y-4">
 
-          <div ref={previewRef} className="mt-8 border-t border-zinc-200 dark:border-neutral-700 pt-8">
+            {/* Font chips */}
+            <div>
+              <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-2">Font</span>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(fontDisplayNames).map(([key, label]) => {
+                  const shortName = label.split(' ')[0];
+                  const isSelected = font === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setFont(key as FontName)}
+                      disabled={isEditing}
+                      title={label}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                        isSelected
+                          ? 'bg-[#1B2B4B] text-white shadow-sm ring-1 ring-[#1B2B4B]/30'
+                          : 'bg-white dark:bg-neutral-700 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-neutral-600 hover:bg-zinc-100 dark:hover:bg-neutral-600 hover:text-zinc-900 dark:hover:text-zinc-200'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {shortName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Accent colour */}
+            {currentCV && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Accent Colour</span>
+                  <div
+                    className="w-4 h-4 rounded-full border border-zinc-300 dark:border-neutral-600 shadow-sm flex-shrink-0"
+                    style={{ backgroundColor: currentCV.accentColor ?? '#4f46e5' }}
+                  />
+                  <span className="text-[10px] text-zinc-400">
+                    {ACCENT_COLORS.find(c => c.hex === currentCV.accentColor)?.label ?? (currentCV.accentColor ? 'Custom' : 'Default')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {ACCENT_COLORS.map(({ hex, label }) => (
+                    <button
+                      key={hex}
+                      title={label}
+                      onClick={() => setCurrentCV({ ...currentCV, accentColor: hex })}
+                      className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 hover:shadow-md ${
+                        (currentCV.accentColor ?? '#4f46e5') === hex
+                          ? 'border-zinc-900 dark:border-white scale-110 shadow-lg ring-2 ring-offset-1 ring-zinc-300 dark:ring-zinc-600'
+                          : 'border-transparent hover:border-zinc-300 dark:hover:border-zinc-500'
+                      }`}
+                      style={{ backgroundColor: hex }}
+                    />
+                  ))}
+                  <label
+                    title="Custom colour"
+                    className="relative w-7 h-7 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600 overflow-hidden cursor-pointer hover:scale-110 transition-all flex items-center justify-center bg-white dark:bg-neutral-700"
+                  >
+                    <span className="text-[11px] text-zinc-400 font-bold select-none">+</span>
+                    <input
+                      type="color"
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      value={currentCV.accentColor ?? '#4f46e5'}
+                      onChange={e => setCurrentCV({ ...currentCV, accentColor: e.target.value })}
+                    />
+                  </label>
+                  {currentCV.accentColor && (
+                    <button
+                      onClick={() => setCurrentCV({ ...currentCV, accentColor: undefined })}
+                      className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline ml-1"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Quick Template Strip ── */}
+          <div className="mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Quick Switch Template</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{templateDisplayNames[template]}</span> selected
+              </span>
+            </div>
+            <div
+              className="flex gap-2 overflow-x-auto pb-2"
+              style={{ scrollbarWidth: 'thin', scrollbarColor: '#d1d5db transparent' }}
+            >
+              {(Object.keys(templateDisplayNames) as TemplateName[]).map((t) => {
+                const isActive = t === template;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setTemplate(t)}
+                    title={templateDisplayNames[t]}
+                    className="flex-none flex flex-col items-center gap-1 focus:outline-none group"
+                  >
+                    <div className={`w-11 h-[62px] rounded-lg overflow-hidden transition-all duration-150 ${
+                      isActive
+                        ? 'ring-2 ring-[#C9A84C] shadow-md shadow-[#C9A84C]/20 scale-105'
+                        : 'ring-1 ring-zinc-200 dark:ring-neutral-700 hover:ring-[#C9A84C]/60 hover:shadow-sm group-hover:scale-[1.03]'
+                    }`}>
+                      <TemplateThumbnail templateName={t} />
+                    </div>
+                    <span className={`text-[8px] font-medium max-w-[44px] text-center leading-tight truncate ${
+                      isActive ? 'text-[#C9A84C] font-bold' : 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300'
+                    }`}>
+                      {templateDisplayNames[t].split(' ')[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6">
             <CVPreview
               cvData={currentCV}
               personalInfo={userProfile.personalInfo}
