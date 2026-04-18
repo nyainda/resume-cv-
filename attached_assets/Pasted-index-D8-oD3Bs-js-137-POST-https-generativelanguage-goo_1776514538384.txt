@@ -1,0 +1,36 @@
+index-D8-oD3Bs.js:137  POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent 429 (Too Many Requests)
+apiCall @ index-D8-oD3Bs.js:137
+unaryApiCall @ index-D8-oD3Bs.js:133
+request @ index-D8-oD3Bs.js:133
+await in request
+generateContentInternal @ index-D8-oD3Bs.js:157
+KB.generateContent @ index-D8-oD3Bs.js:157
+await in KB.generateContent
+WM @ index-D8-oD3Bs.js:362
+(anonymous) @ index-D8-oD3Bs.js:1665
+Kk @ index-D8-oD3Bs.js:48
+(anonymous) @ index-D8-oD3Bs.js:48
+e2 @ index-D8-oD3Bs.js:48
+Ng @ index-D8-oD3Bs.js:48
+Ig @ index-D8-oD3Bs.js:49
+XU @ index-D8-oD3Bs.js:49Understand this error
+index-D8-oD3Bs.js:362 [MarketResearch] Failed silently: {"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-2.0-flash\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash\nPlease retry in 18.378004914s.","status":"RESOURCE_EXHAUSTED","details":[{"@type":"type.googleapis.com/google.rpc.Help","links":[{"description":"Learn more about Gemini API quotas","url":"https://ai.google.dev/gemini-api/docs/rate-limits"}]},{"@type":"type.googleapis.com/google.rpc.QuotaFailure","violations":[{"quotaMetric":"generativelanguage.googleapis.com/generate_content_free_tier_input_token_count","quotaId":"GenerateContentInputTokensPerModelPerMinute-FreeTier","quotaDimensions":{"location":"global","model":"gemini-2.0-flash"}},{"quotaMetric":"generativelanguage.googleapis.com/generate_content_free_tier_requests","quotaId":"GenerateRequestsPerMinutePerProjectPerModel-FreeTier","quotaDimensions":{"location":"global","model":"gemini-2.0-flash"}},{"quotaMetric":"generativelanguage.googleapis.com/generate_content_free_tier_requests","quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier","quotaDimensions":{"location":"global","model":"gemini-2.0-flash"}}]},{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"18s"}]}}
+WM @ index-D8-oD3Bs.js:362
+await in WM
+(anonymous) @ index-D8-oD3Bs.js:1665
+Kk @ index-D8-oD3Bs.js:48
+(anonymous) @ index-D8-oD3Bs.js:48
+e2 @ index-D8-oD3Bs.js:48
+Ng @ index-D8-oD3Bs.js:48
+Ig @ index-D8-oD3Bs.js:49
+XU @ index-D8-oD3Bs.js:49Understand this error
+index-D8-oD3Bs.js:570 [CV Cache] Hit — returning cached result (no tokens used)
+2index-D8-oD3Bs.js:1544 Uncaught ReferenceError: jspdf is not defined
+    at pp (index-D8-oD3Bs.js:1544:5235)
+    at index-D8-oD3Bs.js:1671:586
+    at Kk (index-D8-oD3Bs.js:48:128904)
+    at index-D8-oD3Bs.js:48:134233
+    at e2 (index-D8-oD3Bs.js:48:15157)
+    at Ng (index-D8-oD3Bs.js:48:130155)
+    at Ig (index-D8-oD3Bs.js:49:28938)
+    at XU (index-D8-oD3Bs.js:49:28760)
