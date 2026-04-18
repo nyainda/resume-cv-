@@ -13,6 +13,7 @@ interface TemplateProps {
 }
 
 const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+  const accent = cvData.accentColor ?? '#334155'; // default slate-700
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -43,7 +44,7 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
     <div id="cv-preview-modern" className="bg-white text-zinc-800 shadow-lg border">
       <div className="grid grid-cols-12">
         {/* Left Sidebar */}
-        <div className="col-span-4 bg-slate-700 text-white p-8">
+        <div className="col-span-4 text-white p-8" style={{ backgroundColor: accent }}>
           <div className="text-center mb-8">
             {personalInfo.photo && (
               <div className="flex justify-center mb-4">

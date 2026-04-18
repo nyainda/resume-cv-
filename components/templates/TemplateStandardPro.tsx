@@ -12,6 +12,7 @@ interface TemplateProps {
 }
 
 const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+    const accent = cvData.accentColor ?? '#111111';
 
     const handleUpdate = useCallback((path: (string | number)[], value: any) => {
         const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -47,10 +48,10 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                 textTransform: 'uppercase',
                 letterSpacing: '0.12em',
                 margin: '0 0 4px',
-                color: '#111',
+                color: accent,
             }}>{title}</h2>
-            <div style={{ borderTop: '1.5px solid #111', marginBottom: '2px' }} />
-            <div style={{ borderTop: '0.5px solid #555' }} />
+            <div style={{ borderTop: `1.5px solid ${accent}`, marginBottom: '2px' }} />
+            <div style={{ borderTop: `0.5px solid ${accent}88` }} />
         </div>
     );
 

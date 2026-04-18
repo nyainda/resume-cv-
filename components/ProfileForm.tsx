@@ -124,24 +124,43 @@ const SectionTitle: React.FC<{ children: React.ReactNode; subtitle?: string; act
 );
 
 // Card wrapper for list items (experience, education, etc.)
-const EntryCard: React.FC<{ index: number; onDelete: () => void; children: React.ReactNode; label?: string }> = ({ index, onDelete, children, label }) => (
-  <div className="relative group border border-zinc-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800/60 overflow-hidden">
-    <div className="flex items-center gap-2 px-4 py-2 bg-zinc-50 dark:bg-neutral-800 border-b border-zinc-100 dark:border-neutral-700">
-      <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 tabular-nums">#{index + 1}</span>
-      {label && <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{label}</span>}
-      <div className="flex-1" />
+const EntryCard: React.FC<{
+  index: number;
+  onDelete: () => void;
+  children: React.ReactNode;
+  label?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}> = ({ index, onDelete, children, label, isOpen, onToggle }) => (
+  <div className="relative border border-zinc-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800/60 overflow-hidden">
+    <div
+      className="flex items-center gap-2 px-4 py-2.5 bg-zinc-50 dark:bg-neutral-800 cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-neutral-700/60 transition-colors"
+      onClick={onToggle}
+    >
+      <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 tabular-nums w-5 shrink-0">#{index + 1}</span>
+      <span className={`text-xs font-medium truncate flex-1 ${label ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-400 italic'}`}>
+        {label || 'New Entry'}
+      </span>
+      <svg
+        className={`h-4 w-4 text-zinc-400 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+        viewBox="0 0 20 20" fill="currentColor"
+      >
+        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+      </svg>
       <button
         type="button"
-        onClick={onDelete}
-        className="p-1 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        onClick={e => { e.stopPropagation(); onDelete(); }}
+        className="p-1 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
         title="Remove"
       >
         <Trash className="h-3.5 w-3.5" />
       </button>
     </div>
-    <div className="p-4">
-      {children}
-    </div>
+    {isOpen && (
+      <div className="p-4 border-t border-zinc-100 dark:border-neutral-700">
+        {children}
+      </div>
+    )}
   </div>
 );
 
@@ -173,6 +192,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   );
   const [newSectionType, setNewSectionType] = useState<CustomSectionType>('awards');
   const [customLabelInput, setCustomLabelInput] = useState('');
+
+  // Accordion state — track which card is open per section (-1 = none)
+  const [openWork, setOpenWork] = useState<number>(0);
+  const [openEdu, setOpenEdu] = useState<number>(0);
+  const [openProj, setOpenProj] = useState<number>(-1);
+  const [openLang, setOpenLang] = useState<number>(-1);
+  const [openRef, setOpenRef] = useState<number>(-1);
+  const newCardRef = useRef<HTMLDivElement>(null);
 
   const methods = useForm<UserProfile>({
     defaultValues: existingProfile || {
@@ -526,11 +553,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       </SectionTitle>
       <div className="space-y-4">
         {workFields.map((item, index) => (
+          <div key={item.id} ref={index === workFields.length - 1 ? newCardRef : undefined}>
           <EntryCard
-            key={item.id}
             index={index}
-            label={watch(`workExperience.${index}.jobTitle`) || watch(`workExperience.${index}.company`) || 'New Entry'}
-            onDelete={() => removeWork(index)}
+            label={watch(`workExperience.${index}.jobTitle`) || watch(`workExperience.${index}.company`) || ''}
+            onDelete={() => { removeWork(index); setOpenWork(prev => prev >= index ? Math.max(0, prev - 1) : prev); }}
+            isOpen={openWork === index}
+            onToggle={() => setOpenWork(prev => prev === index ? -1 : index)}
           >
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -605,13 +634,19 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               </div>
             </div>
           </EntryCard>
+          </div>
         ))}
         {workFields.length === 0 && (
           <EmptyState message="No work experience added yet." />
         )}
       </div>
       <Button type="button" variant="secondary" size="sm"
-        onClick={() => appendWork({ id: `${Date.now()}`, company: '', jobTitle: '', startDate: '', endDate: '', responsibilities: '', pointCount: 5 })}>
+        onClick={() => {
+          const newIndex = workFields.length;
+          appendWork({ id: `${Date.now()}`, company: '', jobTitle: '', startDate: '', endDate: '', responsibilities: '', pointCount: 5 });
+          setOpenWork(newIndex);
+          setTimeout(() => newCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+        }}>
         <Plus className="h-4 w-4 mr-1.5" /> Add Position
       </Button>
     </div>
@@ -627,8 +662,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           <EntryCard
             key={item.id}
             index={index}
-            label={watch(`education.${index}.degree`) || watch(`education.${index}.school`) || 'New Entry'}
-            onDelete={() => removeEdu(index)}
+            label={watch(`education.${index}.degree`) || watch(`education.${index}.school`) || ''}
+            onDelete={() => { removeEdu(index); setOpenEdu(prev => prev >= index ? Math.max(0, prev - 1) : prev); }}
+            isOpen={openEdu === index}
+            onToggle={() => setOpenEdu(prev => prev === index ? -1 : index)}
           >
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
@@ -649,7 +686,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         {eduFields.length === 0 && <EmptyState message="No education entries yet." />}
       </div>
       <Button type="button" variant="secondary" size="sm"
-        onClick={() => appendEdu({ id: `${Date.now()}`, degree: '', school: '', graduationYear: '' })}>
+        onClick={() => { const ni = eduFields.length; appendEdu({ id: `${Date.now()}`, degree: '', school: '', graduationYear: '' }); setOpenEdu(ni); }}>
         <Plus className="h-4 w-4 mr-1.5" /> Add Education
       </Button>
     </div>
@@ -688,8 +725,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           <EntryCard
             key={item.id}
             index={index}
-            label={watch(`projects.${index}.name`) || 'New Project'}
-            onDelete={() => removeProj(index)}
+            label={watch(`projects.${index}.name`) || ''}
+            onDelete={() => { removeProj(index); setOpenProj(prev => prev >= index ? Math.max(0, prev - 1) : prev); }}
+            isOpen={openProj === index}
+            onToggle={() => setOpenProj(prev => prev === index ? -1 : index)}
           >
             <div className="space-y-3">
               <div>
@@ -721,7 +760,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         {projFields.length === 0 && <EmptyState message="No projects added yet." />}
       </div>
       <Button type="button" variant="secondary" size="sm"
-        onClick={() => appendProj({ id: `${Date.now()}`, name: '', description: '', link: '' })}>
+        onClick={() => { const ni = projFields.length; appendProj({ id: `${Date.now()}`, name: '', description: '', link: '' }); setOpenProj(ni); }}>
         <Plus className="h-4 w-4 mr-1.5" /> Add Project
       </Button>
     </div>
@@ -737,8 +776,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           <EntryCard
             key={item.id}
             index={index}
-            label={watch(`languages.${index}.name`) || 'New Language'}
-            onDelete={() => removeLang(index)}
+            label={watch(`languages.${index}.name`) || ''}
+            onDelete={() => { removeLang(index); setOpenLang(prev => prev >= index ? Math.max(0, prev - 1) : prev); }}
+            isOpen={openLang === index}
+            onToggle={() => setOpenLang(prev => prev === index ? -1 : index)}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -755,7 +796,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         {langFields.length === 0 && <EmptyState message="No languages added yet." />}
       </div>
       <Button type="button" variant="secondary" size="sm"
-        onClick={() => appendLang({ id: `${Date.now()}`, name: '', proficiency: '' })}>
+        onClick={() => { const ni = langFields.length; appendLang({ id: `${Date.now()}`, name: '', proficiency: '' }); setOpenLang(ni); }}>
         <Plus className="h-4 w-4 mr-1.5" /> Add Language
       </Button>
     </div>
@@ -771,8 +812,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           <EntryCard
             key={item.id}
             index={index}
-            label={watch(`references.${index}.name`) || 'New Reference'}
-            onDelete={() => removeRef(index)}
+            label={watch(`references.${index}.name`) || ''}
+            onDelete={() => { removeRef(index); setOpenRef(prev => prev >= index ? Math.max(0, prev - 1) : prev); }}
+            isOpen={openRef === index}
+            onToggle={() => setOpenRef(prev => prev === index ? -1 : index)}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -807,7 +850,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             message="No references added yet. Add professional contacts who can verify your work."
             action={
               <Button type="button" variant="secondary" size="sm"
-                onClick={() => appendRef({ id: `${Date.now()}`, name: '', title: '', company: '', relationship: '', email: '', phone: '' })}>
+                onClick={() => { appendRef({ id: `${Date.now()}`, name: '', title: '', company: '', relationship: '', email: '', phone: '' }); setOpenRef(0); }}>
                 <Plus className="h-4 w-4 mr-1.5" /> Add Reference
               </Button>
             }
@@ -815,7 +858,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         )}
         {refFields.length > 0 && (
           <Button type="button" variant="secondary" size="sm"
-            onClick={() => appendRef({ id: `${Date.now()}`, name: '', title: '', company: '', relationship: '', email: '', phone: '' })}>
+            onClick={() => { const ni = refFields.length; appendRef({ id: `${Date.now()}`, name: '', title: '', company: '', relationship: '', email: '', phone: '' }); setOpenRef(ni); }}>
             <Plus className="h-4 w-4 mr-1.5" /> Add Reference
           </Button>
         )}
