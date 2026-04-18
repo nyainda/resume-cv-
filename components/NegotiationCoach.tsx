@@ -24,17 +24,17 @@ function MarkdownBlock({ content }: { content: string }) {
           const checked = line.startsWith('- [x]');
           return (
             <div key={i} className="flex items-start gap-2 py-1">
-              <div className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${checked ? 'bg-indigo-600 border-indigo-600' : 'border-zinc-300 dark:border-zinc-600'}`}>
+              <div className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${checked ? 'bg-[#1B2B4B] border-[#1B2B4B]' : 'border-zinc-300 dark:border-zinc-600'}`}>
                 {checked && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="currentColor"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>}
               </div>
               <span className="text-sm text-zinc-700 dark:text-zinc-300">{line.slice(6)}</span>
             </div>
           );
         }
-        if (line.startsWith('- ')) return <div key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-1.5 flex-shrink-0">•</span><span className="text-sm text-zinc-700 dark:text-zinc-300">{line.slice(2)}</span></div>;
-        if (line.startsWith('> ')) return <blockquote key={i} className="border-l-4 border-indigo-400 pl-3 text-sm italic text-zinc-600 dark:text-zinc-400 my-2">{line.slice(2)}</blockquote>;
+        if (line.startsWith('- ')) return <div key={i} className="flex items-start gap-2"><span className="text-[#C9A84C] mt-1.5 flex-shrink-0">•</span><span className="text-sm text-zinc-700 dark:text-zinc-300">{line.slice(2)}</span></div>;
+        if (line.startsWith('> ')) return <blockquote key={i} className="border-l-4 border-[#C9A84C]/60 pl-3 text-sm italic text-zinc-600 dark:text-zinc-400 my-2">{line.slice(2)}</blockquote>;
         if (line.trim() === '') return <div key={i} className="h-2" />;
-        if (line.startsWith('Subject:')) return <p key={i} className="text-sm font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1.5 rounded-lg">{line}</p>;
+        if (line.startsWith('Subject:')) return <p key={i} className="text-sm font-bold text-[#1B2B4B] dark:text-[#C9A84C]/80 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 px-3 py-1.5 rounded-lg">{line}</p>;
         return <p key={i} className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{line}</p>;
       })}
     </div>
@@ -100,7 +100,7 @@ const NegotiationCoach: React.FC<Props> = ({ apiKeySet, openSettings }) => {
         value={input[field] as string}
         onChange={e => setInput(p => ({ ...p, [field]: e.target.value }))}
         placeholder={placeholder}
-        className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+        className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] transition"
       />
     </div>
   );
@@ -116,7 +116,7 @@ const NegotiationCoach: React.FC<Props> = ({ apiKeySet, openSettings }) => {
         {/* Input panel */}
         <div className="xl:col-span-2 bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-6 space-y-4">
           <h3 className="text-base font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
-            <span className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg flex items-center justify-center text-xs">💼</span>
+            <span className="w-6 h-6 bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 rounded-lg flex items-center justify-center text-xs">💼</span>
             Offer Details
           </h3>
 
@@ -140,7 +140,7 @@ const NegotiationCoach: React.FC<Props> = ({ apiKeySet, openSettings }) => {
               onChange={e => setInput(p => ({ ...p, notes: e.target.value }))}
               placeholder="e.g. They seemed very interested, I have 3 competing interviews..."
               rows={3}
-              className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none"
+              className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] transition resize-none"
             />
           </div>
 
@@ -149,7 +149,7 @@ const NegotiationCoach: React.FC<Props> = ({ apiKeySet, openSettings }) => {
           <button
             onClick={handleGenerate}
             disabled={loading}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 bg-[#1B2B4B] hover:bg-[#152238] disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
           >
             {loading ? (
               <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generating your package…</>
@@ -166,7 +166,7 @@ const NegotiationCoach: React.FC<Props> = ({ apiKeySet, openSettings }) => {
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
                 className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold whitespace-nowrap transition-colors border-b-2 -mb-px ${activeTab === t.id
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                  ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]'
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
               >
                 <span>{t.icon}</span>
@@ -178,14 +178,14 @@ const NegotiationCoach: React.FC<Props> = ({ apiKeySet, openSettings }) => {
           <div className="flex-1 p-6 overflow-y-auto min-h-[400px]">
             {!output && !loading && (
               <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center mb-4 text-3xl">💰</div>
+                <div className="w-16 h-16 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 rounded-2xl flex items-center justify-center mb-4 text-3xl">💰</div>
                 <h3 className="text-lg font-bold text-zinc-700 dark:text-zinc-300 mb-2">Your negotiation scripts will appear here</h3>
                 <p className="text-sm text-zinc-400 dark:text-zinc-500 max-w-xs">Fill in your offer details and click Generate to get a complete negotiation package with copy-paste ready scripts.</p>
               </div>
             )}
             {loading && (
               <div className="flex flex-col items-center justify-center h-full py-16">
-                <svg className="animate-spin h-10 w-10 text-indigo-500 mb-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                <svg className="animate-spin h-10 w-10 text-[#C9A84C] mb-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                 <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Building your negotiation package…</p>
                 <p className="text-xs text-zinc-400 mt-1">Analysing offer, market data & psychology…</p>
               </div>

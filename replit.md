@@ -1,6 +1,14 @@
-# AI-Powered CV Builder
+# ProCV — Your Personal Career Consultant
 
 A full-featured React + Vite PWA for building, managing, and downloading professional CVs with AI assistance.
+
+## Brand / Design System
+- **Name**: ProCV — "Your Personal Career Consultant"
+- **Primary color**: Deep Corporate Navy `#1B2B4B`
+- **Accent color**: Muted Gold `#C9A84C`
+- **Background**: Warm Off-White `#F8F7F4`
+- **Typography**: Playfair Display (headings) + DM Sans (body)
+- **Rules**: See `CLAUDE.md` for complete design system rules — no indigo/purple, no AI vibes
 
 ## Tech Stack
 

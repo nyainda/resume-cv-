@@ -71,9 +71,9 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
         </div>
 
         {/* Template count badge */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-full">
-          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 rounded-full">
+          <div className="w-2 h-2 bg-[#1B2B4B] rounded-full animate-pulse"></div>
+          <span className="text-sm font-medium text-[#1B2B4B] dark:text-[#C9A84C]/80">
             {filteredTemplates.length} Templates
           </span>
         </div>
@@ -94,13 +94,13 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
               className={`
                 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
                 ${isActive
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105'
+                  ? 'bg-[#1B2B4B] text-white shadow-lg shadow-[#1B2B4B]/20 scale-105'
                   : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700'
                 }
               `}
             >
               {category}
-              <span className={`ml-2 text-xs ${isActive ? 'text-indigo-200' : 'text-zinc-500 dark:text-zinc-500'}`}>
+              <span className={`ml-2 text-xs ${isActive ? 'text-[#C9A84C]/80' : 'text-zinc-500 dark:text-zinc-500'}`}>
                 ({count})
               </span>
             </button>
@@ -127,14 +127,14 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
                 className={`
                   relative rounded-xl overflow-hidden transition-all duration-300 transform
                   ${isSelected
-                    ? 'ring-4 ring-indigo-500 shadow-2xl shadow-indigo-500/30 scale-105'
-                    : 'ring-2 ring-zinc-200 dark:ring-neutral-700 hover:ring-indigo-400 hover:shadow-xl hover:scale-102'
+                    ? 'ring-4 ring-[#C9A84C] shadow-2xl shadow-[#1B2B4B]/20 scale-105'
+                    : 'ring-2 ring-zinc-200 dark:ring-neutral-700 hover:ring-[#C9A84C]/60 hover:shadow-xl hover:scale-102'
                   }
                 `}
               >
                 {/* Selected Badge */}
                 {isSelected && (
-                  <div className="absolute top-2 right-2 z-10 bg-indigo-600 text-white rounded-full p-1.5 shadow-lg">
+                  <div className="absolute top-2 right-2 z-10 bg-[#1B2B4B] text-white rounded-full p-1.5 shadow-lg">
                     <CheckCircle className="h-4 w-4" />
                   </div>
                 )}
@@ -143,7 +143,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
                 {isHovered && !isSelected && (
                   <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <div className="bg-white dark:bg-neutral-800 rounded-lg px-4 py-2 flex items-center gap-2 shadow-xl">
-                      <Eye className="h-4 w-4 text-indigo-600" />
+                      <Eye className="h-4 w-4 text-[#1B2B4B]" />
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
                         Preview
                       </span>
@@ -163,8 +163,8 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
                   className={`
                     text-sm font-semibold transition-colors duration-200
                     ${isSelected
-                      ? 'text-indigo-600 dark:text-indigo-400'
-                      : 'text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
+                      ? 'text-[#1B2B4B] dark:text-[#C9A84C]'
+                      : 'text-zinc-700 dark:text-zinc-300 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C]'
                     }
                   `}
                 >
@@ -192,7 +192,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
 
                 {/* Selection indicator */}
                 {isSelected && (
-                  <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-1 font-medium">
+                  <p className="text-xs text-[#C9A84C] dark:text-[#C9A84C] mt-1 font-medium">
                     ✓ Selected
                   </p>
                 )}
@@ -218,7 +218,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
       )}
 
       {/* Quick Tips */}
-      <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+      <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-[#F8F7F4] dark:from-blue-900/10 dark:to-[#1B2B4B]/10 border border-blue-200 dark:border-blue-800 rounded-lg">
         <div className="flex gap-3">
           <div className="flex-shrink-0">
             <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">

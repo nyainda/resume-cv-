@@ -88,7 +88,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                         <button
                             onClick={handleDownload}
                             disabled={isDownloading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white text-xs font-semibold transition-colors disabled:opacity-50"
                         >
                             <Download className="h-3.5 w-3.5" />
                             {isDownloading ? 'Downloading...' : 'Download PDF'}
@@ -112,8 +112,8 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                                 onClick={() => setSelectedTemplate(t)}
                                 className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 border ${
                                     selectedTemplate === t
-                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                                        : 'bg-white dark:bg-neutral-700 border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                                        ? 'bg-[#1B2B4B] border-[#1B2B4B] text-white shadow-sm'
+                                        : 'bg-white dark:bg-neutral-700 border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:border-[#C9A84C]/60 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C]'
                                 }`}
                             >
                                 {templateDisplayNames[t]}
@@ -121,7 +121,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                         ))}
                         <button
                             onClick={() => setShowAllTemplates(s => !s)}
-                            className="px-2.5 py-1 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors border border-indigo-200 dark:border-indigo-800"
+                            className="px-2.5 py-1 rounded-full text-xs font-medium text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 transition-colors border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40"
                         >
                             {showAllTemplates ? 'Show less' : `+${ALL_TEMPLATES.length - 10} more`}
                         </button>
@@ -211,7 +211,7 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${filter === f
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                                    ? 'bg-[#1B2B4B] text-white shadow-md shadow-[#1B2B4B]/20'
                                     : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700'
                                 }`}
                         >
@@ -236,7 +236,7 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                             return (
                                 <div
                                     key={cv.id}
-                                    className="relative bg-white dark:bg-neutral-800 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 hover:border-indigo-400 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
+                                    className="relative bg-white dark:bg-neutral-800 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/60 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
                                 >
                                     {/* Live thumbnail — click to open full preview */}
                                     <div
@@ -288,7 +288,7 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
 
                                         {/* Summary snippet */}
                                         {cv.data.summary && (
-                                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-3 italic border-l-2 border-indigo-200 pl-2">
+                                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-3 italic border-l-2 border-[#C9A84C]/40 pl-2">
                                                 "{cv.data.summary.substring(0, 100)}..."
                                             </p>
                                         )}

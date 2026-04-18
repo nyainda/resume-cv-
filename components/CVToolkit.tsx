@@ -215,8 +215,8 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                 {/* Live status banner */}
                 <div className="flex flex-wrap gap-2">
                     {hasProfile && (
-                        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 text-[#1B2B4B] dark:text-[#C9A84C]/80">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#1B2B4B] shrink-0" />
                             {userProfile.personalInfo.name || 'Profile active'}
                         </div>
                     )}
@@ -330,7 +330,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
 
                             {/* Fix & Regenerate CTA */}
                             {(checkResult.missingKeywords.length > 0 || checkResult.weaknesses.length > 0) && onGoToGenerator && (
-                                <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border border-violet-200 dark:border-violet-800 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                <div className="bg-gradient-to-br from-violet-50 to-[#F8F7F4] dark:from-violet-900/20 dark:to-[#1B2B4B]/10 border border-violet-200 dark:border-violet-800 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                     <div className="flex-1">
                                         <h3 className="font-bold text-violet-900 dark:text-violet-100 flex items-center gap-2">
                                             <Sparkles className="h-4 w-4 text-violet-500" /> Ready to fix these issues?

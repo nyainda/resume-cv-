@@ -39,7 +39,7 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
 
     return (
         <div id="cv-preview-sydney-creative" className="bg-[#fff9f2] p-0 text-slate-900 shadow-2xl border-none font-sans overflow-hidden">
-            <header className="relative bg-gradient-to-tr from-orange-400 via-pink-500 to-indigo-600 p-20 text-white clip-path-header overflow-hidden">
+            <header className="relative bg-gradient-to-tr from-orange-400 via-pink-500 to-[#1B2B4B] p-20 text-white clip-path-header overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl animate-pulse" />
                 <div className="relative z-10">
                     <h1 className="text-7xl font-black uppercase tracking-tighter leading-none mb-6 drop-shadow-lg">
@@ -92,9 +92,9 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     </section>
 
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600 mb-12 flex items-center gap-4">
+                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#1B2B4B] mb-12 flex items-center gap-4">
                             <span>The Experience</span>
-                            <div className="h-2 w-2 rounded-full bg-indigo-600" />
+                            <div className="h-2 w-2 rounded-full bg-[#1B2B4B]" />
                             <div className="flex-1 h-px bg-slate-200" />
                         </h2>
                         <div className="space-y-20">
@@ -110,8 +110,8 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                                     )}
                                     <div className="grid grid-cols-12 gap-8">
                                         <div className="col-span-3">
-                                            <span className="text-sm font-black uppercase text-indigo-400 tracking-widest block mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
-                                            <h3 className="text-sm font-black text-slate-900 border-l-4 border-indigo-600 pl-4 py-2 bg-slate-50" {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
+                                            <span className="text-sm font-black uppercase text-[#C9A84C] tracking-widest block mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                                            <h3 className="text-sm font-black text-slate-900 border-l-4 border-[#1B2B4B] pl-4 py-2 bg-slate-50" {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
                                         </div>
                                         <div className="col-span-9">
                                             <h4 className="text-3xl font-black tracking-tighter text-slate-900 mb-6 italic underline decoration-orange-400 decoration-8 underline-offset-[-2px] decoration-skip-ink" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
@@ -137,7 +137,7 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
         <TemplateCustomSections
           customSections={cvData.customSections}
           references={cvData.references}
-          renderHeader={title => <h2 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600 mb-4">{title}</h2>}
+          renderHeader={title => <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#1B2B4B] mb-4">{title}</h2>}
           sectionClassName="mb-8"
           titleClass="font-semibold text-sm"
           subtitleClass="text-xs text-slate-500"

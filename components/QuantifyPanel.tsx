@@ -80,7 +80,7 @@ const QuantifyPanel: React.FC<QuantifyPanelProps> = ({ responsibilities, jobTitl
         {/* ── Header ── */}
         <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F8F7F4]0 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-sm">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -131,13 +131,13 @@ const QuantifyPanel: React.FC<QuantifyPanelProps> = ({ responsibilities, jobTitl
           {!loading && !error && bullets.length > 0 && (
             <>
               {/* Summary banner */}
-              <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl">
-                <p className="text-xs text-indigo-700 dark:text-indigo-300">
+              <div className="flex items-center justify-between px-3 py-2 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 border border-[#C9A84C]/20 dark:border-[#1B2B4B]/40/50 rounded-xl">
+                <p className="text-xs text-[#1B2B4B] dark:text-[#C9A84C]/80">
                   <span className="font-bold">{bullets.filter(b => !b.hasMetric).length}</span> bullet{bullets.filter(b => !b.hasMetric).length !== 1 ? 's' : ''} can be improved ·{' '}
                   <span className="font-bold text-green-600 dark:text-green-400">{acceptedCount}</span> selected
                 </p>
                 <div className="flex gap-2">
-                  <button onClick={acceptAll}  className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">All</button>
+                  <button onClick={acceptAll}  className="text-[11px] font-semibold text-[#1B2B4B] dark:text-[#C9A84C] hover:underline">All</button>
                   <button onClick={resetAll}   className="text-[11px] font-semibold text-zinc-400 hover:underline">Reset</button>
                 </div>
               </div>
@@ -244,7 +244,7 @@ const QuantifyPanel: React.FC<QuantifyPanelProps> = ({ responsibilities, jobTitl
               </button>
               <button
                 onClick={handleApply}
-                className="px-5 py-2 text-sm font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors flex items-center gap-2"
+                className="px-5 py-2 text-sm font-bold rounded-xl bg-[#1B2B4B] hover:bg-[#152238] text-white shadow-sm transition-colors flex items-center gap-2"
               >
                 <CheckCircle className="h-4 w-4" />
                 Apply {hasChanges ? `${acceptedCount} Change${acceptedCount !== 1 ? 's' : ''}` : 'Originals'}

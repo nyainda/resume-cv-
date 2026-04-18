@@ -133,7 +133,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
           {hasCoverLetter && (
             <label className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 dark:border-neutral-700 cursor-pointer hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors">
               <div className="flex items-center gap-2.5">
-                <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-[#C9A84C] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
@@ -151,7 +151,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                   checked={includeCoverLetter}
                   onChange={e => { setIncludeCoverLetter(e.target.checked); setLinkGenerated(false); setShareUrl(''); }}
                 />
-                <div className={`w-10 h-5 rounded-full transition-colors ${includeCoverLetter ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-neutral-600'}`} />
+                <div className={`w-10 h-5 rounded-full transition-colors ${includeCoverLetter ? 'bg-[#1B2B4B]' : 'bg-zinc-300 dark:bg-neutral-600'}`} />
                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${includeCoverLetter ? 'translate-x-5' : 'translate-x-0'}`} />
               </div>
             </label>
@@ -160,7 +160,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
           {!linkGenerated ? (
             <button
               onClick={generateLink}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="w-full py-3 px-4 bg-[#1B2B4B] hover:bg-[#152238] text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
@@ -196,7 +196,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                       type="text"
                       value={shareUrl}
                       readOnly
-                      className="flex-1 text-xs bg-zinc-100 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-xl px-3 py-2.5 text-zinc-600 dark:text-zinc-400 font-mono truncate focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex-1 text-xs bg-zinc-100 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-xl px-3 py-2.5 text-zinc-600 dark:text-zinc-400 font-mono truncate focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
                       onClick={() => inputRef.current?.select()}
                     />
                     <button
@@ -204,7 +204,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                       className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 flex-shrink-0 min-w-[90px] justify-center ${
                         copied
                           ? 'bg-green-500 text-white shadow-sm'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                          : 'bg-[#1B2B4B] hover:bg-[#152238] text-white shadow-sm'
                       }`}
                     >
                       {copied ? (
@@ -261,7 +261,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                       href={shareUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-semibold rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]/80 text-xs font-semibold rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>

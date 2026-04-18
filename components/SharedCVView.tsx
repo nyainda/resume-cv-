@@ -86,7 +86,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
             {/* Left: Logo + candidate name */}
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#1B2B4B] flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-black text-xs">CV</span>
               </div>
               <div className="min-w-0">
@@ -106,7 +106,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                   {personalInfo.email && (
                     <button
                       onClick={handleContact}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors shadow-sm"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white text-sm font-semibold transition-colors shadow-sm"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -225,7 +225,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                   onClick={() => setActiveDoc(doc)}
                   className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
                     activeDoc === doc
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                      ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]'
                       : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                   }`}
                 >
@@ -277,8 +277,8 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
       <footer className="py-6 text-center border-t border-zinc-100 dark:border-neutral-900">
         <p className="text-xs text-zinc-400 dark:text-zinc-600">
           Created with{' '}
-          <a href={window.location.origin} className="font-semibold hover:text-indigo-500 transition-colors">
-            CraftCV
+          <a href={window.location.origin} className="font-semibold hover:text-[#C9A84C] transition-colors">
+            ProCV
           </a>
           {' '}· Data is encoded in the link only — no servers involved
         </p>

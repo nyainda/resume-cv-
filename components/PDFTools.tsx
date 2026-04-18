@@ -91,7 +91,7 @@ const DropZone: React.FC<{
 
     return (
         <div
-            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragging ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-300 dark:border-neutral-600 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-neutral-800/50'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragging ? 'border-[#C9A84C]/60 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10' : 'border-slate-300 dark:border-neutral-600 hover:border-[#C9A84C]/60 hover:bg-slate-50 dark:hover:bg-neutral-800/50'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
@@ -122,7 +122,7 @@ const PdfPreviewModal: React.FC<{ url: string; title: string; onClose: () => voi
             <span className="text-sm font-semibold text-white truncate max-w-xs">{title}</span>
             <div className="flex items-center gap-2">
                 {onDownload && (
-                    <button onClick={onDownload} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                    <button onClick={onDownload} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1B2B4B] hover:bg-[#152238] text-white text-xs font-semibold rounded-lg transition-colors">
                         <Download className="h-3.5 w-3.5" /> Download
                     </button>
                 )}
@@ -217,13 +217,13 @@ const MergeTool: React.FC = () => {
                 <div className="space-y-2">
                     {files.map((f, i) => (
                         <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-700">
-                            <FileText className="h-5 w-5 text-indigo-500 flex-shrink-0" />
+                            <FileText className="h-5 w-5 text-[#C9A84C] flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{f.name}</p>
                                 <p className="text-xs text-slate-400">{f.pageCount} pages · {formatSize(f.size)}</p>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                <button onClick={() => previewFile(f)} title="Preview" className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-500 transition-colors">
+                                <button onClick={() => previewFile(f)} title="Preview" className="p-1.5 rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 text-[#C9A84C] transition-colors">
                                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                 </button>
                                 <button onClick={() => moveUp(i)} disabled={i === 0} className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-700 disabled:opacity-30 text-slate-500 text-xs font-bold">↑</button>
@@ -233,7 +233,7 @@ const MergeTool: React.FC = () => {
                         </div>
                     ))}
                     <div className="flex gap-2">
-                        <button onClick={merge} disabled={loading || files.length < 2} className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
+                        <button onClick={merge} disabled={loading || files.length < 2} className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#1B2B4B] hover:bg-[#152238] disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
                             {loading ? 'Merging…' : <><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>Merge & Preview</>}
                         </button>
                         {mergedBytes && (
@@ -249,7 +249,7 @@ const MergeTool: React.FC = () => {
                 <div className="rounded-2xl border border-slate-200 dark:border-neutral-700 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-700">
                         <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Merged PDF Preview</span>
-                        <button onClick={() => setPreviewModal({ url: mergedUrl, title: 'merged.pdf', downloadFn: () => mergedBytes && downloadBytes(mergedBytes, 'merged.pdf') })} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+                        <button onClick={() => setPreviewModal({ url: mergedUrl, title: 'merged.pdf', downloadFn: () => mergedBytes && downloadBytes(mergedBytes, 'merged.pdf') })} className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] hover:underline font-medium">
                             Open fullscreen
                         </button>
                     </div>
@@ -318,7 +318,7 @@ const SplitTool: React.FC = () => {
                 <DropZone accept="application/pdf" label="Drop a PDF to split" onFiles={loadFile} />
             ) : (
                 <div className="p-4 bg-slate-50 dark:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-700 flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-indigo-500 flex-shrink-0" />
+                    <FileText className="h-5 w-5 text-[#C9A84C] flex-shrink-0" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{pdfFile.name}</p>
                         <p className="text-xs text-slate-400">{pdfFile.pageCount} pages · {formatSize(pdfFile.size)}</p>
@@ -330,7 +330,7 @@ const SplitTool: React.FC = () => {
                 <div className="space-y-4">
                     <div className="flex gap-2">
                         {(['each', 'range'] as const).map(m => (
-                            <button key={m} onClick={() => setMode(m)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${mode === m ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-neutral-700'}`}>
+                            <button key={m} onClick={() => setMode(m)} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${mode === m ? 'bg-[#1B2B4B] text-white' : 'bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-neutral-700'}`}>
                                 {m === 'each' ? 'Split all pages' : 'Extract range'}
                             </button>
                         ))}
@@ -338,10 +338,10 @@ const SplitTool: React.FC = () => {
                     {mode === 'range' && (
                         <div>
                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 block">Page Range ({pdfFile.pageCount} total pages)</label>
-                            <input value={rangeInput} onChange={e => setRangeInput(e.target.value)} placeholder="e.g. 1-3, 5, 7-9" className="w-full px-4 py-2.5 border border-slate-200 dark:border-neutral-700 rounded-xl text-sm bg-white dark:bg-neutral-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                            <input value={rangeInput} onChange={e => setRangeInput(e.target.value)} placeholder="e.g. 1-3, 5, 7-9" className="w-full px-4 py-2.5 border border-slate-200 dark:border-neutral-700 rounded-xl text-sm bg-white dark:bg-neutral-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60" />
                         </div>
                     )}
-                    <button onClick={split} disabled={loading} className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
+                    <button onClick={split} disabled={loading} className="w-full flex items-center justify-center gap-2 py-3 bg-[#1B2B4B] hover:bg-[#152238] disabled:opacity-50 text-white font-semibold rounded-xl transition-colors text-sm">
                         {loading ? 'Processing…' : <><Download className="h-4 w-4" />{mode === 'each' ? 'Split into pages' : 'Extract & Download'}</>}
                     </button>
                 </div>
@@ -1033,7 +1033,7 @@ const TOOLS: { id: ToolId; label: string; icon: string; desc: string; color: str
 ];
 
 const colorMap: Record<string, string> = {
-    indigo:  'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40',
+    indigo:  'bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 text-[#1B2B4B] dark:text-[#C9A84C] border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20',
     blue:    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40',
     red:     'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40',
     emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40',

@@ -455,7 +455,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     <div className="space-y-8">
       {/* ── CV Toolkit Suggestions Banner ── */}
       {toolkitSuggestions && (
-        <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border border-violet-300 dark:border-violet-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start gap-4">
+        <div className="bg-gradient-to-br from-violet-50 to-[#F8F7F4] dark:from-violet-900/20 dark:to-[#1B2B4B]/10 border border-violet-300 dark:border-violet-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="h-4 w-4 text-violet-500" />
@@ -549,7 +549,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           {(Object.entries(purposeConfig) as [CVPurpose, typeof purposeConfig[CVPurpose]][]).map(([key, cfg]) => {
             const isSelected = cvPurpose === key;
             const colorCls = {
-              indigo: { ring: 'ring-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+              indigo: { ring: 'ring-[#C9A84C]', bg: 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/10', text: 'text-[#1B2B4B] dark:text-[#C9A84C]/80', border: 'border-[#C9A84C]/40 dark:border-[#1B2B4B]/40' },
               violet: { ring: 'ring-violet-500', bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
               teal: { ring: 'ring-teal-500', bg: 'bg-teal-50 dark:bg-teal-900/20', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
             }[cfg.color];
@@ -633,10 +633,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
             <div className="mt-2 border-b border-zinc-200 dark:border-neutral-700">
               <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                <button onClick={() => setInputMode('text')} className={`${inputMode === 'text' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
+                <button onClick={() => setInputMode('text')} className={`${inputMode === 'text' ? 'border-[#1B2B4B] text-[#1B2B4B]' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
                   Paste Text
                 </button>
-                <button onClick={() => setInputMode('upload')} className={`${inputMode === 'upload' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
+                <button onClick={() => setInputMode('upload')} className={`${inputMode === 'upload' ? 'border-[#1B2B4B] text-[#1B2B4B]' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}>
                   Upload Files
                 </button>
               </nav>
@@ -771,7 +771,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               <select
                 value={targetLanguage}
                 onChange={e => setTargetLanguage(e.target.value)}
-                className="text-sm font-medium rounded-lg px-3 py-1.5 border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="text-sm font-medium rounded-lg px-3 py-1.5 border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] cursor-pointer"
               >
                 {['English','French','Spanish','German','Arabic','Portuguese','Italian','Dutch','Chinese (Simplified)','Japanese'].map(lang => (
                   <option key={lang} value={lang}>{lang}</option>
@@ -779,7 +779,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </select>
             </div>
             {targetLanguage !== 'English' && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-medium">
+              <span className="text-xs px-2.5 py-1 rounded-full bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 text-[#1B2B4B] dark:text-[#C9A84C] border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 font-medium">
                 CV will be generated in {targetLanguage}
               </span>
             )}
@@ -830,7 +830,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   id="font-select"
                   value={font}
                   onChange={(e) => setFont(e.target.value as FontName)}
-                  className="text-sm rounded-lg border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 focus:ring-indigo-500 focus:border-indigo-500 h-9"
+                  className="text-sm rounded-lg border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 focus:ring-[#C9A84C] focus:border-[#1B2B4B] h-9"
                   disabled={isEditing}
                 >
                   {Object.entries(fontDisplayNames).map(([key, value]) => (
@@ -982,7 +982,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   {/* Score bars */}
                   <div className="space-y-3">
                     <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-2">Score Breakdown</p>
-                    {dim('ATS Keyword Match', cvScore.ats, 'bg-indigo-500')}
+                    {dim('ATS Keyword Match', cvScore.ats, 'bg-[#1B2B4B]')}
                     {dim('Quantified Impact', cvScore.impact, 'bg-emerald-500')}
                     {dim('Role Relevance', cvScore.relevance, 'bg-blue-500')}
                     {dim('Writing Clarity', cvScore.clarity, 'bg-amber-500')}

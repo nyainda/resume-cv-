@@ -108,7 +108,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-neutral-700 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-[#1B2B4B] rounded-lg flex items-center justify-center">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -132,7 +132,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
                 key={qp.label}
                 onClick={() => sendMessage(qp.prompt)}
                 disabled={isLoading}
-                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-neutral-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-700 dark:hover:text-indigo-300 text-zinc-700 dark:text-zinc-300 text-xs font-medium rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-neutral-800 hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C]/70 text-zinc-700 dark:text-zinc-300 text-xs font-medium rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>{qp.emoji}</span>
                 {qp.label}
@@ -148,7 +148,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                   msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-sm'
+                    ? 'bg-[#1B2B4B] text-white rounded-br-sm'
                     : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 rounded-bl-sm'
                 }`}
               >
@@ -156,7 +156,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
                 {msg.updatedCV && (
                   <button
                     onClick={() => applyChanges(msg.updatedCV!)}
-                    className="mt-3 w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                    className="mt-3 w-full py-2 px-3 bg-[#1B2B4B] hover:bg-[#152238] text-white text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
                   >
                     <span>✓</span> Apply Changes to CV
                   </button>
@@ -169,9 +169,9 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
             <div className="flex justify-start">
               <div className="bg-zinc-100 dark:bg-neutral-800 rounded-2xl rounded-bl-sm px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-2 h-2 bg-[#1B2B4B] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-[#1B2B4B] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-[#1B2B4B] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -189,12 +189,12 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               placeholder="Ask AI to improve your CV..."
               disabled={isLoading}
-              className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] disabled:opacity-50"
             />
             <button
               onClick={() => sendMessage()}
               disabled={isLoading || !input.trim()}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="px-4 py-2.5 bg-[#1B2B4B] hover:bg-[#152238] text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               <Sparkles className="h-4 w-4" />
             </button>

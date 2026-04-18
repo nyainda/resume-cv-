@@ -73,9 +73,9 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
 
     if (isAuthenticated && user) {
         return (
-            <div className="relative group overflow-hidden rounded-2xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-800">
+            <div className="relative group overflow-hidden rounded-2xl bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-lg hover:border-[#C9A84C]/40 dark:hover:border-[#1B2B4B]/40">
                 {/* Background accent */}
-                <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-all duration-500" />
+                <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-[#1B2B4B]/5 rounded-full blur-2xl group-hover:bg-[#F8F7F4]0/10 transition-all duration-500" />
 
                 <div className="relative p-4 space-y-4">
                     <div className="flex items-center gap-4">
@@ -86,10 +86,10 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
                                     src={user.picture}
                                     alt={user.name}
                                     referrerPolicy="no-referrer"
-                                    className="w-12 h-12 rounded-full object-cover ring-2 ring-indigo-100 dark:ring-indigo-900 shadow-sm"
+                                    className="w-12 h-12 rounded-full object-cover ring-2 ring-[#C9A84C]/20 dark:ring-[#1B2B4B]/40 shadow-sm"
                                 />
                             ) : (
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#F8F7F4]0 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
                             )}
@@ -130,13 +130,13 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
 
                         {migrating ? (
                             <div className="space-y-2">
-                                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[#1B2B4B] dark:text-[#C9A84C]">
                                     <span className="flex items-center gap-1.5"><RefreshCw className="w-3 h-3 animate-spin" /> Migrating data...</span>
                                     <span>{migrProgress.done}/{migrProgress.total}</span>
                                 </div>
                                 <div className="w-full bg-zinc-100 dark:bg-neutral-900 rounded-full h-1.5 overflow-hidden">
                                     <div
-                                        className="h-full bg-indigo-500 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                                        className="h-full bg-[#1B2B4B] transition-all duration-300 ease-out shadow-[0_0_8px_rgba(99,102,241,0.5)]"
                                         style={{ width: migrProgress.total > 0 ? `${(migrProgress.done / migrProgress.total) * 100}%` : '5%' }}
                                     />
                                 </div>
@@ -166,7 +166,7 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
             <button
                 onClick={handleSignIn}
                 disabled={loading}
-                className="w-full relative group bg-white dark:bg-neutral-800 border-2 border-zinc-200 dark:border-neutral-700 hover:border-indigo-500 dark:hover:border-indigo-600 p-0.5 rounded-2xl transition-all duration-300 hover:shadow-xl active:scale-[0.98]"
+                className="w-full relative group bg-white dark:bg-neutral-800 border-2 border-zinc-200 dark:border-neutral-700 hover:border-[#1B2B4B] dark:hover:border-[#1B2B4B] p-0.5 rounded-2xl transition-all duration-300 hover:shadow-xl active:scale-[0.98]"
             >
                 <div className="flex items-center justify-center gap-4 px-6 py-4 rounded-[calc(1rem-2px)] bg-white dark:bg-neutral-800 group-hover:bg-zinc-50/50 dark:group-hover:bg-neutral-700/50 transition-colors">
                     <GoogleLogo />
@@ -188,8 +188,8 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
             )}
 
             <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100/50 dark:border-indigo-800/30">
-                    <p className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">Backup</p>
+                <div className="p-3 rounded-xl bg-[#F8F7F4]/50 dark:bg-[#1B2B4B]/10 border border-[#C9A84C]/20/50 dark:border-[#1B2B4B]/40/30">
+                    <p className="text-[10px] font-extrabold text-[#1B2B4B] dark:text-[#C9A84C] uppercase tracking-widest mb-1">Backup</p>
                     <p className="text-[11px] text-zinc-600 dark:text-zinc-400 leading-tight">CVs and data saved safely in your Drive.</p>
                 </div>
                 <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100/50 dark:border-purple-800/30">
@@ -207,8 +207,8 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
 
 const Spinner = () => (
     <div className="relative w-5 h-5">
-        <div className="absolute inset-0 border-2 border-indigo-200 dark:border-indigo-800 rounded-full" />
-        <div className="absolute inset-0 border-2 border-indigo-600 rounded-full border-t-transparent animate-spin" />
+        <div className="absolute inset-0 border-2 border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-full" />
+        <div className="absolute inset-0 border-2 border-[#1B2B4B] rounded-full border-t-transparent animate-spin" />
     </div>
 );
 

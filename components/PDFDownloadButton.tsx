@@ -134,7 +134,7 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
         <button
           onClick={handlePrimaryDownload}
           disabled={disabled || hdLoading}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#1B2B4B] hover:bg-[#152238] text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-l-lg"
         >
           {hdLoading ? (
             <><Spinner /><span>{hdStatus ?? 'Generating…'}</span></>
@@ -146,7 +146,7 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
         <button
           onClick={() => setOpen(o => !o)}
           disabled={disabled || hdLoading}
-          className="px-2 py-2 bg-indigo-700 hover:bg-indigo-800 text-white border-l border-indigo-500 rounded-r-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2 py-2 bg-[#152238] hover:bg-[#152238] text-white border-l border-[#1B2B4B] rounded-r-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="PDF options"
           title="PDF options"
         >
@@ -167,8 +167,8 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({
             onClick={handleStandardDownload}
             className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-neutral-700 transition-colors flex items-start gap-3"
           >
-            <div className="mt-0.5 w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
-              <Download className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <div className="mt-0.5 w-8 h-8 rounded-lg bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 flex items-center justify-center flex-shrink-0">
+              <Download className="h-4 w-4 text-[#1B2B4B] dark:text-[#C9A84C]" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">

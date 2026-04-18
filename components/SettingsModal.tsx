@@ -265,9 +265,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           })()}
 
           {/* ── Google Drive Backup ── */}
-          <div className="rounded-2xl border-2 border-indigo-500/20 bg-indigo-50/30 dark:bg-indigo-500/5 p-4 shadow-sm space-y-3">
+          <div className="rounded-2xl border-2 border-[#1B2B4B]/20 bg-[#F8F7F4]/30 dark:bg-[#1B2B4B]/5 p-4 shadow-sm space-y-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-600 rounded-lg flex-shrink-0">
+              <div className="p-2 bg-[#1B2B4B] rounded-lg flex-shrink-0">
                 <Shield className="h-4 w-4 text-white" />
               </div>
               <div>

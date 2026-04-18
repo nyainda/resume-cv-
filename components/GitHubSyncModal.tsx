@@ -69,7 +69,7 @@ async function ensureRepoExists(token: string, owner: string, repo: string): Pro
   } catch {
     await githubRequest('POST', '/user/repos', token, {
       name: repo,
-      description: 'CV backups — created by CraftCV',
+      description: 'CV backups — created by ProCV',
       private: true,
       auto_init: true,
     });
@@ -192,7 +192,7 @@ const GitHubSyncModal: React.FC<GitHubSyncModalProps> = ({ savedCVs, currentCV, 
                   value={config.token}
                   onChange={e => updateConfig('token', e.target.value)}
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-3 py-2.5 text-sm border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  className="w-full px-3 py-2.5 text-sm border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] font-mono"
                 />
               </div>
               <div>
@@ -202,7 +202,7 @@ const GitHubSyncModal: React.FC<GitHubSyncModalProps> = ({ savedCVs, currentCV, 
                   value={config.owner}
                   onChange={e => updateConfig('owner', e.target.value)}
                   placeholder="your-github-username"
-                  className="w-full px-3 py-2.5 text-sm border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2.5 text-sm border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
                 />
               </div>
               <div>
@@ -212,7 +212,7 @@ const GitHubSyncModal: React.FC<GitHubSyncModalProps> = ({ savedCVs, currentCV, 
                   value={config.repo}
                   onChange={e => updateConfig('repo', e.target.value)}
                   placeholder="my-cv-backup"
-                  className="w-full px-3 py-2.5 text-sm border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2.5 text-sm border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
                 />
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">The repo will be created automatically if it doesn't exist (as private).</p>
               </div>
@@ -242,7 +242,7 @@ const GitHubSyncModal: React.FC<GitHubSyncModalProps> = ({ savedCVs, currentCV, 
                 </div>
                 <button
                   onClick={() => setStep('config')}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+                  className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-medium hover:underline"
                 >
                   Change
                 </button>
@@ -274,12 +274,12 @@ const GitHubSyncModal: React.FC<GitHubSyncModalProps> = ({ savedCVs, currentCV, 
             )}
 
             {status === 'syncing' && (
-              <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 flex items-center gap-3">
-                <svg className="animate-spin h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24">
+              <div className="p-4 rounded-xl bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 flex items-center gap-3">
+                <svg className="animate-spin h-5 w-5 text-[#1B2B4B]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                <p className="text-sm text-indigo-800 dark:text-indigo-200">{message}</p>
+                <p className="text-sm text-[#1B2B4B] dark:text-[#C9A84C]/80">{message}</p>
               </div>
             )}
 

@@ -189,7 +189,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                     <button
                         onClick={runAnalysis}
                         disabled={isLoading}
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1 disabled:opacity-50"
+                        className="text-xs font-semibold text-[#1B2B4B] hover:text-[#1B2B4B] dark:text-[#C9A84C] flex items-center gap-1 disabled:opacity-50"
                     >
                         {isLoading ? (
                             <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
@@ -202,8 +202,8 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             {isLoading && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <div className="relative">
-                        <div className="w-10 h-10 rounded-full border-4 border-indigo-100 dark:border-indigo-900"></div>
-                        <div className="absolute inset-0 w-10 h-10 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+                        <div className="w-10 h-10 rounded-full border-4 border-[#C9A84C]/20 dark:border-[#1B2B4B]/40"></div>
+                        <div className="absolute inset-0 w-10 h-10 rounded-full border-4 border-[#1B2B4B] border-t-transparent animate-spin"></div>
                     </div>
                     <div className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Running 6-block analysis…</div>
                     <div className="text-xs text-zinc-400">Evaluating match, gaps, salary & interview prep</div>
@@ -214,7 +214,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             {error && !isLoading && (
                 <div className="p-5">
                     <p className="text-sm text-rose-600 dark:text-rose-400 mb-3">{error}</p>
-                    <button onClick={runAnalysis} className="text-xs font-semibold text-indigo-600 hover:underline">Try again</button>
+                    <button onClick={runAnalysis} className="text-xs font-semibold text-[#1B2B4B] hover:underline">Try again</button>
                 </div>
             )}
 
@@ -232,7 +232,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                 )}
                             </div>
                             <div className="flex flex-wrap gap-1.5 mb-2">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{analysis.archetype}</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F8F7F4] text-[#1B2B4B] dark:bg-[#1B2B4B]/20 dark:text-[#C9A84C]/80">{analysis.archetype}</span>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-300">{analysis.seniority}</span>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-300">{analysis.remote}</span>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{analysis.domain}</span>
@@ -249,7 +249,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-3 py-2.5 text-xs font-bold whitespace-nowrap transition-colors border-b-2 -mb-px flex-shrink-0 ${
                                     activeTab === tab.id
-                                        ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                        ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]'
                                         : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                                 }`}
                             >
@@ -277,9 +277,9 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                         </div>
                                     ))}
                                 </div>
-                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Role TL;DR</div>
-                                    <p className="text-sm text-indigo-800 dark:text-indigo-200">{analysis.tldr}</p>
+                                <div className="bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 rounded-xl p-4">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C] mb-1">Role TL;DR</div>
+                                    <p className="text-sm text-[#1B2B4B] dark:text-[#C9A84C]/80">{analysis.tldr}</p>
                                 </div>
                                 <div>
                                     <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Salary Estimate</div>
@@ -496,7 +496,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                             {analysis.personalizationChanges.map((change, i) => (
                                                 <div key={i} className="rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
                                                     <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-neutral-700/50">
-                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{change.section}</span>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F8F7F4] text-[#1B2B4B] dark:bg-[#1B2B4B]/20 dark:text-[#C9A84C]/80">{change.section}</span>
                                                         <span className="text-xs text-zinc-500 dark:text-zinc-400 flex-1 line-clamp-1">{change.currentState}</span>
                                                     </div>
                                                     <div className="px-3 py-2.5">
@@ -559,9 +559,9 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                                         </button>
                                                         {isOpen && (
                                                             <div className="px-4 pb-3 ml-8">
-                                                                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800/30">
-                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Model Answer</p>
-                                                                    <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">{qa.answer}</p>
+                                                                <div className="bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 rounded-xl p-3 border border-[#C9A84C]/20 dark:border-[#1B2B4B]/40/30">
+                                                                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C] mb-1">Model Answer</p>
+                                                                    <p className="text-xs text-[#1B2B4B] dark:text-[#C9A84C]/80 leading-relaxed">{qa.answer}</p>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -583,7 +583,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                     STAR+R Story Bank
                                 </p>
                                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
-                                    The <span className="font-semibold text-indigo-600 dark:text-indigo-400">Reflection</span> column signals seniority to interviewers. Save stories to your Story Bank in the Tracker.
+                                    The <span className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C]">Reflection</span> column signals seniority to interviewers. Save stories to your Story Bank in the Tracker.
                                 </p>
                                 {analysis.starStories.length === 0 && (
                                     <p className="text-sm text-zinc-400 text-center py-6">No stories generated. Add CV text above to get personalized stories.</p>
@@ -602,7 +602,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                                     className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all flex-shrink-0 ${
                                                         savedStories.has(i)
                                                             ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400'
-                                                            : 'bg-white dark:bg-neutral-800 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                                                            : 'bg-white dark:bg-neutral-800 text-[#1B2B4B] border-[#C9A84C]/40 hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10'
                                                     }`}
                                                 >
                                                     {savedStories.has(i) ? '✓ Saved' : '+ Save to Bank'}

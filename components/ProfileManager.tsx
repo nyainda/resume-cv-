@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
 
 const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string }[] = [
-    { id: 'indigo', bg: 'bg-indigo-600', ring: 'ring-indigo-500', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-300 dark:border-indigo-700', lightBg: 'bg-indigo-50 dark:bg-indigo-900/30' },
+    { id: 'indigo', bg: 'bg-[#1B2B4B]', ring: 'ring-[#C9A84C]', text: 'text-[#1B2B4B] dark:text-[#C9A84C]', border: 'border-[#C9A84C]/40 dark:border-[#1B2B4B]/40', lightBg: 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20' },
     { id: 'violet', bg: 'bg-violet-600', ring: 'ring-violet-500', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-300 dark:border-violet-700', lightBg: 'bg-violet-50 dark:bg-violet-900/30' },
     { id: 'emerald', bg: 'bg-emerald-500', ring: 'ring-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-300 dark:border-emerald-700', lightBg: 'bg-emerald-50 dark:bg-emerald-900/30' },
     { id: 'amber', bg: 'bg-amber-500', ring: 'ring-amber-500', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-300 dark:border-amber-700', lightBg: 'bg-amber-50 dark:bg-amber-900/30' },
@@ -101,7 +101,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={openCreate}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1B2B4B] text-white hover:bg-[#152238] transition-colors shadow-sm"
                     >
                         <span className="text-sm leading-none">+</span> New
                     </button>
@@ -171,7 +171,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                 )}
                                 <button
                                     onClick={e => openEdit(slot, e)}
-                                    className="flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border border-zinc-200 dark:border-neutral-600 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all"
+                                    className="flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 border border-zinc-200 dark:border-neutral-600 hover:border-[#C9A84C]/40 dark:hover:border-[#1B2B4B]/40 transition-all"
                                     title="Rename / recolor"
                                 >
                                     <span>✏️</span>
@@ -256,7 +256,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                             onChange={e => setName(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                             placeholder='e.g. Software Engineer, Product Manager…'
-                            className="w-full rounded-xl border-2 border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition"
+                            className="w-full rounded-xl border-2 border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-[#1B2B4B] focus:ring-2 focus:ring-[#C9A84C]/20 transition"
                             autoFocus
                         />
                         <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">
@@ -290,7 +290,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
 
                     {/* Clone toggle (create mode only) */}
                     {modal.mode === 'create' && currentProfile && (
-                        <div className="rounded-xl border-2 border-indigo-100 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 p-4">
+                        <div className="rounded-xl border-2 border-[#C9A84C]/20 dark:border-[#1B2B4B]/30 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 p-4">
                             <div className="flex items-center justify-between gap-4">
                                 <div>
                                     <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Copy current profile data</p>
@@ -299,7 +299,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setCloneActive(!cloneActive)}
-                                    className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${cloneActive ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-neutral-600'}`}
+                                    className={`relative flex-shrink-0 w-12 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#C9A84C] ${cloneActive ? 'bg-[#1B2B4B]' : 'bg-zinc-300 dark:bg-neutral-600'}`}
                                 >
                                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${cloneActive ? 'translate-x-6' : ''}`} />
                                 </button>
@@ -321,7 +321,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                         type="button"
                         onClick={handleSubmit}
                         disabled={!name.trim()}
-                        className="flex-2 flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-extrabold transition-colors shadow-lg shadow-indigo-500/20"
+                        className="flex-2 flex-1 py-3 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] active:bg-[#152238] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-extrabold transition-colors shadow-lg shadow-[#1B2B4B]/20"
                     >
                         {modal.mode === 'create' ? '+ Create Profile' : 'Save Changes'}
                     </button>

@@ -3,27 +3,37 @@
 @tailwind utilities;
 
 :root {
+  --color-primary:     #1B2B4B;
+  --color-gold:        #C9A84C;
+  --color-bg:          #F8F7F4;
+  --color-surface:     #FFFFFF;
+  --color-text:        #1A1A1A;
+  --color-muted:       #6B7280;
+  --color-accent:      #2D6A4F;
+  --color-error:       #C0392B;
+  --color-border:      #E5E2DC;
+
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
-  --primary: 243 96% 62%;
+  --primary: 220 50% 20%;
   --primary-foreground: 0 0% 100%;
   --secondary: 240 4.8% 95.9%;
   --secondary-foreground: 240 5.9% 10%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 243 96% 62%;
+  --border: 35 15% 88%;
+  --input: 35 15% 88%;
+  --ring: 40 60% 55%;
   --radius: 0.75rem;
-  --font-sans: 'Inter', sans-serif;
-  --font-serif: 'Lora', serif;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'Playfair Display', serif;
   --font-mono: 'Roboto Mono', monospace;
 }
 
 .dark {
   --background: 240 10% 3.9%;
   --foreground: 0 0% 98%;
-  --primary: 243 96% 62%;
+  --primary: 220 50% 20%;
   --primary-foreground: 0 0% 100%;
   --secondary: 240 3.7% 15.9%;
   --secondary-foreground: 0 0% 98%;
@@ -31,11 +41,15 @@
   --destructive-foreground: 0 0% 98%;
   --border: 240 3.7% 15.9%;
   --input: 240 3.7% 15.9%;
-  --ring: 243 96% 62%;
+  --ring: 40 60% 55%;
 }
 
 body {
   font-family: var(--font-sans);
+}
+
+h1, h2, h3 {
+  font-family: 'Playfair Display', serif;
 }
 
 .font-serif {
@@ -43,7 +57,7 @@ body {
 }
 
 .font-mono {
-  font-family: var(--font-mono);
+  font-family: 'Roboto Mono', monospace;
 }
 
 /* Hide scrollbar but keep functionality */

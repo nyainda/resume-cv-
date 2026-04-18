@@ -73,7 +73,7 @@ const AppCard: React.FC<{
   return (
     <div
       onClick={() => onEdit(app)}
-      className={`group relative bg-white dark:bg-neutral-800 rounded-2xl border-2 border-zinc-100 dark:border-neutral-700 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-lg ${compact ? 'p-3' : 'p-5'}`}
+      className={`group relative bg-white dark:bg-neutral-800 rounded-2xl border-2 border-zinc-100 dark:border-neutral-700 hover:border-[#C9A84C]/60 dark:hover:border-[#1B2B4B] transition-all duration-200 cursor-pointer shadow-sm hover:shadow-lg ${compact ? 'p-3' : 'p-5'}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -130,7 +130,7 @@ const AppCard: React.FC<{
           {app.savedCvName && app.savedCvName !== 'Manual Entry' && (
             <div className="flex items-center justify-between text-[10px]">
               <span className="text-zinc-400 flex items-center gap-1"><ExternalLink className="h-3 w-3" />CV</span>
-              <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[100px]">{app.savedCvName}</span>
+              <span className="font-bold text-[#1B2B4B] dark:text-[#C9A84C] truncate max-w-[100px]">{app.savedCvName}</span>
             </div>
           )}
         </div>
@@ -146,7 +146,7 @@ const AppCard: React.FC<{
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="mt-2 inline-flex items-center gap-1 text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold"
+          className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#C9A84C] hover:text-[#1B2B4B] font-semibold"
         >
           <ExternalLink className="h-3 w-3" />View Job Posting
         </a>
@@ -268,7 +268,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
       <div className="flex items-center gap-1 bg-zinc-100 dark:bg-neutral-800 rounded-xl p-1 self-start w-fit border border-zinc-200 dark:border-neutral-700">
         <button
           onClick={() => setMainTab('applications')}
-          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${mainTab === 'applications' ? 'bg-white dark:bg-neutral-700 text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${mainTab === 'applications' ? 'bg-white dark:bg-neutral-700 text-[#1B2B4B] shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
         >
           Applications
         </button>
@@ -327,7 +327,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                         {story.linkedCompany && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{story.linkedCompany}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F8F7F4] text-[#1B2B4B] dark:bg-[#1B2B4B]/20 dark:text-[#C9A84C]/80">{story.linkedCompany}</span>
                         )}
                         {story.linkedRole && (
                           <span className="text-[10px] text-zinc-400">{story.linkedRole}</span>
@@ -407,7 +407,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as any)}
-              className="w-full sm:w-36 h-10 pl-3 pr-8 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-indigo-500 appearance-none"
+              className="w-full sm:w-36 h-10 pl-3 pr-8 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-[#C9A84C] appearance-none"
             >
               <option value="All">All Stages</option>
               {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -418,13 +418,13 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
           <div className="flex items-center bg-zinc-100 dark:bg-neutral-800 rounded-xl p-1 border border-zinc-200 dark:border-neutral-700">
             <button
               onClick={() => setViewMode('grid')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-neutral-700 text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-neutral-700 text-[#1B2B4B] shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
             >
               Grid
             </button>
             <button
               onClick={() => setViewMode('kanban')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'kanban' ? 'bg-white dark:bg-neutral-700 text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'kanban' ? 'bg-white dark:bg-neutral-700 text-[#1B2B4B] shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
             >
               Kanban
             </button>
@@ -432,7 +432,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
 
           <Button
             onClick={() => openModal()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-md shadow-indigo-500/20 h-10 px-4 rounded-xl whitespace-nowrap"
+            className="bg-[#1B2B4B] hover:bg-[#152238] text-white border-0 shadow-md shadow-[#1B2B4B]/20 h-10 px-4 rounded-xl whitespace-nowrap"
           >
             <Plus className="h-4 w-4 mr-1.5" /> Track Job
           </Button>
@@ -446,7 +446,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
             <Briefcase className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
             <p className="text-zinc-500 dark:text-zinc-400 font-semibold mb-1">No applications yet</p>
             <p className="text-zinc-400 text-sm mb-4">Start tracking your job hunt to stay organized.</p>
-            <Button onClick={() => openModal()} className="bg-indigo-600 text-white border-0">
+            <Button onClick={() => openModal()} className="bg-[#1B2B4B] text-white border-0">
               <Plus className="h-4 w-4 mr-2" />Add your first application
             </Button>
           </div>
@@ -517,13 +517,13 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Status</Label>
-                <select value={editingApp.status} onChange={e => setEditingApp({ ...editingApp, status: e.target.value as ApplicationStatus })} className="w-full h-11 px-3 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/50 focus:ring-2 focus:ring-indigo-500">
+                <select value={editingApp.status} onChange={e => setEditingApp({ ...editingApp, status: e.target.value as ApplicationStatus })} className="w-full h-11 px-3 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/50 focus:ring-2 focus:ring-[#C9A84C]">
                   {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Priority</Label>
-                <select value={editingApp.priority || 'Medium'} onChange={e => setEditingApp({ ...editingApp, priority: e.target.value as ApplicationPriority })} className="w-full h-11 px-3 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/50 focus:ring-2 focus:ring-indigo-500">
+                <select value={editingApp.priority || 'Medium'} onChange={e => setEditingApp({ ...editingApp, priority: e.target.value as ApplicationPriority })} className="w-full h-11 px-3 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/50 focus:ring-2 focus:ring-[#C9A84C]">
                   {(['Dream', 'High', 'Medium', 'Low'] as ApplicationPriority[]).map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
@@ -549,7 +549,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Linked CV</Label>
-                <select value={editingApp.savedCvId} onChange={e => setEditingApp({ ...editingApp, savedCvId: e.target.value })} className="w-full h-11 px-3 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/50 focus:ring-2 focus:ring-indigo-500">
+                <select value={editingApp.savedCvId} onChange={e => setEditingApp({ ...editingApp, savedCvId: e.target.value })} className="w-full h-11 px-3 text-sm rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/50 focus:ring-2 focus:ring-[#C9A84C]">
                   <option value="">No CV linked</option>
                   {savedCVs.map(cv => <option key={cv.id} value={cv.id}>{cv.name}</option>)}
                 </select>
@@ -572,7 +572,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
                       <button
                         key={s}
                         onClick={() => setEditingApp({ ...editingApp, status: s })}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${editingApp.status === s ? `border-indigo-500 ${c.bg} ${c.color}` : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-indigo-300'}`}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${editingApp.status === s ? `border-[#1B2B4B] ${c.bg} ${c.color}` : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-[#C9A84C]/40'}`}
                       >
                         <SI className="h-3.5 w-3.5" />{s}
                       </button>
@@ -584,7 +584,7 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
 
             <div className="flex justify-end gap-3 pt-6 border-t border-zinc-100 dark:border-neutral-700 mt-6">
               <Button variant="ghost" onClick={closeModal} className="px-5 border border-zinc-200 dark:border-neutral-700 rounded-xl">Discard</Button>
-              <Button onClick={handleSave} className="px-8 bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-md shadow-indigo-500/20 rounded-xl">Save Entry</Button>
+              <Button onClick={handleSave} className="px-8 bg-[#1B2B4B] hover:bg-[#152238] text-white border-0 shadow-md shadow-[#1B2B4B]/20 rounded-xl">Save Entry</Button>
             </div>
           </div>
         </div>

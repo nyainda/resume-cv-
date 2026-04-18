@@ -104,7 +104,7 @@ const EnhanceBtn: React.FC<{ loading: boolean; disabled: boolean; onClick: () =>
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-[#1B2B4B] dark:text-[#C9A84C] bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 hover:bg-[#F8F7F4] dark:hover:bg-[#152238]/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
     title="Enhance with AI"
   >
     {loading ? <SpinnerIcon /> : <Sparkles className="h-3 w-3" />}
@@ -562,8 +562,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                       <button key={count} type="button"
                         onClick={() => setValue(`workExperience.${index}.pointCount`, count)}
                         className={`w-8 h-8 rounded-lg text-xs font-bold border transition-all ${selected
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                          : 'bg-white dark:bg-neutral-700 border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:border-indigo-400 hover:text-indigo-600'
+                          ? 'bg-[#1B2B4B] border-[#1B2B4B] text-white shadow-sm'
+                          : 'bg-white dark:bg-neutral-700 border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:border-[#C9A84C]/60 hover:text-[#1B2B4B]'
                         }`}
                       >
                         {count}
@@ -852,17 +852,17 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mt-4 mb-2">Additional Sections</p>
           <div className="space-y-2">
             {customSections.map((cs, idx) => (
-              <div key={cs.id} className="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl">
-                <span className="text-xs font-bold text-indigo-400 w-5 text-center">{sectionOrder.length + idx + 1}</span>
-                <span className="flex-1 text-sm font-medium text-indigo-800 dark:text-indigo-200">{cs.label}</span>
-                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded font-medium">custom</span>
+              <div key={cs.id} className="flex items-center gap-3 px-4 py-3 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-xl">
+                <span className="text-xs font-bold text-[#C9A84C] w-5 text-center">{sectionOrder.length + idx + 1}</span>
+                <span className="flex-1 text-sm font-medium text-[#1B2B4B] dark:text-[#C9A84C]/80">{cs.label}</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C] rounded font-medium">custom</span>
                 <div className="flex gap-0.5">
                   <button type="button" onClick={() => handleMoveSectionUp(cs.id)} disabled={idx === 0}
-                    className="p-1.5 rounded-lg text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-20 transition-colors">
+                    className="p-1.5 rounded-lg text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 disabled:opacity-20 transition-colors">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M18 15l-6-6-6 6" /></svg>
                   </button>
                   <button type="button" onClick={() => handleMoveSectionDown(cs.id)} disabled={idx === customSections.length - 1}
-                    className="p-1.5 rounded-lg text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-20 transition-colors">
+                    className="p-1.5 rounded-lg text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 disabled:opacity-20 transition-colors">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M6 9l6 6 6-6" /></svg>
                   </button>
                 </div>
@@ -889,7 +889,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             <select
               value={newSectionType}
               onChange={e => setNewSectionType(e.target.value as CustomSectionType)}
-              className="w-full h-9 px-3 rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full h-9 px-3 rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
             >
               {PREDEFINED_SECTION_OPTIONS.map(o => <option key={o.type} value={o.type}>{o.label}</option>)}
             </select>
@@ -912,10 +912,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       ) : (
         <div className="space-y-5">
           {customSections.map((section, sIdx) => (
-            <div key={section.id} className="border-2 border-indigo-100 dark:border-indigo-800/50 rounded-xl overflow-hidden">
+            <div key={section.id} className="border-2 border-[#C9A84C]/20 dark:border-[#1B2B4B]/40/50 rounded-xl overflow-hidden">
               {/* Section header */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50">
-                <span className="text-xs font-bold text-indigo-400">{sIdx + 1}</span>
+              <div className="flex items-center gap-2 px-4 py-3 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 border-b border-[#C9A84C]/20 dark:border-[#1B2B4B]/40/50">
+                <span className="text-xs font-bold text-[#C9A84C]">{sIdx + 1}</span>
                 <Input
                   value={section.label}
                   onChange={e => handleUpdateSectionLabel(section.id, e.target.value)}
@@ -924,11 +924,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 />
                 <div className="flex items-center gap-0.5">
                   <button type="button" onClick={() => handleMoveSectionUp(section.id)} disabled={sIdx === 0}
-                    className="p-1 rounded text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-20 transition-colors">
+                    className="p-1 rounded text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 disabled:opacity-20 transition-colors">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M18 15l-6-6-6 6" /></svg>
                   </button>
                   <button type="button" onClick={() => handleMoveSectionDown(section.id)} disabled={sIdx === customSections.length - 1}
-                    className="p-1 rounded text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 disabled:opacity-20 transition-colors">
+                    className="p-1 rounded text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 disabled:opacity-20 transition-colors">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M6 9l6 6 6-6" /></svg>
                   </button>
                   <button type="button" onClick={() => handleDeleteSection(section.id)}
@@ -1002,7 +1002,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           {(['text', 'upload'] as const).map(mode => (
             <button key={mode} type="button" onClick={() => setProfileInputMode(mode)}
               className={`py-2.5 px-1 border-b-2 text-sm font-medium transition-colors ${profileInputMode === mode
-                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-300'}`}>
               {mode === 'text' ? 'Paste Resume Text' : 'Upload CV / Resume'}
             </button>
@@ -1022,7 +1022,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         <label htmlFor="profile-upload"
           className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl bg-zinc-50 dark:bg-neutral-800 ${!apiKeySet ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
           {uploadedFile ? (
-            <p className="font-semibold text-indigo-600 px-2">{uploadedFile.name}</p>
+            <p className="font-semibold text-[#1B2B4B] px-2">{uploadedFile.name}</p>
           ) : (
             <>
               <UploadCloud className="h-8 w-8 text-zinc-400 mb-2" />
@@ -1131,7 +1131,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             onClick={() => setActiveTab(activeTab === 'ai' ? 'personal' : 'ai')}
             title={!apiKeySet ? 'Please set your API key in settings' : ''}
           >
-            <Sparkles className="h-4 w-4 sm:mr-1.5 text-indigo-500" />
+            <Sparkles className="h-4 w-4 sm:mr-1.5 text-[#C9A84C]" />
             <span className="hidden sm:inline">{activeTab === 'ai' ? 'Back to Form' : 'Import CV'}</span>
           </Button>
         </div>
@@ -1139,8 +1139,8 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
       {/* ── Word / PDF Import panel ────────────────────────────────────── */}
       {showWordImport && onProfileImported && (
-        <div className="border-b border-zinc-200 dark:border-neutral-700 bg-indigo-50/60 dark:bg-indigo-900/10 p-4">
-          <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-3 flex items-center gap-1.5">
+        <div className="border-b border-zinc-200 dark:border-neutral-700 bg-[#F8F7F4]/60 dark:bg-[#1B2B4B]/10 p-4">
+          <p className="text-xs font-semibold text-[#1B2B4B] dark:text-[#C9A84C]/80 mb-3 flex items-center gap-1.5">
             <FileText className="h-3.5 w-3.5" />
             Import your existing CV from a Word (.docx) or PDF file — fields are auto-filled from your document
           </p>
@@ -1168,14 +1168,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                   <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}
                     className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                       active
-                        ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        ? 'bg-white dark:bg-neutral-700 text-[#1B2B4B] dark:text-[#C9A84C] shadow-sm'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
                     }`}
                   >
-                    <span className={active ? 'text-indigo-500' : 'text-zinc-400'}>{tab.icon}</span>
+                    <span className={active ? 'text-[#C9A84C]' : 'text-zinc-400'}>{tab.icon}</span>
                     <span>{tab.label}</span>
                     {count !== undefined && count > 0 && (
-                      <span className="ml-0.5 text-[9px] font-bold bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 px-1 py-0.5 rounded-full">
+                      <span className="ml-0.5 text-[9px] font-bold bg-[#F8F7F4] dark:bg-[#1B2B4B]/30/50 text-[#1B2B4B] dark:text-[#C9A84C]/80 px-1 py-0.5 rounded-full">
                         {count}
                       </span>
                     )}
@@ -1185,11 +1185,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               <button type="button" onClick={() => setActiveTab(activeTab === 'ai' ? 'personal' : 'ai')}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                   activeTab === 'ai'
-                    ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    ? 'bg-white dark:bg-neutral-700 text-[#1B2B4B] dark:text-[#C9A84C] shadow-sm'
                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
                 }`}
               >
-                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                <Sparkles className="h-3.5 w-3.5 text-[#C9A84C]" />
                 Import
               </button>
             </div>
@@ -1208,16 +1208,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                   onClick={() => setActiveTab(tab.key)}
                   className={`relative flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-all ${
                     active
-                      ? 'bg-white dark:bg-neutral-700 text-indigo-700 dark:text-indigo-300 shadow-sm border-r-2 border-indigo-500'
+                      ? 'bg-white dark:bg-neutral-700 text-[#1B2B4B] dark:text-[#C9A84C]/80 shadow-sm border-r-2 border-[#1B2B4B]'
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-neutral-700/50 hover:text-zinc-900 dark:hover:text-zinc-200'
                   }`}
                 >
-                  <span className={active ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'}>
+                  <span className={active ? 'text-[#1B2B4B] dark:text-[#C9A84C]' : 'text-zinc-400 dark:text-zinc-500'}>
                     {tab.icon}
                   </span>
                   <span className="flex-1 truncate">{tab.label}</span>
                   {count !== undefined && count > 0 ? (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' : 'bg-zinc-200 dark:bg-neutral-600 text-zinc-600 dark:text-zinc-400'}`}>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/30/50 text-[#1B2B4B] dark:text-[#C9A84C]/80' : 'bg-zinc-200 dark:bg-neutral-600 text-zinc-600 dark:text-zinc-400'}`}>
                       {count}
                     </span>
                   ) : done && tab.key !== 'order' && tab.key !== 'ai' ? (
@@ -1234,11 +1234,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 onClick={() => setActiveTab(activeTab === 'ai' ? 'personal' : 'ai')}
                 className={`flex items-center gap-2.5 w-full text-left px-1 py-2 text-sm font-medium rounded-lg transition-all ${
                   activeTab === 'ai'
-                    ? 'text-indigo-700 dark:text-indigo-300'
+                    ? 'text-[#1B2B4B] dark:text-[#C9A84C]/80'
                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                 }`}
               >
-                <Sparkles className="h-4 w-4 text-indigo-400" />
+                <Sparkles className="h-4 w-4 text-[#C9A84C]" />
                 Import Profile
               </button>
             </div>

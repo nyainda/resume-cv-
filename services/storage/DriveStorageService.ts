@@ -111,7 +111,7 @@ export class DriveStorageService implements IStorageService {
     // ── PDF upload (unchanged) ─────────────────────────────────────────────────
 
     async uploadPDFFile(filename: string, bytes: Uint8Array): Promise<{ id: string; webViewLink: string }> {
-        const DRIVE_FOLDER_NAME = 'CraftCV';
+        const DRIVE_FOLDER_NAME = 'ProCV';
 
         let folderId: string | null = null;
         const folderSearch = await this.apiFetch(

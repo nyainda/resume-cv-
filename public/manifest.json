@@ -1,11 +1,11 @@
 {
-  "name": "CraftCV — Build Your Career Story",
-  "short_name": "CraftCV",
+  "name": "ProCV — Your Personal Career Consultant",
+  "short_name": "ProCV",
   "description": "Professional CV and cover letter builder with smart career tools",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4f46e5",
+  "background_color": "#F8F7F4",
+  "theme_color": "#1B2B4B",
   "icons": [
     {
       "src": "/icon-192.png",

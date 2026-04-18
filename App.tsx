@@ -38,7 +38,7 @@ import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoSync } from './hooks/useAutoSync';
 import {
   Edit, User, List, Settings, FileText, Target,
-  Moon, Sun, BookOpen, Globe, Sparkles,
+  Moon, Sun, BookOpen, Globe, Briefcase,
 } from './components/icons';
 
 // ── Mail icon (inline, no dep needed) ──────────────────────────────────────
@@ -102,7 +102,7 @@ const PROFILE_COLORS: ProfileColor[] = ['indigo', 'violet', 'emerald', 'amber', 
 
 function colorBg(c: ProfileColor) {
   const map: Record<ProfileColor, string> = {
-    indigo: 'bg-indigo-600', violet: 'bg-violet-600', emerald: 'bg-emerald-500',
+    indigo: 'bg-[#1B2B4B]', violet: 'bg-violet-600', emerald: 'bg-emerald-500',
     amber: 'bg-amber-500', rose: 'bg-rose-500', sky: 'bg-sky-500',
   };
   return map[c];
@@ -699,7 +699,7 @@ const AppInner: React.FC = () => {
     {
       label: 'Tools',
       items: [
-        { id: 'toolkit', label: 'CV Toolkit', icon: Sparkles },
+        { id: 'toolkit', label: 'CV Toolkit', icon: Briefcase },
         { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
         { id: 'merger', label: 'PDF Tools', icon: MergeNavIcon },
       ],
@@ -766,13 +766,14 @@ const AppInner: React.FC = () => {
             className="flex items-center gap-2.5 group flex-shrink-0"
             title="Back to homepage"
           >
-            <div className="p-1.5 bg-indigo-600 group-hover:bg-indigo-700 rounded-lg transition-colors">
+            <div className="p-1.5 bg-[#1B2B4B] group-hover:bg-[#152238] rounded-lg transition-colors">
               <FileText className="h-5 w-5 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">CraftCV</h1>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Elite Career &amp; Scholarship Suite</p>
+              <h1 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none" style={{fontFamily: "'Playfair Display', serif"}}>ProCV</h1>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Your Personal Career Consultant</p>
             </div>
+            <div className="hidden sm:block w-px h-8 bg-[#C9A84C]/30 ml-1" />
           </button>
 
           <div className="flex items-center gap-2">
@@ -781,7 +782,7 @@ const AppInner: React.FC = () => {
               <div className="relative" ref={profileManagerRef}>
                 <button
                   onClick={() => setShowProfileManager(v => !v)}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm font-bold rounded-xl border transition-all ${showProfileManager ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700'}`}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm font-bold rounded-xl border transition-all ${showProfileManager ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 text-[#1B2B4B] dark:text-[#C9A84C]/80' : 'bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700'}`}
                   title="Switch profile"
                 >
                   <div className={`w-7 h-7 rounded-full ${colorBg(slotColor)} flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0`}>
@@ -837,16 +838,16 @@ const AppInner: React.FC = () => {
               {isAuthenticated && user ? (
                 <div className="flex items-center gap-2 px-1">
                   {user.picture ? (
-                    <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full ring-1 ring-indigo-500 shadow-sm" />
+                    <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full ring-1 ring-[#C9A84C] shadow-sm" />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] text-white font-bold">{user.name.charAt(0)}</div>
+                    <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[10px] text-white font-bold">{user.name.charAt(0)}</div>
                   )}
                   <span className="text-xs font-bold hidden lg:inline-block max-w-[80px] truncate">{user.name.split(' ')[0]}</span>
                   <Settings className="h-4 w-4 text-zinc-400 group-hover:rotate-45 transition-transform" />
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-2 py-0.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-tighter text-indigo-600 dark:text-indigo-400">Cloud Sync</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-tighter text-[#1B2B4B] dark:text-[#C9A84C]">Cloud Sync</span>
                   <Settings className="h-4 w-4 group-hover:rotate-45 transition-transform" />
                 </div>
               )}
@@ -868,8 +869,8 @@ const AppInner: React.FC = () => {
                     title={item.label}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
                       currentView === item.id
-                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                        ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C]'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800 border-b-2 border-transparent'
                     }`}
                   >
                     <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
@@ -883,7 +884,7 @@ const AppInner: React.FC = () => {
                     onClick={() => setShowMoreMenu(v => !v)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
                       isMoreActive || showMoreMenu
-                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                        ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800'
                     }`}
                   >
@@ -902,7 +903,7 @@ const AppInner: React.FC = () => {
                               onClick={() => { setCurrentView(item.id as any); setShowMoreMenu(false); }}
                               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                                 currentView === item.id
-                                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                  ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
                                   : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
                               }`}
                             >
@@ -926,7 +927,7 @@ const AppInner: React.FC = () => {
                       onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                         currentView === item.id
-                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                          ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
                           : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800'
                       }`}
                     >
@@ -939,7 +940,7 @@ const AppInner: React.FC = () => {
                   onClick={() => setShowMobileMenu(v => !v)}
                   className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ml-1 ${
                     showMobileMenu || (currentView === 'jobs') || isMoreActive
-                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                      ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
                       : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800'
                   }`}
                 >
@@ -958,7 +959,7 @@ const AppInner: React.FC = () => {
                         onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                           currentView === item.id
-                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                            ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
                         }`}
                       >
@@ -977,7 +978,7 @@ const AppInner: React.FC = () => {
                             onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
                             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                               currentView === item.id
-                                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                                ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
                                 : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
                             }`}
                           >
@@ -1005,8 +1006,8 @@ const AppInner: React.FC = () => {
                 {profileExists && (
                   <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-bold flex items-center gap-3"><User className="h-5 w-5 text-indigo-500" /> Profile</h2>
-                      <button onClick={() => setIsEditingProfile(true)} className="text-indigo-600 hover:underline text-xs font-bold uppercase tracking-wider">Edit</button>
+                      <h2 className="text-lg font-bold flex items-center gap-3"><User className="h-5 w-5 text-[#C9A84C]" /> Profile</h2>
+                      <button onClick={() => setIsEditingProfile(true)} className="text-[#1B2B4B] hover:underline text-xs font-bold uppercase tracking-wider">Edit</button>
                     </div>
                     <div className="space-y-3">
 
@@ -1016,13 +1017,13 @@ const AppInner: React.FC = () => {
                           <div
                             key={slot.id}
                             onClick={() => handleSwitchProfile(slot)}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${slot.id === activeSlot?.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-zinc-50 dark:hover:bg-neutral-700/50'}`}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${slot.id === activeSlot?.id ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/10' : 'hover:bg-zinc-50 dark:hover:bg-neutral-700/50'}`}
                           >
                             <div className={`w-5 h-5 rounded-full ${colorBg(slot.color)} flex-shrink-0 flex items-center justify-center text-[9px] text-white font-bold`}>
                               {(slot.profile.personalInfo.name || slot.name).charAt(0).toUpperCase()}
                             </div>
-                            <span className={`text-xs font-semibold truncate ${slot.id === activeSlot?.id ? 'text-indigo-700 dark:text-indigo-300' : 'text-zinc-600 dark:text-zinc-400'}`}>{slot.name}</span>
-                            {slot.id === activeSlot?.id && <span className="ml-auto text-[9px] font-extrabold text-indigo-500 uppercase">active</span>}
+                            <span className={`text-xs font-semibold truncate ${slot.id === activeSlot?.id ? 'text-[#1B2B4B] dark:text-[#C9A84C]/80' : 'text-zinc-600 dark:text-zinc-400'}`}>{slot.name}</span>
+                            {slot.id === activeSlot?.id && <span className="ml-auto text-[9px] font-extrabold text-[#C9A84C] uppercase">active</span>}
                           </div>
                         ))}
                         {profiles.length > 3 && (
@@ -1051,13 +1052,13 @@ const AppInner: React.FC = () => {
                 {currentView === 'generator' && (
                   <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-base font-bold flex items-center gap-2"><Target className="h-4 w-4 text-indigo-500" /> Recent Activity</h2>
+                      <h2 className="text-base font-bold flex items-center gap-2"><Target className="h-4 w-4 text-[#C9A84C]" /> Recent Activity</h2>
                       <span className="text-xs font-semibold text-zinc-400">{trackedApps.length} total</span>
                     </div>
                     {trackedApps.length === 0 ? (
                       <div className="text-center py-6">
-                        <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mx-auto mb-3">
-                          <Target className="h-5 w-5 text-indigo-400" />
+                        <div className="w-10 h-10 rounded-full bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 flex items-center justify-center mx-auto mb-3">
+                          <Target className="h-5 w-5 text-[#C9A84C]" />
                         </div>
                         <p className="text-xs text-zinc-400 dark:text-zinc-500">No applications tracked yet.</p>
                       </div>
@@ -1083,7 +1084,7 @@ const AppInner: React.FC = () => {
                         })}
                       </div>
                     )}
-                    <button onClick={() => setCurrentView('tracker')} className="w-full mt-4 text-xs font-bold text-indigo-600 dark:text-indigo-400 py-2.5 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-center gap-1.5">
+                    <button onClick={() => setCurrentView('tracker')} className="w-full mt-4 text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] py-2.5 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 transition-colors flex items-center justify-center gap-1.5">
                       <Target className="h-3.5 w-3.5" /> View All Applications
                     </button>
                   </div>
@@ -1096,8 +1097,8 @@ const AppInner: React.FC = () => {
             <div className="lg:hidden col-span-1">
               <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold flex items-center gap-2"><Target className="h-4 w-4 text-indigo-500" /> Recent Activity</h2>
-                  <button onClick={() => setCurrentView('tracker')} className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">View All</button>
+                  <h2 className="text-sm font-bold flex items-center gap-2"><Target className="h-4 w-4 text-[#C9A84C]" /> Recent Activity</h2>
+                  <button onClick={() => setCurrentView('tracker')} className="text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] hover:underline">View All</button>
                 </div>
                 {trackedApps.length === 0 ? (
                   <p className="text-xs text-zinc-400 text-center py-3">No applications tracked yet.</p>

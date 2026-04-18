@@ -402,9 +402,9 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
 
       {/* Brevo sender verification reminder */}
       {hasBrevo && userProfile.personalInfo.email && (
-        <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/60 dark:bg-indigo-950/20 px-4 py-3 flex items-start gap-3">
+        <div className="rounded-xl border border-[#C9A84C]/20 dark:border-[#1B2B4B]/30 bg-[#F8F7F4]/60 dark:bg-[#1B2B4B]/10 px-4 py-3 flex items-start gap-3">
           <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
-          <p className="text-xs text-indigo-700 dark:text-indigo-300">
+          <p className="text-xs text-[#1B2B4B] dark:text-[#C9A84C]/80">
             <span className="font-bold">Sender:</span>{' '}
             <span className="font-mono">{userProfile.personalInfo.email}</span>{' '}
             — this email must be verified in your{' '}
@@ -421,8 +421,8 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
           const active = step === s;
           return (
             <React.Fragment key={s}>
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow' :
-                  done ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' :
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${active ? 'bg-[#1B2B4B] text-white shadow' :
+                  done ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]' :
                     'bg-zinc-100 dark:bg-neutral-800 text-zinc-400'
                 }`}>
                 {done ? '✓' : <span>{i + 1}</span>}
@@ -451,14 +451,14 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
               onChange={e => setJd(e.target.value)}
               rows={12}
               placeholder={`Paste the full job description here…\n\nThe AI will:\n  📧 Detect the application email\n  🏢 Extract job title & company\n  ✍️ Compose a professional email\n  📝 Generate a tailored cover letter\n  ${hasBrevo ? '📨 Send directly via Brevo with attachments' : '🔗 Open pre-filled in your email client'}`}
-              className="w-full rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition placeholder:text-zinc-300 dark:placeholder:text-zinc-600 leading-relaxed"
+              className="w-full rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] resize-none transition placeholder:text-zinc-300 dark:placeholder:text-zinc-600 leading-relaxed"
             />
           </div>
           {error && <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>}
           <button
             onClick={handleAnalyse}
             disabled={analyzing || !jd.trim() || !apiKeySet}
-            className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2"
           >
             {analyzing
               ? <><span className="animate-spin text-lg">⟳</span> Analysing…</>
@@ -510,7 +510,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
                 type="email"
                 value={draft.to}
                 onChange={e => setDraft(p => ({ ...p, to: e.target.value }))}
-                className="flex-1 rounded-xl border-2 border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 transition font-mono placeholder:font-sans"
+                className="flex-1 rounded-xl border-2 border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] focus:border-[#C9A84C]/60 transition font-mono placeholder:font-sans"
                 placeholder="careers@company.com"
               />
               <button onClick={() => copy(draft.to, 'to')}
@@ -531,7 +531,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
                 type="text"
                 value={draft.subject}
                 onChange={e => setDraft(p => ({ ...p, subject: e.target.value }))}
-                className="flex-1 rounded-xl border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                className="flex-1 rounded-xl border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] transition"
               />
               <button onClick={() => copy(draft.subject, 'subject')}
                 className="px-3 py-2 rounded-xl border border-zinc-300 dark:border-neutral-600 text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors">
@@ -552,7 +552,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
               value={draft.body}
               onChange={e => setDraft(p => ({ ...p, body: e.target.value }))}
               rows={10}
-              className="w-full rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition"
+              className="w-full rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-3 text-sm text-zinc-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] resize-none transition"
             />
           </div>
 
@@ -633,7 +633,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
 
             {attachments.length === 0 ? (
               <div
-                className="border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl p-5 text-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors"
+                className="border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl p-5 text-center cursor-pointer hover:border-[#C9A84C]/60 dark:hover:border-[#1B2B4B] transition-colors"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); handleFilesPicked(e.dataTransfer.files); }}
@@ -721,7 +721,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
               <button
                 onClick={handleOpenMailto}
                 disabled={!draft.to || !draft.subject}
-                className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm">
+                className="py-3 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors shadow-sm">
                 ✉️ Open in Email Client
               </button>
             )}
@@ -748,7 +748,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
       {/* ═══ STEP 3: Sent ═══ */}
       {step === 'send' && (
         <div className="text-center space-y-6 py-8 px-4">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto shadow-lg ${sendResult?.ok && hasBrevo ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-indigo-100 dark:bg-indigo-900/30'}`}>
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto shadow-lg ${sendResult?.ok && hasBrevo ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20'}`}>
             {sendResult?.ok && hasBrevo ? '🎉' : '✉️'}
           </div>
 
@@ -785,7 +785,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
             </button>
             {!(sendResult?.ok && hasBrevo) && (
               <button onClick={handleOpenMailto}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors shadow-sm">
+                className="px-4 py-2 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] text-white font-bold text-sm transition-colors shadow-sm">
                 ✉️ Re-open Email Client
               </button>
             )}

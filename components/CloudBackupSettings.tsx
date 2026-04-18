@@ -135,7 +135,7 @@ export const CloudBackupSettings: React.FC = () => {
                                 className="w-8 h-8 rounded-full ring-2 ring-green-300 dark:ring-green-700"
                             />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                            <div className="w-8 h-8 rounded-full bg-[#1B2B4B] flex items-center justify-center text-white text-xs font-bold">
                                 {user.name.charAt(0).toUpperCase()}
                             </div>
                         )}

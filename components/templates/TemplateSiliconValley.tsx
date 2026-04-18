@@ -40,7 +40,7 @@ const TemplateSiliconValley: React.FC<TemplateProps> = ({ cvData, personalInfo, 
     return (
         <div id="cv-preview-silicon-valley" className="bg-[#fcfcfc] p-12 text-slate-900 shadow-xl border border-slate-200 font-sans leading-relaxed" style={{ fontFamily: "'Inter', sans-serif" }}>
             <header className="mb-12 flex flex-col items-center text-center">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 mb-6 shadow-xl flex items-center justify-center border-4 border-white">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-[#1B2B4B] mb-6 shadow-xl flex items-center justify-center border-4 border-white">
                     <span className="text-4xl font-bold text-white uppercase">{personalInfo.name.charAt(0)}</span>
                 </div>
                 <h1 className="text-5xl font-black tracking-tighter text-slate-900 mb-2">{personalInfo.name}</h1>

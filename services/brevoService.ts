@@ -148,7 +148,7 @@ export function buildHtmlEmail(params: {
     <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
                 padding:28px 32px;color:#ffffff;">
       <h1 style="margin:0;font-size:20px;font-weight:800;letter-spacing:-0.02em;">${subject}</h1>
-      <p style="margin:6px 0 0;font-size:13px;opacity:0.85;">From ${senderName} · via CraftCV</p>
+      <p style="margin:6px 0 0;font-size:13px;opacity:0.85;">From ${senderName} · via ProCV</p>
     </div>
 
     <!-- Body -->
@@ -160,7 +160,7 @@ export function buildHtmlEmail(params: {
     <!-- Footer -->
     <div style="padding:16px 32px;background:#f1f5f9;border-top:1px solid #e2e8f0;
                 font-size:11px;color:#94a3b8;text-align:center;">
-      Sent automatically via CraftCV · Powered by Brevo
+      Sent automatically via ProCV · Powered by Brevo
     </div>
   </div>
 </body>

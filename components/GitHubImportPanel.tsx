@@ -473,21 +473,21 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({
 
                             {/* ── Step 2: AI Generate CV ── */}
                             {onGenerateCV && !cvGenerated && (
-                                <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 space-y-3">
+                                <div className="bg-gradient-to-br from-[#F8F7F4] to-violet-50 dark:from-[#1B2B4B]/10 dark:to-[#1B2B4B]/10 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-2xl p-5 space-y-3">
                                     <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-indigo-600 rounded-xl flex-shrink-0">
+                                        <div className="p-2 bg-[#1B2B4B] rounded-xl flex-shrink-0">
                                             <Sparkles className="h-4 w-4 text-white" />
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-indigo-900 dark:text-indigo-100 text-sm">Generate Your Best CV with AI</h4>
-                                            <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
+                                            <h4 className="font-bold text-[#1B2B4B] dark:text-[#C9A84C]/70 text-sm">Generate Your Best CV with AI</h4>
+                                            <p className="text-xs text-[#1B2B4B] dark:text-[#C9A84C]/80 mt-1">
                                                 The AI reads your actual repos — descriptions, languages, topics, and links — and generates a complete, optimised CV.
                                                 Every project gets its real GitHub link (and live URL if available). Skills are extracted from what you actually built.
                                             </p>
                                         </div>
                                     </div>
 
-                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-[#1B2B4B] dark:text-[#C9A84C]/80">
                                         {[
                                             '✓ Real GitHub links on every project',
                                             '✓ Live demo URLs included',
@@ -501,14 +501,14 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({
                                     {generatingCV ? (
                                         <div className="space-y-2 pt-1">
                                             <div className="flex items-center gap-2">
-                                                <RefreshCw className="h-4 w-4 animate-spin text-indigo-600" />
-                                                <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">
+                                                <RefreshCw className="h-4 w-4 animate-spin text-[#1B2B4B]" />
+                                                <p className="text-sm font-semibold text-[#1B2B4B] dark:text-[#C9A84C]/80">
                                                     {AI_STEPS[aiStep]}
                                                 </p>
                                             </div>
-                                            <div className="w-full bg-indigo-200 dark:bg-indigo-900 rounded-full h-1.5">
+                                            <div className="w-full bg-[#C9A84C]/20 dark:bg-[#1B2B4B]/30 rounded-full h-1.5">
                                                 <div
-                                                    className="bg-indigo-600 h-1.5 rounded-full transition-all duration-700"
+                                                    className="bg-[#1B2B4B] h-1.5 rounded-full transition-all duration-700"
                                                     style={{ width: `${((aiStep + 1) / AI_STEPS.length) * 100}%` }}
                                                 />
                                             </div>
@@ -518,7 +518,7 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({
                                             <Button
                                                 onClick={handleGenerateCV}
                                                 disabled={selected.size === 0}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 rounded-xl px-6 shadow shadow-indigo-500/20"
+                                                className="bg-[#1B2B4B] hover:bg-[#152238] text-white border-0 rounded-xl px-6 shadow shadow-[#1B2B4B]/20"
                                             >
                                                 <Sparkles className="h-4 w-4 mr-2" />
                                                 Generate Best CV from {selected.size} Repos
@@ -544,11 +544,11 @@ const GitHubImportPanel: React.FC<GitHubImportPanelProps> = ({
 
                             {/* CV generation success */}
                             {cvGenerated && (
-                                <div className="flex items-center gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl">
-                                    <Sparkles className="h-5 w-5 text-indigo-500 flex-shrink-0" />
+                                <div className="flex items-center gap-3 p-4 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-xl">
+                                    <Sparkles className="h-5 w-5 text-[#C9A84C] flex-shrink-0" />
                                     <div>
-                                        <p className="font-bold text-indigo-800 dark:text-indigo-200 text-sm">CV generated from your GitHub!</p>
-                                        <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                                        <p className="font-bold text-[#1B2B4B] dark:text-[#C9A84C]/80 text-sm">CV generated from your GitHub!</p>
+                                        <p className="text-xs text-[#1B2B4B] dark:text-[#C9A84C]">
                                             Your new CV is ready in the CV Generator — complete with real project links and AI-optimised descriptions.
                                         </p>
                                     </div>

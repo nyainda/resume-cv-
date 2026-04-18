@@ -55,7 +55,7 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({ letterText, onT
             <ClipboardCopy className="h-4 w-4 mr-2" />
             {copied ? 'Copied' : 'Copy'}
           </Button>
-          <Button onClick={handleDownload} className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-md shadow-indigo-500/20" size="sm">
+          <Button onClick={handleDownload} className="bg-[#1B2B4B] hover:bg-[#152238] text-white border-0 shadow-md shadow-[#1B2B4B]/20" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Download PDF
           </Button>
@@ -74,8 +74,8 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({ letterText, onT
                 className={`
                   w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all duration-200
                   ${template === t.id
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 shadow-sm'
-                    : 'border-zinc-200 dark:border-neutral-700 hover:border-indigo-300 dark:hover:border-indigo-700 text-zinc-600 dark:text-zinc-400 bg-white dark:bg-neutral-800'
+                    ? 'border-[#1B2B4B] bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 text-[#1B2B4B] dark:text-[#C9A84C]/80 shadow-sm'
+                    : 'border-zinc-200 dark:border-neutral-700 hover:border-[#C9A84C]/40 dark:hover:border-[#1B2B4B]/40 text-zinc-600 dark:text-zinc-400 bg-white dark:bg-neutral-800'
                   }
                 `}
               >
@@ -102,8 +102,8 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({ letterText, onT
             className={`
               p-8 sm:p-12 border-2 border-zinc-200 dark:border-neutral-700 rounded-2xl bg-white dark:bg-neutral-900 shadow-inner min-h-[600px] whitespace-pre-wrap text-zinc-800 dark:text-zinc-200 leading-[1.8] text-sm transition-all
               ${(template === 'professional' || template === 'executive' || template === 'academic') ? 'font-serif' : 'font-sans'}
-              ${isEditing ? 'ring-4 ring-indigo-500/10 border-indigo-400 focus:outline-none' : ''}
-              ${template === 'creative' ? 'border-l-[12px] border-l-indigo-600' : ''}
+              ${isEditing ? 'ring-4 ring-[#C9A84C]/10 border-[#C9A84C]/60 focus:outline-none' : ''}
+              ${template === 'creative' ? 'border-l-[12px] border-l-[#1B2B4B]' : ''}
             `}
           >
             {/* Mock Header Preview */}

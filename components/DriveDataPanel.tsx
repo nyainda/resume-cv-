@@ -189,7 +189,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                     {user.picture ? (
                         <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full ring-1 ring-emerald-400" />
                     ) : (
-                        <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-[9px] text-white font-bold">{user.name[0]}</div>
+                        <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[9px] text-white font-bold">{user.name[0]}</div>
                     )}
                     <div>
                         <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">{user.name}</p>
@@ -210,7 +210,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                 <div className="space-y-1">
                     <div className="w-full bg-zinc-200 dark:bg-neutral-700 rounded-full h-1.5">
                         <div
-                            className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
+                            className="bg-[#1B2B4B] h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${(migrationProgress.done / migrationProgress.total) * 100}%` }}
                         />
                     </div>
@@ -223,7 +223,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                 <button
                     onClick={handleSyncNow}
                     disabled={syncing || !driveActive}
-                    className="py-2 px-3 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
+                    className="py-2 px-3 text-xs font-bold rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
                 >
                     {syncing ? (
                         <span className="animate-spin text-sm">⟳</span>
@@ -254,7 +254,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                             <button
                                 onClick={() => handleRestoreKey(f.key)}
                                 disabled={restoring === f.key || !driveActive}
-                                className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity hover:underline disabled:opacity-50 flex-shrink-0 ml-2"
+                                className="text-[10px] font-bold text-[#C9A84C] dark:text-[#C9A84C] opacity-0 group-hover:opacity-100 transition-opacity hover:underline disabled:opacity-50 flex-shrink-0 ml-2"
                             >
                                 {restoring === f.key ? '…' : 'Restore'}
                             </button>

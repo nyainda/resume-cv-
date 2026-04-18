@@ -468,7 +468,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
   };
 
   const itemSourceColor = (source: MergeItem['source']) => {
-    if (source === 'saved-cv') return 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-700';
+    if (source === 'saved-cv') return 'bg-[#F8F7F4] border-[#C9A84C]/40 dark:bg-[#1B2B4B]/10 dark:border-[#1B2B4B]/40';
     if (source === 'cover-letter') return 'bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:border-violet-700';
     if (source === 'uploaded-image') return 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700';
     return 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700';
@@ -494,7 +494,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50 flex items-center gap-3">
-              <MergeIcon className="h-7 w-7 text-indigo-500" />
+              <MergeIcon className="h-7 w-7 text-[#C9A84C]" />
               PDF Merge Studio
             </h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
@@ -507,15 +507,15 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
         <div className="flex border-b border-zinc-200 dark:border-neutral-700 mb-6">
           <button
             onClick={() => setActiveTab('merge')}
-            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'merge' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'merge' ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
           >
             Merge Builder
           </button>
           <button
             onClick={() => setActiveTab('saved')}
-            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'saved' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'saved' ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
           >
-            Saved Merges {savedMerges.length > 0 && <span className="ml-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{savedMerges.length}</span>}
+            Saved Merges {savedMerges.length > 0 && <span className="ml-1.5 bg-[#F8F7F4] text-[#1B2B4B] dark:bg-[#1B2B4B]/20 dark:text-[#C9A84C]/80 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{savedMerges.length}</span>}
           </button>
         </div>
 
@@ -542,7 +542,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
-                  className={`text-center py-14 border-2 border-dashed rounded-xl transition-colors ${isDraggingOver ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-zinc-200 dark:border-neutral-700'}`}
+                  className={`text-center py-14 border-2 border-dashed rounded-xl transition-colors ${isDraggingOver ? 'border-[#C9A84C]/60 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10' : 'border-zinc-200 dark:border-neutral-700'}`}
                 >
                   <MergeIcon className="h-10 w-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
                   <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">No documents yet</p>
@@ -553,7 +553,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
-                  className={`space-y-2 rounded-xl transition-colors ${isDraggingOver ? 'ring-2 ring-indigo-400 ring-offset-2' : ''}`}
+                  className={`space-y-2 rounded-xl transition-colors ${isDraggingOver ? 'ring-2 ring-[#C9A84C]/60 ring-offset-2' : ''}`}
                 >
                   {items.map((item, index) => (
                     <div
@@ -578,7 +578,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                         <button
                           onClick={() => handlePreviewItem(item)}
                           disabled={itemPreviewLoading === item.id}
-                          className="p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-500 transition-colors disabled:opacity-40"
+                          className="p-1.5 rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/20 text-[#C9A84C] transition-colors disabled:opacity-40"
                           title="Preview"
                         >
                           {itemPreviewLoading === item.id
@@ -612,8 +612,8 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                     </div>
                   ))}
                   {isDraggingOver && (
-                    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 text-center justify-center">
-                      <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Drop PDF here to add</span>
+                    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-[#C9A84C]/60 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 text-center justify-center">
+                      <span className="text-sm font-medium text-[#1B2B4B] dark:text-[#C9A84C]">Drop PDF here to add</span>
                     </div>
                   )}
                 </div>
@@ -635,10 +635,10 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     onClick={() => setAddMode('cv')}
-                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-indigo-200 dark:border-indigo-700 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all"
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 hover:border-[#C9A84C]/60 hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 transition-all"
                   >
                     <span className="text-2xl">📄</span>
-                    <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">Saved CV</span>
+                    <span className="text-sm font-semibold text-[#1B2B4B] dark:text-[#C9A84C]/80">Saved CV</span>
                     <span className="text-[11px] text-zinc-500 text-center">Pick a saved CV from your library</span>
                   </button>
 
@@ -752,7 +752,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                       value={level}
                       checked={compressionLevel === level}
                       onChange={() => setCompressionLevel(level)}
-                      className="accent-indigo-500"
+                      className="accent-[#C9A84C]"
                     />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">{level === 'none' ? 'None (largest)' : level === 'standard' ? 'Standard' : 'High (smallest)'}</span>
                   </label>
@@ -766,7 +766,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                 <Button
                   onClick={handleMerge}
                   disabled={isMerging || items.length < 2}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                  className="bg-[#1B2B4B] hover:bg-[#152238] text-white gap-2"
                 >
                   {isMerging ? (
                     <><span className="animate-spin inline-block">⏳</span> Merging...</>
@@ -835,7 +835,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
           <div className="flex flex-col gap-2 px-6 py-4 border-b border-zinc-200 dark:border-neutral-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Eye className="h-5 w-5 text-indigo-500" />
+                <Eye className="h-5 w-5 text-[#C9A84C]" />
                 <div>
                   <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Merged PDF Preview</h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -845,7 +845,7 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button onClick={handleDownloadPreview} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button onClick={handleDownloadPreview} className="bg-[#1B2B4B] hover:bg-[#152238] text-white">
                   <Download className="h-4 w-4 mr-2" />
                   Download PDF
                 </Button>

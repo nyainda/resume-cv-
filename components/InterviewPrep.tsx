@@ -129,7 +129,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-[#1B2B4B] flex items-center justify-center shadow-sm flex-shrink-0">
                     <span className="text-lg">🎤</span>
                 </div>
                 <div>
@@ -177,7 +177,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                 <button
                     onClick={handleGenerate}
                     disabled={isGenerating || !apiKeySet}
-                    className="w-full py-3 px-6 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
+                    className="w-full py-3 px-6 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-[#1B2B4B] hover:from-violet-700 hover:to-[#152238] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
                 >
                     {isGenerating ? (
                         <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>{loadingMsg}</>
@@ -314,7 +314,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                                 <button
                                     onClick={handleGenerateThankYou}
                                     disabled={isGeneratingLetter || !apiKeySet || !jobDescription.trim()}
-                                    className="w-full py-2.5 px-5 rounded-lg font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm flex items-center justify-center gap-2"
+                                    className="w-full py-2.5 px-5 rounded-lg font-semibold text-white bg-gradient-to-r from-violet-600 to-[#1B2B4B] hover:from-violet-700 hover:to-[#152238] disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm flex items-center justify-center gap-2"
                                 >
                                     {isGeneratingLetter ? (
                                         <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generating letter...</>

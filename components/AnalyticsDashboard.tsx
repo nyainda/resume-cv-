@@ -15,7 +15,7 @@ const STATUS_COLORS: Record<string, string> = {
   Rejected: '#f87171',
 };
 const STATUS_BG: Record<string, string> = {
-  Wishlist: 'bg-indigo-400',
+  Wishlist: 'bg-[#C9A84C]/60',
   Applied: 'bg-blue-400',
   Interviewing: 'bg-amber-400',
   Offer: 'bg-emerald-500',
@@ -76,7 +76,7 @@ function WeeklyHeatmap({ apps }: { apps: TrackedApplication[] }) {
               {wi > 0 && wi % 2 !== 0 && <div className="h-5" />}
               {week.map((cell, di) => {
                 const intensity = cell.count === 0 ? 0 : Math.ceil((cell.count / max) * 4);
-                const bg = ['bg-zinc-100 dark:bg-neutral-700', 'bg-indigo-100 dark:bg-indigo-900/40', 'bg-indigo-300 dark:bg-indigo-700', 'bg-indigo-500', 'bg-indigo-700'][intensity];
+                const bg = ['bg-zinc-100 dark:bg-neutral-700', 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20', 'bg-[#C9A84C]/40 dark:bg-[#152238]', 'bg-[#1B2B4B]', 'bg-[#152238]'][intensity];
                 return (
                   <div
                     key={di}
@@ -91,7 +91,7 @@ function WeeklyHeatmap({ apps }: { apps: TrackedApplication[] }) {
       </div>
       <div className="flex items-center gap-1.5 mt-3 justify-end">
         <span className="text-[10px] text-zinc-400">Less</span>
-        {['bg-zinc-100 dark:bg-neutral-700', 'bg-indigo-100 dark:bg-indigo-900/40', 'bg-indigo-300', 'bg-indigo-500', 'bg-indigo-700'].map((bg, i) => (
+        {['bg-zinc-100 dark:bg-neutral-700', 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20', 'bg-[#C9A84C]/40', 'bg-[#1B2B4B]', 'bg-[#152238]'].map((bg, i) => (
           <div key={i} className={`w-3.5 h-3.5 rounded-sm ${bg}`} />
         ))}
         <span className="text-[10px] text-zinc-400">More</span>
@@ -163,7 +163,7 @@ function TopCompanies({ apps }: { apps: TrackedApplication[] }) {
             <div key={company} className="flex items-center gap-3">
               <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 w-28 truncate flex-shrink-0">{company}</span>
               <div className="flex-1 h-2 bg-zinc-100 dark:bg-neutral-700 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(count / max) * 100}%` }} />
+                <div className="h-full bg-[#1B2B4B] rounded-full" style={{ width: `${(count / max) * 100}%` }} />
               </div>
               <span className="text-xs font-bold text-zinc-500 w-4 text-right">{count}</span>
             </div>
@@ -267,7 +267,7 @@ const AnalyticsDashboard: React.FC<Props> = ({ trackedApps, onGoToTracker }) => 
         {trackedApps.length === 0 && (
           <button
             onClick={onGoToTracker}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors"
+            className="px-4 py-2 bg-[#1B2B4B] hover:bg-[#152238] text-white text-sm font-bold rounded-xl transition-colors"
           >
             Add Applications →
           </button>
@@ -279,7 +279,7 @@ const AnalyticsDashboard: React.FC<Props> = ({ trackedApps, onGoToTracker }) => 
         <StatCard label="Total Applications" value={stats.total} sub="all time" />
         <StatCard label="Response Rate" value={`${stats.responseRate}%`} sub={`${stats.interviewing} interviews`} color="text-amber-600 dark:text-amber-400" />
         <StatCard label="Offer Rate" value={`${stats.offerRate}%`} sub={`${stats.offers} offer${stats.offers !== 1 ? 's' : ''}`} color="text-emerald-600 dark:text-emerald-400" />
-        <StatCard label="Upcoming Interviews" value={stats.upcoming} sub="next 7 days" color="text-indigo-600 dark:text-indigo-400" />
+        <StatCard label="Upcoming Interviews" value={stats.upcoming} sub="next 7 days" color="text-[#1B2B4B] dark:text-[#C9A84C]" />
       </div>
 
       {/* Charts row 1 */}
@@ -302,7 +302,7 @@ const AnalyticsDashboard: React.FC<Props> = ({ trackedApps, onGoToTracker }) => 
                 <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Active Pipeline</p>
                 <p className="text-xs text-zinc-400 mt-0.5">Applications still in play</p>
               </div>
-              <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">
+              <span className="text-2xl font-extrabold text-[#1B2B4B] dark:text-[#C9A84C]">
                 {trackedApps.filter(a => !['Rejected'].includes(a.status)).length}
               </span>
             </div>

@@ -305,16 +305,16 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
     case 'timeline':
       return (
         <div className={`${base} bg-white p-2`}>
-          <div className="h-2 bg-indigo-700 w-1/2 rounded-sm mb-0.5" />
-          <div className="h-1 bg-indigo-300 w-2/3 rounded-sm mb-2" />
+          <div className="h-2 bg-[#152238] w-1/2 rounded-sm mb-0.5" />
+          <div className="h-1 bg-[#C9A84C]/40 w-2/3 rounded-sm mb-2" />
           {[1, 2, 3].map(i => (
             <div key={i} className="flex gap-1.5 mb-1.5">
               <div className="flex flex-col items-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-0.5 flex-shrink-0" />
-                {i < 3 && <div className="w-0.5 flex-1 bg-indigo-200 mt-0.5" />}
+                <div className="w-1.5 h-1.5 rounded-full bg-[#1B2B4B] mt-0.5 flex-shrink-0" />
+                {i < 3 && <div className="w-0.5 flex-1 bg-[#C9A84C]/20 mt-0.5" />}
               </div>
               <div className="flex-1">
-                <div className="h-0.5 bg-indigo-600 w-1/2 rounded mb-0.5" />
+                <div className="h-0.5 bg-[#1B2B4B] w-1/2 rounded mb-0.5" />
                 <div className="h-0.5 bg-gray-300 rounded w-full" />
                 <div className="h-0.5 bg-gray-300 rounded w-4/5 mt-0.5" />
               </div>
@@ -438,20 +438,20 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
     case 'modern-tech':
       return (
         <div className={`${base} bg-white p-0`}>
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-2 py-2">
+          <div className="bg-gradient-to-r from-[#1B2B4B] to-purple-600 px-2 py-2">
             <div className="h-2 bg-white/90 w-1/2 rounded-sm mb-0.5" />
             <div className="h-1 bg-white/50 w-3/4 rounded-sm" />
           </div>
           <div className="p-1.5 space-y-1.5">
             <div className="flex flex-wrap gap-0.5">
               {[4, 3, 5, 4].map((w, i) => (
-                <div key={i} className="h-1 bg-indigo-50 border border-indigo-200 rounded-full" style={{ width: `${w * 10}%` }} />
+                <div key={i} className="h-1 bg-[#F8F7F4] border border-[#C9A84C]/40 rounded-full" style={{ width: `${w * 10}%` }} />
               ))}
             </div>
-            <div className="h-px bg-indigo-100" />
+            <div className="h-px bg-[#F8F7F4]" />
             {[1, 2].map(i => (
               <div key={i}>
-                <div className="h-0.5 bg-indigo-600 rounded w-1/2 mb-0.5" />
+                <div className="h-0.5 bg-[#1B2B4B] rounded w-1/2 mb-0.5" />
                 <div className="h-0.5 bg-gray-200 rounded" />
                 <div className="h-0.5 bg-gray-200 rounded w-4/5 mt-0.5" />
               </div>
@@ -505,7 +505,7 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
 
     case 'infographic':
       return (
-        <div className={`${base} bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-2`}>
+        <div className={`${base} bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] p-2`}>
           <div className="flex items-center gap-1.5 mb-2">
             <div className="w-6 h-6 bg-white/20 rounded-full" />
             <div>
