@@ -22,9 +22,9 @@ Tick `[x]` as items ship. Add new sections under "In progress" as we pick up new
 - [x] Promote leaks → engine button on `#admin/leaks`
 
 ## In progress / next up (pick from `CV_ENGINE_HANDOFF.md` §7)
-- [ ] **G** — Backfill `jd_keywords` for every `cv_field_profiles` row so JD-based field detection actually fires (currently many fields fall back to alphabetical default)
-- [ ] **G.1** — Worker route `POST /api/cv/admin/bulk-update` (or `mode: 'upsert'`) so admin UI can edit existing rows, not just append
-- [ ] **G.2** — Worker route `POST /api/cv/admin/delete` + admin row-browser per table
+- [ ] **G** — Backfill `jd_keywords` for every `cv_field_profiles` row so JD-based field detection actually fires (currently many fields fall back to alphabetical default). Use the new Browse / Edit tab to add keywords inline.
+- [x] **G.1** — Worker route `POST /api/cv/admin/bulk-update` shipped + inline edit in admin UI (Browse / Edit tab, "Save" button per row, KV auto-syncs).
+- [x] **G.2** — Worker route `POST /api/cv/admin/delete` shipped + per-row delete button + searchable row browser per table (`GET /api/cv/admin/list?table=…&q=…&limit=…&offset=…`). Worker redeployed (version `517ad63c`).
 - [ ] **H** — Multi-token / role-based admin auth (`cv_admin_tokens` table)
 - [ ] **I** — Cron Trigger that auto-promotes high-frequency leak phrases into `cv_banned_phrases` with `source='auto_promoted'` + review queue
 - [ ] **J** — Voice-profile editor + bullet tester (paste a bullet, pick a voice, see which rules fire)
