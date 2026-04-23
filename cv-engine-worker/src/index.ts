@@ -52,11 +52,18 @@ export default {
             if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
             if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
             if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
+            if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
+            if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
+            if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
 
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
         }
+    },
+
+    async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+        ctx.waitUntil(runLeakPromotionCron(env));
     },
 } satisfies ExportedHandler<Env>;
 
@@ -1059,4 +1066,170 @@ function shuffle<T>(arr: T[]): void {
         const j = Math.floor(Math.random() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase I — Leak miner queue + nightly auto-promotion
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LEAK_PROMOTE_THRESHOLD = 5;   // count >= 5 → auto-promote
+const LEAK_REPORT_MAX_PHRASES = 100;
+const LEAK_PHRASE_MAX_LEN = 80;
+const LEAK_PHRASE_MIN_LEN = 3;
+
+async function handleLeakReport(request: Request, env: Env): Promise<Response> {
+    // Public route — no admin token. Validates and rate-limits via input caps.
+    const body = await safeJson(request);
+    const phrases: string[] = Array.isArray(body?.phrases)
+        ? body.phrases.map((p: any) => String(p || '').toLowerCase().trim()).filter(Boolean)
+        : [];
+    const sample: string = String(body?.sample || '').slice(0, 500);
+    if (phrases.length === 0) return json({ error: 'missing_phrases' }, request, env, 400);
+
+    const cleaned = Array.from(new Set(phrases))
+        .filter(p => p.length >= LEAK_PHRASE_MIN_LEN && p.length <= LEAK_PHRASE_MAX_LEN)
+        .slice(0, LEAK_REPORT_MAX_PHRASES);
+    if (cleaned.length === 0) return json({ error: 'no_valid_phrases' }, request, env, 400);
+
+    // Skip phrases already in the banned list (saves DB churn)
+    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()));
+    const fresh = cleaned.filter(p => !bannedSet.has(p));
+    if (fresh.length === 0) return json({ ok: true, recorded: 0, already_banned: cleaned.length }, request, env);
+
+    let recorded = 0;
+    for (const phrase of fresh) {
+        const id = crypto.randomUUID();
+        try {
+            await env.CV_DB.prepare(
+                `INSERT INTO cv_leak_candidates (id, phrase, count, sample, first_seen, last_seen, status)
+                 VALUES (?, ?, 1, ?, datetime('now'), datetime('now'), 'pending')
+                 ON CONFLICT(phrase) DO UPDATE SET
+                     count = count + 1,
+                     last_seen = datetime('now'),
+                     sample = COALESCE(NULLIF(?, ''), sample)`
+            ).bind(id, phrase, sample, sample).run();
+            recorded++;
+        } catch {/* swallow per-row errors */}
+    }
+    return json({ ok: true, recorded, skipped_already_banned: cleaned.length - fresh.length }, request, env);
+}
+
+async function handleLeakCandidatesList(request: Request, env: Env, url: URL): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, request, env, 401);
+
+    const status = String(url.searchParams.get('status') || 'pending');
+    const limit = clamp(parseInt(url.searchParams.get('limit') || '100', 10), 1, 500);
+    const offset = clamp(parseInt(url.searchParams.get('offset') || '0', 10), 0, 100000);
+
+    const rs = await env.CV_DB.prepare(
+        `SELECT id, phrase, count, sample, first_seen, last_seen, status, decided_at
+           FROM cv_leak_candidates
+          WHERE status = ?
+          ORDER BY count DESC, last_seen DESC
+          LIMIT ? OFFSET ?`
+    ).bind(status, limit, offset).all();
+
+    const total = await env.CV_DB.prepare(
+        `SELECT COUNT(*) AS n FROM cv_leak_candidates WHERE status = ?`
+    ).bind(status).first<{ n: number }>();
+
+    return json({
+        ok: true,
+        rows: rs.results,
+        total: total?.n ?? 0,
+        limit, offset, status,
+        threshold: LEAK_PROMOTE_THRESHOLD,
+    }, request, env);
+}
+
+async function handleLeakCandidatesDecide(request: Request, env: Env): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, request, env, 401);
+
+    const body = await safeJson(request);
+    const ids: string[] = Array.isArray(body?.ids) ? body.ids.map((x: any) => String(x)).filter(Boolean) : [];
+    const decision: string = String(body?.decision || '').toLowerCase();
+    const severity: string = ['critical', 'high', 'medium'].includes(String(body?.severity)) ? String(body.severity) : 'medium';
+    if (ids.length === 0) return json({ error: 'missing_ids' }, request, env, 400);
+    if (!['promote', 'reject'].includes(decision)) return json({ error: 'invalid_decision' }, request, env, 400);
+    if (ids.length > 200) return json({ error: 'too_many_ids', max: 200 }, request, env, 400);
+
+    let promoted = 0, rejected = 0, skipped = 0;
+    if (decision === 'reject') {
+        for (const id of ids) {
+            await env.CV_DB.prepare(
+                `UPDATE cv_leak_candidates SET status='rejected', decided_at=datetime('now'), decided_by='admin' WHERE id = ?`
+            ).bind(id).run();
+            rejected++;
+        }
+        return json({ ok: true, decision, rejected }, request, env);
+    }
+
+    // Promote: insert into cv_banned_phrases (skip dupes), mark candidate promoted
+    for (const id of ids) {
+        const row = await env.CV_DB.prepare(
+            `SELECT phrase FROM cv_leak_candidates WHERE id = ? AND status = 'pending'`
+        ).bind(id).first<{ phrase: string }>();
+        if (!row?.phrase) { skipped++; continue; }
+
+        try {
+            const newId = crypto.randomUUID();
+            await env.CV_DB.prepare(
+                `INSERT OR IGNORE INTO cv_banned_phrases (id, phrase, replacement, severity, reason)
+                 VALUES (?, ?, '', ?, 'manual_promote')`
+            ).bind(newId, row.phrase, severity).run();
+            await env.CV_DB.prepare(
+                `UPDATE cv_leak_candidates SET status='promoted', decided_at=datetime('now'), decided_by='admin' WHERE id = ?`
+            ).bind(id).run();
+            promoted++;
+        } catch { skipped++; }
+    }
+    if (promoted > 0) await rebuildBannedKv(env);
+    return json({ ok: true, decision, promoted, skipped, kv_synced: promoted > 0 }, request, env);
+}
+
+async function runLeakPromotionCron(env: Env): Promise<void> {
+    // Auto-promote pending candidates with count >= threshold that aren't already banned.
+    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()));
+
+    const rs = await env.CV_DB.prepare(
+        `SELECT id, phrase, count FROM cv_leak_candidates
+          WHERE status = 'pending' AND count >= ?
+          ORDER BY count DESC LIMIT 200`
+    ).bind(LEAK_PROMOTE_THRESHOLD).all<{ id: string; phrase: string; count: number }>();
+
+    let promoted = 0, skipped = 0;
+    for (const cand of rs.results || []) {
+        if (bannedSet.has(cand.phrase)) {
+            await env.CV_DB.prepare(
+                `UPDATE cv_leak_candidates SET status='promoted', decided_at=datetime('now'), decided_by='cron_already_banned' WHERE id = ?`
+            ).bind(cand.id).run();
+            skipped++;
+            continue;
+        }
+        try {
+            const newId = crypto.randomUUID();
+            await env.CV_DB.prepare(
+                `INSERT OR IGNORE INTO cv_banned_phrases (id, phrase, replacement, severity, reason)
+                 VALUES (?, ?, '', 'medium', 'auto_promoted')`
+            ).bind(newId, cand.phrase).run();
+            await env.CV_DB.prepare(
+                `UPDATE cv_leak_candidates SET status='promoted', decided_at=datetime('now'), decided_by='cron' WHERE id = ?`
+            ).bind(cand.id).run();
+            promoted++;
+        } catch { skipped++; }
+    }
+
+    if (promoted > 0) await rebuildBannedKv(env);
+    console.log(`[cron] leak-promotion: promoted=${promoted} skipped=${skipped} candidates_seen=${(rs.results || []).length}`);
+}
+
+async function rebuildBannedKv(env: Env): Promise<void> {
+    const rs = await env.CV_DB.prepare(
+        `SELECT phrase, replacement, severity, reason FROM cv_banned_phrases ORDER BY length(phrase) DESC`
+    ).all();
+    await env.CV_KV.put('cv:banned:all', JSON.stringify(rs.results || []));
 }

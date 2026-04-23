@@ -10,9 +10,12 @@ import {
     deleteAdminRows,
     testVoice,
     aiAudit,
+    listLeakCandidates,
+    decideLeakCandidates,
     type AdminStats,
     type VoiceTestResult,
     type AiAuditResult,
+    type LeakCandidate,
 } from '../services/cvEngineClient';
 
 const TABLE_LABELS: Record<string, string> = {
@@ -40,7 +43,7 @@ export default function AdminCVEnginePage(): JSX.Element {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<string>('');
-    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test' | 'ai_audit'>('verb');
+    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test' | 'ai_audit' | 'leak_queue'>('verb');
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -123,9 +126,9 @@ export default function AdminCVEnginePage(): JSX.Element {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-700">
-                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test', 'ai_audit'] as const).map(t => (
+                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test', 'ai_audit', 'leak_queue'] as const).map(t => (
                     <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm font-medium ${tab === t ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'}`}>
-                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : t === 'voice_test' ? 'Voice Tester' : 'AI Auditor'}
+                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : t === 'voice_test' ? 'Voice Tester' : t === 'ai_audit' ? 'AI Auditor' : 'Leak Queue'}
                     </button>
                 ))}
             </div>
@@ -139,6 +142,7 @@ export default function AdminCVEnginePage(): JSX.Element {
             {tab === 'browse' && <BrowseEditTab onDone={refresh} setMsg={setMsg} />}
             {tab === 'voice_test' && <VoiceTesterTab setMsg={setMsg} />}
             {tab === 'ai_audit' && <AiAuditTab onDone={refresh} setMsg={setMsg} />}
+            {tab === 'leak_queue' && <LeakQueueTab onDone={refresh} setMsg={setMsg} />}
         </div>
     );
 }
@@ -830,6 +834,111 @@ function AiAuditTab({ onDone, setMsg }: FormProps) {
                             </div>
                         </>
                     )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Leak Queue Tab (Phase I) ─────────────────────────────────────────────────
+function LeakQueueTab({ onDone, setMsg }: FormProps) {
+    const [status, setStatus] = useState<'pending' | 'promoted' | 'rejected'>('pending');
+    const [rows, setRows] = useState<LeakCandidate[]>([]);
+    const [total, setTotal] = useState(0);
+    const [threshold, setThreshold] = useState(5);
+    const [loading, setLoading] = useState(false);
+    const [picked, setPicked] = useState<Set<string>>(new Set());
+    const [severity, setSeverity] = useState<'critical' | 'high' | 'medium'>('medium');
+
+    const load = useCallback(async () => {
+        setLoading(true); setPicked(new Set());
+        const r = await listLeakCandidates(status, 200, 0);
+        setLoading(false);
+        if (!r) { setMsg('Could not load leak candidates.'); return; }
+        setRows(r.rows); setTotal(r.total); setThreshold(r.threshold);
+    }, [status, setMsg]);
+
+    useEffect(() => { void load(); }, [load]);
+
+    const togglePick = (id: string) => {
+        const next = new Set(picked);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        setPicked(next);
+    };
+
+    const decide = async (decision: 'promote' | 'reject') => {
+        if (picked.size === 0) { setMsg(`Pick rows to ${decision}.`); return; }
+        setLoading(true);
+        const r = await decideLeakCandidates(Array.from(picked), decision, severity);
+        setLoading(false);
+        if (!r) { setMsg('Decision failed.'); return; }
+        if (decision === 'promote') {
+            setMsg(`Promoted ${r.promoted ?? 0} to banned list (${r.skipped ?? 0} skipped).`);
+            onDone();
+        } else {
+            setMsg(`Rejected ${r.rejected ?? 0} candidate(s).`);
+        }
+        await load();
+    };
+
+    return (
+        <div className="space-y-4 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+            <div className="text-slate-300 text-sm space-y-1">
+                <p>Leak miner queue. Phrases reported by the frontend leak detector live here until promoted to the banned list (or rejected). The nightly cron at <code className="text-amber-300">03:15 UTC</code> auto-promotes any pending row whose count reaches <strong>{threshold}</strong>.</p>
+                <p className="text-slate-500 text-xs">Auto-promoted rows land in <code>cv_banned_phrases</code> with <code>reason='auto_promoted'</code> and <code>severity='medium'</code> — review them in the Browse / Edit tab to upgrade severity.</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center">
+                <select value={status} onChange={e => setStatus(e.target.value as any)} className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-white text-sm">
+                    <option value="pending">pending</option>
+                    <option value="promoted">promoted</option>
+                    <option value="rejected">rejected</option>
+                </select>
+                <button onClick={load} disabled={loading} className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-sm disabled:opacity-40">{loading ? 'Loading…' : 'Refresh'}</button>
+                <span className="text-slate-400 text-xs">{rows.length} of {total}</span>
+                {status === 'pending' && (
+                    <>
+                        <span className="text-slate-500 text-xs ml-auto">Promote severity:</span>
+                        <select value={severity} onChange={e => setSeverity(e.target.value as any)} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs">
+                            {['critical', 'high', 'medium'].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <button onClick={() => decide('promote')} disabled={loading || picked.size === 0} className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs disabled:opacity-40">Promote {picked.size}</button>
+                        <button onClick={() => decide('reject')} disabled={loading || picked.size === 0} className="px-3 py-1.5 rounded bg-rose-700 hover:bg-rose-600 text-white text-xs disabled:opacity-40">Reject {picked.size}</button>
+                        <button onClick={() => setPicked(new Set(rows.map(r => r.id)))} className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs">Select all</button>
+                    </>
+                )}
+            </div>
+
+            {rows.length === 0 ? (
+                <div className="text-slate-400 text-sm py-6 text-center">No {status} candidates.</div>
+            ) : (
+                <div className="overflow-x-auto border border-slate-700 rounded">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-900/60 text-slate-400 text-xs uppercase">
+                            <tr>
+                                {status === 'pending' && <th className="px-2 py-2 w-8"></th>}
+                                <th className="px-2 py-2 text-left">Phrase</th>
+                                <th className="px-2 py-2 text-right">Count</th>
+                                <th className="px-2 py-2 text-left">Sample</th>
+                                <th className="px-2 py-2 text-left">Last seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map(r => (
+                                <tr key={r.id} className={`border-t border-slate-800 ${r.count >= threshold ? 'bg-amber-950/20' : ''}`}>
+                                    {status === 'pending' && (
+                                        <td className="px-2 py-1.5 text-center">
+                                            <input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} />
+                                        </td>
+                                    )}
+                                    <td className="px-2 py-1.5 font-mono text-white">{r.phrase}</td>
+                                    <td className={`px-2 py-1.5 text-right font-semibold ${r.count >= threshold ? 'text-amber-300' : 'text-slate-300'}`}>{r.count}</td>
+                                    <td className="px-2 py-1.5 text-slate-400 text-xs max-w-md truncate" title={r.sample || ''}>{r.sample || '—'}</td>
+                                    <td className="px-2 py-1.5 text-slate-500 text-xs whitespace-nowrap">{r.last_seen}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>

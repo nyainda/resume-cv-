@@ -150,3 +150,19 @@ CREATE TABLE IF NOT EXISTS cv_voice_profiles (
   verb_bias             TEXT,                     -- JSON array
   structure_bias        TEXT                      -- JSON array
 );
+
+-- Phase I: leak miner queue (see migrations/004_leak_candidates.sql)
+CREATE TABLE IF NOT EXISTS cv_leak_candidates (
+    id            TEXT PRIMARY KEY,
+    phrase        TEXT NOT NULL UNIQUE,
+    count         INTEGER NOT NULL DEFAULT 1,
+    sample        TEXT,
+    first_seen    TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen     TEXT NOT NULL DEFAULT (datetime('now')),
+    status        TEXT NOT NULL DEFAULT 'pending',
+    decided_at    TEXT,
+    decided_by    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_leak_candidates_status_count
+    ON cv_leak_candidates(status, count DESC);

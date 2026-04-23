@@ -371,6 +371,45 @@ export interface AiAuditResult {
     raw_response: string;
 }
 
+export interface LeakCandidate {
+    id: string;
+    phrase: string;
+    count: number;
+    sample: string | null;
+    first_seen: string;
+    last_seen: string;
+    status: 'pending' | 'promoted' | 'rejected';
+    decided_at: string | null;
+}
+
+export interface LeakCandidatesList {
+    ok: boolean;
+    rows: LeakCandidate[];
+    total: number;
+    limit: number;
+    offset: number;
+    status: string;
+    threshold: number;
+}
+
+export async function reportLeaks(phrases: string[], sample = ''): Promise<{ ok: boolean; recorded: number } | null> {
+    if (!phrases.length) return null;
+    return postJSON('/api/cv/leak-report', { phrases, sample });
+}
+
+export async function listLeakCandidates(status: 'pending' | 'promoted' | 'rejected' = 'pending', limit = 100, offset = 0): Promise<LeakCandidatesList | null> {
+    const qs = new URLSearchParams({ status, limit: String(limit), offset: String(offset) });
+    return adminFetch<LeakCandidatesList>(`/api/cv/admin/leak-candidates?${qs}`);
+}
+
+export async function decideLeakCandidates(ids: string[], decision: 'promote' | 'reject', severity: 'critical' | 'high' | 'medium' = 'medium'): Promise<{ ok: boolean; promoted?: number; rejected?: number; skipped?: number } | null> {
+    return adminFetch('/api/cv/admin/leak-candidates/decide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, decision, severity }),
+    });
+}
+
 export async function aiAudit(text: string): Promise<AiAuditResult | null> {
     return adminFetch<AiAuditResult>('/api/cv/admin/ai-audit', {
         method: 'POST',

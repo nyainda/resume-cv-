@@ -17,6 +17,10 @@ preview_id = "d9bc7d2a01f94e619b3054c19b8dc44f"
 [ai]
 binding = "AI"
 
+# Phase I: nightly leak-miner promotion at 03:15 UTC
+[triggers]
+crons = ["15 3 * * *"]
+
 [vars]
 ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app"
 
