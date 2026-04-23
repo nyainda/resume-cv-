@@ -50,6 +50,7 @@ export default {
             if (url.pathname === '/api/cv/admin/list')                           return handleAdminList(request, env, url);
             if (url.pathname === '/api/cv/admin/bulk-update' && request.method === 'POST') return handleBulkUpdate(request, env);
             if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
+            if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
 
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
@@ -297,7 +298,10 @@ async function handleValidateVoice(request: Request, env: Env): Promise<Response
     const brief = body?.brief || null;
     if (bullets.length === 0) return json({ error: 'missing_bullets' }, request, env, 400);
     if (!brief) return json({ error: 'missing_brief' }, request, env, 400);
+    return json(computeVoiceValidation(bullets, brief), request, env);
+}
 
+function computeVoiceValidation(bullets: string[], brief: any): any {
     const issues: any[] = [];
     const lengths = bullets.map(b => {
         const wc = (b || '').trim().split(/\s+/).filter(Boolean).length;
@@ -388,7 +392,7 @@ async function handleValidateVoice(request: Request, env: Env): Promise<Response
         issues.filter(i => i.bullet !== undefined && (i.severity === 'critical' || i.severity === 'high')).map(i => i.bullet)
     ));
 
-    return json({ passed, score, summary, issues, rhythm_match_ratio, avg_word_count: +avgWc.toFixed(1), metric_ratio: +metricRatio.toFixed(2), failing_bullets: failingBullets }, request, env);
+    return { passed, score, summary, issues, rhythm_match_ratio, avg_word_count: +avgWc.toFixed(1), metric_ratio: +metricRatio.toFixed(2), failing_bullets: failingBullets };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -398,6 +402,11 @@ async function handleValidateVoice(request: Request, env: Env): Promise<Response
 
 async function handleBrief(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
+    const brief = await buildBriefData(env, body || {});
+    return json(brief, request, env);
+}
+
+async function buildBriefData(env: Env, body: any): Promise<any> {
     const jd: string = String(body?.jd || body?.jobDescription || '').trim();
     const profile = body?.profile || {};
     const explicitYears = Number(body?.yearsExperience);
@@ -459,7 +468,13 @@ async function handleBrief(request: Request, env: Env): Promise<Response> {
         return { voice: v, score };
     }).sort((a, b) => b.score - a.score);
 
-    const primary = voiceScored[0]?.voice || null;
+    // Optional override: caller can force a specific voice by name (used by Voice Tester)
+    const voiceNameOverride = String(body?.voice_name || '').toLowerCase().trim();
+    let primary = voiceScored[0]?.voice || null;
+    if (voiceNameOverride) {
+        const forced = (voiceRows || []).find((v: any) => String(v.name || '').toLowerCase() === voiceNameOverride);
+        if (forced) primary = forced;
+    }
     const secondary = primary
         ? voiceScored.slice(1).find(({ voice }) =>
             voice.name !== primary.name &&
@@ -503,7 +518,7 @@ async function handleBrief(request: Request, env: Env): Promise<Response> {
         ...(combo?.forbidden_phrases || []),
     ];
 
-    return json({
+    return {
         years,
         seniority: seniority ? {
             level: seniority.level,
@@ -534,8 +549,9 @@ async function handleBrief(request: Request, env: Env): Promise<Response> {
         debug: {
             field_scores: fieldScores.slice(0, 5).map(f => ({ field: f.field, score: f.score })),
             voice_scores: voiceScored.slice(0, 3).map(v => ({ name: v.voice.name, score: v.score })),
+            voice_override: voiceNameOverride || null,
         },
-    }, request, env);
+    };
 }
 
 // ─── brief helpers ──────────────────────────────────────────────────────────
@@ -813,6 +829,37 @@ async function handleAdminDelete(request: Request, env: Env): Promise<Response> 
         } catch { /* non-fatal */ }
     }
     return json({ ok: failed === 0, deleted, failed, errors, synced }, request, env);
+}
+
+async function handleVoiceTest(request: Request, env: Env): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+        return json({ error: 'unauthorized' }, request, env, 401);
+    }
+    const body = await safeJson(request);
+    const bullets: string[] = Array.isArray(body?.bullets)
+        ? body.bullets.map((b: any) => String(b || '')).filter(Boolean)
+        : [];
+    if (bullets.length === 0) return json({ error: 'missing_bullets' }, request, env, 400);
+    if (bullets.length > 50) return json({ error: 'too_many_bullets', max: 50 }, request, env, 400);
+
+    const brief = await buildBriefData(env, body || {});
+    const validation = computeVoiceValidation(bullets, brief);
+
+    return json({
+        ok: true,
+        bullets,
+        brief: {
+            voice: brief.voice,
+            field: brief.field,
+            seniority: brief.seniority,
+            rhythm: brief.rhythm,
+            forbidden_phrases: brief.forbidden_phrases,
+            verb_pool_sample: (brief.verb_pool || []).slice(0, 12),
+            debug: brief.debug,
+        },
+        validation,
+    }, request, env);
 }
 
 async function handleSync(request: Request, env: Env): Promise<Response> {

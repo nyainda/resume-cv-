@@ -324,6 +324,36 @@ export interface DeleteResult {
     synced: boolean;
 }
 
+export interface VoiceTestResult {
+    ok: boolean;
+    bullets: string[];
+    brief: {
+        voice: { primary: any; secondary: any };
+        field: any;
+        seniority: any;
+        rhythm: any;
+        forbidden_phrases: string[];
+        verb_pool_sample: any[];
+        debug: any;
+    };
+    validation: ValidateVoiceResult;
+}
+
+export async function testVoice(input: {
+    bullets: string[];
+    voice_name?: string;
+    field?: string;
+    yearsExperience?: number;
+    section?: 'current_role' | 'past_role' | 'internship' | 'summary';
+    jd?: string;
+}): Promise<VoiceTestResult | null> {
+    return adminFetch<VoiceTestResult>('/api/cv/admin/voice-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+    });
+}
+
 export async function deleteAdminRows(table: string, ids: string[]): Promise<DeleteResult | null> {
     return adminFetch<DeleteResult>('/api/cv/admin/delete', {
         method: 'POST',
