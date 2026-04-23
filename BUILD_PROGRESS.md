@@ -27,7 +27,7 @@ Tick `[x]` as items ship. Add new sections under "In progress" as we pick up new
 - [x] **G.2** — Worker route `POST /api/cv/admin/delete` shipped + per-row delete button + searchable row browser per table (`GET /api/cv/admin/list?table=…&q=…&limit=…&offset=…`). Worker redeployed (version `517ad63c`).
 - [ ] **H** — Multi-token / role-based admin auth (`cv_admin_tokens` table)
 - [ ] **I** — Cron Trigger that auto-promotes high-frequency leak phrases into `cv_banned_phrases` with `source='auto_promoted'` + review queue
-- [ ] **J** — Voice-profile editor + bullet tester (paste a bullet, pick a voice, see which rules fire)
+- [x] **J** — Voice Tester admin tab + worker route `POST /api/cv/admin/voice-test`. Pick a voice profile (forces it past the JD scorer), optional field/seniority/section, paste candidate bullets, get back the brief that was used + per-bullet pass/fail with severity-coded issues (verb outside pool, avoided verb for field, forbidden phrase, rhythm drift, verbosity drift, metric ratio, repeated verb). Refactored `handleBrief` → `buildBriefData()` and `handleValidateVoice` → `computeVoiceValidation()` for reuse. Worker redeployed (version `1a558820`).
 - [ ] **K** — Telemetry of which `(seniority, field, voice)` combos are actually requested
 
 ## Operational checklist (run after touching the worker or seeds)

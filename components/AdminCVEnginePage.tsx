@@ -8,7 +8,9 @@ import {
     listAdminRows,
     bulkUpdateRows,
     deleteAdminRows,
+    testVoice,
     type AdminStats,
+    type VoiceTestResult,
 } from '../services/cvEngineClient';
 
 const TABLE_LABELS: Record<string, string> = {
@@ -36,7 +38,7 @@ export default function AdminCVEnginePage(): JSX.Element {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<string>('');
-    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse'>('verb');
+    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test'>('verb');
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -119,9 +121,9 @@ export default function AdminCVEnginePage(): JSX.Element {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-700">
-                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse'] as const).map(t => (
+                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test'] as const).map(t => (
                     <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm font-medium ${tab === t ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'}`}>
-                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : 'Browse / Edit'}
+                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : 'Voice Tester'}
                     </button>
                 ))}
             </div>
@@ -133,6 +135,7 @@ export default function AdminCVEnginePage(): JSX.Element {
             {tab === 'field' && <AddFieldForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'opener' && <AddOpenerForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'browse' && <BrowseEditTab onDone={refresh} setMsg={setMsg} />}
+            {tab === 'voice_test' && <VoiceTesterTab setMsg={setMsg} />}
         </div>
     );
 }
@@ -549,3 +552,172 @@ const ADMIN_EDITABLE: Record<string, string[]> = {
     cv_seniority_field_combos: ['seniority', 'field', 'forbidden_phrases', 'required_tone', 'notes'],
     cv_voice_profiles: ['name', 'tone', 'description', 'verbosity_level', 'metric_preference', 'opener_frequency', 'risk_tolerance', 'formality', 'compatible_fields', 'compatible_seniority', 'incompatible_with', 'verb_bias', 'structure_bias'],
 };
+
+// ─── Voice Tester Tab ────────────────────────────────────────────────────────
+function VoiceTesterTab({ setMsg }: { setMsg: (s: string) => void }) {
+    const [voices, setVoices] = useState<Array<{ id: string; name: string; tone?: string }>>([]);
+    const [fields, setFields] = useState<string[]>([]);
+    const [voiceName, setVoiceName] = useState<string>('');
+    const [field, setField] = useState<string>('');
+    const [years, setYears] = useState<number>(3);
+    const [section, setSection] = useState<'current_role' | 'past_role' | 'internship' | 'summary'>('current_role');
+    const [bullets, setBullets] = useState<string>('');
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState<VoiceTestResult | null>(null);
+
+    useEffect(() => {
+        (async () => {
+            const v = await listAdminRows('cv_voice_profiles', { limit: 200 });
+            const f = await listAdminRows('cv_field_profiles', { limit: 200 });
+            if (v?.rows) setVoices(v.rows.map((r: any) => ({ id: r.id, name: r.name, tone: r.tone })));
+            if (f?.rows) setFields(f.rows.map((r: any) => String(r.field)).filter(Boolean));
+        })();
+    }, []);
+
+    const submit = async () => {
+        const lines = bullets.split('\n').map(s => s.trim()).filter(Boolean);
+        if (lines.length === 0) { setMsg('Paste at least one bullet to test.'); return; }
+        if (!voiceName) { setMsg('Pick a voice profile to force.'); return; }
+        setBusy(true); setResult(null);
+        const r = await testVoice({
+            bullets: lines,
+            voice_name: voiceName,
+            field: field || undefined,
+            yearsExperience: years,
+            section,
+        });
+        setBusy(false);
+        if (!r) { setMsg('Voice test failed — check token / network.'); return; }
+        setResult(r);
+        setMsg(`Voice tester: ${r.validation.passed ? 'PASS' : 'FAIL'} — score ${r.validation.score}/10, ${r.validation.issues.length} issue(s).`);
+    };
+
+    const sevColor = (s: string) =>
+        s === 'critical' ? 'text-rose-300 bg-rose-950/40 border-rose-900/60'
+        : s === 'high' ? 'text-orange-300 bg-orange-950/40 border-orange-900/60'
+        : s === 'medium' ? 'text-amber-300 bg-amber-950/30 border-amber-900/50'
+        : 'text-slate-300 bg-slate-800/40 border-slate-700';
+
+    const issuesByBullet = (() => {
+        const map = new Map<number | 'global', any[]>();
+        if (!result) return map;
+        for (const it of result.validation.issues) {
+            const k = typeof it.bullet === 'number' ? it.bullet : 'global';
+            if (!map.has(k)) map.set(k, []);
+            map.get(k)!.push(it);
+        }
+        return map;
+    })();
+
+    return (
+        <div className="space-y-4 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+            <p className="text-slate-300 text-sm">Force a voice profile + field + seniority, paste candidate bullets, and see exactly which voice rules pass or fail. Useful to QA a voice profile before approving it for production.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <label className="text-xs text-slate-400">
+                    Voice
+                    <select value={voiceName} onChange={e => setVoiceName(e.target.value)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-white text-sm">
+                        <option value="">— choose —</option>
+                        {voices.map(v => <option key={v.id} value={v.name}>{v.name}{v.tone ? ` (${v.tone})` : ''}</option>)}
+                    </select>
+                </label>
+                <label className="text-xs text-slate-400">
+                    Field (optional)
+                    <select value={field} onChange={e => setField(e.target.value)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-white text-sm">
+                        <option value="">auto-detect</option>
+                        {fields.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                </label>
+                <label className="text-xs text-slate-400">
+                    Years experience
+                    <input type="number" min={0} max={40} value={years} onChange={e => setYears(Number(e.target.value) || 0)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-white text-sm" />
+                </label>
+                <label className="text-xs text-slate-400">
+                    Section
+                    <select value={section} onChange={e => setSection(e.target.value as any)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded px-2 py-2 text-white text-sm">
+                        <option value="current_role">current_role</option>
+                        <option value="past_role">past_role</option>
+                        <option value="internship">internship</option>
+                        <option value="summary">summary</option>
+                    </select>
+                </label>
+            </div>
+
+            <textarea
+                value={bullets}
+                onChange={e => setBullets(e.target.value)}
+                rows={8}
+                placeholder={'Paste one bullet per line, e.g.\nLed redesign of checkout flow, lifting conversion 18% in 6 weeks.\nShipped React micro-frontend serving 240k MAU with sub-200ms TTI.\nMentored 4 engineers; cut PR review time from 3 days to 6 hours.'}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono"
+            />
+
+            <button onClick={submit} disabled={busy} className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium">
+                {busy ? 'Testing…' : 'Test against voice'}
+            </button>
+
+            {result && (
+                <div className="space-y-4 mt-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <Stat label="Verdict" value={result.validation.passed ? 'PASS' : 'FAIL'} accent={result.validation.passed ? 'text-emerald-300' : 'text-rose-300'} />
+                        <Stat label="Score" value={`${result.validation.score}/10`} />
+                        <Stat label="Avg words" value={String(result.validation.avg_word_count)} />
+                        <Stat label="Metric ratio" value={String(result.validation.metric_ratio)} />
+                        <Stat label="Rhythm match" value={`${Math.round((result.validation.rhythm_match_ratio || 0) * 100)}%`} />
+                    </div>
+
+                    <div className="bg-slate-900/60 border border-slate-700 rounded p-3 text-xs text-slate-300 space-y-1">
+                        <div><span className="text-slate-500">Voice forced:</span> <span className="text-white">{result.brief.voice.primary?.name || '—'}</span> <span className="text-slate-500">({result.brief.voice.primary?.tone || '—'}, verbosity {result.brief.voice.primary?.verbosity_level ?? '—'}, metrics {result.brief.voice.primary?.metric_preference || '—'})</span></div>
+                        <div><span className="text-slate-500">Field:</span> <span className="text-white">{result.brief.field?.field || '—'}</span> <span className="text-slate-500">/ Seniority:</span> <span className="text-white">{result.brief.seniority?.level || '—'}</span></div>
+                        <div><span className="text-slate-500">Rhythm:</span> <span className="text-white">{result.brief.rhythm?.pattern_name || '—'}</span> <span className="text-slate-500">[{(result.brief.rhythm?.sequence || []).join(', ')}]</span></div>
+                        {result.brief.forbidden_phrases?.length > 0 && (
+                            <div><span className="text-slate-500">Forbidden phrases:</span> <span className="text-rose-300">{result.brief.forbidden_phrases.join(', ')}</span></div>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        {result.bullets.map((b, i) => {
+                            const its = issuesByBullet.get(i) || [];
+                            return (
+                                <div key={i} className={`border rounded p-3 ${its.some(x => x.severity === 'critical' || x.severity === 'high') ? 'border-rose-900/60 bg-rose-950/20' : its.length ? 'border-amber-900/50 bg-amber-950/20' : 'border-emerald-900/50 bg-emerald-950/20'}`}>
+                                    <div className="text-slate-200 text-sm"><span className="text-slate-500 mr-2">#{i + 1}</span>{b}</div>
+                                    {its.length > 0 ? (
+                                        <ul className="mt-2 space-y-1">
+                                            {its.map((x, j) => (
+                                                <li key={j} className={`text-xs px-2 py-1 rounded border inline-block mr-2 ${sevColor(x.severity)}`}>
+                                                    <span className="font-semibold">{x.severity}</span> · {x.issue}{x.verb ? `: "${x.verb}"` : ''}{x.phrase ? `: "${x.phrase}"` : ''}{x.expected ? ` (expected ${x.expected}, got ${x.actual})` : ''}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <div className="mt-1 text-xs text-emerald-400">no issues</div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {(issuesByBullet.get('global') || []).length > 0 && (
+                            <div className="border border-amber-900/50 bg-amber-950/20 rounded p-3">
+                                <div className="text-slate-300 text-xs uppercase tracking-wide mb-2">Global issues</div>
+                                <ul className="space-y-1">
+                                    {(issuesByBullet.get('global') || []).map((x, j) => (
+                                        <li key={j} className={`text-xs px-2 py-1 rounded border inline-block mr-2 ${sevColor(x.severity)}`}>
+                                            <span className="font-semibold">{x.severity}</span> · {x.issue} {x.avg_words !== undefined ? `(avg ${x.avg_words}, target ${x.target})` : ''}{x.ratio !== undefined ? `(ratio ${x.ratio}, ${x.preference})` : ''}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+    return (
+        <div className="bg-slate-900/60 border border-slate-700 rounded px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+            <div className={`text-lg font-semibold ${accent || 'text-white'}`}>{value}</div>
+        </div>
+    );
+}
