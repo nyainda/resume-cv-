@@ -354,6 +354,31 @@ export async function testVoice(input: {
     });
 }
 
+export interface AiAuditFinding {
+    phrase: string;
+    severity: 'critical' | 'high' | 'medium';
+    reason: string;
+    replacement: string;
+}
+
+export interface AiAuditResult {
+    ok: boolean;
+    text_length: number;
+    already_banned_count: number;
+    new_findings: number;
+    findings: AiAuditFinding[];
+    model: string;
+    raw_response: string;
+}
+
+export async function aiAudit(text: string): Promise<AiAuditResult | null> {
+    return adminFetch<AiAuditResult>('/api/cv/admin/ai-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+    });
+}
+
 export async function deleteAdminRows(table: string, ids: string[]): Promise<DeleteResult | null> {
     return adminFetch<DeleteResult>('/api/cv/admin/delete', {
         method: 'POST',

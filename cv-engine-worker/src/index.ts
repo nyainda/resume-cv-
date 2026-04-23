@@ -51,6 +51,7 @@ export default {
             if (url.pathname === '/api/cv/admin/bulk-update' && request.method === 'POST') return handleBulkUpdate(request, env);
             if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
             if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
+            if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
 
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
@@ -859,6 +860,96 @@ async function handleVoiceTest(request: Request, env: Env): Promise<Response> {
             debug: brief.debug,
         },
         validation,
+    }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Auditor — uses Workers AI (Llama 3.1) as a SECOND PASS on top of the
+// deterministic rule set. Returns net-new AI-ism candidates the admin can
+// promote into cv_banned_phrases with one click. Never replaces the
+// deterministic rules — they remain the fast/free/predictable first pass.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleAiAudit(request: Request, env: Env): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+        return json({ error: 'unauthorized' }, request, env, 401);
+    }
+    if (!env.AI) return json({ error: 'ai_binding_missing' }, request, env, 500);
+
+    const body = await safeJson(request);
+    let text: string = String(body?.text || '').trim();
+    if (!text && Array.isArray(body?.bullets)) text = body.bullets.join('\n');
+    if (!text) return json({ error: 'missing_text' }, request, env, 400);
+    if (text.length > 8000) text = text.slice(0, 8000);
+
+    // Already-banned set — so AI can't re-suggest things we already catch
+    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()).filter(Boolean));
+
+    const sys = `You are a strict CV editor that detects AI-generated language ("AI-isms") in resume bullets — phrases that sound robotic, generic, buzzword-heavy, or written by ChatGPT.
+
+Return ONLY a JSON object with this exact shape, no prose:
+{"findings":[{"phrase":"<exact span from text, lowercase>","severity":"critical|high|medium","reason":"<why it sounds AI-generated>","replacement":"<a punchy human-toned alternative or empty string>"}]}
+
+Rules:
+- Only flag phrases that are clearly AI-isms — buzzwords, hollow superlatives, hedge phrases, robotic transitions, vague impact claims with no number.
+- Each "phrase" MUST appear verbatim (case-insensitive) in the text. Do NOT invent phrases.
+- Severity: critical = obvious ChatGPT giveaway (e.g. "leveraging cutting-edge"), high = strong buzzword, medium = mildly weak.
+- Replacement should be 1-4 words, concrete, action-led. Empty string if removal is enough.
+- Maximum 15 findings. No duplicates.`;
+
+    const user = `Audit this CV text and return JSON only:\n\n${text}`;
+
+    let raw: any = null;
+    try {
+        raw = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+            messages: [
+                { role: 'system', content: sys },
+                { role: 'user', content: user },
+            ],
+            max_tokens: 800,
+            temperature: 0.2,
+        });
+    } catch (err: any) {
+        return json({ error: 'ai_run_failed', message: String(err?.message || err) }, request, env, 502);
+    }
+
+    const responseText: string = String(raw?.response || raw?.result?.response || raw?.choices?.[0]?.message?.content || '').trim();
+    let parsed: any = null;
+    try {
+        const jsonStart = responseText.indexOf('{');
+        const jsonEnd = responseText.lastIndexOf('}');
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            parsed = JSON.parse(responseText.slice(jsonStart, jsonEnd + 1));
+        }
+    } catch {
+        parsed = null;
+    }
+
+    const findings: Array<{ phrase: string; severity: string; reason: string; replacement: string }> =
+        Array.isArray(parsed?.findings) ? parsed.findings : [];
+
+    const lowerText = text.toLowerCase();
+    const cleaned = findings
+        .map(f => ({
+            phrase: String(f.phrase || '').trim().toLowerCase(),
+            severity: ['critical', 'high', 'medium'].includes(String(f.severity)) ? String(f.severity) : 'medium',
+            reason: String(f.reason || '').trim(),
+            replacement: String(f.replacement || '').trim(),
+        }))
+        .filter(f => f.phrase && f.phrase.length <= 80 && lowerText.includes(f.phrase) && !bannedSet.has(f.phrase))
+        .filter((f, i, arr) => arr.findIndex(x => x.phrase === f.phrase) === i)
+        .slice(0, 15);
+
+    return json({
+        ok: true,
+        text_length: text.length,
+        already_banned_count: banned.length,
+        new_findings: cleaned.length,
+        findings: cleaned,
+        model: '@cf/meta/llama-3.1-8b-instruct',
+        raw_response: responseText.slice(0, 400),
     }, request, env);
 }
 

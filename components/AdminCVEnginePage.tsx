@@ -9,8 +9,10 @@ import {
     bulkUpdateRows,
     deleteAdminRows,
     testVoice,
+    aiAudit,
     type AdminStats,
     type VoiceTestResult,
+    type AiAuditResult,
 } from '../services/cvEngineClient';
 
 const TABLE_LABELS: Record<string, string> = {
@@ -38,7 +40,7 @@ export default function AdminCVEnginePage(): JSX.Element {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<string>('');
-    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test'>('verb');
+    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test' | 'ai_audit'>('verb');
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -121,9 +123,9 @@ export default function AdminCVEnginePage(): JSX.Element {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-700">
-                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test'] as const).map(t => (
+                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test', 'ai_audit'] as const).map(t => (
                     <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm font-medium ${tab === t ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'}`}>
-                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : 'Voice Tester'}
+                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : t === 'voice_test' ? 'Voice Tester' : 'AI Auditor'}
                     </button>
                 ))}
             </div>
@@ -136,6 +138,7 @@ export default function AdminCVEnginePage(): JSX.Element {
             {tab === 'opener' && <AddOpenerForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'browse' && <BrowseEditTab onDone={refresh} setMsg={setMsg} />}
             {tab === 'voice_test' && <VoiceTesterTab setMsg={setMsg} />}
+            {tab === 'ai_audit' && <AiAuditTab onDone={refresh} setMsg={setMsg} />}
         </div>
     );
 }
@@ -718,6 +721,117 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
         <div className="bg-slate-900/60 border border-slate-700 rounded px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
             <div className={`text-lg font-semibold ${accent || 'text-white'}`}>{value}</div>
+        </div>
+    );
+}
+
+// ─── AI Auditor Tab ──────────────────────────────────────────────────────────
+function AiAuditTab({ onDone, setMsg }: FormProps) {
+    const [text, setText] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState<AiAuditResult | null>(null);
+    const [picked, setPicked] = useState<Set<number>>(new Set());
+
+    const submit = async () => {
+        if (!text.trim()) { setMsg('Paste some CV text to audit.'); return; }
+        setBusy(true); setResult(null); setPicked(new Set());
+        const r = await aiAudit(text);
+        setBusy(false);
+        if (!r) { setMsg('AI audit failed — check token / network.'); return; }
+        setResult(r);
+        setPicked(new Set(r.findings.map((_, i) => i)));
+        setMsg(`AI auditor: ${r.new_findings} new finding(s) (${r.already_banned_count} already in banned list).`);
+    };
+
+    const togglePick = (i: number) => {
+        const next = new Set(picked);
+        if (next.has(i)) next.delete(i); else next.add(i);
+        setPicked(next);
+    };
+
+    const promote = async () => {
+        if (!result) return;
+        const rows = Array.from(picked).map(i => result.findings[i]).filter(Boolean).map(f => ({
+            phrase: f.phrase,
+            replacement: f.replacement || '',
+            severity: f.severity,
+            reason: `ai_audit: ${f.reason}`.slice(0, 200),
+        }));
+        if (rows.length === 0) { setMsg('Pick at least one finding to promote.'); return; }
+        setBusy(true);
+        const r = await bulkAddRows('cv_banned_phrases', rows);
+        setBusy(false);
+        if (r) {
+            setMsg(`Promoted ${r.inserted} to banned list (${r.skipped} duplicates, ${r.failed} failed${r.synced ? ' — KV synced' : ''}).`);
+            setResult(null); setPicked(new Set()); onDone();
+        } else { setMsg('Promote failed — check token.'); }
+    };
+
+    const sevColor = (s: string) =>
+        s === 'critical' ? 'border-rose-900/60 bg-rose-950/30 text-rose-200'
+        : s === 'high' ? 'border-orange-900/60 bg-orange-950/30 text-orange-200'
+        : 'border-amber-900/50 bg-amber-950/20 text-amber-200';
+
+    return (
+        <div className="space-y-4 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+            <div className="text-slate-300 text-sm space-y-1">
+                <p>Second-pass auditor running on Workers AI (<code className="text-amber-300">@cf/meta/llama-3.1-8b-instruct</code>). Paste any CV text, get AI-ism candidates the deterministic rules don't already catch, then one-click promote them into the banned list.</p>
+                <p className="text-slate-500 text-xs">The deterministic regex/word-count rules stay as the fast first pass — this is purely a discovery tool to grow the banned vocabulary.</p>
+            </div>
+
+            <textarea
+                value={text}
+                onChange={e => setText(e.target.value)}
+                rows={10}
+                placeholder={'Paste CV text, a job description, or a bullet list. Example:\n• Leveraged cutting-edge AI to drive synergy across cross-functional stakeholders.\n• Spearheaded transformative initiatives to deliver world-class solutions.\n• Passionate self-starter with a results-driven mindset.'}
+                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+                <button onClick={submit} disabled={busy} className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium">
+                    {busy ? 'Asking Workers AI…' : 'Run AI audit'}
+                </button>
+                <span className="text-slate-500 text-xs">{text.length}/8000 chars</span>
+            </div>
+
+            {result && (
+                <div className="space-y-3">
+                    <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+                        <span>Model: <span className="text-slate-200">{result.model}</span></span>
+                        <span>Already banned: <span className="text-slate-200">{result.already_banned_count}</span></span>
+                        <span>New findings: <span className="text-emerald-300">{result.new_findings}</span></span>
+                    </div>
+
+                    {result.findings.length === 0 ? (
+                        <div className="text-emerald-300 text-sm bg-emerald-950/30 border border-emerald-900/50 rounded px-3 py-2">No new AI-isms detected — text is already clean (or banned list already covers them).</div>
+                    ) : (
+                        <>
+                            <div className="space-y-2">
+                                {result.findings.map((f, i) => (
+                                    <label key={i} className={`flex items-start gap-3 border rounded p-3 cursor-pointer ${sevColor(f.severity)}`}>
+                                        <input type="checkbox" checked={picked.has(i)} onChange={() => togglePick(i)} className="mt-1" />
+                                        <div className="flex-1 text-sm">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="font-mono text-white">"{f.phrase}"</span>
+                                                <span className="text-[10px] uppercase tracking-wide opacity-70">{f.severity}</span>
+                                                {f.replacement && <span className="text-emerald-300">→ "{f.replacement}"</span>}
+                                            </div>
+                                            <div className="text-xs opacity-80 mt-1">{f.reason}</div>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={promote} disabled={busy || picked.size === 0} className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-medium">
+                                    {busy ? 'Promoting…' : `Promote ${picked.size} to banned list`}
+                                </button>
+                                <button onClick={() => setPicked(new Set(result.findings.map((_, i) => i)))} className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs">Select all</button>
+                                <button onClick={() => setPicked(new Set())} className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs">Clear</button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
