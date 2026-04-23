@@ -1,0 +1,19 @@
+{
+  "name": "cv-engine-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "schema:apply": "node scripts/apply-schema.cjs",
+    "seed": "node scripts/seed.cjs",
+    "kv:sync": "node scripts/sync-kv.cjs",
+    "stats": "node scripts/stats.cjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.90.0"
+  }
+}

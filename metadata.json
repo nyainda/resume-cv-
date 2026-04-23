@@ -1,0 +1,5 @@
+{
+  "name": "AI-Powered CV Builder",
+  "description": "A single-page web app where you input your basic info once, then paste any job description to instantly get a tailored CV ready to download as a PDF. All data is stored locally in your browser for privacy.",
+  "requestFramePermissions": []
+}

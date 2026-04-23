@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary:     #1B2B4B;
+  --color-gold:        #C9A84C;
+  --color-bg:          #F8F7F4;
+  --color-surface:     #FFFFFF;
+  --color-text:        #1A1A1A;
+  --color-muted:       #6B7280;
+  --color-accent:      #2D6A4F;
+  --color-error:       #C0392B;
+  --color-border:      #E5E2DC;
+
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --primary: 220 50% 20%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 35 15% 88%;
+  --input: 35 15% 88%;
+  --ring: 40 60% 55%;
+  --radius: 0.75rem;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+  --font-mono: 'Roboto Mono', monospace;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --primary: 220 50% 20%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 40 60% 55%;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3 {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-mono {
+  font-family: 'Roboto Mono', monospace;
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Toast animations */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* Nav dropdown slide-down */
+@keyframes nav-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+.animate-nav-slide-down {
+  animation: nav-slide-down 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
+  transform-origin: top;
+}
+
+/* Mobile menu slide-down */
+@keyframes mobile-menu-open {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    max-height: 600px;
+    transform: translateY(0);
+  }
+}
+
+.animate-mobile-menu {
+  animation: mobile-menu-open 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+  overflow: hidden;
+}

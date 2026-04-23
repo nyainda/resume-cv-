@@ -1,0 +1,24 @@
+name = "cv-engine-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[[d1_databases]]
+binding = "CV_DB"
+database_name = "cv-engine-db"
+database_id = "5193fa77-54c8-4e49-bf3a-c615af170191"
+
+[[kv_namespaces]]
+binding = "CV_KV"
+id = "8e1722f00d9641b7a8f611b76dac8361"
+preview_id = "d9bc7d2a01f94e619b3054c19b8dc44f"
+
+[ai]
+binding = "AI"
+
+[vars]
+ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app"
+
+[env.dev.vars]
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5000,http://localhost:3000"
