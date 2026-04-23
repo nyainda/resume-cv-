@@ -33,7 +33,7 @@ export default function AdminCVEnginePage(): JSX.Element {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<string>('');
-    const [tab, setTab] = useState<'verb' | 'banned' | 'voice' | 'field' | 'opener'>('verb');
+    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener'>('verb');
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -116,14 +116,15 @@ export default function AdminCVEnginePage(): JSX.Element {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-700">
-                {(['verb', 'banned', 'voice', 'field', 'opener'] as const).map(t => (
+                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener'] as const).map(t => (
                     <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm font-medium ${tab === t ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'}`}>
-                        {t === 'verb' ? 'Add Verb' : t === 'banned' ? 'Add Banned' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : 'Add Opener'}
+                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : 'Add Opener'}
                     </button>
                 ))}
             </div>
 
             {tab === 'verb' && <AddVerbForm onDone={refresh} setMsg={setMsg} />}
+            {tab === 'banned_word' && <AddBannedWordForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'banned' && <AddBannedForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'voice' && <AddVoiceForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'field' && <AddFieldForm onDone={refresh} setMsg={setMsg} />}
@@ -183,6 +184,75 @@ function AddVerbForm({ onDone, setMsg }: FormProps) {
             </div>
             <textarea value={bulk} onChange={e => setBulk(e.target.value)} rows={6} placeholder={'Paste CSV — e.g.\nShipped, Shipped, technical, high, 9\nDeployed, Deployed, technical, high, 9'} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono" />
             <button onClick={submit} disabled={busy} className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium">{busy ? 'Adding…' : 'Add Verb(s)'}</button>
+        </div>
+    );
+}
+
+const BUZZWORD_SEED_PACK = [
+    'synergy', 'leverage', 'leveraging', 'robust', 'seamless', 'seamlessly', 'cutting-edge',
+    'innovative', 'innovatively', 'disruptive', 'paradigm', 'holistic', 'holistically',
+    'streamline', 'streamlined', 'streamlining', 'utilize', 'utilized', 'utilizing',
+    'utilization', 'spearhead', 'spearheaded', 'orchestrate', 'orchestrated',
+    'passionate', 'detail-oriented', 'self-starter', 'go-getter', 'rockstar', 'ninja',
+    'guru', 'visionary', 'thought-leader', 'evangelist', 'wheelhouse',
+    'ideate', 'ideated', 'ideation', 'actionable', 'impactful', 'meaningful',
+    'transformative', 'world-class', 'best-in-class', 'next-generation', 'next-gen',
+    'mission-critical', 'value-add', 'value-added', 'turnkey', 'agile-minded',
+    'results-driven', 'results-oriented', 'goal-oriented', 'team-player',
+    'hardworking', 'hard-working', 'dynamic', 'proactive', 'proactively',
+    'go-to', 'best-of-breed', 'low-hanging', 'deep-dive', 'circle-back', 'pivot',
+];
+
+function AddBannedWordForm({ onDone, setMsg }: FormProps) {
+    const [word, setWord] = useState('');
+    const [replacement, setReplacement] = useState('');
+    const [severity, setSeverity] = useState<typeof BANNED_SEVERITY[number]>('high');
+    const [bulk, setBulk] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const submit = async (rowsOverride?: any[]) => {
+        let rows: any[] = rowsOverride || [];
+        if (!rowsOverride) {
+            if (bulk.trim()) {
+                for (const raw of bulk.split(/[\n,]/)) {
+                    const w = raw.trim();
+                    if (!w) continue;
+                    if (w.includes(' ')) { setMsg(`"${w}" has spaces — use the Banned Phrase tab for multi-word entries.`); return; }
+                    rows.push({ phrase: w, replacement: '', severity, reason: 'banned_word' });
+                }
+            } else if (word) {
+                if (word.includes(' ')) { setMsg('Use the Banned Phrase tab for multi-word entries.'); return; }
+                rows.push({ phrase: word.trim(), replacement, severity, reason: 'banned_word' });
+            }
+        }
+        if (!rows.length) { setMsg('Enter at least one word.'); return; }
+        setBusy(true);
+        const r = await bulkAddRows('cv_banned_phrases', rows);
+        setBusy(false);
+        if (r) {
+            setMsg(`Banned words: ${r.inserted} added, ${r.skipped} duplicates, ${r.failed} failed${r.synced ? ' — KV synced' : ''}.`);
+            setBulk(''); setWord(''); setReplacement(''); onDone();
+        } else { setMsg('Insert failed — check token / network.'); }
+    };
+
+    const seedBuzzwords = () =>
+        submit(BUZZWORD_SEED_PACK.map(w => ({ phrase: w, replacement: '', severity: 'high', reason: 'buzzword_seed' })));
+
+    return (
+        <div className="space-y-4 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+            <p className="text-slate-300 text-sm">Add a single banned word, or paste a list (one per line — or comma-separated). Stored alongside banned phrases; the engine matches them with whole-word boundaries so single tokens like <code className="text-amber-300">synergy</code> only flag exact word hits, not substrings.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <input value={word} onChange={e => setWord(e.target.value)} placeholder="synergy" className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm" />
+                <input value={replacement} onChange={e => setReplacement(e.target.value)} placeholder="optional replacement" className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm" />
+                <select value={severity} onChange={e => setSeverity(e.target.value as any)} className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm">
+                    {BANNED_SEVERITY.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+            </div>
+            <textarea value={bulk} onChange={e => setBulk(e.target.value)} rows={6} placeholder={'paste one word per line or comma-separated:\nleverage\nrobust\nseamless\npassionate, dynamic, proactive'} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono" />
+            <div className="flex flex-wrap gap-2">
+                <button onClick={() => submit()} disabled={busy} className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-medium">{busy ? 'Adding…' : 'Add Banned Word(s)'}</button>
+                <button onClick={seedBuzzwords} disabled={busy} className="px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-medium" title={`Seed ${BUZZWORD_SEED_PACK.length} common AI/CV buzzwords in one click`}>Seed {BUZZWORD_SEED_PACK.length} common buzzwords</button>
+            </div>
         </div>
     );
 }
