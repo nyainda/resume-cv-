@@ -5,6 +5,9 @@ import {
     triggerSync,
     getAdminToken,
     setAdminToken as saveAdminToken,
+    listAdminRows,
+    bulkUpdateRows,
+    deleteAdminRows,
     type AdminStats,
 } from '../services/cvEngineClient';
 
@@ -33,7 +36,7 @@ export default function AdminCVEnginePage(): JSX.Element {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<string>('');
-    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener'>('verb');
+    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse'>('verb');
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -116,9 +119,9 @@ export default function AdminCVEnginePage(): JSX.Element {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-700">
-                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener'] as const).map(t => (
+                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse'] as const).map(t => (
                     <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm font-medium ${tab === t ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'}`}>
-                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : 'Add Opener'}
+                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : 'Browse / Edit'}
                     </button>
                 ))}
             </div>
@@ -129,6 +132,7 @@ export default function AdminCVEnginePage(): JSX.Element {
             {tab === 'voice' && <AddVoiceForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'field' && <AddFieldForm onDone={refresh} setMsg={setMsg} />}
             {tab === 'opener' && <AddOpenerForm onDone={refresh} setMsg={setMsg} />}
+            {tab === 'browse' && <BrowseEditTab onDone={refresh} setMsg={setMsg} />}
         </div>
     );
 }
@@ -422,3 +426,126 @@ function AddOpenerForm({ onDone, setMsg }: FormProps) {
         </div>
     );
 }
+
+// ─── Browse / Edit / Delete ──────────────────────────────────────────────────
+
+function BrowseEditTab({ onDone, setMsg }: FormProps) {
+    const [table, setTable] = useState<string>('cv_banned_phrases');
+    const [q, setQ] = useState('');
+    const [rows, setRows] = useState<Array<Record<string, any>>>([]);
+    const [total, setTotal] = useState(0);
+    const [offset, setOffset] = useState(0);
+    const [limit] = useState(100);
+    const [loading, setLoading] = useState(false);
+    const [edits, setEdits] = useState<Record<string, Record<string, any>>>({});
+
+    const load = useCallback(async () => {
+        setLoading(true); setMsg('');
+        const r = await listAdminRows(table, { limit, offset, q: q.trim() || undefined });
+        setLoading(false);
+        if (!r) { setMsg('Could not load rows.'); return; }
+        setRows(r.rows);
+        setTotal(r.total);
+        setEdits({});
+    }, [table, limit, offset, q, setMsg]);
+
+    useEffect(() => { void load(); }, [table, offset]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const onCellChange = (id: string, col: string, val: string) => {
+        setEdits(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [col]: val } }));
+    };
+
+    const saveRow = async (id: string) => {
+        const patch = edits[id];
+        if (!patch || Object.keys(patch).length === 0) { setMsg('No changes for that row.'); return; }
+        const r = await bulkUpdateRows(table, [{ id, ...patch }]);
+        if (!r) { setMsg('Update failed.'); return; }
+        setMsg(`Updated ${r.updated}, missing ${r.missing}, failed ${r.failed}${r.synced ? ' — KV synced' : ''}.`);
+        if (r.updated > 0) { await load(); onDone(); }
+    };
+
+    const deleteRow = async (id: string) => {
+        if (!confirm('Delete this row? This cannot be undone.')) return;
+        const r = await deleteAdminRows(table, [id]);
+        if (!r) { setMsg('Delete failed.'); return; }
+        setMsg(`Deleted ${r.deleted}${r.synced ? ' — KV synced' : ''}.`);
+        if (r.deleted > 0) { await load(); onDone(); }
+    };
+
+    const cols = rows[0] ? Object.keys(rows[0]).filter(c => c !== 'id') : [];
+    const editableCols = ADMIN_EDITABLE[table] || cols;
+
+    return (
+        <div className="space-y-3 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+            <div className="flex flex-wrap gap-2 items-center">
+                <select value={table} onChange={e => { setTable(e.target.value); setOffset(0); }} className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm">
+                    {Object.keys(TABLE_LABELS).map(t => <option key={t} value={t}>{TABLE_LABELS[t]}</option>)}
+                </select>
+                <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { setOffset(0); void load(); } }} placeholder="search…" className="flex-1 min-w-[160px] bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-sm" />
+                <button onClick={() => { setOffset(0); void load(); }} disabled={loading} className="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm">{loading ? 'Loading…' : 'Search'}</button>
+                <span className="text-slate-400 text-xs ml-auto">{total} total · showing {offset + 1}–{Math.min(offset + rows.length, total)}</span>
+                <button onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0 || loading} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-white text-sm">‹ Prev</button>
+                <button onClick={() => setOffset(offset + limit)} disabled={offset + rows.length >= total || loading} className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-white text-sm">Next ›</button>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-700 rounded">
+                <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-900/80 text-slate-400 uppercase text-[10px]">
+                        <tr>
+                            {cols.map(c => <th key={c} className="px-2 py-1.5 font-medium">{c}</th>)}
+                            <th className="px-2 py-1.5 w-32 text-right">actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map(row => {
+                            const id = String(row.id);
+                            const dirty = Boolean(edits[id]);
+                            return (
+                                <tr key={id} className="border-t border-slate-800 hover:bg-slate-900/40">
+                                    {cols.map(c => {
+                                        const isEditable = editableCols.includes(c);
+                                        const val = edits[id]?.[c] ?? row[c] ?? '';
+                                        const display = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                                        return (
+                                            <td key={c} className="px-2 py-1 align-top max-w-[260px]">
+                                                {isEditable ? (
+                                                    <input value={display} onChange={e => onCellChange(id, c, e.target.value)} className="w-full bg-slate-900/60 border border-slate-700 rounded px-1.5 py-1 text-white" />
+                                                ) : (
+                                                    <span className="text-slate-400 truncate block" title={display}>{display}</span>
+                                                )}
+                                            </td>
+                                        );
+                                    })}
+                                    <td className="px-2 py-1 text-right whitespace-nowrap">
+                                        <button onClick={() => saveRow(id)} disabled={!dirty} className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs mr-1">Save</button>
+                                        <button onClick={() => deleteRow(id)} className="px-2 py-0.5 rounded bg-rose-700 hover:bg-rose-600 text-white text-xs">Delete</button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {rows.length === 0 && !loading && (
+                            <tr><td colSpan={cols.length + 1} className="px-3 py-6 text-center text-slate-500">No rows.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
+// Whitelist of editable columns per table — id is never editable.
+const ADMIN_EDITABLE: Record<string, string[]> = {
+    cv_verbs: ['verb_present', 'verb_past', 'category', 'energy_level', 'human_score', 'formality', 'industry'],
+    cv_banned_phrases: ['phrase', 'replacement', 'severity', 'reason', 'source'],
+    cv_openers: ['opener', 'type', 'triggers_comma', 'example', 'length_type'],
+    cv_context_connectors: ['connector', 'type', 'example'],
+    cv_result_connectors: ['connector', 'type', 'example', 'human_score'],
+    cv_sentence_structures: ['pattern_label', 'pattern', 'word_count_min', 'word_count_max', 'example', 'use_frequency', 'section'],
+    cv_rhythm_patterns: ['pattern_name', 'sequence', 'section', 'bullet_count', 'description', 'human_score'],
+    cv_paragraph_structures: ['section', 'sentence_count', 'pattern', 'word_count_min', 'word_count_max', 'rules'],
+    cv_subjects: ['subject', 'usage', 'allowed_sections'],
+    cv_seniority_levels: ['level', 'years_min', 'years_max', 'bullet_style', 'metric_density', 'summary_tone', 'forbidden_phrases'],
+    cv_field_profiles: ['field', 'language_style', 'preferred_verbs', 'avoided_verbs', 'metric_types', 'jd_keywords'],
+    cv_seniority_field_combos: ['seniority', 'field', 'forbidden_phrases', 'required_tone', 'notes'],
+    cv_voice_profiles: ['name', 'tone', 'description', 'verbosity_level', 'metric_preference', 'opener_frequency', 'risk_tolerance', 'formality', 'compatible_fields', 'compatible_seniority', 'incompatible_with', 'verb_bias', 'structure_bias'],
+};

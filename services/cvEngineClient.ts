@@ -275,3 +275,59 @@ export async function bulkAddRows(table: string, rows: any[]): Promise<BulkAddRe
 export async function triggerSync(): Promise<SyncResult | null> {
     return adminFetch<SyncResult>('/api/cv/sync', { method: 'POST' });
 }
+
+export interface AdminListResult {
+    ok: boolean;
+    table: string;
+    total: number;
+    limit: number;
+    offset: number;
+    rows: Array<Record<string, any>>;
+}
+
+export async function listAdminRows(
+    table: string,
+    opts: { limit?: number; offset?: number; q?: string } = {},
+): Promise<AdminListResult | null> {
+    const params = new URLSearchParams({ table });
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.offset) params.set('offset', String(opts.offset));
+    if (opts.q) params.set('q', opts.q);
+    return adminFetch<AdminListResult>(`/api/cv/admin/list?${params.toString()}`);
+}
+
+export interface BulkUpdateResult {
+    ok: boolean;
+    updated: number;
+    missing: number;
+    failed: number;
+    errors: string[];
+    synced: boolean;
+}
+
+export async function bulkUpdateRows(
+    table: string,
+    updates: Array<{ id: string } & Record<string, any>>,
+): Promise<BulkUpdateResult | null> {
+    return adminFetch<BulkUpdateResult>('/api/cv/admin/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table, updates }),
+    });
+}
+
+export interface DeleteResult {
+    ok: boolean;
+    deleted: number;
+    failed: number;
+    errors: string[];
+    synced: boolean;
+}
+
+export async function deleteAdminRows(table: string, ids: string[]): Promise<DeleteResult | null> {
+    return adminFetch<DeleteResult>('/api/cv/admin/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table, ids }),
+    });
+}

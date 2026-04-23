@@ -47,6 +47,9 @@ export default {
             if (url.pathname === '/api/cv/sync'    && request.method === 'POST') return handleSync(request, env);
             if (url.pathname === '/api/cv/admin/stats')                          return handleAdminStats(request, env);
             if (url.pathname === '/api/cv/admin/bulk-add' && request.method === 'POST') return handleBulkAdd(request, env);
+            if (url.pathname === '/api/cv/admin/list')                           return handleAdminList(request, env, url);
+            if (url.pathname === '/api/cv/admin/bulk-update' && request.method === 'POST') return handleBulkUpdate(request, env);
+            if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
 
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
@@ -668,6 +671,148 @@ async function handleBulkAdd(request: Request, env: Env): Promise<Response> {
     }
 
     return json({ ok: failed === 0, inserted, skipped, failed, errors, synced }, request, env);
+}
+
+// Whitelist of columns admins can search/update per table — keeps SQL safe.
+const ADMIN_SEARCHABLE: Record<string, string[]> = {
+    cv_verbs: ['verb_present', 'verb_past', 'category', 'industry'],
+    cv_banned_phrases: ['phrase', 'replacement', 'severity', 'reason', 'source'],
+    cv_openers: ['opener', 'type', 'length_type'],
+    cv_context_connectors: ['connector', 'type'],
+    cv_result_connectors: ['connector', 'type'],
+    cv_sentence_structures: ['pattern_label', 'pattern', 'use_frequency', 'section'],
+    cv_rhythm_patterns: ['pattern_name', 'section', 'description'],
+    cv_paragraph_structures: ['section', 'pattern'],
+    cv_subjects: ['subject', 'usage'],
+    cv_seniority_levels: ['level', 'bullet_style', 'metric_density', 'summary_tone'],
+    cv_field_profiles: ['field', 'language_style'],
+    cv_seniority_field_combos: ['seniority', 'field', 'required_tone', 'notes'],
+    cv_voice_profiles: ['name', 'tone', 'description', 'risk_tolerance', 'formality'],
+};
+
+async function handleAdminList(request: Request, env: Env, url: URL): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+        return json({ error: 'unauthorized' }, request, env, 401);
+    }
+    const table = String(url.searchParams.get('table') || '');
+    if (!ADMIN_TABLES.has(table)) {
+        return json({ error: 'invalid_table', allowed: Array.from(ADMIN_TABLES) }, request, env, 400);
+    }
+    const limit = clamp(parseInt(url.searchParams.get('limit') || '100', 10), 1, 500);
+    const offset = clamp(parseInt(url.searchParams.get('offset') || '0', 10), 0, 1_000_000);
+    const q = String(url.searchParams.get('q') || '').trim();
+
+    let sql = `SELECT * FROM ${table}`;
+    const binds: any[] = [];
+    if (q && ADMIN_SEARCHABLE[table]) {
+        const cols = ADMIN_SEARCHABLE[table];
+        const conds = cols.map(c => `${c} LIKE ?`).join(' OR ');
+        sql += ` WHERE ${conds}`;
+        for (let i = 0; i < cols.length; i++) binds.push(`%${q}%`);
+    }
+    sql += ` LIMIT ? OFFSET ?`;
+    binds.push(limit, offset);
+
+    const totalRow = await env.CV_DB.prepare(`SELECT COUNT(*) AS c FROM ${table}`).first<{ c: number }>();
+    const r = await env.CV_DB.prepare(sql).bind(...binds).all();
+    return json({
+        ok: true,
+        table,
+        total: Number(totalRow?.c ?? 0),
+        limit,
+        offset,
+        rows: (r.results as any[]) || [],
+    }, request, env);
+}
+
+async function handleBulkUpdate(request: Request, env: Env): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+        return json({ error: 'unauthorized' }, request, env, 401);
+    }
+    const body = await safeJson(request);
+    const table: string = String(body?.table || '');
+    const updates: any[] = Array.isArray(body?.updates) ? body.updates : [];
+    if (!ADMIN_TABLES.has(table)) {
+        return json({ error: 'invalid_table' }, request, env, 400);
+    }
+    if (updates.length === 0 || updates.length > 500) {
+        return json({ error: 'invalid_updates', message: '1-500 updates required' }, request, env, 400);
+    }
+
+    let updated = 0, missing = 0, failed = 0;
+    const errors: string[] = [];
+    for (const u of updates) {
+        const id = u && typeof u === 'object' ? u.id : null;
+        if (!id || typeof id !== 'string') { failed++; continue; }
+        const setObj: Record<string, any> = {};
+        for (const [k, v] of Object.entries(u)) {
+            if (k === 'id') continue;
+            if (!/^[a-z_][a-z0-9_]*$/i.test(k)) continue;
+            setObj[k] = (Array.isArray(v) || (v !== null && typeof v === 'object')) ? JSON.stringify(v) : v;
+        }
+        const cols = Object.keys(setObj);
+        if (cols.length === 0) { failed++; continue; }
+        const sql = `UPDATE ${table} SET ${cols.map(c => `${c} = ?`).join(', ')} WHERE id = ?`;
+        try {
+            const res = await env.CV_DB.prepare(sql).bind(...cols.map(c => setObj[c]), id).run();
+            const changes = (res as any)?.meta?.changes ?? 0;
+            if (changes > 0) updated++; else missing++;
+        } catch (e: any) {
+            failed++;
+            if (errors.length < 5) errors.push(String(e?.message || e));
+        }
+    }
+
+    let synced = false;
+    if (updated > 0) {
+        try {
+            const fakeReq = new Request(request.url, { headers: { 'X-Admin-Token': token } });
+            const r = await handleSync(fakeReq, env);
+            synced = r.status === 200;
+        } catch { /* non-fatal */ }
+    }
+    return json({ ok: failed === 0, updated, missing, failed, errors, synced }, request, env);
+}
+
+async function handleAdminDelete(request: Request, env: Env): Promise<Response> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+        return json({ error: 'unauthorized' }, request, env, 401);
+    }
+    const body = await safeJson(request);
+    const table: string = String(body?.table || '');
+    const ids: string[] = Array.isArray(body?.ids) ? body.ids.filter((x: any) => typeof x === 'string') : [];
+    if (!ADMIN_TABLES.has(table)) {
+        return json({ error: 'invalid_table' }, request, env, 400);
+    }
+    if (ids.length === 0 || ids.length > 500) {
+        return json({ error: 'invalid_ids', message: '1-500 ids required' }, request, env, 400);
+    }
+
+    let deleted = 0, failed = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+        try {
+            const res = await env.CV_DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+            const changes = (res as any)?.meta?.changes ?? 0;
+            if (changes > 0) deleted++;
+        } catch (e: any) {
+            failed++;
+            if (errors.length < 5) errors.push(String(e?.message || e));
+        }
+    }
+
+    let synced = false;
+    if (deleted > 0) {
+        try {
+            const fakeReq = new Request(request.url, { headers: { 'X-Admin-Token': token } });
+            const r = await handleSync(fakeReq, env);
+            synced = r.status === 200;
+        } catch { /* non-fatal */ }
+    }
+    return json({ ok: failed === 0, deleted, failed, errors, synced }, request, env);
 }
 
 async function handleSync(request: Request, env: Env): Promise<Response> {
