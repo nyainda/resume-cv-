@@ -719,6 +719,53 @@ function formatNumbers(text: string): { text: string; changed: boolean } {
     return { text: out, changed: out !== text };
 }
 
+/**
+ * Cleans up orphan metric markers — places where the AI emitted "%" or a
+ * currency symbol without an actual number. These leak through when the
+ * model is told "use 11%, not 10%" but couldn't infer a real value, leaving
+ * fragments like "improved efficiency by %" or "saved KES on costs".
+ *
+ * The fix: rewrite the offending preposition + orphan marker so the bullet
+ * still reads naturally without claiming a fake metric.
+ *
+ *   "by %"        → "" (drop the dangling phrase)
+ *   "by % of"     → "of"
+ *   "saved KES "  → "saved costs "
+ *   "$ on"        → "money on"
+ */
+function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    let out = text;
+
+    // 1) Orphan "%" — a "%" not preceded by a digit (allowing spaces between).
+    //    Common AI failure: "improved performance by %" or "increased % of".
+    //    Drop preceding preposition + orphan %, keeping the rest of the clause.
+    out = out.replace(
+        /\s*\b(?:by|of|to|with|achieving|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to)\s+%(?!\w)/gi,
+        ''
+    );
+    // Standalone " %" or "% " not adjacent to a digit anywhere — just drop it.
+    out = out.replace(/(?<![\d.])\s*%(?!\w)/g, (full, ...rest) => {
+        // Keep "%" only if it directly follows a digit (already handled above).
+        return '';
+    });
+
+    // 2) Orphan currency symbol/code immediately followed by a non-digit.
+    //    "saved KES on costs" → "saved on costs" (we'll let the surrounding
+    //    text carry the meaning rather than inventing a number).
+    out = out.replace(
+        /\b(KES|NGN|ZAR|GBP|USD|EUR|AED|JPY|INR|CAD|AUD|CHF|CNY)\s+(?=[a-zA-Z])/g,
+        ''
+    );
+    out = out.replace(/([$£€¥])\s+(?=[a-zA-Z])/g, '');
+
+    // 3) Tidy the side-effects: collapse double spaces, fix spacing before
+    //    punctuation, and trim.
+    out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+
+    return { text: out, changed: out !== text };
+}
+
 /** Capitalises the first alphabetic character, preserving any leading glyph. */
 function capitaliseFirst(text: string): { text: string; changed: boolean } {
     if (!text) return { text: text || '', changed: false };
@@ -792,6 +839,7 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     apply('first_person',     stripFirstPerson);
     apply('weak_opener',      rewriteWeakOpener);
     apply('weak_qualifier',   stripWeakQualifiers);
+    apply('orphan_metric',    stripOrphanMetrics);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     apply('number_format',    formatNumbers);
     apply('trailing_period',  stripTrailingPeriod);
