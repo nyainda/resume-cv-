@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2021"],
     "strict": true,
+    "skipLibCheck": true,
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["src/**/*.ts"]
