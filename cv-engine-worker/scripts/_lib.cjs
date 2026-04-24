@@ -2,8 +2,8 @@
    Uses fetch + the Cloudflare REST API directly (no wrangler login required). */
 'use strict';
 
-const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
-const TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+const ACCOUNT_ID = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+const TOKEN = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
 
 if (!ACCOUNT_ID || !TOKEN) {
     console.error('Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN env var.');

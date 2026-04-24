@@ -6,6 +6,7 @@ import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
 import { buildBrief, validateVoice, reportLeaks, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { findOverusedWords } from './cvEngine/wordFrequency';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -2026,13 +2027,30 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
         if (bullets.length < 2) continue;
 
         const result: ValidateVoiceResult | null = await validateVoice(bullets, brief);
-        if (!result || result.passed) continue;
 
-        const failing = result.failing_bullets || [];
+        // ── Local repeated-word check (architecture doc Fix 5) ──
+        // The remote validator catches repeated *verbs*; this also catches any
+        // ordinary noun/adjective whose stem appears 5+ times across the role
+        // (e.g. "clients" 9× → flag for rewrite).
+        const overused = findOverusedWords(bullets, 5);
+        const overusedByBullet: Record<number, string[]> = {};
+        for (const w of overused) {
+            for (const idx of (w.bulletIndices || [])) {
+                (overusedByBullet[idx] = overusedByBullet[idx] || []).push(
+                    `replace overused word "${w.word}" (used ${w.count}× in this role) with a synonym or restructure the sentence to drop it`
+                );
+            }
+        }
+        const overusedFailing = Object.keys(overusedByBullet).map(n => Number(n));
+
+        if ((!result || result.passed) && overusedFailing.length === 0) continue;
+
+        const remoteFailing = result?.failing_bullets || [];
+        const failing = Array.from(new Set([...remoteFailing, ...overusedFailing])).sort((a, b) => a - b);
         if (failing.length === 0) continue;
 
         const issuesByBullet: Record<number, string[]> = {};
-        for (const issue of result.issues) {
+        for (const issue of (result?.issues || [])) {
             if (issue.bullet === undefined) continue;
             const key = issue.bullet as number;
             const note =
@@ -2043,6 +2061,11 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
                 issue.issue === 'rhythm_drift' ? `rewrite to ${(issue as any).expected} length (was ${(issue as any).actual})` :
                 issue.issue;
             (issuesByBullet[key] = issuesByBullet[key] || []).push(note);
+        }
+        // Merge in the local repeated-word notes
+        for (const [idxStr, notes] of Object.entries(overusedByBullet)) {
+            const idx = Number(idxStr);
+            (issuesByBullet[idx] = issuesByBullet[idx] || []).push(...notes);
         }
 
         const fixList = failing.map(i => `  ${i + 1}. ORIGINAL: "${bullets[i]}"\n     FIX: ${(issuesByBullet[i] || ['general voice mismatch']).join('; ')}`).join('\n');

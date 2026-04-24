@@ -50,7 +50,7 @@ const professionalStyles = StyleSheet.create({
   year: { fontSize: 9, color: '#64748b' },
 });
 
-const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => (
+const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => (
   <Page size="A4" style={professionalStyles.page}>
     <View style={professionalStyles.header}>
       <Text style={professionalStyles.name}>{personalInfo.name}</Text>
@@ -140,6 +140,7 @@ const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> 
         </View>
       </View>
     ) : null}
+    {hidden}
   </Page>
 );
 
@@ -159,7 +160,7 @@ const standardProStyles = StyleSheet.create({
   skillTag: { fontSize: 9, backgroundColor: '#f3f4f6', padding: '2 5', borderRadius: 2 },
 });
 
-const StandardProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => (
+const StandardProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => (
   <Page size="A4" style={standardProStyles.page}>
     <View style={standardProStyles.header}>
       <Text style={standardProStyles.name}>{personalInfo.name}</Text>
@@ -226,6 +227,7 @@ const StandardProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> =
         ))}
       </View>
     )}
+    {hidden}
   </Page>
 );
 
@@ -246,7 +248,7 @@ const minimalistStyles = StyleSheet.create({
   bulletText: { fontSize: 9, color: '#3f3f46', flex: 1, lineHeight: 1.5 },
 });
 
-const MinimalistPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => (
+const MinimalistPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => (
   <Page size="A4" style={minimalistStyles.page}>
     <Text style={minimalistStyles.name}>{personalInfo.name}</Text>
     <View style={minimalistStyles.contact}>
@@ -306,6 +308,7 @@ const MinimalistPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = 
         <Text style={{ fontSize: 9.5, color: '#3f3f46', lineHeight: 1.7 }}>{cvData.skills.join('  ·  ')}</Text>
       </View>
     )}
+    {hidden}
   </Page>
 );
 
@@ -347,7 +350,7 @@ const lf = StyleSheet.create({
   linkedinBold: { fontFamily: TB, fontSize: 8, textTransform: 'uppercase', color: '#0f172a', letterSpacing: 0.8 },
 });
 
-const LondonFinancePDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => {
+const LondonFinancePDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => {
   const contacts = [personalInfo.location, personalInfo.phone, personalInfo.email].filter(Boolean);
   return (
     <Page size="A4" style={lf.page}>
@@ -437,6 +440,7 @@ const LondonFinancePDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }>
           </View>
         ) : null}
       </View>
+      {hidden}
     </Page>
   );
 };
@@ -484,7 +488,7 @@ const atsCleanStyles = StyleSheet.create({
   skillsText: { fontSize: 9.5, color: '#374151', lineHeight: 1.6 },
 });
 
-const ATSCleanProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => {
+const ATSCleanProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => {
   const contacts = [
     personalInfo.email,
     personalInfo.phone,
@@ -597,6 +601,7 @@ const ATSCleanProPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> =
           <Text style={atsCleanStyles.skillsText}>{cvData.languages.map(l => `${l.name} (${l.proficiency})`).join('  ·  ')}</Text>
         </View>
       ) : null}
+      {hidden}
     </Page>
   );
 };
@@ -641,7 +646,7 @@ const esStyles = StyleSheet.create({
   mBulletText:   { fontSize: 8.5, color: '#444', flex: 1, lineHeight: 1.4 },
 });
 
-const ExecutiveSidebarPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo }> = ({ cvData, personalInfo }) => (
+const ExecutiveSidebarPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => (
   <Page size="A4" style={esStyles.page}>
 
     {/* ── Sidebar ── */}
@@ -793,6 +798,7 @@ const ExecutiveSidebarPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo
         </View>
       ) : null}
     </View>
+    {hidden}
   </Page>
 );
 
@@ -800,21 +806,57 @@ export type ReactPDFTemplateName = 'professional' | 'standard-pro' | 'minimalist
 
 export const REACT_PDF_TEMPLATES: ReactPDFTemplateName[] = ['professional', 'standard-pro', 'minimalist', 'london-finance', 'ats-clean-pro', 'executive-sidebar'];
 
+// ── Hidden ATS keyword layer (architecture doc Fix 4) ────────────────────────
+// Renders tier-1 JD keywords as real, selectable PDF text but at a sub-pixel
+// font size in white — invisible to humans, fully readable by ATS parsers
+// (Greenhouse, Lever, Workday, Taleo, iCIMS, SAP SuccessFactors).
+const hiddenStyles = StyleSheet.create({
+  layer: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    right: 2,
+  },
+  text: {
+    color: '#ffffff',
+    fontSize: 0.1,
+    lineHeight: 1,
+  },
+});
+
+interface HiddenKeywordLayerProps { keywords?: string[] }
+export const HiddenKeywordLayer: React.FC<HiddenKeywordLayerProps> = ({ keywords }) => {
+  if (!keywords || keywords.length === 0) return null;
+  // Cap at 15 per architecture doc; dedupe + drop empties.
+  const cleaned = Array.from(new Set(
+    keywords.map(k => (k || '').trim()).filter(Boolean)
+  )).slice(0, 15);
+  if (cleaned.length === 0) return null;
+  return (
+    <View style={hiddenStyles.layer} fixed>
+      <Text style={hiddenStyles.text}>{cleaned.join(' ')}</Text>
+    </View>
+  );
+};
+
 export function buildReactPDFDocument(
   template: TemplateName,
   cvData: CVData,
   personalInfo: PersonalInfo,
+  options: { atsKeywords?: string[] } = {},
 ): React.ReactElement {
+  const { atsKeywords } = options;
+  const hidden = <HiddenKeywordLayer keywords={atsKeywords} />;
   const inner = (() => {
     switch (template) {
-      case 'standard-pro': return <StandardProPDF cvData={cvData} personalInfo={personalInfo} />;
-      case 'minimalist': return <MinimalistPDF cvData={cvData} personalInfo={personalInfo} />;
-      case 'london-finance': return <LondonFinancePDF cvData={cvData} personalInfo={personalInfo} />;
-      case 'ats-clean-pro': return <ATSCleanProPDF cvData={cvData} personalInfo={personalInfo} />;
-      case 'executive-sidebar': return <ExecutiveSidebarPDF cvData={cvData} personalInfo={personalInfo} />;
+      case 'standard-pro': return <StandardProPDF cvData={cvData} personalInfo={personalInfo} hidden={hidden} />;
+      case 'minimalist': return <MinimalistPDF cvData={cvData} personalInfo={personalInfo} hidden={hidden} />;
+      case 'london-finance': return <LondonFinancePDF cvData={cvData} personalInfo={personalInfo} hidden={hidden} />;
+      case 'ats-clean-pro': return <ATSCleanProPDF cvData={cvData} personalInfo={personalInfo} hidden={hidden} />;
+      case 'executive-sidebar': return <ExecutiveSidebarPDF cvData={cvData} personalInfo={personalInfo} hidden={hidden} />;
       case 'professional':
       default:
-        return <ProfessionalPDF cvData={cvData} personalInfo={personalInfo} />;
+        return <ProfessionalPDF cvData={cvData} personalInfo={personalInfo} hidden={hidden} />;
     }
   })();
 

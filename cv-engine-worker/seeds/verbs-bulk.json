@@ -1,0 +1,6521 @@
+{
+  "cv_verbs": [
+    {
+      "verb_present": "Architects",
+      "verb_past": "Architected",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Builds",
+      "verb_past": "Built",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Codes",
+      "verb_past": "Coded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Configures",
+      "verb_past": "Configured",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Constructs",
+      "verb_past": "Constructed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Crafts",
+      "verb_past": "Crafted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Customises",
+      "verb_past": "Customised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Debugs",
+      "verb_past": "Debugged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Decouples",
+      "verb_past": "Decoupled",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Deploys",
+      "verb_past": "Deployed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Designs",
+      "verb_past": "Designed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Develops",
+      "verb_past": "Developed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Diagnoses",
+      "verb_past": "Diagnosed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Documents",
+      "verb_past": "Documented",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Engineers",
+      "verb_past": "Engineered",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Extends",
+      "verb_past": "Extended",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Fixes",
+      "verb_past": "Fixed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Hardens",
+      "verb_past": "Hardened",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Implements",
+      "verb_past": "Implemented",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Improves",
+      "verb_past": "Improved",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Indexes",
+      "verb_past": "Indexed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Instruments",
+      "verb_past": "Instrumented",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Integrates",
+      "verb_past": "Integrated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Iterates",
+      "verb_past": "Iterated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Launches",
+      "verb_past": "Launched",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Maintains",
+      "verb_past": "Maintained",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Migrates",
+      "verb_past": "Migrated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Modernises",
+      "verb_past": "Modernised",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Monitors",
+      "verb_past": "Monitored",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Optimises",
+      "verb_past": "Optimised",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Orchestrates",
+      "verb_past": "Orchestrated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Parses",
+      "verb_past": "Parsed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Patches",
+      "verb_past": "Patched",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Profiles",
+      "verb_past": "Profiled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Prototypes",
+      "verb_past": "Prototyped",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Provisions",
+      "verb_past": "Provisioned",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Refactors",
+      "verb_past": "Refactored",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Releases",
+      "verb_past": "Released",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Rewrites",
+      "verb_past": "Rewrote",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Scales",
+      "verb_past": "Scaled",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Ships",
+      "verb_past": "Shipped",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Stabilises",
+      "verb_past": "Stabilised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Streamlines",
+      "verb_past": "Streamlined",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Strengthens",
+      "verb_past": "Strengthened",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Tests",
+      "verb_past": "Tested",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Tunes",
+      "verb_past": "Tuned",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Upgrades",
+      "verb_past": "Upgraded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Validates",
+      "verb_past": "Validated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Wires",
+      "verb_past": "Wired",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Automates",
+      "verb_past": "Automated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Caches",
+      "verb_past": "Cached",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Containerises",
+      "verb_past": "Containerised",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Authenticates",
+      "verb_past": "Authenticated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Authorises",
+      "verb_past": "Authorised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Backports",
+      "verb_past": "Backported",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Bootstraps",
+      "verb_past": "Bootstrapped",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Encrypts",
+      "verb_past": "Encrypted",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Mocks",
+      "verb_past": "Mocked",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pairs",
+      "verb_past": "Paired",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reviews",
+      "verb_past": "Reviewed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Schedules",
+      "verb_past": "Scheduled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Streams",
+      "verb_past": "Streamed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Stubs",
+      "verb_past": "Stubbed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Versions",
+      "verb_past": "Versioned",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Lints",
+      "verb_past": "Linted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Batches",
+      "verb_past": "Batched",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Queues",
+      "verb_past": "Queued",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Compiles",
+      "verb_past": "Compiled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Bundles",
+      "verb_past": "Bundled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Transpiles",
+      "verb_past": "Transpiled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Polyfills",
+      "verb_past": "Polyfilled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Mounts",
+      "verb_past": "Mounted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Unmounts",
+      "verb_past": "Unmounted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Rebuilds",
+      "verb_past": "Rebuilt",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Repackages",
+      "verb_past": "Repackaged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Rehydrates",
+      "verb_past": "Rehydrated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Serialises",
+      "verb_past": "Serialised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Deserialises",
+      "verb_past": "Deserialised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Encodes",
+      "verb_past": "Encoded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Decodes",
+      "verb_past": "Decoded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Compresses",
+      "verb_past": "Compressed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Decompresses",
+      "verb_past": "Decompressed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Throttles",
+      "verb_past": "Throttled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Debounces",
+      "verb_past": "Debounced",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Memoises",
+      "verb_past": "Memoised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Vectorises",
+      "verb_past": "Vectorised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Quantises",
+      "verb_past": "Quantised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Distils",
+      "verb_past": "Distilled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Fine-tunes",
+      "verb_past": "Fine-tuned",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Pretrains",
+      "verb_past": "Pretrained",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Embeds",
+      "verb_past": "Embedded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Retrieves",
+      "verb_past": "Retrieved",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Aggregates",
+      "verb_past": "Aggregated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Joins",
+      "verb_past": "Joined",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Materialises",
+      "verb_past": "Materialised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Replicates",
+      "verb_past": "Replicated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Shards",
+      "verb_past": "Sharded",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Partitions",
+      "verb_past": "Partitioned",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Snapshots",
+      "verb_past": "Snapshotted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Backs up",
+      "verb_past": "Backed up",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Restores",
+      "verb_past": "Restored",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Rolls back",
+      "verb_past": "Rolled back",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Smoke-tests",
+      "verb_past": "Smoke-tested",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Load-tests",
+      "verb_past": "Load-tested",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Stress-tests",
+      "verb_past": "Stress-tested",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Penetration-tests",
+      "verb_past": "Penetration-tested",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Fingerprints",
+      "verb_past": "Fingerprinted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Whitelists",
+      "verb_past": "Whitelisted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Blacklists",
+      "verb_past": "Blacklisted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sandboxes",
+      "verb_past": "Sandboxed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Isolates",
+      "verb_past": "Isolated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Mirrors",
+      "verb_past": "Mirrored",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Forks",
+      "verb_past": "Forked",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Merges",
+      "verb_past": "Merged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Rebases",
+      "verb_past": "Rebased",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Cherry-picks",
+      "verb_past": "Cherry-picked",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reverts",
+      "verb_past": "Reverted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Bisects",
+      "verb_past": "Bisected",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Tags",
+      "verb_past": "Tagged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pushes",
+      "verb_past": "Pushed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pulls",
+      "verb_past": "Pulled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Rotates",
+      "verb_past": "Rotated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Decommissions",
+      "verb_past": "Decommissioned",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Greenfields",
+      "verb_past": "Greenfielded",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Brownfields",
+      "verb_past": "Brownfielded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Lifts",
+      "verb_past": "Lifted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Shifts",
+      "verb_past": "Shifted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-platforms",
+      "verb_past": "Re-platformed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-architects",
+      "verb_past": "Re-architected",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Decentralises",
+      "verb_past": "Decentralised",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Centralises",
+      "verb_past": "Centralised",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Federates",
+      "verb_past": "Federated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Hot-fixes",
+      "verb_past": "Hot-fixed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Live-patches",
+      "verb_past": "Live-patched",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Canary-releases",
+      "verb_past": "Canary-released",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Blue-greens",
+      "verb_past": "Blue-greened",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Rolls",
+      "verb_past": "Rolled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sanitises",
+      "verb_past": "Sanitised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Scrubs",
+      "verb_past": "Scrubbed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Anonymises",
+      "verb_past": "Anonymised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pseudonymises",
+      "verb_past": "Pseudonymised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Tokenises",
+      "verb_past": "Tokenised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hashes",
+      "verb_past": "Hashed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Salts",
+      "verb_past": "Salted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Signs",
+      "verb_past": "Signed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Verifies",
+      "verb_past": "Verified",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Notarises",
+      "verb_past": "Notarised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Attests",
+      "verb_past": "Attested",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Codifies",
+      "verb_past": "Codified",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Enforces",
+      "verb_past": "Enforced",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Gatekeeps",
+      "verb_past": "Gatekept",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Rate-limits",
+      "verb_past": "Rate-limited",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Backpressures",
+      "verb_past": "Backpressured",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Dispatches",
+      "verb_past": "Dispatched",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Routes",
+      "verb_past": "Routed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Resolves",
+      "verb_past": "Resolved",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Forwards",
+      "verb_past": "Forwarded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Tunnels",
+      "verb_past": "Tunnelled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Bridges",
+      "verb_past": "Bridged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Peers",
+      "verb_past": "Peered",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Benchmarks",
+      "verb_past": "Benchmarked",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Observes",
+      "verb_past": "Observed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Traces",
+      "verb_past": "Traced",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Logs",
+      "verb_past": "Logged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Alerts",
+      "verb_past": "Alerted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pages",
+      "verb_past": "Paged",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Dashboards",
+      "verb_past": "Dashboarded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Templates",
+      "verb_past": "Templated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Scaffolds",
+      "verb_past": "Scaffolded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Boilerplates",
+      "verb_past": "Boilerplated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Generates",
+      "verb_past": "Generated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Mutates",
+      "verb_past": "Mutated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Subscribes",
+      "verb_past": "Subscribed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Publishes",
+      "verb_past": "Published",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Broadcasts",
+      "verb_past": "Broadcast",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Multicasts",
+      "verb_past": "Multicast",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Unicasts",
+      "verb_past": "Unicast",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 6
+    },
+    {
+      "verb_present": "Polls",
+      "verb_past": "Polled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Long-polls",
+      "verb_past": "Long-polled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Web-sockets",
+      "verb_past": "Web-socketed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Webhooks",
+      "verb_past": "Webhooked",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sinks",
+      "verb_past": "Sank",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sources",
+      "verb_past": "Sourced",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pipelines",
+      "verb_past": "Pipelined",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Fan-outs",
+      "verb_past": "Fanned out",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Fan-ins",
+      "verb_past": "Fanned in",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Idempotentises",
+      "verb_past": "Idempotised",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Upserts",
+      "verb_past": "Upserted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Backfills",
+      "verb_past": "Backfilled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Forward-fills",
+      "verb_past": "Forward-filled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reconciles",
+      "verb_past": "Reconciled",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Replays",
+      "verb_past": "Replayed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Compacts",
+      "verb_past": "Compacted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Vacuums",
+      "verb_past": "Vacuumed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reindexes",
+      "verb_past": "Reindexed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sharpens",
+      "verb_past": "Sharpened",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Rate-shapes",
+      "verb_past": "Rate-shaped",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Curates",
+      "verb_past": "Curated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Promotes",
+      "verb_past": "Promoted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Demotes",
+      "verb_past": "Demoted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Retires",
+      "verb_past": "Retired",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Deprecates",
+      "verb_past": "Deprecated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sunsets",
+      "verb_past": "Sunsetted",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-keys",
+      "verb_past": "Re-keyed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Hot-reloads",
+      "verb_past": "Hot-reloaded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sideloads",
+      "verb_past": "Sideloaded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pre-loads",
+      "verb_past": "Pre-loaded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Off-loads",
+      "verb_past": "Off-loaded",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-balances",
+      "verb_past": "Re-balanced",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Live-migrates",
+      "verb_past": "Live-migrated",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Cold-starts",
+      "verb_past": "Cold-started",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Warm-starts",
+      "verb_past": "Warm-started",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hot-swaps",
+      "verb_past": "Hot-swapped",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Live-edits",
+      "verb_past": "Live-edited",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-renders",
+      "verb_past": "Re-rendered",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-flows",
+      "verb_past": "Re-flowed",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Hydrates",
+      "verb_past": "Hydrated",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pre-renders",
+      "verb_past": "Pre-rendered",
+      "category": "technical",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Server-renders",
+      "verb_past": "Server-rendered",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Edge-deploys",
+      "verb_past": "Edge-deployed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Worker-deploys",
+      "verb_past": "Worker-deployed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Lambda-deploys",
+      "verb_past": "Lambda-deployed",
+      "category": "technical",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Leads",
+      "verb_past": "Led",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Manages",
+      "verb_past": "Managed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Directs",
+      "verb_past": "Directed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Oversees",
+      "verb_past": "Oversaw",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Coordinates",
+      "verb_past": "Coordinated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Supervises",
+      "verb_past": "Supervised",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Mentors",
+      "verb_past": "Mentored",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Coaches",
+      "verb_past": "Coached",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Develops",
+      "verb_past": "Developed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Empowers",
+      "verb_past": "Empowered",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Aligns",
+      "verb_past": "Aligned",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Champions",
+      "verb_past": "Championed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Drives",
+      "verb_past": "Drove",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Enables",
+      "verb_past": "Enabled",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Facilitates",
+      "verb_past": "Facilitated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Galvanises",
+      "verb_past": "Galvanised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Guides",
+      "verb_past": "Guided",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Heads",
+      "verb_past": "Headed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Influences",
+      "verb_past": "Influenced",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Inspires",
+      "verb_past": "Inspired",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Mobilises",
+      "verb_past": "Mobilised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Motivates",
+      "verb_past": "Motivated",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Negotiates",
+      "verb_past": "Negotiated",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Onboards",
+      "verb_past": "Onboarded",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Orchestrates",
+      "verb_past": "Orchestrated",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Outsources",
+      "verb_past": "Outsourced",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Owns",
+      "verb_past": "Owned",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Partners",
+      "verb_past": "Partnered",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pioneers",
+      "verb_past": "Pioneered",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Plans",
+      "verb_past": "Planned",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Prioritises",
+      "verb_past": "Prioritised",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Recruits",
+      "verb_past": "Recruited",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reorganises",
+      "verb_past": "Reorganised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Resolves",
+      "verb_past": "Resolved",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Restructures",
+      "verb_past": "Restructured",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Reviews",
+      "verb_past": "Reviewed",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Rolls out",
+      "verb_past": "Rolled out",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Scales",
+      "verb_past": "Scaled",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sets",
+      "verb_past": "Set",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Shapes",
+      "verb_past": "Shaped",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Spearheads",
+      "verb_past": "Spearheaded",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sponsors",
+      "verb_past": "Sponsored",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Stages",
+      "verb_past": "Staged",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Steers",
+      "verb_past": "Steered",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Strategises",
+      "verb_past": "Strategised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Structures",
+      "verb_past": "Structured",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Supports",
+      "verb_past": "Supported",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sustains",
+      "verb_past": "Sustained",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Trains",
+      "verb_past": "Trained",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Transforms",
+      "verb_past": "Transformed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Unifies",
+      "verb_past": "Unified",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Upskills",
+      "verb_past": "Upskilled",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hires",
+      "verb_past": "Hired",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Promotes",
+      "verb_past": "Promoted",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Retains",
+      "verb_past": "Retained",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-engages",
+      "verb_past": "Re-engaged",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-skills",
+      "verb_past": "Re-skilled",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Cross-trains",
+      "verb_past": "Cross-trained",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Delegates",
+      "verb_past": "Delegated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Escalates",
+      "verb_past": "Escalated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "De-escalates",
+      "verb_past": "De-escalated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Mediates",
+      "verb_past": "Mediated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Adjudicates",
+      "verb_past": "Adjudicated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Arbitrates",
+      "verb_past": "Arbitrated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Brokers",
+      "verb_past": "Brokered",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Convenes",
+      "verb_past": "Convened",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Chairs",
+      "verb_past": "Chaired",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Hosts",
+      "verb_past": "Hosted",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Moderates",
+      "verb_past": "Moderated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Officiates",
+      "verb_past": "Officiated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Ratifies",
+      "verb_past": "Ratified",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sanctions",
+      "verb_past": "Sanctioned",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Authorises",
+      "verb_past": "Authorised",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Empanels",
+      "verb_past": "Empanelled",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Constitutes",
+      "verb_past": "Constituted",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Stewards",
+      "verb_past": "Stewarded",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Custodians",
+      "verb_past": "Custodianed",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Governs",
+      "verb_past": "Governed",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Polices",
+      "verb_past": "Policed",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Enforces",
+      "verb_past": "Enforced",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Audits",
+      "verb_past": "Audited",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Vets",
+      "verb_past": "Vetted",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Approves",
+      "verb_past": "Approved",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Rejects",
+      "verb_past": "Rejected",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Calibrates",
+      "verb_past": "Calibrated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Right-sizes",
+      "verb_past": "Right-sized",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-baselines",
+      "verb_past": "Re-baselined",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-charters",
+      "verb_past": "Re-chartered",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Charters",
+      "verb_past": "Chartered",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Mandates",
+      "verb_past": "Mandated",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Commissions",
+      "verb_past": "Commissioned",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Decommissions",
+      "verb_past": "Decommissioned",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sunsets",
+      "verb_past": "Sunsetted",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Wind-downs",
+      "verb_past": "Wound down",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Stands up",
+      "verb_past": "Stood up",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Stands down",
+      "verb_past": "Stood down",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Greenfields",
+      "verb_past": "Greenfielded",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Turnarounds",
+      "verb_past": "Turned around",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Recovers",
+      "verb_past": "Recovered",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Rescues",
+      "verb_past": "Rescued",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Salvages",
+      "verb_past": "Salvaged",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-floats",
+      "verb_past": "Re-floated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Resets",
+      "verb_past": "Reset",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-launches",
+      "verb_past": "Re-launched",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Pivots",
+      "verb_past": "Pivoted",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-orgs",
+      "verb_past": "Re-orged",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-tools",
+      "verb_past": "Re-tooled",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Up-levels",
+      "verb_past": "Up-levelled",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Down-levels",
+      "verb_past": "Down-levelled",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Cascades",
+      "verb_past": "Cascaded",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Embeds",
+      "verb_past": "Embedded",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Institutionalises",
+      "verb_past": "Institutionalised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Operationalises",
+      "verb_past": "Operationalised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Codifies",
+      "verb_past": "Codified",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Formalises",
+      "verb_past": "Formalised",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Standardises",
+      "verb_past": "Standardised",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Templates",
+      "verb_past": "Templated",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Playbooks",
+      "verb_past": "Playbooked",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Runbooks",
+      "verb_past": "Runbooked",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hand-books",
+      "verb_past": "Hand-booked",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-organises",
+      "verb_past": "Re-organised",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-resources",
+      "verb_past": "Re-resourced",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-assigns",
+      "verb_past": "Re-assigned",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-prioritises",
+      "verb_past": "Re-prioritised",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-scopes",
+      "verb_past": "Re-scoped",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Right-shores",
+      "verb_past": "Right-shored",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Near-shores",
+      "verb_past": "Near-shored",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Off-shores",
+      "verb_past": "Off-shored",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "On-shores",
+      "verb_past": "On-shored",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "In-sources",
+      "verb_past": "In-sourced",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Co-sources",
+      "verb_past": "Co-sourced",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Multi-sources",
+      "verb_past": "Multi-sourced",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Single-sources",
+      "verb_past": "Single-sourced",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Dual-tracks",
+      "verb_past": "Dual-tracked",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Triple-tracks",
+      "verb_past": "Triple-tracked",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Fast-tracks",
+      "verb_past": "Fast-tracked",
+      "category": "management",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Slow-tracks",
+      "verb_past": "Slow-tracked",
+      "category": "management",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Analyses",
+      "verb_past": "Analysed",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Assesses",
+      "verb_past": "Assessed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Benchmarks",
+      "verb_past": "Benchmarked",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Calculates",
+      "verb_past": "Calculated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Categorises",
+      "verb_past": "Categorised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Classifies",
+      "verb_past": "Classified",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Compares",
+      "verb_past": "Compared",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Computes",
+      "verb_past": "Computed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Conducts",
+      "verb_past": "Conducted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Correlates",
+      "verb_past": "Correlated",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Decodes",
+      "verb_past": "Decoded",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Diagnoses",
+      "verb_past": "Diagnosed",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Disaggregates",
+      "verb_past": "Disaggregated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Dissects",
+      "verb_past": "Dissected",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Distinguishes",
+      "verb_past": "Distinguished",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Documents",
+      "verb_past": "Documented",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Estimates",
+      "verb_past": "Estimated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Evaluates",
+      "verb_past": "Evaluated",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Examines",
+      "verb_past": "Examined",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Extracts",
+      "verb_past": "Extracted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Forecasts",
+      "verb_past": "Forecasted",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Identifies",
+      "verb_past": "Identified",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Inspects",
+      "verb_past": "Inspected",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Interprets",
+      "verb_past": "Interpreted",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Investigates",
+      "verb_past": "Investigated",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Maps",
+      "verb_past": "Mapped",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Measures",
+      "verb_past": "Measured",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Models",
+      "verb_past": "Modelled",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Monitors",
+      "verb_past": "Monitored",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Quantifies",
+      "verb_past": "Quantified",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Researches",
+      "verb_past": "Researched",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reviews",
+      "verb_past": "Reviewed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Scrutinises",
+      "verb_past": "Scrutinised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Segments",
+      "verb_past": "Segmented",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Simulates",
+      "verb_past": "Simulated",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sizes",
+      "verb_past": "Sized",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Studies",
+      "verb_past": "Studied",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Surveys",
+      "verb_past": "Surveyed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Synthesises",
+      "verb_past": "Synthesised",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Tests",
+      "verb_past": "Tested",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Tracks",
+      "verb_past": "Tracked",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Validates",
+      "verb_past": "Validated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Verifies",
+      "verb_past": "Verified",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Visualises",
+      "verb_past": "Visualised",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Weighs",
+      "verb_past": "Weighed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "A/B tests",
+      "verb_past": "A/B tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Multivariate-tests",
+      "verb_past": "Multivariate-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Cohorts",
+      "verb_past": "Cohorted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Funnels",
+      "verb_past": "Funnelled",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Attributes",
+      "verb_past": "Attributed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "De-duplicates",
+      "verb_past": "De-duplicated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reconciles",
+      "verb_past": "Reconciled",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Triangulates",
+      "verb_past": "Triangulated",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Cross-references",
+      "verb_past": "Cross-referenced",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Stress-tests",
+      "verb_past": "Stress-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sensitivity-tests",
+      "verb_past": "Sensitivity-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Back-tests",
+      "verb_past": "Back-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Out-of-sample-tests",
+      "verb_past": "Out-of-sample-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Walks forward",
+      "verb_past": "Walked forward",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hypothesises",
+      "verb_past": "Hypothesised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Falsifies",
+      "verb_past": "Falsified",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Refutes",
+      "verb_past": "Refuted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Substantiates",
+      "verb_past": "Substantiated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Corroborates",
+      "verb_past": "Corroborated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Profiles",
+      "verb_past": "Profiled",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Clusters",
+      "verb_past": "Clustered",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Regresses",
+      "verb_past": "Regressed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Predicts",
+      "verb_past": "Predicted",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Projects",
+      "verb_past": "Projected",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Nowcasts",
+      "verb_past": "Nowcasted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Smooths",
+      "verb_past": "Smoothed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "De-trends",
+      "verb_past": "De-trended",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "De-seasonalises",
+      "verb_past": "De-seasonalised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Imputes",
+      "verb_past": "Imputed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Infers",
+      "verb_past": "Inferred",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Deduces",
+      "verb_past": "Deduced",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Extrapolates",
+      "verb_past": "Extrapolated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Interpolates",
+      "verb_past": "Interpolated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Tabulates",
+      "verb_past": "Tabulated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Charts",
+      "verb_past": "Charted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Plots",
+      "verb_past": "Plotted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Heatmaps",
+      "verb_past": "Heatmapped",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sankeys",
+      "verb_past": "Sankeyed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Histograms",
+      "verb_past": "Histogrammed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Box-plots",
+      "verb_past": "Box-plotted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Decomposes",
+      "verb_past": "Decomposed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-aggregates",
+      "verb_past": "Re-aggregated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pivots",
+      "verb_past": "Pivoted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Drills down",
+      "verb_past": "Drilled down",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Rolls up",
+      "verb_past": "Rolled up",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Slices",
+      "verb_past": "Sliced",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Dices",
+      "verb_past": "Diced",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Bins",
+      "verb_past": "Binned",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Bucketises",
+      "verb_past": "Bucketised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Z-scores",
+      "verb_past": "Z-scored",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Standardises",
+      "verb_past": "Standardised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Normalises",
+      "verb_past": "Normalised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Whitens",
+      "verb_past": "Whitened",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Encodes",
+      "verb_past": "Encoded",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "One-hot-encodes",
+      "verb_past": "One-hot-encoded",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Embeds",
+      "verb_past": "Embedded",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Vectorises",
+      "verb_past": "Vectorised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Tokenises",
+      "verb_past": "Tokenised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Lemmatises",
+      "verb_past": "Lemmatised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Stems",
+      "verb_past": "Stemmed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "NER-tags",
+      "verb_past": "NER-tagged",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "POS-tags",
+      "verb_past": "POS-tagged",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sentiment-scores",
+      "verb_past": "Sentiment-scored",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Topic-models",
+      "verb_past": "Topic-modelled",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Recommends",
+      "verb_past": "Recommended",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Concludes",
+      "verb_past": "Concluded",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reports",
+      "verb_past": "Reported",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Briefs",
+      "verb_past": "Briefed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Debriefs",
+      "verb_past": "Debriefed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Frames",
+      "verb_past": "Framed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-frames",
+      "verb_past": "Re-framed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Stress-frames",
+      "verb_past": "Stress-framed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Scenarios",
+      "verb_past": "Scenarioed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "War-games",
+      "verb_past": "War-gamed",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Pre-mortems",
+      "verb_past": "Pre-mortemed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Post-mortems",
+      "verb_past": "Post-mortemed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Root-causes",
+      "verb_past": "Root-caused",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "5-whys",
+      "verb_past": "5-whyed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Fishbones",
+      "verb_past": "Fishboned",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pareto-charts",
+      "verb_past": "Pareto-charted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "SWOTs",
+      "verb_past": "SWOT-ed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "PESTLEs",
+      "verb_past": "PESTLE-d",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Porters-fives",
+      "verb_past": "Porters-fived",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Value-chains",
+      "verb_past": "Value-chained",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Journey-maps",
+      "verb_past": "Journey-mapped",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Service-blueprints",
+      "verb_past": "Service-blueprinted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Stakeholder-maps",
+      "verb_past": "Stakeholder-mapped",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Capability-maps",
+      "verb_past": "Capability-mapped",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Process-maps",
+      "verb_past": "Process-mapped",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Value-streams",
+      "verb_past": "Value-streamed",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Kano-models",
+      "verb_past": "Kano-modelled",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Cost-benefits",
+      "verb_past": "Cost-benefited",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Break-evens",
+      "verb_past": "Broke-even",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sensitises",
+      "verb_past": "Sensitised",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Flexes",
+      "verb_past": "Flexed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Stresses",
+      "verb_past": "Stressed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reverse-engineers",
+      "verb_past": "Reverse-engineered",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "De-risks",
+      "verb_past": "De-risked",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Pre-empts",
+      "verb_past": "Pre-empted",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "War-rooms",
+      "verb_past": "War-roomed",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Strategy-tests",
+      "verb_past": "Strategy-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Pressure-tests",
+      "verb_past": "Pressure-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Battle-tests",
+      "verb_past": "Battle-tested",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Field-tests",
+      "verb_past": "Field-tested",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "User-tests",
+      "verb_past": "User-tested",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Smoke-screens",
+      "verb_past": "Smoke-screened",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-runs",
+      "verb_past": "Re-ran",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-evaluates",
+      "verb_past": "Re-evaluated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-baselines",
+      "verb_past": "Re-baselined",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-benchmarks",
+      "verb_past": "Re-benchmarked",
+      "category": "analysis",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-segments",
+      "verb_past": "Re-segmented",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-cohorts",
+      "verb_past": "Re-cohorted",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-funnels",
+      "verb_past": "Re-funnelled",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-attributes",
+      "verb_past": "Re-attributed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-imputes",
+      "verb_past": "Re-imputed",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-validates",
+      "verb_past": "Re-validated",
+      "category": "analysis",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Articulates",
+      "verb_past": "Articulated",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Authors",
+      "verb_past": "Authored",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Briefs",
+      "verb_past": "Briefed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Champions",
+      "verb_past": "Championed",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Clarifies",
+      "verb_past": "Clarified",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Coaches",
+      "verb_past": "Coached",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Collaborates",
+      "verb_past": "Collaborated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Communicates",
+      "verb_past": "Communicated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Conveys",
+      "verb_past": "Conveyed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Convinces",
+      "verb_past": "Convinced",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Coordinates",
+      "verb_past": "Coordinated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Counsels",
+      "verb_past": "Counselled",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Crafts",
+      "verb_past": "Crafted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Critiques",
+      "verb_past": "Critiqued",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Curates",
+      "verb_past": "Curated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Debates",
+      "verb_past": "Debated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Delivers",
+      "verb_past": "Delivered",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Demonstrates",
+      "verb_past": "Demonstrated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Drafts",
+      "verb_past": "Drafted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Edits",
+      "verb_past": "Edited",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Educates",
+      "verb_past": "Educated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Engages",
+      "verb_past": "Engaged",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Explains",
+      "verb_past": "Explained",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Facilitates",
+      "verb_past": "Facilitated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hosts",
+      "verb_past": "Hosted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Influences",
+      "verb_past": "Influenced",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Informs",
+      "verb_past": "Informed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Lectures",
+      "verb_past": "Lectured",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Liaises",
+      "verb_past": "Liaised",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Lobbies",
+      "verb_past": "Lobbied",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Markets",
+      "verb_past": "Marketed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Mediates",
+      "verb_past": "Mediated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Moderates",
+      "verb_past": "Moderated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Negotiates",
+      "verb_past": "Negotiated",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Networks",
+      "verb_past": "Networked",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Outlines",
+      "verb_past": "Outlined",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Persuades",
+      "verb_past": "Persuaded",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Pitches",
+      "verb_past": "Pitched",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Presents",
+      "verb_past": "Presented",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Promotes",
+      "verb_past": "Promoted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Publicises",
+      "verb_past": "Publicised",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Publishes",
+      "verb_past": "Published",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reframes",
+      "verb_past": "Reframed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reports",
+      "verb_past": "Reported",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Represents",
+      "verb_past": "Represented",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Responds",
+      "verb_past": "Responded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reviews",
+      "verb_past": "Reviewed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sells",
+      "verb_past": "Sold",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Shares",
+      "verb_past": "Shared",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Speaks",
+      "verb_past": "Spoke",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Storytells",
+      "verb_past": "Storytold",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Summarises",
+      "verb_past": "Summarised",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Synthesises",
+      "verb_past": "Synthesised",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Teaches",
+      "verb_past": "Taught",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Trains",
+      "verb_past": "Trained",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Translates",
+      "verb_past": "Translated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Tutors",
+      "verb_past": "Tutored",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Upsells",
+      "verb_past": "Upsold",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Writes",
+      "verb_past": "Wrote",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "De-briefs",
+      "verb_past": "De-briefed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Workshops",
+      "verb_past": "Workshopped",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Roadshows",
+      "verb_past": "Roadshowed",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Townhalls",
+      "verb_past": "Townhalled",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Keynotes",
+      "verb_past": "Keynoted",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Panels",
+      "verb_past": "Panelled",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Mentors",
+      "verb_past": "Mentored",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Advocates",
+      "verb_past": "Advocated",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Petitions",
+      "verb_past": "Petitioned",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Canvasses",
+      "verb_past": "Canvassed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Solicits",
+      "verb_past": "Solicited",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Surveys",
+      "verb_past": "Surveyed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Polls",
+      "verb_past": "Polled",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Interviews",
+      "verb_past": "Interviewed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Convenes",
+      "verb_past": "Convened",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Galvanises",
+      "verb_past": "Galvanised",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Mobilises",
+      "verb_past": "Mobilised",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Rallies",
+      "verb_past": "Rallied",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Energises",
+      "verb_past": "Energised",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-engages",
+      "verb_past": "Re-engaged",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-frames",
+      "verb_past": "Re-framed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-positions",
+      "verb_past": "Re-positioned",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-brands",
+      "verb_past": "Re-branded",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-launches",
+      "verb_past": "Re-launched",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Onboards",
+      "verb_past": "Onboarded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Off-boards",
+      "verb_past": "Off-boarded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Hand-overs",
+      "verb_past": "Handed over",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Hand-offs",
+      "verb_past": "Handed off",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Walks through",
+      "verb_past": "Walked through",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Run-throughs",
+      "verb_past": "Ran through",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Showcases",
+      "verb_past": "Showcased",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Demos",
+      "verb_past": "Demoed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Beta-tests",
+      "verb_past": "Beta-tested",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Soft-launches",
+      "verb_past": "Soft-launched",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hard-launches",
+      "verb_past": "Hard-launched",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Goes live",
+      "verb_past": "Went live",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Cascades",
+      "verb_past": "Cascaded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Echoes",
+      "verb_past": "Echoed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Reinforces",
+      "verb_past": "Reinforced",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Underscores",
+      "verb_past": "Underscored",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Highlights",
+      "verb_past": "Highlighted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Spotlights",
+      "verb_past": "Spotlighted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Amplifies",
+      "verb_past": "Amplified",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Broadcasts",
+      "verb_past": "Broadcast",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Newsletters",
+      "verb_past": "Newslettered",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Podcasts",
+      "verb_past": "Podcasted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Blogs",
+      "verb_past": "Blogged",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Vlogs",
+      "verb_past": "Vlogged",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Op-eds",
+      "verb_past": "Op-edded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Bylines",
+      "verb_past": "Bylined",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Ghost-writes",
+      "verb_past": "Ghost-wrote",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Co-authors",
+      "verb_past": "Co-authored",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Peer-reviews",
+      "verb_past": "Peer-reviewed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "White-papers",
+      "verb_past": "White-papered",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Case-studies",
+      "verb_past": "Case-studied",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Testimonialises",
+      "verb_past": "Testimonialised",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Quotes",
+      "verb_past": "Quoted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Cites",
+      "verb_past": "Cited",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "References",
+      "verb_past": "Referenced",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Footnotes",
+      "verb_past": "Footnoted",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 6
+    },
+    {
+      "verb_present": "Re-cascades",
+      "verb_past": "Re-cascaded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-amplifies",
+      "verb_past": "Re-amplified",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-pitches",
+      "verb_past": "Re-pitched",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-presents",
+      "verb_past": "Re-presented",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-introduces",
+      "verb_past": "Re-introduced",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-onboards",
+      "verb_past": "Re-onboarded",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-stories",
+      "verb_past": "Re-storied",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-narrates",
+      "verb_past": "Re-narrated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-anchors",
+      "verb_past": "Re-anchored",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-aligns",
+      "verb_past": "Re-aligned",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-validates",
+      "verb_past": "Re-validated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-confirms",
+      "verb_past": "Re-confirmed",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-states",
+      "verb_past": "Re-stated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-iterates",
+      "verb_past": "Re-iterated",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-emphasises",
+      "verb_past": "Re-emphasised",
+      "category": "communication",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-articulates",
+      "verb_past": "Re-articulated",
+      "category": "communication",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Allocates",
+      "verb_past": "Allocated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Audits",
+      "verb_past": "Audited",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Balances",
+      "verb_past": "Balanced",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Banks",
+      "verb_past": "Banked",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Books",
+      "verb_past": "Booked",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Budgets",
+      "verb_past": "Budgeted",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Calculates",
+      "verb_past": "Calculated",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Capitalises",
+      "verb_past": "Capitalised",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Closes",
+      "verb_past": "Closed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Collects",
+      "verb_past": "Collected",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Computes",
+      "verb_past": "Computed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Consolidates",
+      "verb_past": "Consolidated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Controls",
+      "verb_past": "Controlled",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Costs",
+      "verb_past": "Costed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Deposits",
+      "verb_past": "Deposited",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Discounts",
+      "verb_past": "Discounted",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Diversifies",
+      "verb_past": "Diversified",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Earns",
+      "verb_past": "Earned",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Exceeds",
+      "verb_past": "Exceeded",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Finances",
+      "verb_past": "Financed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Forecasts",
+      "verb_past": "Forecasted",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Funds",
+      "verb_past": "Funded",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Gains",
+      "verb_past": "Gained",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Generates",
+      "verb_past": "Generated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Grows",
+      "verb_past": "Grew",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Hedges",
+      "verb_past": "Hedged",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Increases",
+      "verb_past": "Increased",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Invests",
+      "verb_past": "Invested",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Leverages",
+      "verb_past": "Leveraged",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Liquidates",
+      "verb_past": "Liquidated",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Loans",
+      "verb_past": "Loaned",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Manages",
+      "verb_past": "Managed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Maximises",
+      "verb_past": "Maximised",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Measures",
+      "verb_past": "Measured",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Mitigates",
+      "verb_past": "Mitigated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Models",
+      "verb_past": "Modelled",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Monitors",
+      "verb_past": "Monitored",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Negotiates",
+      "verb_past": "Negotiated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Optimises",
+      "verb_past": "Optimised",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Owns",
+      "verb_past": "Owned",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pays",
+      "verb_past": "Paid",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Plans",
+      "verb_past": "Planned",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Prices",
+      "verb_past": "Priced",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Procures",
+      "verb_past": "Procured",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Profits",
+      "verb_past": "Profited",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Projects",
+      "verb_past": "Projected",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Quantifies",
+      "verb_past": "Quantified",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Raises",
+      "verb_past": "Raised",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Reconciles",
+      "verb_past": "Reconciled",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Recovers",
+      "verb_past": "Recovered",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reduces",
+      "verb_past": "Reduced",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Refinances",
+      "verb_past": "Refinanced",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reinvests",
+      "verb_past": "Reinvested",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reports",
+      "verb_past": "Reported",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Restructures",
+      "verb_past": "Restructured",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Returns",
+      "verb_past": "Returned",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Saves",
+      "verb_past": "Saved",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Secures",
+      "verb_past": "Secured",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Settles",
+      "verb_past": "Settled",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Slashes",
+      "verb_past": "Slashed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Spends",
+      "verb_past": "Spent",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Stewards",
+      "verb_past": "Stewarded",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Streamlines",
+      "verb_past": "Streamlined",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Strengthens",
+      "verb_past": "Strengthened",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Stretches",
+      "verb_past": "Stretched",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Submits",
+      "verb_past": "Submitted",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Subsidises",
+      "verb_past": "Subsidised",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Surpasses",
+      "verb_past": "Surpassed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Trades",
+      "verb_past": "Traded",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Trims",
+      "verb_past": "Trimmed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Underwrites",
+      "verb_past": "Underwrote",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Upsells",
+      "verb_past": "Upsold",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Values",
+      "verb_past": "Valued",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Verifies",
+      "verb_past": "Verified",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Wins",
+      "verb_past": "Won",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Yields",
+      "verb_past": "Yielded",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Closes the books",
+      "verb_past": "Closed the books",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reforecasts",
+      "verb_past": "Reforecasted",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-baselines",
+      "verb_past": "Re-baselined",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Variance-analyses",
+      "verb_past": "Variance-analysed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Roll-forwards",
+      "verb_past": "Roll-forwarded",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Accruals",
+      "verb_past": "Accrued",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Defers",
+      "verb_past": "Deferred",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Amortises",
+      "verb_past": "Amortised",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Depreciates",
+      "verb_past": "Depreciated",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Expenses",
+      "verb_past": "Expensed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Allocates overheads",
+      "verb_past": "Allocated overheads",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-classifies",
+      "verb_past": "Re-classified",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Eliminates",
+      "verb_past": "Eliminated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Translates currency",
+      "verb_past": "Translated currency",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hedges FX",
+      "verb_past": "Hedged FX",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Hedges rates",
+      "verb_past": "Hedged rates",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sweeps cash",
+      "verb_past": "Swept cash",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pools cash",
+      "verb_past": "Pooled cash",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Repatriates",
+      "verb_past": "Repatriated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Tax-optimises",
+      "verb_past": "Tax-optimised",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Tax-loss-harvests",
+      "verb_past": "Tax-loss-harvested",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Files",
+      "verb_past": "Filed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Discloses",
+      "verb_past": "Disclosed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Restates",
+      "verb_past": "Restated",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-issues",
+      "verb_past": "Re-issued",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-prices",
+      "verb_past": "Re-priced",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-rates",
+      "verb_past": "Re-rated",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-syndicates",
+      "verb_past": "Re-syndicated",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Syndicates",
+      "verb_past": "Syndicated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Co-invests",
+      "verb_past": "Co-invested",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Bridge-finances",
+      "verb_past": "Bridge-financed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Mezzanines",
+      "verb_past": "Mezzanined",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "IPOs",
+      "verb_past": "IPOed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "SPACs",
+      "verb_past": "SPACed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Spins off",
+      "verb_past": "Spun off",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Carves out",
+      "verb_past": "Carved out",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Roll-ups",
+      "verb_past": "Rolled up",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "LBOs",
+      "verb_past": "LBOed",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Recaps",
+      "verb_past": "Recapped",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Restructures debt",
+      "verb_past": "Restructured debt",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Refinances debt",
+      "verb_past": "Refinanced debt",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Tenders",
+      "verb_past": "Tendered",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Buys back",
+      "verb_past": "Bought back",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Issues",
+      "verb_past": "Issued",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Floats",
+      "verb_past": "Floated",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Privatises",
+      "verb_past": "Privatised",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sources deals",
+      "verb_past": "Sourced deals",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Closes deals",
+      "verb_past": "Closed deals",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Diligences",
+      "verb_past": "Diligenced",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Models DCF",
+      "verb_past": "Modelled DCF",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "LBO-models",
+      "verb_past": "LBO-modelled",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Comp-analyses",
+      "verb_past": "Comp-analysed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Precedent-analyses",
+      "verb_past": "Precedent-analysed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pitches deals",
+      "verb_past": "Pitched deals",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-projects",
+      "verb_past": "Re-projected",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-flexes",
+      "verb_past": "Re-flexed",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-poolings",
+      "verb_past": "Re-pooled",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-tranches",
+      "verb_past": "Re-tranched",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-domiciles",
+      "verb_past": "Re-domiciled",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-stages",
+      "verb_past": "Re-staged",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-charters",
+      "verb_past": "Re-chartered",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Cross-sells",
+      "verb_past": "Cross-sold",
+      "category": "financial",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Up-tiers",
+      "verb_past": "Up-tiered",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Down-tiers",
+      "verb_past": "Down-tiered",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Pre-pays",
+      "verb_past": "Pre-paid",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Post-pays",
+      "verb_past": "Post-paid",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Drawdowns",
+      "verb_past": "Drew down",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Top-ups",
+      "verb_past": "Topped up",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Roll-overs",
+      "verb_past": "Rolled over",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Fold-ins",
+      "verb_past": "Folded in",
+      "category": "financial",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Animates",
+      "verb_past": "Animated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Brands",
+      "verb_past": "Branded",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Coaches",
+      "verb_past": "Coached",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Composes",
+      "verb_past": "Composed",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Conceives",
+      "verb_past": "Conceived",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Conceptualises",
+      "verb_past": "Conceptualised",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Creates",
+      "verb_past": "Created",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Curates",
+      "verb_past": "Curated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Customises",
+      "verb_past": "Customised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Designs",
+      "verb_past": "Designed",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Develops",
+      "verb_past": "Developed",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Devises",
+      "verb_past": "Devised",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Directs",
+      "verb_past": "Directed",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Draws",
+      "verb_past": "Drew",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Drives",
+      "verb_past": "Drove",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Edits",
+      "verb_past": "Edited",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Engineers",
+      "verb_past": "Engineered",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Envisions",
+      "verb_past": "Envisioned",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Establishes",
+      "verb_past": "Established",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Fashions",
+      "verb_past": "Fashioned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Films",
+      "verb_past": "Filmed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Forms",
+      "verb_past": "Formed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Founds",
+      "verb_past": "Founded",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Generates",
+      "verb_past": "Generated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Illustrates",
+      "verb_past": "Illustrated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Imagines",
+      "verb_past": "Imagined",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Improvises",
+      "verb_past": "Improvised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Initiates",
+      "verb_past": "Initiated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Innovates",
+      "verb_past": "Innovated",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Institutes",
+      "verb_past": "Instituted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Introduces",
+      "verb_past": "Introduced",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Invents",
+      "verb_past": "Invented",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Launches",
+      "verb_past": "Launched",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Makes",
+      "verb_past": "Made",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Models",
+      "verb_past": "Modelled",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Originates",
+      "verb_past": "Originated",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Paints",
+      "verb_past": "Painted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Performs",
+      "verb_past": "Performed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Photographs",
+      "verb_past": "Photographed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Pioneers",
+      "verb_past": "Pioneered",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Plans",
+      "verb_past": "Planned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Plays",
+      "verb_past": "Played",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Produces",
+      "verb_past": "Produced",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Programs",
+      "verb_past": "Programmed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Promotes",
+      "verb_past": "Promoted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Publishes",
+      "verb_past": "Published",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Reimagines",
+      "verb_past": "Reimagined",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Renders",
+      "verb_past": "Rendered",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Restyles",
+      "verb_past": "Restyled",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Revamps",
+      "verb_past": "Revamped",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Sculpts",
+      "verb_past": "Sculpted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sketches",
+      "verb_past": "Sketched",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Stages",
+      "verb_past": "Staged",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Storyboards",
+      "verb_past": "Storyboarded",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Styles",
+      "verb_past": "Styled",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Visualises",
+      "verb_past": "Visualised",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Writes",
+      "verb_past": "Wrote",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-brands",
+      "verb_past": "Re-branded",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-imagines",
+      "verb_past": "Re-imagined",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-stages",
+      "verb_past": "Re-staged",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-positions",
+      "verb_past": "Re-positioned",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-launches",
+      "verb_past": "Re-launched",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-skins",
+      "verb_past": "Re-skinned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-themes",
+      "verb_past": "Re-themed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Themes",
+      "verb_past": "Themed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Moodboards",
+      "verb_past": "Moodboarded",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Wireframes",
+      "verb_past": "Wireframed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Mocks up",
+      "verb_past": "Mocked up",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Prototypes",
+      "verb_past": "Prototyped",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Hi-fis",
+      "verb_past": "Hi-fied",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Lo-fis",
+      "verb_past": "Lo-fied",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Specs",
+      "verb_past": "Specced",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Hand-offs",
+      "verb_past": "Handed off",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Red-lines",
+      "verb_past": "Red-lined",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "White-labels",
+      "verb_past": "White-labelled",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Skins",
+      "verb_past": "Skinned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Tokenises",
+      "verb_past": "Tokenised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Systems",
+      "verb_past": "Systemed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Componentises",
+      "verb_past": "Componentised",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Atomises",
+      "verb_past": "Atomised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Molecularises",
+      "verb_past": "Molecularised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Patternises",
+      "verb_past": "Patternised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Templates",
+      "verb_past": "Templated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Codifies",
+      "verb_past": "Codified",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Documents",
+      "verb_past": "Documented",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Showcases",
+      "verb_past": "Showcased",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-edits",
+      "verb_past": "Re-edited",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Polishes",
+      "verb_past": "Polished",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Refines",
+      "verb_past": "Refined",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sharpens",
+      "verb_past": "Sharpened",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Tightens",
+      "verb_past": "Tightened",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Loosens",
+      "verb_past": "Loosened",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-cuts",
+      "verb_past": "Re-cut",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-mixes",
+      "verb_past": "Re-mixed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Masters",
+      "verb_past": "Mastered",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-masters",
+      "verb_past": "Re-mastered",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Colour-grades",
+      "verb_past": "Colour-graded",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Sound-designs",
+      "verb_past": "Sound-designed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Foleys",
+      "verb_past": "Foleyed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Voiceovers",
+      "verb_past": "Voiced over",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Captions",
+      "verb_past": "Captioned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Subtitles",
+      "verb_past": "Subtitled",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Locales",
+      "verb_past": "Localed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Localises",
+      "verb_past": "Localised",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Internationalises",
+      "verb_past": "Internationalised",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Transcreates",
+      "verb_past": "Transcreated",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Adapts",
+      "verb_past": "Adapted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Translates",
+      "verb_past": "Translated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Co-creates",
+      "verb_past": "Co-created",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Co-designs",
+      "verb_past": "Co-designed",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Co-authors",
+      "verb_past": "Co-authored",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Workshops",
+      "verb_past": "Workshopped",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Charrettes",
+      "verb_past": "Charretted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Sprints",
+      "verb_past": "Sprinted",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Hackathons",
+      "verb_past": "Hackathoned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Game-jams",
+      "verb_past": "Game-jammed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Demo-days",
+      "verb_past": "Demo-dayed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-prototypes",
+      "verb_past": "Re-prototyped",
+      "category": "creative",
+      "energy_level": "high",
+      "human_score": 9
+    },
+    {
+      "verb_present": "Re-mocks",
+      "verb_past": "Re-mocked",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-sketches",
+      "verb_past": "Re-sketched",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-illustrates",
+      "verb_past": "Re-illustrated",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-renders",
+      "verb_past": "Re-rendered",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-grades",
+      "verb_past": "Re-graded",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-scores",
+      "verb_past": "Re-scored",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-frames",
+      "verb_past": "Re-framed",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-blocks",
+      "verb_past": "Re-blocked",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-storyboards",
+      "verb_past": "Re-storyboarded",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 8
+    },
+    {
+      "verb_present": "Re-tones",
+      "verb_past": "Re-toned",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-voices",
+      "verb_past": "Re-voiced",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    },
+    {
+      "verb_present": "Re-letterings",
+      "verb_past": "Re-lettered",
+      "category": "creative",
+      "energy_level": "medium",
+      "human_score": 7
+    }
+  ]
+}
