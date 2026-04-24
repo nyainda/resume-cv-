@@ -2,8 +2,6 @@
 
 Instantly create ATS-optimized, tailored CVs for any job description. This single-page application is simple, fast, and completely private—all your data stays in your browser.
 
-![AI CV Builder Screenshot](https://storage.googleapis.com/aistudio-project-marketplace-app-screenshot/2405.1000/cv-builder.png)
-
 ## ✨ Core Features
 
 *   **🤖 AI-Powered Generation**: Paste any job description to get a CV instantly tailored with the right keywords and focus.
@@ -23,7 +21,7 @@ This app uses the Google Gemini API to power its AI features. You'll need your o
 
 -   Go to **Settings** (⚙️ icon) in the app.
 -   Select **Google Gemini** as the AI Provider.
--   Get your free key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+-   Create an API key from [Google AI for Developers](https://ai.google.dev/gemini-api/docs/api-key).
 -   Paste the key into the input field and click **Save**. This is a one-time setup.
 
 ### 2. Create Your Profile
