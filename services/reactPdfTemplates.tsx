@@ -50,10 +50,19 @@ const professionalStyles = StyleSheet.create({
   year: { fontSize: 9, color: '#64748b' },
 });
 
-const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => (
+const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hidden?: React.ReactElement }> = ({ cvData, personalInfo, hidden }) => {
+  // Honor the user's accent-color choice in the react-pdf fallback so this
+  // path (used only when both the local Playwright server AND the Cloudflare
+  // worker are unavailable) still matches the on-screen preview's color.
+  // Default falls back to the original navy if the user hasn't picked one.
+  const accent = cvData.accentColor ?? '#1e3a8a';
+  const headerStyle = { ...professionalStyles.header, borderBottom: `2px solid ${accent}` };
+  const nameStyle = { ...professionalStyles.name, color: accent };
+  const dotStyle = { ...professionalStyles.bulletDot, color: accent };
+  return (
   <Page size="A4" style={professionalStyles.page}>
-    <View style={professionalStyles.header}>
-      <Text style={professionalStyles.name}>{personalInfo.name}</Text>
+    <View style={headerStyle}>
+      <Text style={nameStyle}>{personalInfo.name}</Text>
       <View style={professionalStyles.contact}>
         {personalInfo.email && <Text style={professionalStyles.contactItem}>{personalInfo.email}</Text>}
         {personalInfo.phone && <Text style={professionalStyles.contactItem}>  |  {personalInfo.phone}</Text>}
@@ -82,7 +91,7 @@ const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hi
             <Text style={professionalStyles.company}>{exp.company}</Text>
             {exp.responsibilities.map((r, j) => (
               <View key={j} style={professionalStyles.bullet}>
-                <Text style={professionalStyles.bulletDot}>•</Text>
+                <Text style={dotStyle}>•</Text>
                 <Text style={professionalStyles.bulletText}>{decode(r)}</Text>
               </View>
             ))}
@@ -142,7 +151,8 @@ const ProfessionalPDF: React.FC<{ cvData: CVData; personalInfo: PersonalInfo; hi
     ) : null}
     {hidden}
   </Page>
-);
+  );
+};
 
 const standardProStyles = StyleSheet.create({
   page: { fontFamily: 'Helvetica', fontSize: 10, color: '#111827', padding: '30 50', lineHeight: 1.4 },

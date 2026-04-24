@@ -140,3 +140,24 @@ A Cloudflare Worker that owns the **deterministic** half of CV generation: voice
 
 ### `apiKeySet` flag
 Checks `!!apiSettings?.groqApiKey` — gates all AI generation buttons (Generate CV, Cover Letter, etc.).
+
+## CI / CD (GitHub Actions, free tier)
+
+Two parallel jobs run on every push/PR to `main`/`master` (defined in `.github/workflows/ci.yml`):
+
+**App job** (~3 min):
+1. `node scripts/guard-package-versions.mjs` — fails if `react`, `vite`, `@react-pdf/renderer`, or `@google/genai` are downgraded below known-working minimums.
+2. `node scripts/test-banned-phrase-filter.mjs` — 15-case golden test that locks in grammar-preserving behaviour of `applyBannedPhraseFilter` (services/geminiService.ts). Mirror copy of the filter lives in the script — keep both in sync if the filter changes.
+3. `npx tsc --noEmit` — informational (continue-on-error) so pre-existing strict-mode warnings don't block urgent fixes.
+4. `npm run build` — production build must succeed.
+
+**Worker job** (~2 min, parallel):
+1. `node scripts/guard-package-versions.mjs --worker` — pins `@cloudflare/puppeteer >= 1.0.0` (the 0.0.x → 1.x bump fixed the `/v1/acquire` regression in production) and `wrangler >= 3.100.0`.
+2. `npx tsc --noEmit` in `resume-pdf-worker/`.
+
+To raise a floor on a new package or new minimum version, edit the `PROTECTED` array in `scripts/guard-package-versions.mjs` and document the reason in the `why` field.
+
+## PDF download → preview color parity
+
+- **Primary path (Playwright server / Cloudflare worker)**: clones the live preview DOM via `services/getCVHtml.ts` and inlines all CSS — `cvData.accentColor` flows through the templates and matches the on-screen preview pixel-for-pixel.
+- **Tertiary fallback (`@react-pdf/renderer`, services/reactPdfTemplates.tsx)**: the default `ProfessionalPDF` template now reads `cvData.accentColor` for header border, name, and bullet dots. The other 5 templates (`standard-pro`, `minimalist`, `london-finance`, `ats-clean-pro`, `executive-sidebar`) still use their original hardcoded colors in the react-pdf path — this only matters if BOTH the Playwright server AND the Cloudflare worker are unreachable, which is rare.
