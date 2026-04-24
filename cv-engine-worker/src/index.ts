@@ -27,7 +27,7 @@ export interface Env {
 const VERB_CATEGORIES = ['technical', 'management', 'analysis', 'communication', 'financial', 'creative'] as const;
 
 export default {
-    async fetch(request: Request, env: Env): Promise<Response> {
+    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url);
 
         if (request.method === 'OPTIONS') {
@@ -43,7 +43,7 @@ export default {
             if (url.pathname === '/api/cv/clean'   && request.method === 'POST') return handleClean(request, env);
             if (url.pathname === '/api/cv/validate'&& request.method === 'POST') return handleValidate(request, env);
             if (url.pathname === '/api/cv/validate-voice' && request.method === 'POST') return handleValidateVoice(request, env);
-            if (url.pathname === '/api/cv/brief'   && request.method === 'POST') return handleBrief(request, env);
+            if (url.pathname === '/api/cv/brief'   && request.method === 'POST') return handleBrief(request, env, ctx);
             if (url.pathname === '/api/cv/sync'    && request.method === 'POST') return handleSync(request, env);
             if (url.pathname === '/api/cv/admin/stats')                          return handleAdminStats(request, env);
             if (url.pathname === '/api/cv/admin/bulk-add' && request.method === 'POST') return handleBulkAdd(request, env);
@@ -408,10 +408,32 @@ function computeVoiceValidation(bullets: string[], brief: any): any {
 // full generation context (verb pool, rhythm, banned phrases, forbidden combos).
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function handleBrief(request: Request, env: Env): Promise<Response> {
+async function handleBrief(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const body = await safeJson(request);
     const brief = await buildBriefData(env, body || {});
+    // Phase K: fire-and-forget telemetry — auto-collected, never blocks the brief.
+    ctx.waitUntil(recordBriefTelemetry(env, body || {}, brief).catch(() => {/* swallow */}));
     return json(brief, request, env);
+}
+
+async function recordBriefTelemetry(env: Env, body: any, brief: any): Promise<void> {
+    const jdPresent = String(body?.jd || body?.jobDescription || '').trim().length > 0 ? 1 : 0;
+    const seniority = brief?.seniority?.level || null;
+    const fieldName = brief?.field?.field || null;
+    const voice     = brief?.voice?.primary?.name || null;
+    const section   = String(body?.section || 'current_role').toLowerCase();
+    // field_source: explicit > jd-driven > fallback
+    const explicitField = String(body?.field || '').toLowerCase().trim();
+    const topScore = brief?.debug?.field_scores?.[0]?.score ?? 0;
+    const fieldSource =
+        explicitField && explicitField === fieldName ? 'requested' :
+        jdPresent && topScore > 0                    ? 'jd_keywords' :
+        fieldName && fieldName !== 'general'         ? 'fallback' :
+                                                       'none';
+    await env.CV_DB.prepare(
+        `INSERT INTO cv_request_telemetry (id, seniority, field, voice, section, jd_present, field_source)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(crypto.randomUUID(), seniority, fieldName, voice, section, jdPresent, fieldSource).run();
 }
 
 async function buildBriefData(env: Env, body: any): Promise<any> {
