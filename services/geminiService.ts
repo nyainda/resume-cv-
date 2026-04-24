@@ -7,6 +7,7 @@ import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
 import { buildBrief, validateVoice, reportLeaks, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
+import { ROLE_TRACKS } from '../data/roleTracks';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -14,28 +15,63 @@ import { findOverusedWords } from './cvEngine/wordFrequency';
 // IMPORTANT: Bump CV_RULES_VERSION whenever generation instructions change —
 // this automatically invalidates every cached result so users always get CVs
 // built under the latest rules.
-const CV_RULES_VERSION = '2.3';
+const CV_RULES_VERSION = '2.4';
 const CV_CACHE_MAX = 12;
 const CV_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 interface CacheEntry { result: CVData; ts: number; }
 const cvCache = new Map<string, CacheEntry>();
 
-function cvCacheKey(profile: UserProfile, jd: string, mode: string, purpose: string): string {
-    const profileSnap = JSON.stringify({
+function cloneCVData(data: CVData): CVData {
+    try {
+        return structuredClone(data);
+    } catch {
+        return JSON.parse(JSON.stringify(data)) as CVData;
+    }
+}
+
+function cvCacheKey(
+    profile: UserProfile,
+    jd: string,
+    mode: string,
+    purpose: string,
+    opts?: { targetLanguage?: string; scholarshipFormat?: ScholarshipFormat; marketResearch?: MarketResearchResult | null }
+): string {
+    const profileSnap = {
         name: profile.personalInfo?.name,
+        title: profile.personalInfo?.title,
+        location: profile.personalInfo?.location,
+        summary: profile.summary,
         exp: (profile.workExperience || []).map(e => `${e.jobTitle}@${e.company}:${e.startDate}-${e.endDate}`),
         edu: (profile.education || []).map(e => `${e.degree}@${e.school}`),
-        skills: (profile.skills || []).slice(0, 20).join(','),
-    });
-    return `v${CV_RULES_VERSION}|${profileSnap}|${jd.substring(0, 400)}|${mode}|${purpose}`;
+        skills: [...(profile.skills || [])].sort(),
+        projects: (profile.projects || []).map(p => `${p.name}|${p.description || ''}`),
+        sectionOrder: profile.sectionOrder || [],
+        customSections: (profile.customSections || []).map(s => ({
+            label: s.label,
+            items: (s.items || []).map(i => i.title),
+        })),
+    };
+    const profileHash = quickHash(JSON.stringify(profileSnap));
+    const jdHash = quickHash((jd || '').replace(/\s+/g, ' ').trim());
+    const marketHash = opts?.marketResearch ? quickHash(JSON.stringify(opts.marketResearch)) : 'none';
+    return [
+        `v${CV_RULES_VERSION}`,
+        `p:${profileHash}`,
+        `jd:${jdHash}`,
+        `m:${mode}`,
+        `purpose:${purpose}`,
+        `lang:${opts?.targetLanguage || 'default'}`,
+        `scholarship:${opts?.scholarshipFormat || 'standard'}`,
+        `market:${marketHash}`,
+    ].join('|');
 }
 
 function cvCacheGet(key: string): CVData | null {
     const entry = cvCache.get(key);
     if (!entry) return null;
     if (Date.now() - entry.ts > CV_CACHE_TTL_MS) { cvCache.delete(key); return null; }
-    return entry.result;
+    return cloneCVData(entry.result);
 }
 
 function cvCacheSet(key: string, result: CVData): void {
@@ -44,7 +80,7 @@ function cvCacheSet(key: string, result: CVData): void {
         const oldest = [...cvCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
         if (oldest) cvCache.delete(oldest[0]);
     }
-    cvCache.set(key, { result, ts: Date.now() });
+    cvCache.set(key, { result: cloneCVData(result), ts: Date.now() });
 }
 
 /** Call this when the user saves their profile — invalidates all cached CVs for that profile. */
@@ -1174,22 +1210,233 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): str
  * Strategy: keep the first block (role summary), then keyword-dense middle,
  * then requirements/skills section — discarding boilerplate filler.
  */
-function smartTruncateJD(jd: string, maxChars = 2500): string {
-    if (!jd || jd.length <= maxChars) return jd;
+function smartTruncateJD(jd: string, maxChars = 3200): string {
+    const clean = (jd || '').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (!clean || clean.length <= maxChars) return clean;
 
-    // Try to find a "requirements" or "responsibilities" section boundary
-    const reqMatch = jd.search(/\b(requirements|qualifications|what you('ll| will) (need|bring)|must have|key skills|about you)\b/i);
-    if (reqMatch > 0 && reqMatch < jd.length * 0.7) {
-        // Keep first 900 chars (role overview) + requirements section
-        const overview   = jd.substring(0, 900);
-        const reqSection = jd.substring(reqMatch, reqMatch + (maxChars - 900));
-        return `${overview}\n\n${reqSection}`;
+    // Break JD into meaningful chunks (headings, bullets, paragraphs).
+    const chunks = clean
+        .split(/\n+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .flatMap(s => s.length > 420 ? s.split(/(?<=[.;])\s+/).map(x => x.trim()).filter(Boolean) : [s]);
+
+    const weakBoilerplate = /\b(equal opportunity|eeo|accommodation|background check|drug test|benefits|perks|about us|our culture|privacy policy|cookie|applicants with disabilities|all qualified applicants)\b/i;
+    const highSignal = /\b(requirements?|qualifications?|responsibilities?|must have|nice to have|key skills?|experience with|proficient|degree|certification|tools?|tech stack|kubernetes|python|java|sql|aws|gcp|azure)\b/i;
+
+    const scored = chunks.map((c, idx) => {
+        const lower = c.toLowerCase();
+        const wordCount = lower.split(/\s+/).length;
+        const keywordHits = (lower.match(/\b(requirements?|qualifications?|responsibilities?|must|experience|skills?|tools?|degree|certification)\b/g) || []).length;
+        const techHits = (lower.match(/\b(python|java|sql|aws|gcp|azure|kubernetes|docker|react|node|ci\/cd|terraform)\b/g) || []).length;
+        const numberHits = (lower.match(/\d+/g) || []).length;
+        const isWeak = weakBoilerplate.test(lower);
+        let score = keywordHits * 3 + techHits * 4 + numberHits;
+        if (highSignal.test(lower)) score += 8;
+        if (idx < 2) score += 6; // keep role-context intro
+        if (wordCount < 3) score -= 4;
+        if (isWeak) score -= 14;
+        return { idx, text: c, score };
+    });
+
+    // Keep highest-signal chunks, then restore original order.
+    const picked = scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, Math.max(8, Math.ceil(scored.length * 0.55)))
+        .sort((a, b) => a.idx - b.idx);
+
+    let out = '';
+    for (const p of picked) {
+        if ((out + '\n' + p.text).length > maxChars) continue;
+        out += (out ? '\n' : '') + p.text;
     }
 
-    // No clear boundary — keep first 60% + last 15% (often skills/requirements appear at end)
-    const head = jd.substring(0, Math.floor(maxChars * 0.75));
-    const tail = jd.substring(jd.length - Math.floor(maxChars * 0.25));
-    return `${head}\n…\n${tail}`;
+    // Safety fallback if scoring discarded too much.
+    if (out.length < 800) {
+        const head = clean.substring(0, Math.floor(maxChars * 0.7));
+        const tail = clean.substring(clean.length - Math.floor(maxChars * 0.2));
+        return `${head}\n…\n${tail}`.slice(0, maxChars + 3);
+    }
+    return out;
+}
+
+function jdProfileSimilarity(profile: UserProfile, jd: string): number {
+    if (!jd.trim()) return 0;
+    const jdTokens = new Set(
+        jd.toLowerCase()
+            .replace(/[^\w\s/+-]/g, ' ')
+            .split(/\s+/)
+            .filter(t => t.length >= 4)
+    );
+    if (jdTokens.size === 0) return 0;
+
+    const profileText = [
+        ...(profile.skills || []),
+        ...(profile.workExperience || []).flatMap(e => [e.jobTitle, e.company, ...(typeof e.responsibilities === 'string' ? e.responsibilities.split('\n') : (e.responsibilities || []))]),
+        ...(profile.education || []).flatMap(e => [e.degree, e.school]),
+    ].join(' ').toLowerCase();
+
+    const pTokens = new Set(
+        profileText.replace(/[^\w\s/+-]/g, ' ')
+            .split(/\s+/)
+            .filter(t => t.length >= 4)
+    );
+    if (pTokens.size === 0) return 0;
+
+    let overlap = 0;
+    for (const t of pTokens) if (jdTokens.has(t)) overlap++;
+    return overlap / Math.min(jdTokens.size, pTokens.size);
+}
+
+function buildStaleProfileRefreshInstruction(
+    profile: UserProfile,
+    marketResearch?: MarketResearchResult | null
+): string {
+    const roleText = (profile.workExperience || []).map(w =>
+        `${w.jobTitle || ''} ${w.company || ''} ${
+            typeof w.responsibilities === 'string'
+                ? w.responsibilities
+                : (w.responsibilities || []).join(' ')
+        }`
+    ).join(' ').toLowerCase();
+    const roleSignals: Array<{ name: string; hits: number; keywords: string[] }> = ROLE_TRACKS.map(s => ({
+        ...s,
+        hits: s.keywords.reduce((n, kw) => n + ((roleText.match(new RegExp(`\\b${kw}\\b`, 'g')) || []).length), 0),
+    }));
+    const dominantSignals = roleSignals
+        .filter(s => s.hits > 0)
+        .sort((a, b) => b.hits - a.hits)
+        .slice(0, 3);
+    const detectedTracks = dominantSignals.map(s => `${s.name} (${s.hits})`).join(', ');
+
+    const gaps = detectGaps(profile.workExperience || []).filter(g => g.gapMonths >= 4);
+    const gapContext = gaps.length
+        ? gaps.slice(0, 2).map(g => `${g.gapMonths}mo between "${g.fromRole}" → "${g.toRole}"`).join('; ')
+        : 'none';
+
+    const currentRole = (profile.workExperience || []).find(w => !w.endDate || /present/i.test(String(w.endDate)));
+    if (!currentRole?.startDate) return '';
+    const start = new Date(currentRole.startDate);
+    if (isNaN(start.getTime())) return '';
+
+    const monthsInRole = Math.max(0,
+        (new Date().getFullYear() - start.getFullYear()) * 12 +
+        (new Date().getMonth() - start.getMonth())
+    );
+    const bulletCount = typeof currentRole.responsibilities === 'string'
+        ? currentRole.responsibilities.split('\n').filter(Boolean).length
+        : (currentRole.responsibilities || []).length;
+    const projectCount = (profile.projects || []).length;
+    const likelyStale = monthsInRole >= 24 && (bulletCount <= 4 || projectCount <= 1);
+    if (!likelyStale) return '';
+
+    const toolHints = (marketResearch?.expectedTools || []).slice(0, 6).join(', ');
+    const skillHints = (profile.skills || []).slice(0, 8).join(', ');
+    return `
+    **PROFILE RECENCY REFRESH MODE (stale-profile detected):**
+    The candidate has been in the current role for ~${Math.round(monthsInRole / 12)} year(s) but has sparse recent evidence in the source CV.
+    Refresh the narrative to reflect likely recent scope growth while staying faithful to known facts.
+
+    DETECTION EVIDENCE (use this as the inference boundary):
+    - Dominant work tracks from actual experience text: ${detectedTracks || 'insufficient signal'}.
+    - Notable career gaps: ${gapContext}.
+
+    HARD LIMITS (never violate):
+    - Keep company names, job titles, and employment dates unchanged.
+    - Do NOT invent new employers, degrees, or certifications.
+    - Do NOT fabricate impossible metrics; only use conservative, believable ranges.
+    - Only infer activities that are consistent with the detected work tracks above.
+
+    REFRESH RULES:
+    - Expand current-role bullets to show progression in ownership, scope, and complexity since the role started.
+    - Convert repeated maintenance-style bullets into higher-value outcomes (automation, efficiency, reliability, stakeholder impact) using the candidate's real domain.
+    - Surface recent project-like deliverables inside experience bullets when standalone projects are missing.
+    - Prioritise tools already known from profile skills (${skillHints || 'profile skills'}) and market expectations (${toolHints || 'no market hints available'}).
+    `;
+}
+
+function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData {
+    const sourceRoles = profile.workExperience || [];
+    const sourceSkills = Array.from(new Set((profile.skills || []).map(s => String(s || '').trim()).filter(Boolean)));
+
+    // Rule 1 + 5: never add unseen skills, never remove existing skills.
+    const generatedSkills = Array.isArray(cvData.skills) ? cvData.skills.map(s => String(s || '').trim()).filter(Boolean) : [];
+    const allowedSet = new Set(sourceSkills.map(s => s.toLowerCase()));
+    const filtered = generatedSkills.filter(s => allowedSet.has(s.toLowerCase()));
+    const mergedSkills = Array.from(new Set([...filtered, ...sourceSkills]));
+    cvData.skills = mergedSkills.slice(0, 25);
+
+    // Rule 3 + 4 + 6: preserve company/job-title/date identity from source.
+    if (Array.isArray(cvData.experience)) {
+        cvData.experience = cvData.experience.map((exp, idx) => {
+            const src = sourceRoles[idx];
+            if (!src) return exp;
+
+            const sourceBullets = typeof src.responsibilities === 'string'
+                ? src.responsibilities.split('\n').map(x => x.trim()).filter(Boolean)
+                : (src.responsibilities || []);
+            const sourceNumberTokens = new Set(
+                sourceBullets.flatMap(b => (b.match(/\b\d+(?:[.,]\d+)?\b/g) || []))
+            );
+            const fixedResponsibilities = (exp.responsibilities || []).map(r => {
+                let out = String(r || '');
+                // Rule 2: strip generated metric-like claims not grounded in source bullets.
+                if (sourceNumberTokens.size === 0) {
+                    out = out
+                        .replace(/\b\d+([.,]\d+)?\s*%/g, '')
+                        .replace(/\$\s?\d[\d,]*/g, '')
+                        .replace(/\b\d+([.,]\d+)?\s*(x|times)\b/gi, '')
+                        .replace(/\b\d+(?:[.,]\d+)?\b/g, '');
+                } else {
+                    out = out.replace(/\b\d+(?:[.,]\d+)?\b/g, (m) => sourceNumberTokens.has(m) ? m : '');
+                }
+                return out.replace(/\s{2,}/g, ' ').trim();
+            }).filter(Boolean);
+
+            return {
+                ...exp,
+                company: src.company || exp.company,
+                jobTitle: src.jobTitle || exp.jobTitle,
+                startDate: src.startDate || exp.startDate,
+                endDate: src.endDate || exp.endDate,
+                dates: exp.dates || '',
+                responsibilities: fixedResponsibilities.length ? fixedResponsibilities : sourceBullets,
+            };
+        });
+    }
+
+    // Preserve existing user-owned custom sections (awards/certifications if stored there).
+    if (Array.isArray(profile.customSections) && profile.customSections.length > 0) {
+        cvData.customSections = profile.customSections;
+    }
+
+    return cvData;
+}
+
+function applyFidelityAgainstSourceCV(cvData: CVData, sourceCV: CVData): CVData {
+    const pseudoProfile = {
+        skills: sourceCV.skills || [],
+        workExperience: (sourceCV.experience || []).map(exp => ({
+            company: exp.company || '',
+            jobTitle: exp.jobTitle || '',
+            startDate: exp.startDate || '',
+            endDate: exp.endDate || '',
+            responsibilities: exp.responsibilities || [],
+        })),
+        customSections: sourceCV.customSections || [],
+    } as unknown as UserProfile;
+    return applySourceFidelityRules(cvData, pseudoProfile);
+}
+
+function finalizeCvData(
+    cvData: CVData,
+    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean } = {}
+): CVData {
+    const { profile, sourceCv, runPurify = true } = opts;
+    let out = runPurify ? purifyCV(cvData).cv : cvData;
+    if (profile) out = applySourceFidelityRules(out, profile);
+    else if (sourceCv) out = applyFidelityAgainstSourceCV(out, sourceCv);
+    return out;
 }
 
 /**
@@ -1422,7 +1669,11 @@ export const generateCV = async (
     const jd = smartTruncateJD(contextDescription.trim());
 
     // ── Cache check: return immediately if profile+JD+mode haven't changed ──
-    const cacheKey = cvCacheKey(profile, jd, generationMode, purpose);
+    const cacheKey = cvCacheKey(profile, jd, generationMode, purpose, {
+        targetLanguage,
+        scholarshipFormat,
+        marketResearch: marketResearch || null,
+    });
     const cached = cvCacheGet(cacheKey);
     if (cached) {
         console.log('[CV Cache] Hit — returning cached result (no tokens used)');
@@ -1444,6 +1695,25 @@ export const generateCV = async (
         jd ? analyzeJobDescriptionForKeywords(jd) : Promise.resolve(null),
         buildBrief({
             jd: jd || undefined,
+            // Worker-first enrichment: send a compact profile snapshot so the
+            // Cloudflare brief builder can score field/voice with more context
+            // than JD text alone (skills, title trajectory, project domains).
+            profile: {
+                headline: profile.summary || profile.personalInfo?.title || '',
+                skills: (profile.skills || []).slice(0, 30),
+                experience: (profile.workExperience || []).map(exp => ({
+                    jobTitle: exp.jobTitle || '',
+                    company: exp.company || '',
+                    responsibilities: exp.responsibilities || '',
+                    startDate: exp.startDate || '',
+                    endDate: exp.endDate || '',
+                })).slice(0, 12),
+                projects: (profile.projects || []).map(p => ({
+                    name: p.name || '',
+                    description: p.description || '',
+                    technologies: (p as any).technologies || [],
+                })).slice(0, 10),
+            },
             yearsExperience: totalYears,
             currentTitle: primaryTitle,
             section: 'current_role',
@@ -1511,6 +1781,24 @@ export const generateCV = async (
     }
 
     const sectionOrderInstruction = buildSectionOrderInstruction(profile);
+    const profileJdMatch = jdProfileSimilarity(profile, jd);
+    const staleProfileInstruction = buildStaleProfileRefreshInstruction(profile, marketResearch);
+    const preservationInstruction = profileJdMatch >= 0.58
+        ? `
+        **HIGH PROFILE↔JD MATCH DETECTED (${Math.round(profileJdMatch * 100)}%) — PRESERVATION MODE**:
+        - Keep the candidate's existing career story, role ordering, and core responsibilities largely intact.
+        - Prioritise light optimisation: stronger verbs, cleaner phrasing, better metrics framing, ATS keyword placement.
+        - DO NOT rewrite every bullet from scratch when the original already demonstrates the same requirement.
+        - Prefer synonym/precision upgrades over structural overhauls.
+        `
+        : profileJdMatch >= 0.4
+            ? `
+        **MEDIUM PROFILE↔JD MATCH (${Math.round(profileJdMatch * 100)}%) — BALANCED MODE**:
+        - Keep proven relevant bullets and only transform low-signal bullets.
+        - Preserve domain-equivalent backgrounds (e.g., Biosystems Engineering ↔ Agricultural Engineering) when responsibilities clearly overlap.
+        - Focus edits on terminology alignment, evidence strength, and ATS clarity.
+        `
+            : '';
 
     const humanizationInstruction = `
     **CRITICAL — AUTHENTIC HUMAN WRITING (AI DETECTION IMMUNITY)**:
@@ -1620,6 +1908,8 @@ ${experienceInstructionLines}
 
             ${engineInstruction}
             ${humanizationInstruction}
+            ${preservationInstruction}
+            ${staleProfileInstruction}
 
             ${CV_DATA_SCHEMA}
         `;
@@ -1675,6 +1965,8 @@ ${experienceInstructionLines}
 
             ${engineInstruction}
             ${humanizationInstruction}
+            ${preservationInstruction}
+            ${staleProfileInstruction}
 
             ${CV_DATA_SCHEMA}
         `;
@@ -1779,6 +2071,8 @@ ${experienceInstructionLines}
 
             ${engineInstruction}
             ${humanizationInstruction}
+            ${preservationInstruction}
+            ${staleProfileInstruction}
 
             ${CV_DATA_SCHEMA}
         `;
@@ -1943,6 +2237,12 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // banned phrases and prompt improvements over time.
     try {
         const wordCount = JSON.stringify(cvData).split(/\s+/).length;
+        const briefStatus: 'present' | 'missing_empty' | 'missing_error' =
+            engineBrief
+                ? 'present'
+                : briefRes.status === 'rejected'
+                    ? 'missing_error'
+                    : 'missing_empty';
         logGeneration({
             cvHash: quickHash(JSON.stringify({
                 sum: cvData.summary,
@@ -1951,6 +2251,8 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             model: 'groq+gemini',
             promptVersion: 'v2.1',
             generationMode,
+            briefPresent: Boolean(engineBrief),
+            briefStatus,
             outputWordCount: wordCount,
             roundNumberRatio:    purified.report.roundNumberRatio,
             repeatedPhraseCount: purified.report.repeatedPhrases.length,
@@ -1998,6 +2300,9 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             console.warn('[CV Engine] Voice enforcement skipped:', e);
         }
     }
+
+    // Final post-processing pipeline (purification + deterministic fidelity lock).
+    cvData = finalizeCvData(cvData, { profile, runPurify: false });
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
@@ -2373,17 +2678,17 @@ ${HUMANIZATION_CHECKLIST}
     }
 
     // ── HOT FIRE ── purify the partial result
-    const purifiedPartial = purifyCV({
+    const finalized = finalizeCvData({
         ...cv,
         summary: finalSummary,
         skills: finalSkills,
         experience: updatedExperience,
-    } as CVData).cv;
+    } as CVData, { sourceCv: cvInput });
 
     return {
-        summary: purifiedPartial.summary,
-        skills: purifiedPartial.skills,
-        experience: purifiedPartial.experience,
+        summary: finalized.summary,
+        skills: finalized.skills,
+        experience: finalized.experience,
     };
 };
 
@@ -2900,8 +3205,8 @@ ${CV_DATA_SCHEMA}
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.4, json: true });
     const parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVData;
-    // ── HOT FIRE ── unified post-gen pipeline
-    return purifyCV(parsed).cv;
+    // Unified post-gen pipeline + deterministic source lock
+    return finalizeCvData(parsed, { sourceCv: cvDataInput });
 };
 
 // --- GitHub-Powered CV Generation ---
@@ -2993,8 +3298,8 @@ ${CV_DATA_SCHEMA}
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, json: true, maxTokens: 8192 });
     const parsed = JSON.parse(text.trim()) as CVData;
-    // ── HOT FIRE ── unified post-gen pipeline
-    return purifyCV(parsed).cv;
+    // Unified post-gen pipeline + deterministic source lock
+    return finalizeCvData(parsed, { profile });
 };
 
 // --- Enhanced 6-Block Job Analysis (career-ops inspired) ---

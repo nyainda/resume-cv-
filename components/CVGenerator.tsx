@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
+import { pdf } from '@react-pdf/renderer';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
@@ -19,6 +20,7 @@ import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
+import { buildReactPDFDocument, REACT_PDF_TEMPLATES } from '../services/reactPdfTemplates';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -62,8 +64,6 @@ function friendlyError(err: unknown, action = 'complete that action'): string {
   }
   return `Could not ${action}. Please try again.`;
 }
-
-const REACT_PDF_TEMPLATES: string[] = [];
 
 /**
  * Directly converts a UserProfile into CVData without any AI call.
@@ -258,6 +258,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showShareModal, setShowShareModal] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showGitHubModal, setShowGitHubModal] = useState(false);
+  const [jdTier1Keywords, setJdTier1Keywords] = useState<string[]>([]);
 
   // ── Auto-scroll to template preview after generation ──
   const [justGenerated, setJustGenerated] = useState(false);
@@ -537,7 +538,40 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     if (result.jobTitle) {
       setTargetJobTitle(result.jobTitle);
     }
+    const tier1 = [...(result.keywords || []), ...(result.skills || [])]
+      .map(k => (k || '').trim())
+      .filter(Boolean);
+    setJdTier1Keywords(Array.from(new Set(tier1)).slice(0, 15));
   }, []);
+
+  const handleReactPdfDownload = useCallback(async () => {
+    if (!currentCV) return;
+    try {
+      const reactPdfDoc = buildReactPDFDocument(template, currentCV, userProfile.personalInfo, {
+        atsKeywords: jdTier1Keywords,
+      });
+      const blob = await pdf(reactPdfDoc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = pdfFileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setAtsDataEmbedded(jdTier1Keywords.length > 0);
+
+      const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
+      const companyName = targetCompany || 'Unknown';
+      onAutoTrack({
+        roleTitle: jobTitle,
+        company: companyName,
+        savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
+      });
+    } catch {
+      handleDownload();
+    }
+  }, [currentCV, template, userProfile.personalInfo, jdTier1Keywords, pdfFileName, targetJobTitle, targetCompany, onAutoTrack, handleDownload]);
 
   const selectedMode = cvGenerationModes.find(m => m.id === generationMode)!;
   const modeColors = modeColorMap[generationMode];
@@ -962,7 +996,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   personalInfo={userProfile.personalInfo}
                   template={template}
                   fileName={pdfFileName}
-                  onFallback={handleDownload}
+                  onFallback={handleReactPdfDownload}
                   disabled={isEditing}
                 />
               ) : (

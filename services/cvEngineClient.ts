@@ -175,8 +175,81 @@ export interface BuildBriefInput {
     section?: 'current_role' | 'past_role' | 'internship' | 'summary';
 }
 
+const MAX_BRIEF_JD_CHARS = 6000;
+const MAX_BRIEF_STRING = 280;
+const MAX_BRIEF_ARRAY = 20;
+const MAX_BRIEF_OBJECT_KEYS = 24;
+const MAX_BRIEF_DEPTH = 4;
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+function compactForBrief(value: unknown, depth = 0): unknown {
+    if (value == null) return value;
+    if (typeof value === 'string') {
+        return value.replace(/\s+/g, ' ').trim().slice(0, MAX_BRIEF_STRING);
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') return value;
+    if (depth >= MAX_BRIEF_DEPTH) return undefined;
+    if (Array.isArray(value)) {
+        return value.slice(0, MAX_BRIEF_ARRAY)
+            .map(v => compactForBrief(v, depth + 1))
+            .filter(v => v !== undefined);
+    }
+    if (typeof value === 'object') {
+        const entries = Object.entries(value as Record<string, unknown>).slice(0, MAX_BRIEF_OBJECT_KEYS);
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of entries) {
+            const compacted = compactForBrief(v, depth + 1);
+            if (compacted !== undefined) out[k] = compacted;
+        }
+        return out;
+    }
+    return undefined;
+}
+
+function looksLikeGoodBrief(brief: CVBrief | null): brief is CVBrief {
+    if (!brief) return false;
+    if (!Array.isArray(brief.verb_pool) || brief.verb_pool.length < 6) return false;
+    if (!Array.isArray(brief.forbidden_phrases)) return false;
+    return true;
+}
+
 export async function buildBrief(input: BuildBriefInput): Promise<CVBrief | null> {
-    return postJSON<CVBrief>('/api/cv/brief', input);
+    if (!isCVEngineConfigured()) return null;
+
+    const payload: BuildBriefInput = {
+        ...input,
+        jd: (input.jd || '').replace(/\s+/g, ' ').trim().slice(0, MAX_BRIEF_JD_CHARS),
+        profile: compactForBrief(input.profile),
+    };
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const u = new URL('/api/cv/brief', ENGINE_URL);
+            const r = await fetchWithTimeout(u.toString(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if ((r.status === 429 || r.status >= 500) && attempt === 0) {
+                await sleep(450);
+                continue;
+            }
+            if (!r.ok) return null;
+
+            const data = (await r.json()) as CVBrief | { brief?: CVBrief };
+            const brief = (data as any)?.brief ?? data;
+            return looksLikeGoodBrief(brief as CVBrief) ? (brief as CVBrief) : null;
+        } catch {
+            if (attempt === 0) {
+                await sleep(300);
+                continue;
+            }
+            return null;
+        }
+    }
+    return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
