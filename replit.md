@@ -98,11 +98,26 @@ auth/
 - **Live Status Banner** — Shows active profile name and active job at all times in the Toolkit
 - **Microsoft / OneDrive** — Settings: Azure Client ID + Microsoft OAuth implicit flow popup; token stored in localStorage + IDB
 
+## CV Engine Worker (`cv-engine-worker/`)
+
+A Cloudflare Worker that owns the **deterministic** half of CV generation: voice profiles, verb pools, banned phrases, field detection, openers, and seniority/section briefs. Every CV generation in the app calls `POST /api/cv/brief` first to fetch a JD-aware brief that is fed into the Groq prompt, then `POST /api/cv/clean` and `POST /api/cv/validate-voice` after generation to enforce voice consistency.
+
+- **Stack**: Cloudflare Workers + D1 (SQLite, db `cv-engine-db`) + KV (`CV_KV` for hot lookups) + Workers AI (`@cf/meta/llama-3.1-8b-instruct`) for the AI Auditor.
+- **Vocab is DB-driven, not hardcoded** — `cv_verbs`, `cv_banned_phrases`, `cv_field_profiles` (with `jd_keywords`), `cv_voice_profiles`, `cv_section_openers`, `cv_seniority_field_combos`. KV mirrors are rebuilt by the admin **Sync KV** button or auto-resync after any write.
+- **Self-improving vocabulary**:
+  - **Leak Queue (Phase I)** — Frontend reports any banned phrase that slips through to `POST /api/cv/leak-report`; rows accumulate in `cv_leak_candidates`; cron `15 3 * * *` auto-promotes anything with `count >= 5` into `cv_banned_phrases`.
+  - **AI Auditor** — Admin tab runs Workers AI as a second pass on top of the deterministic regex rules, surfaces *novel* AI-isms not yet banned, one-click promote into the banned list.
+  - **Voice Tester (Phase J)** — Admin tab forces a specific voice/field/seniority brief, paste candidate bullets, get per-bullet pass/fail with severity-coded issues — used to tune voice profiles before they ship.
+  - **Telemetry (Phase K)** — `cv_request_telemetry` records seniority/field/voice/section/jd_present/field_source for every brief; `field_source` distinguishes `requested` vs `jd_keywords` vs `fallback` vs `none` so we can see exactly when JD detection has signal.
+- **Admin auth (Phase H)** — `cv_admin_tokens` table with hierarchical roles (`viewer` < `editor` < `admin`). Tokens are SHA-256 hashed; plaintext (`cvk_…`) shown exactly once on creation. Bootstrap `env.ADMIN_TOKEN` secret remains a permanent admin so we never lock ourselves out. Manage from the admin **Tokens** tab.
+- **Deploy**: `cd cv-engine-worker && CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… npx wrangler deploy`. Migrations live in `cv-engine-worker/migrations/` and are applied with `wrangler d1 execute cv-engine-db --remote --file=migrations/NNN_name.sql`. Rolling phase tracker is `BUILD_PROGRESS.md`.
+
 ## Environment
 
 - Port: **5000** (Replit webview requirement)
-- All API keys stored in browser localStorage under `cv_builder:apiSettings`
-- No server-side backend — everything runs client-side
+- App API keys stored in browser localStorage under `cv_builder:apiSettings`
+- App is client-side; the only server-side piece is the CV Engine Worker described above
+- Worker URL configured via `VITE_CV_ENGINE_URL` (set in `.replit`)
 
 ## API Keys (all stored in Settings modal)
 
