@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Download, Trash, UploadCloud, FileText } from './icons';
+import { sanitizeHtml } from '../utils/htmlSanitizer';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -582,7 +583,8 @@ const WordToPdfTool: React.FC = () => {
             const mammoth = await import('mammoth');
             const arrayBuffer = await file.arrayBuffer();
             const result = await mammoth.convertToHtml({ arrayBuffer });
-            setHtmlPreview(result.value);
+            const sanitizedHtml = sanitizeHtml(result.value);
+            setHtmlPreview(sanitizedHtml);
 
             // Try Playwright server first
             const serverUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
@@ -597,7 +599,7 @@ const WordToPdfTool: React.FC = () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        html: `<div style="font-family:Georgia,serif;font-size:12pt;line-height:1.6;padding:40px;max-width:750px;margin:auto">${result.value}</div>`,
+                        html: `<div style="font-family:Georgia,serif;font-size:12pt;line-height:1.6;padding:40px;max-width:750px;margin:auto">${sanitizedHtml}</div>`,
                         filename: file.name.replace(/\.(docx|doc)$/i, '.pdf'),
                     }),
                     signal: AbortSignal.timeout(30000),
@@ -618,7 +620,7 @@ const WordToPdfTool: React.FC = () => {
             // Fallback: html2canvas → canvas → PDF
             const container = document.createElement('div');
             container.style.cssText = 'position:fixed;left:-9999px;top:0;width:795px;padding:40px;font-family:Georgia,serif;font-size:12pt;line-height:1.6;background:#fff;color:#000;';
-            container.innerHTML = result.value;
+            container.innerHTML = sanitizedHtml;
             document.body.appendChild(container);
             const html2canvas = (await import('html2canvas')).default;
             const canvas = await html2canvas(container, { scale: 1.5, useCORS: true, backgroundColor: '#fff' });
