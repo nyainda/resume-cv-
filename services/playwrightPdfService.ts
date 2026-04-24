@@ -7,7 +7,9 @@
 
 import { getCVHtml } from './getCVHtml';
 
-const PDF_SERVER_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
+// Same-origin proxy path. Vite (dev) proxies /__pdf -> http://localhost:3001.
+// In production builds, configure the same proxy on your server / hosting provider.
+const PDF_SERVER_URL = '/__pdf';
 
 export interface PlaywrightPdfOptions {
     previewElementId?: string;

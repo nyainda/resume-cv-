@@ -858,7 +858,8 @@ export interface PurifyLeak {
         // Phase 2
         | 'first_person' | 'weak_qualifier' | 'weak_opener' | 'markup_artifact'
         | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
-        | 'skill_casing' | 'duplicate_skill' | 'low_quantification';
+        | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
+        | 'orphan_metric' | 'short_bullet' | 'long_bullet';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -1118,6 +1119,40 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
             phrase: `${(quantRatio * 100).toFixed(0)}% of bullets have any number`,
             fixedBy: 'none',
         });
+    }
+
+    // Detect-only: BULLET LENGTH RULE. The prompt says "every bullet 15–25
+    // words; under 12 words = failure". We flag short bullets so the UI / AI
+    // rewriter can catch and fix them. Counting words by whitespace splits.
+    let shortBullets = 0;
+    let longBullets = 0;
+    (working.experience || []).forEach((e, i) => {
+        (e.responsibilities || []).forEach((b, j) => {
+            const words = (b || '').trim().split(/\s+/).filter(Boolean).length;
+            if (words > 0 && words < 12) {
+                shortBullets++;
+                leaks.push({
+                    leakType: 'short_bullet',
+                    phrase: `${words}w: "${b.slice(0, 60)}…"`,
+                    fieldLocation: `experience[${i}].responsibilities[${j}]`,
+                    fixedBy: 'none',
+                });
+            } else if (words > 30) {
+                longBullets++;
+                leaks.push({
+                    leakType: 'long_bullet',
+                    phrase: `${words}w: "${b.slice(0, 60)}…"`,
+                    fieldLocation: `experience[${i}].responsibilities[${j}]`,
+                    fixedBy: 'none',
+                });
+            }
+        });
+    });
+    if (shortBullets > 0) {
+        console.warn(`[Purify] ${shortBullets} bullet(s) under 12 words — should be 15–25.`);
+    }
+    if (longBullets > 0) {
+        console.warn(`[Purify] ${longBullets} bullet(s) over 30 words — should be 15–25.`);
     }
 
     return {

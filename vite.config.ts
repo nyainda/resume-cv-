@@ -12,6 +12,18 @@ export default defineConfig(() => {
         protocol: 'wss',
       },
       allowedHosts: true,
+      // Same-origin proxy to the local Playwright PDF server (port 3001).
+      // Required because the Replit preview iframe cannot reach localhost:3001
+      // directly; the browser only sees port 80 of the dev URL.
+      proxy: {
+        '/__pdf': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/__pdf/, ''),
+          timeout: 60000,
+          proxyTimeout: 60000,
+        },
+      },
     },
     plugins: [react()],
     resolve: {
