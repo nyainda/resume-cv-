@@ -81,6 +81,8 @@ export interface GenerationLogPayload {
     model?: string;
     promptVersion?: string;
     generationMode?: string;
+    briefPresent?: boolean;
+    briefStatus?: 'present' | 'missing_empty' | 'missing_error';
     outputWordCount?: number;
     roundNumberRatio?: number;
     repeatedPhraseCount?: number;

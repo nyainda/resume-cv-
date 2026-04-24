@@ -1,0 +1,42 @@
+{
+  "_comment": "Copy to custom-pack.json. Add curated data across ALL tables. seed.cjs will de-duplicate on known unique keys before insert.",
+  "cv_verbs": [
+    { "verb_present": "Optimizes", "verb_past": "Optimized", "category": "technical", "energy_level": "high", "human_score": 9, "formality": "neutral", "industry": "general" }
+  ],
+  "cv_openers": [
+    { "opener": "In a fast-scaling environment", "type": "context", "triggers_comma": 1, "example": "In a fast-scaling environment, ...", "length_type": "medium" }
+  ],
+  "cv_context_connectors": [
+    { "connector": "across a multi-site operation", "type": "scope", "example": "...across a multi-site operation" }
+  ],
+  "cv_result_connectors": [
+    { "connector": "resulting in", "type": "metric", "example": "...resulting in 28% faster processing", "human_score": 9 }
+  ],
+  "cv_sentence_structures": [
+    { "pattern_label": "medium", "pattern": "[Verb] [Scope/Action], [result_connector] [outcome]", "word_count_min": 12, "word_count_max": 22, "example": "Led rollout across 14 sites, resulting in 19% lower downtime.", "use_frequency": "common", "section": "bullet" }
+  ],
+  "cv_rhythm_patterns": [
+    { "pattern_name": "ops_balanced", "sequence": ["short", "long", "medium", "long", "short"], "section": "current_role", "bullet_count": 5, "description": "Balanced ops rhythm", "human_score": 9 }
+  ],
+  "cv_paragraph_structures": [
+    { "section": "summary", "sentence_count": 3, "pattern": "WHO -> PROOF -> FIT", "word_count_min": 55, "word_count_max": 80, "rules": ["no cliches", "one quantified proof"] }
+  ],
+  "cv_banned_phrases": [
+    { "phrase": "results-driven professional", "replacement": "", "severity": "high", "reason": "generic_cliche", "source": "custom_pack" }
+  ],
+  "cv_subjects": [
+    { "subject": "Cross-functional team", "usage": "team", "allowed_sections": ["bullet", "summary"] }
+  ],
+  "cv_seniority_levels": [
+    { "level": "senior", "years_min": 6, "years_max": 11, "bullet_style": "impact-first", "metric_density": "medium", "summary_tone": "authoritative", "forbidden_phrases": ["hard worker", "go-getter"] }
+  ],
+  "cv_field_profiles": [
+    { "field": "tech_software", "language_style": "technical", "preferred_verbs": ["Built", "Shipped", "Scaled"], "avoided_verbs": ["Liaised", "Synergized"], "metric_types": ["latency", "uptime", "cost reduction"], "jd_keywords": ["kubernetes", "microservices", "ci/cd", "observability"] }
+  ],
+  "cv_seniority_field_combos": [
+    { "seniority": "senior", "field": "tech_software", "forbidden_phrases": ["entry-level", "junior responsibilities"], "required_tone": "confident", "notes": "Keep ownership and architecture scope visible" }
+  ],
+  "cv_voice_profiles": [
+    { "name": "impact_concise", "tone": "confident", "description": "Direct, measurable, concise.", "verbosity_level": 2, "metric_preference": "high", "opener_frequency": 0.15, "risk_tolerance": "balanced", "formality": "neutral", "compatible_fields": ["tech_software", "data_analytics"], "compatible_seniority": ["mid", "senior", "lead"], "incompatible_with": [], "verb_bias": ["Built", "Scaled", "Automated"], "structure_bias": ["short", "medium"] }
+  ]
+}
