@@ -55,6 +55,9 @@ export default {
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
+            if (url.pathname === '/api/cv/admin/tokens' && request.method === 'GET')  return handleTokensList(request, env);
+            if (url.pathname === '/api/cv/admin/tokens' && request.method === 'POST') return handleTokensCreate(request, env);
+            if (url.pathname === '/api/cv/admin/tokens/revoke' && request.method === 'POST') return handleTokensRevoke(request, env);
 
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
@@ -652,10 +655,8 @@ const ADMIN_TABLES = new Set([
 ]);
 
 async function handleAdminStats(request: Request, env: Env): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
     const counts: Record<string, number> = {};
     for (const t of ADMIN_TABLES) {
         try {
@@ -670,10 +671,9 @@ async function handleAdminStats(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleBulkAdd(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'editor');
+    if (!auth) return unauthorized(request, env, 'editor');
     const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
     const body = await safeJson(request);
     const table: string = String(body?.table || '');
     const rows: any[] = Array.isArray(body?.rows) ? body.rows : [];
@@ -737,10 +737,8 @@ const ADMIN_SEARCHABLE: Record<string, string[]> = {
 };
 
 async function handleAdminList(request: Request, env: Env, url: URL): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
     const table = String(url.searchParams.get('table') || '');
     if (!ADMIN_TABLES.has(table)) {
         return json({ error: 'invalid_table', allowed: Array.from(ADMIN_TABLES) }, request, env, 400);
@@ -773,10 +771,9 @@ async function handleAdminList(request: Request, env: Env, url: URL): Promise<Re
 }
 
 async function handleBulkUpdate(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'editor');
+    if (!auth) return unauthorized(request, env, 'editor');
     const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
     const body = await safeJson(request);
     const table: string = String(body?.table || '');
     const updates: any[] = Array.isArray(body?.updates) ? body.updates : [];
@@ -823,10 +820,9 @@ async function handleBulkUpdate(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleAdminDelete(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'editor');
+    if (!auth) return unauthorized(request, env, 'editor');
     const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
     const body = await safeJson(request);
     const table: string = String(body?.table || '');
     const ids: string[] = Array.isArray(body?.ids) ? body.ids.filter((x: any) => typeof x === 'string') : [];
@@ -862,10 +858,8 @@ async function handleAdminDelete(request: Request, env: Env): Promise<Response> 
 }
 
 async function handleVoiceTest(request: Request, env: Env): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
     const body = await safeJson(request);
     const bullets: string[] = Array.isArray(body?.bullets)
         ? body.bullets.map((b: any) => String(b || '')).filter(Boolean)
@@ -900,10 +894,8 @@ async function handleVoiceTest(request: Request, env: Env): Promise<Response> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function handleAiAudit(request: Request, env: Env): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
     if (!env.AI) return json({ error: 'ai_binding_missing' }, request, env, 500);
 
     const body = await safeJson(request);
@@ -983,10 +975,8 @@ Rules:
 }
 
 async function handleSync(request: Request, env: Env): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-        return json({ error: 'unauthorized' }, request, env, 401);
-    }
+    const auth = await verifyAdminAuth(request, env, 'editor');
+    if (!auth) return unauthorized(request, env, 'editor');
 
     const written: Array<[string, number]> = [];
 
@@ -1138,8 +1128,8 @@ async function handleLeakReport(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleLeakCandidatesList(request: Request, env: Env, url: URL): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, request, env, 401);
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
 
     const status = String(url.searchParams.get('status') || 'pending');
     const limit = clamp(parseInt(url.searchParams.get('limit') || '100', 10), 1, 500);
@@ -1167,8 +1157,8 @@ async function handleLeakCandidatesList(request: Request, env: Env, url: URL): P
 }
 
 async function handleLeakCandidatesDecide(request: Request, env: Env): Promise<Response> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) return json({ error: 'unauthorized' }, request, env, 401);
+    const auth = await verifyAdminAuth(request, env, 'editor');
+    if (!auth) return unauthorized(request, env, 'editor');
 
     const body = await safeJson(request);
     const ids: string[] = Array.isArray(body?.ids) ? body.ids.map((x: any) => String(x)).filter(Boolean) : [];
@@ -1254,4 +1244,107 @@ async function rebuildBannedKv(env: Env): Promise<void> {
         `SELECT phrase, replacement, severity, reason FROM cv_banned_phrases ORDER BY length(phrase) DESC`
     ).all();
     await env.CV_KV.put('cv:banned:all', JSON.stringify(rs.results || []));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase H — DB-driven multi-token admin auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AdminRole = 'viewer' | 'editor' | 'admin';
+const ROLE_RANK: Record<AdminRole, number> = { viewer: 1, editor: 2, admin: 3 };
+const VALID_ROLES: AdminRole[] = ['viewer', 'editor', 'admin'];
+
+interface AuthCtx { ok: true; role: AdminRole; label: string; tokenId: string | null; }
+
+async function sha256Hex(input: string): Promise<string> {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyAdminAuth(request: Request, env: Env, required: AdminRole = 'admin'): Promise<AuthCtx | null> {
+    const token = request.headers.get('X-Admin-Token') || '';
+    if (!token) return null;
+
+    // 1) DB-backed token (preferred)
+    try {
+        const hash = await sha256Hex(token);
+        const row = await env.CV_DB.prepare(
+            `SELECT id, label, role FROM cv_admin_tokens WHERE token_hash = ? AND revoked_at IS NULL`
+        ).bind(hash).first<{ id: string; label: string; role: AdminRole }>();
+        if (row && VALID_ROLES.includes(row.role) && ROLE_RANK[row.role] >= ROLE_RANK[required]) {
+            // Best-effort last_used_at update — never block the request
+            env.CV_DB.prepare(
+                `UPDATE cv_admin_tokens SET last_used_at = datetime('now') WHERE id = ?`
+            ).bind(row.id).run().catch(() => {/* swallow */});
+            return { ok: true, role: row.role, label: row.label, tokenId: row.id };
+        }
+    } catch {/* table may not exist on first deploy, fall through */}
+
+    // 2) Bootstrap: env.ADMIN_TOKEN is treated as full admin so we never lock out
+    if (env.ADMIN_TOKEN && token === env.ADMIN_TOKEN) {
+        return { ok: true, role: 'admin', label: 'env_bootstrap', tokenId: null };
+    }
+    return null;
+}
+
+function unauthorized(request: Request, env: Env, required: AdminRole): Response {
+    return json({ error: 'unauthorized', required_role: required }, request, env, 401);
+}
+
+async function handleTokensList(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'admin');
+    if (!auth) return unauthorized(request, env, 'admin');
+    const rs = await env.CV_DB.prepare(
+        `SELECT id, label, role, created_at, last_used_at, revoked_at
+           FROM cv_admin_tokens ORDER BY revoked_at IS NULL DESC, created_at DESC`
+    ).all();
+    return json({ ok: true, rows: rs.results }, request, env);
+}
+
+async function handleTokensCreate(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'admin');
+    if (!auth) return unauthorized(request, env, 'admin');
+
+    const body = await safeJson(request);
+    const label = String(body?.label || '').trim().slice(0, 80);
+    const role = String(body?.role || 'editor') as AdminRole;
+    if (!label) return json({ error: 'missing_label' }, request, env, 400);
+    if (!VALID_ROLES.includes(role)) return json({ error: 'invalid_role', allowed: VALID_ROLES }, request, env, 400);
+
+    // Generate a 32-byte random token, prefixed for human-readability
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const plaintext = 'cvk_' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const hash = await sha256Hex(plaintext);
+    const id = crypto.randomUUID();
+
+    try {
+        await env.CV_DB.prepare(
+            `INSERT INTO cv_admin_tokens (id, token_hash, label, role) VALUES (?, ?, ?, ?)`
+        ).bind(id, hash, label, role).run();
+    } catch (e: any) {
+        return json({ error: 'create_failed', message: String(e?.message || e) }, request, env, 500);
+    }
+    // Plaintext is returned ONCE — caller must save it.
+    return json({ ok: true, id, label, role, token: plaintext, warning: 'Save this token now — it will never be shown again.' }, request, env);
+}
+
+async function handleTokensRevoke(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'admin');
+    if (!auth) return unauthorized(request, env, 'admin');
+
+    const body = await safeJson(request);
+    const ids: string[] = Array.isArray(body?.ids) ? body.ids.map((x: any) => String(x)).filter(Boolean) : [];
+    if (ids.length === 0) return json({ error: 'missing_ids' }, request, env, 400);
+    if (auth.tokenId && ids.includes(auth.tokenId)) {
+        return json({ error: 'cannot_revoke_self', message: 'Use another admin token to revoke this one.' }, request, env, 400);
+    }
+    let revoked = 0;
+    for (const id of ids) {
+        const r = await env.CV_DB.prepare(
+            `UPDATE cv_admin_tokens SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL`
+        ).bind(id).run();
+        if (r.meta?.changes) revoked += Number(r.meta.changes);
+    }
+    return json({ ok: true, revoked }, request, env);
 }

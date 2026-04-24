@@ -392,6 +392,35 @@ export interface LeakCandidatesList {
     threshold: number;
 }
 
+export interface AdminTokenRow {
+    id: string;
+    label: string;
+    role: 'viewer' | 'editor' | 'admin';
+    created_at: string;
+    last_used_at: string | null;
+    revoked_at: string | null;
+}
+
+export async function listAdminTokens(): Promise<{ ok: boolean; rows: AdminTokenRow[] } | null> {
+    return adminFetch('/api/cv/admin/tokens');
+}
+
+export async function createAdminToken(label: string, role: 'viewer' | 'editor' | 'admin'): Promise<{ ok: boolean; id: string; token: string; warning: string } | null> {
+    return adminFetch('/api/cv/admin/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, role }),
+    });
+}
+
+export async function revokeAdminTokens(ids: string[]): Promise<{ ok: boolean; revoked: number } | null> {
+    return adminFetch('/api/cv/admin/tokens/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+    });
+}
+
 export async function reportLeaks(phrases: string[], sample = ''): Promise<{ ok: boolean; recorded: number } | null> {
     if (!phrases.length) return null;
     return postJSON('/api/cv/leak-report', { phrases, sample });

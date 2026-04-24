@@ -12,10 +12,14 @@ import {
     aiAudit,
     listLeakCandidates,
     decideLeakCandidates,
+    listAdminTokens,
+    createAdminToken,
+    revokeAdminTokens,
     type AdminStats,
     type VoiceTestResult,
     type AiAuditResult,
     type LeakCandidate,
+    type AdminTokenRow,
 } from '../services/cvEngineClient';
 
 const TABLE_LABELS: Record<string, string> = {
@@ -43,7 +47,7 @@ export default function AdminCVEnginePage(): JSX.Element {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<string>('');
-    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test' | 'ai_audit' | 'leak_queue'>('verb');
+    const [tab, setTab] = useState<'verb' | 'banned_word' | 'banned' | 'voice' | 'field' | 'opener' | 'browse' | 'voice_test' | 'ai_audit' | 'leak_queue' | 'tokens'>('verb');
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -126,9 +130,9 @@ export default function AdminCVEnginePage(): JSX.Element {
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-slate-700">
-                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test', 'ai_audit', 'leak_queue'] as const).map(t => (
+                {(['verb', 'banned_word', 'banned', 'voice', 'field', 'opener', 'browse', 'voice_test', 'ai_audit', 'leak_queue', 'tokens'] as const).map(t => (
                     <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm font-medium ${tab === t ? 'text-white border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-200'}`}>
-                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : t === 'voice_test' ? 'Voice Tester' : t === 'ai_audit' ? 'AI Auditor' : 'Leak Queue'}
+                        {t === 'verb' ? 'Add Verb' : t === 'banned_word' ? 'Add Banned Word' : t === 'banned' ? 'Add Banned Phrase' : t === 'voice' ? 'Add Voice' : t === 'field' ? 'Add Field' : t === 'opener' ? 'Add Opener' : t === 'browse' ? 'Browse / Edit' : t === 'voice_test' ? 'Voice Tester' : t === 'ai_audit' ? 'AI Auditor' : t === 'leak_queue' ? 'Leak Queue' : 'Tokens'}
                     </button>
                 ))}
             </div>
@@ -143,6 +147,7 @@ export default function AdminCVEnginePage(): JSX.Element {
             {tab === 'voice_test' && <VoiceTesterTab setMsg={setMsg} />}
             {tab === 'ai_audit' && <AiAuditTab onDone={refresh} setMsg={setMsg} />}
             {tab === 'leak_queue' && <LeakQueueTab onDone={refresh} setMsg={setMsg} />}
+            {tab === 'tokens' && <TokensTab setMsg={setMsg} />}
         </div>
     );
 }
@@ -941,6 +946,124 @@ function LeakQueueTab({ onDone, setMsg }: FormProps) {
                     </table>
                 </div>
             )}
+        </div>
+    );
+}
+
+// ─── Tokens Tab (Phase H) ─────────────────────────────────────────────────────
+function TokensTab({ setMsg }: { setMsg: (s: string) => void }) {
+    const [rows, setRows] = useState<AdminTokenRow[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [label, setLabel] = useState('');
+    const [role, setRole] = useState<'viewer' | 'editor' | 'admin'>('editor');
+    const [justCreated, setJustCreated] = useState<{ label: string; token: string } | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        const r = await listAdminTokens();
+        setLoading(false);
+        if (!r) { setMsg('Could not load tokens.'); return; }
+        setRows(r.rows);
+    }, [setMsg]);
+
+    useEffect(() => { void load(); }, [load]);
+
+    const create = async () => {
+        if (!label.trim()) { setMsg('Label is required.'); return; }
+        setLoading(true);
+        const r = await createAdminToken(label.trim(), role);
+        setLoading(false);
+        if (!r) { setMsg('Token creation failed.'); return; }
+        setJustCreated({ label: label.trim(), token: r.token });
+        setLabel('');
+        await load();
+    };
+
+    const revoke = async (id: string, lbl: string) => {
+        if (!confirm(`Revoke token "${lbl}"? This cannot be undone.`)) return;
+        setLoading(true);
+        const r = await revokeAdminTokens([id]);
+        setLoading(false);
+        if (!r) { setMsg('Revoke failed.'); return; }
+        setMsg(`Revoked ${r.revoked} token.`);
+        await load();
+    };
+
+    const copyToken = async (token: string) => {
+        try { await navigator.clipboard.writeText(token); setMsg('Token copied to clipboard.'); }
+        catch { setMsg('Could not copy — select the token text manually.'); }
+    };
+
+    return (
+        <div className="space-y-4 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+            <div className="text-slate-300 text-sm space-y-1">
+                <p>Per-person admin tokens with roles. Stored as SHA-256 hashes in <code className="text-amber-300">cv_admin_tokens</code> — the plaintext is shown <strong>once</strong> on creation and never again.</p>
+                <p className="text-slate-500 text-xs">
+                    Role hierarchy: <code>viewer</code> (read-only stats / browse / voice-test / AI audit / leak queue),
+                    <code> editor</code> (everything viewers can do + bulk add/update/delete + KV sync + leak decisions),
+                    <code> admin</code> (everything + manage tokens). The bootstrap <code>ADMIN_TOKEN</code> secret keeps working as a backup admin credential.
+                </p>
+            </div>
+
+            {justCreated && (
+                <div className="bg-emerald-950/40 border border-emerald-700 rounded p-3 space-y-2">
+                    <div className="text-emerald-300 text-sm font-semibold">New token created for "{justCreated.label}" — copy it now, it will never be shown again.</div>
+                    <div className="flex gap-2 items-center">
+                        <code className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-amber-300 font-mono text-sm break-all">{justCreated.token}</code>
+                        <button onClick={() => copyToken(justCreated.token)} className="px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-sm whitespace-nowrap">Copy</button>
+                        <button onClick={() => setJustCreated(null)} className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white text-sm">I saved it</button>
+                    </div>
+                </div>
+            )}
+
+            <div className="bg-slate-900/50 border border-slate-700 rounded p-3 space-y-2">
+                <div className="text-slate-300 text-sm font-medium">Create new token</div>
+                <div className="flex flex-wrap gap-2 items-center">
+                    <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (e.g. Alice — auditor)" className="flex-1 min-w-[12rem] bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-white text-sm" />
+                    <select value={role} onChange={e => setRole(e.target.value as any)} className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-white text-sm">
+                        <option value="viewer">viewer</option>
+                        <option value="editor">editor</option>
+                        <option value="admin">admin</option>
+                    </select>
+                    <button onClick={create} disabled={loading || !label.trim()} className="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm disabled:opacity-40">{loading ? '…' : 'Create'}</button>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-700 rounded">
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-900/60 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th className="px-2 py-2 text-left">Label</th>
+                            <th className="px-2 py-2 text-left">Role</th>
+                            <th className="px-2 py-2 text-left">Status</th>
+                            <th className="px-2 py-2 text-left">Created</th>
+                            <th className="px-2 py-2 text-left">Last used</th>
+                            <th className="px-2 py-2 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.length === 0 && !loading && (
+                            <tr><td colSpan={6} className="px-2 py-6 text-center text-slate-400">No tokens yet. The <code>ADMIN_TOKEN</code> secret remains active until you create one.</td></tr>
+                        )}
+                        {rows.map(r => (
+                            <tr key={r.id} className={`border-t border-slate-800 ${r.revoked_at ? 'opacity-50' : ''}`}>
+                                <td className="px-2 py-1.5 text-white">{r.label}</td>
+                                <td className="px-2 py-1.5">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-mono ${r.role === 'admin' ? 'bg-rose-900 text-rose-200' : r.role === 'editor' ? 'bg-amber-900 text-amber-200' : 'bg-slate-700 text-slate-200'}`}>{r.role}</span>
+                                </td>
+                                <td className="px-2 py-1.5 text-xs">{r.revoked_at ? <span className="text-rose-400">revoked</span> : <span className="text-emerald-400">active</span>}</td>
+                                <td className="px-2 py-1.5 text-slate-500 text-xs whitespace-nowrap">{r.created_at}</td>
+                                <td className="px-2 py-1.5 text-slate-500 text-xs whitespace-nowrap">{r.last_used_at || '—'}</td>
+                                <td className="px-2 py-1.5 text-right">
+                                    {!r.revoked_at && (
+                                        <button onClick={() => revoke(r.id, r.label)} className="px-2 py-1 rounded bg-rose-800 hover:bg-rose-700 text-white text-xs">Revoke</button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }
