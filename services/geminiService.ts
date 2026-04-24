@@ -5,7 +5,7 @@ import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -1967,6 +1967,24 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         });
     } catch (e) {
         console.debug('[CV Gen] telemetry post failed (non-fatal):', e);
+    }
+
+    // ── Phase I: feed the worker's leak queue ──
+    // Send the unique leak phrases to the worker so the nightly cron can
+    // auto-promote anything that crosses the threshold into cv_banned_phrases.
+    // Fire-and-forget: never block CV generation on this.
+    try {
+        const leakPhrases = Array.from(new Set(
+            (purified.report.leaks || [])
+                .map(l => String(l.phrase || '').toLowerCase().trim())
+                .filter(p => p.length >= 3 && p.length <= 80)
+        ));
+        if (leakPhrases.length) {
+            const sample = (purified.report.leaks?.[0]?.contextSnippet || '').slice(0, 500);
+            void reportLeaks(leakPhrases, sample).catch(() => {/* swallow */});
+        }
+    } catch (e) {
+        console.debug('[CV Gen] leak-report post failed (non-fatal):', e);
     }
 
     // ── Phase E: Voice consistency enforcement ──

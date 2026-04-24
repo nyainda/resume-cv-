@@ -20,6 +20,9 @@ dist
 dist-ssr
 *.local
 
+# Pasted assets / scratch — may contain credentials, never commit
+attached_assets/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
