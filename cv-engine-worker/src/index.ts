@@ -908,6 +908,34 @@ async function handleAiAudit(request: Request, env: Env): Promise<Response> {
     const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
     const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()).filter(Boolean));
 
+    // ─── Style anchors from the seeded D1/KV pools ───────────────────────────
+    // We feed the auditor a small, curated slice of our actual house style so
+    // its `replacement` suggestions match the seeded vocabulary instead of
+    // drifting into yet another set of generic LLM-isms. All slices are tiny
+    // (KV reads are cheap; the prompt budget is the real constraint).
+    const [techVerbsKv, mgmtVerbsKv, analysisVerbsKv, resultsKv] = await Promise.all([
+        env.CV_KV.get<any[]>('cv:verbs:technical:past', { type: 'json' }),
+        env.CV_KV.get<any[]>('cv:verbs:management:past', { type: 'json' }),
+        env.CV_KV.get<any[]>('cv:verbs:analysis:past', { type: 'json' }),
+        env.CV_KV.get<any[]>('cv:results:emdash', { type: 'json' }),
+    ]);
+    const pickVerbs = (arr: any[] | null, n: number) =>
+        (arr || []).filter((r: any) => (r.human_score ?? 0) >= 8)
+            .slice(0, n).map((r: any) => r.verb_past).filter(Boolean);
+    const sampleVerbs = [
+        ...pickVerbs(techVerbsKv, 12),
+        ...pickVerbs(mgmtVerbsKv, 8),
+        ...pickVerbs(analysisVerbsKv, 8),
+    ];
+    const sampleEmdash = (resultsKv || []).slice(0, 5)
+        .map((r: any) => r.example).filter(Boolean);
+    const styleAnchor = sampleVerbs.length
+        ? `\n\nHouse style — preferred verbs (use these, or near-synonyms, when proposing replacements):\n${sampleVerbs.join(', ')}.`
+        : '';
+    const emdashAnchor = sampleEmdash.length
+        ? `\n\nHouse style — punchy human bullet endings look like:\n${sampleEmdash.map((e: string) => `  • ${e}`).join('\n')}`
+        : '';
+
     const sys = `You are a strict CV editor that detects AI-generated language ("AI-isms") in resume bullets — phrases that sound robotic, generic, buzzword-heavy, or written by ChatGPT.
 
 Return ONLY a JSON object with this exact shape, no prose:
@@ -917,8 +945,8 @@ Rules:
 - Only flag phrases that are clearly AI-isms — buzzwords, hollow superlatives, hedge phrases, robotic transitions, vague impact claims with no number.
 - Each "phrase" MUST appear verbatim (case-insensitive) in the text. Do NOT invent phrases.
 - Severity: critical = obvious ChatGPT giveaway (e.g. "leveraging cutting-edge"), high = strong buzzword, medium = mildly weak.
-- Replacement should be 1-4 words, concrete, action-led. Empty string if removal is enough.
-- Maximum 15 findings. No duplicates.`;
+- Replacement should be 1-4 words, concrete, action-led, and match our house style below. Empty string if removal is enough.
+- Maximum 15 findings. No duplicates.${styleAnchor}${emdashAnchor}`;
 
     const user = `Audit this CV text and return JSON only:\n\n${text}`;
 

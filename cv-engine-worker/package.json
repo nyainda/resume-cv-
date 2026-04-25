@@ -6,10 +6,12 @@
   "scripts": {
     "schema:apply": "node scripts/apply-schema.cjs",
     "seed": "node scripts/seed.cjs",
+    "seed:expanded": "node scripts/extract-expanded-seed-v2.cjs && node scripts/apply-sql-file.cjs sql/expanded-seed-v2.sql",
+    "sql:apply": "node scripts/apply-sql-file.cjs",
     "kv:sync": "node scripts/sync-kv.cjs",
     "stats": "node scripts/stats.cjs",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "node scripts/deploy.cjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",
