@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
@@ -147,9 +148,7 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
           yearClass="text-xs text-slate-400"
         />
 {jobDescriptionForATS && (
-                <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-white whitespace-pre-wrap text-[1px]" aria-hidden="true">
-                    {jobDescriptionForATS}
-                </div>
+                <HiddenATSKeywords text={jobDescriptionForATS} />
             )}
 
             <style dangerouslySetInnerHTML={{

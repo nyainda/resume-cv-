@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
@@ -146,9 +147,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
 </main>
 
             {jobDescriptionForATS && (
-                <div className="absolute left-[-9999px] top-[-9999px] w-[1px] h-[1px] overflow-hidden text-[#fafafa] whitespace-pre-wrap text-[1px]" aria-hidden="true">
-                    {jobDescriptionForATS}
-                </div>
+                <HiddenATSKeywords text={jobDescriptionForATS} />
             )}
         </div>
     );

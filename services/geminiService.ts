@@ -1439,6 +1439,12 @@ function buildStaleProfileRefreshInstruction(
     HARD LIMITS (never violate):
     - Keep company names, job titles, and employment dates unchanged.
     - Do NOT invent new employers, degrees, or certifications.
+    - DEGREE PRESERVATION (binding): The degree name AND institution MUST be
+      copied verbatim from the candidate's profile. Never paraphrase, abbreviate,
+      translate, "improve", or invent. "BSc Computer Science" stays "BSc Computer Science"
+      — not "Bachelor of Science in Computing", not "BS Comp Sci", not "Bachelor's degree".
+      The institution string is sacred too: "University of Nairobi" never becomes
+      "Nairobi University". If you cannot fit the exact string, keep the exact string.
     - Do NOT fabricate impossible metrics; only use conservative, believable ranges.
     - Only infer activities that are consistent with the detected work tracks above.
 

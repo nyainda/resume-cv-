@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
@@ -300,9 +301,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
         />
 {/* ATS hidden keywords */}
       {jobDescriptionForATS && (
-        <div className="absolute left-[-9999px] top-[-9999px] w-px h-px overflow-hidden text-white text-[1px]" aria-hidden="true">
-          {jobDescriptionForATS}
-        </div>
+        <HiddenATSKeywords text={jobDescriptionForATS} />
       )}
     </div>
   );

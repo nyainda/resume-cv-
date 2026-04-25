@@ -161,3 +161,21 @@ To raise a floor on a new package or new minimum version, edit the `PROTECTED` a
 
 - **Primary path (Playwright server / Cloudflare worker)**: clones the live preview DOM via `services/getCVHtml.ts` and inlines all CSS — `cvData.accentColor` flows through the templates and matches the on-screen preview pixel-for-pixel.
 - **Tertiary fallback (`@react-pdf/renderer`, services/reactPdfTemplates.tsx)**: the default `ProfessionalPDF` template now reads `cvData.accentColor` for header border, name, and bullet dots. The other 5 templates (`standard-pro`, `minimalist`, `london-finance`, `ats-clean-pro`, `executive-sidebar`) still use their original hardcoded colors in the react-pdf path — this only matters if BOTH the Playwright server AND the Cloudflare worker are unreachable, which is rare.
+
+## April 2026 — User-Reported Bug Fixes
+
+Five high-priority polish bugs reported by users were addressed in this session:
+
+1. **Empty metric placeholder leaks** — bullets like "Reduced costs by {metric} monthly" or "Grew revenue by XX% in Q4" were leaking the LLM's placeholder tokens into the final CV. Fix: `stripOrphanMetrics` in `services/cvPurificationPipeline.ts` now detects `{metric}`, `[X]`, `XX%`, `$XX`, `___`, `<placeholder>` patterns, drops the leading preposition + token + trailing unit (%, K, M, currency code) but **preserves** real trailing words like "monthly" or "in Q4" so the bullet still reads naturally.
+
+2. **Pronoun scrubber breaking contractions** — the old regex turned "I'm shipping payment systems" into "Mshipping payment systems". Fix: every pronoun pattern in `stripFirstPerson` now uses negative lookahead `(?!['’])` so contractions (`I'm`, `I've`, `we're`, `my'd`, etc.) survive untouched while bare pronouns are still stripped.
+
+3. **Hidden ATS keyword layer becoming visible at zoom** — the inline `text-white text-[1px]` divs would render as faint white text on white when users zoomed past 200%. Fix: created `components/HiddenATSKeywords.tsx` with **five** invisibility guarantees stacked together (off-screen positioning + 1px clip-path + transparent color + opacity 0 + 1px font), then migrated all 28 templates via `/tmp/migrate-hidden-ats.mjs` to use the shared component. ATS scrapers still pick up the text from the DOM; humans never see it at any zoom level.
+
+4. **Degree hallucination** — the LLM was paraphrasing degree names ("BSc Computer Science" → "Bachelor of Science in Computing") and swapping institution names ("University of Nairobi" ↔ "Nairobi University"). Fix: added a binding "DEGREE PRESERVATION" hard-limit clause to the refresh prompt in `services/geminiService.ts` (~line 1445) requiring verbatim copy of both degree and institution strings.
+
+5. **Tense chaos in current roles** — bullets like "Develops and implemented X" mixed present and past tense within a single sentence. Fix: extended `VERB_TENSE_MAP` with 47 new pairs (Conducts/Conducted, Performs/Performed, etc.) and added a new `flipMidBulletVerb` helper that catches mid-sentence tense flips after `and` or `,` conjunctions; integrated into `enforceTenseConsistency`.
+
+### CI Coverage
+
+A new hard gate `scripts/test-bug-fixes.mjs` now mirrors the logic of all four pipeline fixes (12 assertions) and runs in `.github/workflows/ci.yml` alongside the existing `test-banned-phrase-filter.mjs` (15 assertions). Both must pass before any production build is allowed.

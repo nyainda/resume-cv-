@@ -50,6 +50,16 @@ jobs:
       - name: Banned-phrase filter golden test
         run: node scripts/test-banned-phrase-filter.mjs
 
+      # HARD GATE 2b — purification pipeline regression test.
+      # Locks in the four April 2026 bug fixes:
+      #   • placeholder leaks ("by {metric}" → stripped)
+      #   • contraction-safe pronoun scrub ("I'm shipping" stays intact)
+      #   • orphan-preposition cleanup
+      #   • mid-bullet tense flips ("Develops and implemented" → "and implements")
+      # Mirrors logic from services/cvPurificationPipeline.ts — keep in sync.
+      - name: Purification pipeline bug-fix test
+        run: node scripts/test-bug-fixes.mjs
+
       # SOFT GATE — typecheck only the files we control day-to-day.
       # The full project has a few pre-existing strict-mode warnings
       # outside the changed files; we keep this informational so it

@@ -290,6 +290,54 @@ const VERB_TENSE_MAP: Array<{ present: string; past: string }> = [
     { present: 'Establishes',   past: 'Established' },
     { present: 'Spearheads',    past: 'Spearheaded' },
     { present: 'Leverages',     past: 'Leveraged' },
+    // Verbs added in response to user-reported tense leaks in current roles.
+    { present: 'Conducts',      past: 'Conducted' },
+    { present: 'Performs',      past: 'Performed' },
+    { present: 'Calculates',    past: 'Calculated' },
+    { present: 'Compiles',      past: 'Compiled' },
+    { present: 'Communicates',  past: 'Communicated' },
+    { present: 'Configures',    past: 'Configured' },
+    { present: 'Deploys',       past: 'Deployed' },
+    { present: 'Engineers',     past: 'Engineered' },
+    { present: 'Facilitates',   past: 'Facilitated' },
+    { present: 'Forecasts',     past: 'Forecast' },
+    { present: 'Initiates',     past: 'Initiated' },
+    { present: 'Integrates',    past: 'Integrated' },
+    { present: 'Investigates',  past: 'Investigated' },
+    { present: 'Orchestrates',  past: 'Orchestrated' },
+    { present: 'Partners',      past: 'Partnered' },
+    { present: 'Pilots',        past: 'Piloted' },
+    { present: 'Produces',      past: 'Produced' },
+    { present: 'Programs',      past: 'Programmed' },
+    { present: 'Promotes',      past: 'Promoted' },
+    { present: 'Recommends',    past: 'Recommended' },
+    { present: 'Scales',        past: 'Scaled' },
+    { present: 'Schedules',     past: 'Scheduled' },
+    { present: 'Secures',       past: 'Secured' },
+    { present: 'Solves',        past: 'Solved' },
+    { present: 'Standardises',  past: 'Standardised' },
+    { present: 'Standardizes',  past: 'Standardized' },
+    { present: 'Supervises',    past: 'Supervised' },
+    { present: 'Translates',    past: 'Translated' },
+    { present: 'Updates',       past: 'Updated' },
+    { present: 'Validates',     past: 'Validated' },
+    { present: 'Writes',        past: 'Wrote' },
+    { present: 'Speaks',        past: 'Spoke' },
+    { present: 'Teaches',       past: 'Taught' },
+    { present: 'Brings',        past: 'Brought' },
+    { present: 'Sells',         past: 'Sold' },
+    { present: 'Serves',        past: 'Served' },
+    { present: 'Sets',          past: 'Set' },
+    { present: 'Holds',         past: 'Held' },
+    { present: 'Wins',          past: 'Won' },
+    { present: 'Sees',          past: 'Saw' },
+    { present: 'Makes',         past: 'Made' },
+    { present: 'Takes',         past: 'Took' },
+    { present: 'Gives',         past: 'Gave' },
+    { present: 'Hires',         past: 'Hired' },
+    { present: 'Fires',         past: 'Fired' },
+    { present: 'Closes',        past: 'Closed' },
+    { present: 'Opens',         past: 'Opened' },
 ];
 
 function isCurrentRole(role: { endDate?: string }): boolean {
@@ -339,8 +387,40 @@ function matchCase(original: string, replacement: string): string {
 }
 
 /**
+ * Flips a SINGLE mid-bullet verb when it is a "Verb1 and Verb2" / "Verb1, Verb2"
+ * conjunction whose two verbs disagree in tense ("Develops and implemented X").
+ *
+ * Heuristic: locate any pattern `(verb_a) (and|,) (verb_b)` where verb_b is in
+ * the opposite tense to the role's target. We rewrite verb_b only — verb_a is
+ * already covered by `flipLeadingVerb`. We don't try to be clever about
+ * three-verb chains; the most common AI failure is a two-verb conjunction.
+ */
+function flipMidBulletVerb(bullet: string, target: 'present' | 'past'): { text: string; changed: boolean } {
+    if (!bullet) return { text: bullet || '', changed: false };
+    let out = bullet;
+    let changed = false;
+    for (const pair of VERB_TENSE_MAP) {
+        const wrong = (target === 'present' ? pair.past : pair.present).toLowerCase();
+        const right = target === 'present' ? pair.present : pair.past;
+        // Match "and|, " then the wrongly-tensed verb as a standalone word.
+        const re = new RegExp(`\\b(and|,)\\s+(${wrong})\\b`, 'gi');
+        if (re.test(out)) {
+            out = out.replace(re, (_m, conj, w) => `${conj} ${matchCase(w, right)}`);
+            changed = true;
+        }
+    }
+    return { text: out, changed };
+}
+
+/**
  * Enforces verb-tense consistency across every role. Mutates a copy of cv.experience.
  * Returns the new CV plus a list of human-readable change descriptions.
+ *
+ * Two passes per bullet:
+ *   1. Leading verb (`flipLeadingVerb`) — handles "Conducted X" in a current role.
+ *   2. Mid-bullet conjunction (`flipMidBulletVerb`) — handles
+ *      "Develops and implemented X" by flipping the second verb to match the
+ *      first (which is already enforced to the role's target tense above).
  */
 export function enforceTenseConsistency(cv: CVData): { cv: CVData; changes: string[] } {
     const changes: string[] = [];
@@ -348,11 +428,13 @@ export function enforceTenseConsistency(cv: CVData): { cv: CVData; changes: stri
     const fixedExperience = cv.experience.map(role => {
         const target: 'present' | 'past' = isCurrentRole(role) ? 'present' : 'past';
         const newBullets = (role.responsibilities || []).map(b => {
-            const { text, changed } = flipLeadingVerb(b, target);
-            if (changed) {
-                changes.push(`[${role.jobTitle} @ ${role.company}] flipped to ${target}: "${b.slice(0, 50)}…"`);
+            const lead = flipLeadingVerb(b, target);
+            const mid  = flipMidBulletVerb(lead.text, target);
+            const finalText = mid.text;
+            if (lead.changed || mid.changed) {
+                changes.push(`[${role.jobTitle} @ ${role.company}] ${lead.changed && mid.changed ? 'lead+mid' : lead.changed ? 'lead' : 'mid'} flipped to ${target}: "${b.slice(0, 50)}…"`);
             }
-            return text;
+            return finalText;
         });
         return { ...role, responsibilities: newBullets };
     });
@@ -623,18 +705,34 @@ const SKILL_CANONICAL: Record<string, string> = {
     'b2b': 'B2B', 'b2c': 'B2C', 'kpi': 'KPI', 'kpis': 'KPIs', 'roi': 'ROI',
 };
 
-/** Strips first-person pronouns at the start or middle of a bullet. */
+/**
+ * Strips first-person pronouns at the start or middle of a bullet.
+ *
+ * IMPORTANT — contraction safety:
+ *   `\b` treats apostrophe as a non-word boundary, so a naïve `\bI\b` matches
+ *   the leading "I" inside "I'm" / "I've" and produces broken text like
+ *   "'m a backend engineer". Every regex below uses a negative lookahead
+ *   `(?!')` (and equivalents) so contractions like I'm, I've, I'd, I'll,
+ *   we're, we've, we'd, we'll survive untouched.
+ *
+ *   Bullets should not contain contractions in the first place — but the
+ *   safety guarantee matters because this same helper is called on the
+ *   summary in older code paths, where contractions ARE deliberate (see the
+ *   "voice" rules in the generation prompt).
+ */
 function stripFirstPerson(text: string): { text: string; changed: boolean } {
     if (!text) return { text: text || '', changed: false };
     let out = text;
     // Leading "I / We" + verb → drop the pronoun, keep verb.
-    out = out.replace(/^(\s*[-•·*»"']?\s*)(?:I|We)\s+(\w+)/i, (_, p, v) => {
+    // Lookahead `(?!['’])` prevents matching the I in "I'm shipping…".
+    out = out.replace(/^(\s*[-•·*»"']?\s*)(?:I|We)(?!['’])\s+(\w+)/i, (_, p, v) => {
         return p + v.charAt(0).toUpperCase() + v.slice(1);
     });
-    // Mid-bullet possessives are usually safe to drop ("my team" → "team").
-    out = out.replace(/\bmy\s+/gi, '');
-    out = out.replace(/\bour\s+/gi, 'the ');
-    out = out.replace(/\b(?:I|me)\b\s*/g, '');
+    // Mid-bullet possessives ("my team" → "team", "our roadmap" → "the roadmap").
+    out = out.replace(/\bmy(?!['’])\s+/gi, '');
+    out = out.replace(/\bour(?!['’])\s+/gi, 'the ');
+    // Standalone I/me — but NEVER inside a contraction (I'm, I've, I'd, I'll, me'd).
+    out = out.replace(/\b(?:I|me)(?!['’])\b\s*/g, '');
     out = out.replace(/\s{2,}/g, ' ').trim();
     return { text: out, changed: out !== text };
 }
@@ -737,6 +835,29 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
     if (!text) return { text: text || '', changed: false };
     let out = text;
 
+    // 0) PLACEHOLDER LEAKS — the AI sometimes emits literal template tokens
+    //    when it ran out of inferable context: "{metric}", "{number}",
+    //    "[X]", "[number]", "XX%", "$XX", "___", three-or-more X's.
+    //    These are the single most embarrassing thing a CV can ship with —
+    //    they instantly tell a recruiter "this was AI-generated and not
+    //    proof-read". We drop the whole "by/from/to PLACEHOLDER" clause
+    //    rather than try to invent a number.
+    const PLACEHOLDER_TOKEN =
+        /(?:\{[A-Za-z_]+\}|\[[A-Za-z_]+\]|XX+%?|\$XX+|XXX+|_{2,}|<[A-Za-z_]+>)/;
+    // 0a) "by/of/to/from {metric}" or "by XX%" → drop the prepositional fragment
+    //     and any trailing unit (%, K, M, B, +, currency code) but NEVER consume
+    //     arbitrary trailing words like "monthly" or "in" — those carry meaning
+    //     and the bullet still needs to read naturally without the missing number.
+    out = out.replace(
+        new RegExp(
+            `\\s*\\b(?:by|of|to|from|with|over|under|above|below|reaching|achieving|approximately|around|about|roughly|nearly|almost|up\\s+to)\\s+${PLACEHOLDER_TOKEN.source}(?:\\s*(?:%|\\+|(?:K|M|B|KES|NGN|ZAR|GBP|USD|EUR|AED|JPY|INR|CAD|AUD|CHF|CNY)\\b))?`,
+            'gi',
+        ),
+        '',
+    );
+    // 0b) Bare placeholder anywhere → strip it (will be cleaned up by tidy below).
+    out = out.replace(new RegExp(PLACEHOLDER_TOKEN.source, 'g'), '');
+
     // 1) Orphan "%" — a "%" not preceded by a digit (allowing spaces between).
     //    Common AI failure: "improved performance by %" or "increased % of".
     //    Drop preceding preposition + orphan %, keeping the rest of the clause.
@@ -745,10 +866,7 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
         ''
     );
     // Standalone " %" or "% " not adjacent to a digit anywhere — just drop it.
-    out = out.replace(/(?<![\d.])\s*%(?!\w)/g, (full, ...rest) => {
-        // Keep "%" only if it directly follows a digit (already handled above).
-        return '';
-    });
+    out = out.replace(/(?<![\d.])\s*%(?!\w)/g, () => '');
 
     // 2) Orphan currency symbol/code immediately followed by a non-digit.
     //    "saved KES on costs" → "saved on costs" (we'll let the surrounding
@@ -759,9 +877,23 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
     );
     out = out.replace(/([$£€¥])\s+(?=[a-zA-Z])/g, '');
 
-    // 3) Tidy the side-effects: collapse double spaces, fix spacing before
-    //    punctuation, and trim.
-    out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
+    // 3) ORPHAN PREPOSITION — after the strips above we may be left with a
+    //    bullet that ends or pivots on a hanging preposition: "reduced
+    //    costs by ." or "improved efficiency by, then shipped X". Drop the
+    //    dangling preposition + any whitespace before the next punctuation.
+    out = out.replace(
+        /\s+\b(?:by|from|to|of|with|over|under|reaching|achieving|approximately|around|about|roughly|nearly|almost|up\s+to)\b(?=\s*[,.;:!?]|\s*$)/gi,
+        '',
+    );
+
+    // 4) Tidy the side-effects: collapse double spaces, fix spacing before
+    //    punctuation, fix orphan commas/empty parens, and trim.
+    out = out
+        .replace(/\(\s*\)/g, '')
+        .replace(/,\s*,/g, ',')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([.,;:!?])/g, '$1')
+        .trim();
 
     return { text: out, changed: out !== text };
 }
@@ -843,6 +975,36 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     apply('number_format',    formatNumbers);
     apply('trailing_period',  stripTrailingPeriod);
+    apply('capitalise',       capitaliseFirst);
+    return { text: cur, fixes };
+}
+
+/**
+ * Composite polish pass for the SUMMARY paragraph.
+ *
+ * The summary is the one place where the generation prompt deliberately
+ * encourages contractions and a first-person voice ("I've shipped…",
+ * "I focus on…"). Running the bullet pipeline against it stripped those
+ * out and produced sentences like "'ve shipped X" or "Engineer focused on Y"
+ * (losing the human voice). This variant keeps every other polish step
+ * but skips `stripFirstPerson` and `rewriteWeakOpener` (the latter rewrites
+ * leading verbs in a bullet style that doesn't fit a paragraph).
+ */
+function polishSummary(text: string): { text: string; fixes: string[] } {
+    const fixes: string[] = [];
+    let cur = text;
+    const apply = (name: string, fn: (s: string) => { text: string; changed: boolean }) => {
+        const r = fn(cur);
+        if (r.changed) { fixes.push(name); cur = r.text; }
+    };
+    apply('markup_strip',     stripMarkupArtifacts);
+    // first_person SKIPPED — summary keeps its voice.
+    // weak_opener  SKIPPED — paragraph, not a bullet.
+    apply('weak_qualifier',   stripWeakQualifiers);
+    apply('orphan_metric',    stripOrphanMetrics);
+    apply('whitespace_dashes', normaliseWhitespaceAndDashes);
+    apply('number_format',    formatNumbers);
+    // trailing_period SKIPPED — summaries DO end with a period.
     apply('capitalise',       capitaliseFirst);
     return { text: cur, fixes };
 }
@@ -1038,9 +1200,17 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         return r.text;
     };
 
+    // Summary uses a contraction-friendly polish — see polishSummary docstring.
+    const polishSum = (text: string, location: string): string => {
+        if (!text) return text || '';
+        const r = polishSummary(text);
+        if (r.fixes.length) recordPolish(location, r.fixes, text);
+        return r.text;
+    };
+
     working = {
         ...working,
-        summary: polish(working.summary || '', 'summary'),
+        summary: polishSum(working.summary || '', 'summary'),
         experience: (working.experience || []).map((e, i) => ({
             ...e,
             responsibilities: (e.responsibilities || []).map((b, j) =>
