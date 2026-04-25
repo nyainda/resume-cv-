@@ -1,10 +1,10 @@
-'use strict';
+import pg from 'pg';
 
-const { Pool } = require('pg');
+const { Pool } = pg;
 
 let cachedPool = null;
 
-function getPool() {
+export function getPool() {
     if (cachedPool) return cachedPool;
     if (!process.env.DATABASE_URL) return null;
     cachedPool = new Pool({
@@ -20,13 +20,13 @@ function getPool() {
     return cachedPool;
 }
 
-function setCors(res) {
+export function setCors(res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-function handlePreflight(req, res) {
+export function handlePreflight(req, res) {
     if (req.method === 'OPTIONS') {
         setCors(res);
         res.status(204).end();
@@ -35,5 +35,3 @@ function handlePreflight(req, res) {
     setCors(res);
     return false;
 }
-
-module.exports = { getPool, setCors, handlePreflight };

@@ -18,13 +18,23 @@ export interface PlaywrightPdfOptions {
 
 /**
  * Check if the Playwright PDF server is available.
+ *
+ * IMPORTANT: a bare `res.ok` check is not enough. In production (e.g. Vercel),
+ * any unknown path is rewritten to `/index.html` and returns `200 OK` — which
+ * would falsely report the local PDF server as available and cause downstream
+ * POSTs to `/__pdf/api/generate-pdf` to fail with 405. We therefore verify the
+ * response body actually comes from the Playwright PDF server.
  */
 export const isPlaywrightServerAvailable = async (): Promise<boolean> => {
     try {
         const res = await fetch(`${PDF_SERVER_URL}/health`, {
             signal: AbortSignal.timeout(2000),
         });
-        return res.ok;
+        if (!res.ok) return false;
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) return false;
+        const body = await res.json().catch(() => null);
+        return Boolean(body && body.engine === 'playwright-chromium');
     } catch {
         return false;
     }

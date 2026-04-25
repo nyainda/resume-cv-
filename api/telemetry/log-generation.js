@@ -1,8 +1,6 @@
-'use strict';
+import { getPool, handlePreflight } from '../_lib/pg.js';
 
-const { getPool, handlePreflight } = require('../_lib/pg');
-
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
     if (handlePreflight(req, res)) return;
 
     if (req.method !== 'POST') {
@@ -75,4 +73,4 @@ module.exports = async function handler(req, res) {
     } finally {
         client.release();
     }
-};
+}
