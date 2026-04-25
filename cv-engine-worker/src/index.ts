@@ -53,6 +53,7 @@ export default {
             if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
             if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
             if (url.pathname === '/api/cv/semantic-match' && request.method === 'POST') return handleSemanticMatch(request, env);
+            if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
@@ -1075,6 +1076,61 @@ async function handleSemanticMatch(request: Request, env: Env): Promise<Response
         }, request, env);
     } catch (e: any) {
         return json({ error: 'embed_failed', message: String(e?.message || e) }, request, env, 500);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LLM proxy — Workers AI Llama for the CV validator + humanizer audit passes.
+// Stateless: prompt in, text out. No persistence. No PII stored.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WORKER_LLM_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const WORKER_LLM_MAX_PROMPT_CHARS = 60000;
+const WORKER_LLM_MAX_SYSTEM_CHARS = 4000;
+const WORKER_LLM_DEFAULT_MAX_TOKENS = 4096;
+const WORKER_LLM_HARD_MAX_TOKENS = 12000;
+
+async function handleLLM(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+    const system = typeof body?.system === 'string' ? body.system.slice(0, WORKER_LLM_MAX_SYSTEM_CHARS) : '';
+    const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, WORKER_LLM_MAX_PROMPT_CHARS) : '';
+    if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
+
+    const wantsJson = body?.json === true;
+    const temperature = clamp(Number(body?.temperature ?? 0.2), 0, 1);
+    const maxTokens = clamp(
+        Number(body?.maxTokens ?? WORKER_LLM_DEFAULT_MAX_TOKENS),
+        64,
+        WORKER_LLM_HARD_MAX_TOKENS,
+    );
+
+    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content: prompt });
+
+    try {
+        const payload: Record<string, unknown> = {
+            messages,
+            temperature,
+            max_tokens: maxTokens,
+        };
+        if (wantsJson) payload.response_format = { type: 'json_object' };
+
+        const res: any = await env.AI.run(WORKER_LLM_MODEL as any, payload as any);
+
+        let text = '';
+        if (typeof res === 'string') text = res;
+        else if (typeof res?.response === 'string') text = res.response;
+        else if (typeof res?.result?.response === 'string') text = res.result.response;
+        else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
+
+        if (!text) {
+            return json({ error: 'llm_empty', model: WORKER_LLM_MODEL }, request, env, 502);
+        }
+
+        return json({ text, model: WORKER_LLM_MODEL }, request, env);
+    } catch (e: any) {
+        return json({ error: 'llm_failed', message: String(e?.message || e) }, request, env, 502);
     }
 }
 

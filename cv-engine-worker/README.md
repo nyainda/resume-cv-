@@ -45,6 +45,32 @@ required, works headless in Replit.
 | `POST /api/cv/brief` | Build pre-generation brief for Groq (Phase C) |
 | `POST /api/cv/sync` | Manual KV cache rebuild after D1 writes |
 | `POST /api/cv/semantic-match` | Workers AI embeddings (BGE-large) → per-keyword `matched`/`partial`/`missing` against profile texts. Stateless, no PII stored. |
+| `POST /api/cv/llm` | Workers AI Llama-3.3-70B chat proxy. Used by the CV validator + humanizer audit passes (Parts 6 & 7) so they don't burn the user's Groq quota. Stateless. |
+
+## /api/cv/llm
+
+Powers the CV **validator** and **humanizer audit** passes. Saves Groq quota by serving the two heaviest post-generation passes from Cloudflare's free tier.
+
+```jsonc
+// Request
+{
+  "system":      "You are a strict CV editor. Return only valid JSON.",
+  "prompt":      "<long prompt with the CV JSON to fix>",
+  "json":        true,        // requests JSON-mode response
+  "temperature": 0.15,
+  "maxTokens":   10000
+}
+
+// Response
+{
+  "text":  "<raw model output — caller is responsible for JSON.parse + fence stripping>",
+  "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+}
+```
+
+Caps: system ≤ 4 000 chars, prompt ≤ 60 000 chars, maxTokens ≤ 12 000. Returns 400 on missing prompt, 502 on model failure or empty completion.
+
+**Privacy** — prompt is forwarded to Workers AI and discarded. Nothing is written to D1, KV, R2, or Vectorize. The client (`services/geminiService.ts` → `runGroqValidator`, `runHumanizationAudit`) tries this endpoint first and falls back to Groq Llama-3.3-70B on any failure.
 
 ## /api/cv/semantic-match
 

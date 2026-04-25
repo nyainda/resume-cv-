@@ -328,6 +328,55 @@ export async function semanticMatch(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Worker LLM (Cloudflare Workers AI Llama) — used by the CV validator and
+// humanizer audit passes so they don't burn the user's Groq quota.
+// Returns the raw text response, or null if the worker is unavailable.
+// Caller is responsible for parsing JSON when `json: true` was requested.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WorkerLLMOptions {
+    json?: boolean;
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+}
+
+const WORKER_LLM_DEFAULT_TIMEOUT_MS = 60000;
+
+export async function workerLLM(
+    system: string,
+    prompt: string,
+    opts: WorkerLLMOptions = {},
+): Promise<string | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!prompt) return null;
+    const u = new URL('/api/cv/llm', ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system,
+                    prompt,
+                    json: !!opts.json,
+                    temperature: opts.temperature ?? 0.2,
+                    maxTokens: opts.maxTokens ?? 4096,
+                }),
+            },
+            opts.timeoutMs ?? WORKER_LLM_DEFAULT_TIMEOUT_MS,
+        );
+        if (!r.ok) return null;
+        const data = await r.json() as { text?: string };
+        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+    } catch (e) {
+        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] workerLLM failed:', e);
+        return null;
+    }
+}
+
 /**
  * Chunk a flat CV text blob into atomic phrases suitable for embedding.
  * Splits on lines, bullets, and sentence boundaries; dedups; caps length.

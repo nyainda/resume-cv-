@@ -5,7 +5,7 @@ import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, reportLeaks, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, workerLLM, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 
@@ -805,9 +805,31 @@ OUTPUT FORMAT — return JSON only, no markdown, no explanation:
 The "cv" field must ALWAYS be present — even when all checks pass.
 `;
 
+    const validatorSystem = 'You are a strict CV quality validator. Return only valid JSON.';
+    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
     try {
-        const result = await groqChat(GROQ_LARGE, 'You are a strict CV quality validator. Return only valid JSON.', validatorPrompt, { temperature: 0.1, json: true, maxTokens: 8000 });
-        const parsed = JSON.parse(result.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim());
+        const cf = await workerLLM(validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 8000 });
+        if (cf) {
+            try {
+                const parsed = JSON.parse(stripFences(cf));
+                if (parsed.flags && parsed.flags.length > 0) {
+                    console.warn('[CV Validator] Flags raised (cf):', parsed.flags);
+                }
+                console.log('[CV Validator] Pass complete via Cloudflare Workers AI.');
+                return parsed.cv || cvData;
+            } catch (parseErr) {
+                console.warn('[CV Validator] Worker JSON parse failed, falling back to Groq:', parseErr);
+            }
+        }
+    } catch (cfErr) {
+        console.warn('[CV Validator] Worker call failed, falling back to Groq:', cfErr);
+    }
+
+    try {
+        const result = await groqChat(GROQ_LARGE, validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 8000 });
+        const parsed = JSON.parse(stripFences(result));
         if (parsed.flags && parsed.flags.length > 0) {
             console.warn('[CV Validator] Flags raised:', parsed.flags);
         }
@@ -871,14 +893,28 @@ ${JSON.stringify(cvData, null, 2)}
 Return ONLY the corrected JSON object, no markdown, no explanation, no code fences.
 `.trim();
 
+    const auditSystem = 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON.';
+    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
     try {
-        const result = await groqChat(
-            GROQ_LARGE,
-            'You are a strict CV editor. Fix only the listed problems. Return only valid JSON.',
-            auditPrompt,
-            { temperature: 0.15, json: true, maxTokens: 10000 }
-        );
-        const parsed = JSON.parse(result.trim());
+        const cf = await workerLLM(auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 10000 });
+        if (cf) {
+            try {
+                const parsed = JSON.parse(stripFences(cf));
+                console.log('[CV Humanizer] Audit pass complete via Cloudflare Workers AI.');
+                return parsed as CVData;
+            } catch (parseErr) {
+                console.warn('[CV Humanizer] Worker JSON parse failed, falling back to Groq:', parseErr);
+            }
+        }
+    } catch (cfErr) {
+        console.warn('[CV Humanizer] Worker call failed, falling back to Groq:', cfErr);
+    }
+
+    try {
+        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 10000 });
+        const parsed = JSON.parse(stripFences(result));
         console.log('[CV Humanizer] Audit pass complete.');
         return parsed as CVData;
     } catch (e) {
