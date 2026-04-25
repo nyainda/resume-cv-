@@ -1,189 +1,78 @@
 # ProCV — Your Personal Career Consultant
 
-A full-featured React + Vite PWA for building, managing, and downloading professional CVs with AI assistance.
+## Overview
 
-## Brand / Design System
-- **Name**: ProCV — "Your Personal Career Consultant"
-- **Primary color**: Deep Corporate Navy `#1B2B4B`
-- **Accent color**: Muted Gold `#C9A84C`
-- **Background**: Warm Off-White `#F8F7F4`
-- **Typography**: Playfair Display (headings) + DM Sans (body)
-- **Rules**: See `CLAUDE.md` for complete design system rules — no indigo/purple, no AI vibes
+ProCV is a full-featured PWA designed to help users build, manage, and download professional CVs with advanced AI assistance. The project aims to be a personal career consultant, leveraging AI for CV generation, cover letter creation, ATS analysis, and interview preparation. It integrates market intelligence to create highly relevant and impactful CVs, providing a comprehensive toolkit for job seekers. The business vision is to empower individuals in their job search journey, offering a competitive edge through AI-driven personalization and optimization.
 
-## Tech Stack
+## User Preferences
 
-- **Frontend**: React 19, TypeScript, Vite 6
-- **Styling**: Tailwind CSS (CDN), custom CSS variables for theming
-- **AI — Text Generation**: Groq API (OpenAI-compatible, direct fetch)
-  - `llama-3.3-70b-versatile` → CV generation, cover letters, rewriting, essays
-  - `llama-3.1-8b-instant` → Fast ATS analysis, keyword extraction, CV scoring
-- **AI — Vision/Multimodal + Market Research**: Google Gemini 2.5 Flash / 2.0 Flash via `@google/genai`
-  - PDF upload, image parsing (file text extraction only)
-  - **Google Search grounding** (gemini-2.0-flash): Pre-generation market research via `services/marketResearch.ts`
-- **PDF Generation**: jsPDF (CDN) + html2canvas (CDN) — legacy; `@react-pdf/renderer` for Professional/Standard Pro/Minimalist templates
-- **Sharing**: Privacy-first shareable links via `lz-string` URL hash encoding (no backend)
-- **GitHub Sync**: PAT-based CV backup to private GitHub repos via REST API
-- **Email**: Brevo (Sendinblue) REST API (direct browser calls)
-- **Job Search**: Tavily Search API + JSearch (RapidAPI) for real-time listings
-- **Storage**: Write-through triple-layer storage — localStorage + IndexedDB + optional Google Drive sync (via WriteThroughDriveService in StorageRouter)
-- **PDF Tools**: `pdf-lib` for merge, split, remove pages, extract pages, image→PDF, sign PDF; `mammoth` for Word→PDF
-- **Playwright PDF Server**: Headless Chromium on port 3001 (Express `server-pdf.cjs`) for pixel-perfect HD PDF export
-- **Analytics**: `@vercel/analytics/react` — auto-tracks page views when deployed to Vercel
-- **Auth**: Google OAuth (PKCE flow via custom GoogleAuthContext)
+- I want iterative development.
+- I prefer detailed explanations.
+- Ask before making major changes.
+- I do not want any changes to the `CLAUDE.md` file.
+- I prefer simple language.
+- I want to be informed about all changes.
 
-## Project Structure
+## System Architecture
 
-```
-App.tsx              — Root component, multi-profile state, settings, routing
-index.tsx            — Entry point, boot-time IDB restore, service worker
-index.html           — PWA manifest, CDN scripts (Tailwind, jsPDF, html2canvas)
-types.ts             — All shared TypeScript types
+ProCV is built as a React 19, TypeScript, and Vite 6 PWA, styled using Tailwind CSS and custom CSS variables.
 
-components/
-  CVGenerator.tsx       — Main CV generation UI with Share/AI Coach/GitHub buttons; auto-scores CV after generation; 🎤 Interview Prep shortcut button
-  LinkedInGenerator.tsx — LinkedIn profile package generator (headline, About, skills, post, connection message, tips)
-  InterviewPrep.tsx     — Interview prep tool: 10 tailored Q&A, practice mode, category filters, + thank-you letter generator
-  CVPreview.tsx         — Renders selected template (React components)
-  GitHubImportPanel.tsx — Fetches GitHub repos, lets user select & import as projects + skills
-  SharedCVView.tsx      — Full-screen view for opened shared CV links
-  ShareCVModal.tsx      — Generates shareable lz-string URL hash links
-  AIImprovementPanel.tsx — AI chat panel for CV improvement (Gemini)
-  GitHubSyncModal.tsx   — GitHub PAT-based CV backup modal
-  PDFDownloadButton.tsx — react-pdf download button (lazy-loaded)
-  TemplateThumbnail.tsx — Scaled live CV thumbnail preview
-  ProfileManager.tsx    — Multi-profile switcher with add/edit/delete
-  SettingsModal.tsx     — API keys (Groq primary + Gemini optional, Tavily, Brevo) + Google Drive sync
-  EmailApply.tsx        — Email application wizard (Brevo or mailto fallback)
-  templates/            — 26+ named CV template components (incl. TemplateSWEElite.tsx)
-  ...
+### UI/UX Decisions
+- **Brand Name**: ProCV — "Your Personal Career Consultant"
+- **Color Scheme**: Primary Deep Corporate Navy (`#1B2B4B`), Accent Muted Gold (`#C9A84C`), Background Warm Off-White (`#F8F7F4`).
+- **Typography**: Playfair Display (headings) and DM Sans (body).
+- **Templates**: Offers 32 customizable CV templates across various categories (professional, modern, creative, academic, technical) with color customization options.
+- **WYSIWYG PDF**: Utilizes `html2canvas` for precise PDF generation matching on-screen previews.
 
-services/
-  groqService.ts        — Groq AI client (OpenAI-compatible fetch) for all text generation
-  geminiService.ts      — Routes text tasks to Groq; keeps Gemini only for PDF/image vision; accepts optional MarketResearchResult to inject market context into CV generation prompt
-  marketResearch.ts     — Pre-generation market intelligence service: Gemini 2.0 Flash + Google Search grounding; detects Scenario A/B/C; returns topSkills, atsKeywords, expectedTools, industryInsights; always fails silently
-  pdfService.ts         — Legacy programmatic jsPDF (kept but superseded by html2canvas)
-  brevoService.ts       — Brevo email sending
-  tavilyService.ts      — Job board search + full JD fetch
-  wordImportService.ts  — Word (.docx) parsing via mammoth + Groq profile extraction (extractTextFromDocx, extractTextFromArrayBuffer, parseWordTextToProfile)
-  oneDriveService.ts    — Microsoft Graph API client (listWordFiles, downloadFile, getFileLastModified)
-  storage/              — LocalStorage + IndexedDB + Google Drive storage layer
+### Technical Implementations
+- **AI CV Generation**: A two-phase process:
+    1. **Market Research**: Google Gemini 2.0 Flash (via `marketResearch.ts`) with Google Search grounding researches live market trends (top skills, ATS keywords, expected tools). This can adapt to scenarios with no JD, short hints, or full JDs.
+    2. **CV Generation**: Groq's `llama-3.3-70b-versatile` generates the CV using the gathered market intelligence. Supports honest, boosted, or aggressive generation modes.
+- **AI CV Toolkit**:
+    - **CV Checker**: Provides ATS score, keyword match analysis (semantic matching via Cloudflare Workers AI), strengths/weaknesses, and a "Fix & Regenerate" loop.
+    - **Humanization Audit**: Uses `cv-engine-worker` with Cloudflare Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) to enforce voice consistency and identify banned phrases, falling back to Groq.
+    - **Vision Extract**: `cv-engine-worker` (`@cf/meta/llama-3.2-11b-vision-instruct`) is used for extracting text from images, falling back to Gemini for PDFs and other vision tasks.
+    - **Word Import**: `mammoth` parses `.docx` files, and Groq extracts structured profile data.
+- **PDF Generation**: `@react-pdf/renderer` for professional templates, with `jsPDF` and `html2canvas` as legacy options. Pixel-perfect HD PDF export is handled by a Playwright PDF server.
+- **Storage**: A write-through triple-layer storage system utilizing `localStorage`, `IndexedDB`, and optional Google Drive sync.
+- **Multi-Profile Management**: Users can create, switch, rename, color-code, and delete multiple CV profiles.
+- **PWA Capabilities**: Offline capable and installable through a service worker.
+- **ATS Keyword Embedding**: Critical JD tier-1 keywords are embedded as selectable-but-invisible text in generated PDFs to improve ATS parsing.
+- **Self-improving vocabulary**: The `cv-engine-worker` includes features like "Leak Queue" for identifying new banned phrases, an AI Auditor for novel AI-isms, and a Voice Tester for fine-tuning voice profiles.
 
-hooks/
-  useStorage.ts      — Auth-aware async storage hook (LocalStorage or Drive)
-  useLocalStorage.ts — Simple synchronous localStorage hook
-  useToast.ts        — Toast notification hook
+### System Design Choices
+- **Client-Side Application**: The main application logic resides entirely on the client-side.
+- **CV Engine Worker**: A Cloudflare Worker (`cv-engine-worker`) handles the deterministic aspects of CV generation, such as voice profiles, verb pools, banned phrases, and field detection. It uses Cloudflare Workers AI, D1, and KV for its operations. This worker also performs post-generation enforcement and AI auditing.
+- **Authentication**: Google OAuth (PKCE flow) for Google Drive sync and other Google services. Microsoft OAuth for OneDrive integration.
+- **API Key Management**: API keys are stored in the browser's `localStorage` and managed via a Settings modal.
 
-auth/
-  GoogleAuthContext.tsx — Google OAuth context and token management
-```
+## External Dependencies
 
-## Key Features
-
-- **Multiple profiles** — Create, switch, rename, color-code, and delete named profiles
-- **AI CV Generation** — Two-phase: Gemini Google Search grounding researches live market trends first (topSkills, ATS keywords, expected tools), then Groq generates the CV using that market intelligence. Three scenarios: A (no JD — profile-based research), B (short hint — builds virtual JD), C (full JD — enriches implicit expectations). Supports honest/boosted/aggressive modes
-- **32 Templates** — All categories (professional, modern, creative, academic, technical). Color customization (`cvData.accentColor`) wired in 30/32 templates via `const accent = cvData.accentColor ?? '<default-hex>'` + inline styles. TemplateMinimalist and TemplateSWEClean intentionally neutral (no brand accent).
-- **WYSIWYG PDF** — html2canvas captures the exact preview, ensuring download matches preview
-- **Email Apply** — Paste a JD, AI composes email + cover letter, send via Brevo directly
-- **Job Board** — Live job search via Tavily with full JD fetch and company research
-- **Google Drive Sync** — Optional cloud backup via Google OAuth
-- **PWA** — Service worker, offline capable, installable
-
-### CV Toolkit (enhanced)
-- **CV Checker** — ATS score, keyword match analysis, strengths/weaknesses, Fix & Regenerate loop
-- **AI Semantic Keyword Match** — CV Checker → Personalization tab classifies each JD keyword as `matched`/`partial`/`missing` against the user's profile by **meaning**, not just substring. Powered by `cv-engine-worker` `POST /api/cv/semantic-match` which embeds both sides with Cloudflare Workers AI `@cf/baai/bge-large-en-v1.5` (stateless, no PII stored). UI surfaces the closest matching profile snippet for partial hits. Falls back silently to substring matching when the worker is unreachable. Fix & Regenerate uses semantic-missing keywords when available.
-- **Worker-First Validator + Humanizer** — `runGroqValidator` (Part 6) and `runHumanizationAudit` (Part 7) in `geminiService.ts` now call `cv-engine-worker` `POST /api/cv/llm` (Cloudflare Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) **first**, falling back to Groq Llama-3.3-70B only if the worker call or JSON parse fails. Result: ~30% Groq quota relief per CV generation since the two heaviest audit passes are now served from Cloudflare's free tier. Pipeline shape unchanged. Endpoint is stateless — prompt in, text out, no persistence. Both call sites strip ```json fences before parsing because Workers AI Llama wraps JSON output even with `response_format: json_object`.
-- **Live banned-phrase sync (no more disconnect)** — `runHumanizationAudit` now fetches the canonical banned-phrase list from `cv-engine-worker`'s KV cache via `getCachedBannedPhrases()` before building the prompt, and splices the live list (capped at 80 phrases for tokens; single-word adjectives capped at 30 for the summary check) into PROBLEM 2 and PROBLEM 6. Falls back to the original 21-phrase hardcoded list when the worker is unreachable. Means: admin updates `cv_banned_phrases` in D1 → presses **Sync KV** in admin → next CV generation's audit prompt sees the new phrases. Source of truth is now D1, not the geminiService prompt body.
-- **Worker-First Vision Extract** — `extractProfileTextFromFile` (CV upload) and `extractTextFromImage` (JD screenshot upload) try `cv-engine-worker` `POST /api/cv/vision-extract` (`@cf/meta/llama-3.2-11b-vision-instruct`) first for any `image/*` mime type, falling back to Gemini 2.5 Flash on failure. PDFs continue to use Gemini directly because the Llama Vision model doesn't support PDFs. Caps: 5MB after base64 decode, 4000-char prompt, 8192 max output tokens. **Cloudflare account required a one-time license acceptance** by POSTing `{prompt:"agree"}` to `/ai/run/@cf/meta/llama-3.2-11b-vision-instruct` — already done. EU residents are blocked from this model by Meta's license; the fallback to Gemini covers them automatically.
-- **Fix & Regenerate** — CV Checker sends missing keywords + weaknesses directly to CV Generator as a pre-filled suggestion banner
-- **Cover Letter** — Smart AI generation with "Send to Generator" shortcut
-- **Paraphraser** — 4 tone modes with "Use in Generator" shortcut; JD-aware context
-- **Word Import (Upload)** — Upload any .docx file; mammoth parses it, Groq AI extracts structured profile data; imported directly into user profile
-- **Word Online Sync** — Paste a OneDrive sharing link (no Azure account needed); app fetches the .docx directly via Microsoft Graph shares API; AI-parses into profile; Live Sync toggle polls every 30s for changes; saved URL persists in localStorage (`cv_builder:word_sync_url`)
-- **Live Status Banner** — Shows active profile name and active job at all times in the Toolkit
-- **Microsoft / OneDrive** — Settings: Azure Client ID + Microsoft OAuth implicit flow popup; token stored in localStorage + IDB
-
-## CV Engine Worker (`cv-engine-worker/`)
-
-A Cloudflare Worker that owns the **deterministic** half of CV generation: voice profiles, verb pools, banned phrases, field detection, openers, and seniority/section briefs. Every CV generation in the app calls `POST /api/cv/brief` first to fetch a JD-aware brief that is fed into the Groq prompt, then `POST /api/cv/clean` and `POST /api/cv/validate-voice` after generation to enforce voice consistency.
-
-- **Stack**: Cloudflare Workers + D1 (SQLite, db `cv-engine-db`) + KV (`CV_KV` for hot lookups) + Workers AI (`@cf/meta/llama-3.1-8b-instruct`) for the AI Auditor.
-- **Vocab is DB-driven, not hardcoded** — `cv_verbs` (**1366 rows** across technical / management / analysis / communication / financial / creative + industry-specific: ngo, tech, healthcare, education, sales), `cv_banned_phrases` (**309**), `cv_sentence_structures` (**161** — short/medium/long/personality + field-specific), `cv_result_connectors` (**88** — metric/approximate/em-dash/qualitative/none), `cv_context_connectors` (**78** — location/team/scope/time/condition), `cv_openers` (**57** — none/context/time/situation/achievement), `cv_field_profiles` (17, with `jd_keywords`), `cv_voice_profiles` (13), `cv_seniority_field_combos` (23). KV mirrors (26 keys) are rebuilt by the admin **Sync KV** button, auto-resync after any write, or `npm --prefix cv-engine-worker run kv:sync`.
-- **Re-runnable seed packs** (all idempotent INSERT OR IGNORE):
-  - `npm --prefix cv-engine-worker run seed` — original baseline pool
-  - `npm --prefix cv-engine-worker run seed:expanded` — applies "Expanded Seed Data v2" from `attached_assets/Pasted--CV-Engine-EXPANDED-Seed-Data-v2-…txt`. Auto-extracts the 6 fenced sql blocks via `scripts/extract-expanded-seed-v2.cjs` → `sql/expanded-seed-v2.sql`, then applies via `scripts/apply-sql-file.cjs` (D1 REST, batched 20/chunk with per-statement fallback). Generic `npm run sql:apply <path.sql>` runs any other SQL file.
-- **AI Auditor uses the seeded vocab** — `handleAiAudit` in `src/index.ts` pulls a curated slice of preferred past-tense verbs (technical + management + analysis, `human_score >= 8`) and em-dash result-connector examples from KV, injecting them into the Llama 3.1 system prompt as house-style anchors so AI-suggested replacements stay on-brand instead of generating fresh LLM-isms.
-- **Post-generation enforcement** — `services/geminiService.ts::enforceVoiceConsistency` aggregates worker-reported issues (banned phrases, voice drift) plus a local **word-frequency check** (`services/cvEngine/wordFrequency.ts::findOverusedWords`, stem-collapsing, stopword-aware, threshold = 5) so any non-stopword used 5+ times across the CV bullets is flagged as a `repeated_word` issue and rewritten by the AI fix loop.
-- **Hidden ATS keyword PDF layer** — Both PDF paths embed JD tier-1 keywords as selectable-but-invisible text: production jspdf path via `services/pdfService.ts::embedATSData` (4 zones + PDF metadata), `@react-pdf/renderer` path via `services/reactPdfTemplates.tsx::HiddenKeywordLayer` (white text, fontSize 0.1, `fixed` so every page carries it) injected into all 6 templates by `buildReactPDFDocument` when `options.atsKeywords` is supplied.
-- **Self-improving vocabulary**:
-  - **Leak Queue (Phase I)** — Frontend reports any banned phrase that slips through to `POST /api/cv/leak-report`; rows accumulate in `cv_leak_candidates`; cron `15 3 * * *` auto-promotes anything with `count >= 5` into `cv_banned_phrases`.
-  - **AI Auditor** — Admin tab runs Workers AI as a second pass on top of the deterministic regex rules, surfaces *novel* AI-isms not yet banned, one-click promote into the banned list.
-  - **Voice Tester (Phase J)** — Admin tab forces a specific voice/field/seniority brief, paste candidate bullets, get per-bullet pass/fail with severity-coded issues — used to tune voice profiles before they ship.
-  - **Telemetry (Phase K)** — `cv_request_telemetry` records seniority/field/voice/section/jd_present/field_source for every brief; `field_source` distinguishes `requested` vs `jd_keywords` vs `fallback` vs `none` so we can see exactly when JD detection has signal.
-- **Admin auth (Phase H)** — `cv_admin_tokens` table with hierarchical roles (`viewer` < `editor` < `admin`). Tokens are SHA-256 hashed; plaintext (`cvk_…`) shown exactly once on creation. Bootstrap `env.ADMIN_TOKEN` secret remains a permanent admin so we never lock ourselves out. Manage from the admin **Tokens** tab.
-- **Deploy**: `npm --prefix cv-engine-worker run deploy` (wraps `wrangler deploy` and trims whitespace from the Replit-provided `CLOUDFLARE_*` secrets — wrangler otherwise sends a malformed account-id URL and 7003-fails). Migrations live in `cv-engine-worker/migrations/` and are applied with `wrangler d1 execute cv-engine-db --remote --file=migrations/NNN_name.sql`. Rolling phase tracker is `BUILD_PROGRESS.md`.
-
-## Environment
-
-- Port: **5000** (Replit webview requirement)
-- App API keys stored in browser localStorage under `cv_builder:apiSettings`
-- App is client-side; the only server-side piece is the CV Engine Worker described above
-- Worker URL configured via `VITE_CV_ENGINE_URL` (set in `.replit`)
-
-## API Keys (all stored in Settings modal)
-
-### Multi-Model AI Architecture
-- **Groq API key** (primary — required for all text AI features)
-  - Free tier with very generous limits: https://console.groq.com/keys
-  - Powers: CV generation, cover letters, rewriting, scholarship essays, ATS analysis, CV scoring
-  - `llama-3.3-70b-versatile` for quality tasks; `llama-3.1-8b-instant` for fast keyword/scoring tasks
-  - Stored in `apiSettings.groqApiKey`
-- **Gemini API key** (optional — enables file uploads AND market research)
-  - https://aistudio.google.com/app/apikey
-  - Powers: PDF upload → text extraction, image parsing, pre-generation market research (Google Search grounding via gemini-2.0-flash)
-  - Market research always fails silently — CV generation proceeds with or without it
-  - Stored in `apiSettings.apiKey`
-- Tavily API key — For job board search (optional)
-- Brevo API key — For direct email sending (optional, falls back to mailto)
-- Microsoft Azure Client ID — For Microsoft/OneDrive integration (optional, user registers Azure app)
-
-### `apiKeySet` flag
-Checks `!!apiSettings?.groqApiKey` — gates all AI generation buttons (Generate CV, Cover Letter, etc.).
-
-## CI / CD (GitHub Actions, free tier)
-
-Two parallel jobs run on every push/PR to `main`/`master` (defined in `.github/workflows/ci.yml`):
-
-**App job** (~3 min):
-1. `node scripts/guard-package-versions.mjs` — fails if `react`, `vite`, `@react-pdf/renderer`, or `@google/genai` are downgraded below known-working minimums.
-2. `node scripts/test-banned-phrase-filter.mjs` — 15-case golden test that locks in grammar-preserving behaviour of `applyBannedPhraseFilter` (services/geminiService.ts). Mirror copy of the filter lives in the script — keep both in sync if the filter changes.
-3. `npx tsc --noEmit` — informational (continue-on-error) so pre-existing strict-mode warnings don't block urgent fixes.
-4. `npm run build` — production build must succeed.
-
-**Worker job** (~2 min, parallel):
-1. `node scripts/guard-package-versions.mjs --worker` — pins `@cloudflare/puppeteer >= 1.0.0` (the 0.0.x → 1.x bump fixed the `/v1/acquire` regression in production) and `wrangler >= 3.100.0`.
-2. `npx tsc --noEmit` in `resume-pdf-worker/`.
-
-To raise a floor on a new package or new minimum version, edit the `PROTECTED` array in `scripts/guard-package-versions.mjs` and document the reason in the `why` field.
-
-## PDF download → preview color parity
-
-- **Primary path (Playwright server / Cloudflare worker)**: clones the live preview DOM via `services/getCVHtml.ts` and inlines all CSS — `cvData.accentColor` flows through the templates and matches the on-screen preview pixel-for-pixel.
-- **Tertiary fallback (`@react-pdf/renderer`, services/reactPdfTemplates.tsx)**: the default `ProfessionalPDF` template now reads `cvData.accentColor` for header border, name, and bullet dots. The other 5 templates (`standard-pro`, `minimalist`, `london-finance`, `ats-clean-pro`, `executive-sidebar`) still use their original hardcoded colors in the react-pdf path — this only matters if BOTH the Playwright server AND the Cloudflare worker are unreachable, which is rare.
-
-## April 2026 — User-Reported Bug Fixes
-
-Five high-priority polish bugs reported by users were addressed in this session:
-
-1. **Empty metric placeholder leaks** — bullets like "Reduced costs by {metric} monthly" or "Grew revenue by XX% in Q4" were leaking the LLM's placeholder tokens into the final CV. Fix: `stripOrphanMetrics` in `services/cvPurificationPipeline.ts` now detects `{metric}`, `[X]`, `XX%`, `$XX`, `___`, `<placeholder>` patterns, drops the leading preposition + token + trailing unit (%, K, M, currency code) but **preserves** real trailing words like "monthly" or "in Q4" so the bullet still reads naturally.
-
-2. **Pronoun scrubber breaking contractions** — the old regex turned "I'm shipping payment systems" into "Mshipping payment systems". Fix: every pronoun pattern in `stripFirstPerson` now uses negative lookahead `(?!['’])` so contractions (`I'm`, `I've`, `we're`, `my'd`, etc.) survive untouched while bare pronouns are still stripped.
-
-3. **Hidden ATS keyword layer becoming visible at zoom** — the inline `text-white text-[1px]` divs would render as faint white text on white when users zoomed past 200%. Fix: created `components/HiddenATSKeywords.tsx` with **five** invisibility guarantees stacked together (off-screen positioning + 1px clip-path + transparent color + opacity 0 + 1px font), then migrated all 28 templates via `/tmp/migrate-hidden-ats.mjs` to use the shared component. ATS scrapers still pick up the text from the DOM; humans never see it at any zoom level.
-
-4. **Degree hallucination** — the LLM was paraphrasing degree names ("BSc Computer Science" → "Bachelor of Science in Computing") and swapping institution names ("University of Nairobi" ↔ "Nairobi University"). Fix: added a binding "DEGREE PRESERVATION" hard-limit clause to the refresh prompt in `services/geminiService.ts` (~line 1445) requiring verbatim copy of both degree and institution strings.
-
-5. **Tense chaos in current roles** — bullets like "Develops and implemented X" mixed present and past tense within a single sentence. Fix: extended `VERB_TENSE_MAP` with 47 new pairs (Conducts/Conducted, Performs/Performed, etc.) and added a new `flipMidBulletVerb` helper that catches mid-sentence tense flips after `and` or `,` conjunctions; integrated into `enforceTenseConsistency`.
-
-### CI Coverage
-
-A new hard gate `scripts/test-bug-fixes.mjs` now mirrors the logic of all four pipeline fixes (12 assertions) and runs in `.github/workflows/ci.yml` alongside the existing `test-banned-phrase-filter.mjs` (15 assertions). Both must pass before any production build is allowed.
+- **AI Text Generation**:
+    - **Groq API**: For CV generation, cover letters, rewriting, ATS analysis, and scoring (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`).
+- **AI Vision/Multimodal & Market Research**:
+    - **Google Gemini API**: For PDF/image parsing, text extraction, and Google Search grounded market research (`gemini-2.5-flash`, `gemini-2.0-flash`).
+- **PDF Generation**:
+    - **jsPDF**: Legacy PDF generation.
+    - **html2canvas**: For capturing DOM elements as images for PDF.
+    - **@react-pdf/renderer**: For generating PDF documents from React components.
+    - **pdf-lib**: For advanced PDF manipulation (merge, split, sign).
+    - **mammoth**: For converting Word documents (`.docx`) to HTML.
+- **Sharing**:
+    - **lz-string**: For URL hash encoding to create privacy-first shareable links.
+- **GitHub Integration**:
+    - **GitHub REST API**: For PAT-based CV backup and importing project data.
+- **Email Services**:
+    - **Brevo (Sendinblue) REST API**: For direct email sending.
+- **Job Search**:
+    - **Tavily Search API**: For real-time job listings and detailed job descriptions.
+    - **JSearch (RapidAPI)**: Complementary job search service.
+- **Cloud Storage/Sync**:
+    - **Google Drive (via Google OAuth)**: For optional cloud backup.
+    - **Microsoft Graph API**: For OneDrive integration (Word file access).
+- **Analytics**:
+    - **@vercel/analytics/react**: For tracking page views when deployed on Vercel.
+- **Cloudflare Services (for `cv-engine-worker`)**:
+    - **Cloudflare Workers AI**: For semantic keyword matching, LLM-based validation/humanization, and vision extraction (`@cf/baai/bge-large-en-v1.5`, `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, `@cf/meta/llama-3.2-11b-vision-instruct`).
+    - **Cloudflare D1**: SQLite database for deterministic CV engine data.
+    - **Cloudflare KV**: Key-Value store for hot lookups in the worker.
