@@ -15,7 +15,7 @@
  */
 
 const TELEMETRY_BASE: string = (() => {
-    const fromEnv = (import.meta as any).env?.VITE_TELEMETRY_BASE;
+    const fromEnv = import.meta.env.VITE_TELEMETRY_BASE;
     if (fromEnv) return String(fromEnv).replace(/\/$/, '');
     if (typeof window === 'undefined') return 'http://localhost:3001';
     const { protocol, hostname, port } = window.location;

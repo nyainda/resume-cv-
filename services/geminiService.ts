@@ -2275,9 +2275,41 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
 
-    const rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
     // Strip any markdown code fences the model may have wrapped the JSON in
-    const cleanText = rawText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const stripFencesMain = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    // Try Groq first (fastest, highest quality). On 413 (prompt too large) or
+    // 429 (rate limit) fall back to Cloudflare Workers AI which has a much
+    // larger context window and a free tier — saves the user from hitting Groq
+    // hard limits when the prompt includes a long JD + market intelligence.
+    let rawText: string;
+    try {
+        rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+    } catch (groqErr: any) {
+        const status = groqErr?.status;
+        const msg = (groqErr?.message || '').toLowerCase();
+        const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
+        const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
+        if (isTooLarge || isRateLimited) {
+            console.warn(`[CV Gen] Groq ${status ?? '?'} — falling back to Cloudflare Workers AI for main generation.`);
+            const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, {
+                temperature,
+                json: true,
+                maxTokens: 6000,
+                timeoutMs: 90000,
+            });
+            if (!cf) {
+                console.error('[CV Gen] Cloudflare Workers AI also unavailable — re-throwing original Groq error.');
+                throw groqErr;
+            }
+            rawText = cf;
+            console.info('[CV Gen] Main generation completed via Cloudflare Workers AI.');
+        } else {
+            throw groqErr;
+        }
+    }
+
+    const cleanText = stripFencesMain(rawText);
     let cvData: CVData = JSON.parse(cleanText);
 
     // ── PART 6 — Groq Validator: runs for job AND general CVs ──────────────────

@@ -10,8 +10,11 @@
  * back to the local pipeline. No call here ever throws into the UI path.
  */
 
-const ENGINE_URL: string =
-    (import.meta as any)?.env?.VITE_CV_ENGINE_URL ?? '';
+// IMPORTANT: access `import.meta.env.X` directly. The `(import.meta as any)`
+// cast pattern defeats Vite's static replacement at build time, leaving the
+// value undefined in the production bundle — which silently disables the CV
+// Engine on Vercel even when the env var is set.
+const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 
 const DEFAULT_TIMEOUT_MS = 6000;
 
@@ -72,7 +75,7 @@ async function getJSON<T>(path: string, params?: Record<string, string>): Promis
         if (!r.ok) return null;
         return (await r.json()) as T;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] GET failed:', path, e);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] GET failed:', path, e);
         return null;
     }
 }
@@ -89,7 +92,7 @@ async function postJSON<T>(path: string, body: unknown): Promise<T | null> {
         if (!r.ok) return null;
         return (await r.json()) as T;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] POST failed:', path, e);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] POST failed:', path, e);
         return null;
     }
 }
@@ -323,7 +326,7 @@ export async function semanticMatch(
         if (!r.ok) return null;
         return (await r.json()) as SemanticMatchResult;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] semanticMatch failed:', e);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] semanticMatch failed:', e);
         return null;
     }
 }
@@ -390,7 +393,7 @@ export async function workerTieredLLM(
         if (data.error) return null;
         return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] workerTieredLLM failed:', task, e);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerTieredLLM failed:', task, e);
         return null;
     }
 }
@@ -425,7 +428,7 @@ export async function workerLLM(
         const data = await r.json() as { text?: string };
         return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] workerLLM failed:', e);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerLLM failed:', e);
         return null;
     }
 }
@@ -472,7 +475,7 @@ export async function workerVisionExtract(
         const data = await r.json() as { text?: string };
         return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] workerVisionExtract failed:', e);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerVisionExtract failed:', e);
         return null;
     }
 }
@@ -529,7 +532,7 @@ async function adminFetch<T>(path: string, init: RequestInit = {}): Promise<T | 
         if (!r.ok) return null;
         return (await r.json()) as T;
     } catch (e) {
-        if ((import.meta as any)?.env?.DEV) console.warn('[adminFetch]', path, e);
+        if (import.meta.env.DEV) console.warn('[adminFetch]', path, e);
         return null;
     }
 }
