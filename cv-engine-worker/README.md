@@ -44,3 +44,38 @@ required, works headless in Replit.
 | `POST /api/cv/clean` | Run cleaning pipeline on imported text |
 | `POST /api/cv/brief` | Build pre-generation brief for Groq (Phase C) |
 | `POST /api/cv/sync` | Manual KV cache rebuild after D1 writes |
+| `POST /api/cv/semantic-match` | Workers AI embeddings (BGE-large) → per-keyword `matched`/`partial`/`missing` against profile texts. Stateless, no PII stored. |
+
+## /api/cv/semantic-match
+
+Powers the **CV Checker → Personalization** AI keyword panel.
+
+```jsonc
+// Request
+{
+  "keywords":     ["systems thinking", "kafka", "team mentorship"],
+  "profileTexts": ["Led the migration to event-driven architecture using RabbitMQ",
+                   "Mentored 4 junior engineers across two squads"]
+}
+
+// Response
+{
+  "results": [
+    { "keyword": "systems thinking",  "score": 0.71, "bestMatch": "Led the migration…", "status": "partial" },
+    { "keyword": "kafka",             "score": 0.55, "bestMatch": "Led the migration…", "status": "missing" },
+    { "keyword": "team mentorship",   "score": 0.84, "bestMatch": "Mentored 4 junior…",   "status": "matched" }
+  ],
+  "model": "@cf/baai/bge-large-en-v1.5",
+  "thresholds": { "matched": 0.78, "partial": 0.62 }
+}
+```
+
+**Privacy** — embeddings are computed per request inside the worker and discarded.
+Nothing is written to D1, KV, R2, or Vectorize. Caps: 60 keywords, 250 profile texts per call.
+
+## Deploying changes
+
+```bash
+cd cv-engine-worker
+npm run deploy   # uses CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN
+```

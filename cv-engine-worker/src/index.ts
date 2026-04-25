@@ -52,6 +52,7 @@ export default {
             if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
             if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
             if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
+            if (url.pathname === '/api/cv/semantic-match' && request.method === 'POST') return handleSemanticMatch(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
@@ -1000,6 +1001,115 @@ Rules:
         model: '@cf/meta/llama-3.1-8b-instruct',
         raw_response: responseText.slice(0, 400),
     }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Semantic JD ↔ Skills matching (Workers AI embeddings)
+//
+// Stateless — embeddings are computed per request and discarded.
+// No profile data is persisted anywhere on the server.
+// Honors the app's privacy-first design.
+//
+// Body: { keywords: string[], profileTexts: string[] }
+// Returns: { results: [{ keyword, score, bestMatch, status }], model, counts }
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SEMANTIC_MATCH_MODEL = '@cf/baai/bge-large-en-v1.5';
+const SEMANTIC_THRESHOLD_MATCHED = 0.78;
+const SEMANTIC_THRESHOLD_PARTIAL = 0.62;
+const SEMANTIC_MAX_KEYWORDS = 60;
+const SEMANTIC_MAX_PROFILE_TEXTS = 250;
+const SEMANTIC_KEYWORD_MAX_CHARS = 200;
+const SEMANTIC_PROFILE_MAX_CHARS = 600;
+const SEMANTIC_EMBED_BATCH = 95;
+
+async function handleSemanticMatch(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+    const rawKeywords = Array.isArray(body?.keywords) ? body.keywords : [];
+    const rawProfileTexts = Array.isArray(body?.profileTexts) ? body.profileTexts : [];
+
+    const keywords = sanitizeStringArray(rawKeywords, SEMANTIC_KEYWORD_MAX_CHARS, SEMANTIC_MAX_KEYWORDS);
+    const profileTexts = sanitizeStringArray(rawProfileTexts, SEMANTIC_PROFILE_MAX_CHARS, SEMANTIC_MAX_PROFILE_TEXTS);
+
+    if (keywords.length === 0 || profileTexts.length === 0) {
+        return json({ results: [], reason: 'empty_input' }, request, env);
+    }
+
+    try {
+        const [kwEmb, ptEmb] = await Promise.all([
+            embedBatch(env, keywords),
+            embedBatch(env, profileTexts),
+        ]);
+
+        if (kwEmb.length !== keywords.length || ptEmb.length !== profileTexts.length) {
+            return json({ error: 'embed_size_mismatch' }, request, env, 500);
+        }
+
+        const results = keywords.map((kw, i) => {
+            const kvec = kwEmb[i];
+            let bestScore = -1;
+            let bestIdx = -1;
+            for (let j = 0; j < profileTexts.length; j++) {
+                const score = dotSim(kvec, ptEmb[j]);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestIdx = j;
+                }
+            }
+            const status: 'matched' | 'partial' | 'missing' =
+                bestScore >= SEMANTIC_THRESHOLD_MATCHED ? 'matched' :
+                bestScore >= SEMANTIC_THRESHOLD_PARTIAL ? 'partial' : 'missing';
+            return {
+                keyword: kw,
+                score: Math.round(bestScore * 1000) / 1000,
+                bestMatch: bestIdx >= 0 ? profileTexts[bestIdx] : null,
+                status,
+            };
+        });
+
+        return json({
+            results,
+            model: SEMANTIC_MATCH_MODEL,
+            thresholds: { matched: SEMANTIC_THRESHOLD_MATCHED, partial: SEMANTIC_THRESHOLD_PARTIAL },
+            counts: { keywords: keywords.length, profileTexts: profileTexts.length },
+        }, request, env);
+    } catch (e: any) {
+        return json({ error: 'embed_failed', message: String(e?.message || e) }, request, env, 500);
+    }
+}
+
+function sanitizeStringArray(arr: unknown[], maxLen: number, max: number): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const v of arr) {
+        if (typeof v !== 'string') continue;
+        const t = v.replace(/\s+/g, ' ').trim().slice(0, maxLen);
+        if (t.length < 2) continue;
+        const key = t.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(t);
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
+async function embedBatch(env: Env, texts: string[]): Promise<number[][]> {
+    const out: number[][] = [];
+    for (let i = 0; i < texts.length; i += SEMANTIC_EMBED_BATCH) {
+        const slice = texts.slice(i, i + SEMANTIC_EMBED_BATCH);
+        const res: any = await env.AI.run(SEMANTIC_MATCH_MODEL as any, { text: slice });
+        const data: number[][] = res?.data || [];
+        for (const v of data) out.push(v);
+    }
+    return out;
+}
+
+function dotSim(a: number[], b: number[]): number {
+    let s = 0;
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) s += a[i] * b[i];
+    return s;
 }
 
 async function handleSync(request: Request, env: Env): Promise<Response> {

@@ -278,6 +278,80 @@ export function warmCVEngine(): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Semantic JD ↔ Skills matching (Workers AI embeddings, stateless).
+// Sends keywords + profile text chunks to the worker; worker embeds both
+// with @cf/baai/bge-large-en-v1.5 and returns per-keyword best match + status.
+// Privacy: nothing is persisted on the worker. Embeddings discarded post-call.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SemanticMatchStatus = 'matched' | 'partial' | 'missing';
+
+export interface SemanticMatchEntry {
+    keyword: string;
+    score: number;
+    bestMatch: string | null;
+    status: SemanticMatchStatus;
+}
+
+export interface SemanticMatchResult {
+    results: SemanticMatchEntry[];
+    model?: string;
+    thresholds?: { matched: number; partial: number };
+    counts?: { keywords: number; profileTexts: number };
+    reason?: string;
+}
+
+const SEMANTIC_MATCH_TIMEOUT_MS = 18000;
+
+export async function semanticMatch(
+    keywords: string[],
+    profileTexts: string[],
+): Promise<SemanticMatchResult | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!keywords?.length || !profileTexts?.length) return null;
+    const u = new URL('/api/cv/semantic-match', ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keywords, profileTexts }),
+            },
+            SEMANTIC_MATCH_TIMEOUT_MS,
+        );
+        if (!r.ok) return null;
+        return (await r.json()) as SemanticMatchResult;
+    } catch (e) {
+        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] semanticMatch failed:', e);
+        return null;
+    }
+}
+
+/**
+ * Chunk a flat CV text blob into atomic phrases suitable for embedding.
+ * Splits on lines, bullets, and sentence boundaries; dedups; caps length.
+ */
+export function chunkProfileText(cvText: string, maxChunks = 200): string[] {
+    if (!cvText) return [];
+    const lines = cvText
+        .split(/\r?\n|•|●|·|\u2022|\u25E6|\u2023/g)
+        .flatMap(line => line.split(/(?<=[.!?])\s+(?=[A-Z])/g))
+        .map(s => s.replace(/\s+/g, ' ').trim())
+        .filter(s => s.length >= 3 && s.length <= 600);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const line of lines) {
+        const key = line.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(line);
+        if (out.length >= maxChunks) break;
+    }
+    return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin client — token kept in sessionStorage, never logged.
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { analyzeJobEnhanced, optimizeCVForJob, generateInterviewQA } from '../services/geminiService';
+import { semanticMatch, chunkProfileText, SemanticMatchEntry } from '../services/cvEngineClient';
 import { JobAnalysisResult, EnhancedJobAnalysis, MatchGrade, STARStory, CVData } from '../types';
 import { CheckCircle } from './icons';
 
@@ -74,6 +75,9 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
     const [isLoadingQA, setIsLoadingQA] = useState(false);
     const [qaError, setQaError] = useState<string | null>(null);
     const [expandedQA, setExpandedQA] = useState<Set<number>>(new Set());
+    const [semanticEntries, setSemanticEntries] = useState<SemanticMatchEntry[] | null>(null);
+    const [semanticLoading, setSemanticLoading] = useState(false);
+    const [semanticAvailable, setSemanticAvailable] = useState(true);
 
     const runAnalysis = useCallback(async () => {
         if (jobDescription.trim().length < 50 || !apiKeySet) return;
@@ -110,19 +114,65 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
         }
     }, [jobDescription, apiKeySet]);
 
+    // Stable, memoised profile-text chunks for the embeddings call.
+    const profileChunks = useMemo(() => chunkProfileText(cvTextContent, 180), [cvTextContent]);
+    const keywordsKey = (analysis?.topKeywords || []).join('||');
+    const chunksKey = profileChunks.join('||');
+
+    // Semantic JD↔skills matching via Workers AI embeddings (cv-engine-worker).
+    // Stateless: nothing persisted. Falls back silently to substring matching.
+    useEffect(() => {
+        const keywords = analysis?.topKeywords || [];
+        if (keywords.length === 0 || profileChunks.length === 0) {
+            setSemanticEntries(null);
+            return;
+        }
+        let cancelled = false;
+        setSemanticLoading(true);
+        semanticMatch(keywords, profileChunks)
+            .then(res => {
+                if (cancelled) return;
+                if (res?.results?.length) {
+                    setSemanticEntries(res.results);
+                    setSemanticAvailable(true);
+                } else {
+                    setSemanticEntries(null);
+                    setSemanticAvailable(false);
+                }
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setSemanticEntries(null);
+                setSemanticAvailable(false);
+            })
+            .finally(() => {
+                if (!cancelled) setSemanticLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [keywordsKey, chunksKey, profileChunks, analysis?.topKeywords]);
+
     const handleFixCV = async () => {
         if (!analysis || !currentCV || !onCVUpdate) return;
         setIsFixingCV(true);
         setFixError(null);
         setFixSuccess(false);
         try {
-            const cvLower = cvTextContent.toLowerCase();
-            const missingKeywords = (analysis.topKeywords || []).filter(kw => {
-                const kwLower = kw.toLowerCase().trim();
-                if (cvLower.includes(kwLower)) return false;
-                const words = kwLower.split(/\s+/).filter(w => w.length > 3);
-                return words.length === 0 || !words.some(w => cvLower.includes(w));
-            });
+            // Prefer semantic-match misses (true gaps) over substring misses
+            // when the embeddings service has returned results.
+            let missingKeywords: string[];
+            if (semanticEntries && semanticEntries.length > 0) {
+                missingKeywords = semanticEntries
+                    .filter(e => e.status === 'missing')
+                    .map(e => e.keyword);
+            } else {
+                const cvLower = cvTextContent.toLowerCase();
+                missingKeywords = (analysis.topKeywords || []).filter(kw => {
+                    const kwLower = kw.toLowerCase().trim();
+                    if (cvLower.includes(kwLower)) return false;
+                    const words = kwLower.split(/\s+/).filter(w => w.length > 3);
+                    return words.length === 0 || !words.some(w => cvLower.includes(w));
+                });
+            }
             const optimized = await optimizeCVForJob(currentCV, jobDescription, analysis.gaps || [], missingKeywords);
             onCVUpdate({ ...currentCV, ...optimized });
             setFixSuccess(true);
@@ -407,31 +457,72 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                         {activeTab === 'personalize' && (
                             <div className="space-y-4">
                                 {analysis.topKeywords.length > 0 && (() => {
-                                    const cvLower = cvTextContent.toLowerCase();
-                                    const matched: string[] = [];
-                                    const partial: string[] = [];
-                                    const missing: string[] = [];
-                                    for (const kw of analysis.topKeywords) {
-                                        const kwLower = kw.toLowerCase().trim();
-                                        if (cvLower.includes(kwLower)) {
-                                            matched.push(kw);
-                                        } else {
-                                            const words = kwLower.split(/\s+/).filter(w => w.length > 3);
-                                            if (words.length > 0 && words.some(w => cvLower.includes(w))) {
-                                                partial.push(kw);
+                                    type Bucket = { keyword: string; bestMatch?: string | null; score?: number };
+                                    const matched: Bucket[] = [];
+                                    const partial: Bucket[] = [];
+                                    const missing: Bucket[] = [];
+
+                                    if (semanticEntries && semanticEntries.length > 0) {
+                                        for (const e of semanticEntries) {
+                                            const b: Bucket = { keyword: e.keyword, bestMatch: e.bestMatch, score: e.score };
+                                            if (e.status === 'matched') matched.push(b);
+                                            else if (e.status === 'partial') partial.push(b);
+                                            else missing.push(b);
+                                        }
+                                    } else {
+                                        const cvLower = cvTextContent.toLowerCase();
+                                        for (const kw of analysis.topKeywords) {
+                                            const kwLower = kw.toLowerCase().trim();
+                                            if (cvLower.includes(kwLower)) {
+                                                matched.push({ keyword: kw });
                                             } else {
-                                                missing.push(kw);
+                                                const words = kwLower.split(/\s+/).filter(w => w.length > 3);
+                                                if (words.length > 0 && words.some(w => cvLower.includes(w))) {
+                                                    partial.push({ keyword: kw });
+                                                } else {
+                                                    missing.push({ keyword: kw });
+                                                }
                                             }
                                         }
                                     }
+
+                                    const usingSemantic = !!(semanticEntries && semanticEntries.length > 0);
+
                                     return (
                                         <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
-                                            <div className="px-4 py-3 bg-zinc-50 dark:bg-neutral-800/80 border-b border-zinc-100 dark:border-neutral-700 flex items-center justify-between">
-                                                <div>
-                                                    <div className="text-xs font-bold text-zinc-800 dark:text-zinc-100">ATS Keyword Match Panel</div>
-                                                    <div className="text-[10px] text-zinc-400 mt-0.5">{analysis.topKeywords.length} keywords from this job description checked against your profile</div>
+                                            <div className="px-4 py-3 bg-zinc-50 dark:bg-neutral-800/80 border-b border-zinc-100 dark:border-neutral-700 flex items-center justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <div className="text-xs font-bold text-zinc-800 dark:text-zinc-100">ATS Keyword Match Panel</div>
+                                                        {semanticLoading && (
+                                                            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
+                                                                <svg className="animate-spin h-2.5 w-2.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                                                Embedding…
+                                                            </span>
+                                                        )}
+                                                        {usingSemantic && !semanticLoading && (
+                                                            <span
+                                                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+                                                                title="Powered by Cloudflare Workers AI · @cf/baai/bge-large-en-v1.5 — meaning-aware match, not literal substring."
+                                                            >
+                                                                AI semantic match
+                                                            </span>
+                                                        )}
+                                                        {!usingSemantic && !semanticLoading && !semanticAvailable && (
+                                                            <span
+                                                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-200 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-300"
+                                                                title="Falling back to substring match — semantic engine unreachable."
+                                                            >
+                                                                Local match
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[10px] text-zinc-400 mt-0.5">
+                                                        {analysis.topKeywords.length} keywords from this job description checked against your profile
+                                                        {usingSemantic && ' — by meaning, not just exact text'}
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-2 text-[10px] font-bold">
+                                                <div className="flex gap-2 text-[10px] font-bold flex-shrink-0">
                                                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">{matched.length} matched</span>
                                                     <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{partial.length} partial</span>
                                                     <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">{missing.length} missing</span>
@@ -443,12 +534,21 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                                     <div className="px-4 py-3 space-y-2">
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="text-emerald-500 text-sm">🟢</span>
-                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Matched — already in your profile</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                                                Matched — {usingSemantic ? 'present in meaning' : 'already in your profile'}
+                                                            </span>
                                                         </div>
                                                         <div className="flex flex-wrap gap-1.5">
-                                                            {matched.map((kw, i) => (
-                                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-                                                                    ✓ {kw}
+                                                            {matched.map((b, i) => (
+                                                                <span
+                                                                    key={i}
+                                                                    title={b.bestMatch ? `Matches: "${b.bestMatch}"${typeof b.score === 'number' ? ` · ${(b.score * 100).toFixed(0)}%` : ''}` : undefined}
+                                                                    className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
+                                                                >
+                                                                    ✓ {b.keyword}
+                                                                    {usingSemantic && typeof b.score === 'number' && (
+                                                                        <span className="ml-1 text-[9px] opacity-70">{(b.score * 100).toFixed(0)}%</span>
+                                                                    )}
                                                                 </span>
                                                             ))}
                                                         </div>
@@ -459,16 +559,32 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                                     <div className="px-4 py-3 space-y-2">
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="text-amber-500 text-sm">🟡</span>
-                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Partial — semantically present, not verbatim</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                                                Partial — semantically related, not a strong match
+                                                            </span>
                                                         </div>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {partial.map((kw, i) => (
-                                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
-                                                                    ~ {kw}
-                                                                </span>
+                                                        <div className="space-y-1.5">
+                                                            {partial.map((b, i) => (
+                                                                <div key={i} className="flex flex-col gap-0.5">
+                                                                    <span className="self-start text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
+                                                                        ~ {b.keyword}
+                                                                        {usingSemantic && typeof b.score === 'number' && (
+                                                                            <span className="ml-1 text-[9px] opacity-70">{(b.score * 100).toFixed(0)}%</span>
+                                                                        )}
+                                                                    </span>
+                                                                    {usingSemantic && b.bestMatch && (
+                                                                        <span className="text-[10px] text-zinc-500 dark:text-zinc-400 italic pl-2 line-clamp-1">
+                                                                            ↳ closest in your profile: "{b.bestMatch}"
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             ))}
                                                         </div>
-                                                        <p className="text-[10px] text-zinc-400 italic">Consider using these exact phrases in your profile to improve ATS matching.</p>
+                                                        <p className="text-[10px] text-zinc-400 italic">
+                                                            {usingSemantic
+                                                                ? 'These are conceptually present but the JD uses different wording. Consider mirroring its exact phrasing.'
+                                                                : 'Consider using these exact phrases in your profile to improve ATS matching.'}
+                                                        </p>
                                                     </div>
                                                 )}
 
@@ -476,12 +592,18 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                                                     <div className="px-4 py-3 space-y-2">
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="text-rose-500 text-sm">🔴</span>
-                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Missing — not found in your profile</span>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                                                Missing — {usingSemantic ? 'no semantic equivalent in your profile' : 'not found in your profile'}
+                                                            </span>
                                                         </div>
                                                         <div className="flex flex-wrap gap-1.5">
-                                                            {missing.map((kw, i) => (
-                                                                <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40">
-                                                                    ✕ {kw}
+                                                            {missing.map((b, i) => (
+                                                                <span
+                                                                    key={i}
+                                                                    title={b.bestMatch ? `Closest in profile: "${b.bestMatch}"${typeof b.score === 'number' ? ` · ${(b.score * 100).toFixed(0)}%` : ''}` : undefined}
+                                                                    className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40"
+                                                                >
+                                                                    ✕ {b.keyword}
                                                                 </span>
                                                             ))}
                                                         </div>

@@ -90,6 +90,7 @@ auth/
 
 ### CV Toolkit (enhanced)
 - **CV Checker** — ATS score, keyword match analysis, strengths/weaknesses, Fix & Regenerate loop
+- **AI Semantic Keyword Match** — CV Checker → Personalization tab classifies each JD keyword as `matched`/`partial`/`missing` against the user's profile by **meaning**, not just substring. Powered by `cv-engine-worker` `POST /api/cv/semantic-match` which embeds both sides with Cloudflare Workers AI `@cf/baai/bge-large-en-v1.5` (stateless, no PII stored). UI surfaces the closest matching profile snippet for partial hits. Falls back silently to substring matching when the worker is unreachable. Fix & Regenerate uses semantic-missing keywords when available.
 - **Fix & Regenerate** — CV Checker sends missing keywords + weaknesses directly to CV Generator as a pre-filled suggestion banner
 - **Cover Letter** — Smart AI generation with "Send to Generator" shortcut
 - **Paraphraser** — 4 tone modes with "Use in Generator" shortcut; JD-aware context
