@@ -5,7 +5,7 @@ import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, reportLeaks, workerLLM, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 
@@ -2560,8 +2560,25 @@ ${fixList}
 Rules: keep the original meaning and any real metrics, fix the listed issues, do not add fabricated data, match the voice & rhythm targets, return only the listed indices.`;
 
         try {
-            const raw = await groqChat(GROQ_FAST, 'You are a precise CV editor that returns only valid JSON.', fixPrompt, { temperature: 0.4, json: true, maxTokens: 1200 });
-            const parsed = JSON.parse(raw);
+            const voiceFixSystem = 'You are a precise CV editor that returns only valid JSON.';
+            const stripFencesVoice = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+            let raw: string | null = null;
+            // Try Workers AI free model first (voiceConsistency task → hermes-2-pro)
+            try {
+                raw = await workerTieredLLM('voiceConsistency', fixPrompt, {
+                    system: voiceFixSystem,
+                    temperature: 0.4,
+                    json: true,
+                    maxTokens: 1200,
+                    timeoutMs: 30000,
+                });
+                if (raw) console.log('[CV Engine] Voice fix via Workers AI (free tier).');
+            } catch (cfErr) {
+                console.warn('[CV Engine] Workers AI voice fix failed, falling back to Groq:', cfErr);
+            }
+            // Fall back to Groq if Workers AI unavailable
+            if (!raw) raw = await groqChat(GROQ_FAST, voiceFixSystem, fixPrompt, { temperature: 0.4, json: true, maxTokens: 1200 });
+            const parsed = JSON.parse(stripFencesVoice(raw ?? '{}'));
             const fixes: Array<{ index: number; bullet: string }> = Array.isArray(parsed?.fixes) ? parsed.fixes : [];
             for (const f of fixes) {
                 const idx = (f.index ?? 0) - 1;
@@ -2942,8 +2959,25 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         }
     `;
 
+    const stripFencesJd = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    // Try Workers AI free model first (jdParse task → llama-3.1-8b, free)
+    try {
+        const cfText = await workerTieredLLM('jdParse', prompt, {
+            system: SYSTEM_INSTRUCTION_PARSER,
+            temperature: 0.1,
+            json: true,
+            maxTokens: 512,
+            timeoutMs: 20000,
+        });
+        if (cfText) {
+            console.log('[JD Parse] Parsed via Workers AI (free tier).');
+            return JSON.parse(stripFencesJd(cfText));
+        }
+    } catch (cfErr) {
+        console.warn('[JD Parse] Workers AI failed, falling back to Groq:', cfErr);
+    }
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 512 });
-    return JSON.parse(text.trim());
+    return JSON.parse(stripFencesJd(text));
 };
 
 export const generateEnhancedSummary = async (profileInput: UserProfile): Promise<string> => {

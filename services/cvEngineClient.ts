@@ -342,6 +342,59 @@ export interface WorkerLLMOptions {
     timeoutMs?: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tiered LLM — routes tasks to the optimal free/paid Workers AI model.
+// Uses /api/cv/tiered-llm which selects model based on task complexity.
+// Tasks: bannedCheck, tenseCheck, voiceConsistency, jdParse, seniorityDetect,
+//        jdKeywords (paid), voiceScoring (paid), jdDeepAnalysis (paid).
+// Always falls back gracefully — returns null if worker unreachable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WorkerTieredLLMResult {
+    text: string;
+    model: string;
+    task: string;
+    tier: number;
+    free: boolean;
+}
+
+const WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS = 45000;
+
+export async function workerTieredLLM(
+    task: string,
+    prompt: string,
+    opts: WorkerLLMOptions & { system?: string } = {},
+): Promise<string | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!prompt) return null;
+    const u = new URL('/api/cv/tiered-llm', ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task,
+                    system: opts.system ?? '',
+                    prompt,
+                    json: !!opts.json,
+                    temperature: opts.temperature ?? 0.3,
+                    maxTokens: opts.maxTokens ?? 2048,
+                }),
+            },
+            opts.timeoutMs ?? WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS,
+        );
+        if (!r.ok) return null;
+        const data = await r.json() as { text?: string; error?: string };
+        if (data.error) return null;
+        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+    } catch (e) {
+        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] workerTieredLLM failed:', task, e);
+        return null;
+    }
+}
+
 const WORKER_LLM_DEFAULT_TIMEOUT_MS = 60000;
 
 export async function workerLLM(

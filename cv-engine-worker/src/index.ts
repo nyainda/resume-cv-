@@ -1393,6 +1393,9 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     candidateDedup:       { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Dedup check for corpus candidates (FREE)' },
     corpusCrawl:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Source page crawling + extraction (FREE)' },
 
+    // ── JD parsing — free fast model (keywords, company, job title) ──────────
+    jdParse:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'JD keyword + company + title extraction (FREE)' },
+
     // ── Default fallback — always free ────────────────────────────────────────
     general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback (FREE)' },
 };
