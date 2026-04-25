@@ -1,7 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics } from './cvPurificationPipeline';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
@@ -2353,10 +2353,20 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                 endDate: e.endDate,
             })));
             const hasSourceProjects = Array.isArray(profile.projects) && profile.projects.length > 0;
+            // Snapshot pre-validator CV so we can revert any field that the
+            // validator (especially the small CF Workers AI fallback) corrupts
+            // while trying to "reduce" overshoot metrics — e.g. "KES 8,000,000"
+            // → "KES ,000".
+            const preValidatorCV: CVData = JSON.parse(JSON.stringify(cvData));
             cvData = await runGroqValidator(
                 cvData, rawExperience, valCurrency, valSeniority, valMarket,
                 scenario, hasSourceProjects
             );
+            const validatorRevert = revertCorruptedMetrics(cvData, preValidatorCV);
+            if (validatorRevert.reverted.length > 0) {
+                console.warn(`[CV Validator] Reverted ${validatorRevert.reverted.length} corrupted-metric field(s):`, validatorRevert.reverted);
+                cvData = validatorRevert.cv;
+            }
         } catch (validatorError) {
             console.error('[CV Validator] Skipped due to error:', validatorError);
         }
@@ -2366,7 +2376,13 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // Fixes short bullets, banned phrases, metric overload, duplicate verbs, rhythm.
     if (purpose === 'job' || purpose === 'general') {
         try {
+            const preAuditCV: CVData = JSON.parse(JSON.stringify(cvData));
             cvData = await runHumanizationAudit(cvData);
+            const auditRevert = revertCorruptedMetrics(cvData, preAuditCV);
+            if (auditRevert.reverted.length > 0) {
+                console.warn(`[CV Humanizer] Reverted ${auditRevert.reverted.length} corrupted-metric field(s):`, auditRevert.reverted);
+                cvData = auditRevert.cv;
+            }
         } catch (auditError) {
             console.error('[CV Humanizer] Audit skipped due to error:', auditError);
         }
@@ -2513,7 +2529,13 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // failures (critical/high) in a single per-role call. Best-effort.
     if (engineBrief && cvData.experience?.length) {
         try {
+            const preVoiceCV: CVData = JSON.parse(JSON.stringify(cvData));
             await enforceVoiceConsistency(cvData, engineBrief);
+            const voiceRevert = revertCorruptedMetrics(cvData, preVoiceCV);
+            if (voiceRevert.reverted.length > 0) {
+                console.warn(`[CV Engine] Voice enforcement: reverted ${voiceRevert.reverted.length} corrupted-metric bullet(s):`, voiceRevert.reverted);
+                cvData = voiceRevert.cv;
+            }
         } catch (e) {
             console.warn('[CV Engine] Voice enforcement skipped:', e);
         }
@@ -2533,9 +2555,48 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
 // brief and rewrites failing ones via a single targeted Groq call per role.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Verbs that are technically valid English but read as obviously off-key on a
+// professional CV. The CV-engine seed contains them (Critiques→Critiqued,
+// Bylines→Bylined, Synthesises→Synthesised, Mobilises→Mobilised, …). When the
+// voice-rewriter receives them in the verb pool, it sometimes builds bullets
+// like "Critiqued rigorous testing protocols" or "Bylined technical reports".
+// Filter them out client-side so the rewriter can only choose tasteful options.
+const OBSCURE_CV_VERBS = new Set([
+    'critiqued', 'critique', 'critiques',
+    'bylined', 'byline', 'bylines',
+    'synthesised', 'synthesized', 'synthesises', 'synthesizes',
+    'mobilised', 'mobilized', 'mobilises', 'mobilizes',
+    're-emphasised', 're-emphasized', 're-emphasises', 're-emphasizes',
+    'reemphasised', 'reemphasized',
+    'enlisted', 'enlist', 'enlists',
+    'galvanised', 'galvanized', 'galvanises', 'galvanizes',
+    'rallied', 'rally', 'rallies',
+    'op-edded', 'opedded',
+    'ghost-wrote', 'ghostwrote',
+    'box-plotted', 'boxplotted',
+    'histogrammed',
+    'wireframed', 'mocked',
+    'composed', 'compose', 'composes',
+    're-articulated', 'rearticulated', 're-articulates', 'rearticulates',
+    'debriefed', 'debrief', 'debriefs',
+    'taught',
+]);
+
+function filterTastefulVerbs(verbs: string[]): string[] {
+    return verbs.filter(v => v && !OBSCURE_CV_VERBS.has(v.trim().toLowerCase()));
+}
+
 async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<void> {
     const roles = cvData.experience || [];
-    const verbList = brief.verb_pool.slice(0, 24).map(v => v.verb_past || v.verb).join(', ');
+    // Take a wider slice (40) before filtering so we still have ≥24 verbs
+    // even when several obscure ones get stripped.
+    const rawVerbs = brief.verb_pool.slice(0, 40).map(v => v.verb_past || v.verb);
+    const tastefulVerbs = filterTastefulVerbs(rawVerbs).slice(0, 24);
+    const verbList = tastefulVerbs.join(', ');
+    const droppedVerbs = rawVerbs.filter(v => !tastefulVerbs.includes(v));
+    if (droppedVerbs.length > 0) {
+        console.log(`[CV Engine] Voice enforcement: filtered ${droppedVerbs.length} obscure verb(s) from pool:`, droppedVerbs);
+    }
     const forbidden = brief.forbidden_phrases.slice(0, 30).join(', ');
     const avoidedVerbs = (brief.field?.avoided_verbs || []).join(', ') || 'none';
     const voice = brief.voice.primary;

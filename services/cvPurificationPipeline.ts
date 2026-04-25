@@ -549,6 +549,98 @@ export function jitterRoundNumbers(cv: CVData): { cv: CVData; changes: string[] 
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 4a-bis. CORRUPTED-METRIC GUARD — small fallback LLMs (Cloudflare Workers AI
+//     free tier, etc.) sometimes obey "reduce the metric" instructions by
+//     stripping the digits and leaving placeholder fragments behind, e.g.:
+//         "Generated KES 8,000,000 in revenue"
+//             → "Generate KES ,000 in revenue"
+//         "exceeding monthly targets by 20%"
+//             → "exceeding monthly targets by %"
+//         "coordinating with a 12-person team"
+//             → "coordinating with a -person team"
+//     These are unambiguous corruption signatures (no legitimate CV bullet
+//     ever produces them). When detected, we revert that single field to its
+//     pre-validator value so the user keeps a real number rather than a gap.
+// ────────────────────────────────────────────────────────────────────────────
+const CORRUPTED_METRIC_PATTERNS: RegExp[] = [
+    // Currency code or symbol followed by an orphan thousands group.
+    // Matches: "KES ,000", "USD ,500,000", "$ ,000", "KSh ,200"
+    /(?:[A-Z]{2,4}|KSh|Ksh|R|₦|₹|€|£|\$)\s+,\d{3}/,
+    // Bare percent / per-cent with no leading number — preposition + space + %.
+    // Matches: "by %", "of %", "to %", "at %", "over %", "around %"
+    /\b(?:by|of|to|at|over|under|around|near|nearly|about|approximately)\s+%/i,
+    // Article/qualifier + hyphen-prefixed unit ("a -person", "a -hour", "an -hour").
+    /\b(?:a|an|the)\s+-(?:person|hour|day|week|month|year|member|seat|figure|fold|page|line|step|tier|level|point|degree|man|woman)\b/i,
+    // Generic orphan thousands group surrounded by spaces (",000 in", " ,500 ").
+    /\s,\d{3}(?:,\d{3})*(?=\s)/,
+    // "increase of %" / "reduction of %" / "growth of %".
+    /\b(?:increase|reduction|decrease|drop|rise|growth|gain|boost|cut|lift|uplift|improvement)\s+of\s+%/i,
+    // Range/comparison left bare ("from to", "from %", "by up to %").
+    /\bfrom\s+%|\bup\s+to\s+%|\bover\s+%|\bunder\s+%/i,
+    // Hyphen-bounded missing number ("- person team", "- hour shift").
+    /\s-\s+(?:person|hour|day|week|month|year|member)\b/i,
+];
+
+/** Returns true if the text contains an obvious "metric got stripped" signature. */
+export function hasCorruptedMetric(text: string): boolean {
+    if (!text || typeof text !== 'string') return false;
+    return CORRUPTED_METRIC_PATTERNS.some(rx => rx.test(text));
+}
+
+/**
+ * Walks through a CV that just came back from a fallback LLM (validator,
+ * humanizer, etc.) and reverts any text field that exhibits corrupted-metric
+ * signatures back to the pre-call original. Untouched fields are kept as-is so
+ * legitimate fixes the LLM made survive.
+ */
+export function revertCorruptedMetrics(
+    newCV: CVData,
+    originalCV: CVData,
+): { cv: CVData; reverted: string[] } {
+    const reverted: string[] = [];
+
+    const summary = hasCorruptedMetric(newCV.summary || '')
+        && !hasCorruptedMetric(originalCV.summary || '')
+        ? (reverted.push('summary'), originalCV.summary || '')
+        : (newCV.summary || '');
+
+    const experience = (newCV.experience || []).map((role, ri) => {
+        const origRole = (originalCV.experience || [])[ri];
+        if (!origRole) return role;
+        const origBullets = origRole.responsibilities || [];
+        const responsibilities = (role.responsibilities || []).map((b, bi) => {
+            const orig = origBullets[bi];
+            if (typeof orig === 'string' && hasCorruptedMetric(b) && !hasCorruptedMetric(orig)) {
+                reverted.push(`${role.jobTitle} @ ${role.company} — bullet ${bi + 1}`);
+                return orig;
+            }
+            return b;
+        });
+        return { ...role, responsibilities };
+    });
+
+    const projects = (newCV.projects || []).map((p, pi) => {
+        const orig = (originalCV.projects || [])[pi];
+        if (orig && hasCorruptedMetric(p.description || '') && !hasCorruptedMetric(orig.description || '')) {
+            reverted.push(`project: ${p.name || `#${pi + 1}`}`);
+            return { ...p, description: orig.description || '' };
+        }
+        return p;
+    });
+
+    const education = (newCV.education || []).map((e, ei) => {
+        const orig = (originalCV.education || [])[ei];
+        if (orig && hasCorruptedMetric(e.description || '') && !hasCorruptedMetric(orig.description || '')) {
+            reverted.push(`education: ${e.degree || `#${ei + 1}`}`);
+            return { ...e, description: orig.description || '' };
+        }
+        return e;
+    });
+
+    return { cv: { ...newCV, summary, experience, projects, education }, reverted };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // 4b. EDUCATION GUARD — if a degree has a real graduation year, the AI must
 //     not describe it as "currently pursuing". Strips that phrase deterministi-
 //     cally so a missed system-prompt instruction can't leak through.
