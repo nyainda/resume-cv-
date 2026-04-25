@@ -46,6 +46,7 @@ required, works headless in Replit.
 | `POST /api/cv/sync` | Manual KV cache rebuild after D1 writes |
 | `POST /api/cv/semantic-match` | Workers AI embeddings (BGE-large) → per-keyword `matched`/`partial`/`missing` against profile texts. Stateless, no PII stored. |
 | `POST /api/cv/llm` | Workers AI Llama-3.3-70B chat proxy. Used by the CV validator + humanizer audit passes (Parts 6 & 7) so they don't burn the user's Groq quota. Stateless. |
+| `POST /api/cv/vision-extract` | Workers AI Llama-3.2-11B Vision. Image-only OCR/text extraction for CV uploads + JD screenshots. PDFs return 415 (caller must fall back to Gemini). One-time license acceptance required per Cloudflare account. Stateless. |
 
 ## /api/cv/llm
 

@@ -377,6 +377,53 @@ export async function workerLLM(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Worker Vision Extract — Cloudflare Workers AI Llama 3.2 11B Vision.
+// Used for image CV uploads so they don't burn the user's Gemini quota.
+// PDFs are NOT supported (caller must fall back to Gemini for application/pdf).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WorkerVisionOptions {
+    maxTokens?: number;
+    timeoutMs?: number;
+}
+
+const WORKER_VISION_DEFAULT_TIMEOUT_MS = 60000;
+
+export async function workerVisionExtract(
+    base64Image: string,
+    mimeType: string,
+    prompt: string,
+    opts: WorkerVisionOptions = {},
+): Promise<string | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!base64Image || !prompt) return null;
+    if (mimeType && !/^image\//i.test(mimeType)) return null; // PDFs not supported
+    const u = new URL('/api/cv/vision-extract', ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: base64Image,
+                    mimeType,
+                    prompt,
+                    maxTokens: opts.maxTokens ?? 4096,
+                }),
+            },
+            opts.timeoutMs ?? WORKER_VISION_DEFAULT_TIMEOUT_MS,
+        );
+        if (!r.ok) return null;
+        const data = await r.json() as { text?: string };
+        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+    } catch (e) {
+        if ((import.meta as any)?.env?.DEV) console.warn('[cvEngineClient] workerVisionExtract failed:', e);
+        return null;
+    }
+}
+
 /**
  * Chunk a flat CV text blob into atomic phrases suitable for embedding.
  * Splits on lines, bullets, and sentence boundaries; dedups; caps length.

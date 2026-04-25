@@ -5,7 +5,7 @@ import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, reportLeaks, workerLLM, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, workerLLM, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 
@@ -846,6 +846,34 @@ The "cv" field must ALWAYS be present — even when all checks pass.
  * Checks and fixes: short bullets, banned phrases, metric overload, and uniform rhythm.
  */
 async function runHumanizationAudit(cvData: CVData): Promise<CVData> {
+    // Sync the prompt with the LIVE banned-phrase list from the worker's KV cache
+    // (D1 → KV → here). Falls back to the small hardcoded list when offline so the
+    // pipeline never breaks. Cap at 80 phrases to keep the prompt token-budget sane.
+    const HARDCODED_BANNED_BULLETS = '"delve", "robust", "seamlessly", "synergy", "cutting-edge", "state-of-the-art", "passionate about", "dynamic team", "innovative solutions", "results-driven", "detail-oriented", "team player", "go-getter", "responsible for", "helped with", "assisted in", "tasked with", "worked on", "was part of", "participated in", "contributed to"';
+    const HARDCODED_BANNED_SUMMARY = '"passionate", "driven", "innovative", "seasoned professional", "dynamic", "cutting-edge", "result-oriented", "proactive", "detail-oriented", "versatile"';
+    let liveBannedBullets = HARDCODED_BANNED_BULLETS;
+    let liveBannedSummary = HARDCODED_BANNED_SUMMARY;
+    let liveCount = 0;
+    try {
+        const banned = await getCachedBannedPhrases();
+        if (banned && banned.length) {
+            const phrases = banned.map(b => b.phrase).filter(p => typeof p === 'string' && p.length > 0);
+            const bulletList = phrases.slice(0, 80);
+            liveBannedBullets = bulletList.map(p => `"${p.replace(/"/g, '\\"')}"`).join(', ');
+            // Summary check: single-word adjectives only (1 token, no spaces)
+            const summaryList = phrases.filter(p => !p.includes(' ') && p.length <= 18).slice(0, 30);
+            if (summaryList.length >= 5) {
+                liveBannedSummary = summaryList.map(p => `"${p.replace(/"/g, '\\"')}"`).join(', ');
+            }
+            liveCount = phrases.length;
+        }
+    } catch (e) {
+        console.warn('[CV Humanizer] Live banned-phrase fetch failed, using hardcoded list:', e);
+    }
+    if (liveCount > 0) {
+        console.log(`[CV Humanizer] Audit prompt synced with ${liveCount} live banned phrases from CV engine.`);
+    }
+
     const auditPrompt = `
 You are a senior career writing editor with 20 years of experience. You are reviewing a CV JSON object.
 Your ONLY job is to fix the specific problems listed below. Do not rewrite anything that isn't broken. Do not change dates, company names, job titles, or skills. Return the complete, corrected JSON.
@@ -859,7 +887,7 @@ Example fix:
   AFTER:  "Managed a portfolio of 11 commercial client accounts across Central and Eastern Kenya, conducting quarterly reviews and maintaining service continuity."
 
 PROBLEM 2 — BANNED PHRASES (replace these with specific, direct language):
-Scan for and replace: "delve", "robust", "seamlessly", "synergy", "cutting-edge", "state-of-the-art", "passionate about", "dynamic team", "innovative solutions", "results-driven", "detail-oriented", "team player", "go-getter", "responsible for", "helped with", "assisted in", "tasked with", "worked on", "was part of", "participated in", "contributed to".
+Scan for and replace: ${liveBannedBullets}.
 Replace each with a direct action verb or a specific description of what was actually done.
 
 PROBLEM 3 — METRIC OVERLOAD (cap at 55% of bullets per role having a number):
@@ -873,7 +901,7 @@ PROBLEM 5 — UNIFORM RHYTHM (no three bullets of similar length in a row):
 If three consecutive bullets in a role are all approximately the same length (within 5 words of each other), shorten the middle one slightly or expand the last one slightly to create variation.
 
 PROBLEM 6 — AI TONE PHRASES IN SUMMARY (check professionalSummary field):
-The professional summary must not contain: "passionate", "driven", "innovative", "seasoned professional", "dynamic", "cutting-edge", "result-oriented", "proactive", "detail-oriented", "versatile".
+The professional summary must not contain: ${liveBannedSummary}.
 Replace with specific factual claims: years of experience, industries served, measurable outcomes, or named skills.
 The summary's first sentence MUST start with either the candidate's job title or their years of experience — never with "I", "A", or "An".
 
@@ -2556,9 +2584,23 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
 
 // --- Multimodal: Extract text from PDF/image using Gemini (vision required) ---
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {
-    const ai = getGeminiClient();
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
 
+    // Worker-first for IMAGES (Llama 3.2 Vision). PDFs are not supported by the model
+    // and skip straight to Gemini. Falls back to Gemini on any worker failure.
+    if (/^image\//i.test(mimeType)) {
+        try {
+            const cf = await workerVisionExtract(base64Data, mimeType, prompt, { maxTokens: 4096 });
+            if (cf && cf.trim().length > 50) {
+                console.log('[CV Import] Image extract via Cloudflare Workers AI Vision.');
+                return cf;
+            }
+        } catch (cfErr) {
+            console.warn('[CV Import] Worker vision failed, falling back to Gemini:', cfErr);
+        }
+    }
+
+    const ai = getGeminiClient();
     const filePart = { inlineData: { data: base64Data, mimeType } };
 
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
@@ -2676,9 +2718,22 @@ export const generateProfileFromTextWithGemini = async (
 };
 
 export const extractTextFromImage = async (base64Image: string, mimeType: string): Promise<string> => {
-    const ai = getGeminiClient();
     const prompt = "Analyze this image, which contains text (likely a job description). Extract ALL of the visible text. Return ONLY the raw text, with no additional commentary, summary, or formatting.";
 
+    // Worker-first via Cloudflare Workers AI Llama 3.2 Vision. Falls back to Gemini.
+    if (/^image\//i.test(mimeType)) {
+        try {
+            const cf = await workerVisionExtract(base64Image, mimeType, prompt, { maxTokens: 2048 });
+            if (cf && cf.trim().length > 20) {
+                console.log('[JD Import] Image text via Cloudflare Workers AI Vision.');
+                return cf;
+            }
+        } catch (cfErr) {
+            console.warn('[JD Import] Worker vision failed, falling back to Gemini:', cfErr);
+        }
+    }
+
+    const ai = getGeminiClient();
     const imagePart = { inlineData: { data: base64Image, mimeType } };
 
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({

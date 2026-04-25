@@ -54,6 +54,7 @@ export default {
             if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
             if (url.pathname === '/api/cv/semantic-match' && request.method === 'POST') return handleSemanticMatch(request, env);
             if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
+            if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
@@ -1131,6 +1132,68 @@ async function handleLLM(request: Request, env: Env): Promise<Response> {
         return json({ text, model: WORKER_LLM_MODEL }, request, env);
     } catch (e: any) {
         return json({ error: 'llm_failed', message: String(e?.message || e) }, request, env, 502);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vision extract — Workers AI Llama 3.2 11B Vision for image CV uploads.
+// Stateless. Image bytes in, structured/raw text out. PDFs are NOT supported
+// by the underlying model — caller falls back to Gemini for PDFs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
+const VISION_MAX_IMAGE_BYTES = 5 * 1024 * 1024;        // 5 MB after base64 decode
+const VISION_MAX_PROMPT_CHARS = 4000;
+const VISION_DEFAULT_MAX_TOKENS = 4096;
+const VISION_HARD_MAX_TOKENS = 8192;
+
+async function handleVisionExtract(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+    const base64 = typeof body?.image === 'string' ? body.image : '';
+    const mimeType = typeof body?.mimeType === 'string' ? body.mimeType : '';
+    const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, VISION_MAX_PROMPT_CHARS) : '';
+
+    if (!base64 || !prompt) {
+        return json({ error: 'missing_image_or_prompt' }, request, env, 400);
+    }
+    if (mimeType && !/^image\//i.test(mimeType)) {
+        return json({ error: 'unsupported_mime', mimeType, hint: 'Llama Vision accepts images only. PDFs must be rasterized first or routed to Gemini.' }, request, env, 415);
+    }
+
+    let bytes: Uint8Array;
+    try {
+        const clean = base64.replace(/^data:[^;]+;base64,/, '');
+        const bin = atob(clean);
+        if (bin.length > VISION_MAX_IMAGE_BYTES) {
+            return json({ error: 'image_too_large', maxBytes: VISION_MAX_IMAGE_BYTES }, request, env, 413);
+        }
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } catch {
+        return json({ error: 'invalid_base64' }, request, env, 400);
+    }
+
+    const maxTokens = clamp(Number(body?.maxTokens ?? VISION_DEFAULT_MAX_TOKENS), 64, VISION_HARD_MAX_TOKENS);
+
+    try {
+        const res: any = await env.AI.run(VISION_MODEL as any, {
+            prompt,
+            image: Array.from(bytes),
+            max_tokens: maxTokens,
+        } as any);
+
+        let text = '';
+        if (typeof res === 'string') text = res;
+        else if (typeof res?.response === 'string') text = res.response;
+        else if (typeof res?.description === 'string') text = res.description;
+        else if (typeof res?.result?.response === 'string') text = res.result.response;
+
+        if (!text) {
+            return json({ error: 'vision_empty', model: VISION_MODEL }, request, env, 502);
+        }
+        return json({ text, model: VISION_MODEL }, request, env);
+    } catch (e: any) {
+        return json({ error: 'vision_failed', message: String(e?.message || e) }, request, env, 502);
     }
 }
 
