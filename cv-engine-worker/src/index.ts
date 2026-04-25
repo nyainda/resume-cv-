@@ -1359,30 +1359,42 @@ function shuffle<T>(arr: T[]): void {
 //   Embedding        — near-zero cost semantic similarity
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; description: string }> = {
-    // ── Tier 1: Heavy reasoning ───────────────────────────────────────────────
-    jdDeepAnalysis:       { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, description: 'Deep JD intelligence + gap analysis' },
-    gapAnalysis:          { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, description: 'Candidate ↔ JD gap analysis' },
-    corpusConfidence:     { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, description: 'Corpus candidate confidence scoring' },
+// ── Model cost reality (verified April 2026 via CF Models API) ─────────────────
+// FREE  @cf/meta/llama-3.1-8b-instruct          — legacy model, not in paid search, works
+// FREE  @hf/nousresearch/hermes-2-pro-mistral-7b — confirmed free, good instruction following
+// FREE  @cf/qwen/qwen1.5-14b-chat-awq            — confirmed free, 14B capable
+// FREE  @cf/google/embeddinggemma-300m            — confirmed free embeddings
+// PAID  @cf/meta/llama-3.3-70b-instruct-fp8-fast — $0.29/$2.25 per M tokens
+// PAID  @cf/deepseek-ai/deepseek-r1-distill-qwen-32b — $0.50/$4.88 per M tokens
+// PAID  @cf/meta/llama-4-scout-17b-16e-instruct  — $0.27/$0.85 per M tokens
+// PAID  @cf/google/gemma-4-26b-a4b-it            — $0.10/$0.30 per M tokens
+// ──────────────────────────────────────────────────────────────────────────────
 
-    // ── Tier 2: Medium — primary workhorses ───────────────────────────────────
-    voiceScoring:         { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, description: 'Voice scoring vs JD + field + seniority' },
-    jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, description: 'JD keyword extraction (tier 1/2/3)' },
-    rhythmSelection:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, description: 'Rhythm pattern selection per role type' },
-    seniorityDetect:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, description: 'Seniority + field detection from JD' },
-    multilingualGenerate: { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, description: 'Multilingual CV text generation' },
+const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: boolean; description: string }> = {
+    // ── Tier 1: Heavy reasoning — PAID, use only when quality is critical ──────
+    jdDeepAnalysis:       { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Deep JD intelligence + gap analysis ($0.50/$4.88 per M)' },
+    gapAnalysis:          { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Candidate ↔ JD gap analysis ($0.50/$4.88 per M)' },
+    corpusConfidence:     { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Corpus candidate confidence scoring ($0.50/$4.88 per M)' },
 
-    // ── Tier 3: Fast validation — burn freely ─────────────────────────────────
-    bannedCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Banned phrase check post-generation' },
-    tenseCheck:           { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Tense consistency enforcement' },
-    voiceConsistency:     { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Voice consistency per bullet' },
-    verbRepeatCheck:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Verb repetition check' },
-    rhythmCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Rhythm compliance check' },
-    candidateDedup:       { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Dedup check for corpus candidates' },
-    corpusCrawl:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Source page crawling + extraction' },
+    // ── Tier 2: Medium — use paid 70b only for quality-critical generation tasks
+    voiceScoring:         { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, free: false, description: 'Voice scoring vs JD + field + seniority ($0.29/$2.25 per M)' },
+    jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, free: false, description: 'JD keyword extraction, tier 1/2/3 classification ($0.29/$2.25 per M)' },
+    // ── Tier 2 free alternatives (use these to avoid costs) ──────────────────
+    rhythmSelection:      { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 2, free: true,  description: 'Rhythm pattern selection per role type (FREE)' },
+    seniorityDetect:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, free: true,  description: 'Seniority + field detection from JD (FREE legacy)' },
+    multilingualGenerate: { model: '@cf/qwen/qwen1.5-14b-chat-awq',                tier: 2, free: true,  description: 'Multilingual CV text generation (FREE 14B)' },
 
-    // ── Default fallback ──────────────────────────────────────────────────────
-    general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'General purpose fallback' },
+    // ── Tier 3: Fast validation — all FREE, burn without worry ────────────────
+    bannedCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Banned phrase check post-generation (FREE)' },
+    tenseCheck:           { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Tense consistency enforcement (FREE)' },
+    voiceConsistency:     { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Voice consistency per bullet (FREE)' },
+    verbRepeatCheck:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Verb repetition check (FREE)' },
+    rhythmCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Rhythm compliance check (FREE)' },
+    candidateDedup:       { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Dedup check for corpus candidates (FREE)' },
+    corpusCrawl:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Source page crawling + extraction (FREE)' },
+
+    // ── Default fallback — always free ────────────────────────────────────────
+    general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback (FREE)' },
 };
 
 const TIERED_LLM_MAX_PROMPT_CHARS  = 60000;
@@ -1400,7 +1412,7 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
 
     const mapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
-    const { model, tier, description } = mapping;
+    const { model, tier, free, description } = mapping;
 
     const wantsJson  = body?.json === true;
     const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
@@ -1441,11 +1453,11 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
             text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
         }
 
-        if (!text) return json({ error: 'llm_empty', model, task: taskKey }, request, env, 502);
+        if (!text) return json({ error: 'llm_empty', model, task: taskKey, tier, free }, request, env, 502);
 
-        return json({ text, model, task: taskKey, tier, description }, request, env);
+        return json({ text, model, task: taskKey, tier, free, description }, request, env);
     } catch (e: any) {
-        return json({ error: 'llm_failed', message: String(e?.message || e), model, task: taskKey, tier }, request, env, 502);
+        return json({ error: 'llm_failed', message: String(e?.message || e), model, task: taskKey, tier, free }, request, env, 502);
     }
 }
 
