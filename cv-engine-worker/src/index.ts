@@ -55,6 +55,7 @@ export default {
             if (url.pathname === '/api/cv/semantic-match' && request.method === 'POST') return handleSemanticMatch(request, env);
             if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
             if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
+            if (url.pathname === '/api/cv/tiered-llm' && request.method === 'POST') return handleTieredLLM(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
@@ -1334,6 +1335,117 @@ function shuffle<T>(arr: T[]): void {
     for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tiered LLM routing — smart model selection based on task complexity.
+//
+// POST /api/cv/tiered-llm
+// Body: {
+//   task: string,        — one of the TASK keys below
+//   prompt: string,      — user message
+//   system?: string,     — optional system prompt
+//   json?: boolean,      — request JSON response_format
+//   temperature?: number,
+//   maxTokens?: number,
+// }
+// Returns: { text, model, task, tier }
+//
+// Task → Model mapping follows the document's tiered cost strategy:
+//   Tier 1 (heavy)   — complex reasoning, used sparingly
+//   Tier 2 (medium)  — primary workhorses for most generation tasks
+//   Tier 3 (fast)    — cheap validation passes, burned freely
+//   Embedding        — near-zero cost semantic similarity
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; description: string }> = {
+    // ── Tier 1: Heavy reasoning ───────────────────────────────────────────────
+    jdDeepAnalysis:       { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, description: 'Deep JD intelligence + gap analysis' },
+    gapAnalysis:          { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, description: 'Candidate ↔ JD gap analysis' },
+    corpusConfidence:     { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, description: 'Corpus candidate confidence scoring' },
+
+    // ── Tier 2: Medium — primary workhorses ───────────────────────────────────
+    voiceScoring:         { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, description: 'Voice scoring vs JD + field + seniority' },
+    jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, description: 'JD keyword extraction (tier 1/2/3)' },
+    rhythmSelection:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, description: 'Rhythm pattern selection per role type' },
+    seniorityDetect:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, description: 'Seniority + field detection from JD' },
+    multilingualGenerate: { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, description: 'Multilingual CV text generation' },
+
+    // ── Tier 3: Fast validation — burn freely ─────────────────────────────────
+    bannedCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Banned phrase check post-generation' },
+    tenseCheck:           { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Tense consistency enforcement' },
+    voiceConsistency:     { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Voice consistency per bullet' },
+    verbRepeatCheck:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Verb repetition check' },
+    rhythmCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Rhythm compliance check' },
+    candidateDedup:       { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Dedup check for corpus candidates' },
+    corpusCrawl:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'Source page crawling + extraction' },
+
+    // ── Default fallback ──────────────────────────────────────────────────────
+    general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, description: 'General purpose fallback' },
+};
+
+const TIERED_LLM_MAX_PROMPT_CHARS  = 60000;
+const TIERED_LLM_MAX_SYSTEM_CHARS  = 6000;
+const TIERED_LLM_DEFAULT_MAX_TOKENS = 2048;
+const TIERED_LLM_HARD_MAX_TOKENS   = 8192;
+
+async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+
+    const taskKey  = typeof body?.task === 'string' ? body.task.trim() : 'general';
+    const system   = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    const prompt   = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
+
+    if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
+
+    const mapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
+    const { model, tier, description } = mapping;
+
+    const wantsJson  = body?.json === true;
+    const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
+    const maxTokens   = clamp(
+        Number(body?.maxTokens ?? TIERED_LLM_DEFAULT_MAX_TOKENS),
+        64,
+        TIERED_LLM_HARD_MAX_TOKENS,
+    );
+
+    // Build message list — inject JSON instruction into system prompt when requested.
+    // We avoid response_format entirely because different model revisions on
+    // Workers AI use different format variants (json_object vs json_schema).
+    const jsonInstruction = 'Reply with valid raw JSON only. No markdown fences, no commentary.';
+    const effectiveSystem = wantsJson
+        ? (system ? system + '\n\n' + jsonInstruction : jsonInstruction)
+        : system;
+
+    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+    if (effectiveSystem) messages.push({ role: 'system', content: effectiveSystem });
+    messages.push({ role: 'user', content: prompt });
+
+    try {
+        const payload: Record<string, unknown> = { messages, temperature, max_tokens: maxTokens };
+        // 70b fp8-fast model supports json_object response_format; 8b and others use prompt-only.
+        const supports70bJsonFormat = model.includes('llama-3.3-70b') || model.includes('llama-3.1-70b');
+        if (wantsJson && supports70bJsonFormat) payload.response_format = { type: 'json_object' };
+
+        const res: any = await env.AI.run(model as any, payload as any);
+
+        let text = '';
+        if (typeof res === 'string') text = res;
+        else if (typeof res?.response === 'string') text = res.response;
+        else if (typeof res?.result?.response === 'string') text = res.result.response;
+        else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
+
+        // Strip ```json fences that some models add regardless
+        if (text) {
+            text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        }
+
+        if (!text) return json({ error: 'llm_empty', model, task: taskKey }, request, env, 502);
+
+        return json({ text, model, task: taskKey, tier, description }, request, env);
+    } catch (e: any) {
+        return json({ error: 'llm_failed', message: String(e?.message || e), model, task: taskKey, tier }, request, env, 502);
     }
 }
 
