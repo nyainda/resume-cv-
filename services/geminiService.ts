@@ -1704,6 +1704,13 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
 // --- Humanize a block of plain text to remove AI patterns ---
 export const humanizeText = async (text: string): Promise<string> => {
     const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
+    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    try {
+        const cf = await workerLLM(SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8, maxTokens: 2500 });
+        if (cf && cf.trim()) return cf;
+    } catch (cfErr) {
+        console.warn('[humanizeText] Worker call failed, falling back to Groq:', cfErr);
+    }
     return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8, maxTokens: 2500 });
 };
 
@@ -1804,7 +1811,21 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         ${USER_PROFILE_SCHEMA}
     `;
 
-    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
+    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    let text: string | null = null;
+    try {
+        const cf = await workerLLM(SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
+        if (cf && cf.trim()) {
+            // Sanity-check the worker output is valid JSON before committing to it.
+            try { JSON.parse(cf.trim()); text = cf; }
+            catch { console.warn('[parseProfileText] Worker JSON parse failed, falling back to Groq.'); }
+        }
+    } catch (cfErr) {
+        console.warn('[parseProfileText] Worker call failed, falling back to Groq:', cfErr);
+    }
+    if (!text) {
+        text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
+    }
     const profileData: UserProfile = JSON.parse(text.trim());
     profileData.projects = profileData.projects || [];
     profileData.education = profileData.education || [];
@@ -2824,7 +2845,17 @@ export const generateCoverLetter = async (profileInput: UserProfile, jobDescript
         7. **Output**: Return ONLY the plain text of the letter body (starting with "Dear Hiring Manager,"). NO markdown, NO headers, NO meta-commentary.
     `;
 
-    const letter = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
+    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    let letter: string | null = null;
+    try {
+        const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
+        if (cf && cf.trim()) letter = cf;
+    } catch (cfErr) {
+        console.warn('[generateCoverLetter] Worker call failed, falling back to Groq:', cfErr);
+    }
+    if (!letter) {
+        letter = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
+    }
     return purifyText(letter);
 };
 
