@@ -6,6 +6,9 @@ import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, i
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCVAsPDF } from '../services/pdfService';
+import { downloadViaPlaywright, isPlaywrightServerAvailable } from '../services/playwrightPdfService';
+import { generateAndDownloadViaCF, isCloudflareConfigured, isCloudflareWorkerOnline } from '../services/cloudflareWorkerService';
+import { getCVHtml } from '../services/getCVHtml';
 import PDFDownloadButton from './PDFDownloadButton';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
@@ -499,27 +502,87 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     return `${name}${companyPart}_CV.pdf`;
   }, [userProfile.personalInfo.name, targetCompany]);
 
-  const handleDownload = useCallback(() => {
+  const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
+
+  const handleDownload = useCallback(async () => {
     if (!currentCV) return;
     const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
     const companyName = targetCompany || 'Unknown';
 
-    const wasEmbedded = downloadCVAsPDF({
-      cvData: currentCV,
-      personalInfo: userProfile.personalInfo,
-      template,
-      font,
-      fileName: pdfFileName,
-      jobDescription,
-    });
-    setAtsDataEmbedded(wasEmbedded);
+    // Pixel-perfect path — captures the LIVE preview DOM (matches what the user sees)
+    // and renders it via headless Chrome. Tries local Playwright server first
+    // (dev / Replit), then the Cloudflare resume-pdf-worker (production).
+    // Falls back to the legacy jsPDF templates only if both renderers are offline.
+    const tryHtmlPath = async (): Promise<boolean> => {
+      // ── Tier 1: Local Playwright server (port 3001 via /__pdf proxy) ──
+      try {
+        if (await isPlaywrightServerAvailable()) {
+          setDownloadStatus('Rendering preview…');
+          const r = await downloadViaPlaywright(pdfFileName);
+          if (r.success) return true;
+          console.warn('[CV Download] Playwright server failed:', r.error);
+        }
+      } catch (e) {
+        console.warn('[CV Download] Playwright probe failed:', e);
+      }
+
+      // ── Tier 2: Cloudflare resume-pdf-worker (production) ──
+      try {
+        if (isCloudflareConfigured() && (await isCloudflareWorkerOnline())) {
+          setDownloadStatus('Rendering preview…');
+          const html = await getCVHtml({
+            extraStyles: `
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              body { margin: 0; padding: 0; }
+            `,
+          });
+          if (html) {
+            const r = await generateAndDownloadViaCF({
+              html,
+              filename: pdfFileName,
+              format: 'A4',
+              onStatus: (m) => setDownloadStatus(m),
+            });
+            if (r.ok) return true;
+            console.warn('[CV Download] Cloudflare worker failed:', r.error);
+          }
+        }
+      } catch (e) {
+        console.warn('[CV Download] Cloudflare probe failed:', e);
+      }
+      return false;
+    };
+
+    setDownloadStatus('Preparing download…');
+    let usedHtmlPath = false;
+    try {
+      usedHtmlPath = await tryHtmlPath();
+    } finally {
+      // Even if HTML path succeeded, jsPDF embeds ATS keyword metadata; we
+      // only fall back to it when the HTML renderers are both unavailable.
+      if (!usedHtmlPath) {
+        setDownloadStatus('Falling back to local renderer…');
+        const wasEmbedded = downloadCVAsPDF({
+          cvData: currentCV,
+          personalInfo: userProfile.personalInfo,
+          template,
+          font,
+          fileName: pdfFileName,
+          jobDescription,
+        });
+        setAtsDataEmbedded(wasEmbedded);
+      } else {
+        setAtsDataEmbedded(jdTier1Keywords.length > 0);
+      }
+      setDownloadStatus(null);
+    }
 
     onAutoTrack({
       roleTitle: jobTitle,
       company: companyName,
       savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
     });
-  }, [currentCV, userProfile, targetCompany, targetJobTitle, template, font, jobDescription, onAutoTrack, pdfFileName]);
+  }, [currentCV, userProfile, targetCompany, targetJobTitle, template, font, jobDescription, onAutoTrack, pdfFileName, jdTier1Keywords.length]);
 
   const cvTextContent = useMemo(() => {
     if (!currentCV) return "";
@@ -1000,8 +1063,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   disabled={isEditing}
                 />
               ) : (
-                <Button onClick={handleDownload} disabled={isEditing} size="sm">
-                  <Download className="h-4 w-4 mr-2" />Download PDF
+                <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloadStatus || 'Download PDF'}
                 </Button>
               )}
               <Button

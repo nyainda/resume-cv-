@@ -2628,20 +2628,17 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
     const voice = brief.voice.primary;
     const rhythm = brief.rhythm;
 
-    let totalFixed = 0;
-    let totalRoles = 0;
-
-    for (let r = 0; r < roles.length; r++) {
-        const role = roles[r];
+    // ── Phase B speed: per-role validate+fix is now PARALLEL ──
+    // Each role mutates a different `role.responsibilities` array, so there's
+    // no shared state to race. Going from sequential to Promise.all turns
+    // 3 roles × ~30 s each → ~30 s total instead of ~90 s.
+    const processRole = async (role: typeof roles[number]): Promise<{ fixed: number; ran: boolean }> => {
         const bullets = role.responsibilities || [];
-        if (bullets.length < 2) continue;
+        if (bullets.length < 2) return { fixed: 0, ran: false };
 
         const result: ValidateVoiceResult | null = await validateVoice(bullets, brief);
 
         // ── Local repeated-word check (architecture doc Fix 5) ──
-        // The remote validator catches repeated *verbs*; this also catches any
-        // ordinary noun/adjective whose stem appears 5+ times across the role
-        // (e.g. "clients" 9× → flag for rewrite).
         const overused = findOverusedWords(bullets, 5);
         const overusedByBullet: Record<number, string[]> = {};
         for (const w of overused) {
@@ -2653,11 +2650,11 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
         }
         const overusedFailing = Object.keys(overusedByBullet).map(n => Number(n));
 
-        if ((!result || result.passed) && overusedFailing.length === 0) continue;
+        if ((!result || result.passed) && overusedFailing.length === 0) return { fixed: 0, ran: false };
 
         const remoteFailing = result?.failing_bullets || [];
         const failing = Array.from(new Set([...remoteFailing, ...overusedFailing])).sort((a, b) => a - b);
-        if (failing.length === 0) continue;
+        if (failing.length === 0) return { fixed: 0, ran: false };
 
         const issuesByBullet: Record<number, string[]> = {};
         for (const issue of (result?.issues || [])) {
@@ -2672,7 +2669,6 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
                 issue.issue;
             (issuesByBullet[key] = issuesByBullet[key] || []).push(note);
         }
-        // Merge in the local repeated-word notes
         for (const [idxStr, notes] of Object.entries(overusedByBullet)) {
             const idx = Number(idxStr);
             (issuesByBullet[idx] = issuesByBullet[idx] || []).push(...notes);
@@ -2703,7 +2699,6 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
             const voiceFixSystem = 'You are a precise CV editor that returns only valid JSON.';
             const stripFencesVoice = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
             let raw: string | null = null;
-            // Try Workers AI free model first (voiceConsistency task → hermes-2-pro)
             try {
                 raw = await workerTieredLLM('voiceConsistency', fixPrompt, {
                     system: voiceFixSystem,
@@ -2712,30 +2707,37 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
                     maxTokens: 1200,
                     timeoutMs: 30000,
                 });
-                if (raw) console.log('[CV Engine] Voice fix via Workers AI (free tier).');
+                if (raw) console.log(`[CV Engine] Voice fix via Workers AI (free tier) — ${role.jobTitle}.`);
             } catch (cfErr) {
                 console.warn('[CV Engine] Workers AI voice fix failed, falling back to Groq:', cfErr);
             }
-            // Fall back to Groq if Workers AI unavailable
             if (!raw) raw = await groqChat(GROQ_FAST, voiceFixSystem, fixPrompt, { temperature: 0.4, json: true, maxTokens: 1200 });
             const parsed = JSON.parse(stripFencesVoice(raw ?? '{}'));
             const fixes: Array<{ index: number; bullet: string }> = Array.isArray(parsed?.fixes) ? parsed.fixes : [];
+            let fixed = 0;
             for (const f of fixes) {
                 const idx = (f.index ?? 0) - 1;
                 if (idx >= 0 && idx < bullets.length && typeof f.bullet === 'string' && f.bullet.trim()) {
                     bullets[idx] = f.bullet.trim();
-                    totalFixed++;
+                    fixed++;
                 }
             }
             role.responsibilities = bullets;
-            totalRoles++;
+            return { fixed, ran: true };
         } catch (e) {
             console.warn(`[CV Engine] Voice fix failed for role ${role.jobTitle}:`, e);
+            return { fixed: 0, ran: false };
         }
-    }
+    };
+
+    const t0 = performance.now();
+    const results = await Promise.all(roles.map(processRole));
+    const totalFixed = results.reduce((s, r) => s + r.fixed, 0);
+    const totalRoles = results.filter(r => r.ran).length;
+    const elapsed = Math.round(performance.now() - t0);
 
     if (totalFixed > 0) {
-        console.log(`[CV Engine] Voice enforcement: rewrote ${totalFixed} bullet(s) across ${totalRoles} role(s).`);
+        console.log(`[CV Engine] Voice enforcement: rewrote ${totalFixed} bullet(s) across ${totalRoles} role(s) in ${elapsed} ms (parallel).`);
     }
 }
 

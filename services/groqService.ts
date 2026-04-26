@@ -1,4 +1,5 @@
 import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras } from './security/RuntimeKeys';
+import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 
 const GROQ_API_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
@@ -360,15 +361,25 @@ export async function groqChat(
     opts: { temperature?: number; json?: boolean; maxTokens?: number } = {}
 ): Promise<string> {
 
+    // ── Postgres response cache (best-effort) ────────────────────────────────
+    // Identical low-temperature prompts return instantly without burning
+    // Groq quota. Cache misses fall through to the live call below; cache
+    // failures are silently ignored.
+    const effectiveTemp = opts.temperature ?? 0.2;
+    const cached = await lookupGroqCache(model, systemPrompt, userPrompt, effectiveTemp);
+    if (cached !== null) return cached;
+
     // ── Try Groq first (skip silently if no key) ──────────────────────────────
     let groqKey: string | null = null;
     try { groqKey = getGroqApiKey(); } catch { /* no key configured */ }
 
     if (groqKey) {
         try {
-            return await retryGroq(() =>
+            const groqResult = await retryGroq(() =>
                 openAiCompatChat(GROQ_API_URL, groqKey!, model, systemPrompt, userPrompt, opts, parseGroqError)
             );
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, groqResult);
+            return groqResult;
         } catch (groqErr: any) {
             const status = groqErr?.status;
             // Only fall back to Cerebras for transient errors (rate limits, quota, overload).
@@ -386,10 +397,12 @@ export async function groqChat(
                 const reason = groqErr?.message?.substring(0, 80) ?? `status ${status ?? 'unknown'}`;
                 console.warn(`[AI] Groq failed (${reason}) — falling back to Cerebras`);
                 try {
-                    return await callCerebrasWithFallback(
+                    const cbResult = await callCerebrasWithFallback(
                         cerebrasKey, groqModelToCerebrasChain(model),
                         systemPrompt, userPrompt, opts
                     );
+                    storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
+                    return cbResult;
                 } catch (cerebrasErr: any) {
                     // Both providers failed — surface a clear combined error
                     const err: any = new Error(
@@ -409,10 +422,12 @@ export async function groqChat(
     if (cerebrasKey) {
         console.info('[AI] No Groq key configured — using Cerebras as primary provider');
         try {
-            return await callCerebrasWithFallback(
+            const cbResult = await callCerebrasWithFallback(
                 cerebrasKey, groqModelToCerebrasChain(model),
                 systemPrompt, userPrompt, opts
             );
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
+            return cbResult;
         } catch (cerebrasErr: any) {
             if (cerebrasErr?.isUserFacing) throw cerebrasErr;
             const err: any = new Error('Cerebras AI request failed. Please check your key in Settings.');
