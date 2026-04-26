@@ -2,6 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics } from './cvPurificationPipeline';
+import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
@@ -1945,6 +1946,22 @@ export const generateCV = async (
     let mainPromptInstruction: string;
     let githubInstruction = '';
 
+    // ─── Phase A anchor block ─────────────────────────────────────────────────
+    // Pure-JS layer that gives Groq three things up-front:
+    //   1. Locked real numbers / orgs / degrees (so it can never invent KES 8M
+    //      when the profile says KES 800K, or swap "Biosystems Engineering"
+    //      for "Agricultural Engineering").
+    //   2. Field-aware good bullet examples (placeholder numbers — Groq cannot
+    //      copy data out of them).
+    //   3. Bad examples drawn from real production bugs we have seen.
+    // Built once here, injected into both the job and general prompts below.
+    const _detectedField = detectField(jd, profile);
+    const _lockedValues = lockRealNumbers(profile);
+    const promptAnchorBlock = buildPromptAnchorBlock({
+        locked: _lockedValues,
+        field: _detectedField,
+    });
+
     // Scenario classification — runs for ALL purposes (job, general, academic).
     // Detects the candidate's profile type so every mode generates the right CV structure.
     const scenario = detectScenario(profile.workExperience || [], profile.projects || []);
@@ -2051,6 +2068,8 @@ ${experienceInstructionLines}
             USER PROFILE:
             ${compactProfile(profile)}
             ${githubInstruction}
+
+            ${promptAnchorBlock}
 
             === CV GENERATION RULES — Follow every rule, no exceptions ===
 
@@ -2195,6 +2214,8 @@ ${experienceInstructionLines}
             ${jd}
 
             ${keywordInstruction}
+
+            ${promptAnchorBlock}
 
             === CV GENERATION STRATEGY — Follow in order ===
 
@@ -2543,6 +2564,11 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
 
     // Final post-processing pipeline (purification + deterministic fidelity lock).
     cvData = finalizeCvData(cvData, { profile, runPurify: false });
+
+    // ── Phase A pronoun safety net ──
+    // Repair any "'ve developed" / "goal is" leaks the banned-phrase substitutor
+    // may have left behind. Pure regex, idempotent, no LLM call.
+    cvData = fixPronounsInCV(cvData);
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
