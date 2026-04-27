@@ -1,7 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, type PurifyReport } from './cvPurificationPipeline';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
@@ -2393,182 +2393,86 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         }
     }
 
-    // ── PART 7 — Humanization Audit: runs for job AND general CVs ──────────────
-    // Fixes short bullets, banned phrases, metric overload, duplicate verbs, rhythm.
+    // ── PART 7 — Shared Quality Polish ────────────────────────────────────────
+    // Single call into the unified polish helper so Generate, Auto Optimize,
+    // and JD Optimize all share the exact same chain. The helper runs:
+    //   humanizer → bullet-count (profile.pointCount) → banned-phrase →
+    //   carry profile.customSections + sectionOrder → sort →
+    //   purify (with telemetry hook) → voice enforcement (engine brief) →
+    //   finalize (source-fidelity vs profile) → pronoun fix.
+    // Telemetry + worker leak-queue feed run inside the onPurifyReport hook.
     if (purpose === 'job' || purpose === 'general') {
-        try {
-            const preAuditCV: CVData = JSON.parse(JSON.stringify(cvData));
-            cvData = await runHumanizationAudit(cvData);
-            const auditRevert = revertCorruptedMetrics(cvData, preAuditCV);
-            if (auditRevert.reverted.length > 0) {
-                console.warn(`[CV Humanizer] Reverted ${auditRevert.reverted.length} corrupted-metric field(s):`, auditRevert.reverted);
-                cvData = auditRevert.cv;
-            }
-        } catch (auditError) {
-            console.error('[CV Humanizer] Audit skipped due to error:', auditError);
-        }
-    }
+        cvData = await runQualityPolishPasses(cvData, {
+            runHumanizer: true,
+            bulletCount: { type: 'profile-pointcount', profile },
+            carryProfile: profile,
+            engineBrief,
+            finalize: { profile },
+            onPurifyReport: (report) => {
+                // ── TELEMETRY — fire-and-forget. ──
+                try {
+                    const wordCount = JSON.stringify(cvData).split(/\s+/).length;
+                    const briefStatus: 'present' | 'missing_empty' | 'missing_error' =
+                        engineBrief
+                            ? 'present'
+                            : briefRes.status === 'rejected'
+                                ? 'missing_error'
+                                : 'missing_empty';
+                    logGeneration({
+                        cvHash: quickHash(JSON.stringify({
+                            sum: cvData.summary,
+                            exp: (cvData.experience || []).map(e => e.jobTitle + e.company).join('|'),
+                        })),
+                        model: 'groq+gemini',
+                        promptVersion: 'v2.1',
+                        generationMode,
+                        briefPresent: Boolean(engineBrief),
+                        briefStatus,
+                        outputWordCount: wordCount,
+                        roundNumberRatio:    report.roundNumberRatio,
+                        repeatedPhraseCount: report.repeatedPhrases.length,
+                        tenseIssueCount:     report.tenseIssues.length,
+                        bulletsTenseFlipped: report.bulletsTenseFlipped,
+                        metricsJittered:     report.metricsJittered,
+                        substitutionsMade:
+                            report.substitutionsMade +
+                            report.polishFixes +
+                            report.skillsCanonicalised +
+                            report.skillsDeduped,
+                        leaks:               report.leaks,
+                    });
+                } catch (e) {
+                    console.debug('[CV Gen] telemetry post failed (non-fatal):', e);
+                }
 
-    // ── PART 8a — Deterministic Bullet-Count Enforcer ────────────────────────────
-    // The user's pointCount is sacred. If the LLM ignored the prompt and returned
-    // the wrong number of bullets for a role, trim or pad here so the final CV
-    // always honours the user's choice. Pure JS, no AI call.
-    cvData.experience = (cvData.experience || []).map(role => {
-        const sourceRole = (profile.workExperience || []).find(
-            we => we.jobTitle === role.jobTitle && we.company === role.company
-        );
-        const desired = sourceRole?.pointCount ?? role.responsibilities?.length ?? 5;
-        const current = role.responsibilities || [];
-        if (current.length === desired) return role;
-        if (current.length > desired) {
-            // Too many — keep the first `desired` (model put strongest first).
-            console.warn(`[CV BulletCount] Trimmed "${role.jobTitle} @ ${role.company}" from ${current.length} → ${desired} bullets (user-chosen).`);
-            return { ...role, responsibilities: current.slice(0, desired) };
-        }
-        // Too few — pad with the source role's responsibilities so we never
-        // silently shrink the user's role; never invent text.
-        const sourceBullets = (sourceRole?.responsibilities || '')
-            .split('\n').map(s => s.replace(/^[\u2022\-\*]\s*/, '').trim()).filter(Boolean);
-        const padded = [...current];
-        for (const b of sourceBullets) {
-            if (padded.length >= desired) break;
-            if (!padded.some(p => p.toLowerCase().includes(b.toLowerCase().slice(0, 20)))) {
-                padded.push(b);
-            }
-        }
-        if (padded.length < desired) {
-            console.warn(`[CV BulletCount] "${role.jobTitle} @ ${role.company}" returned ${current.length} bullets, user chose ${desired}, only able to pad to ${padded.length}.`);
-        } else {
-            console.warn(`[CV BulletCount] Padded "${role.jobTitle} @ ${role.company}" from ${current.length} → ${padded.length} bullets (user-chosen).`);
-        }
-        return { ...role, responsibilities: padded };
-    });
-
-    // ── PART 8 — Deterministic Banned-Phrase Filter ──────────────────────────────
-    // Pure JavaScript, no AI call, cannot fail. Runs unconditionally for ALL CV
-    // generations as the absolute last safety net before returning to the user.
-    cvData = applyBannedPhraseFilter(cvData);
-
-    // Carry through user's pre-filled custom sections (not AI-generated)
-    if (profile.customSections && profile.customSections.length > 0) {
-        cvData.customSections = profile.customSections.filter(
-            s => s.items.some(i => i.title.trim().length > 0)
-        );
-    }
-
-    // Carry through section order preference
-    if (profile.sectionOrder && profile.sectionOrder.length > 0) {
-        cvData.sectionOrder = profile.sectionOrder;
-    }
-
-    // Sort experience by end date descending (most recent first)
-    cvData.experience.sort((a, b) => {
-        const getEndDate = (dateStr: string) => {
-            if (dateStr?.toLowerCase() === 'present') return new Date();
-            const date = new Date(dateStr);
-            return isNaN(date.getTime()) ? new Date(0) : date;
-        };
-        const getStartDate = (dateStr: string) => {
-            const date = new Date(dateStr);
-            return isNaN(date.getTime()) ? new Date(0) : date;
-        };
-        const endDateA = getEndDate(a.endDate);
-        const endDateB = getEndDate(b.endDate);
-        if (endDateB.getTime() !== endDateA.getTime()) {
-            return endDateB.getTime() - endDateA.getTime();
-        }
-        return getStartDate(b.startDate).getTime() - getStartDate(a.startDate).getTime();
-    });
-
-    // ── HOT FIRE — Final purification pipeline (deterministic, no AI cost) ──
-    // Substitutes forbidden words, detects repeated phrases, round-number
-    // saturation, and tense issues. Runs LAST so all upstream passes (validator,
-    // humanizer, bullet-count, banned-phrase) flow through it.
-    const purified = purifyCV(cvData);
-    cvData = purified.cv;
-
-    // ── TELEMETRY — fire-and-forget, never blocks generation. ──
-    // Records what the pipeline detected and fixed so we can mine new
-    // banned phrases and prompt improvements over time.
-    try {
-        const wordCount = JSON.stringify(cvData).split(/\s+/).length;
-        const briefStatus: 'present' | 'missing_empty' | 'missing_error' =
-            engineBrief
-                ? 'present'
-                : briefRes.status === 'rejected'
-                    ? 'missing_error'
-                    : 'missing_empty';
-        logGeneration({
-            cvHash: quickHash(JSON.stringify({
-                sum: cvData.summary,
-                exp: (cvData.experience || []).map(e => e.jobTitle + e.company).join('|'),
-            })),
-            model: 'groq+gemini',
-            promptVersion: 'v2.1',
-            generationMode,
-            briefPresent: Boolean(engineBrief),
-            briefStatus,
-            outputWordCount: wordCount,
-            roundNumberRatio:    purified.report.roundNumberRatio,
-            repeatedPhraseCount: purified.report.repeatedPhrases.length,
-            tenseIssueCount:     purified.report.tenseIssues.length,
-            bulletsTenseFlipped: purified.report.bulletsTenseFlipped,
-            metricsJittered:     purified.report.metricsJittered,
-            // Substitutions now include Phase 2 polish fixes + skill canonicalisation
-            // so the dashboard's "total fixes" stat reflects the full pipeline output.
-            substitutionsMade:
-                purified.report.substitutionsMade +
-                purified.report.polishFixes +
-                purified.report.skillsCanonicalised +
-                purified.report.skillsDeduped,
-            leaks:               purified.report.leaks,
+                // ── Phase I: feed the worker's leak queue (fire-and-forget). ──
+                try {
+                    const leakPhrases = Array.from(new Set(
+                        (report.leaks || [])
+                            .map(l => String(l.phrase || '').toLowerCase().trim())
+                            .filter(p => p.length >= 3 && p.length <= 80)
+                    ));
+                    if (leakPhrases.length) {
+                        const sample = (report.leaks?.[0]?.contextSnippet || '').slice(0, 500);
+                        void reportLeaks(leakPhrases, sample).catch(() => {/* swallow */});
+                    }
+                } catch (e) {
+                    console.debug('[CV Gen] leak-report post failed (non-fatal):', e);
+                }
+            },
         });
-    } catch (e) {
-        console.debug('[CV Gen] telemetry post failed (non-fatal):', e);
+    } else {
+        // Non-job/general purposes (e.g. academic) — skip humanizer + voice
+        // enforcement (those tune for professional-CV voice) but still run
+        // the deterministic passes via the helper for consistency.
+        cvData = await runQualityPolishPasses(cvData, {
+            runHumanizer: false,
+            bulletCount: { type: 'profile-pointcount', profile },
+            carryProfile: profile,
+            engineBrief: null,
+            finalize: { profile },
+        });
     }
-
-    // ── Phase I: feed the worker's leak queue ──
-    // Send the unique leak phrases to the worker so the nightly cron can
-    // auto-promote anything that crosses the threshold into cv_banned_phrases.
-    // Fire-and-forget: never block CV generation on this.
-    try {
-        const leakPhrases = Array.from(new Set(
-            (purified.report.leaks || [])
-                .map(l => String(l.phrase || '').toLowerCase().trim())
-                .filter(p => p.length >= 3 && p.length <= 80)
-        ));
-        if (leakPhrases.length) {
-            const sample = (purified.report.leaks?.[0]?.contextSnippet || '').slice(0, 500);
-            void reportLeaks(leakPhrases, sample).catch(() => {/* swallow */});
-        }
-    } catch (e) {
-        console.debug('[CV Gen] leak-report post failed (non-fatal):', e);
-    }
-
-    // ── Phase E: Voice consistency enforcement ──
-    // Validate each role's bullets against the engine brief and rewrite any
-    // failures (critical/high) in a single per-role call. Best-effort.
-    if (engineBrief && cvData.experience?.length) {
-        try {
-            const preVoiceCV: CVData = JSON.parse(JSON.stringify(cvData));
-            await enforceVoiceConsistency(cvData, engineBrief);
-            const voiceRevert = revertCorruptedMetrics(cvData, preVoiceCV);
-            if (voiceRevert.reverted.length > 0) {
-                console.warn(`[CV Engine] Voice enforcement: reverted ${voiceRevert.reverted.length} corrupted-metric bullet(s):`, voiceRevert.reverted);
-                cvData = voiceRevert.cv;
-            }
-        } catch (e) {
-            console.warn('[CV Engine] Voice enforcement skipped:', e);
-        }
-    }
-
-    // Final post-processing pipeline (purification + deterministic fidelity lock).
-    cvData = finalizeCvData(cvData, { profile, runPurify: false });
-
-    // ── Phase A pronoun safety net ──
-    // Repair any "'ve developed" / "goal is" leaks the banned-phrase substitutor
-    // may have left behind. Pure regex, idempotent, no LLM call.
-    cvData = fixPronounsInCV(cvData);
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
@@ -3047,8 +2951,11 @@ ${HUMANIZATION_CHECKLIST}
         skills: finalSkills,
         experience: updatedExperience,
     };
-    const polished = await runQualityPolishPasses(merged, cvInput, { runHumanizer: true });
-    const finalized = finalizeCvData(polished, { sourceCv: cvInput, runPurify: false });
+    const finalized = await runQualityPolishPasses(merged, {
+        runHumanizer: true,
+        bulletCount: { type: 'preserve-cv', sourceCv: cvInput },
+        finalize: { sourceCv: cvInput },
+    });
 
     return {
         summary: finalized.summary,
@@ -3554,27 +3461,56 @@ Return ONLY a JSON object:
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared post-generation quality polish.
 //
-// Runs the same humanizer + bullet-count + banned-phrase + purify chain that
-// `generateCV` runs. Used by `improveCV` (Auto Optimize) and
-// `optimizeCVForJob` so those flows match Generate quality instead of
-// returning rough Groq output straight to the user.
+// THE single place where post-Groq CV polish lives. Used by every generation
+// path (generateCV, improveCV / Auto Optimize, optimizeCVForJob) so all three
+// flows produce CVs at parity. Tune CV quality here — nowhere else.
 //
-// `sourceCv` is the CV the user started with — its bullet counts are
-// preserved (we never silently change the user's structure during a polish).
-// `runHumanizer` defaults to true; turn it off if you only want the cheap
-// deterministic passes.
+// Pipeline (in order):
+//   1. Humanizer pass (Workers AI / Groq, with corrupt-metric revert).
+//   2. Bullet-count enforcer — either:
+//        - 'profile-pointcount': honour user's pointCount per role (Generate path).
+//        - 'preserve-cv':        match the source CV's bullet counts exactly
+//                                (Improve / Optimize paths — never silently
+//                                changes structure).
+//   3. Deterministic banned-phrase filter (pure JS, cannot fail).
+//   4. Carry profile customSections + sectionOrder if `carryProfile` is given.
+//   5. Sort experience by end date desc (most recent first).
+//   6. purifyCV — banned subs, tense, jitter, dedup; returns a report.
+//   7. `onPurifyReport` callback (for telemetry / leak reporting).
+//   8. Voice-consistency enforcement (only when `engineBrief` is provided,
+//      with corrupt-metric revert).
+//   9. finalizeCvData — fidelity rules vs profile or source CV (no AI).
+//  10. Pronoun safety net.
+//
+// Every AI step is wrapped so a worker / Groq hiccup never aborts the polish:
+// the deterministic passes still run and the user gets a finished CV.
 // ─────────────────────────────────────────────────────────────────────────────
+type BulletCountStrategy =
+    | { type: 'profile-pointcount'; profile: UserProfile }
+    | { type: 'preserve-cv'; sourceCv: CVData };
+
+type FinalizeStrategy =
+    | { profile: UserProfile }
+    | { sourceCv: CVData };
+
+interface QualityPolishOpts {
+    bulletCount: BulletCountStrategy;
+    finalize: FinalizeStrategy;
+    runHumanizer?: boolean;
+    carryProfile?: UserProfile;
+    engineBrief?: CVBrief | null;
+    onPurifyReport?: (report: PurifyReport) => void | Promise<void>;
+}
+
 async function runQualityPolishPasses(
     cvData: CVData,
-    sourceCv: CVData,
-    opts: { runHumanizer?: boolean } = {},
+    opts: QualityPolishOpts,
 ): Promise<CVData> {
-    const { runHumanizer = true } = opts;
+    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport } = opts;
     let out = cvData;
 
     // 1. Humanizer pass — fixes short bullets, banned phrases in summary,
     //    duplicate verb starters, scope-anchor first bullet, etc.
-    //    Wrapped so a worker/Groq failure NEVER aborts the polish.
     if (runHumanizer) {
         try {
             const preAudit: CVData = JSON.parse(JSON.stringify(out));
@@ -3589,25 +3525,42 @@ async function runQualityPolishPasses(
         }
     }
 
-    // 2. Bullet-count enforcer — preserve the source CV's bullet counts.
-    //    "Improve" must never change structure.
+    // 2. Bullet-count enforcer.
     out.experience = (out.experience || []).map(role => {
-        const sourceRole = (sourceCv.experience || []).find(
-            r => r.jobTitle === role.jobTitle && r.company === role.company
-        );
-        const desired = sourceRole?.responsibilities?.length ?? role.responsibilities?.length ?? 5;
+        let desired: number;
+        let sourceBullets: string[] = [];
+
+        if (bulletCount.type === 'profile-pointcount') {
+            const sourceRole = (bulletCount.profile.workExperience || []).find(
+                we => we.jobTitle === role.jobTitle && we.company === role.company
+            );
+            desired = sourceRole?.pointCount ?? role.responsibilities?.length ?? 5;
+            sourceBullets = (sourceRole?.responsibilities || '')
+                .split('\n').map(s => s.replace(/^[\u2022\-\*]\s*/, '').trim()).filter(Boolean);
+        } else {
+            const sourceRole = (bulletCount.sourceCv.experience || []).find(
+                r => r.jobTitle === role.jobTitle && r.company === role.company
+            );
+            desired = sourceRole?.responsibilities?.length ?? role.responsibilities?.length ?? 5;
+            sourceBullets = sourceRole?.responsibilities || [];
+        }
+
         const current = role.responsibilities || [];
         if (current.length === desired) return role;
         if (current.length > desired) {
+            console.warn(`[Polish BulletCount] Trimmed "${role.jobTitle} @ ${role.company}" from ${current.length} → ${desired} bullets.`);
             return { ...role, responsibilities: current.slice(0, desired) };
         }
         // Pad from source bullets — never invent text.
         const padded = [...current];
-        for (const b of (sourceRole?.responsibilities || [])) {
+        for (const b of sourceBullets) {
             if (padded.length >= desired) break;
             if (!padded.some(p => p.toLowerCase().includes(b.toLowerCase().slice(0, 20)))) {
                 padded.push(b);
             }
+        }
+        if (padded.length !== current.length) {
+            console.warn(`[Polish BulletCount] Padded "${role.jobTitle} @ ${role.company}" from ${current.length} → ${padded.length} bullets.`);
         }
         return { ...role, responsibilities: padded };
     });
@@ -3615,7 +3568,19 @@ async function runQualityPolishPasses(
     // 3. Deterministic banned-phrase filter (cannot fail, no AI).
     out = applyBannedPhraseFilter(out);
 
-    // 4. Sort experience by end date descending (most recent first).
+    // 4. Carry through profile-level user-pre-filled content (Generate path).
+    if (carryProfile) {
+        if (carryProfile.customSections && carryProfile.customSections.length > 0) {
+            out.customSections = carryProfile.customSections.filter(
+                s => s.items.some(i => i.title.trim().length > 0)
+            );
+        }
+        if (carryProfile.sectionOrder && carryProfile.sectionOrder.length > 0) {
+            out.sectionOrder = carryProfile.sectionOrder;
+        }
+    }
+
+    // 5. Sort experience by end date descending (most recent first).
     out.experience.sort((a, b) => {
         const getEnd = (s: string) => s?.toLowerCase() === 'present'
             ? new Date()
@@ -3628,10 +3593,43 @@ async function runQualityPolishPasses(
         return sb - sa;
     });
 
-    // 5. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).
-    out = purifyCV(out).cv;
+    // 6. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).
+    const purified = purifyCV(out);
+    out = purified.cv;
 
-    // 6. Pronoun safety net.
+    // 7. Telemetry / leak reporting hook (caller owns what to do with the report).
+    if (onPurifyReport) {
+        try {
+            await onPurifyReport(purified.report);
+        } catch (e) {
+            console.debug('[Polish] onPurifyReport hook failed (non-fatal):', e);
+        }
+    }
+
+    // 8. Phase E — Voice consistency enforcement (only when an engine brief
+    //    is available; mutates `out` in place, with corrupt-metric revert).
+    if (engineBrief && out.experience?.length) {
+        try {
+            const preVoiceCV: CVData = JSON.parse(JSON.stringify(out));
+            await enforceVoiceConsistency(out, engineBrief);
+            const voiceRevert = revertCorruptedMetrics(out, preVoiceCV);
+            if (voiceRevert.reverted.length > 0) {
+                console.warn(`[Polish] Voice enforcement reverted ${voiceRevert.reverted.length} corrupted-metric bullet(s):`, voiceRevert.reverted);
+                out = voiceRevert.cv;
+            }
+        } catch (e) {
+            console.warn('[Polish] Voice enforcement skipped:', e);
+        }
+    }
+
+    // 9. Final source-fidelity lock (no AI, deterministic).
+    if ('profile' in finalize) {
+        out = finalizeCvData(out, { profile: finalize.profile, runPurify: false });
+    } else {
+        out = finalizeCvData(out, { sourceCv: finalize.sourceCv, runPurify: false });
+    }
+
+    // 10. Pronoun safety net.
     out = fixPronounsInCV(out);
 
     return out;
@@ -3676,11 +3674,12 @@ ${CV_DATA_SCHEMA}
 
     // Run the SAME quality polish chain that generateCV runs, so Auto Optimize
     // produces output at parity with a fresh Generate (humanizer + bullet count
-    // preservation + banned-phrase filter + purify + pronoun fix).
-    const polished = await runQualityPolishPasses(parsed, cvDataInput, { runHumanizer: true });
-
-    // Final deterministic source lock (purify already ran above, so skip it here).
-    return finalizeCvData(polished, { sourceCv: cvDataInput, runPurify: false });
+    // preservation + banned-phrase filter + purify + finalize + pronoun fix).
+    return runQualityPolishPasses(parsed, {
+        runHumanizer: true,
+        bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
+        finalize: { sourceCv: cvDataInput },
+    });
 };
 
 // --- GitHub-Powered CV Generation ---
