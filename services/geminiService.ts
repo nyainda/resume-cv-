@@ -3038,13 +3038,17 @@ ${HUMANIZATION_CHECKLIST}
         }
     }
 
-    // ── HOT FIRE ── purify the partial result
-    const finalized = finalizeCvData({
+    // ── HOT FIRE ── run the same polish chain Generate uses (humanizer +
+    // bullet-count + banned-phrase filter + purify + pronoun fix) so a JD
+    // optimization is at parity with a fresh Generate.
+    const merged: CVData = {
         ...cv,
         summary: finalSummary,
         skills: finalSkills,
         experience: updatedExperience,
-    } as CVData, { sourceCv: cvInput });
+    };
+    const polished = await runQualityPolishPasses(merged, cvInput, { runHumanizer: true });
+    const finalized = finalizeCvData(polished, { sourceCv: cvInput, runPurify: false });
 
     return {
         summary: finalized.summary,
@@ -3547,6 +3551,92 @@ Return ONLY a JSON object:
     return JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVScore;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared post-generation quality polish.
+//
+// Runs the same humanizer + bullet-count + banned-phrase + purify chain that
+// `generateCV` runs. Used by `improveCV` (Auto Optimize) and
+// `optimizeCVForJob` so those flows match Generate quality instead of
+// returning rough Groq output straight to the user.
+//
+// `sourceCv` is the CV the user started with — its bullet counts are
+// preserved (we never silently change the user's structure during a polish).
+// `runHumanizer` defaults to true; turn it off if you only want the cheap
+// deterministic passes.
+// ─────────────────────────────────────────────────────────────────────────────
+async function runQualityPolishPasses(
+    cvData: CVData,
+    sourceCv: CVData,
+    opts: { runHumanizer?: boolean } = {},
+): Promise<CVData> {
+    const { runHumanizer = true } = opts;
+    let out = cvData;
+
+    // 1. Humanizer pass — fixes short bullets, banned phrases in summary,
+    //    duplicate verb starters, scope-anchor first bullet, etc.
+    //    Wrapped so a worker/Groq failure NEVER aborts the polish.
+    if (runHumanizer) {
+        try {
+            const preAudit: CVData = JSON.parse(JSON.stringify(out));
+            out = await runHumanizationAudit(out);
+            const auditRevert = revertCorruptedMetrics(out, preAudit);
+            if (auditRevert.reverted.length > 0) {
+                console.warn(`[Polish] Humanizer reverted ${auditRevert.reverted.length} corrupted metric(s):`, auditRevert.reverted);
+                out = auditRevert.cv;
+            }
+        } catch (e) {
+            console.warn('[Polish] Humanizer pass skipped:', e);
+        }
+    }
+
+    // 2. Bullet-count enforcer — preserve the source CV's bullet counts.
+    //    "Improve" must never change structure.
+    out.experience = (out.experience || []).map(role => {
+        const sourceRole = (sourceCv.experience || []).find(
+            r => r.jobTitle === role.jobTitle && r.company === role.company
+        );
+        const desired = sourceRole?.responsibilities?.length ?? role.responsibilities?.length ?? 5;
+        const current = role.responsibilities || [];
+        if (current.length === desired) return role;
+        if (current.length > desired) {
+            return { ...role, responsibilities: current.slice(0, desired) };
+        }
+        // Pad from source bullets — never invent text.
+        const padded = [...current];
+        for (const b of (sourceRole?.responsibilities || [])) {
+            if (padded.length >= desired) break;
+            if (!padded.some(p => p.toLowerCase().includes(b.toLowerCase().slice(0, 20)))) {
+                padded.push(b);
+            }
+        }
+        return { ...role, responsibilities: padded };
+    });
+
+    // 3. Deterministic banned-phrase filter (cannot fail, no AI).
+    out = applyBannedPhraseFilter(out);
+
+    // 4. Sort experience by end date descending (most recent first).
+    out.experience.sort((a, b) => {
+        const getEnd = (s: string) => s?.toLowerCase() === 'present'
+            ? new Date()
+            : (isNaN(new Date(s).getTime()) ? new Date(0) : new Date(s));
+        const ea = getEnd(a.endDate).getTime();
+        const eb = getEnd(b.endDate).getTime();
+        if (eb !== ea) return eb - ea;
+        const sa = isNaN(new Date(a.startDate).getTime()) ? 0 : new Date(a.startDate).getTime();
+        const sb = isNaN(new Date(b.startDate).getTime()) ? 0 : new Date(b.startDate).getTime();
+        return sb - sa;
+    });
+
+    // 5. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).
+    out = purifyCV(out).cv;
+
+    // 6. Pronoun safety net.
+    out = fixPronounsInCV(out);
+
+    return out;
+}
+
 // --- AI CV Improvement ---
 export const improveCV = async (
     cvDataInput: CVData,
@@ -3583,8 +3673,14 @@ ${CV_DATA_SCHEMA}
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.4, json: true });
     const parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVData;
-    // Unified post-gen pipeline + deterministic source lock
-    return finalizeCvData(parsed, { sourceCv: cvDataInput });
+
+    // Run the SAME quality polish chain that generateCV runs, so Auto Optimize
+    // produces output at parity with a fresh Generate (humanizer + bullet count
+    // preservation + banned-phrase filter + purify + pronoun fix).
+    const polished = await runQualityPolishPasses(parsed, cvDataInput, { runHumanizer: true });
+
+    // Final deterministic source lock (purify already ran above, so skip it here).
+    return finalizeCvData(polished, { sourceCv: cvDataInput, runPurify: false });
 };
 
 // --- GitHub-Powered CV Generation ---
