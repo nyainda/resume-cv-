@@ -511,6 +511,88 @@ export async function workerRaceLLM(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Section-parallel CV generation — fan out N section-specific prompts to
+// per-section models inside a single Worker request. Each section runs
+// concurrently server-side; the worker picks a right-sized model per task
+// and auto-retries any failed section via a free fallback model. Returns
+// once every section either succeeds or exhausts its fallback.
+//
+// Caller pattern: build a shared `preamble` (profile + JD + market context),
+// then a list of sections each with `name`, `task` (TIERED_MODEL_MAP key),
+// and `instruction` (section-specific tail). Results come back keyed by name.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ParallelSectionRequest {
+    name: string;
+    task: string;
+    instruction: string;
+    maxTokens?: number;
+    temperature?: number;
+    json?: boolean;
+}
+
+export interface ParallelSectionResult {
+    text: string;
+    model: string;
+    task: string;
+    ms: number;
+    fellBack: boolean;
+    error?: string;
+}
+
+export interface WorkerParallelSectionsResult {
+    ok: true;
+    totalMs: number;
+    results: Record<string, ParallelSectionResult>;
+    errors: Array<{ section: string; message: string }>;
+}
+
+const WORKER_PARALLEL_SECTIONS_DEFAULT_TIMEOUT_MS = 90000;
+
+export async function workerParallelSections(
+    sections: ParallelSectionRequest[],
+    opts: {
+        system?: string;
+        preamble?: string;
+        fallbackTask?: string;
+        timeoutMs?: number;
+    } = {},
+): Promise<WorkerParallelSectionsResult | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!Array.isArray(sections) || sections.length === 0) return null;
+    const ENDPOINT = '/api/cv/parallel-sections';
+    if (isDead(ENDPOINT)) return null;
+    const u = new URL(ENDPOINT, ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system: opts.system ?? '',
+                    preamble: opts.preamble ?? '',
+                    fallbackTask: opts.fallbackTask ?? 'cvFallback',
+                    sections,
+                }),
+            },
+            opts.timeoutMs ?? WORKER_PARALLEL_SECTIONS_DEFAULT_TIMEOUT_MS,
+        );
+        if (!r.ok) {
+            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status}`);
+            return null;
+        }
+        const data = await r.json() as WorkerParallelSectionsResult & { error?: string };
+        if (data.error || !data.results) return null;
+        return data;
+    } catch (e: any) {
+        markDead(ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerParallelSections failed:', e);
+        return null;
+    }
+}
+
 const WORKER_LLM_DEFAULT_TIMEOUT_MS = 60000;
 
 export async function workerLLM(

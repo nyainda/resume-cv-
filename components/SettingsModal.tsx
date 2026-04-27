@@ -323,14 +323,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           {/* ── Google Drive Data Panel ── */}
           <DriveDataPanel onDataRestored={() => window.location.reload()} />
 
-          {/* ── Groq AI (Primary) ── */}
+          {/* ── CV Engine Banner (the new default) ── */}
+          <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-700/40 p-4 bg-emerald-50/50 dark:bg-emerald-900/10">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl shrink-0">✨</span>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">CV Engine — now powered by Cloudflare Workers AI</h3>
+                <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                  All AI work — CV generation, cover letters, rewriting, ATS analysis — now runs on our hosted CV Engine using Cloudflare Workers AI (Llama 4 Scout, Mistral Small, GLM 4.7 Flash, and more). <strong>No API key required for normal use.</strong>
+                </p>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  The Groq and Cerebras keys below are <strong>optional offline fallbacks</strong> — they only activate if our CV Engine is temporarily unreachable.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Groq AI (Optional fallback) ── */}
           <div className="rounded-xl border-2 border-orange-200 dark:border-orange-700/40 p-4 space-y-3 bg-orange-50/50 dark:bg-orange-900/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-lg">⚡</span>
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">Groq AI — Primary</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">CV generation • Cover letters • Rewriting • ATS analysis</p>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">Groq AI — Optional Fallback</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Used only if the CV Engine is unreachable</p>
                 </div>
               </div>
               {groqKey ? (
@@ -395,8 +411,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               <div className="flex items-center gap-2">
                 <span className="text-lg">🧠</span>
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">Cerebras AI — Free Fallback</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Auto-activates when your Groq daily limit is reached</p>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">Cerebras AI — Optional Fallback</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Last-resort fallback if both CV Engine and Groq are unreachable</p>
                 </div>
               </div>
               {cerebrasKey ? (

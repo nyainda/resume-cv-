@@ -1,5 +1,30 @@
 import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
+import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Groq → Cloudflare Workers AI redirect (Apr 2026)
+//
+// `groqChat()` is the single chokepoint every text-gen call in the codebase
+// flows through. We now route it through the cv-engine-worker's tiered LLM
+// endpoint FIRST so every CV-creation step lands on Cloudflare Workers AI
+// (Llama 4 Scout, GLM 4.7 Flash, Mistral Small 3.1, Hermes-2 Pro, etc.) by
+// default — no API key needed from the user, no rate-limits, no quota walls.
+//
+// Mapping by model: GROQ_LARGE (Llama 3.3 70b versatile) → "cvGenerate" task
+// (Llama 4 Scout 17B — equivalent quality, ~3× cheaper than the 70b paid
+// model). GROQ_FAST (Llama 3.1 8b instant) → "general" task (Llama 3.1 8B
+// FREE, direct equivalent).
+//
+// Groq + Cerebras keys remain as LAST-RESORT fallbacks: they only fire if
+// the worker is fully unreachable AND the user happens to have configured
+// a key. Default user flow never touches Groq.
+// ─────────────────────────────────────────────────────────────────────────────
+function groqModelToWorkerTask(groqModel: string): string {
+    if (groqModel === 'llama-3.3-70b-versatile') return 'cvGenerate';
+    if (groqModel === 'llama-3.1-8b-instant')   return 'general';
+    return 'general';
+}
 
 const GROQ_API_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
@@ -347,12 +372,19 @@ async function openAiCompatChat(
 
 /**
  * Primary AI chat function.
- * Order of preference:
- *   1. Groq (fast, high-quality) — retried up to 3× on transient errors
- *   2. Cerebras (free fallback) — used automatically when Groq fails for any reason
- *   3. Hard error — both providers unavailable
  *
- * Works even when only one provider key is configured.
+ * As of Apr 2026, the order of preference is:
+ *   1. **Cloudflare Workers AI** via the cv-engine-worker tiered LLM endpoint
+ *      — the default path. No user API key needed. Uses task-specific models
+ *      (Llama 4 Scout, Mistral Small 3.1, etc.) selected by model→task map.
+ *   2. **Groq** (only if the worker is unreachable AND the user has a key)
+ *      — last-resort fallback for offline/edge-case use.
+ *   3. **Cerebras** (only if Groq also fails AND the user has a key) —
+ *      automatic fallback when Groq returns 429/503/overload.
+ *   4. Friendly error if every path is exhausted.
+ *
+ * Function name is kept as `groqChat` for backwards compatibility — every
+ * existing call site in the codebase flows through here unchanged.
  */
 export async function groqChat(
     model: string,
@@ -363,13 +395,39 @@ export async function groqChat(
 
     // ── Postgres response cache (best-effort) ────────────────────────────────
     // Identical low-temperature prompts return instantly without burning
-    // Groq quota. Cache misses fall through to the live call below; cache
-    // failures are silently ignored.
+    // any backend's quota. Cache misses fall through to the live calls below;
+    // cache failures are silently ignored.
     const effectiveTemp = opts.temperature ?? 0.2;
     const cached = await lookupGroqCache(model, systemPrompt, userPrompt, effectiveTemp);
     if (cached !== null) return cached;
 
-    // ── Try Groq first (skip silently if no key) ──────────────────────────────
+    // ── PRIMARY: Cloudflare Workers AI via cv-engine-worker tiered endpoint ──
+    // The vast majority of calls land here. No API key needed. Free for the
+    // 8B/Mistral/Hermes models; ~3× cheaper than Groq's paid 70b for Scout 17B.
+    if (isCVEngineConfigured()) {
+        const workerTask = groqModelToWorkerTask(model);
+        try {
+            const workerText = await workerTieredLLM(workerTask, userPrompt, {
+                system: systemPrompt,
+                temperature: opts.temperature,
+                json: opts.json,
+                maxTokens: opts.maxTokens,
+            });
+            if (workerText && workerText.length > 0) {
+                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, workerText);
+                return workerText;
+            }
+            // Worker returned null (network/timeout/circuit-breaker open) — fall through
+            // to legacy Groq/Cerebras path so the user still gets a result if they
+            // happen to have a key configured.
+            console.warn('[AI] Cloudflare Workers AI tiered call returned no text — checking for legacy fallback keys.');
+        } catch (workerErr: any) {
+            // workerTieredLLM never throws (returns null), but defend in depth.
+            console.warn('[AI] Cloudflare Workers AI tiered call threw — checking for legacy fallback keys:', workerErr?.message);
+        }
+    }
+
+    // ── FALLBACK: Groq (only when worker unreachable AND user has a key) ─────
     let groqKey: string | null = null;
     try { groqKey = getGroqApiKey(); } catch { /* no key configured */ }
 
@@ -436,9 +494,13 @@ export async function groqChat(
         }
     }
 
-    // ── Neither key is set ────────────────────────────────────────────────────
+    // ── Every path exhausted ─────────────────────────────────────────────────
+    // The worker is unreachable AND the user has no fallback Groq/Cerebras
+    // key configured. Surface a clear, action-oriented error.
     const err: any = new Error(
-        'No AI key configured. Please add a Groq key (free at console.groq.com) or a Cerebras key in Settings → AI Settings.'
+        isCVEngineConfigured()
+            ? 'The CV Engine is temporarily unavailable. Please retry in a few seconds — or add a Groq or Cerebras key in Settings as an offline fallback.'
+            : 'No AI backend reachable. Please check your network connection — or add a Groq or Cerebras key in Settings as an offline fallback.'
     );
     err.isUserFacing = true;
     throw err;

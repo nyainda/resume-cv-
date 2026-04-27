@@ -57,6 +57,7 @@ export default {
             if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
             if (url.pathname === '/api/cv/tiered-llm' && request.method === 'POST') return handleTieredLLM(request, env);
             if (url.pathname === '/api/cv/race-llm'   && request.method === 'POST') return handleRaceLLM(request, env);
+            if (url.pathname === '/api/cv/parallel-sections' && request.method === 'POST') return handleParallelSections(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
@@ -1426,6 +1427,19 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     humanize:             { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Plain-text humanizer — Hermes-2 Pro 7B (FREE)' },
     coverLetter:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Cover letter generation — Hermes-2 Pro 7B (FREE)' },
 
+    // ── Section-parallel CV generation (Apr 2026, /api/cv/parallel-sections) ──
+    // Each section of the CV gets a right-sized model running in parallel
+    // server-side. Simple sections (summary, skills, education) use the free
+    // 8B model; the heavy bullet-writing sections (experience, projects) use
+    // the paid-but-cheap Llama 4 Scout 17B. Section that fails its primary
+    // model auto-retries via the cvFallback model (Mistral Small 3.1, free).
+    cvSummary:            { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'CV professional summary section — Llama 3.1 8B (FREE, fast)' },
+    cvSkills:             { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'CV skills list section — Llama 3.1 8B (FREE, fast)' },
+    cvEducation:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'CV education section — Llama 3.1 8B (FREE, fast)' },
+    cvExperience:         { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'CV experience bullets — Llama 4 Scout 17B (PAID, cheap, the heavy lift)' },
+    cvProjects:           { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'CV projects section — Llama 4 Scout 17B (PAID, cheap)' },
+    cvFallback:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Section-parallel fallback — Mistral Small 3.1 24B (FREE) when primary fails' },
+
     // ── Default fallback — always free ────────────────────────────────────────
     general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback (FREE)' },
 };
@@ -1588,6 +1602,207 @@ async function handleRaceLLM(request: Request, env: Env): Promise<Response> {
         const reasons = e?.errors?.map((x: any) => String(x?.message || x)) ?? [String(e?.message || e)];
         return json({ error: 'all_candidates_failed', tasks, reasons }, request, env, 502);
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section-parallel CV generation — Apr 2026
+//   POST /api/cv/parallel-sections
+// Body: {
+//   system?:   string       — common system prompt prepended to every section
+//   preamble?: string       — shared context (profile + JD + market intel +
+//                             voice rules + brief) prepended to every section's
+//                             user prompt before its section-specific tail
+//   sections:  Array<{
+//     name:        string   — caller-defined identifier (e.g. "summary")
+//     task:        string   — TIERED_MODEL_MAP key (e.g. "cvSummary")
+//     instruction: string   — section-specific tail appended after preamble
+//     maxTokens?:  number   — per-section override (default 1024)
+//     temperature?: number  — per-section override (default 0.4)
+//   }>,
+//   fallbackTask?: string   — task key to retry with on primary failure
+//                             (default "cvFallback" → Mistral Small 3.1 24B FREE)
+// }
+//
+// Returns: {
+//   ok: true,
+//   totalMs: number,        — wall-clock max across all sections (parallel)
+//   results: {
+//     [sectionName]: {
+//       text:     string    — model output (empty on full failure)
+//       model:    string    — final model that produced the text
+//       task:     string    — final task key (primary or fallback)
+//       ms:       number    — per-section duration
+//       fellBack: boolean   — true if primary failed & fallback succeeded
+//       error?:   string    — present if BOTH primary AND fallback failed
+//     }
+//   },
+//   errors: Array<{ section: string, message: string }>
+// }
+//
+// COST WARNING: every section runs to completion server-side. Use FREE-tier
+// task keys for simple sections (summary, skills, education) and reserve paid
+// models (cvExperience, cvProjects via Scout 17B) for bullet-heavy work.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PARALLEL_SECTIONS_MAX_COUNT       = 8;
+const PARALLEL_SECTIONS_DEFAULT_FALLBACK = 'cvFallback';
+const PARALLEL_SECTIONS_INSTRUCTION_MAX  = 6000;
+const PARALLEL_SECTIONS_PREAMBLE_MAX     = TIERED_LLM_MAX_PROMPT_CHARS;
+
+interface ParallelSectionInput {
+    name: string;
+    task: string;
+    instruction: string;
+    maxTokens?: number;
+    temperature?: number;
+    json?: boolean;
+}
+
+interface ParallelSectionResult {
+    text: string;
+    model: string;
+    task: string;
+    ms: number;
+    fellBack: boolean;
+    error?: string;
+}
+
+async function handleParallelSections(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+
+    const system   = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    const preamble = typeof body?.preamble === 'string' ? body.preamble.slice(0, PARALLEL_SECTIONS_PREAMBLE_MAX) : '';
+    const fallbackTask: string = typeof body?.fallbackTask === 'string' && body.fallbackTask.trim()
+        ? body.fallbackTask.trim()
+        : PARALLEL_SECTIONS_DEFAULT_FALLBACK;
+
+    const rawSections: any[] = Array.isArray(body?.sections) ? body.sections : [];
+    if (rawSections.length === 0) {
+        return json({ error: 'missing_sections' }, request, env, 400);
+    }
+
+    const sections: ParallelSectionInput[] = rawSections
+        .slice(0, PARALLEL_SECTIONS_MAX_COUNT)
+        .map((s: any) => ({
+            name:        String(s?.name || '').trim(),
+            task:        String(s?.task || 'general').trim(),
+            instruction: String(s?.instruction || '').slice(0, PARALLEL_SECTIONS_INSTRUCTION_MAX),
+            maxTokens:   Number.isFinite(s?.maxTokens) ? clamp(Number(s.maxTokens), 64, TIERED_LLM_HARD_MAX_TOKENS) : 1024,
+            temperature: Number.isFinite(s?.temperature) ? clamp(Number(s.temperature), 0, 1) : 0.4,
+            json:        s?.json === true,
+        }))
+        .filter(s => s.name && s.instruction);
+
+    if (sections.length === 0) {
+        return json({ error: 'no_valid_sections' }, request, env, 400);
+    }
+    // No two sections may share a name — collisions would silently overwrite results.
+    const names = new Set<string>();
+    for (const s of sections) {
+        if (names.has(s.name)) return json({ error: 'duplicate_section_name', name: s.name }, request, env, 400);
+        names.add(s.name);
+    }
+
+    const t0 = Date.now();
+
+    const callOnce = async (
+        sec: ParallelSectionInput,
+        taskKey: string,
+    ): Promise<{ text: string; model: string }> => {
+        const mapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
+        const { model } = mapping;
+
+        const jsonInstruction = 'Reply with valid raw JSON only. No markdown fences, no commentary.';
+        const wantsJson = sec.json === true;
+        const effectiveSystem = wantsJson
+            ? (system ? system + '\n\n' + jsonInstruction : jsonInstruction)
+            : system;
+
+        const userContent = preamble
+            ? preamble + '\n\n──── SECTION: ' + sec.name.toUpperCase() + ' ────\n' + sec.instruction
+            : sec.instruction;
+
+        const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+        if (effectiveSystem) messages.push({ role: 'system', content: effectiveSystem });
+        messages.push({ role: 'user', content: userContent });
+
+        const payload: Record<string, unknown> = {
+            messages,
+            temperature: sec.temperature ?? 0.4,
+            max_tokens:  sec.maxTokens ?? 1024,
+        };
+        const supports70bJsonFormat = model.includes('llama-3.3-70b') || model.includes('llama-3.1-70b');
+        if (wantsJson && supports70bJsonFormat) payload.response_format = { type: 'json_object' };
+
+        const res: any = await env.AI.run(model as any, payload as any);
+
+        let text = '';
+        if (typeof res === 'string') text = res;
+        else if (typeof res?.response === 'string') text = res.response;
+        else if (typeof res?.result?.response === 'string') text = res.result.response;
+        else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
+
+        if (text) text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        if (!text) throw new Error(`empty:${sec.name}`);
+
+        return { text, model };
+    };
+
+    const runSection = async (sec: ParallelSectionInput): Promise<[string, ParallelSectionResult]> => {
+        const sectionStart = Date.now();
+        try {
+            const out = await callOnce(sec, sec.task);
+            return [sec.name, {
+                text: out.text,
+                model: out.model,
+                task: sec.task,
+                ms: Date.now() - sectionStart,
+                fellBack: false,
+            }];
+        } catch (primaryErr: any) {
+            // Primary model failed → try the fallback task.
+            try {
+                const out = await callOnce(sec, fallbackTask);
+                return [sec.name, {
+                    text: out.text,
+                    model: out.model,
+                    task: fallbackTask,
+                    ms: Date.now() - sectionStart,
+                    fellBack: true,
+                }];
+            } catch (fallbackErr: any) {
+                return [sec.name, {
+                    text: '',
+                    model: '',
+                    task: sec.task,
+                    ms: Date.now() - sectionStart,
+                    fellBack: false,
+                    error: `primary=${String(primaryErr?.message || primaryErr).slice(0, 120)}; fallback=${String(fallbackErr?.message || fallbackErr).slice(0, 120)}`,
+                }];
+            }
+        }
+    };
+
+    // Fan out — every section runs concurrently inside the same Worker request.
+    const settled = await Promise.all(sections.map(runSection));
+    const results: Record<string, ParallelSectionResult> = {};
+    const errors: Array<{ section: string; message: string }> = [];
+    for (const [name, r] of settled) {
+        results[name] = r;
+        if (r.error) errors.push({ section: name, message: r.error });
+    }
+
+    const allFailed = settled.every(([, r]) => !r.text);
+    if (allFailed) {
+        return json({ error: 'all_sections_failed', errors, totalMs: Date.now() - t0 }, request, env, 502);
+    }
+
+    return json({
+        ok: true,
+        totalMs: Date.now() - t0,
+        results,
+        errors,
+    }, request, env);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
