@@ -285,8 +285,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const handleGenerateCV = useCallback(async () => {
     if (!apiKeySet) {
-      setError("Please add a Groq or Cerebras API key in Settings → AI Settings to enable CV generation.");
-      openSettings();
+      setError("The CV Engine is not reachable right now. Please check your connection and try again.");
       return;
     }
     if (jdRequired && !jobDescription.trim()) {
@@ -428,8 +427,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const handleGenerateCoverLetter = useCallback(async () => {
     if (!apiKeySet) {
-      setCoverLetterError("Please add a Groq or Cerebras API key in Settings → AI Settings to enable cover letter generation.");
-      openSettings();
+      setCoverLetterError("The CV Engine is not reachable right now. Please check your connection and try again.");
       return;
     }
     if (!jobDescription.trim()) {

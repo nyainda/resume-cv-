@@ -227,7 +227,7 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
     if (!apiKeySet) {
         return (
             <div className="mt-6 p-4 border rounded-xl bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30">
-                <p className="text-sm text-amber-700 dark:text-amber-300">Deep job analysis requires a Groq API key. Please add one in Settings.</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">The CV Engine is temporarily unavailable. Please check your connection and try again.</p>
             </div>
         );
     }

@@ -42,6 +42,7 @@ import {
   Edit, User, List, Settings, FileText, Target,
   Moon, Sun, BookOpen, Globe, Briefcase,
 } from './components/icons';
+import { isCVEngineConfigured } from './services/cvEngineClient';
 
 // ── Mail icon (inline, no dep needed) ──────────────────────────────────────
 const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -692,7 +693,9 @@ const AppInner: React.FC = () => {
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
 
   const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
-  const apiKeySet = useMemo(() => !!(apiSettings?.groqApiKey || apiSettings?.apiKey || apiSettings?.cerebrasApiKey), [apiSettings]);
+  const apiKeySet = useMemo(() =>
+    isCVEngineConfigured() || !!(apiSettings?.groqApiKey || apiSettings?.apiKey || apiSettings?.cerebrasApiKey),
+  [apiSettings]);
   const tavilyApiKey = useMemo(() => apiSettings?.tavilyApiKey || null, [apiSettings]);
   const brevoApiKey = useMemo(() => apiSettings?.brevoApiKey || null, [apiSettings]);
   const jsearchApiKey = useMemo(() => apiSettings?.jsearchApiKey || null, [apiSettings]);
