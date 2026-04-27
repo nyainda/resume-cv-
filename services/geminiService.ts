@@ -2324,30 +2324,58 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // 429 (rate limit) fall back to Cloudflare Workers AI which has a much
     // larger context window and a free tier — saves the user from hitting Groq
     // hard limits when the prompt includes a long JD + market intelligence.
+    //
+    // PRE-SIZE ROUTING: Groq's main models cap around ~30K tokens of input.
+    // When system+user prompts exceed ~90,000 chars (≈22K tokens of text)
+    // Groq always returns 413, costing ~3 seconds of round-trip. Skip the
+    // attempt and route directly to CF Workers AI for these large prompts.
+    const PROMPT_SIZE_GROQ_413_THRESHOLD = 90_000;
+    const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
+    const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
+
     let rawText: string;
-    try {
-        rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
-    } catch (groqErr: any) {
-        const status = groqErr?.status;
-        const msg = (groqErr?.message || '').toLowerCase();
-        const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
-        const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
-        if (isTooLarge || isRateLimited) {
-            console.warn(`[CV Gen] Groq ${status ?? '?'} — falling back to Cloudflare Workers AI for main generation.`);
-            const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, {
-                temperature,
-                json: true,
-                maxTokens: 6000,
-                timeoutMs: 90000,
-            });
-            if (!cf) {
-                console.error('[CV Gen] Cloudflare Workers AI also unavailable — re-throwing original Groq error.');
+    if (willGroq413) {
+        console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI (skipping Groq 413 round-trip).`);
+        const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, {
+            temperature,
+            json: true,
+            maxTokens: 6000,
+            timeoutMs: 90000,
+        });
+        if (!cf) {
+            // CF Workers AI is dead too — last-ditch attempt at Groq, which
+            // will likely 413 but at least gives us a real error to surface.
+            console.error('[CV Gen] Cloudflare Workers AI unavailable for large prompt — falling back to Groq (likely to 413).');
+            rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+        } else {
+            rawText = cf;
+            console.info('[CV Gen] Main generation completed via Cloudflare Workers AI (pre-sized).');
+        }
+    } else {
+        try {
+            rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+        } catch (groqErr: any) {
+            const status = groqErr?.status;
+            const msg = (groqErr?.message || '').toLowerCase();
+            const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
+            const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
+            if (isTooLarge || isRateLimited) {
+                console.warn(`[CV Gen] Groq ${status ?? '?'} — falling back to Cloudflare Workers AI for main generation.`);
+                const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, {
+                    temperature,
+                    json: true,
+                    maxTokens: 6000,
+                    timeoutMs: 90000,
+                });
+                if (!cf) {
+                    console.error('[CV Gen] Cloudflare Workers AI also unavailable — re-throwing original Groq error.');
+                    throw groqErr;
+                }
+                rawText = cf;
+                console.info('[CV Gen] Main generation completed via Cloudflare Workers AI.');
+            } else {
                 throw groqErr;
             }
-            rawText = cf;
-            console.info('[CV Gen] Main generation completed via Cloudflare Workers AI.');
-        } else {
-            throw groqErr;
         }
     }
 
@@ -3616,6 +3644,19 @@ async function runQualityPolishPasses(
             if (voiceRevert.reverted.length > 0) {
                 console.warn(`[Polish] Voice enforcement reverted ${voiceRevert.reverted.length} corrupted-metric bullet(s):`, voiceRevert.reverted);
                 out = voiceRevert.cv;
+            }
+            // ROOT-CAUSE FIX for the user's "KES ,000" / "% retention" /
+            // "Re-framed" bullets: the voice-consistency LLM (worker AND its
+            // Groq fallback) can introduce orphan-metric placeholders and
+            // weird "Re-<verb>" openers when it rewrites bullets. The earlier
+            // purifyCV call (step 6) already ran, so without a second purify
+            // pass those new defects ship straight to the user. Re-running
+            // purifyCV here is cheap (deterministic regex only) and idempotent.
+            const repurified = purifyCV(out);
+            out = repurified.cv;
+            if (onPurifyReport && repurified.report.polishFixes > 0) {
+                try { await onPurifyReport(repurified.report); }
+                catch (e) { console.debug('[Polish] post-voice onPurifyReport hook failed (non-fatal):', e); }
             }
         } catch (e) {
             console.warn('[Polish] Voice enforcement skipped:', e);

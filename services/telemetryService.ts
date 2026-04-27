@@ -67,11 +67,21 @@ export function quickHash(input: string): string {
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export interface LeakRecord {
-    leakType: 'banned_phrase' | 'duplicate_word' | 'pursuing_phrase' | 'tense_mismatch' | 'round_number' | 'repeated_phrase';
+    // Mirror of PurifyLeak.leakType — kept in sync so report.leaks can be
+    // posted to telemetry without a structural cast. New leak types added
+    // to the purification pipeline must be added here too.
+    leakType:
+        | 'banned_phrase' | 'duplicate_word' | 'pursuing_phrase' | 'tense_mismatch'
+        | 'round_number' | 'repeated_phrase'
+        | 'first_person' | 'weak_qualifier' | 'weak_opener' | 'weird_opener' | 'markup_artifact'
+        | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
+        | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
+        | 'orphan_metric' | 'short_bullet' | 'long_bullet';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
-    fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip' | 'none';
+    fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
+        | 'polish' | 'canonicalise' | 'dedupe' | 'none';
     contextSnippet?: string;
 }
 

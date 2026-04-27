@@ -950,17 +950,36 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
     // 0b) Bare placeholder anywhere → strip it (will be cleaned up by tidy below).
     out = out.replace(new RegExp(PLACEHOLDER_TOKEN.source, 'g'), '');
 
-    // 1) Orphan "%" — a "%" not preceded by a digit (allowing spaces between).
-    //    Common AI failure: "improved performance by %" or "increased % of".
-    //    Drop preceding preposition + orphan %, keeping the rest of the clause.
+    // 1) Currency code/symbol followed by an ORPHAN THOUSANDS GROUP. The CF
+    //    Workers AI fallback sometimes emits "KES ,000" / "USD ,500,000" /
+    //    "$ ,000" when it tried to "soften" a too-large number from the
+    //    validator and just deleted the leading digits. We strip the entire
+    //    "(verb) (currency) ,XXX(,XXX)+" fragment plus any trailing "in revenue"
+    //    /"in sales" connector, leaving the rest of the bullet readable.
     out = out.replace(
-        /\s*\b(?:by|of|to|with|achieving|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to)\s+%(?!\w)/gi,
+        /\s*\b(?:generating|producing|delivering|reaching|achieving|driving|adding|earning|saving|cutting|reducing|of|by|to|from|with|approximately|around|about|roughly|nearly|almost|over|under|up\s+to)?\s*(?:KES|NGN|ZAR|GBP|USD|EUR|AED|JPY|INR|CAD|AUD|CHF|CNY|KSh|Ksh|R|₦|₹|€|£|\$)\s+,\d{3}(?:,\d{3})*(?:\s+in\s+(?:revenue|sales|costs?|savings?|earnings?|profit))?/gi,
+        '',
+    );
+    // Bare " ,000" floating after a stripped currency.
+    out = out.replace(/\s+,\d{3}(?:,\d{3})*(?=\s|[,.;:!?]|$)/g, '');
+
+    // 2) Orphan "%" — a "%" not preceded by a digit (allowing spaces between).
+    //    Common AI failure: "improved performance by %" or "increased % of".
+    //    Drop preceding preposition/article + orphan %, keeping the rest.
+    //    NOTE: "a/an/the" included so "achieving a % retention" → "achieving retention".
+    out = out.replace(
+        /\s*\b(?:by|of|to|with|at|achieving|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to|a|an|the)\s+%(?!\w)/gi,
+        ''
+    );
+    // Catch "and a/an/the %" — a common CF Workers AI joiner.
+    out = out.replace(
+        /\s*\b(?:and|or|plus|including)\s+(?:a|an|the)\s+%(?!\w)/gi,
         ''
     );
     // Standalone " %" or "% " not adjacent to a digit anywhere — just drop it.
     out = out.replace(/(?<![\d.])\s*%(?!\w)/g, () => '');
 
-    // 2) Orphan currency symbol/code immediately followed by a non-digit.
+    // 3) Orphan currency symbol/code immediately followed by a non-digit.
     //    "saved KES on costs" → "saved on costs" (we'll let the surrounding
     //    text carry the meaning rather than inventing a number).
     out = out.replace(
@@ -969,7 +988,7 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
     );
     out = out.replace(/([$£€¥])\s+(?=[a-zA-Z])/g, '');
 
-    // 3) ORPHAN PREPOSITION — after the strips above we may be left with a
+    // 4) ORPHAN PREPOSITION — after the strips above we may be left with a
     //    bullet that ends or pivots on a hanging preposition: "reduced
     //    costs by ." or "improved efficiency by, then shipped X". Drop the
     //    dangling preposition + any whitespace before the next punctuation.
@@ -978,16 +997,78 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
         '',
     );
 
-    // 4) Tidy the side-effects: collapse double spaces, fix spacing before
-    //    punctuation, fix orphan commas/empty parens, and trim.
+    // 5) Tidy the side-effects: collapse double spaces, fix spacing before
+    //    punctuation, fix orphan commas/empty parens, fix article disagreement
+    //    that step 2 may have created ("a average" → "an average"), trim.
     out = out
         .replace(/\(\s*\)/g, '')
         .replace(/,\s*,/g, ',')
         .replace(/\s{2,}/g, ' ')
-        .replace(/\s+([.,;:!?])/g, '$1')
-        .trim();
+        .replace(/\s+([.,;:!?])/g, '$1');
+    // Article agreement after orphan-% strip: "a [vowel]" → "an [vowel]";
+    // "an [consonant]" → "a [consonant]". Preserve original capitalization.
+    out = out.replace(/\b([Aa])\s+([aeiouAEIOU])/g,
+        (_, A, c) => `${A === 'A' ? 'An' : 'an'} ${c}`);
+    out = out.replace(/\b([Aa])n\s+([bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ])/g,
+        (_, A, c) => `${A === 'A' ? 'A' : 'a'} ${c}`);
+    out = out.trim();
 
     return { text: out, changed: out !== text };
+}
+
+/**
+ * The CF Workers AI fallback for "voice-fix" rewrites sometimes prepends
+ * "Re-" to existing verbs ("framed" → "Re-framed", "positioned" →
+ * "Re-positioned", "narrated" → "Re-narrated") in a misguided attempt to
+ * avoid duplicate openers. It also emits low-quality openers like
+ * "Moderated", "Advocated for", "Discussed a portfolio" that aren't in any
+ * approved verb pool. This deterministic rewriter catches the common
+ * offenders and swaps them for clean canonical verbs.
+ *
+ * Idempotent. Safe to run multiple times.
+ */
+function rewriteWeirdOpeners(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    let out = text;
+    // Track if we made any change so we can report it as a leak.
+    const before = out;
+
+    // 1) "Re-<verb>" prefix — drop the "Re-" and capitalise the next letter.
+    //    Only at the start of a sentence/bullet (after optional bullet glyph).
+    out = out.replace(
+        /^(\s*[-•·*»"']?\s*)Re-([a-z])/,
+        (_, prefix, ch) => prefix + ch.toUpperCase(),
+    );
+    // 2) Same fix mid-bullet (rare but happens after semi-colons).
+    out = out.replace(/([.;])\s+Re-([a-z])/g, (_, p, ch) => `${p} ${ch.toUpperCase()}`);
+
+    // 3) Specific weak-opener verb swaps. Maps the verb-only — leaves the
+    //    rest of the bullet unchanged. We pick a clean canonical verb of
+    //    similar meaning so the bullet still reads correctly. Triggered ONLY
+    //    at the very start of a bullet, where openers matter for ATS scanning.
+    const OPENER_SWAPS: Array<[RegExp, string]> = [
+        // Vague communication verbs — too soft for a CV opener.
+        [/^(\s*[-•·*»"']?\s*)Discussed\s+a\s+portfolio\s+of\b/i, '$1Managed a portfolio of'],
+        [/^(\s*[-•·*»"']?\s*)Discussed\b/,                       '$1Presented'],
+        [/^(\s*[-•·*»"']?\s*)Moderated\s+relationships\b/i,      '$1Managed relationships'],
+        [/^(\s*[-•·*»"']?\s*)Moderated\b/,                       '$1Managed'],
+        [/^(\s*[-•·*»"']?\s*)Advocated\s+for\b/i,                '$1Championed'],
+        [/^(\s*[-•·*»"']?\s*)Advocated\b/,                       '$1Promoted'],
+        [/^(\s*[-•·*»"']?\s*)Engaged\s+with\b/i,                 '$1Partnered with'],
+        [/^(\s*[-•·*»"']?\s*)Engaged\b/,                         '$1Collaborated'],
+        [/^(\s*[-•·*»"']?\s*)Liaised\s+with\b/i,                 '$1Coordinated with'],
+        [/^(\s*[-•·*»"']?\s*)Liaised\b/,                         '$1Coordinated'],
+        [/^(\s*[-•·*»"']?\s*)Utilised\b/,                        '$1Used'],
+        [/^(\s*[-•·*»"']?\s*)Utilized\b/,                        '$1Used'],
+        [/^(\s*[-•·*»"']?\s*)Leveraged\b/,                       '$1Used'],
+        [/^(\s*[-•·*»"']?\s*)Spearheaded\b/,                     '$1Led'],
+        [/^(\s*[-•·*»"']?\s*)Orchestrated\b/,                    '$1Led'],
+    ];
+    for (const [rx, repl] of OPENER_SWAPS) {
+        out = out.replace(rx, repl);
+    }
+
+    return { text: out, changed: out !== before };
 }
 
 /** Capitalises the first alphabetic character, preserving any leading glyph. */
@@ -1061,6 +1142,7 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     };
     apply('markup_strip',     stripMarkupArtifacts);
     apply('first_person',     stripFirstPerson);
+    apply('weird_opener',     rewriteWeirdOpeners);
     apply('weak_opener',      rewriteWeakOpener);
     apply('weak_qualifier',   stripWeakQualifiers);
     apply('orphan_metric',    stripOrphanMetrics);
@@ -1110,7 +1192,7 @@ export interface PurifyLeak {
         | 'banned_phrase' | 'duplicate_word' | 'pursuing_phrase' | 'tense_mismatch'
         | 'round_number' | 'repeated_phrase'
         // Phase 2
-        | 'first_person' | 'weak_qualifier' | 'weak_opener' | 'markup_artifact'
+        | 'first_person' | 'weak_qualifier' | 'weak_opener' | 'weird_opener' | 'markup_artifact'
         | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
         | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
         | 'orphan_metric' | 'short_bullet' | 'long_bullet';
@@ -1271,6 +1353,8 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 f === 'first_person'      ? 'first_person'      :
                 f === 'weak_qualifier'    ? 'weak_qualifier'    :
                 f === 'weak_opener'       ? 'weak_opener'       :
+                f === 'weird_opener'      ? 'weird_opener'      :
+                f === 'orphan_metric'     ? 'orphan_metric'     :
                 f === 'markup_strip'      ? 'markup_artifact'   :
                 f === 'capitalise'        ? 'capitalisation'    :
                 f === 'trailing_period'   ? 'trailing_period'   :

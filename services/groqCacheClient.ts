@@ -15,6 +15,22 @@ const CACHE_ENDPOINT = '/api/groq-cache';
 const CACHE_MAX_TEMPERATURE = 0.5;
 const CACHE_MAX_PROMPT_SIZE = 100_000;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CIRCUIT BREAKER — when the Vercel cache function returns 503 (or fails to
+// respond at all) it's almost always because the route is unhealthy for the
+// rest of this session. Each cache lookup costs ~2s of wasted timeout. After
+// the first failure we open the circuit and skip ALL subsequent cache calls
+// for the lifetime of the page — saves dozens of seconds across a single CV
+// generation. The next page load resets it.
+// ─────────────────────────────────────────────────────────────────────────────
+let circuitOpen = false;
+
+function openCircuit(reason: string): void {
+    if (circuitOpen) return;
+    circuitOpen = true;
+    console.warn(`[Groq Cache] Circuit opened (${reason}) — skipping all subsequent cache calls this session.`);
+}
+
 /** SHA-256 hex of the joined cache inputs. */
 async function cacheKey(
     model: string,
@@ -45,6 +61,7 @@ export async function lookupGroqCache(
     userPrompt: string,
     temperature: number,
 ): Promise<string | null> {
+    if (circuitOpen) return null;
     if (!isCacheable(temperature, systemPrompt, userPrompt)) return null;
 
     try {
@@ -53,14 +70,22 @@ export async function lookupGroqCache(
             method: 'GET',
             signal: AbortSignal.timeout(2000),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            // 503 / 502 / 504 / 500 → upstream cache function is unhealthy.
+            // Open the circuit so we don't waste 2s on every subsequent call.
+            if (res.status >= 500) openCircuit(`HTTP ${res.status}`);
+            return null;
+        }
         const body = await res.json().catch(() => null);
         if (body && body.hit && typeof body.response === 'string') {
             console.log(`[Groq Cache] HIT (${model}, hits=${body.hitCount})`);
             return body.response;
         }
         return null;
-    } catch {
+    } catch (e: any) {
+        // AbortError (timeout) or network error → cache route is unreachable.
+        // Open the circuit on the first failure.
+        openCircuit(e?.name === 'AbortError' ? 'timeout' : 'network');
         return null;
     }
 }
@@ -75,13 +100,14 @@ export function storeGroqCache(
     temperature: number,
     response: string,
 ): void {
+    if (circuitOpen) return;
     if (!isCacheable(temperature, systemPrompt, userPrompt)) return;
     if (!response || response.length > 500_000) return;
 
     void (async () => {
         try {
             const key = await cacheKey(model, temperature, systemPrompt, userPrompt);
-            await fetch(CACHE_ENDPOINT, {
+            const res = await fetch(CACHE_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -93,8 +119,11 @@ export function storeGroqCache(
                 }),
                 signal: AbortSignal.timeout(3000),
             });
-        } catch {
-            // Best-effort — swallow.
+            if (!res.ok && res.status >= 500) openCircuit(`POST HTTP ${res.status}`);
+        } catch (e: any) {
+            // Best-effort — but on the first failure open the circuit so we
+            // don't keep wasting 3s on the next dozen writes.
+            openCircuit(e?.name === 'AbortError' ? 'POST timeout' : 'POST network');
         }
     })();
 }

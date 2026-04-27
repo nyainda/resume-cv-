@@ -18,6 +18,28 @@ const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 
 const DEFAULT_TIMEOUT_MS = 6000;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PER-ENDPOINT CIRCUIT BREAKER — when a worker route returns 502/503/504 or
+// times out, it almost always stays unhealthy for the rest of the session.
+// Each retry costs 30–60s of wasted time (workerLLM has a 60s default timeout
+// and tiered-llm 45s). After the first failure on a given endpoint, the
+// circuit opens and all subsequent calls return null immediately.
+//
+// Keyed by endpoint path so the GET helper, POST helper, workerLLM, and
+// workerTieredLLM each break independently.
+// ─────────────────────────────────────────────────────────────────────────────
+const deadEndpoints = new Set<string>();
+
+function markDead(path: string, reason: string): void {
+    if (deadEndpoints.has(path)) return;
+    deadEndpoints.add(path);
+    console.warn(`[cvEngineClient] Circuit opened for ${path} (${reason}) — skipping subsequent calls this session.`);
+}
+
+function isDead(path: string): boolean {
+    return deadEndpoints.has(path);
+}
+
 export interface BannedEntry {
     phrase: string;
     replacement: string | null;
@@ -68,13 +90,18 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
 
 async function getJSON<T>(path: string, params?: Record<string, string>): Promise<T | null> {
     if (!isCVEngineConfigured()) return null;
+    if (isDead(path)) return null;
     const u = new URL(path, ENGINE_URL);
     if (params) for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     try {
         const r = await fetchWithTimeout(u.toString());
-        if (!r.ok) return null;
+        if (!r.ok) {
+            if (r.status >= 500) markDead(path, `HTTP ${r.status}`);
+            return null;
+        }
         return (await r.json()) as T;
-    } catch (e) {
+    } catch (e: any) {
+        markDead(path, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] GET failed:', path, e);
         return null;
     }
@@ -82,6 +109,7 @@ async function getJSON<T>(path: string, params?: Record<string, string>): Promis
 
 async function postJSON<T>(path: string, body: unknown): Promise<T | null> {
     if (!isCVEngineConfigured()) return null;
+    if (isDead(path)) return null;
     const u = new URL(path, ENGINE_URL);
     try {
         const r = await fetchWithTimeout(u.toString(), {
@@ -89,9 +117,13 @@ async function postJSON<T>(path: string, body: unknown): Promise<T | null> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body ?? {}),
         });
-        if (!r.ok) return null;
+        if (!r.ok) {
+            if (r.status >= 500) markDead(path, `HTTP ${r.status}`);
+            return null;
+        }
         return (await r.json()) as T;
-    } catch (e) {
+    } catch (e: any) {
+        markDead(path, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] POST failed:', path, e);
         return null;
     }
@@ -370,7 +402,9 @@ export async function workerTieredLLM(
 ): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
     if (!prompt) return null;
-    const u = new URL('/api/cv/tiered-llm', ENGINE_URL);
+    const ENDPOINT = '/api/cv/tiered-llm';
+    if (isDead(ENDPOINT)) return null;
+    const u = new URL(ENDPOINT, ENGINE_URL);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -388,11 +422,15 @@ export async function workerTieredLLM(
             },
             opts.timeoutMs ?? WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS,
         );
-        if (!r.ok) return null;
+        if (!r.ok) {
+            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status} (task=${task})`);
+            return null;
+        }
         const data = await r.json() as { text?: string; error?: string };
         if (data.error) return null;
         return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
-    } catch (e) {
+    } catch (e: any) {
+        markDead(ENDPOINT, e?.name === 'AbortError' ? `timeout (task=${task})` : `network (task=${task})`);
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerTieredLLM failed:', task, e);
         return null;
     }
@@ -407,7 +445,9 @@ export async function workerLLM(
 ): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
     if (!prompt) return null;
-    const u = new URL('/api/cv/llm', ENGINE_URL);
+    const ENDPOINT = '/api/cv/llm';
+    if (isDead(ENDPOINT)) return null;
+    const u = new URL(ENDPOINT, ENGINE_URL);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -424,10 +464,14 @@ export async function workerLLM(
             },
             opts.timeoutMs ?? WORKER_LLM_DEFAULT_TIMEOUT_MS,
         );
-        if (!r.ok) return null;
+        if (!r.ok) {
+            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status}`);
+            return null;
+        }
         const data = await r.json() as { text?: string };
         return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
-    } catch (e) {
+    } catch (e: any) {
+        markDead(ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerLLM failed:', e);
         return null;
     }
