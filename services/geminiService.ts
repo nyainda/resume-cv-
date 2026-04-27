@@ -6,7 +6,7 @@ import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV }
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerRaceLLM, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerRaceLLM, workerParallelSections, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult, type ParallelSectionRequest } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 
@@ -2346,75 +2346,155 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // Strip any markdown code fences the model may have wrapped the JSON in
     const stripFencesMain = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
-    // Try Groq first (fastest, highest quality). On 413 (prompt too large) or
-    // 429 (rate limit) fall back to Cloudflare Workers AI which has a much
-    // larger context window and a free tier — saves the user from hitting Groq
-    // hard limits when the prompt includes a long JD + market intelligence.
-    //
-    // PRE-SIZE ROUTING: Groq's main models cap around ~30K tokens of input.
-    // When system+user prompts exceed ~90,000 chars (≈22K tokens of text)
-    // Groq always returns 413, costing ~3 seconds of round-trip. Skip the
-    // attempt and route directly to CF Workers AI for these large prompts.
-    const PROMPT_SIZE_GROQ_413_THRESHOLD = 90_000;
-    const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
-    const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
-
-    // CV-gen race: fire Llama 4 Scout (PAID, $0.27/$0.85) AND GLM 4.7 Flash
-    // (FREE, 131K context) in parallel server-side and take whichever lands
-    // first. The free model neutralises the cost of racing; the paid model
-    // gives a quality floor when GLM is cold.
+    // CV-gen race tasks: kept for the LEGACY fallback path below. Fires
+    // Llama 4 Scout (paid) AND GLM 4.7 Flash (free, 131K) in parallel
+    // server-side and takes whichever lands first.
     const CV_GEN_RACE_TASKS = ['cvGenerate', 'cvGenerateLong'];
 
-    let rawText: string;
-    if (willGroq413) {
-        console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI race (skipping Groq 413 round-trip).`);
-        const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+    // ── PRIMARY (Apr 27 2026): Section-parallel CV generation ───────────────
+    // Splits the megaprompt into 4–5 section-specific calls (summary, skills,
+    // experience, education, optional projects) that fan out concurrently
+    // inside ONE Worker request. Each section uses a right-sized free or paid
+    // CF Workers AI model and auto-retries on the free `cvFallback` model on
+    // per-section failure. The merged CVData lands here ready for the existing
+    // polish pipeline. If the worker is unreachable or any required section
+    // fails to parse cleanly, we silently fall through to the legacy
+    // single-megaprompt race path below — no behaviour regression.
+    let cvData: CVData;
+    let cvDataFromSections: CVData | null = null;
+    {
+        const sectionsStart = Date.now();
+        // Strip the full-CVData schema reference from the preamble — each
+        // section call has its own narrower schema in its instruction tail.
+        const stripCvSchema = (s: string) => s.split(CV_DATA_SCHEMA).join('').trim();
+        const preamble = stripCvSchema(mainPromptInstruction);
+
+        // ⚠ IMPORTANT: Scout 17B silently returns empty responses when the
+        // user prompt contains literal JSON example blobs like
+        // {"experience":[{"jobTitle":"..."}]}. Describe the schema in plain
+        // English instead — every model handles natural-language schemas
+        // cleanly (verified Apr 27 2026).
+        const sections: ParallelSectionRequest[] = [
+            { name: 'summary',    task: 'cvSummary',    instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called summary whose value is the professional summary as a single string. The summary must be 60–90 words, 3–4 sentences, following the hook → proof → promise formula. Honor every rule above (banned phrases, sentence rhythm, length). Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 500,  temperature, json: true },
+            { name: 'skills',     task: 'cvSkills',     instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called skills whose value is an array of EXACTLY 15 string skills. Honor the position-1-5 / 6-10 / 11-13 / 14-15 ordering rule above (JD-priority order for ATS). Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 700,  temperature, json: true },
+            { name: 'experience', task: 'cvExperience', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called experience whose value is an array. Each array item is an object with these string fields: company, jobTitle, dates (e.g. "Jan 2020 – Present"), startDate (YYYY-MM-DD), endDate (YYYY-MM-DD or "Present"), and a responsibilities field that is an array of bullet-point strings. Honor the EXACT bullet count per role (binding) and verb-tense rules (current role = present tense, past roles = past tense). FIRST bullet of every role is a SCOPE ANCHOR naming team size, budget, geographic coverage, or project count — not an achievement. No two bullets across the entire document may start with the same verb. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 5000, temperature, json: true },
+            { name: 'education',  task: 'cvEducation',  instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called education whose value is an array. Each array item is an object with these string fields: degree, school, year, description. The description should be one concise sentence covering GPA / honors / thesis / 2–3 relevant courses where applicable. Honor the GRADUATION-STATUS RULE strictly — past or current-year graduation years mean the degree is COMPLETED; never write "currently pursuing" for a past degree. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1200, temperature, json: true },
+        ];
+        if (Array.isArray(profile.projects) && profile.projects.length > 0) {
+            sections.push({ name: 'projects', task: 'cvProjects', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called projects whose value is an array. Each array item is an object with these string fields: name, description, link (link may be empty if none exists). Each project description must follow the format problem/goal → solution with named technologies → measurable outcome, and must name at least one specific technology, tool, framework, or methodology. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1800, temperature, json: true });
+        }
+
+        const psResult = await workerParallelSections(sections, {
             system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-            temperature,
-            json: true,
-            maxTokens: 6000,
+            preamble,
+            fallbackTask: 'cvFallback',
             timeoutMs: 90000,
         });
-        if (!cf) {
-            // CF Workers AI is dead too — last-ditch attempt at Groq, which
-            // will likely 413 but at least gives us a real error to surface.
-            console.error('[CV Gen] Cloudflare Workers AI race unavailable for large prompt — falling back to Groq (likely to 413).');
-            rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
-        } else {
-            rawText = cf.text;
-            console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms, pre-sized).`);
-        }
-    } else {
-        try {
-            rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
-        } catch (groqErr: any) {
-            const status = groqErr?.status;
-            const msg = (groqErr?.message || '').toLowerCase();
-            const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
-            const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
-            if (isTooLarge || isRateLimited) {
-                console.warn(`[CV Gen] Groq ${status ?? '?'} — falling back to Cloudflare Workers AI race for main generation.`);
-                const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
-                    system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-                    temperature,
-                    json: true,
-                    maxTokens: 6000,
-                    timeoutMs: 90000,
-                });
-                if (!cf) {
-                    console.error('[CV Gen] Cloudflare Workers AI race also unavailable — re-throwing original Groq error.');
-                    throw groqErr;
-                }
-                rawText = cf.text;
-                console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
+
+        if (psResult) {
+            // Tolerant parser: accepts {"field": value} OR raw value.
+            const tolerantParse = (raw: string | undefined, field: string): any => {
+                if (!raw) return null;
+                try {
+                    const obj = JSON.parse(stripFencesMain(raw));
+                    if (obj && typeof obj === 'object' && !Array.isArray(obj) && field in obj) return obj[field];
+                    return obj;
+                } catch { return null; }
+            };
+
+            const sectionSummary    = tolerantParse(psResult.results.summary?.text,    'summary');
+            const sectionSkills     = tolerantParse(psResult.results.skills?.text,     'skills');
+            const sectionExperience = tolerantParse(psResult.results.experience?.text, 'experience');
+            const sectionEducation  = tolerantParse(psResult.results.education?.text,  'education');
+            const sectionProjects   = psResult.results.projects ? tolerantParse(psResult.results.projects.text, 'projects') : [];
+
+            const okSummary    = typeof sectionSummary === 'string' && sectionSummary.trim().length > 0;
+            const okSkills     = Array.isArray(sectionSkills)     && sectionSkills.length > 0;
+            const okExperience = Array.isArray(sectionExperience);
+            const okEducation  = Array.isArray(sectionEducation);
+
+            if (okSummary && okSkills && okExperience && okEducation) {
+                cvDataFromSections = {
+                    summary:    sectionSummary,
+                    skills:     sectionSkills,
+                    experience: sectionExperience,
+                    education:  sectionEducation,
+                    projects:   Array.isArray(sectionProjects) && sectionProjects.length > 0 ? sectionProjects : undefined,
+                };
+                const modelLog = Object.entries(psResult.results)
+                    .map(([k, v]) => `${k}=${v.task}${v.fellBack ? '*fb' : ''}/${v.ms}ms`)
+                    .join(' ');
+                console.info(`[CV Gen] Section-parallel completed in ${Date.now() - sectionsStart}ms (worker totalMs=${psResult.totalMs}ms): ${modelLog}`);
             } else {
-                throw groqErr;
+                console.warn('[CV Gen] Section-parallel returned but some required sections failed to parse — falling back to legacy race path.', { okSummary, okSkills, okExperience, okEducation, errors: psResult.errors });
             }
+        } else {
+            console.warn('[CV Gen] Section-parallel endpoint unavailable — falling back to legacy race path.');
         }
     }
 
-    const cleanText = stripFencesMain(rawText);
-    let cvData: CVData = JSON.parse(cleanText);
+    if (cvDataFromSections) {
+        cvData = cvDataFromSections;
+    } else {
+        // ── LEGACY FALLBACK: single-megaprompt race endpoint ────────────────
+        // Used only when section-parallel is unavailable, fails, or returns
+        // malformed JSON. Tries groqChat first (which itself routes through
+        // the worker tiered endpoint by default — Groq only fires if the user
+        // has a key AND the worker is dead). On size/rate failures, falls
+        // back to the worker race endpoint, then errors out cleanly.
+        const PROMPT_SIZE_GROQ_413_THRESHOLD = 90_000;
+        const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
+        const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
+
+        let rawText: string;
+        if (willGroq413) {
+            console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI race.`);
+            const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+                system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+                temperature,
+                json: true,
+                maxTokens: 6000,
+                timeoutMs: 90000,
+            });
+            if (!cf) {
+                console.error('[CV Gen] Cloudflare Workers AI race unavailable for large prompt — last-resort attempt via groqChat (will route through worker tiered or user Groq key).');
+                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+            } else {
+                rawText = cf.text;
+                console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms, pre-sized).`);
+            }
+        } else {
+            try {
+                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+            } catch (groqErr: any) {
+                const status = groqErr?.status;
+                const msg = (groqErr?.message || '').toLowerCase();
+                const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
+                const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
+                if (isTooLarge || isRateLimited) {
+                    console.warn(`[CV Gen] groqChat ${status ?? '?'} — falling back to Cloudflare Workers AI race.`);
+                    const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+                        system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+                        temperature,
+                        json: true,
+                        maxTokens: 6000,
+                        timeoutMs: 90000,
+                    });
+                    if (!cf) {
+                        console.error('[CV Gen] Section-parallel, race, and groqChat all unavailable — re-throwing original error.');
+                        throw groqErr;
+                    }
+                    rawText = cf.text;
+                    console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
+                } else {
+                    throw groqErr;
+                }
+            }
+        }
+
+        const cleanText = stripFencesMain(rawText);
+        cvData = JSON.parse(cleanText);
+    }
 
     // ── PART 6 — Groq Validator: runs for job AND general CVs ──────────────────
     // For job mode: uses JD + location for currency/market detection.
