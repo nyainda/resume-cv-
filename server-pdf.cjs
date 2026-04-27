@@ -245,6 +245,61 @@ app.post('/api/generate-pdf', async (req, res) => {
     }
 });
 
+// ─── Groq Response Cache ────────────────────────────────────────────────────────
+//
+// Postgres-backed cache for identical LLM prompts. Keeps hot responses instant
+// without burning API quota. All operations are best-effort — failures never
+// block CV generation.
+
+const MAX_GROQ_CACHE_PROMPT_SIZE    = 100_000;
+const MAX_GROQ_CACHE_RESPONSE_SIZE  = 500_000;
+
+app.get('/api/groq-cache', requireDb, async (req, res) => {
+    const key = String(req.query.key || '').trim();
+    if (!/^[a-f0-9]{64}$/i.test(key)) {
+        return res.status(400).json({ ok: false, error: 'invalid_key' });
+    }
+    try {
+        const r = await pgPool.query(
+            `UPDATE groq_cache
+                SET hit_count = hit_count + 1, last_hit_at = NOW()
+              WHERE key = $1 AND expires_at > NOW()
+           RETURNING response, model, hit_count`,
+            [key]
+        );
+        if (r.rows.length === 0) return res.status(404).json({ ok: false, hit: false });
+        return res.json({ ok: true, hit: true, response: r.rows[0].response, model: r.rows[0].model, hitCount: r.rows[0].hit_count });
+    } catch (err) {
+        console.error('[groq-cache] GET error:', err.message);
+        return res.status(500).json({ ok: false, error: 'internal_error' });
+    }
+});
+
+app.post('/api/groq-cache', requireDb, async (req, res) => {
+    const { key, model, temperature, response, promptSize } = req.body || {};
+    if (!/^[a-f0-9]{64}$/i.test(String(key || ''))) return res.status(400).json({ ok: false, error: 'invalid_key' });
+    if (typeof model !== 'string' || !model) return res.status(400).json({ ok: false, error: 'missing_model' });
+    if (typeof response !== 'string' || !response) return res.status(400).json({ ok: false, error: 'missing_response' });
+    const temp = Number(temperature ?? 0.2);
+    if (!Number.isFinite(temp) || temp > 0.5) return res.status(400).json({ ok: false, error: 'temperature_too_high' });
+    if (response.length > MAX_GROQ_CACHE_RESPONSE_SIZE) return res.status(413).json({ ok: false, error: 'response_too_large' });
+    if (Number(promptSize || 0) > MAX_GROQ_CACHE_PROMPT_SIZE) return res.status(413).json({ ok: false, error: 'prompt_too_large' });
+    try {
+        await pgPool.query(
+            `INSERT INTO groq_cache (key, model, temperature, response, prompt_size, response_size)
+             VALUES ($1,$2,$3,$4,$5,$6)
+             ON CONFLICT (key) DO UPDATE
+                SET response = EXCLUDED.response, last_hit_at = NOW(),
+                    expires_at = NOW() + INTERVAL '7 days'`,
+            [key, model, temp, response, Number(promptSize || 0), response.length]
+        );
+        return res.json({ ok: true });
+    } catch (err) {
+        console.error('[groq-cache] POST error:', err.message);
+        return res.status(500).json({ ok: false, error: 'internal_error' });
+    }
+});
+
 // ─── Telemetry & banned-phrase API ─────────────────────────────────────────────
 //
 // All endpoints are namespaced under /api/telemetry. The client posts to them

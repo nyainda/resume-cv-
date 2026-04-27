@@ -23,6 +23,18 @@ export default defineConfig(() => {
           timeout: 60000,
           proxyTimeout: 60000,
         },
+        '/api/groq-cache': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          timeout: 5000,
+          proxyTimeout: 5000,
+        },
+        '/api/telemetry': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          timeout: 10000,
+          proxyTimeout: 10000,
+        },
       },
     },
     plugins: [react()],

@@ -403,7 +403,9 @@ export async function workerTieredLLM(
     if (!isCVEngineConfigured()) return null;
     if (!prompt) return null;
     const ENDPOINT = '/api/cv/tiered-llm';
-    if (isDead(ENDPOINT)) return null;
+    // Circuit breaker is per-task: a 502 on cvValidate doesn't block cvGenerate/general.
+    const deadKey = `${ENDPOINT}:${task}`;
+    if (isDead(deadKey)) return null;
     const u = new URL(ENDPOINT, ENGINE_URL);
     try {
         const r = await fetchWithTimeout(
@@ -423,14 +425,14 @@ export async function workerTieredLLM(
             opts.timeoutMs ?? WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS,
         );
         if (!r.ok) {
-            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status} (task=${task})`);
+            if (r.status >= 500) markDead(deadKey, `HTTP ${r.status} (task=${task})`);
             return null;
         }
         const data = await r.json() as { text?: string; error?: string };
         if (data.error) return null;
         return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
     } catch (e: any) {
-        markDead(ENDPOINT, e?.name === 'AbortError' ? `timeout (task=${task})` : `network (task=${task})`);
+        markDead(deadKey, e?.name === 'AbortError' ? `timeout (task=${task})` : `network (task=${task})`);
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerTieredLLM failed:', task, e);
         return null;
     }
