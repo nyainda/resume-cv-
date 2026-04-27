@@ -42,9 +42,20 @@ export async function isCloudflareWorkerOnline(): Promise<boolean> {
   }
 }
 
-export async function generateAndDownloadViaCF(
+export interface CloudflarePdfBytesResult {
+  ok: boolean;
+  bytes?: Uint8Array;
+  error?: string;
+}
+
+/**
+ * POST HTML to the Cloudflare Worker and return the resulting PDF bytes.
+ * Used by both the download flow (generateAndDownloadViaCF) and the merge
+ * flow (PDFMerger via cvDownloadService.getCVPdfBytes).
+ */
+export async function renderHtmlToPdfBytesViaCF(
   opts: CloudflarePDFOptions
-): Promise<CloudflarePDFResult> {
+): Promise<CloudflarePdfBytesResult> {
   const { html, filename = "cv.pdf", format = "A4", onStatus } = opts;
 
   if (!isCloudflareConfigured()) {
@@ -63,25 +74,37 @@ export async function generateAndDownloadViaCF(
 
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? `Worker error ${res.status}`);
+      return { ok: false, error: body.error ?? `Worker error ${res.status}` };
     }
 
-    onStatus?.("Downloading…");
-
-    const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(objectUrl);
-
-    return { ok: true };
+    const buf = await res.arrayBuffer();
+    return { ok: true, bytes: new Uint8Array(buf) };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[cloudflareWorkerService]", msg);
     return { ok: false, error: msg };
   }
+}
+
+export async function generateAndDownloadViaCF(
+  opts: CloudflarePDFOptions
+): Promise<CloudflarePDFResult> {
+  const { filename = "cv.pdf", onStatus } = opts;
+
+  const result = await renderHtmlToPdfBytesViaCF(opts);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  onStatus?.("Downloading…");
+
+  const blob = new Blob([result.bytes], { type: "application/pdf" });
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+
+  return { ok: true };
 }

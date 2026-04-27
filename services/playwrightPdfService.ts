@@ -40,6 +40,44 @@ export const isPlaywrightServerAvailable = async (): Promise<boolean> => {
     }
 };
 
+export interface PdfBytesResult {
+    ok: boolean;
+    bytes?: Uint8Array;
+    error?: string;
+}
+
+/**
+ * POST a self-contained HTML document to the Playwright server and return the
+ * resulting PDF bytes. Used by both the download flow (downloadViaPlaywright)
+ * and the merge flow (PDFMerger via cvDownloadService.getCVPdfBytes).
+ */
+export const renderHtmlToPdfBytes = async (
+    fullHtml: string,
+    filename = 'cv.pdf',
+): Promise<PdfBytesResult> => {
+    try {
+        const res = await fetch(`${PDF_SERVER_URL}/api/generate-pdf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullHtml, filename }),
+            signal: AbortSignal.timeout(45000),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Server error' }));
+            return { ok: false, error: err.error || 'PDF server returned an error' };
+        }
+
+        const buf = await res.arrayBuffer();
+        return { ok: true, bytes: new Uint8Array(buf) };
+    } catch (err: any) {
+        if (err?.name === 'TimeoutError') {
+            return { ok: false, error: 'PDF server timed out.' };
+        }
+        return { ok: false, error: err?.message || 'Failed to connect to PDF server' };
+    }
+};
+
 /**
  * Capture the current CV preview — including ALL CSS from the live app — and
  * send it as a self-contained HTML document to the Playwright server.
@@ -66,34 +104,20 @@ export const downloadViaPlaywright = async (
         return { success: false, error: 'CV preview element not found. Please ensure the CV is visible on screen.' };
     }
 
-    try {
-        const res = await fetch(`${PDF_SERVER_URL}/api/generate-pdf`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fullHtml, filename }),
-            signal: AbortSignal.timeout(45000),
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Server error' }));
-            return { success: false, error: err.error || 'PDF server returned an error' };
-        }
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        return { success: true };
-    } catch (err: any) {
-        if (err?.name === 'TimeoutError') {
-            return { success: false, error: 'PDF server timed out.' };
-        }
-        return { success: false, error: err?.message || 'Failed to connect to PDF server' };
+    const result = await renderHtmlToPdfBytes(fullHtml, filename);
+    if (!result.ok) {
+        return { success: false, error: result.error };
     }
+
+    const blob = new Blob([result.bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    return { success: true };
 };

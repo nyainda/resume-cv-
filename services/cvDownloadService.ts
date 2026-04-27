@@ -17,16 +17,23 @@
  * caller decide what to do (currently the UI shows the error message).
  */
 
+import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import {
   downloadViaPlaywright,
   isPlaywrightServerAvailable,
+  renderHtmlToPdfBytes,
 } from './playwrightPdfService';
 import {
   isCloudflareConfigured,
   isCloudflareWorkerOnline,
   generateAndDownloadViaCF,
+  renderHtmlToPdfBytesViaCF,
 } from './cloudflareWorkerService';
 import { getCVHtml } from './getCVHtml';
+import CVPreview from '../components/CVPreview';
+import type { CVData, PersonalInfo, TemplateName } from '../types';
 
 export interface DownloadCVOptions {
   /** File name for the downloaded PDF (e.g. "Jane_Doe_CV.pdf"). */
@@ -149,4 +156,150 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
 export function resetDownloadHealthCache(): void {
   playwrightHealthCache = null;
   cfHealthCache = null;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Off-screen CV → PDF bytes (used by PDFMerger)
+//
+// PDFMerger needs PDF bytes for saved CVs that are NOT currently rendered on
+// screen. We mount <CVPreview> into a hidden, off-screen container, capture
+// the same HTML the on-screen download path uses, render via Playwright /
+// Cloudflare, and return the bytes. Same renderer = same pixel output.
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface GetCVPdfBytesOptions {
+  cvData: CVData;
+  personalInfo: PersonalInfo;
+  template: TemplateName;
+  fileName?: string;
+  /**
+   * Milliseconds to wait after mounting React before capturing HTML — gives
+   * fonts/images a chance to load. Default 350ms which is enough for cached
+   * fonts; bump to 800-1200ms if you see missing webfonts in the output.
+   */
+  settleMs?: number;
+}
+
+export interface GetCVPdfBytesResult {
+  ok: boolean;
+  bytes?: Uint8Array;
+  via?: 'playwright' | 'cloudflare';
+  error?: string;
+}
+
+/** Wait for document fonts to load (best-effort, short ceiling). */
+function waitForFonts(maxMs = 800): Promise<void> {
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (!fonts || typeof fonts.ready?.then !== 'function') {
+    return new Promise((r) => setTimeout(r, 100));
+  }
+  return Promise.race([
+    fonts.ready.then(() => undefined),
+    new Promise<void>((r) => setTimeout(r, maxMs)),
+  ]);
+}
+
+/**
+ * Render a CV (which may not be on screen) into an off-screen DOM node and
+ * return the PDF bytes via the same pixel-perfect renderer chain the live
+ * download uses.
+ */
+export async function getCVPdfBytes(
+  opts: GetCVPdfBytesOptions,
+): Promise<GetCVPdfBytesResult> {
+  const { cvData, personalInfo, template, fileName = 'cv.pdf', settleMs = 350 } = opts;
+
+  // Mount off-screen — kept on the layout tree so widths/heights are real,
+  // but visually hidden via clipping + position so the user never sees it.
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText = [
+    'position:fixed',
+    'left:0',
+    'top:0',
+    'width:210mm',          // A4 width — matches CVPreview's min-w-[210mm]
+    'pointer-events:none',
+    'opacity:0',
+    'z-index:-1',
+    'overflow:hidden',
+    'clip-path:inset(50%)',
+  ].join(';');
+  document.body.appendChild(host);
+
+  let root: Root | null = null;
+  try {
+    root = createRoot(host);
+    flushSync(() => {
+      root!.render(
+        React.createElement(CVPreview, {
+          cvData,
+          personalInfo,
+          template,
+          isEditing: false,
+          onDataChange: () => {},
+          jobDescriptionForATS: '',
+        }),
+      );
+    });
+
+    // Let layout / fonts / images settle before capture.
+    await waitForFonts();
+    await new Promise((r) => setTimeout(r, settleMs));
+
+    // CVPreview wraps its template in a <div data-cv-preview="true">. Find it
+    // INSIDE our off-screen host so we don't accidentally pick up another
+    // preview elsewhere in the DOM.
+    const previewEl = host.querySelector<HTMLElement>(
+      '[data-cv-preview], #cv-preview-area',
+    );
+    if (!previewEl) {
+      return { ok: false, error: 'Off-screen CV preview did not mount.' };
+    }
+
+    const fullHtml = await getCVHtml({
+      containerEl: previewEl,
+      extraStyles: `
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+        body { margin: 0; padding: 0; }
+      `,
+    });
+    if (!fullHtml) {
+      return { ok: false, error: 'Failed to capture CV HTML.' };
+    }
+
+    // ── Tier 1: Local Playwright ─────────────────────────────────────────
+    if (await probePlaywright()) {
+      const r = await renderHtmlToPdfBytes(fullHtml, fileName);
+      if (r.ok) return { ok: true, bytes: r.bytes, via: 'playwright' };
+      console.warn('[getCVPdfBytes] Playwright failed:', r.error);
+      playwrightHealthCache = null;
+    }
+
+    // ── Tier 2: Cloudflare Worker ────────────────────────────────────────
+    if (await probeCloudflare()) {
+      const r = await renderHtmlToPdfBytesViaCF({
+        html: fullHtml,
+        filename: fileName,
+        format: 'A4',
+      });
+      if (r.ok) return { ok: true, bytes: r.bytes, via: 'cloudflare' };
+      console.warn('[getCVPdfBytes] Cloudflare failed:', r.error);
+      cfHealthCache = null;
+    }
+
+    return {
+      ok: false,
+      error:
+        'PDF renderer unavailable. Please refresh the page or try again in a moment.',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    // Always clean up — React 19 unmount + DOM removal.
+    try { root?.unmount(); } catch { /* noop */ }
+    if (host.parentNode) host.parentNode.removeChild(host);
+  }
 }

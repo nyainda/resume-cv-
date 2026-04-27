@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { SavedCV, UserProfile, MergeItem, SavedMerge, TemplateName, FontName } from '../types';
-import { getCVAsPDFBytes, getCoverLetterAsPDFBytes } from '../services/pdfService';
+import { getCoverLetterAsPDFBytes } from '../services/pdfService';
+import { getCVPdfBytes } from '../services/cvDownloadService';
 import { Button } from './ui/Button';
 import { Trash, Download, Save, Eye, X } from './icons';
 import { isDriveActive } from '../services/storage/StorageRouter';
@@ -213,14 +214,13 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
       if (item.source === 'saved-cv') {
         const cv = savedCVs.find(c => c.id === item.cvId);
         if (cv) {
-          const buf = getCVAsPDFBytes({
+          const r = await getCVPdfBytes({
             cvData: cv.data,
             personalInfo: userProfile.personalInfo,
             template: item.cvTemplate ?? 'professional',
-            font: item.cvFont ?? 'inter',
             fileName: item.label,
           });
-          pdfBytes = new Uint8Array(buf);
+          if (r.ok && r.bytes) pdfBytes = r.bytes;
         }
       } else if (item.source === 'cover-letter' && item.coverLetterText) {
         const buf = getCoverLetterAsPDFBytes(item.coverLetterText, userProfile.personalInfo);
@@ -378,14 +378,16 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
         if (item.source === 'saved-cv') {
           const cv = savedCVs.find(c => c.id === item.cvId);
           if (!cv) continue;
-          const buf = getCVAsPDFBytes({
+          const r = await getCVPdfBytes({
             cvData: cv.data,
             personalInfo: userProfile.personalInfo,
             template: item.cvTemplate ?? 'professional',
-            font: item.cvFont ?? 'inter',
             fileName: item.label,
           });
-          pdfBytes = new Uint8Array(buf);
+          if (!r.ok || !r.bytes) {
+            throw new Error(r.error || `Failed to render CV "${cv.name}"`);
+          }
+          pdfBytes = r.bytes;
         } else if (item.source === 'cover-letter' && item.coverLetterText) {
           const buf = getCoverLetterAsPDFBytes(item.coverLetterText, userProfile.personalInfo);
           pdfBytes = new Uint8Array(buf);
