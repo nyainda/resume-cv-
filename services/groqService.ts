@@ -1,6 +1,7 @@
-import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras } from './security/RuntimeKeys';
+import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras, getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
+import { GoogleGenAI } from '@google/genai';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Groq → Cloudflare Workers AI redirect (Apr 2026)
@@ -92,6 +93,48 @@ export function hasCerebrasKey(): boolean {
 /** True when at least one text-generation key is available */
 export function hasAnyLlmKey(): boolean {
     return hasGroqKey() || hasCerebrasKey();
+}
+
+// ── Gemini key retrieval (last-resort fallback, no circular import) ──────────
+function getGeminiApiKey(): string | null {
+    const rt = _rtGemini();
+    if (rt) return rt;
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const parsed = JSON.parse(s);
+            if (parsed.apiKey && !parsed.apiKey.startsWith('enc:v1:')) return parsed.apiKey.replace(/^"|"$/g, '');
+        }
+        const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
+        if (pk.gemini && !pk.gemini.startsWith('enc:v1:')) return pk.gemini.replace(/^"|"$/g, '');
+    } catch { /* ignore */ }
+    return null;
+}
+
+async function geminiChat(
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
+): Promise<string> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error('No Gemini API key configured — please add one in Settings.');
+    const ai = new GoogleGenAI({ apiKey });
+    const model = 'gemini-2.0-flash';
+    const config: Record<string, unknown> = {
+        temperature: opts.temperature ?? 0.3,
+        maxOutputTokens: opts.maxTokens ?? 4096,
+    };
+    if (opts.json) config.responseMimeType = 'application/json';
+    const response = await ai.models.generateContent({
+        model,
+        config,
+        contents: [
+            { role: 'user', parts: [{ text: systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt }] },
+        ],
+    });
+    const text = response.text ?? '';
+    if (!text) throw new Error('Gemini returned an empty response.');
+    return text;
 }
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
@@ -494,13 +537,30 @@ export async function groqChat(
         }
     }
 
+    // ── Gemini fallback (Workers AI quota exhausted, no Groq/Cerebras key) ───
+    // Gemini is already used for profile import, so the user very likely has
+    // a key configured. Use it as the last-resort backend so CV generation
+    // still works even when the Workers AI free tier runs out for the day.
+    const geminiKey = getGeminiApiKey();
+    if (geminiKey) {
+        console.info('[AI] Workers AI quota exhausted & no Groq key — falling back to Gemini');
+        try {
+            const geminiResult = await geminiChat(systemPrompt, userPrompt, opts);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, geminiResult);
+            return geminiResult;
+        } catch (geminiErr: any) {
+            if (geminiErr?.isUserFacing) throw geminiErr;
+            const err: any = new Error(
+                `Gemini fallback failed: ${geminiErr?.message ?? 'unknown error'}. Please check your Gemini key in Settings.`
+            );
+            err.isUserFacing = true;
+            throw err;
+        }
+    }
+
     // ── Every path exhausted ─────────────────────────────────────────────────
-    // The worker is unreachable AND the user has no fallback Groq/Cerebras
-    // key configured. Surface a clear, action-oriented error.
     const err: any = new Error(
-        isCVEngineConfigured()
-            ? 'The CV Engine is temporarily unavailable. Please retry in a few seconds — or add a Groq or Cerebras key in Settings as an offline fallback.'
-            : 'No AI backend reachable. Please check your network connection — or add a Groq or Cerebras key in Settings as an offline fallback.'
+        'The CV Engine is temporarily over its daily free quota. It resets each day — or add a Gemini key in Settings to continue generating CVs right now.'
     );
     err.isUserFacing = true;
     throw err;
