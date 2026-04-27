@@ -513,7 +513,19 @@ export async function groqChat(
                     throw err;
                 }
             }
-            // No Cerebras key (or non-transient Groq error) — re-throw the Groq error
+            // For 413 (prompt too large for Groq), try Gemini — it handles up to 1M tokens
+            if (isTooLarge) {
+                const gemKey = getGeminiApiKey();
+                if (gemKey) {
+                    console.info('[AI] Groq 413 (content too large) — falling back to Gemini (1M token context)');
+                    try {
+                        const gemResult = await geminiChat(systemPrompt, userPrompt, opts);
+                        storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult);
+                        return gemResult;
+                    } catch { /* fall through to re-throw Groq error */ }
+                }
+            }
+            // No Cerebras key and no viable fallback — re-throw the Groq error
             throw groqErr;
         }
     }
