@@ -1294,10 +1294,25 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
 // helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+function isAllowedOrigin(origin: string, env: Env): boolean {
+    if (!origin) return false;
+    const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (allowed.includes(origin)) return true;
+    try {
+        const u = new URL(origin);
+        const host = u.hostname.toLowerCase();
+        // Replit preview/deploy domains rotate per session — auto-allow them.
+        if (host.endsWith('.replit.dev') || host.endsWith('.replit.app') || host.endsWith('.repl.co')) return true;
+        // Localhost for local dev (any port).
+        if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
+    } catch { /* not a URL — fall through */ }
+    return false;
+}
+
 function corsHeaders(request: Request, env: Env): HeadersInit {
     const origin = request.headers.get('Origin') || '';
     const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-    const allow = allowed.includes(origin) ? origin : allowed[0] || '*';
+    const allow = isAllowedOrigin(origin, env) ? origin : (allowed[0] || '*');
     return {
         'Access-Control-Allow-Origin': allow,
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
