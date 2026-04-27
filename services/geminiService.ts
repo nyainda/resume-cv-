@@ -3635,6 +3635,21 @@ async function runQualityPolishPasses(
     return out;
 }
 
+// --- Polish-only (no Groq rewrite) -----------------------------------------
+// Runs the shared post-generation polish chain on an existing CV WITHOUT
+// re-asking Groq to rewrite anything. Useful when the user already likes
+// the wording but wants the latest banned-phrase rules, humanizer, and
+// deterministic purification re-applied. Costs ~one CF Workers AI call
+// (the humanizer) — no Groq tokens.
+export const polishExistingCV = async (cvDataInput: CVData): Promise<CVData> => {
+    const cvData = purifyInboundCV(cvDataInput);
+    return runQualityPolishPasses(cvData, {
+        runHumanizer: true,
+        bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
+        finalize: { sourceCv: cvDataInput },
+    });
+};
+
 // --- AI CV Improvement ---
 export const improveCV = async (
     cvDataInput: CVData,

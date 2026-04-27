@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CVData, PersonalInfo } from '../types';
-import { improveCV } from '../services/geminiService';
+import { improveCV, polishExistingCV } from '../services/geminiService';
 import { Sparkles } from './icons';
 
 interface Message {
@@ -102,6 +102,46 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
     setMessages(prev => [...prev, { role: 'assistant', content: '✅ Changes applied to your CV! You can continue improving or close this panel.' }]);
   };
 
+  // Polish-only: re-runs the shared polish chain (humanizer + banned-phrase
+  // filter + purify + pronoun fix + finalize) on the current CV WITHOUT
+  // sending anything back to Groq. No tokens spent — instant cleanup using
+  // the latest deterministic rules.
+  const runPolishOnly = async () => {
+    if (isLoading) return;
+    const currentCV = pendingCV || cvData;
+
+    setMessages(prev => [...prev, { role: 'user', content: '✨ Re-polish my CV (no rewrite)' }]);
+    setIsLoading(true);
+
+    try {
+      const result = await polishExistingCV(currentCV);
+
+      const changes: string[] = [];
+      if (result.summary !== currentCV.summary) changes.push('Cleaned up summary phrasing');
+      if (result.skills.join() !== currentCV.skills.join()) changes.push('Tidied skills list');
+      const expChanged = result.experience.some((exp, i) =>
+        exp.responsibilities.join() !== currentCV.experience[i]?.responsibilities.join()
+      );
+      if (expChanged) changes.push('Polished experience bullets');
+
+      const summary = changes.length > 0
+        ? `Done — re-applied the latest polish rules. Here's what changed:\n${changes.map(c => `• ${c}`).join('\n')}\n\nNo rewrite was performed; only deterministic and humanizer passes ran.`
+        : 'Your CV is already at parity with the latest polish rules — nothing to change.';
+
+      setPendingCV(result);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: summary,
+        updatedCV: changes.length > 0 ? result : undefined,
+      }]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, the polish pass hit an error: ${msg}` }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-neutral-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col border border-zinc-200 dark:border-neutral-700 max-h-[90vh] sm:max-h-[80vh]">
@@ -127,6 +167,15 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
         {/* Quick Prompts */}
         <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button
+              onClick={runPolishOnly}
+              disabled={isLoading}
+              title="Re-applies the latest polish rules (humanizer, banned phrases, deterministic cleanup) without sending the CV back to Groq. No tokens used."
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 text-[#1B2B4B] dark:text-[#C9A84C] text-xs font-semibold rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-[#C9A84C]/30"
+            >
+              <span>✨</span>
+              Re-polish (free)
+            </button>
             {QUICK_PROMPTS.map((qp) => (
               <button
                 key={qp.label}
