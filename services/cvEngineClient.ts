@@ -436,6 +436,81 @@ export async function workerTieredLLM(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Race LLM — fire 2-3 tiered tasks in parallel server-side and return the
+// first one that completes successfully. Used when latency matters more than
+// predictability (e.g. main CV generation: race Llama 4 Scout vs GLM 4.7
+// Flash 131K so the user gets whichever cluster is warm right now).
+//
+// COST: Workers AI cannot cancel in-flight calls, so all candidates run to
+// completion server-side and Cloudflare bills any paid models in the race
+// regardless of which one wins. Caller should only race pairs where at least
+// one candidate is FREE, OR where the latency win justifies the duplicate
+// spend.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WorkerRaceLLMResult {
+    text: string;
+    task: string;
+    model: string;
+    tier: number;
+    free: boolean;
+    raceMs: number;
+}
+
+const WORKER_RACE_LLM_DEFAULT_TIMEOUT_MS = 60000;
+
+export async function workerRaceLLM(
+    tasks: string[],
+    prompt: string,
+    opts: WorkerLLMOptions & { system?: string } = {},
+): Promise<WorkerRaceLLMResult | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!prompt) return null;
+    if (!Array.isArray(tasks) || tasks.length < 2) return null;
+    const ENDPOINT = '/api/cv/race-llm';
+    if (isDead(ENDPOINT)) return null;
+    const u = new URL(ENDPOINT, ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tasks,
+                    system: opts.system ?? '',
+                    prompt,
+                    json: !!opts.json,
+                    temperature: opts.temperature ?? 0.3,
+                    maxTokens: opts.maxTokens ?? 2048,
+                }),
+            },
+            opts.timeoutMs ?? WORKER_RACE_LLM_DEFAULT_TIMEOUT_MS,
+        );
+        if (!r.ok) {
+            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status} (tasks=${tasks.join(',')})`);
+            return null;
+        }
+        const data = await r.json() as {
+            text?: string; task?: string; model?: string; tier?: number; free?: boolean; raceMs?: number; error?: string;
+        };
+        if (data.error || typeof data?.text !== 'string' || data.text.length === 0) return null;
+        return {
+            text: data.text,
+            task: String(data.task || ''),
+            model: String(data.model || ''),
+            tier: Number(data.tier ?? 0),
+            free: Boolean(data.free),
+            raceMs: Number(data.raceMs ?? 0),
+        };
+    } catch (e: any) {
+        markDead(ENDPOINT, e?.name === 'AbortError' ? `timeout (tasks=${tasks.join(',')})` : `network (tasks=${tasks.join(',')})`);
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerRaceLLM failed:', tasks, e);
+        return null;
+    }
+}
+
 const WORKER_LLM_DEFAULT_TIMEOUT_MS = 60000;
 
 export async function workerLLM(

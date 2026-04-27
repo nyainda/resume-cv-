@@ -56,6 +56,7 @@ export default {
             if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
             if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
             if (url.pathname === '/api/cv/tiered-llm' && request.method === 'POST') return handleTieredLLM(request, env);
+            if (url.pathname === '/api/cv/race-llm'   && request.method === 'POST') return handleRaceLLM(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
             if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
             if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
@@ -1396,11 +1397,29 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     // ── JD parsing — free fast model (keywords, company, job title) ──────────
     jdParse:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'JD keyword + company + title extraction (FREE)' },
 
+    // ── Multi-model CV pipeline (Path B, Apr 2026) ────────────────────────────
+    // These task keys replace the 8 generic /api/cv/llm calls in the frontend.
+    // Each task picks the cheapest model that meets the quality bar for its
+    // step, instead of forcing every call through the single paid 70b model.
+    // Newer models from the Apr 2026 CF Workers AI catalog (Llama 4 Scout,
+    // GLM 4.7 Flash, Mistral Small 3.1, Hermes-2 Pro) are wired in here.
+    cvGenerate:           { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'Main CV JSON generation — Llama 4 Scout 17B ($0.27/$0.85 per M, ~3x cheaper output than 70b)' },
+    cvGenerateLong:       { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Long-context CV generation — GLM 4.7 Flash 131K context (FREE within daily Neuron allowance)' },
+    cvAudit:              { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'Post-generation humanizer audit — Llama 4 Scout 17B (PAID, cheap)' },
+    cvValidate:           { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'Strict CV quality validator — Llama 4 Scout 17B (PAID, cheap)' },
+    parser:               { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Word/GitHub profile JSON parser — Mistral Small 3.1 24B (FREE within daily Neuron allowance)' },
+    humanize:             { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Plain-text humanizer — Hermes-2 Pro 7B (FREE)' },
+    coverLetter:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Cover letter generation — Hermes-2 Pro 7B (FREE)' },
+
     // ── Default fallback — always free ────────────────────────────────────────
     general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback (FREE)' },
 };
 
-const TIERED_LLM_MAX_PROMPT_CHARS  = 60000;
+// Bumped to 100k chars (Apr 2026) so the frontend's pre-sized cv-generate
+// path — which routes prompts > 90k chars away from Groq into the worker —
+// fits through tiered-llm + race-llm without truncation. Long-context models
+// (GLM 4.7 Flash 131K, Llama 4 Scout) handle this comfortably.
+const TIERED_LLM_MAX_PROMPT_CHARS  = 100000;
 const TIERED_LLM_MAX_SYSTEM_CHARS  = 6000;
 const TIERED_LLM_DEFAULT_MAX_TOKENS = 2048;
 const TIERED_LLM_HARD_MAX_TOKENS   = 8192;
@@ -1461,6 +1480,98 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
         return json({ text, model, task: taskKey, tier, free, description }, request, env);
     } catch (e: any) {
         return json({ error: 'llm_failed', message: String(e?.message || e), model, task: taskKey, tier, free }, request, env, 502);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Race LLM — fire 2-3 task models in parallel, return whichever completes first.
+//
+// POST /api/cv/race-llm
+// Body: {
+//   tasks: string[],     — 2-3 task keys from TIERED_MODEL_MAP
+//   prompt: string,
+//   system?: string,
+//   json?: boolean,
+//   temperature?: number,
+//   maxTokens?: number,
+// }
+// Returns: { text, task, model, tier, free, raceMs, candidates }
+//
+// COST WARNING: Workers AI does not expose a cancellation signal, so all
+// candidates run to completion server-side and Cloudflare bills any paid
+// models in the race regardless of which one's response is returned. Frontend
+// should only race pairs where at least one candidate is FREE, OR where the
+// latency win justifies the duplicate spend.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RACE_LLM_MAX_CANDIDATES = 3;
+
+async function handleRaceLLM(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+
+    const tasks: string[] = Array.isArray(body?.tasks)
+        ? body.tasks
+            .map((t: any) => String(t || '').trim())
+            .filter(Boolean)
+            .slice(0, RACE_LLM_MAX_CANDIDATES)
+        : [];
+    if (tasks.length < 2) {
+        return json({ error: 'need_at_least_two_tasks' }, request, env, 400);
+    }
+
+    const system = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
+    if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
+
+    const wantsJson  = body?.json === true;
+    const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
+    const maxTokens   = clamp(
+        Number(body?.maxTokens ?? TIERED_LLM_DEFAULT_MAX_TOKENS),
+        64,
+        TIERED_LLM_HARD_MAX_TOKENS,
+    );
+
+    const jsonInstruction = 'Reply with valid raw JSON only. No markdown fences, no commentary.';
+    const effectiveSystem = wantsJson
+        ? (system ? system + '\n\n' + jsonInstruction : jsonInstruction)
+        : system;
+
+    const baseMessages: Array<{ role: 'system' | 'user'; content: string }> = [];
+    if (effectiveSystem) baseMessages.push({ role: 'system', content: effectiveSystem });
+    baseMessages.push({ role: 'user', content: prompt });
+
+    const t0 = Date.now();
+
+    const runOne = async (taskKey: string) => {
+        const mapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
+        const { model, tier, free, description } = mapping;
+
+        const payload: Record<string, unknown> = { messages: baseMessages, temperature, max_tokens: maxTokens };
+        const supports70bJsonFormat = model.includes('llama-3.3-70b') || model.includes('llama-3.1-70b');
+        if (wantsJson && supports70bJsonFormat) payload.response_format = { type: 'json_object' };
+
+        const res: any = await env.AI.run(model as any, payload as any);
+
+        let text = '';
+        if (typeof res === 'string') text = res;
+        else if (typeof res?.response === 'string') text = res.response;
+        else if (typeof res?.result?.response === 'string') text = res.result.response;
+        else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
+
+        if (text) text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        if (!text) throw new Error(`empty:${taskKey}`);
+
+        return { text, task: taskKey, model, tier, free, description };
+    };
+
+    const candidates = tasks.map(runOne);
+    try {
+        const winner = await Promise.any(candidates);
+        const raceMs = Date.now() - t0;
+        return json({ ...winner, raceMs, candidates: tasks.length }, request, env);
+    } catch (e: any) {
+        const reasons = e?.errors?.map((x: any) => String(x?.message || x)) ?? [String(e?.message || e)];
+        return json({ error: 'all_candidates_failed', tasks, reasons }, request, env, 502);
     }
 }
 

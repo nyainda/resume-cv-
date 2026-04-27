@@ -6,7 +6,7 @@ import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV }
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
-import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
+import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerRaceLLM, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 
@@ -810,15 +810,22 @@ The "cv" field must ALWAYS be present — even when all checks pass.
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    // Tiered route: 'cvValidate' → Llama 4 Scout 17B (PAID but ~3x cheaper output
+    // than the legacy 70b that the generic /api/cv/llm endpoint uses).
     try {
-        const cf = await workerLLM(validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 8000 });
+        const cf = await workerTieredLLM('cvValidate', validatorPrompt, {
+            system: validatorSystem,
+            temperature: 0.1,
+            json: true,
+            maxTokens: 8000,
+        });
         if (cf) {
             try {
                 const parsed = JSON.parse(stripFences(cf));
                 if (parsed.flags && parsed.flags.length > 0) {
                     console.warn('[CV Validator] Flags raised (cf):', parsed.flags);
                 }
-                console.log('[CV Validator] Pass complete via Cloudflare Workers AI.');
+                console.log('[CV Validator] Pass complete via Cloudflare Workers AI (tiered: cvValidate).');
                 return parsed.cv || cvData;
             } catch (parseErr) {
                 console.warn('[CV Validator] Worker JSON parse failed, falling back to Groq:', parseErr);
@@ -926,12 +933,19 @@ Return ONLY the corrected JSON object, no markdown, no explanation, no code fenc
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    // Tiered route: 'cvAudit' → Llama 4 Scout 17B (PAID but cheap, replaces the
+    // legacy generic 70b call).
     try {
-        const cf = await workerLLM(auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 10000 });
+        const cf = await workerTieredLLM('cvAudit', auditPrompt, {
+            system: auditSystem,
+            temperature: 0.15,
+            json: true,
+            maxTokens: 10000,
+        });
         if (cf) {
             try {
                 const parsed = JSON.parse(stripFences(cf));
-                console.log('[CV Humanizer] Audit pass complete via Cloudflare Workers AI.');
+                console.log('[CV Humanizer] Audit pass complete via Cloudflare Workers AI (tiered: cvAudit).');
                 return parsed as CVData;
             } catch (parseErr) {
                 console.warn('[CV Humanizer] Worker JSON parse failed, falling back to Groq:', parseErr);
@@ -1706,8 +1720,13 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
 export const humanizeText = async (text: string): Promise<string> => {
     const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    // Tiered route: 'humanize' → Hermes-2 Pro 7B (FREE, fast, good for plain-text rewrites).
     try {
-        const cf = await workerLLM(SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8, maxTokens: 2500 });
+        const cf = await workerTieredLLM('humanize', prompt, {
+            system: SYSTEM_INSTRUCTION_HUMANIZER,
+            temperature: 0.8,
+            maxTokens: 2500,
+        });
         if (cf && cf.trim()) return cf;
     } catch (cfErr) {
         console.warn('[humanizeText] Worker call failed, falling back to Groq:', cfErr);
@@ -1813,9 +1832,16 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     `;
 
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    // Tiered route: 'parser' → Mistral Small 3.1 24B (FREE within daily Neuron
+    // allowance, strong structured-JSON extraction).
     let text: string | null = null;
     try {
-        const cf = await workerLLM(SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
+        const cf = await workerTieredLLM('parser', prompt, {
+            system: SYSTEM_INSTRUCTION_PARSER,
+            temperature: 0.1,
+            json: true,
+            maxTokens: 4096,
+        });
         if (cf && cf.trim()) {
             // Sanity-check the worker output is valid JSON before committing to it.
             try { JSON.parse(cf.trim()); text = cf; }
@@ -2333,10 +2359,17 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
     const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
 
+    // CV-gen race: fire Llama 4 Scout (PAID, $0.27/$0.85) AND GLM 4.7 Flash
+    // (FREE, 131K context) in parallel server-side and take whichever lands
+    // first. The free model neutralises the cost of racing; the paid model
+    // gives a quality floor when GLM is cold.
+    const CV_GEN_RACE_TASKS = ['cvGenerate', 'cvGenerateLong'];
+
     let rawText: string;
     if (willGroq413) {
-        console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI (skipping Groq 413 round-trip).`);
-        const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, {
+        console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI race (skipping Groq 413 round-trip).`);
+        const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+            system: SYSTEM_INSTRUCTION_PROFESSIONAL,
             temperature,
             json: true,
             maxTokens: 6000,
@@ -2345,11 +2378,11 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         if (!cf) {
             // CF Workers AI is dead too — last-ditch attempt at Groq, which
             // will likely 413 but at least gives us a real error to surface.
-            console.error('[CV Gen] Cloudflare Workers AI unavailable for large prompt — falling back to Groq (likely to 413).');
+            console.error('[CV Gen] Cloudflare Workers AI race unavailable for large prompt — falling back to Groq (likely to 413).');
             rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
         } else {
-            rawText = cf;
-            console.info('[CV Gen] Main generation completed via Cloudflare Workers AI (pre-sized).');
+            rawText = cf.text;
+            console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms, pre-sized).`);
         }
     } else {
         try {
@@ -2360,19 +2393,20 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
             const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
             if (isTooLarge || isRateLimited) {
-                console.warn(`[CV Gen] Groq ${status ?? '?'} — falling back to Cloudflare Workers AI for main generation.`);
-                const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, {
+                console.warn(`[CV Gen] Groq ${status ?? '?'} — falling back to Cloudflare Workers AI race for main generation.`);
+                const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+                    system: SYSTEM_INSTRUCTION_PROFESSIONAL,
                     temperature,
                     json: true,
                     maxTokens: 6000,
                     timeoutMs: 90000,
                 });
                 if (!cf) {
-                    console.error('[CV Gen] Cloudflare Workers AI also unavailable — re-throwing original Groq error.');
+                    console.error('[CV Gen] Cloudflare Workers AI race also unavailable — re-throwing original Groq error.');
                     throw groqErr;
                 }
-                rawText = cf;
-                console.info('[CV Gen] Main generation completed via Cloudflare Workers AI.');
+                rawText = cf.text;
+                console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
             } else {
                 throw groqErr;
             }
@@ -2867,9 +2901,14 @@ export const generateCoverLetter = async (profileInput: UserProfile, jobDescript
     `;
 
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
+    // Tiered route: 'coverLetter' → Hermes-2 Pro 7B (FREE, fast, plain-text gen).
     let letter: string | null = null;
     try {
-        const cf = await workerLLM(SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
+        const cf = await workerTieredLLM('coverLetter', prompt, {
+            system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+            temperature: 0.7,
+            maxTokens: 2000,
+        });
         if (cf && cf.trim()) letter = cf;
     } catch (cfErr) {
         console.warn('[generateCoverLetter] Worker call failed, falling back to Groq:', cfErr);
