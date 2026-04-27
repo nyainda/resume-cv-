@@ -19,6 +19,12 @@
 export interface GetCVHtmlOptions {
   selector?: string;
   extraStyles?: string;
+  /**
+   * Explicit DOM element to capture. When provided, this wins over `selector`.
+   * Use this from modals/portals that render their own CVPreview so we don't
+   * accidentally capture the editor preview that's still mounted behind them.
+   */
+  containerEl?: HTMLElement | null;
 }
 
 /** Convert an ArrayBuffer to a base64 string without stack-overflow risk. */
@@ -84,9 +90,14 @@ async function embedFontCSS(href: string): Promise<string> {
 }
 
 export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | null> {
-  const { selector = "[data-cv-preview], #cv-preview-area", extraStyles = "" } = opts;
+  const {
+    selector = "[data-cv-preview-active], [data-cv-preview], #cv-preview-area",
+    extraStyles = "",
+    containerEl = null,
+  } = opts;
 
-  const container = document.querySelector<HTMLElement>(selector);
+  const container =
+    containerEl ?? document.querySelector<HTMLElement>(selector);
   if (!container) {
     console.warn(`[getCVHtml] Element not found: "${selector}"`);
     console.warn('Add data-cv-preview="true" to the CV preview wrapper div.');

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { SavedCV, CVData, TemplateName, UserProfile, templateDisplayNames } from '../types';
 import { Button } from './ui/Button';
 import { Trash, Eye, Download, FileText, BookOpen, Briefcase, Globe, RefreshCw, X } from './icons';
 import TemplateThumbnail from './TemplateThumbnail';
 import CVPreview from './CVPreview';
-import { downloadCVAsPDF } from '../services/pdfService';
+import { downloadCV } from '../services/cvDownloadService';
 
 interface CVHistoryProps {
     savedCVs: SavedCV[];
@@ -42,21 +42,21 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateName>(cv.template || 'standard-pro');
     const [showAllTemplates, setShowAllTemplates] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+    const previewRef = useRef<HTMLDivElement>(null);
 
     const visibleTemplates = showAllTemplates ? ALL_TEMPLATES : ALL_TEMPLATES.slice(0, 10);
 
     const handleDownload = async () => {
         setIsDownloading(true);
+        setDownloadError(null);
         const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
         try {
-            await downloadCVAsPDF({
-                cvData: cv.data,
-                personalInfo: userProfile.personalInfo,
-                template: selectedTemplate,
-                font: 'inter',
+            const result = await downloadCV({
                 fileName: `${sanitize(userProfile.personalInfo.name || 'CV').substring(0, 20)}_${sanitize(cv.name).substring(0, 25)}.pdf`,
-                jobDescription: '',
+                containerEl: previewRef.current,
             });
+            if (!result.ok) setDownloadError(result.error || 'Download failed.');
         } finally {
             setIsDownloading(false);
         }
@@ -128,6 +128,11 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                     </div>
                 </div>
 
+                {downloadError && (
+                    <div className="px-6 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+                        {downloadError}
+                    </div>
+                )}
                 {/* Live CV Preview */}
                 <div className="flex-1 overflow-auto bg-zinc-100 dark:bg-neutral-950">
                     <div className="py-6 px-4">
@@ -139,14 +144,16 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                                 marginLeft: '-19.44%',
                             }}
                         >
-                            <CVPreview
-                                cvData={cv.data}
-                                personalInfo={userProfile.personalInfo}
-                                template={selectedTemplate}
-                                isEditing={false}
-                                onDataChange={() => {}}
-                                jobDescriptionForATS=""
-                            />
+                            <div ref={previewRef} data-cv-preview-active="true">
+                                <CVPreview
+                                    cvData={cv.data}
+                                    personalInfo={userProfile.personalInfo}
+                                    template={selectedTemplate}
+                                    isEditing={false}
+                                    onDataChange={() => {}}
+                                    jobDescriptionForATS=""
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -5,10 +5,7 @@ import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, template
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
-import { downloadCVAsPDF } from '../services/pdfService';
-import { downloadViaPlaywright, isPlaywrightServerAvailable } from '../services/playwrightPdfService';
-import { generateAndDownloadViaCF, isCloudflareConfigured, isCloudflareWorkerOnline } from '../services/cloudflareWorkerService';
-import { getCVHtml } from '../services/getCVHtml';
+import { downloadCV } from '../services/cvDownloadService';
 import PDFDownloadButton from './PDFDownloadButton';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
@@ -503,86 +500,39 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   }, [userProfile.personalInfo.name, targetCompany]);
 
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDownload = useCallback(async () => {
     if (!currentCV) return;
     const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
     const companyName = targetCompany || 'Unknown';
 
-    // Pixel-perfect path — captures the LIVE preview DOM (matches what the user sees)
-    // and renders it via headless Chrome. Tries local Playwright server first
-    // (dev / Replit), then the Cloudflare resume-pdf-worker (production).
-    // Falls back to the legacy jsPDF templates only if both renderers are offline.
-    const tryHtmlPath = async (): Promise<boolean> => {
-      // ── Tier 1: Local Playwright server (port 3001 via /__pdf proxy) ──
-      try {
-        if (await isPlaywrightServerAvailable()) {
-          setDownloadStatus('Rendering preview…');
-          const r = await downloadViaPlaywright(pdfFileName);
-          if (r.success) return true;
-          console.warn('[CV Download] Playwright server failed:', r.error);
-        }
-      } catch (e) {
-        console.warn('[CV Download] Playwright probe failed:', e);
-      }
-
-      // ── Tier 2: Cloudflare resume-pdf-worker (production) ──
-      try {
-        if (isCloudflareConfigured() && (await isCloudflareWorkerOnline())) {
-          setDownloadStatus('Rendering preview…');
-          const html = await getCVHtml({
-            extraStyles: `
-              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              body { margin: 0; padding: 0; }
-            `,
-          });
-          if (html) {
-            const r = await generateAndDownloadViaCF({
-              html,
-              filename: pdfFileName,
-              format: 'A4',
-              onStatus: (m) => setDownloadStatus(m),
-            });
-            if (r.ok) return true;
-            console.warn('[CV Download] Cloudflare worker failed:', r.error);
-          }
-        }
-      } catch (e) {
-        console.warn('[CV Download] Cloudflare probe failed:', e);
-      }
-      return false;
-    };
-
+    setDownloadError(null);
     setDownloadStatus('Preparing download…');
-    let usedHtmlPath = false;
     try {
-      usedHtmlPath = await tryHtmlPath();
-    } finally {
-      // Even if HTML path succeeded, jsPDF embeds ATS keyword metadata; we
-      // only fall back to it when the HTML renderers are both unavailable.
-      if (!usedHtmlPath) {
-        setDownloadStatus('Falling back to local renderer…');
-        const wasEmbedded = downloadCVAsPDF({
-          cvData: currentCV,
-          personalInfo: userProfile.personalInfo,
-          template,
-          font,
-          fileName: pdfFileName,
-          jobDescription,
-        });
-        setAtsDataEmbedded(wasEmbedded);
-      } else {
+      // Single source of truth: render the live preview DOM via headless Chrome
+      // (Playwright local → Cloudflare worker). What you see is what you get.
+      // The HiddenATSKeywords component already lives inside the preview so the
+      // job-description keywords are baked into the PDF automatically.
+      const result = await downloadCV({
+        fileName: pdfFileName,
+        onStatus: (m) => setDownloadStatus(m),
+      });
+
+      if (result.ok) {
         setAtsDataEmbedded(jdTier1Keywords.length > 0);
+        onAutoTrack({
+          roleTitle: jobTitle,
+          company: companyName,
+          savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`,
+        });
+      } else {
+        setDownloadError(result.error || 'Download failed.');
       }
+    } finally {
       setDownloadStatus(null);
     }
-
-    onAutoTrack({
-      roleTitle: jobTitle,
-      company: companyName,
-      savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
-    });
-  }, [currentCV, userProfile, targetCompany, targetJobTitle, template, font, jobDescription, onAutoTrack, pdfFileName, jdTier1Keywords.length]);
+  }, [currentCV, targetCompany, targetJobTitle, onAutoTrack, pdfFileName, jdTier1Keywords.length]);
 
   const cvTextContent = useMemo(() => {
     if (!currentCV) return "";
@@ -1119,6 +1069,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               )}
             </div>
           </div>
+
+          {downloadError && (
+            <div className="mb-4 -mt-2 p-3 text-sm text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20 rounded-lg flex items-center gap-3 border border-rose-200 dark:border-rose-800">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+              <span>{downloadError}</span>
+            </div>
+          )}
 
           {atsDataEmbedded && (
             <div className="mb-4 -mt-2 p-3 text-sm text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center gap-3 border border-green-200 dark:border-green-800">

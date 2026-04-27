@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { CVData, UserProfile, TemplateName, FontName, templateDisplayNames, CVGenerationMode, cvGenerationModes, ScrapedJob } from '../types';
 import { generateCV, generateCoverLetter } from '../services/geminiService';
-import { downloadCVAsPDF } from '../services/pdfService';
+import { downloadCV } from '../services/cvDownloadService';
 import CVPreview from './CVPreview';
 import CoverLetterPreview from './CoverLetterPreview';
 import { Button } from './ui/Button';
@@ -230,18 +230,19 @@ const JobPipelineModal: React.FC<JobPipelineModalProps> = ({
         }
     }, [apiKeySet, userProfile, job, selectedMode, openSettings]);
 
-    const handleDownloadCV = useCallback(() => {
+    const cvPreviewRef = useRef<HTMLDivElement>(null);
+    const [cvDownloadError, setCvDownloadError] = useState<string | null>(null);
+
+    const handleDownloadCV = useCallback(async () => {
         if (!generatedCV) return;
+        setCvDownloadError(null);
         const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
-        downloadCVAsPDF({
-            cvData: generatedCV,
-            personalInfo: userProfile.personalInfo,
-            template: selectedTemplate,
-            font: selectedFont,
+        const result = await downloadCV({
             fileName: `${sanitize(userProfile.personalInfo.name)}_${sanitize(job.company)}_CV.pdf`,
-            jobDescription: job.jobDescription || job.snippet,
+            containerEl: cvPreviewRef.current,
         });
-    }, [generatedCV, userProfile, selectedTemplate, selectedFont, job]);
+        if (!result.ok) setCvDownloadError(result.error || 'Download failed.');
+    }, [generatedCV, userProfile, job]);
 
     const handleSaveCV = useCallback(() => {
         if (!generatedCV) return;
@@ -526,17 +527,24 @@ const JobPipelineModal: React.FC<JobPipelineModalProps> = ({
                                         </Button>
                                     </div>
 
+                                    {cvDownloadError && (
+                                        <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+                                            {cvDownloadError}
+                                        </div>
+                                    )}
                                     {/* CV Preview */}
                                     <div className="border-2 border-zinc-100 dark:border-neutral-700 rounded-2xl overflow-hidden">
                                         <div className="overflow-auto max-h-[600px]">
                                             <div className="scale-[0.7] origin-top-left" style={{ width: '142.857%' }}>
-                                                <CVPreview
-                                                    cvData={generatedCV}
-                                                    personalInfo={userProfile.personalInfo}
-                                                    template={selectedTemplate}
-                                                    font={selectedFont}
-                                                    jobDescription={job.jobDescription || job.snippet}
-                                                />
+                                                <div ref={cvPreviewRef} data-cv-preview-active="true">
+                                                    <CVPreview
+                                                        cvData={generatedCV}
+                                                        personalInfo={userProfile.personalInfo}
+                                                        template={selectedTemplate}
+                                                        font={selectedFont}
+                                                        jobDescription={job.jobDescription || job.snippet}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

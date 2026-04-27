@@ -45,11 +45,16 @@ export const isPlaywrightServerAvailable = async (): Promise<boolean> => {
  * send it as a self-contained HTML document to the Playwright server.
  * This guarantees the downloaded PDF matches the on-screen preview exactly:
  * colours, sidebar layouts, partitions, gradients, fonts — everything.
+ *
+ * Pass `containerEl` from modals/portals so we capture the right CVPreview when
+ * multiple are mounted (editor + preview modal).
  */
 export const downloadViaPlaywright = async (
     filename = 'cv.pdf',
+    containerEl?: HTMLElement | null,
 ): Promise<{ success: boolean; error?: string }> => {
     const fullHtml = await getCVHtml({
+        containerEl,
         extraStyles: `
             /* Force background colours to print */
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }

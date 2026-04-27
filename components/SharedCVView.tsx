@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
-import { downloadCVAsPDF } from '../services/pdfService';
-import type { FontName } from '../types';
+import { downloadCV } from '../services/cvDownloadService';
 
 interface SharedCVViewProps {
   cvData: CVData;
@@ -31,19 +30,26 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   onDismiss,
 }) => {
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [contactCopied, setContactCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
+  const previewRef = useRef<HTMLDivElement>(null);
 
   // When opened via a share link, onLoadIntoEditor is undefined (external viewer).
   // We hide the dismiss button for external viewers so they can't fall through to the workspace.
   const isOwner = !!onLoadIntoEditor;
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     setDownloading(true);
+    setDownloadError(null);
     try {
       const fileName = `${personalInfo.name.replace(/\s+/g, '_')}_CV.pdf`;
-      downloadCVAsPDF({ cvData, personalInfo, template, font: 'inter' as FontName, fileName });
+      const result = await downloadCV({
+        fileName,
+        containerEl: previewRef.current,
+      });
+      if (!result.ok) setDownloadError(result.error || 'Download failed.');
     } finally {
       setDownloading(false);
     }
@@ -239,8 +245,17 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
       {/* ── Document preview ── */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
+        {downloadError && (
+          <div className="mb-4 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
+            {downloadError}
+          </div>
+        )}
         {activeDoc === 'cv' ? (
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+          <div
+            ref={previewRef}
+            data-cv-preview-active="true"
+            className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden"
+          >
             <CVPreview
               cvData={cvData}
               personalInfo={personalInfo}
