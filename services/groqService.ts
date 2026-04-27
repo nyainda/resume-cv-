@@ -3,6 +3,12 @@ import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
 import { GoogleGenAI } from '@google/genai';
 
+// ── Active AI engine tracker ──────────────────────────────────────────────────
+// Updated every time groqChat() successfully returns via a particular backend.
+// Components can call getLastAiEngine() after generation to show which AI ran.
+let _lastAiEngine: string = 'Workers AI';
+export function getLastAiEngine(): string { return _lastAiEngine; }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Groq → Cloudflare Workers AI redirect (Apr 2026)
 //
@@ -534,6 +540,7 @@ export async function groqChat(
                 maxTokens: opts.maxTokens,
             });
             if (workerText && workerText.length > 0) {
+                _lastAiEngine = 'Workers AI';
                 storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, workerText);
                 return workerText;
             }
@@ -556,6 +563,7 @@ export async function groqChat(
             const groqResult = await retryGroq(() =>
                 openAiCompatChat(GROQ_API_URL, groqKey!, model, systemPrompt, userPrompt, opts, parseGroqError)
             );
+            _lastAiEngine = 'Groq';
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, groqResult);
             return groqResult;
         } catch (groqErr: any) {
@@ -579,6 +587,7 @@ export async function groqChat(
                         cerebrasKey, groqModelToCerebrasChain(model),
                         systemPrompt, userPrompt, opts
                     );
+                    _lastAiEngine = 'Cerebras';
                     storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
                     return cbResult;
                 } catch (cerebrasErr: any) {
@@ -589,6 +598,7 @@ export async function groqChat(
                         console.info('[AI] Cerebras also failed — falling back to Claude');
                         try {
                             const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+                            _lastAiEngine = 'Claude';
                             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
                             return clResult;
                         } catch { /* fall through to Gemini */ }
@@ -598,6 +608,7 @@ export async function groqChat(
                         console.info('[AI] Cerebras & Claude failed — last resort: Gemini');
                         try {
                             const gemResult2 = await geminiChat(systemPrompt, userPrompt, opts);
+                            _lastAiEngine = 'Gemini';
                             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult2);
                             return gemResult2;
                         } catch { /* fall through to throw */ }
@@ -614,6 +625,7 @@ export async function groqChat(
                     console.info('[AI] Groq 413 (content too large) — falling back to Claude (200K context)');
                     try {
                         const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+                        _lastAiEngine = 'Claude';
                         storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
                         return clResult;
                     } catch { /* fall through to Gemini */ }
@@ -623,6 +635,7 @@ export async function groqChat(
                     console.info('[AI] Groq 413 — Claude unavailable, falling back to Gemini (1M token context)');
                     try {
                         const gemResult = await geminiChat(systemPrompt, userPrompt, opts);
+                        _lastAiEngine = 'Gemini';
                         storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult);
                         return gemResult;
                     } catch { /* fall through to re-throw Groq error */ }
@@ -642,6 +655,7 @@ export async function groqChat(
                 cerebrasKey, groqModelToCerebrasChain(model),
                 systemPrompt, userPrompt, opts
             );
+            _lastAiEngine = 'Cerebras';
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
             return cbResult;
         } catch (cerebrasErr: any) {
@@ -652,6 +666,7 @@ export async function groqChat(
                 console.info('[AI] Cerebras failed — falling back to Claude');
                 try {
                     const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+                    _lastAiEngine = 'Claude';
                     storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
                     return clResult;
                 } catch { /* fall through to Gemini */ }
@@ -666,6 +681,7 @@ export async function groqChat(
         console.info('[AI] Workers AI quota exhausted — falling back to Claude (200K context)');
         try {
             const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+            _lastAiEngine = 'Claude';
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
             return clResult;
         } catch (clErr: any) {
@@ -680,6 +696,7 @@ export async function groqChat(
         console.info('[AI] Workers AI quota exhausted — falling back to Gemini (1M token context)');
         try {
             const geminiResult = await geminiChat(systemPrompt, userPrompt, opts);
+            _lastAiEngine = 'Gemini';
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, geminiResult);
             return geminiResult;
         } catch (geminiErr: any) {

@@ -3,6 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import { pdf } from '@react-pdf/renderer';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
+import { getLastAiEngine } from '../services/groqService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCV } from '../services/cvDownloadService';
@@ -260,6 +261,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [jdTier1Keywords, setJdTier1Keywords] = useState<string[]>([]);
 
+  // ── Active AI engine (shown as badge after generation) ──
+  const [lastEngine, setLastEngine] = useState<string | null>(null);
+
   // ── Auto-scroll to template preview after generation ──
   const [justGenerated, setJustGenerated] = useState(false);
   useEffect(() => {
@@ -369,6 +373,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
     if (generatedData) {
       setCurrentCV(generatedData);
+      setLastEngine(getLastAiEngine());
       setJustGenerated(true);
     }
 
@@ -959,6 +964,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </>
             ) : <><Sparkles className="h-5 w-5 mr-2" />Generate CV with AI</>}
           </Button>
+
+          {/* AI engine badge — shown after successful generation */}
+          {lastEngine && !isLoading && (() => {
+            const engineStyles: Record<string, { bg: string; text: string; dot: string; icon: string }> = {
+              'Workers AI': { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', icon: '⚡' },
+              'Groq':       { bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500', icon: '⚡' },
+              'Cerebras':   { bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300',   dot: 'bg-blue-500',   icon: '⚡' },
+              'Claude':     { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500',   icon: '🧠' },
+              'Gemini':     { bg: 'bg-teal-50 dark:bg-teal-900/20',   text: 'text-teal-700 dark:text-teal-300',   dot: 'bg-teal-500',   icon: '✨' },
+            };
+            const s = engineStyles[lastEngine] ?? engineStyles['Workers AI'];
+            return (
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                {s.icon} Generated via {lastEngine}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
