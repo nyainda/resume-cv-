@@ -535,6 +535,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-purple-100 dark:border-purple-900/40 p-3 space-y-1.5">
               {[
                 '🆓 Free tier via API (claude-haiku is very affordable)',
+                '✍️ CV generation fallback when Workers AI quota is full',
                 '🔍 Powers portal scan AI summaries & job scoring',
                 '🎯 ATS keyword gap analysis on job descriptions',
                 '🔒 Encrypted & stored securely in your browser',

@@ -1,4 +1,4 @@
-import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras, getGeminiKey as _rtGemini } from './security/RuntimeKeys';
+import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras, getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
 import { GoogleGenAI } from '@google/genai';
@@ -135,6 +135,83 @@ async function geminiChat(
     const text = response.text ?? '';
     if (!text) throw new Error('Gemini returned an empty response.');
     return text;
+}
+
+// ── Claude key retrieval ──────────────────────────────────────────────────────
+function getClaudeApiKey(): string | null {
+    const rt = _rtClaude();
+    if (rt) return rt;
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const parsed = JSON.parse(s);
+            if (parsed.claudeApiKey && !parsed.claudeApiKey.startsWith('enc:v1:')) return parsed.claudeApiKey.replace(/^"|"$/g, '');
+        }
+    } catch { /* ignore */ }
+    return null;
+}
+
+// ── Claude (Anthropic) chat — 200K token context window ──────────────────────
+// Uses claude-3-5-haiku for speed/cost; falls back to claude-3-5-sonnet on
+// overload so users who enter their key can always get a response.
+const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_HAIKU   = 'claude-3-5-haiku-20241022';
+const CLAUDE_SONNET  = 'claude-3-5-sonnet-20241022';
+
+async function callClaudeApi(
+    apiKey: string,
+    claudeModel: string,
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { temperature?: number; maxTokens?: number } = {},
+): Promise<string> {
+    const body: Record<string, unknown> = {
+        model: claudeModel,
+        max_tokens: opts.maxTokens ?? 4096,
+        temperature: opts.temperature ?? 0.3,
+        messages: [{ role: 'user', content: userPrompt }],
+    };
+    if (systemPrompt) body.system = systemPrompt;
+    const res = await fetch(CLAUDE_API_URL, {
+        method: 'POST',
+        headers: {
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        const raw = await res.text().catch(() => '');
+        let msg = '';
+        try { msg = JSON.parse(raw)?.error?.message || ''; } catch {}
+        const err: any = new Error(msg || `Claude API error (status ${res.status})`);
+        err.status = res.status;
+        throw err;
+    }
+    const data = await res.json();
+    const text = (data?.content?.[0]?.text as string) ?? '';
+    if (!text) throw new Error('Claude returned an empty response.');
+    return text;
+}
+
+async function claudeChat(
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { temperature?: number; maxTokens?: number } = {},
+): Promise<string> {
+    const apiKey = getClaudeApiKey();
+    if (!apiKey) throw new Error('No Claude API key configured — please add one in Settings.');
+    try {
+        return await callClaudeApi(apiKey, CLAUDE_HAIKU, systemPrompt, userPrompt, opts);
+    } catch (haikuErr: any) {
+        // On 529 (overloaded) or 503, try Sonnet before giving up
+        if (haikuErr?.status === 529 || haikuErr?.status === 503 || haikuErr?.status === 529) {
+            console.warn('[AI] Claude Haiku overloaded — retrying with Sonnet');
+            return await callClaudeApi(apiKey, CLAUDE_SONNET, systemPrompt, userPrompt, opts);
+        }
+        throw haikuErr;
+    }
 }
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
@@ -505,19 +582,45 @@ export async function groqChat(
                     storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
                     return cbResult;
                 } catch (cerebrasErr: any) {
-                    // Both providers failed — surface a clear combined error
-                    const err: any = new Error(
-                        'Both Groq and Cerebras are currently unavailable. Please try again in a minute.'
-                    );
+                    if (cerebrasErr?.isUserFacing) throw cerebrasErr;
+                    // Cerebras failed too — try Claude before giving up
+                    const clKey = getClaudeApiKey();
+                    if (clKey) {
+                        console.info('[AI] Cerebras also failed — falling back to Claude');
+                        try {
+                            const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
+                            return clResult;
+                        } catch { /* fall through to Gemini */ }
+                    }
+                    const gemKey2 = getGeminiApiKey();
+                    if (gemKey2) {
+                        console.info('[AI] Cerebras & Claude failed — last resort: Gemini');
+                        try {
+                            const gemResult2 = await geminiChat(systemPrompt, userPrompt, opts);
+                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult2);
+                            return gemResult2;
+                        } catch { /* fall through to throw */ }
+                    }
+                    const err: any = new Error('Groq, Cerebras, Claude and Gemini all failed. Please check your API keys in Settings.');
                     err.isUserFacing = true;
                     throw err;
                 }
             }
-            // For 413 (prompt too large for Groq), try Gemini — it handles up to 1M tokens
+            // For 413 (prompt too large for Groq), try Claude (200K) then Gemini (1M)
             if (isTooLarge) {
+                const clKey = getClaudeApiKey();
+                if (clKey) {
+                    console.info('[AI] Groq 413 (content too large) — falling back to Claude (200K context)');
+                    try {
+                        const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+                        storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
+                        return clResult;
+                    } catch { /* fall through to Gemini */ }
+                }
                 const gemKey = getGeminiApiKey();
                 if (gemKey) {
-                    console.info('[AI] Groq 413 (content too large) — falling back to Gemini (1M token context)');
+                    console.info('[AI] Groq 413 — Claude unavailable, falling back to Gemini (1M token context)');
                     try {
                         const gemResult = await geminiChat(systemPrompt, userPrompt, opts);
                         storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult);
@@ -525,7 +628,7 @@ export async function groqChat(
                     } catch { /* fall through to re-throw Groq error */ }
                 }
             }
-            // No Cerebras key and no viable fallback — re-throw the Groq error
+            // No viable fallback — re-throw the Groq error
             throw groqErr;
         }
     }
@@ -543,19 +646,38 @@ export async function groqChat(
             return cbResult;
         } catch (cerebrasErr: any) {
             if (cerebrasErr?.isUserFacing) throw cerebrasErr;
-            const err: any = new Error('Cerebras AI request failed. Please check your key in Settings.');
-            err.isUserFacing = true;
-            throw err;
+            // Cerebras failed — try Claude before giving up
+            const clKeyFallback = getClaudeApiKey();
+            if (clKeyFallback) {
+                console.info('[AI] Cerebras failed — falling back to Claude');
+                try {
+                    const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+                    storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
+                    return clResult;
+                } catch { /* fall through to Gemini */ }
+            }
+            // fall through to Gemini section below
         }
     }
 
-    // ── Gemini fallback (Workers AI quota exhausted, no Groq/Cerebras key) ───
-    // Gemini is already used for profile import, so the user very likely has
-    // a key configured. Use it as the last-resort backend so CV generation
-    // still works even when the Workers AI free tier runs out for the day.
+    // ── Claude fallback (no Groq/Cerebras key, or they failed) ───────────────
+    const claudeKeyDirect = getClaudeApiKey();
+    if (claudeKeyDirect) {
+        console.info('[AI] Workers AI quota exhausted — falling back to Claude (200K context)');
+        try {
+            const clResult = await claudeChat(systemPrompt, userPrompt, opts);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
+            return clResult;
+        } catch (clErr: any) {
+            if (clErr?.isUserFacing) throw clErr;
+            // fall through to Gemini
+        }
+    }
+
+    // ── Gemini fallback (Workers AI quota exhausted, no Groq/Cerebras/Claude) ─
     const geminiKey = getGeminiApiKey();
     if (geminiKey) {
-        console.info('[AI] Workers AI quota exhausted & no Groq key — falling back to Gemini');
+        console.info('[AI] Workers AI quota exhausted — falling back to Gemini (1M token context)');
         try {
             const geminiResult = await geminiChat(systemPrompt, userPrompt, opts);
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, geminiResult);
@@ -572,7 +694,7 @@ export async function groqChat(
 
     // ── Every path exhausted ─────────────────────────────────────────────────
     const err: any = new Error(
-        'The CV Engine is temporarily over its daily free quota. It resets each day — or add a Gemini key in Settings to continue generating CVs right now.'
+        'The CV Engine free quota is temporarily exhausted (resets daily). Add a Claude or Gemini key in Settings to keep generating CVs right now.'
     );
     err.isUserFacing = true;
     throw err;
