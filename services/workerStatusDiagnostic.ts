@@ -93,8 +93,12 @@ async function runChecks(): Promise<WorkerCheck[]> {
     const enginedConfigured = isCVEngineConfigured();
 
     const [pdfHealth, engineProbe] = await Promise.all([
-        pdfConfigured ? checkHealth(PDF_WORKER_URL) : Promise.resolve({ ok: false, status: 0 }),
-        enginedConfigured ? probeCVEngineLLM(CV_ENGINE_URL) : Promise.resolve({ ok: false, status: 0 }),
+        pdfConfigured
+            ? checkHealth(PDF_WORKER_URL)
+            : Promise.resolve({ ok: false, status: 0 } as { ok: boolean; status: number; note?: string }),
+        enginedConfigured
+            ? probeCVEngineLLM(CV_ENGINE_URL)
+            : Promise.resolve({ ok: false, status: 0 } as { ok: boolean; status: number; note?: string }),
     ]);
 
     return [
@@ -153,9 +157,78 @@ function printReport(checks: WorkerCheck[]): void {
     console.groupEnd();
 }
 
+// ─── In-app event surface ────────────────────────────────────────────────────
+// The console log is great for power users, but the average user never opens
+// DevTools. We re-publish the result as a `CustomEvent` so a banner component
+// (or any other UI) can listen for it and show a friendly message — most
+// importantly the daily Cloudflare Workers AI Neuron-quota exhaustion (error
+// 4006) which makes every CV generation silently fall back until 00:00 UTC.
+
+export type WorkerStatusReason = 'healthy' | 'quota_exhausted' | 'unreachable' | 'misconfigured';
+
+export interface WorkerStatusDetail {
+    healthy: boolean;
+    reason: WorkerStatusReason;
+    message: string;          // Short user-friendly sentence.
+    rawNote?: string;         // Original probe note for power users.
+}
+
+export const WORKER_STATUS_EVENT = 'procv:worker-status';
+
+// Module-level cache so late-mounting UI (e.g. WorkerStatusBanner that only
+// renders after the user leaves the landing page) can read the latest result
+// without waiting for the next `runAndPrint`.
+let latestStatus: WorkerStatusDetail | null = null;
+export function getLatestWorkerStatus(): WorkerStatusDetail | null {
+    return latestStatus;
+}
+
+function summarise(checks: WorkerCheck[]): WorkerStatusDetail {
+    const engine = checks.find((c) => c.name === 'CV Engine Worker');
+    if (!engine || !engine.configured) {
+        return {
+            healthy: false,
+            reason: 'misconfigured',
+            message: 'AI worker not configured. CV generation will use Gemini/Groq only.',
+            rawNote: engine?.note,
+        };
+    }
+    if (engine.reachable) {
+        return { healthy: true, reason: 'healthy', message: 'AI worker connected.' };
+    }
+    const note = (engine.note || '').toLowerCase();
+    const isQuota = note.includes('4006') || note.includes('neuron') || note.includes('daily free allocation');
+    if (isQuota) {
+        return {
+            healthy: false,
+            reason: 'quota_exhausted',
+            message: "Today's free AI budget is used up. CV generation will fall back to slower providers until the daily reset at 00:00 UTC.",
+            rawNote: engine.note,
+        };
+    }
+    return {
+        healthy: false,
+        reason: 'unreachable',
+        message: 'AI worker is unreachable. CV generation will fall back to Gemini/Groq.',
+        rawNote: engine.note,
+    };
+}
+
+function publish(checks: WorkerCheck[]): void {
+    if (typeof window === 'undefined') return;
+    const detail = summarise(checks);
+    latestStatus = detail;
+    try {
+        window.dispatchEvent(new CustomEvent<WorkerStatusDetail>(WORKER_STATUS_EVENT, { detail }));
+    } catch {
+        /* CustomEvent unsupported — silently ignore. */
+    }
+}
+
 async function runAndPrint(): Promise<WorkerCheck[]> {
     const checks = await runChecks();
     printReport(checks);
+    publish(checks);
     return checks;
 }
 

@@ -10,6 +10,7 @@ import { invalidateCVCache } from './services/geminiService';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/ui/Toast';
+import WorkerStatusBanner from './components/WorkerStatusBanner';
 import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SharedCVView from './components/SharedCVView';
@@ -764,6 +765,7 @@ const AppInner: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+      <WorkerStatusBanner />
       {sharedCVPayload && (
         <SharedCVView
           cvData={sharedCVPayload.cvData}
