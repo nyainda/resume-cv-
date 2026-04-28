@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "pdf-server": "node server-pdf.cjs",
     "check:cloudflare": "node scripts/check-cloudflare-connections.mjs",
-    "audit:rules": "node scripts/audit-rule-counts.mjs"
+    "audit:rules": "node scripts/audit-rule-counts.mjs",
+    "test:numbers": "tsx scripts/test-cv-number-fidelity.ts"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
