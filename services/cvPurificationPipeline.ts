@@ -976,8 +976,21 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
         /\s*\b(?:and|or|plus|including)\s+(?:a|an|the)\s+%(?!\w)/gi,
         ''
     );
-    // Standalone " %" or "% " not adjacent to a digit anywhere — just drop it.
-    out = out.replace(/(?<![\d.])\s*%(?!\w)/g, () => '');
+    // FINAL SWEEP: any "%" not directly preceded by a digit is orphan. By the
+    // time we get here, formatNumbers has already collapsed legitimate
+    // "5 %" → "5%" / "$ 1,000" → "$1,000", so this rule is safe to be aggressive.
+    // Catches:
+    //   "% growth"     (space before %)        → " growth"
+    //   "%growth"      (NO space, letter after) → "growth"   (was previously missed)
+    //   ".%"           (period before, no digit) → ""        (was previously missed)
+    //   "by  %"        (multiple spaces)        → "by"
+    //
+    // Pre-strip: a stray punctuation mark immediately before an orphan "%"
+    // ("delivered .% improvement", "saved KPI ,% on costs") — drop the punct
+    // BUT only when not part of a real number ("0.5%" → preserved because
+    // the lookbehind for the punct itself sees a digit).
+    out = out.replace(/(?<!\d)[.,;:]\s*(?=%)/g, '');
+    out = out.replace(/(?<!\d)\s*%\s*/g, ' ');
 
     // 3) Orphan currency symbol/code immediately followed by a non-digit.
     //    "saved KES on costs" → "saved on costs" (we'll let the surrounding
@@ -992,10 +1005,13 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
     //    bullet that ends or pivots on a hanging preposition: "reduced
     //    costs by ." or "improved efficiency by, then shipped X". Drop the
     //    dangling preposition + any whitespace before the next punctuation.
-    out = out.replace(
-        /\s+\b(?:by|from|to|of|with|over|under|reaching|achieving|approximately|around|about|roughly|nearly|almost|up\s+to)\b(?=\s*[,.;:!?]|\s*$)/gi,
-        '',
-    );
+    // Match dangling preposition either after whitespace OR at the very start
+    // of the field (so "by approximately" → strip "approximately" → "by" → strip "by").
+    // Run twice so a chain of prepositions ("by approximately") fully unwinds.
+    const danglingPrepRx =
+        /(?:\s+|^)\b(?:by|from|to|of|with|over|under|reaching|achieving|approximately|around|about|roughly|nearly|almost|up\s+to|through|via|while|during|across|within|including|featuring|representing|generating|delivering|producing)\b(?=\s*[,.;:!?]|\s*$)/gi;
+    out = out.replace(danglingPrepRx, '');
+    out = out.replace(danglingPrepRx, '');
 
     // 5) Tidy the side-effects: collapse double spaces, fix spacing before
     //    punctuation, fix orphan commas/empty parens, fix article disagreement
@@ -1145,9 +1161,12 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     apply('weird_opener',     rewriteWeirdOpeners);
     apply('weak_opener',      rewriteWeakOpener);
     apply('weak_qualifier',   stripWeakQualifiers);
+    // number_format MUST run before orphan_metric so legit "5 %" / "$ 1,000"
+    // get collapsed to "5%" / "$1,000" first — otherwise stripOrphanMetrics
+    // sees the space and treats them as orphans.
+    apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
-    apply('number_format',    formatNumbers);
     apply('trailing_period',  stripTrailingPeriod);
     apply('capitalise',       capitaliseFirst);
     return { text: cur, fixes };
@@ -1175,9 +1194,10 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
     // first_person SKIPPED — summary keeps its voice.
     // weak_opener  SKIPPED — paragraph, not a bullet.
     apply('weak_qualifier',   stripWeakQualifiers);
+    // number_format BEFORE orphan_metric — see polishBullet for rationale.
+    apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
-    apply('number_format',    formatNumbers);
     // trailing_period SKIPPED — summaries DO end with a period.
     apply('capitalise',       capitaliseFirst);
     return { text: cur, fixes };
