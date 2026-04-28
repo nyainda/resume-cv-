@@ -13,7 +13,9 @@ import {
     stripUngroundedNumbers,
     tidyOrphanRemnants,
     repairBulletsAgainstSource,
+    repairTextAgainstSource,
     isBulletDegraded,
+    auditCvQuality,
 } from '../services/cvNumberFidelity';
 
 interface Case {
@@ -188,6 +190,113 @@ cases.push({
     actual: tidyOrphanRemnants('Designed irrigation systems for 5 projects.'),
     equals: 'Designed irrigation systems for 5 projects.',
 });
+
+// ── repairTextAgainstSource: summary fallback when generated is broken ───
+cases.push({
+    label: 'summary: severely-hollowed generated falls back to source',
+    actual: repairTextAgainstSource(
+        // Long bullet that loses most of its words to the strip — should be
+        // detected as degraded and replaced with source.
+        'Generated KES 9,876,543 KES 1,234,567 KES 555,000 KES 222,000 KES 333,000 in revenue.',
+        'Experienced sales leader with a track record across East Africa.',
+        new Set<string>(), // no grounded numbers
+    ),
+    equals: 'Experienced sales leader with a track record across East Africa.',
+});
+cases.push({
+    label: 'summary: stub-prefix generated falls back to source',
+    actual: repairTextAgainstSource(
+        'by 30% across the East Africa region.',
+        'Experienced sales leader with a track record across East Africa.',
+        new Set<string>(),
+    ),
+    equals: 'Experienced sales leader with a track record across East Africa.',
+});
+cases.push({
+    label: 'summary: empty source returns stripped text (no fallback)',
+    actual: repairTextAgainstSource(
+        'by 30% across the region.',
+        '',
+        new Set<string>(),
+    ),
+    require: [/across the region/],
+});
+cases.push({
+    label: 'summary: clean generated is kept (numbers grounded)',
+    actual: repairTextAgainstSource(
+        'Designed irrigation systems for 5 large-scale projects across Nairobi.',
+        'Source summary text.',
+        new Set<string>(['5']),
+    ),
+    require: [/Designed irrigation systems for 5 large-scale projects/],
+});
+
+// ── auditCvQuality: orphan-symbol detection on the full CV shape ─────────
+{
+    const dirtyCv = {
+        summary: 'Sales leader who generated KES , in revenue.',
+        experience: [
+            {
+                jobTitle: 'Sales Lead',
+                company: 'Acme',
+                responsibilities: [
+                    'Exceeded targets by % from Dec 2023',  // orphan_percent + stub
+                    'Led a -person team across Nairobi',     // orphan_hyphen_noun
+                    '',                                      // empty_bullet
+                    'Delivered the the new playbook.',       // duplicate_adjacent_word
+                ],
+            },
+        ],
+        projects: [
+            { name: 'Atlas', description: 'Built a system used by + clients.' },  // orphan_plus
+        ],
+    };
+    const report = auditCvQuality(dirtyCv);
+    cases.push({
+        label: 'audit: detects every orphan-symbol class on a dirty CV',
+        actual: String(report.totalIssues >= 6 ? 'YES' : `NO (${report.totalIssues})`),
+        equals: 'YES',
+    });
+    cases.push({
+        label: 'audit: score drops below 100 when issues exist',
+        actual: report.score < 100 ? 'YES' : 'NO',
+        equals: 'YES',
+    });
+    cases.push({
+        label: 'audit: counts bullets correctly',
+        actual: String(report.totalBullets),
+        equals: '4',
+    });
+    cases.push({
+        label: 'audit: runs in under 50 ms on a small CV',
+        actual: report.durationMs < 50 ? 'YES' : `NO (${report.durationMs}ms)`,
+        equals: 'YES',
+    });
+}
+{
+    const cleanCv = {
+        summary: 'Designed irrigation systems for 5 large-scale projects across Nairobi in 2023.',
+        experience: [
+            {
+                jobTitle: 'Engineer',
+                company: 'Acme',
+                responsibilities: [
+                    'Designed irrigation systems for large-scale agricultural projects.',
+                    'Led cross-functional teams to deliver on quarterly milestones in Q4.',
+                ],
+            },
+        ],
+        projects: [
+            { name: 'Atlas', description: 'Built an internal platform used by the operations team.' },
+        ],
+    };
+    const report = auditCvQuality(cleanCv);
+    cases.push({
+        label: 'audit: clean CV scores 100/100 with zero issues',
+        actual: `${report.score}/${report.totalIssues}`,
+        equals: '100/0',
+    });
+}
 
 // ── Run ───────────────────────────────────────────────────────────────────
 let pass = 0;

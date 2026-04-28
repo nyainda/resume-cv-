@@ -227,3 +227,188 @@ export function repairBulletsAgainstSource(
     }
     return out;
 }
+
+/**
+ * Apply the same strip + fallback logic to a single free-text block (the
+ * professional summary, project description, etc.). Returns the cleaned
+ * generated text, or — if it would come out broken — the source fallback
+ * verbatim. Returns the original generated text only if no fallback exists.
+ */
+export function repairTextAgainstSource(
+    generatedText: string,
+    sourceText: string,
+    sourceNumberTokens: Set<string>,
+): string {
+    const original = String(generatedText || '');
+    const stripped = stripUngroundedNumbers(original, sourceNumberTokens);
+    if (!isBulletDegraded(stripped, original)) return stripped;
+    const fallback = String(sourceText || '').trim();
+    return fallback || stripped;
+}
+
+// ── Output quality audit ──────────────────────────────────────────────────
+//
+// Cheap, deterministic post-flight check that runs on the FINAL CV after
+// every fidelity pass. Pure regex, O(total characters), no LLM calls. Used
+// to surface any orphan-symbol garbage that slipped through the pipeline so
+// regressions are visible in the console immediately.
+
+export type CvQualityIssueKind =
+    | 'orphan_currency_comma'   // "KES ," / "$ ,"
+    | 'orphan_currency_word'    // "of KES" with no number after
+    | 'orphan_percent'          // " %" not preceded by a digit
+    | 'orphan_plus'             // " + " between words
+    | 'orphan_hyphen_noun'      // " -person" not preceded by a digit
+    | 'orphan_dollar'           // "$ " followed by non-digit
+    | 'stub_bullet'             // bullet starts with a preposition
+    | 'empty_bullet'            // bullet is empty/whitespace
+    | 'duplicate_adjacent_word' // "the the", "and and"
+    | 'mid_sentence_period';    // ". " followed by lowercase letter
+
+export interface CvQualityIssue {
+    kind: CvQualityIssueKind;
+    where: string;
+    snippet: string;
+}
+
+export interface CvQualityReport {
+    score: number;          // 0–100, higher is better
+    totalBullets: number;
+    totalIssues: number;
+    issues: CvQualityIssue[];
+    durationMs: number;
+}
+
+interface CvLikeForAudit {
+    summary?: string;
+    experience?: Array<{
+        jobTitle?: string;
+        company?: string;
+        responsibilities?: string[];
+    }>;
+    projects?: Array<{ name?: string; description?: string }>;
+}
+
+const ORPHAN_PROBES: Array<{ kind: CvQualityIssueKind; rx: RegExp }> = [
+    { kind: 'orphan_currency_comma', rx: /\b(?:USD|EUR|GBP|KES|KSH|NGN|ZAR|GHS|UGX|TZS|RWF|XOF|XAF|JPY|CNY|INR|AUD|CAD|CHF|AED|KSh|Ksh)\s*,/ },
+    { kind: 'orphan_currency_comma', rx: /[$€£₦₹¥]\s*,/ },
+    { kind: 'orphan_currency_word', rx: /\b(?:of|by|to|with|at|from|for)\s+(?:USD|EUR|GBP|KES|KSH|NGN|ZAR|GHS|UGX|TZS|RWF|XOF|XAF|JPY|CNY|INR|AUD|CAD|CHF|AED|KSh|Ksh)\b(?!\s*[\d$€£₦₹¥])/ },
+    { kind: 'orphan_percent', rx: /(?<!\d)\s%(?!\w)/ },
+    { kind: 'orphan_percent', rx: /\b(?:by|of|to|with|at|achieving|reaching)\s+%(?!\w)/i },
+    { kind: 'orphan_plus', rx: /\b(?:of|with|by|over|under|across)\s+\+\s+/i },
+    { kind: 'orphan_plus', rx: /(^|\s)\+\s+(?=[a-zA-Z])/ },
+    { kind: 'orphan_hyphen_noun', rx: /\b(a|an|the)\s+-(?:person|people|day|days|week|weeks|month|months|year|years|strong|fold|member|members|hour|hours)\b/i },
+    { kind: 'orphan_dollar', rx: /[$€£₦₹¥]\s+(?=[A-Za-z])/ },
+    { kind: 'duplicate_adjacent_word', rx: /\b(\w+)\s+\1\b/i },
+    { kind: 'mid_sentence_period', rx: /\.\s+[a-z]/ },
+];
+
+const STUB_FIRST_WORDS = new Set([
+    'by', 'of', 'to', 'with', 'at', 'from', 'for', 'in', 'on',
+    'across', 'over', 'under', 'above', 'below',
+]);
+
+function snippetAround(text: string, idx: number, span = 40): string {
+    const start = Math.max(0, idx - span);
+    const end = Math.min(text.length, idx + span);
+    return (start > 0 ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : '');
+}
+
+function probeText(text: string, where: string, issues: CvQualityIssue[]): void {
+    if (!text) return;
+    for (const probe of ORPHAN_PROBES) {
+        const m = probe.rx.exec(text);
+        if (m) {
+            issues.push({
+                kind: probe.kind,
+                where,
+                snippet: snippetAround(text, m.index ?? 0),
+            });
+        }
+    }
+}
+
+export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
+    const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const issues: CvQualityIssue[] = [];
+    let totalBullets = 0;
+
+    if (typeof cv.summary === 'string') {
+        probeText(cv.summary, 'summary', issues);
+    }
+
+    const experience = cv.experience || [];
+    for (let i = 0; i < experience.length; i++) {
+        const role = experience[i] || {};
+        const label = `experience[${i}] ${role.jobTitle || '?'} @ ${role.company || '?'}`;
+        const bullets = Array.isArray(role.responsibilities) ? role.responsibilities : [];
+        for (let j = 0; j < bullets.length; j++) {
+            const b = String(bullets[j] || '');
+            totalBullets++;
+            const where = `${label}#${j}`;
+            const trimmed = b.trim();
+            if (!trimmed) {
+                issues.push({ kind: 'empty_bullet', where, snippet: '' });
+                continue;
+            }
+            const firstWord = trimmed.replace(/^[\s•\-*·»"']+/, '').split(/\s+/)[0]?.toLowerCase();
+            if (firstWord && STUB_FIRST_WORDS.has(firstWord)) {
+                issues.push({ kind: 'stub_bullet', where, snippet: trimmed.slice(0, 80) });
+            }
+            probeText(b, where, issues);
+        }
+    }
+
+    const projects = cv.projects || [];
+    for (let i = 0; i < projects.length; i++) {
+        const p = projects[i] || {};
+        const label = `projects[${i}] ${p.name || '?'}`;
+        if (typeof p.description === 'string') {
+            probeText(p.description, label, issues);
+        }
+    }
+
+    const totalIssues = issues.length;
+    // Score: 100 minus 8 per issue, floored at 0.
+    const score = Math.max(0, 100 - totalIssues * 8);
+    const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+    return { score, totalBullets, totalIssues, issues, durationMs };
+}
+
+/**
+ * Convenience wrapper that runs auditCvQuality and emits a single-line
+ * console summary plus per-issue warnings only when issues are found.
+ * Safe to call from inside finalizeCvData — it never throws and it never
+ * mutates the CV.
+ */
+export function logCvQualityReport(cv: CvLikeForAudit, contextLabel = 'CV'): CvQualityReport {
+    let report: CvQualityReport;
+    try {
+        report = auditCvQuality(cv);
+    } catch {
+        return { score: 0, totalBullets: 0, totalIssues: 0, issues: [], durationMs: 0 };
+    }
+    const ms = report.durationMs.toFixed(1);
+    if (report.totalIssues === 0) {
+        // Quiet success line so users can confirm the audit ran.
+        // eslint-disable-next-line no-console
+        console.info(`[CV Quality] ${contextLabel}: score 100/100 across ${report.totalBullets} bullet(s) in ${ms}ms`);
+        return report;
+    }
+    // eslint-disable-next-line no-console
+    console.warn(
+        `[CV Quality] ${contextLabel}: score ${report.score}/100 — ${report.totalIssues} issue(s) across ${report.totalBullets} bullet(s) in ${ms}ms`,
+    );
+    // Surface up to 6 issues so the console doesn't get spammed on a really
+    // bad CV; the rest are still in the returned report for callers who want
+    // them (telemetry, tests, etc.).
+    for (const issue of report.issues.slice(0, 6)) {
+        // eslint-disable-next-line no-console
+        console.warn(`  • [${issue.kind}] ${issue.where}: "${issue.snippet}"`);
+    }
+    if (report.issues.length > 6) {
+        // eslint-disable-next-line no-console
+        console.warn(`  …and ${report.issues.length - 6} more (see returned report)`);
+    }
+    return report;
+}

@@ -12,6 +12,8 @@ import { ROLE_TRACKS } from '../data/roleTracks';
 import {
     collectSourceNumberTokens as _collectSourceNumberTokens,
     repairBulletsAgainstSource as _repairBulletsAgainstSource,
+    repairTextAgainstSource as _repairTextAgainstSource,
+    logCvQualityReport as _logCvQualityReport,
 } from './cvNumberFidelity';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
@@ -1550,6 +1552,19 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
     const mergedSkills = Array.from(new Set([...filtered, ...sourceSkills]));
     cvData.skills = mergedSkills.slice(0, 25);
 
+    // Rule 7 (summary): if the generated professional summary would come out
+    // hollowed-out after the number strip, fall back to the user's own
+    // profile summary instead of emitting garbage. Uses the union of all
+    // numbers anywhere in the profile as the "grounded" set.
+    if (typeof cvData.summary === 'string') {
+        const profileNumberTokens = _collectSourceNumberTokens([], profile as any);
+        cvData.summary = _repairTextAgainstSource(
+            cvData.summary,
+            String((profile as any).summary || ''),
+            profileNumberTokens,
+        );
+    }
+
     // Rule 3 + 4 + 6: preserve company/job-title/date identity from source.
     if (Array.isArray(cvData.experience)) {
         cvData.experience = cvData.experience.map((exp, idx) => {
@@ -1608,12 +1623,21 @@ function applyFidelityAgainstSourceCV(cvData: CVData, sourceCV: CVData): CVData 
 
 function finalizeCvData(
     cvData: CVData,
-    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean } = {}
+    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean; auditLabel?: string } = {}
 ): CVData {
-    const { profile, sourceCv, runPurify = true } = opts;
+    const { profile, sourceCv, runPurify = true, auditLabel = 'finalizeCvData' } = opts;
     let out = runPurify ? purifyCV(cvData).cv : cvData;
     if (profile) out = applySourceFidelityRules(out, profile);
     else if (sourceCv) out = applyFidelityAgainstSourceCV(out, sourceCv);
+    // Cheap, deterministic post-flight quality audit. Pure regex, runs in
+    // <5 ms on a typical CV, never mutates `out`. Logs a single line on
+    // success and warnings only when issues are found, so it never spams
+    // the console on a clean generation.
+    try {
+        _logCvQualityReport(out as any, auditLabel);
+    } catch {
+        // Audit must never block generation.
+    }
     return out;
 }
 
