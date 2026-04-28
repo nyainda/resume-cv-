@@ -23,6 +23,8 @@ const SENSITIVE_FIELDS: string[] = [
     'apiKey',
     'groqApiKey',
     'cerebrasApiKey',
+    'openrouterApiKey',
+    'togetherApiKey',
     'claudeApiKey',
     'tavilyApiKey',
     'brevoApiKey',

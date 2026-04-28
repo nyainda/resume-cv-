@@ -304,13 +304,15 @@ const AppInner: React.FC = () => {
           const s = decrypted as ApiSettings;
           setApiSettings(s);
           setRuntimeKeys({
-            apiKey:          s.apiKey              ?? null,
-            groqApiKey:      s.groqApiKey          ?? null,
-            cerebrasApiKey:  (s as any).cerebrasApiKey ?? null,
-            claudeApiKey:    (s as any).claudeApiKey   ?? null,
-            tavilyApiKey:    (s as any).tavilyApiKey   ?? null,
-            brevoApiKey:     (s as any).brevoApiKey    ?? null,
-            jsearchApiKey:   (s as any).jsearchApiKey  ?? null,
+            apiKey:           s.apiKey              ?? null,
+            groqApiKey:       s.groqApiKey          ?? null,
+            cerebrasApiKey:   (s as any).cerebrasApiKey   ?? null,
+            openrouterApiKey: (s as any).openrouterApiKey ?? null,
+            togetherApiKey:   (s as any).togetherApiKey   ?? null,
+            claudeApiKey:     (s as any).claudeApiKey     ?? null,
+            tavilyApiKey:     (s as any).tavilyApiKey     ?? null,
+            brevoApiKey:      (s as any).brevoApiKey      ?? null,
+            jsearchApiKey:    (s as any).jsearchApiKey    ?? null,
           });
         }
       } catch {
@@ -401,13 +403,15 @@ const AppInner: React.FC = () => {
       setRawApiSettings(encrypted as unknown as ApiSettings);
       setApiSettings(plaintext);
       setRuntimeKeys({
-        apiKey:          plaintext.apiKey                    ?? null,
-        groqApiKey:      plaintext.groqApiKey                ?? null,
-        cerebrasApiKey:  (plaintext as any).cerebrasApiKey  ?? null,
-        claudeApiKey:    (plaintext as any).claudeApiKey    ?? null,
-        tavilyApiKey:    (plaintext as any).tavilyApiKey    ?? null,
-        brevoApiKey:     (plaintext as any).brevoApiKey     ?? null,
-        jsearchApiKey:   (plaintext as any).jsearchApiKey   ?? null,
+        apiKey:           plaintext.apiKey                     ?? null,
+        groqApiKey:       plaintext.groqApiKey                 ?? null,
+        cerebrasApiKey:   (plaintext as any).cerebrasApiKey   ?? null,
+        openrouterApiKey: (plaintext as any).openrouterApiKey ?? null,
+        togetherApiKey:   (plaintext as any).togetherApiKey   ?? null,
+        claudeApiKey:     (plaintext as any).claudeApiKey     ?? null,
+        tavilyApiKey:     (plaintext as any).tavilyApiKey     ?? null,
+        brevoApiKey:      (plaintext as any).brevoApiKey      ?? null,
+        jsearchApiKey:    (plaintext as any).jsearchApiKey    ?? null,
       });
     } catch {
       // Fallback: save without encryption rather than silently fail

@@ -1,4 +1,4 @@
-import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras, getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
+import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras, getGeminiKey as _rtGemini, getClaudeKey as _rtClaude, getOpenRouterKey as _rtOpenRouter, getTogetherKey as _rtTogether } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
 import { GoogleGenAI } from '@google/genai';
@@ -33,8 +33,10 @@ function groqModelToWorkerTask(groqModel: string): string {
     return 'general';
 }
 
-const GROQ_API_URL     = 'https://api.groq.com/openai/v1/chat/completions';
-const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
+const GROQ_API_URL       = 'https://api.groq.com/openai/v1/chat/completions';
+const CEREBRAS_API_URL   = 'https://api.cerebras.ai/v1/chat/completions';
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const TOGETHER_API_URL   = 'https://api.together.xyz/v1/chat/completions';
 
 export const GROQ_LARGE = 'llama-3.3-70b-versatile';
 export const GROQ_FAST  = 'llama-3.1-8b-instant';
@@ -50,6 +52,39 @@ function groqModelToCerebrasChain(groqModel: string): string[] {
     if (groqModel === GROQ_LARGE) return CEREBRAS_LARGE_CHAIN;
     if (groqModel === GROQ_FAST)  return CEREBRAS_FAST_CHAIN;
     return CEREBRAS_FAST_CHAIN;
+}
+
+// ── OpenRouter free-tier models (separate daily quota from CF Workers AI) ─
+// Each entry is tried in order; "404 / no longer available" cycles to the next.
+// All `:free` variants — no spend on the user's OpenRouter account.
+const OPENROUTER_LARGE_CHAIN = [
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'qwen/qwen-2.5-72b-instruct:free',
+    'google/gemma-3-27b-it:free',
+];
+const OPENROUTER_FAST_CHAIN = [
+    'meta-llama/llama-3.2-3b-instruct:free',
+    'mistralai/mistral-small-3.1-24b-instruct:free',
+];
+function groqModelToOpenRouterChain(groqModel: string): string[] {
+    if (groqModel === GROQ_LARGE) return OPENROUTER_LARGE_CHAIN;
+    if (groqModel === GROQ_FAST)  return OPENROUTER_FAST_CHAIN;
+    return OPENROUTER_FAST_CHAIN;
+}
+
+// ── Together.ai free-tier models (Llama 3.3 70B Turbo Free is genuinely free) ─
+const TOGETHER_LARGE_CHAIN = [
+    'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free',
+    'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+];
+const TOGETHER_FAST_CHAIN = [
+    'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+    'meta-llama/Llama-3.2-3B-Instruct-Turbo',
+];
+function groqModelToTogetherChain(groqModel: string): string[] {
+    if (groqModel === GROQ_LARGE) return TOGETHER_LARGE_CHAIN;
+    if (groqModel === GROQ_FAST)  return TOGETHER_FAST_CHAIN;
+    return TOGETHER_FAST_CHAIN;
 }
 
 export function getGroqApiKey(): string {
@@ -97,9 +132,45 @@ export function hasCerebrasKey(): boolean {
     return !!getCerebrasApiKey();
 }
 
+// ── OpenRouter key retrieval ─────────────────────────────────────────────────
+export function getOpenRouterApiKey(): string | null {
+    const rt = _rtOpenRouter();
+    if (rt) return rt;
+    try {
+        const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (settingsString) {
+            const s = JSON.parse(settingsString);
+            if (s.openrouterApiKey && !s.openrouterApiKey.startsWith('enc:v1:')) return s.openrouterApiKey.replace(/^"|"$/g, '');
+        }
+        const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
+        if (providerKeys.openrouter && !providerKeys.openrouter.startsWith('enc:v1:')) return providerKeys.openrouter.replace(/^"|"$/g, '');
+    } catch {}
+    return null;
+}
+
+export function hasOpenRouterKey(): boolean { return !!getOpenRouterApiKey(); }
+
+// ── Together.ai key retrieval ────────────────────────────────────────────────
+export function getTogetherApiKey(): string | null {
+    const rt = _rtTogether();
+    if (rt) return rt;
+    try {
+        const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (settingsString) {
+            const s = JSON.parse(settingsString);
+            if (s.togetherApiKey && !s.togetherApiKey.startsWith('enc:v1:')) return s.togetherApiKey.replace(/^"|"$/g, '');
+        }
+        const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
+        if (providerKeys.together && !providerKeys.together.startsWith('enc:v1:')) return providerKeys.together.replace(/^"|"$/g, '');
+    } catch {}
+    return null;
+}
+
+export function hasTogetherKey(): boolean { return !!getTogetherApiKey(); }
+
 /** True when at least one text-generation key is available */
 export function hasAnyLlmKey(): boolean {
-    return hasGroqKey() || hasCerebrasKey();
+    return hasGroqKey() || hasCerebrasKey() || hasOpenRouterKey() || hasTogetherKey();
 }
 
 // ── Gemini key retrieval (last-resort fallback, no circular import) ──────────
@@ -305,6 +376,89 @@ function parseCerebrasError(status: number, rawBody: string): string {
     return apiMsg ? apiMsg.substring(0, 120) : `Cerebras request failed (status ${status}). Please try again.`;
 }
 
+// ── OpenRouter / Together error parsers ───────────────────────────────────
+function parseOpenRouterError(status: number, rawBody: string): string {
+    let apiMsg = '';
+    try {
+        const parsed = JSON.parse(rawBody);
+        apiMsg = parsed?.error?.message || parsed?.message || '';
+    } catch {}
+    const m = apiMsg.toLowerCase();
+    if (status === 404 || m.includes('not a valid model') || m.includes('no endpoints found')) {
+        return 'OpenRouter model not available right now — the app will retry with an alternative free model.';
+    }
+    if (status === 429 || m.includes('rate') || m.includes('quota')) {
+        return 'OpenRouter free-tier daily limit reached. Resets at 00:00 UTC.';
+    }
+    if (status === 401 || status === 403 || m.includes('invalid') || m.includes('unauthorized')) {
+        return 'Invalid OpenRouter API key — please check it in Settings.';
+    }
+    if (status === 402 || m.includes('insufficient') || m.includes('credit')) {
+        return 'OpenRouter requires credits for this model — switching to a free alternative.';
+    }
+    if (status === 503 || m.includes('overload') || m.includes('unavailable')) {
+        return 'OpenRouter upstream is temporarily overloaded. Please try again shortly.';
+    }
+    return apiMsg ? apiMsg.substring(0, 140) : `OpenRouter request failed (status ${status}).`;
+}
+
+function parseTogetherError(status: number, rawBody: string): string {
+    let apiMsg = '';
+    try {
+        const parsed = JSON.parse(rawBody);
+        apiMsg = parsed?.error?.message || parsed?.message || '';
+    } catch {}
+    const m = apiMsg.toLowerCase();
+    if (status === 404 || m.includes('model') && m.includes('not found')) {
+        return 'Together.ai model not available — the app will retry with an alternative.';
+    }
+    if (status === 429 || m.includes('rate') || m.includes('quota')) {
+        return 'Together.ai free-tier rate limit reached. Please wait a moment.';
+    }
+    if (status === 401 || status === 403 || m.includes('invalid') || m.includes('unauthorized')) {
+        return 'Invalid Together.ai API key — please check it in Settings.';
+    }
+    if (status === 402 || m.includes('insufficient') || m.includes('credit')) {
+        return 'Together.ai free credit exhausted — switching to alternative provider.';
+    }
+    if (status === 503 || m.includes('overload') || m.includes('unavailable')) {
+        return 'Together.ai is temporarily overloaded. Please try again shortly.';
+    }
+    return apiMsg ? apiMsg.substring(0, 140) : `Together.ai request failed (status ${status}).`;
+}
+
+/**
+ * Generic OpenAI-compatible chain runner — tries each model in order, moving
+ * on when the upstream returns 404 (model unavailable) or 402 (paid model).
+ * Used by OpenRouter and Together.ai which both rotate free models frequently.
+ */
+async function callOpenAiCompatChain(
+    providerLabel: string,
+    url: string,
+    apiKey: string,
+    modelChain: string[],
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { temperature?: number; json?: boolean; maxTokens?: number },
+    errorParser: (status: number, body: string) => string,
+): Promise<string> {
+    let lastErr: any = null;
+    for (let i = 0; i < modelChain.length; i++) {
+        const model = modelChain[i];
+        try {
+            const result = await openAiCompatChat(url, apiKey, model, systemPrompt, userPrompt, opts, errorParser);
+            if (i > 0) console.info(`[AI] ${providerLabel} fell back to model "${model}" (earlier IDs returned 404/402).`);
+            return result;
+        } catch (err: any) {
+            lastErr = err;
+            // Cycle on "model unavailable" (404) or "model requires credits" (402) — every other error stops the chain.
+            if (err?.status !== 404 && err?.status !== 402) throw err;
+            console.warn(`[AI] ${providerLabel} model "${model}" returned ${err.status} — trying next in chain.`);
+        }
+    }
+    throw lastErr ?? new Error(`No ${providerLabel} model in the fallback chain succeeded.`);
+}
+
 /**
  * Calls Cerebras with a model-fallback chain. If the configured model 404s
  * (Cerebras occasionally renames models), the next model in the chain is tried
@@ -383,7 +537,7 @@ async function callCerebrasWithFallback(
  * Returns { ok: true } on success, or { ok: false, error: string } on any failure.
  * Used by the Settings "Test connection" buttons.
  */
-export async function testProviderConnection(provider: 'groq' | 'cerebras'): Promise<{ ok: boolean; error?: string; model?: string }> {
+export async function testProviderConnection(provider: 'groq' | 'cerebras' | 'openrouter' | 'together'): Promise<{ ok: boolean; error?: string; model?: string }> {
     try {
         if (provider === 'groq') {
             const key = getGroqApiKey();
@@ -394,6 +548,31 @@ export async function testProviderConnection(provider: 'groq' | 'cerebras'): Pro
             );
             return { ok: true, model: GROQ_FAST };
         }
+
+        if (provider === 'openrouter') {
+            const orKey = getOpenRouterApiKey();
+            if (!orKey) return { ok: false, error: 'No OpenRouter key set.' };
+            const usedModel = await callOpenAiCompatChain(
+                'OpenRouter', OPENROUTER_API_URL, orKey,
+                OPENROUTER_FAST_CHAIN,
+                'You are a connection test.', 'Reply with the single word OK.',
+                { temperature: 0, maxTokens: 5 }, parseOpenRouterError
+            ).then(() => OPENROUTER_FAST_CHAIN[0]);
+            return { ok: true, model: usedModel };
+        }
+
+        if (provider === 'together') {
+            const tgKey = getTogetherApiKey();
+            if (!tgKey) return { ok: false, error: 'No Together.ai key set.' };
+            const usedModel = await callOpenAiCompatChain(
+                'Together.ai', TOGETHER_API_URL, tgKey,
+                TOGETHER_FAST_CHAIN,
+                'You are a connection test.', 'Reply with the single word OK.',
+                { temperature: 0, maxTokens: 5 }, parseTogetherError
+            ).then(() => TOGETHER_FAST_CHAIN[0]);
+            return { ok: true, model: usedModel };
+        }
+
         const cKey = getCerebrasApiKey();
         if (!cKey) return { ok: false, error: 'No Cerebras key set.' };
 
@@ -592,8 +771,45 @@ export async function groqChat(
                     storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
                     return cbResult;
                 } catch (cerebrasErr: any) {
+                    if (cerebrasErr?.isUserFacing && cerebrasErr?.status !== 429) {
+                        // Hard failure (bad key etc.) — but still try the cheap free providers below before throwing.
+                    }
+                    // Try OpenRouter (separate daily quota from CF/Groq/Cerebras)
+                    const orKey = getOpenRouterApiKey();
+                    if (orKey) {
+                        console.info('[AI] Cerebras failed — falling back to OpenRouter (free tier)');
+                        try {
+                            const orResult = await callOpenAiCompatChain(
+                                'OpenRouter', OPENROUTER_API_URL, orKey,
+                                groqModelToOpenRouterChain(model),
+                                systemPrompt, userPrompt, opts, parseOpenRouterError
+                            );
+                            _lastAiEngine = 'OpenRouter';
+                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, orResult);
+                            return orResult;
+                        } catch (orErr: any) {
+                            console.warn('[AI] OpenRouter also failed:', orErr?.message);
+                        }
+                    }
+                    // Try Together.ai (separate free quota again)
+                    const tgKey = getTogetherApiKey();
+                    if (tgKey) {
+                        console.info('[AI] OpenRouter failed/missing — falling back to Together.ai (free tier)');
+                        try {
+                            const tgResult = await callOpenAiCompatChain(
+                                'Together.ai', TOGETHER_API_URL, tgKey,
+                                groqModelToTogetherChain(model),
+                                systemPrompt, userPrompt, opts, parseTogetherError
+                            );
+                            _lastAiEngine = 'Together.ai';
+                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, tgResult);
+                            return tgResult;
+                        } catch (tgErr: any) {
+                            console.warn('[AI] Together.ai also failed:', tgErr?.message);
+                        }
+                    }
                     if (cerebrasErr?.isUserFacing) throw cerebrasErr;
-                    // Cerebras failed too — try Claude before giving up
+                    // Then try Claude before giving up
                     const clKey = getClaudeApiKey();
                     if (clKey) {
                         console.info('[AI] Cerebras also failed — falling back to Claude');
@@ -660,23 +876,52 @@ export async function groqChat(
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
             return cbResult;
         } catch (cerebrasErr: any) {
-            if (cerebrasErr?.isUserFacing) throw cerebrasErr;
-            // Cerebras failed — try Claude before giving up
-            const clKeyFallback = getClaudeApiKey();
-            if (clKeyFallback) {
-                console.info('[AI] Cerebras failed — falling back to Claude');
-                try {
-                    const clResult = await claudeChat(systemPrompt, userPrompt, opts);
-                    _lastAiEngine = 'Claude';
-                    storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
-                    return clResult;
-                } catch { /* fall through to Gemini */ }
+            if (cerebrasErr?.isUserFacing) {
+                // Don't bail yet — OpenRouter and Together each have their own free quota.
             }
-            // fall through to Gemini section below
+            // fall through to OpenRouter / Together / Claude / Gemini below
         }
     }
 
-    // ── Claude fallback (no Groq/Cerebras key, or they failed) ───────────────
+    // ── OpenRouter (free tier, separate daily quota) ─────────────────────────
+    const openrouterKey = getOpenRouterApiKey();
+    if (openrouterKey) {
+        console.info('[AI] Trying OpenRouter (free tier, separate daily quota)');
+        try {
+            const orResult = await callOpenAiCompatChain(
+                'OpenRouter', OPENROUTER_API_URL, openrouterKey,
+                groqModelToOpenRouterChain(model),
+                systemPrompt, userPrompt, opts, parseOpenRouterError
+            );
+            _lastAiEngine = 'OpenRouter';
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, orResult);
+            return orResult;
+        } catch (orErr: any) {
+            console.warn('[AI] OpenRouter failed:', orErr?.message);
+            // fall through to Together
+        }
+    }
+
+    // ── Together.ai (free tier, separate daily quota) ────────────────────────
+    const togetherKey = getTogetherApiKey();
+    if (togetherKey) {
+        console.info('[AI] Trying Together.ai (free tier, separate daily quota)');
+        try {
+            const tgResult = await callOpenAiCompatChain(
+                'Together.ai', TOGETHER_API_URL, togetherKey,
+                groqModelToTogetherChain(model),
+                systemPrompt, userPrompt, opts, parseTogetherError
+            );
+            _lastAiEngine = 'Together.ai';
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, tgResult);
+            return tgResult;
+        } catch (tgErr: any) {
+            console.warn('[AI] Together.ai failed:', tgErr?.message);
+            // fall through to Claude / Gemini
+        }
+    }
+
+    // ── Claude fallback (no Groq/Cerebras/OpenRouter/Together key, or they failed) ─
     const claudeKeyDirect = getClaudeApiKey();
     if (claudeKeyDirect) {
         console.info('[AI] Workers AI quota exhausted — falling back to Claude (200K context)');

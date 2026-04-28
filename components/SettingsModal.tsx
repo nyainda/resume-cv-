@@ -38,14 +38,16 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
-  const [groqKey, setGroqKey]           = useState(currentApiSettings.groqApiKey || '');
-  const [cerebrasKey, setCerebrasKey]   = useState(currentApiSettings.cerebrasApiKey || '');
-  const [geminiKey, setGeminiKey]       = useState(currentApiSettings.apiKey || '');
-  const [claudeKey, setClaudeKey]       = useState(currentApiSettings.claudeApiKey || '');
-  const [tavilyKey, setTavilyKey]       = useState(currentApiSettings.tavilyApiKey || '');
-  const [brevoKey, setBrevoKey]         = useState(currentApiSettings.brevoApiKey || '');
-  const [msClientId, setMsClientId]     = useState(currentApiSettings.msClientId || '');
-  const [jsearchKey, setJsearchKey]     = useState(currentApiSettings.jsearchApiKey || '');
+  const [groqKey, setGroqKey]             = useState(currentApiSettings.groqApiKey || '');
+  const [cerebrasKey, setCerebrasKey]     = useState(currentApiSettings.cerebrasApiKey || '');
+  const [openrouterKey, setOpenrouterKey] = useState(currentApiSettings.openrouterApiKey || '');
+  const [togetherKey, setTogetherKey]     = useState(currentApiSettings.togetherApiKey || '');
+  const [geminiKey, setGeminiKey]         = useState(currentApiSettings.apiKey || '');
+  const [claudeKey, setClaudeKey]         = useState(currentApiSettings.claudeApiKey || '');
+  const [tavilyKey, setTavilyKey]         = useState(currentApiSettings.tavilyApiKey || '');
+  const [brevoKey, setBrevoKey]           = useState(currentApiSettings.brevoApiKey || '');
+  const [msClientId, setMsClientId]       = useState(currentApiSettings.msClientId || '');
+  const [jsearchKey, setJsearchKey]       = useState(currentApiSettings.jsearchApiKey || '');
   const [msConnected, setMsConnected]   = useState(false);
   const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
   const [msConnecting, setMsConnecting] = useState(false);
@@ -53,12 +55,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
   // ── Test connection state ──────────────────────────────────────────────
   type TestState = { status: 'idle' | 'testing' | 'ok' | 'fail'; message?: string };
-  const [groqTest, setGroqTest]         = useState<TestState>({ status: 'idle' });
-  const [cerebrasTest, setCerebrasTest] = useState<TestState>({ status: 'idle' });
+  const [groqTest, setGroqTest]             = useState<TestState>({ status: 'idle' });
+  const [cerebrasTest, setCerebrasTest]     = useState<TestState>({ status: 'idle' });
+  const [openrouterTest, setOpenrouterTest] = useState<TestState>({ status: 'idle' });
+  const [togetherTest, setTogetherTest]     = useState<TestState>({ status: 'idle' });
 
-  const runTest = useCallback(async (provider: 'groq' | 'cerebras') => {
-    const setter = provider === 'groq' ? setGroqTest : setCerebrasTest;
-    const key    = provider === 'groq' ? groqKey : cerebrasKey;
+  const runTest = useCallback(async (provider: 'groq' | 'cerebras' | 'openrouter' | 'together') => {
+    const setter =
+      provider === 'groq'       ? setGroqTest :
+      provider === 'cerebras'   ? setCerebrasTest :
+      provider === 'openrouter' ? setOpenrouterTest :
+                                  setTogetherTest;
+    const key =
+      provider === 'groq'       ? groqKey :
+      provider === 'cerebras'   ? cerebrasKey :
+      provider === 'openrouter' ? openrouterKey :
+                                  togetherKey;
     if (!key.trim()) {
       setter({ status: 'fail', message: 'Please enter a key first.' });
       return;
@@ -68,8 +80,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     // request uses it (without requiring the user to hit Save first).
     try {
       setRuntimeKeys({
-        groqApiKey:     provider === 'groq'     ? key.trim() : groqKey.trim() || null,
-        cerebrasApiKey: provider === 'cerebras' ? key.trim() : cerebrasKey.trim() || null,
+        groqApiKey:       provider === 'groq'       ? key.trim() : groqKey.trim()       || null,
+        cerebrasApiKey:   provider === 'cerebras'   ? key.trim() : cerebrasKey.trim()   || null,
+        openrouterApiKey: provider === 'openrouter' ? key.trim() : openrouterKey.trim() || null,
+        togetherApiKey:   provider === 'together'   ? key.trim() : togetherKey.trim()   || null,
       });
     } catch {}
     try {
@@ -82,15 +96,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     } catch (e: any) {
       setter({ status: 'fail', message: e?.message || 'Connection failed.' });
     }
-  }, [groqKey, cerebrasKey]);
+  }, [groqKey, cerebrasKey, openrouterKey, togetherKey]);
 
   // Reset test status when the user edits the key.
   useEffect(() => { setGroqTest({ status: 'idle' }); }, [groqKey]);
   useEffect(() => { setCerebrasTest({ status: 'idle' }); }, [cerebrasKey]);
+  useEffect(() => { setOpenrouterTest({ status: 'idle' }); }, [openrouterKey]);
+  useEffect(() => { setTogetherTest({ status: 'idle' }); }, [togetherKey]);
 
   useEffect(() => {
     setGroqKey(currentApiSettings.groqApiKey || '');
     setCerebrasKey(currentApiSettings.cerebrasApiKey || '');
+    setOpenrouterKey(currentApiSettings.openrouterApiKey || '');
+    setTogetherKey(currentApiSettings.togetherApiKey || '');
     setGeminiKey(currentApiSettings.apiKey || '');
     setClaudeKey(currentApiSettings.claudeApiKey || '');
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
@@ -200,6 +218,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       apiKey: geminiKey.trim() || null,
       groqApiKey: groqKey.trim() || null,
       cerebrasApiKey: cerebrasKey.trim() || null,
+      openrouterApiKey: openrouterKey.trim() || null,
+      togetherApiKey: togetherKey.trim() || null,
       claudeApiKey: claudeKey.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
@@ -467,6 +487,138 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               )}
               {cerebrasTest.status === 'fail' && (
                 <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {cerebrasTest.message}</span>
+              )}
+            </div>
+          </div>
+
+          {/* ── OpenRouter (Free fallback — separate daily quota) ── */}
+          <div className="rounded-xl border-2 border-orange-200 dark:border-orange-700/40 p-4 space-y-3 bg-orange-50/50 dark:bg-orange-900/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🛣️</span>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">OpenRouter — Free Fallback</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Free Llama 3.3 70B & more — separate daily quota from Cloudflare/Groq/Cerebras</p>
+                </div>
+              </div>
+              {openrouterKey ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-orange-100 dark:border-orange-900/40 p-3 space-y-1.5">
+              {[
+                '🆓 Free tier — Llama 3.3 70B, Qwen 2.5 72B, Gemma 3 27B',
+                '🔄 Auto-cycles models if one is rate-limited',
+                '⚡ Kicks in if Cloudflare, Groq & Cerebras all fail',
+                '🔒 Encrypted & stored securely in your browser',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="https://openrouter.ai/keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 underline font-semibold"
+            >
+              Get your free OpenRouter API key →
+            </a>
+
+            <Input
+              id="openrouter-key"
+              type="password"
+              value={openrouterKey}
+              onChange={(e) => setOpenrouterKey(e.target.value)}
+              placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="font-mono text-sm"
+            />
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => runTest('openrouter')}
+                disabled={openrouterTest.status === 'testing' || !openrouterKey.trim()}
+                className="text-xs px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {openrouterTest.status === 'testing' ? 'Testing…' : 'Test connection'}
+              </Button>
+              {openrouterTest.status === 'ok' && (
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {openrouterTest.message}</span>
+              )}
+              {openrouterTest.status === 'fail' && (
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {openrouterTest.message}</span>
+              )}
+            </div>
+          </div>
+
+          {/* ── Together.ai (Free fallback — separate daily quota) ── */}
+          <div className="rounded-xl border-2 border-pink-200 dark:border-pink-700/40 p-4 space-y-3 bg-pink-50/50 dark:bg-pink-900/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🤝</span>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-pink-600 dark:text-pink-400">Together.ai — Free Fallback</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Free Llama 3.3 70B Turbo — separate daily quota again</p>
+                </div>
+              </div>
+              {togetherKey ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
+              )}
+            </div>
+
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-pink-100 dark:border-pink-900/40 p-3 space-y-1.5">
+              {[
+                '🆓 Free tier — Llama 3.3 70B Turbo Free',
+                '🚀 Fast Turbo inference, OpenAI-compatible',
+                '⚡ Last upstream try before Claude/Gemini paid keys',
+                '🔒 Encrypted & stored securely in your browser',
+              ].map(f => (
+                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="https://api.together.xyz/settings/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-pink-600 dark:text-pink-400 underline font-semibold"
+            >
+              Get your free Together.ai API key →
+            </a>
+
+            <Input
+              id="together-key"
+              type="password"
+              value={togetherKey}
+              onChange={(e) => setTogetherKey(e.target.value)}
+              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              className="font-mono text-sm"
+            />
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => runTest('together')}
+                disabled={togetherTest.status === 'testing' || !togetherKey.trim()}
+                className="text-xs px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white"
+              >
+                {togetherTest.status === 'testing' ? 'Testing…' : 'Test connection'}
+              </Button>
+              {togetherTest.status === 'ok' && (
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {togetherTest.message}</span>
+              )}
+              {togetherTest.status === 'fail' && (
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {togetherTest.message}</span>
               )}
             </div>
           </div>

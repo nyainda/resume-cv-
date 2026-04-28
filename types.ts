@@ -298,6 +298,8 @@ export interface ApiSettings {
   apiKey: string | null;            // Gemini key (for PDF/image parsing)
   groqApiKey?: string | null;       // Groq key (for CV gen, cover letters, rewriting)
   cerebrasApiKey?: string | null;   // Cerebras key (automatic fallback when Groq quota is exceeded)
+  openrouterApiKey?: string | null; // OpenRouter key (free Llama 3.3 70B & more — separate daily quota)
+  togetherApiKey?: string | null;   // Together.ai key (free Llama 3.3 70B Turbo — separate daily quota)
   claudeApiKey?: string | null;     // Anthropic Claude key (optional AI provider)
   tavilyApiKey?: string | null;     // For job search & company research
   brevoApiKey?: string | null;      // For sending emails via Brevo SMTP API
