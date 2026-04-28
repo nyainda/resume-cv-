@@ -193,9 +193,18 @@ ${linkTags}
       print-color-adjust: exact;
       width: 210mm;
     }
-    h2, h3, h4 { page-break-after: avoid; }
-    section { page-break-inside: avoid; }
-    li { page-break-inside: avoid; }
+    /* Page-break rules:
+       - Headings stay glued to their following content.
+       - Individual list items don't split mid-bullet.
+       - Sections themselves DO flow across pages — the old blanket
+         "section { page-break-inside: avoid }" rule caused tall sections
+         (e.g. Experience) to be pushed entirely to page 2, leaving huge
+         blank gaps at the bottom of page 1. Templates that want to keep
+         a small group together (e.g. one job entry) opt in by setting
+         `data-pdf-keep` on the wrapper. */
+    h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
+    li { break-inside: avoid; page-break-inside: avoid; }
+    [data-pdf-keep] { break-inside: avoid; page-break-inside: avoid; }
     .no-print, [data-pdf-hide] { display: none !important; }
     /* Embedded Google Fonts (base64) — no network requests at render time */
     ${embeddedFontCss}
