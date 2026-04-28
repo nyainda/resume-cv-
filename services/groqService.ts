@@ -39,11 +39,12 @@ const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
 export const GROQ_LARGE = 'llama-3.3-70b-versatile';
 export const GROQ_FAST  = 'llama-3.1-8b-instant';
 
-// Cerebras model equivalents (same Llama family, OpenAI-compatible format).
-// Each entry is a fallback chain — Cerebras occasionally renames models, so we
-// try the most current ID first and fall back to older aliases on 404.
-const CEREBRAS_LARGE_CHAIN = ['llama-3.3-70b', 'llama3.3-70b', 'llama-4-scout-17b-16e-instruct'];
-const CEREBRAS_FAST_CHAIN  = ['llama3.1-8b', 'llama-3.1-8b'];
+// Cerebras OpenAI-compatible models (catalog refreshed Apr 2026 — Cerebras
+// retired the Llama 3.3 70b SKUs; current top-end picks are Qwen3 235B and
+// GPT-OSS 120B). Each entry is a fallback chain tried in order on 404; if
+// every entry 404s, callCerebrasWithFallback() probes /v1/models live.
+const CEREBRAS_LARGE_CHAIN = ['qwen-3-235b-a22b-instruct-2507', 'gpt-oss-120b', 'zai-glm-4.7', 'llama3.1-8b'];
+const CEREBRAS_FAST_CHAIN  = ['llama3.1-8b'];
 
 function groqModelToCerebrasChain(groqModel: string): string[] {
     if (groqModel === GROQ_LARGE) return CEREBRAS_LARGE_CHAIN;

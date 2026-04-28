@@ -66,10 +66,17 @@ async function probeCVEngineLLM(url: string): Promise<{ ok: boolean; status: num
             }),
             signal: AbortSignal.timeout(LLM_PROBE_TIMEOUT_MS),
         });
+        // Worker returns JSON for both success and failure. Parse once and
+        // surface the real reason (e.g. "4006: daily neuron quota exhausted")
+        // so the banner tells the user exactly what's wrong.
+        const data = await res.json().catch(() => null) as { text?: string; error?: string; message?: string } | null;
         if (!res.ok) {
-            return { ok: false, status: res.status, note: `LLM probe failed (HTTP ${res.status}) — Workers AI upstream may be rate-limited or down.` };
+            const reason = (data?.message || data?.error || '').toString().trim();
+            const note = reason
+                ? `LLM probe failed (HTTP ${res.status}): ${reason.slice(0, 240)}`
+                : `LLM probe failed (HTTP ${res.status}) — Workers AI upstream may be rate-limited or down.`;
+            return { ok: false, status: res.status, note };
         }
-        const data = await res.json().catch(() => null) as { text?: string } | null;
         const text = (data?.text || '').trim();
         if (!text) {
             return { ok: false, status: res.status, note: 'LLM probe returned empty text — Workers AI binding is reachable but not generating output.' };
