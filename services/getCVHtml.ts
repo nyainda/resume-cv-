@@ -38,55 +38,86 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
+// ── Font-embed memo cache ───────────────────────────────────────────────────
+// Embedding all Google Font files for a Google Fonts CSS URL is expensive
+// (often 20-40 WOFF2 files per request). The result is identical for the
+// same href until the page reloads, so cache it across download clicks.
+const _fontCssMemo = new Map<string, Promise<string>>();
+
+/** Fetch with a hard timeout — prevents indefinite hangs on slow CDNs. */
+async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Promise<Response> {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+}
+
 /**
  * Fetch a Google Fonts CSS URL and replace every `url(...)` font reference
  * with a base64 data-URI so no network requests are needed at render time.
+ *
+ * Both the CSS request and every font-file request have hard timeouts
+ * (4s/3s) so a single slow Google Fonts response can't stall the entire
+ * download flow indefinitely. Result is memoised per-href so re-clicking
+ * the Download button is effectively instant.
  */
 async function embedFontCSS(href: string): Promise<string> {
-  try {
-    const cssRes = await fetch(href, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
-    if (!cssRes.ok) throw new Error(`HTTP ${cssRes.status}`);
-    let css = await cssRes.text();
+  const cached = _fontCssMemo.get(href);
+  if (cached) return cached;
 
-    // Collect all font-file URLs referenced inside the CSS
-    const urlRegex = /url\((https?:\/\/[^)'"]+)\)/g;
-    const fontUrls: string[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = urlRegex.exec(css)) !== null) {
-      fontUrls.push(m[1]);
+  const promise = (async () => {
+    try {
+      const cssRes = await fetchWithTimeout(href, 4000, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      });
+      if (!cssRes.ok) throw new Error(`HTTP ${cssRes.status}`);
+      let css = await cssRes.text();
+
+      // Collect all font-file URLs referenced inside the CSS
+      const urlRegex = /url\((https?:\/\/[^)'"]+)\)/g;
+      const fontUrls: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = urlRegex.exec(css)) !== null) {
+        fontUrls.push(m[1]);
+      }
+
+      // Fetch every font file and swap the URL for a data-URI.
+      // 3s timeout per font — if a font hangs, fall back to its CDN URL.
+      await Promise.all(
+        fontUrls.map(async (fontUrl) => {
+          try {
+            const fontRes = await fetchWithTimeout(fontUrl, 3000);
+            if (!fontRes.ok) return;
+            const buf = await fontRes.arrayBuffer();
+            const b64 = arrayBufferToBase64(buf);
+            const mime = fontUrl.includes('.woff2')
+              ? 'font/woff2'
+              : fontUrl.includes('.woff')
+              ? 'font/woff'
+              : 'font/truetype';
+            const dataUri = `data:${mime};base64,${b64}`;
+            css = css.replaceAll(fontUrl, dataUri);
+          } catch {
+            // Leave the original URL — font will fall back to system font
+            // or be re-fetched server-side by Playwright.
+          }
+        })
+      );
+
+      return css;
+    } catch {
+      // If the whole fetch fails, fall back to a plain @import
+      return `@import url('${href}');`;
     }
+  })();
 
-    // Fetch every font file and swap the URL for a data-URI
-    await Promise.all(
-      fontUrls.map(async (fontUrl) => {
-        try {
-          const fontRes = await fetch(fontUrl);
-          if (!fontRes.ok) return;
-          const buf = await fontRes.arrayBuffer();
-          const b64 = arrayBufferToBase64(buf);
-          const mime = fontUrl.includes('.woff2')
-            ? 'font/woff2'
-            : fontUrl.includes('.woff')
-            ? 'font/woff'
-            : 'font/truetype';
-          const dataUri = `data:${mime};base64,${b64}`;
-          css = css.replaceAll(fontUrl, dataUri);
-        } catch {
-          // Leave the original URL — font will fall back to system font
-        }
-      })
-    );
+  _fontCssMemo.set(href, promise);
+  return promise;
+}
 
-    return css;
-  } catch {
-    // If the whole fetch fails, fall back to a plain @import
-    return `@import url('${href}');`;
-  }
+/** Clear the font CSS cache. Call this if the user changes themes/templates with new fonts. */
+export function clearFontEmbedCache(): void {
+  _fontCssMemo.clear();
 }
 
 export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | null> {

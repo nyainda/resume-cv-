@@ -118,10 +118,21 @@ async function renderPdf(pageContent) {
     const page = await b.newPage();
     try {
         await page.setViewportSize({ width: 794, height: 1123 });
-        await page.setContent(pageContent, { waitUntil: 'networkidle', timeout: 20000 });
-        await page.evaluate(() => document.fonts.ready);
-        // Stabilisation delay — covers font render finalisation and any late CSS transitions
-        await page.waitForTimeout(600);
+        // 'load' returns as soon as the document and its sub-resources are loaded.
+        // We previously used 'networkidle' which adds a guaranteed 500ms wait for
+        // network silence — wasteful when fonts are pre-embedded as base64 data-URIs.
+        // The fonts.ready check below is the actual correctness guard.
+        await page.setContent(pageContent, { waitUntil: 'load', timeout: 15000 });
+        // Wait for all @font-face declarations to finish loading (data-URIs resolve
+        // instantly; any leftover CDN URLs get a generous-but-bounded window via the
+        // race below).
+        await Promise.race([
+            page.evaluate(() => document.fonts.ready),
+            page.waitForTimeout(2500),
+        ]);
+        // Tiny stabilisation delay — was 600ms, dropped to 100ms now that
+        // network idle is no longer the gate.
+        await page.waitForTimeout(100);
         const pdfBuffer = await page.pdf({
             format: 'A4',
             printBackground: true,
