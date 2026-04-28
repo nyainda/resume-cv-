@@ -201,7 +201,7 @@ ${linkTags}
          (e.g. Experience) to be pushed entirely to page 2, leaving huge
          blank gaps at the bottom of page 1. Templates that want to keep
          a small group together (e.g. one job entry) opt in by setting
-         `data-pdf-keep` on the wrapper. */
+         the 'data-pdf-keep' attribute on the wrapper. */
     h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
     li { break-inside: avoid; page-break-inside: avoid; }
     [data-pdf-keep] { break-inside: avoid; page-break-inside: avoid; }
