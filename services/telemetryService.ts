@@ -76,13 +76,18 @@ export interface LeakRecord {
         | 'first_person' | 'weak_qualifier' | 'weak_opener' | 'weird_opener' | 'markup_artifact'
         | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
         | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
-        | 'orphan_metric' | 'short_bullet' | 'long_bullet';
+        | 'orphan_metric' | 'short_bullet' | 'long_bullet'
+        | 'unicode_glyph';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
         | 'polish' | 'canonicalise' | 'dedupe' | 'none';
     contextSnippet?: string;
+    /** AI provider (e.g. 'Workers AI', 'Groq', 'Cerebras') whose output
+     *  produced this leak. Lets the leaks-summary endpoint break down
+     *  per-engine quality so we can spot a model that regresses. */
+    aiEngine?: string;
 }
 
 export interface GenerationLogPayload {

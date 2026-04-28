@@ -854,6 +854,65 @@ function rewriteWeakOpener(text: string): { text: string; changed: boolean } {
 }
 
 /**
+ * Normalises non-ASCII digits, currency symbols, and punctuation that some
+ * AI models emit (full-width forms, mathematical alphanumerics, Arabic-Indic
+ * digits, etc.) back to their plain ASCII equivalents.
+ *
+ * Why this exists — the user-visible bug:
+ *   When a model returns e.g. "increased revenue by ＄１．２M" or "improved
+ *   uptime to 99．９％" using full-width or Arabic-Indic digits, the rendered
+ *   CV shows those characters in a different font from the surrounding text.
+ *   That's because the primary CV fonts (DM Sans, Playfair Display, Inter,
+ *   Georgia, Crimson Text, etc.) only ship Latin glyphs — the browser falls
+ *   back to a system font (often a CJK or system mono) for any other code
+ *   point, producing the "wrong-font numbers/symbols" effect. Normalising to
+ *   ASCII keeps every glyph inside the loaded font.
+ *
+ * Also strips zero-width formatting characters that AI sometimes injects
+ * (ZWSP, ZWNJ, ZWJ, BOM) — they're invisible in editors but break PDF text
+ * extraction and copy-paste.
+ */
+function normaliseUnicodeDigitsAndSymbols(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    let out = text;
+
+    // Full-width ASCII (U+FF01..U+FF5E) → ASCII (subtract 0xFEE0).
+    // Covers: ０-９ ％ ＄ ， ． ＋ － ＝ ： ； ！ ？ ＃ ＆ ＊ （ ） etc.
+    out = out.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+
+    // Mathematical Alphanumeric Symbols digits (U+1D7CE..U+1D7FF, 5 styles × 10).
+    // Each block of 10 starts at one of these code points → digit 0.
+    out = out.replace(/[\u{1D7CE}-\u{1D7FF}]/gu, ch => {
+        const cp = ch.codePointAt(0)!;
+        return String.fromCharCode(0x30 + ((cp - 0x1D7CE) % 10));
+    });
+
+    // Arabic-Indic digits (U+0660..U+0669) and Extended Arabic-Indic (U+06F0..U+06F9).
+    out = out.replace(/[\u0660-\u0669]/g, ch => String.fromCharCode(0x30 + (ch.charCodeAt(0) - 0x0660)));
+    out = out.replace(/[\u06F0-\u06F9]/g, ch => String.fromCharCode(0x30 + (ch.charCodeAt(0) - 0x06F0)));
+    // Devanagari (U+0966..U+096F), Bengali (U+09E6..U+09EF) — rarer but seen.
+    out = out.replace(/[\u0966-\u096F]/g, ch => String.fromCharCode(0x30 + (ch.charCodeAt(0) - 0x0966)));
+    out = out.replace(/[\u09E6-\u09EF]/g, ch => String.fromCharCode(0x30 + (ch.charCodeAt(0) - 0x09E6)));
+
+    // CJK punctuation that shows up next to numbers.
+    out = out.replace(/\u3001/g, ',');   // 、 → ,
+    out = out.replace(/\u3002/g, '.');   // 。 → .
+
+    // Various non-breaking / narrow / hair / figure spaces → plain ASCII space.
+    // U+00A0 NBSP, U+202F NARROW NBSP, U+2009 THIN, U+200A HAIR, U+2007 FIGURE.
+    out = out.replace(/[\u00A0\u2007\u2009\u200A\u202F]/g, ' ');
+
+    // Zero-width junk: ZWSP, ZWNJ, ZWJ, BOM, WORD JOINER.
+    out = out.replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '');
+
+    // Fancy minus signs and unicode hyphens that aren't typographic em/en dashes.
+    // (We leave en/em dashes alone — normaliseWhitespaceAndDashes handles those.)
+    out = out.replace(/[\u2010\u2011\u2212]/g, '-');  // hyphen, NB-hyphen, minus → -
+
+    return { text: out, changed: out !== text };
+}
+
+/**
  * Removes Markdown / HTML artefacts that the AI sometimes injects despite
  * "plain text only" instructions. Strips: **bold**, *italic*, _underline_,
  * `code`, <br>, <strong>, leading "- " or "• " (we render bullets ourselves).
@@ -1156,6 +1215,11 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
         const r = fn(cur);
         if (r.changed) { fixes.push(name); cur = r.text; }
     };
+    // unicode_glyph FIRST — must run before any regex pass so digit/symbol
+    // matchers in formatNumbers / stripOrphanMetrics see ASCII characters.
+    // Also fixes the user-reported "numbers render in a different font" bug
+    // by collapsing full-width / mathematical / Arabic-Indic glyphs to ASCII.
+    apply('unicode_glyph',    normaliseUnicodeDigitsAndSymbols);
     apply('markup_strip',     stripMarkupArtifacts);
     apply('first_person',     stripFirstPerson);
     apply('weird_opener',     rewriteWeirdOpeners);
@@ -1190,6 +1254,8 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
         const r = fn(cur);
         if (r.changed) { fixes.push(name); cur = r.text; }
     };
+    // unicode_glyph FIRST — see polishBullet for rationale (font-fallback fix).
+    apply('unicode_glyph',    normaliseUnicodeDigitsAndSymbols);
     apply('markup_strip',     stripMarkupArtifacts);
     // first_person SKIPPED — summary keeps its voice.
     // weak_opener  SKIPPED — paragraph, not a bullet.
@@ -1215,13 +1281,17 @@ export interface PurifyLeak {
         | 'first_person' | 'weak_qualifier' | 'weak_opener' | 'weird_opener' | 'markup_artifact'
         | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
         | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
-        | 'orphan_metric' | 'short_bullet' | 'long_bullet';
+        | 'orphan_metric' | 'short_bullet' | 'long_bullet'
+        | 'unicode_glyph';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
         | 'polish' | 'canonicalise' | 'dedupe' | 'none';
     contextSnippet?: string;
+    /** AI provider whose output produced this leak — set by the caller after
+     *  purifyCV returns. Lets telemetry attribute leaks to a specific engine. */
+    aiEngine?: string;
 }
 
 export interface PurifyReport {
@@ -1375,6 +1445,7 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 f === 'weak_opener'       ? 'weak_opener'       :
                 f === 'weird_opener'      ? 'weird_opener'      :
                 f === 'orphan_metric'     ? 'orphan_metric'     :
+                f === 'unicode_glyph'     ? 'unicode_glyph'     :
                 f === 'markup_strip'      ? 'markup_artifact'   :
                 f === 'capitalise'        ? 'capitalisation'    :
                 f === 'trailing_period'   ? 'trailing_period'   :

@@ -1,6 +1,6 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
-import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
+import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, type PurifyReport } from './cvPurificationPipeline';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -2581,7 +2581,16 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                             report.polishFixes +
                             report.skillsCanonicalised +
                             report.skillsDeduped,
-                        leaks:               report.leaks,
+                        // Tag every leak with the AI engine that produced the
+                        // raw text. The leaks-summary endpoint groups by this
+                        // so we can spot a model that regresses (e.g. a CF
+                        // Workers AI tier emitting full-width digits or an
+                        // Together.ai model leaking `%` orphans). Falls back
+                        // to 'Workers AI' which is the default chain entry.
+                        leaks: (report.leaks || []).map(l => ({
+                            ...l,
+                            aiEngine: l.aiEngine || getLastAiEngine(),
+                        })),
                     });
                 } catch (e) {
                     console.debug('[CV Gen] telemetry post failed (non-fatal):', e);

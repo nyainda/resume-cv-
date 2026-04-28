@@ -37,6 +37,25 @@ if (process.env.DATABASE_URL) {
     pgPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
     pgPool.on('error', (err) => console.warn('[Telemetry] pg pool error:', err.message));
     console.log('[Telemetry] Postgres pool initialised.');
+    // Lightweight idempotent migration — guarantees the per-engine attribution
+    // column exists even on older deployments. Using IF NOT EXISTS makes this
+    // a no-op once applied. Wrapped in a try/catch so a missing detected_leaks
+    // table (fresh DB) doesn't crash startup; the server still runs.
+    (async () => {
+        try {
+            await pgPool.query(`
+                ALTER TABLE IF EXISTS detected_leaks
+                  ADD COLUMN IF NOT EXISTS ai_engine TEXT
+            `);
+            await pgPool.query(`
+                CREATE INDEX IF NOT EXISTS detected_leaks_ai_engine_idx
+                    ON detected_leaks (ai_engine)
+            `);
+            console.log('[Telemetry] detected_leaks.ai_engine column ensured.');
+        } catch (err) {
+            console.warn('[Telemetry] could not ensure ai_engine column:', err.message);
+        }
+    })();
 } else {
     console.warn('[Telemetry] DATABASE_URL not set — telemetry endpoints disabled.');
 }
@@ -377,8 +396,8 @@ app.post('/api/telemetry/log-generation', requireDb, async (req, res) => {
                 await client.query(`
                     INSERT INTO detected_leaks
                       (generation_id, cv_hash, leak_type, phrase, occurrences,
-                       field_location, fixed_by, context_snippet)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                       field_location, fixed_by, context_snippet, ai_engine)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
                 `, [
                     generationId, b.cvHash, leak.leakType,
                     String(leak.phrase).slice(0, 500),
@@ -386,6 +405,7 @@ app.post('/api/telemetry/log-generation', requireDb, async (req, res) => {
                     leak.fieldLocation || null,
                     leak.fixedBy || null,
                     leak.contextSnippet ? String(leak.contextSnippet).slice(0, 1000) : null,
+                    leak.aiEngine ? String(leak.aiEngine).slice(0, 64) : null,
                 ]);
                 // Bump the hits counter on the matching banned_phrase, if any.
                 if (leak.leakType === 'banned_phrase') {
@@ -455,7 +475,7 @@ app.post('/api/telemetry/log-edit', requireDb, async (req, res) => {
 app.get('/api/telemetry/leaks-summary', requireDb, async (req, res) => {
     const days = Math.max(1, Math.min(365, parseInt(req.query.days, 10) || 7));
     try {
-        const [topPhrases, byType, recent, generations] = await Promise.all([
+        const [topPhrases, byType, recent, generations, byEngine, byEngineAndType] = await Promise.all([
             pgPool.query(`
                 SELECT phrase, leak_type, COUNT(*) AS hits
                   FROM detected_leaks
@@ -472,7 +492,7 @@ app.get('/api/telemetry/leaks-summary', requireDb, async (req, res) => {
                  ORDER BY hits DESC
             `, [String(days)]),
             pgPool.query(`
-                SELECT id, leak_type, phrase, field_location, fixed_by, created_at
+                SELECT id, leak_type, phrase, field_location, fixed_by, ai_engine, created_at
                   FROM detected_leaks
                  ORDER BY created_at DESC
                  LIMIT 30
@@ -488,13 +508,36 @@ app.get('/api/telemetry/leaks-summary', requireDb, async (req, res) => {
                   FROM generation_log
                  WHERE created_at > NOW() - ($1 || ' days')::interval
             `, [String(days)]),
+            // Aggregate leaks per AI engine — lets us spot a provider that
+            // regresses across the board.
+            pgPool.query(`
+                SELECT COALESCE(ai_engine, 'unknown') AS ai_engine,
+                       COUNT(*) AS hits
+                  FROM detected_leaks
+                 WHERE created_at > NOW() - ($1 || ' days')::interval
+                 GROUP BY ai_engine
+                 ORDER BY hits DESC
+            `, [String(days)]),
+            // Per-engine × per-type matrix — surfaces "Workers AI emits 3× the
+            // orphan_metric leaks vs Groq" so we can tune prompts per provider.
+            pgPool.query(`
+                SELECT COALESCE(ai_engine, 'unknown') AS ai_engine,
+                       leak_type,
+                       COUNT(*) AS hits
+                  FROM detected_leaks
+                 WHERE created_at > NOW() - ($1 || ' days')::interval
+                 GROUP BY ai_engine, leak_type
+                 ORDER BY ai_engine, hits DESC
+            `, [String(days)]),
         ]);
         res.json({
             windowDays: days,
-            topPhrases:  topPhrases.rows,
-            byType:      byType.rows,
-            recent:      recent.rows,
-            generations: generations.rows[0] || {},
+            topPhrases:        topPhrases.rows,
+            byType:            byType.rows,
+            recent:            recent.rows,
+            generations:       generations.rows[0] || {},
+            byEngine:          byEngine.rows,
+            byEngineAndType:   byEngineAndType.rows,
         });
     } catch (err) {
         console.error('[Telemetry] /leaks-summary failed:', err.message);

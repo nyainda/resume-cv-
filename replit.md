@@ -60,6 +60,14 @@ ProCV is built as a React 19, TypeScript, and Vite 6 PWA, styled using Tailwind 
 - **Authentication**: Google OAuth (PKCE flow) for Google Drive sync and other Google services. Microsoft OAuth for OneDrive integration.
 - **API Key Management**: API keys are stored in the browser's `localStorage` and managed via a Settings modal.
 
+## Recent Fixes
+
+- **Wrong-font numbers/symbols** (Apr 2026): some AI providers return digits and currency symbols as full-width (`＄１，０００`), mathematical-alphanumeric (`𝟏𝟐𝟑`), or Arabic-Indic (`١٢٣`) glyphs. The CV fonts (DM Sans, Playfair Display, Inter, Georgia, Crimson Text) only ship Latin glyphs, so the browser silently falls back to a different system font for those code points — producing the visible "numbers in a different font" effect. Fixed by adding `normaliseUnicodeDigitsAndSymbols()` as the FIRST step in `polishBullet`/`polishSummary` (`services/cvPurificationPipeline.ts`). Normalises full-width ASCII (U+FF01–FF5E), math digits (U+1D7CE–1D7FF), Arabic-Indic / Devanagari / Bengali digits, ideographic comma/period (`、` `。`), NBSP/narrow-NBSP/thin/hair/figure spaces, zero-width characters (ZWSP/ZWNJ/ZWJ/BOM/Word-Joiner), and Unicode hyphens/minus (`‐` `‑` `−`) — all → ASCII equivalents. Em/en dashes are preserved (handled by the existing whitespace pass). Tagged as a `unicode_glyph` leak for telemetry.
+
+- **Orphan-`%` leak** (Apr 2026): `stripOrphanMetrics` ran before `formatNumbers`, stripping the `%` from legit `"5 %"`. Reordered to `number_format` → `orphan_metric` in both polish functions and tightened the final-sweep regexes (`/(?<!\d)[.,;:]\s*(?=%)/g` then `/(?<!\d)\s*%\s*/g`) plus extended the dangling-preposition list (`through`, `via`, `while`, `during`, `across`, `within`, `including`, `featuring`).
+
+- **Per-AI-engine telemetry** (Apr 2026): every leak record posted to `/api/telemetry/log-generation` now carries an `aiEngine` field (`Workers AI`, `Groq`, `Cerebras`, `OpenRouter`, `Together.ai`, `Claude`, `Gemini`) sourced from `getLastAiEngine()`. Server (`server-pdf.cjs`) auto-adds the `ai_engine` column on startup via `ALTER TABLE IF EXISTS … ADD COLUMN IF NOT EXISTS` (idempotent, no-op if the table doesn't exist yet). The `/api/telemetry/leaks-summary` endpoint exposes two new aggregates: `byEngine` (total leaks per provider) and `byEngineAndType` (per-engine × per-leak-type matrix), so a regressing model is visible at a glance.
+
 ## External Dependencies
 
 - **AI Text Generation**:
