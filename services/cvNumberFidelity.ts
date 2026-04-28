@@ -1,4 +1,5 @@
 // services/cvNumberFidelity.ts
+import { auditCvVoice } from './cvVoiceFidelity';
 //
 // Number-fidelity helpers used by services/geminiService.ts.
 //
@@ -18,7 +19,11 @@
 
 const CURRENCY_WORDS =
     'USD|EUR|GBP|KES|KSH|NGN|ZAR|GHS|UGX|TZS|RWF|XOF|XAF|JPY|CNY|INR|AUD|CAD|CHF|AED';
-const UNIT_SUFFIXES = '%|x|times|m|million|k|thousand|bn|billion|M|K';
+// Includes time units (years/months/weeks/days/hours) so phrases like
+// "with 5 years delivering" get consumed wholesale instead of leaving
+// "with years delivering" behind when the number is hallucinated.
+const UNIT_SUFFIXES =
+    '%|x|times|m|million|k|thousand|bn|billion|M|K|years?|months?|weeks?|days?|hours?';
 const HYPHEN_NOUN_SUFFIXES =
     'person|people|day|days|week|weeks|month|months|year|years|strong|fold|member|members|hour|hours|minute|minutes|second|seconds';
 
@@ -145,6 +150,15 @@ export function tidyOrphanRemnants(text: string): string {
     );
     // Generic orphan leading hyphen ("- person", " - day").
     out = out.replace(/(^|\s)-(?=[a-zA-Z])/g, '$1');
+    // Orphan time / experience reference left after a number is stripped:
+    //   "with years delivering"  → ""
+    //   "of months across"       → "across"
+    //   "for years experience"   → ""
+    // Same for "experience" with no leading number ("of experience").
+    out = out.replace(
+        /\b(?:with|of|for|in|on|over|under|across|during|approximately|around|about|roughly|nearly|almost)\s+(?:years?|months?|weeks?|days?|hours?|experience)\b\s*/gi,
+        ' ',
+    );
     // Drop stranded prepositions left at the end ("…driving a increase in").
     out = out.replace(
         /\b(by|of|to|with|at|from|for|in|on|across|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to)\s*([.,;:!?]|$)/gi,
@@ -254,16 +268,19 @@ export function repairTextAgainstSource(
 // regressions are visible in the console immediately.
 
 export type CvQualityIssueKind =
-    | 'orphan_currency_comma'   // "KES ," / "$ ,"
-    | 'orphan_currency_word'    // "of KES" with no number after
-    | 'orphan_percent'          // " %" not preceded by a digit
-    | 'orphan_plus'             // " + " between words
-    | 'orphan_hyphen_noun'      // " -person" not preceded by a digit
-    | 'orphan_dollar'           // "$ " followed by non-digit
-    | 'stub_bullet'             // bullet starts with a preposition
-    | 'empty_bullet'            // bullet is empty/whitespace
-    | 'duplicate_adjacent_word' // "the the", "and and"
-    | 'mid_sentence_period';    // ". " followed by lowercase letter
+    | 'orphan_currency_comma'        // "KES ," / "$ ,"
+    | 'orphan_currency_word'         // "of KES" with no number after
+    | 'orphan_percent'               // " %" not preceded by a digit
+    | 'orphan_plus'                  // " + " between words
+    | 'orphan_hyphen_noun'           // " -person" not preceded by a digit
+    | 'orphan_dollar'                // "$ " followed by non-digit
+    | 'stub_bullet'                  // bullet starts with a preposition
+    | 'empty_bullet'                 // bullet is empty/whitespace
+    | 'duplicate_adjacent_word'      // "the the", "and and"
+    | 'mid_sentence_period'          // ". " followed by lowercase letter
+    | 'first_person_pronoun'         // "I", "I've", "my", "we", "our"
+    | 'tense_third_person_singular'  // "Generates" / "Delivers" in current role
+    | 'dangling_time_ref';           // "with years", "of months", "for experience"
 
 export interface CvQualityIssue {
     kind: CvQualityIssueKind;
@@ -301,6 +318,9 @@ const ORPHAN_PROBES: Array<{ kind: CvQualityIssueKind; rx: RegExp }> = [
     { kind: 'orphan_dollar', rx: /[$€£₦₹¥]\s+(?=[A-Za-z])/ },
     { kind: 'duplicate_adjacent_word', rx: /\b(\w+)\s+\1\b/i },
     { kind: 'mid_sentence_period', rx: /\.\s+[a-z]/ },
+    // Dangling time / experience reference left after a hallucinated number
+    // was stripped: "with years delivering", "of months across", "for experience".
+    { kind: 'dangling_time_ref', rx: /\b(?:with|of|for|in|over|across|during)\s+(?:years?|months?|weeks?|days?|hours?|experience)\b/i },
 ];
 
 const STUB_FIRST_WORDS = new Set([
@@ -366,6 +386,18 @@ export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
         if (typeof p.description === 'string') {
             probeText(p.description, label, issues);
         }
+    }
+
+    // Voice audit (first-person pronouns, tense drift in current role).
+    // Kept in a separate module so the two concerns are testable in
+    // isolation; merged here so consumers see one combined report.
+    try {
+        const voiceIssues = auditCvVoice(cv as any);
+        for (const v of voiceIssues) {
+            issues.push({ kind: v.kind as CvQualityIssueKind, where: v.where, snippet: v.snippet });
+        }
+    } catch {
+        // Voice audit must never block the rest of the report.
     }
 
     const totalIssues = issues.length;

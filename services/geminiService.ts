@@ -15,6 +15,10 @@ import {
     repairTextAgainstSource as _repairTextAgainstSource,
     logCvQualityReport as _logCvQualityReport,
 } from './cvNumberFidelity';
+import {
+    stripFirstPersonPronouns as _stripFirstPersonPronouns,
+    normalizePresentTenseToImperative as _normalizePresentTenseToImperative,
+} from './cvVoiceFidelity';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -1563,6 +1567,10 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
             String((profile as any).summary || ''),
             profileNumberTokens,
         );
+        // Rule 8 (voice): CVs are written without first-person pronouns.
+        // Strip "I", "I've", "my", "we", etc. from the summary and rewrite
+        // the affected clause so it still reads naturally.
+        cvData.summary = _stripFirstPersonPronouns(cvData.summary);
     }
 
     // Rule 3 + 4 + 6: preserve company/job-title/date identity from source.
@@ -1586,6 +1594,25 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
                 sourceNumberTokens,
             );
 
+            // Rule 8 (voice): in the active role, normalise leading verbs
+            // from third-person singular present ("Generates", "Delivers",
+            // "Maintains") to base-form imperative ("Generate", "Deliver",
+            // "Maintain"). This matches the convention used by bullet #1
+            // ("Manage X") and reads consistently. Past roles are left in
+            // their natural past tense ("Led", "Built", "Designed"). Also
+            // strips any first-person pronouns the model leaked.
+            const endDateLower = String(src.endDate || exp.endDate || '').trim().toLowerCase();
+            const isCurrentRole = !endDateLower
+                || endDateLower === 'present'
+                || endDateLower === 'current'
+                || endDateLower === 'now'
+                || endDateLower === 'ongoing';
+            const voiceFixed = fixedResponsibilities.map(b => {
+                let next = _stripFirstPersonPronouns(b);
+                if (isCurrentRole) next = _normalizePresentTenseToImperative(next);
+                return next;
+            });
+
             return {
                 ...exp,
                 company: src.company || exp.company,
@@ -1593,7 +1620,7 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
                 startDate: src.startDate || exp.startDate,
                 endDate: src.endDate || exp.endDate,
                 dates: exp.dates || '',
-                responsibilities: fixedResponsibilities.length ? fixedResponsibilities : sourceBullets,
+                responsibilities: voiceFixed.length ? voiceFixed : sourceBullets,
             };
         });
     }

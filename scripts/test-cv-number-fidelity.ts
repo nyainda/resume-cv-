@@ -17,6 +17,13 @@ import {
     isBulletDegraded,
     auditCvQuality,
 } from '../services/cvNumberFidelity';
+import {
+    stripFirstPersonPronouns,
+    normalizePresentTenseToImperative,
+    auditCvVoice,
+    hasFirstPerson,
+    startsWithThirdPersonSingularVerb,
+} from '../services/cvVoiceFidelity';
 
 interface Case {
     label: string;
@@ -295,6 +302,195 @@ cases.push({
         label: 'audit: clean CV scores 100/100 with zero issues',
         actual: `${report.score}/${report.totalIssues}`,
         equals: '100/0',
+    });
+}
+
+// ── stripUngroundedNumbers: time-unit consumption ────────────────────────
+// Real bug from the field: AI wrote "Field & Sales Engineer with 5 years
+// delivering technical sales" but "5" wasn't grounded. The old strip ate
+// just "5", leaving "with years delivering" — orphan time reference.
+cases.push({
+    label: 'time unit: "with 5 years delivering" → no orphan "with years"',
+    actual: stripUngroundedNumbers(
+        'Field & Sales Engineer with 5 years delivering technical sales and water solutions',
+        empty,
+    ),
+    forbid: [/\bwith\s+years\b/, /\bof\s+years\b/, /\bfor\s+years\b/],
+});
+
+cases.push({
+    label: 'time unit: grounded "5 years" survives',
+    actual: stripUngroundedNumbers(
+        'Engineer with 5 years delivering technical sales',
+        new Set(['5']),
+    ),
+    require: [/5\s+years/],
+});
+
+cases.push({
+    label: 'tidyOrphanRemnants alone removes a stray "with years"',
+    actual: tidyOrphanRemnants('Engineer with years delivering technical sales'),
+    forbid: [/\bwith\s+years\b/],
+    require: [/Engineer\s+delivering/],
+});
+
+// ── stripFirstPersonPronouns ─────────────────────────────────────────────
+cases.push({
+    label: 'first-person: "I\'ve combined X to help" → "Combined X to help"',
+    actual: stripFirstPersonPronouns(
+        "I've combined data analysis, site surveying, and project management to help farmers adopt precision agriculture.",
+    ),
+    forbid: [/\bI've\b/, /\bI\b/, /\bI\s/],
+    require: [/Combined data analysis/, /to help farmers/],
+});
+
+cases.push({
+    label: 'first-person: mid-sentence "I have built" pronoun stripped',
+    actual: stripFirstPersonPronouns(
+        'Across the engagement, I have built robust dashboards used by 30 stakeholders.',
+    ),
+    forbid: [/\bI\s+have\b/, /\bI've\b/, /\bI\b/],
+    require: [/built robust dashboards/],
+});
+
+cases.push({
+    label: 'first-person: "my team" → "the team", "we delivered" → "Delivered"',
+    actual: stripFirstPersonPronouns(
+        'We delivered the project on time. My team owned the rollout.',
+    ),
+    forbid: [/\bWe\b/, /\bwe\b/, /\bMy\b/, /\bmy\b/],
+    require: [/Delivered the project/, /the team/],
+});
+
+cases.push({
+    label: 'first-person: text with no pronouns is unchanged',
+    actual: stripFirstPersonPronouns(
+        'Designed irrigation systems for commercial farms across East Africa.',
+    ),
+    equals: 'Designed irrigation systems for commercial farms across East Africa.',
+});
+
+// ── normalizePresentTenseToImperative ────────────────────────────────────
+cases.push({
+    label: 'tense: "Generates KES …" → "Generate KES …"',
+    actual: normalizePresentTenseToImperative(
+        'Generates KES 10,000,000 in equipment revenue by closing sales above monthly targets',
+    ),
+    require: [/^Generate\s+KES/],
+    forbid: [/^Generates\b/],
+});
+
+cases.push({
+    label: 'tense: "Delivers tailored …" → "Deliver tailored …"',
+    actual: normalizePresentTenseToImperative(
+        'Delivers tailored irrigation designs using AutoCAD',
+    ),
+    require: [/^Deliver\s+tailored/],
+    forbid: [/^Delivers\b/],
+});
+
+cases.push({
+    label: 'tense: "Maintains …" / "Improves …" / "Reduces …" all normalised',
+    actual: [
+        normalizePresentTenseToImperative('Maintains a 98% client satisfaction rate'),
+        normalizePresentTenseToImperative('Improves client retention'),
+        normalizePresentTenseToImperative('Reduces inventory costs'),
+    ].join(' || '),
+    require: [/^Maintain\s+a\s+98%/, /\|\|\s+Improve\s+client/, /\|\|\s+Reduce\s+inventory/],
+    forbid: [/Maintains\s/, /Improves\s/, /Reduces\s/],
+});
+
+cases.push({
+    label: 'tense: imperative bullet ("Manage 15+ …") is unchanged',
+    actual: normalizePresentTenseToImperative('Manage 15+ end-to-end irrigation projects annually'),
+    equals: 'Manage 15+ end-to-end irrigation projects annually',
+});
+
+cases.push({
+    label: 'tense: past-tense bullet ("Led the design …") is unchanged',
+    actual: normalizePresentTenseToImperative('Led the design of drip, sprinkler, and center pivot systems'),
+    equals: 'Led the design of drip, sprinkler, and center pivot systems',
+});
+
+cases.push({
+    label: 'tense: unknown verb ("Synthesizes …") left alone (allow-list only)',
+    actual: normalizePresentTenseToImperative('Synthesizes raw signal data into reports'),
+    equals: 'Synthesizes raw signal data into reports',
+});
+
+// ── auditCvVoice + audit integration ─────────────────────────────────────
+{
+    const badCv = {
+        summary: "I've combined data analysis and project management to help farmers.",
+        experience: [
+            {
+                jobTitle: 'Field Engineer',
+                company: 'Elgon',
+                endDate: 'Present',
+                responsibilities: [
+                    'Manage 15 end-to-end projects annually.',
+                    'Generates KES 10,000,000 in equipment revenue.',
+                    'Delivers tailored irrigation designs.',
+                ],
+            },
+            {
+                jobTitle: 'Intern',
+                company: 'Elgon',
+                endDate: 'Jan 2024',
+                responsibilities: [
+                    'Led the design of drip and sprinkler systems for 20 farms.',
+                ],
+            },
+        ],
+    };
+    const voiceIssues = auditCvVoice(badCv);
+    const kinds = voiceIssues.map(v => v.kind).sort().join(',');
+    cases.push({
+        label: 'audit voice: detects 1 first_person + 2 tense issues in current role only',
+        actual: kinds,
+        equals: 'first_person_pronoun,tense_third_person_singular,tense_third_person_singular',
+    });
+    // Past role bullet "Led the design" must NOT trigger tense flag.
+    const pastRoleFlags = voiceIssues.filter(v => v.where.includes('experience[1]'));
+    cases.push({
+        label: 'audit voice: past-tense bullet in non-current role is NOT flagged',
+        actual: String(pastRoleFlags.length),
+        equals: '0',
+    });
+    // Full audit merges voice + orphan probes into one report.
+    const fullReport = auditCvQuality(badCv as any);
+    cases.push({
+        label: 'audit: voice issues are merged into auditCvQuality report',
+        actual: fullReport.issues.some(i => i.kind === 'first_person_pronoun')
+            && fullReport.issues.some(i => i.kind === 'tense_third_person_singular')
+            ? 'YES' : 'NO',
+        equals: 'YES',
+    });
+}
+
+cases.push({
+    label: 'audit voice: hasFirstPerson detects "I\'ve" but not bare "Indian"',
+    actual: `${hasFirstPerson("I've combined")},${hasFirstPerson('Indian Ocean shipping route')}`,
+    equals: 'true,false',
+});
+
+cases.push({
+    label: 'audit voice: startsWithThirdPersonSingularVerb true for "Generates", false for "Manage"',
+    actual: `${startsWithThirdPersonSingularVerb('Generates KES 10M')},${startsWithThirdPersonSingularVerb('Manage 15 projects')}`,
+    equals: 'true,false',
+});
+
+// dangling_time_ref probe in audit
+{
+    const cv = {
+        summary: 'Engineer with years delivering water solutions across East Africa.',
+        experience: [],
+    };
+    const report = auditCvQuality(cv as any);
+    cases.push({
+        label: 'audit: "with years" in summary surfaces dangling_time_ref',
+        actual: report.issues.some(i => i.kind === 'dangling_time_ref') ? 'YES' : 'NO',
+        equals: 'YES',
     });
 }
 

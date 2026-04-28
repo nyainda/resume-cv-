@@ -32,9 +32,33 @@ be unit-tested in isolation (`npm run test:numbers`).
    replaced with the user's original profile bullet for the same role
    instead of being emitted as garbage. See
    `cvNumberFidelity.ts::repairBulletsAgainstSource`.
+8. Voice fidelity (deterministic post-process, see
+   `cvVoiceFidelity.ts`):
+   - **No first-person pronouns.** "I", "I've", "I have", "I'm", "my",
+     "we", "our", "us" are stripped from the summary and from every
+     responsibility bullet. Where a pronoun starts a clause, the
+     immediately-following verb is capitalised so the sentence still
+     reads (`"I've combined data analysis to help farmers"` →
+     `"Combined data analysis to help farmers"`). `"my"` is rewritten to
+     `"the"` because `"their"` reads strangely outside first-person
+     context.
+   - **Tense consistency in the active role.** Bullets in the role with
+     `endDate` of `Present` / `Current` / empty are normalised from
+     third-person singular present (`Generates KES …`, `Delivers
+     designs …`, `Maintains a 98% rate`) to base-form imperative
+     (`Generate KES …`, `Deliver designs …`, `Maintain a 98% rate`).
+     This matches the convention used by other bullets in the same role
+     (`"Manage 15+ projects"`). Past roles are left untouched so
+     legitimate past-tense bullets (`"Led the design …"`) survive.
+     Verbs are converted only if they appear in a hand-curated allow
+     list — unknown verbs are passed through to avoid converting nouns.
+   - **Dangling time references** (`"with years delivering"`,
+     `"of months across"`, `"for experience"`) are tidied at the end of
+     the number strip, so a hallucinated number like `"with 5 years"`
+     that gets removed does not leave a grammatically-broken phrase.
 
 ## Notes
 
 - These checks are deterministic and run near the end of generation, before cache return.
 - LLM improves language; deterministic guardrails protect factual integrity.
-- `npm run test:numbers` runs the regression suite for rules 5 and 7.
+- `npm run test:numbers` runs the regression suite for rules 5, 7, and 8 (46 tests).
