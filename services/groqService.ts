@@ -436,8 +436,21 @@ function parseTogetherError(status: number, rawBody: string): string {
 
 /**
  * Generic OpenAI-compatible chain runner — tries each model in order, moving
- * on when the upstream returns 404 (model unavailable) or 402 (paid model).
- * Used by OpenRouter and Together.ai which both rotate free models frequently.
+ * on when the upstream returns a transient/per-model error so the next free
+ * model in the chain gets a chance. Used by OpenRouter and Together.ai which
+ * both rotate free models frequently AND share rate-limits across free users.
+ *
+ * Cyclable statuses (try next model):
+ *   404 → model retired / not found
+ *   402 → model went paid (free key can't use it)
+ *   429 → model rate-limited (shared free pool exhausted for this model)
+ *   408 → request timeout
+ *   500/502/503/504 → upstream model unavailable
+ *
+ * Hard-stop statuses (throw immediately, don't waste retries):
+ *   400 → bad request (prompt too long, malformed JSON mode, etc.)
+ *   401/403 → invalid API key
+ *   413 → payload too large
  */
 async function callOpenAiCompatChain(
     providerLabel: string,
@@ -449,21 +462,31 @@ async function callOpenAiCompatChain(
     opts: { temperature?: number; json?: boolean; maxTokens?: number },
     errorParser: (status: number, body: string) => string,
 ): Promise<string> {
+    const CYCLABLE_STATUSES = new Set([404, 402, 429, 408, 500, 502, 503, 504]);
     let lastErr: any = null;
     for (let i = 0; i < modelChain.length; i++) {
         const model = modelChain[i];
         try {
             const result = await openAiCompatChat(url, apiKey, model, systemPrompt, userPrompt, opts, errorParser);
-            if (i > 0) console.info(`[AI] ${providerLabel} fell back to model "${model}" (earlier IDs returned 404/402).`);
+            if (i > 0) console.info(`[AI] ${providerLabel} fell back to model "${model}" (earlier IDs in chain were unavailable / rate-limited).`);
             return result;
         } catch (err: any) {
             lastErr = err;
-            // Cycle on "model unavailable" (404) or "model requires credits" (402) — every other error stops the chain.
-            if (err?.status !== 404 && err?.status !== 402) throw err;
-            console.warn(`[AI] ${providerLabel} model "${model}" returned ${err.status} — trying next in chain.`);
+            const status = err?.status;
+            // Hard-stop on auth / bad-request errors — retrying with another model won't help.
+            if (!CYCLABLE_STATUSES.has(status)) {
+                console.warn(`[AI] ${providerLabel} model "${model}" returned hard error ${status ?? 'unknown'} — stopping chain.`);
+                throw err;
+            }
+            console.warn(`[AI] ${providerLabel} model "${model}" returned ${status} — trying next in chain.`);
         }
     }
-    throw lastErr ?? new Error(`No ${providerLabel} model in the fallback chain succeeded.`);
+    // Every model in the chain hit a transient/cyclable error.
+    const summary = `All ${modelChain.length} ${providerLabel} free models in the chain were unavailable or rate-limited. Last error: ${lastErr?.message ?? 'unknown'}`;
+    const wrapped: any = new Error(summary);
+    wrapped.status = lastErr?.status;
+    wrapped.isUserFacing = true;
+    throw wrapped;
 }
 
 /**
