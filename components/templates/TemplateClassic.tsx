@@ -54,7 +54,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
             <SectionHeader title="Experience" />
             <div className="space-y-8">
               {cvData.experience.map((job, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <div className="flex justify-between items-baseline mb-1">
                     <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}, <span className="font-semibold text-slate-700" {...editableProps(['experience', index, 'company'])}>{job.company}</span></h3>
                     <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
@@ -72,7 +72,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
           <section key="education" className="mb-8">
             <SectionHeader title="Education" />
             {cvData.education.map((edu, index) => (
-              <div key={index} className="text-center mb-4">
+              <div key={index} className="text-center mb-4" data-pdf-keep="true">
                 <h3 className="text-lg font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
                 <p className="text-base text-slate-700" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
                 <p className="text-sm font-medium text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
@@ -107,7 +107,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
             <SectionHeader title="Projects" />
             <div className="space-y-6">
               {cvData.projects.map((proj, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <h3 className="text-lg font-bold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                   <p className="text-base text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                   {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline">{proj.link}</a>}
@@ -129,9 +129,9 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         return cvData.references && cvData.references.length > 0 ? (
           <section key="references" className="mb-8">
             <SectionHeader title="References" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-6">
               {cvData.references.map((ref, index) => (
-                <div key={index} className="text-center text-sm text-slate-700">
+                <div key={index} className="text-center text-sm text-slate-700" data-pdf-keep="true">
                   <p className="font-bold text-slate-900">{ref.name}</p>
                   <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
                   {ref.email && <p>{ref.email}</p>}

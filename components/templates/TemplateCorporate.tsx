@@ -54,7 +54,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
             <h2 className="text-lg font-semibold tracking-wide mb-3" style={{ color: accent }}>WORK EXPERIENCE</h2>
             <div className="space-y-6">
               {cvData.experience.map((job, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <div className="flex justify-between items-baseline">
                     <h3 className="text-md font-bold text-slate-800" {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
                     <p className="text-sm font-normal text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
@@ -73,7 +73,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
           <section key="education">
             <h2 className="text-lg font-semibold tracking-wide mb-3" style={{ color: accent }}>EDUCATION</h2>
             {cvData.education.map((edu, index) => (
-              <div key={index} className="mb-4">
+              <div key={index} className="mb-4" data-pdf-keep="true">
                 <div className="flex justify-between items-baseline">
                   <h3 className="text-md font-bold text-slate-800" {...editableProps(['education', index, 'school'])}>{edu.school}</h3>
                   <p className="text-sm text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
@@ -115,7 +115,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
             <h2 className="text-lg font-semibold tracking-wide mb-3" style={{ color: accent }}>PROJECTS</h2>
             <div className="space-y-4">
               {cvData.projects.map((proj, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <h3 className="text-md font-bold text-slate-800" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                   <p className="text-base text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                   {proj.link && <a href={proj.link} className="text-sm text-blue-700 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
@@ -154,8 +154,8 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
   };
 
   return (
-    <div id="cv-preview-corporate" className="bg-white p-8 sm:p-12 text-slate-900 shadow-lg border font-serif">
-      <header className="text-center mb-8">
+    <div id="cv-preview-corporate" className="bg-white p-12 text-slate-900 shadow-lg border font-serif">
+      <header className="text-center mb-8" data-pdf-keep="true">
         <h1 className="text-4xl font-bold tracking-tight text-slate-800">{personalInfo.name}</h1>
         <div className="text-sm text-slate-600 mt-3">
           {personalInfo.location} &bull; {personalInfo.phone} &bull; {personalInfo.email}

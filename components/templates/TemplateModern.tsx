@@ -90,7 +90,7 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
             <section>
               <h2 className="text-sm font-bold uppercase tracking-widest text-slate-300 border-b border-slate-500 pb-1 mb-3">Education</h2>
               {cvData.education.map((edu, index) => (
-                <div key={index} className="text-sm">
+                <div key={index} className="text-sm" data-pdf-keep="true">
                   <h3 className="font-bold" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
                   <p {...editableProps(['education', index, 'school'])}>{edu.school}</p>
                   <p className="text-slate-300" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
@@ -112,7 +112,7 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
               <h2 className="text-lg font-bold uppercase tracking-wider text-slate-600 border-b-2 border-slate-200 pb-1 mb-3">Experience</h2>
               <div className="space-y-6">
                 {cvData.experience.map((job, index) => (
-                  <div key={index} className="relative group">
+                  <div key={index} className="relative group" data-pdf-keep="true">
                     {isEditing && (
                       <button
                         onClick={() => handleDeleteExperience(index)}
@@ -140,7 +140,7 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
                 <h2 className="text-lg font-bold uppercase tracking-wider text-slate-600 border-b-2 border-slate-200 pb-1 mb-3">Projects</h2>
                 <div className="space-y-5">
                   {cvData.projects.map((proj, index) => (
-                    <div key={index}>
+                    <div key={index} data-pdf-keep="true">
                       <h3 className="text-base font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                       <p className="text-sm" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                       {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
@@ -155,7 +155,7 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
                 <h2 className="text-lg font-bold uppercase tracking-wider text-slate-600 border-b-2 border-slate-200 pb-1 mb-3">Publications</h2>
                 <div className="space-y-5">
                   {cvData.publications.map((pub, index) => (
-                    <div key={index}>
+                    <div key={index} data-pdf-keep="true">
                       <h3 className="text-base font-semibold" {...editableProps(['publications', index, 'title'])}>{pub.title}</h3>
                       <p className="text-sm text-slate-600" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</p>
                       <p className="text-sm italic text-slate-500">

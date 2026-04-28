@@ -61,7 +61,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
             <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Professional Experience</h2>
             <div className="space-y-5">
               {cvData.experience.map((job, index) => (
-                <div key={index} className="relative group">
+                <div key={index} className="relative group" data-pdf-keep="true">
                   {isEditing && (
                     <button
                       onClick={() => handleDeleteExperience(index)}
@@ -92,7 +92,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
             <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Education</h2>
             <div className="space-y-3">
               {cvData.education.map((edu, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <div className="flex justify-between items-baseline">
                     <h3 className="text-sm font-bold text-gray-900" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
                     <span className="text-xs text-gray-600 italic whitespace-nowrap ml-4" {...editableProps(['education', index, 'year'])}>{edu.year}</span>
@@ -137,7 +137,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
             <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Notable Projects</h2>
             <div className="space-y-3">
               {cvData.projects.map((proj, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <div className="flex items-baseline gap-2">
                     <h3 className="text-sm font-bold text-gray-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                     {proj.link && <a href={proj.link} className="text-xs text-blue-700 hover:underline" {...editableProps(['projects', index, 'link'])}>↗ Link</a>}
@@ -180,8 +180,8 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
   };
 
   return (
-    <div id="cv-preview-executive" className="bg-white p-10 sm:p-14 text-gray-900 shadow-lg border font-serif" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-      <header className="text-center mb-6 pb-5 border-b-2" style={{ borderColor: accent }}>
+    <div id="cv-preview-executive" className="bg-white p-14 text-gray-900 shadow-lg border font-serif" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+      <header className="text-center mb-6 pb-5 border-b-2" style={{ borderColor: accent }} data-pdf-keep="true">
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 uppercase mb-2" style={{ letterSpacing: '0.08em' }}>
           {personalInfo.name}
         </h1>
@@ -202,7 +202,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
             <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Publications</h2>
             <div className="space-y-2">
               {cvData.publications.map((pub, index) => (
-                <div key={index}>
+                <div key={index} data-pdf-keep="true">
                   <p className="text-sm text-gray-900">
                     <span className="font-semibold" {...editableProps(['publications', index, 'title'])}>{pub.title}</span>.{' '}
                     <span className="italic" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</span>.{' '}
