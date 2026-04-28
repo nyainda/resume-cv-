@@ -44,7 +44,10 @@ const SUBSTITUTIONS: Array<[RegExp, string]> = [
     [/\bresults[- ]driven\b/gi,          'delivery-focused'],
     [/\bdetail[- ]oriented\b/gi,         'thorough'],
     [/\bgo[- ]getter\b/gi,               'self-starter'],
-    [/\bteam player\b/gi,                'collaborative'],
+    // POS-preserving: noun → noun. Earlier mapping to "collaborative" (an
+    // adjective) produced ungrammatical output like "I am a collaborative" when
+    // the preceding article wasn't stripped.
+    [/\bteam player\b/gi,                'collaborator'],
     // "dynamic" — just delete (rarely adds meaning)
     [/\bdynamic\s+/gi,                   ''],
 ];
@@ -290,6 +293,12 @@ const VERB_TENSE_MAP: Array<{ present: string; past: string }> = [
     { present: 'Establishes',   past: 'Established' },
     { present: 'Spearheads',    past: 'Spearheaded' },
     { present: 'Leverages',     past: 'Leveraged' },
+    { present: 'Architects',    past: 'Architected' },
+    { present: 'Refactors',     past: 'Refactored' },
+    { present: 'Migrates',      past: 'Migrated' },
+    { present: 'Automates',     past: 'Automated' },
+    { present: 'Authors',       past: 'Authored' },
+    { present: 'Publishes',     past: 'Published' },
     // Verbs added in response to user-reported tense leaks in current roles.
     { present: 'Conducts',      past: 'Conducted' },
     { present: 'Performs',      past: 'Performed' },
@@ -347,12 +356,50 @@ function isCurrentRole(role: { endDate?: string }): boolean {
 }
 
 /**
+ * Returns the alternative present-tense form (bare infinitive) for a 3rd-person
+ * singular verb. "Leads" → "lead", "Watches" → "watch", "Studies" → "study".
+ * Used so the tense detector recognises bullets that start with the bare verb
+ * ("Lead a team of 5…") even though VERB_TENSE_MAP stores 3rd-person form.
+ *
+ * Conjugation rules (English present-tense suffix stripping, in order):
+ *   "ies" → "y"        ("studies" → "study")
+ *   "ches/shes/sses/xes/zes/oes" → strip last 2  ("watches" → "watch")
+ *   trailing "s" (not "ss") → strip last 1       ("leads" → "lead")
+ * Returns null when the input doesn't have a recognisable 3rd-person ending.
+ */
+function bareInfinitiveOf(thirdPersonForm: string): string | null {
+    const lower = thirdPersonForm.toLowerCase();
+    if (lower.endsWith('ies') && lower.length > 3) return lower.slice(0, -3) + 'y';
+    if (/(ches|shes|sses|xes|zes|oes)$/.test(lower)) return lower.slice(0, -2);
+    if (lower.endsWith('s') && !lower.endsWith('ss')) return lower.slice(0, -1);
+    return null;
+}
+
+/**
+ * Returns true when `word` (lowercase) is recognisable as the present-tense
+ * form of the verb pair — accepts BOTH the 3rd-person singular ("Leads") and
+ * the bare infinitive ("Lead"). The latter handles bullets that omit the
+ * 3rd-person suffix, e.g. "Lead a team of 5…" in a past role that should flip
+ * to "Led".
+ */
+function isPresentForm(word: string, pair: { present: string }): boolean {
+    const lower = word.toLowerCase();
+    if (lower === pair.present.toLowerCase()) return true;
+    const bare = bareInfinitiveOf(pair.present);
+    return bare !== null && lower === bare;
+}
+
+/**
  * Rewrites the LEADING verb of a bullet to match the target tense if it is
  * currently in the wrong tense. Returns { text, changed }.
  *
  * Heuristic: the bullet's first word (after any leading bullet glyph or quote)
  * is the action verb. We compare it against VERB_TENSE_MAP and flip when
  * needed. Bullets that don't start with a recognised verb are left untouched.
+ *
+ * The present-form check accepts both 3rd-person ("Leads") and bare infinitive
+ * ("Lead") so a past-role bullet starting with "Lead a team…" gets flipped to
+ * "Led" — previously the bare form silently slipped through.
  */
 function flipLeadingVerb(bullet: string, target: 'present' | 'past'): { text: string; changed: boolean } {
     if (!bullet || typeof bullet !== 'string') return { text: bullet || '', changed: false };
@@ -369,12 +416,29 @@ function flipLeadingVerb(bullet: string, target: 'present' | 'past'): { text: st
             const replacement = matchCase(firstWord, pair.present);
             return { text: prefix + replacement + boundary + bullet.slice(m[0].length), changed: true };
         }
-        if (target === 'past' && lower === presLower && lower !== pastLower) {
+        if (target === 'past' && isPresentForm(firstWord, pair) && lower !== pastLower) {
             const replacement = matchCase(firstWord, pair.past);
             return { text: prefix + replacement + boundary + bullet.slice(m[0].length), changed: true };
         }
     }
     return { text: bullet, changed: false };
+}
+
+/**
+ * Returns true when `bullet`'s leading verb is already in the target tense.
+ * Used to gate `flipMidBulletVerb` — we only flip the second verb in a
+ * conjunction once the first verb is correct, so we never produce mixed-tense
+ * Frankenstein bullets like "Architected and ships X" (past + 3rd-person).
+ */
+function leadingVerbInTargetTense(bullet: string, target: 'present' | 'past'): boolean {
+    const m = bullet.match(/^(\s*[-•·*»"']?\s*)([A-Za-z]+)(\b)/);
+    if (!m) return false;
+    const word = m[2].toLowerCase();
+    for (const pair of VERB_TENSE_MAP) {
+        if (target === 'present' && isPresentForm(word, pair)) return true;
+        if (target === 'past' && word === pair.past.toLowerCase()) return true;
+    }
+    return false;
 }
 
 /** Preserves the original word's case envelope (UPPER, Title, lower). */
@@ -429,7 +493,12 @@ export function enforceTenseConsistency(cv: CVData): { cv: CVData; changes: stri
         const target: 'present' | 'past' = isCurrentRole(role) ? 'present' : 'past';
         const newBullets = (role.responsibilities || []).map(b => {
             const lead = flipLeadingVerb(b, target);
-            const mid  = flipMidBulletVerb(lead.text, target);
+            // Gate: only flip the mid-bullet verb if the LEADING verb is now in
+            // the target tense. Otherwise we produce mixed-tense bullets like
+            // "Architected and ships X" where the first verb is past and the
+            // second is present — strictly worse than the original.
+            const midSafe = leadingVerbInTargetTense(lead.text, target);
+            const mid = midSafe ? flipMidBulletVerb(lead.text, target) : { text: lead.text, changed: false };
             const finalText = mid.text;
             if (lead.changed || mid.changed) {
                 changes.push(`[${role.jobTitle} @ ${role.company}] ${lead.changed && mid.changed ? 'lead+mid' : lead.changed ? 'lead' : 'mid'} flipped to ${target}: "${b.slice(0, 50)}…"`);
@@ -447,8 +516,13 @@ function detectTenseMismatch(cv: CVData): string[] {
         const isCurrent = isCurrentRole(role);
         const bullets = role.responsibilities || [];
         for (const b of bullets) {
-            const hasPresent = PRESENT_VERB_HINTS.test(b);
-            const hasPast    = PAST_VERB_HINTS.test(b);
+            // Strip "to <verb>" infinitives before tense checks. Without this,
+            // a perfectly past-tense bullet like "Led a team to deliver projects"
+            // matches PRESENT_VERB_HINTS on "deliver" and falsely flags as
+            // mixed tense, creating noise in the warnings reported to the user.
+            const cleaned = b.replace(/\bto\s+[A-Za-z]+\b/gi, '');
+            const hasPresent = PRESENT_VERB_HINTS.test(cleaned);
+            const hasPast    = PAST_VERB_HINTS.test(cleaned);
             if (hasPresent && hasPast) {
                 issues.push(`Mixed tense in "${role.jobTitle} @ ${role.company}": "${b.slice(0, 60)}…"`);
             } else if (isCurrent && hasPast && !hasPresent) {
@@ -1207,6 +1281,75 @@ function quantificationRatio(cv: CVData): number {
     return withNum / bullets.length;
 }
 
+/**
+ * Fixes "a/an" article agreement after substitutions or word deletions.
+ * The `dynamic\s+ → ''` substitution can leave behind "a engineer" (was "a
+ * dynamic engineer"); other deletions can leave "an manager" (was "an
+ * accomplished manager"). This pass repairs both directions using a simple
+ * vowel-letter heuristic. It is intentionally conservative — we don't try to
+ * handle silent-h ("an hour") or vowel-sounding consonants ("a university"),
+ * which are rare in CV text. Idempotent.
+ */
+function fixArticleAgreement(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    let out = text;
+    // "a" / "A" before a vowel-letter word → "an" / "An"
+    out = out.replace(/\b(a)( +)(?=[aeiouAEIOU]\w)/g, (_m, art, sp) => `${art === 'A' ? 'An' : 'an'}${sp}`);
+    // "an" / "An" before a consonant-letter word → "a" / "A"
+    out = out.replace(/\b(an)( +)(?=[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]\w)/g, (_m, art, sp) => `${art === 'An' ? 'A' : 'a'}${sp}`);
+    return { text: out, changed: out !== text };
+}
+
+/**
+ * Drops a trailing prepositional phrase whose final content word is a duplicate
+ * of an earlier content word in the same bullet/sentence.
+ *
+ * Concrete failure mode this guards against: the substitution
+ * `knowledge sharing → documentation` rewrites
+ *   "enable knowledge sharing across the org through documentation"
+ * to
+ *   "enable documentation across the org through documentation"
+ * which is grammatical but reads as obviously broken. `removeDuplicateWords`
+ * only collapses ADJACENT duplicates, so it can't help here.
+ *
+ * Heuristic: scan for `<prep> [the|a|an]? <WORD>` at the end of the bullet
+ * (or before a sentence terminator). If that final WORD already appears
+ * earlier in the same bullet as a content word (≥4 chars, not in the stop set),
+ * drop the entire prepositional phrase. Single pass — won't recursively chase
+ * additional duplicates. Conservative on length: leaves the bullet alone if
+ * dropping would shorten it below 6 words.
+ */
+const REDUNDANT_PREPS = ['through', 'via', 'by', 'with', 'using', 'including', 'featuring', 'across', 'within', 'during'];
+const DEDUP_STOPWORDS = new Set([
+    'the', 'a', 'an', 'and', 'or', 'of', 'in', 'to', 'for', 'on', 'at', 'by',
+    'is', 'was', 'as', 'this', 'that', 'it', 'be', 'with', 'from', 'into',
+    'team', 'work', 'role', 'time', 'org', 'company', 'group',
+]);
+
+function dropRedundantPrepPhrase(text: string): { text: string; changed: boolean } {
+    if (!text || typeof text !== 'string') return { text: text || '', changed: false };
+    const prepGroup = REDUNDANT_PREPS.join('|');
+    // Trailing "…<prep> [the|a|an]? <WORD>[.,;]?" anchored to end-of-string OR
+    // followed by a sentence boundary.
+    const re = new RegExp(`\\s+(${prepGroup})\\s+(?:the|a|an)?\\s*([A-Za-z][A-Za-z'-]+)([.,;:!?]?)\\s*$`, 'i');
+    const m = text.match(re);
+    if (!m) return { text, changed: false };
+    const tailWord = m[2].toLowerCase();
+    if (DEDUP_STOPWORDS.has(tailWord) || tailWord.length < 4) {
+        return { text, changed: false };
+    }
+    // Look for the same content word earlier in the bullet (NOT inside the
+    // matched tail). Word-boundary, case-insensitive.
+    const head = text.slice(0, text.length - m[0].length);
+    const earlierRe = new RegExp(`\\b${tailWord}\\b`, 'i');
+    if (!earlierRe.test(head)) return { text, changed: false };
+    // Don't shorten the bullet to below 6 words — preserves readability.
+    const wordCount = head.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount < 6) return { text, changed: false };
+    // Preserve trailing punctuation if the original had it.
+    return { text: head.replace(/\s+$/, '') + (m[3] || ''), changed: true };
+}
+
 /** Composite polish pass for a single bullet — order matters. */
 function polishBullet(bullet: string): { text: string; fixes: string[] } {
     const fixes: string[] = [];
@@ -1225,6 +1368,16 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     apply('weird_opener',     rewriteWeirdOpeners);
     apply('weak_opener',      rewriteWeakOpener);
     apply('weak_qualifier',   stripWeakQualifiers);
+    // dup_prep_phrase: catches non-adjacent duplicate content words created by
+    // upstream substitutions (e.g. "knowledge sharing → documentation" leaving
+    // "enable documentation … through documentation"). Runs AFTER weak
+    // qualifiers so removing "very/really" can't shift the trailing phrase
+    // out of range, and BEFORE article fix in case dropping the trailing
+    // phrase changes which article precedes the next noun.
+    apply('dup_prep_phrase',  dropRedundantPrepPhrase);
+    // article_agreement: repairs "a engineer" / "an manager" caused by
+    // word-deletion substitutions like `dynamic\s+ → ''`.
+    apply('article_agreement', fixArticleAgreement);
     // number_format MUST run before orphan_metric so legit "5 %" / "$ 1,000"
     // get collapsed to "5%" / "$1,000" first — otherwise stripOrphanMetrics
     // sees the space and treats them as orphans.
@@ -1260,6 +1413,12 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
     // first_person SKIPPED — summary keeps its voice.
     // weak_opener  SKIPPED — paragraph, not a bullet.
     apply('weak_qualifier',   stripWeakQualifiers);
+    // dup_prep_phrase + article_agreement: same rationale as polishBullet.
+    // The summary is the highest-visibility free-text field on the CV, so it
+    // is also the most likely place a substitution-induced grammar bug shows
+    // up to the user.
+    apply('dup_prep_phrase',  dropRedundantPrepPhrase);
+    apply('article_agreement', fixArticleAgreement);
     // number_format BEFORE orphan_metric — see polishBullet for rationale.
     apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
@@ -1282,7 +1441,9 @@ export interface PurifyLeak {
         | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
         | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
         | 'orphan_metric' | 'short_bullet' | 'long_bullet'
-        | 'unicode_glyph';
+        | 'unicode_glyph'
+        // New leak categories surfaced by the audit harness.
+        | 'dup_prep_phrase' | 'article_agreement';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -1407,24 +1568,27 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         }
     }
 
-    // Step 3 — ROUND-NUMBER JITTER (only fires when >60% saturation).
-    let metricsJittered = 0;
+    // Step 3 — ROUND-NUMBER SATURATION CHECK (flag-only, no longer mutates).
+    //
+    // We previously ran `jitterRoundNumbers` here to silently rewrite round
+    // metrics (50% → 52%, 1000 → 1051) so the CV didn't read as obvious AI
+    // output. The audit harness exposed the cost: when a user genuinely
+    // achieved exactly 100%, jitter rewrote it to 96% — a destructive lie.
+    // We can't tell synthetic round numbers from real ones, so we now emit a
+    // single round_number leak record and let the AI provider pass handle
+    // de-rounding on its next regeneration. The mutating helper still exists
+    // (callers can opt in explicitly) but the orchestrator no longer touches
+    // user metrics.
+    const metricsJittered = 0;
     const roundCheck = detectRoundNumberSaturation(working);
     if (roundCheck.flagged) {
-        const jitter = jitterRoundNumbers(working);
-        if (jitter.changes.length) {
-            metricsJittered = jitter.changes.length;
-            console.warn(`[Purify] Round-number saturation ${(roundCheck.ratio * 100).toFixed(0)}% — jittered ${metricsJittered} metric(s).`);
-            working = jitter.cv;
-            for (const c of jitter.changes.slice(0, 20)) {
-                leaks.push({
-                    leakType: 'round_number',
-                    phrase: c.slice(0, 200),
-                    fixedBy: 'jitter',
-                    contextSnippet: c,
-                });
-            }
-        }
+        console.warn(`[Purify] Round-number saturation ${(roundCheck.ratio * 100).toFixed(0)}% — flagged (no auto-jitter).`);
+        leaks.push({
+            leakType: 'round_number',
+            phrase: `${(roundCheck.ratio * 100).toFixed(0)}% of metrics are round`,
+            fixedBy: 'none',
+            contextSnippet: `Saturation ratio ${roundCheck.ratio.toFixed(2)} (>0.60 threshold).`,
+        });
     }
 
     // Step 4 — PHASE-2 POLISH PASS. Runs the per-bullet polish on every
@@ -1440,17 +1604,19 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
             polishFixesTotal++;
             // Map polish-fix names → telemetry leak types.
             const leakType: PurifyLeak['leakType'] =
-                f === 'first_person'      ? 'first_person'      :
-                f === 'weak_qualifier'    ? 'weak_qualifier'    :
-                f === 'weak_opener'       ? 'weak_opener'       :
-                f === 'weird_opener'      ? 'weird_opener'      :
-                f === 'orphan_metric'     ? 'orphan_metric'     :
-                f === 'unicode_glyph'     ? 'unicode_glyph'     :
-                f === 'markup_strip'      ? 'markup_artifact'   :
-                f === 'capitalise'        ? 'capitalisation'    :
-                f === 'trailing_period'   ? 'trailing_period'   :
-                f === 'number_format'     ? 'number_format'     :
-                /* whitespace_dashes */     'whitespace_dash';
+                f === 'first_person'       ? 'first_person'       :
+                f === 'weak_qualifier'     ? 'weak_qualifier'     :
+                f === 'weak_opener'        ? 'weak_opener'        :
+                f === 'weird_opener'       ? 'weird_opener'       :
+                f === 'orphan_metric'      ? 'orphan_metric'      :
+                f === 'unicode_glyph'      ? 'unicode_glyph'      :
+                f === 'markup_strip'       ? 'markup_artifact'    :
+                f === 'capitalise'         ? 'capitalisation'     :
+                f === 'trailing_period'    ? 'trailing_period'    :
+                f === 'number_format'      ? 'number_format'      :
+                f === 'dup_prep_phrase'    ? 'dup_prep_phrase'    :
+                f === 'article_agreement'  ? 'article_agreement'  :
+                /* whitespace_dashes */      'whitespace_dash';
             leaks.push({
                 leakType, phrase: f,
                 fieldLocation: location,
