@@ -16,6 +16,8 @@
  * - Same-origin / readable stylesheets are fully inlined as CSS text so
  *   Tailwind utility classes, template colours, gradients, etc. are
  *   self-contained and need zero network requests to render.
+ * - We strip contenteditable focus rings, editing UI, and interactive controls
+ *   from the clone so the PDF matches the clean preview — not the editing state.
  */
 
 export interface GetCVHtmlOptions {
@@ -26,6 +28,7 @@ export interface GetCVHtmlOptions {
 export function getCVHtml(opts: GetCVHtmlOptions = {}): string | null {
   const { selector = "[data-cv-preview], #cv-preview-area", extraStyles = "" } = opts;
 
+  // Locate the outermost preview wrapper
   const container = document.querySelector<HTMLElement>(selector);
   if (!container) {
     console.warn(`[getCVHtml] Element not found: "${selector}"`);
@@ -33,12 +36,48 @@ export function getCVHtml(opts: GetCVHtmlOptions = {}): string | null {
     return null;
   }
 
+  // Deep clone — we will mutate the clone freely
   const clone = container.cloneNode(true) as HTMLElement;
 
-  ["button", "[data-pdf-hide]", ".no-print", '[contenteditable="true"]'].forEach((sel) =>
-    clone.querySelectorAll(sel).forEach((el) => el.remove())
-  );
+  // ── Strip UI-only nodes ───────────────────────────────────────────────────
+  // Remove buttons, editing controls, no-print helpers
+  [
+    "button",
+    "[data-pdf-hide]",
+    ".no-print",
+    // Remove the scroll wrapper but keep the inner template div
+  ].forEach((sel) => clone.querySelectorAll(sel).forEach((el) => el.remove()));
 
+  // Strip contenteditable attributes and their focus-ring classes from all nodes
+  clone.querySelectorAll("[contenteditable]").forEach((el) => {
+    el.removeAttribute("contenteditable");
+    // Remove Tailwind focus-ring / editing-mode classes injected by editableProps()
+    el.classList.remove(
+      "outline-none",
+      "ring-1",
+      "ring-transparent",
+      "focus:ring-blue-400",
+      "focus:bg-blue-100/50",
+      "dark:focus:bg-blue-900/50",
+      "rounded",
+      "px-1",
+      "-mx-1",
+      "transition-all"
+    );
+  });
+
+  // Force the clone's root element to exactly A4 width so Playwright renders
+  // it the same as the browser preview (794px = ~210mm at 96dpi).
+  // Also remove min-width / max-width from the outer scroll wrapper if present.
+  clone.style.cssText = `
+    width: 794px !important;
+    min-width: 794px !important;
+    max-width: 794px !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+  `;
+
+  // ── Stylesheet collection ─────────────────────────────────────────────────
   // Separate readable (same-origin) sheets from cross-origin sheets.
   // Cross-origin sheets (Google Fonts, rsms.me) throw on .cssRules access —
   // emit them as <link> tags so headless Chrome can fetch them normally.
@@ -61,15 +100,12 @@ export function getCVHtml(opts: GetCVHtmlOptions = {}): string | null {
   }
 
   // Always include preconnect hints + <link> tags for well-known font CDNs
-  // that might not be in document.styleSheets yet (e.g. dynamic injection).
-  // Deduplication ensures no duplicates if they were already found above.
   const wellKnownFontOrigins = [
     "https://fonts.googleapis.com",
     "https://fonts.gstatic.com",
     "https://rsms.me",
   ];
 
-  // Build preconnect tags (always safe to include)
   const preconnectTags = wellKnownFontOrigins
     .map((origin) => {
       const crossorigin = origin.includes("gstatic") ? ' crossorigin=""' : "";
@@ -77,7 +113,6 @@ export function getCVHtml(opts: GetCVHtmlOptions = {}): string | null {
     })
     .join("\n");
 
-  // Build <link rel="stylesheet"> tags for all external sheets
   const linkTags = externalLinkHrefs
     .map((href) => `  <link rel="stylesheet" href="${href}">`)
     .join("\n");
@@ -95,18 +130,44 @@ ${linkTags}
   <style>
     @page { size: A4; margin: 0mm; }
     *, *::before, *::after { box-sizing: border-box; }
-    html, body {
+    html {
       margin: 0;
       padding: 0;
       background: white;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: white;
       width: 210mm;
+      max-width: 210mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    /* Remove any outer scroll-wrapper constraints — let the template breathe */
+    body > div {
+      width: 210mm !important;
+      min-width: unset !important;
+      overflow: visible !important;
     }
     h2, h3, h4 { page-break-after: avoid; }
     section { page-break-inside: avoid; }
     li { page-break-inside: avoid; }
+    /* Force ALL backgrounds and colours to render in print/headless */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
     .no-print, [data-pdf-hide] { display: none !important; }
+    /* Strip editing focus rings entirely */
+    [contenteditable] {
+      outline: none !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
     ${inlinedCSS}
     ${extraStyles}
   </style>

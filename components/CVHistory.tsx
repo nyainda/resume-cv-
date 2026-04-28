@@ -5,6 +5,7 @@ import { Trash, Eye, Download, FileText, BookOpen, Briefcase, Globe, RefreshCw, 
 import TemplateThumbnail from './TemplateThumbnail';
 import CVPreview from './CVPreview';
 import { downloadCVAsPDF } from '../services/pdfService';
+import { downloadViaPlaywright, isPlaywrightServerAvailable } from '../services/playwrightPdfService';
 
 interface CVHistoryProps {
     savedCVs: SavedCV[];
@@ -48,13 +49,21 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
     const handleDownload = async () => {
         setIsDownloading(true);
         const sanitize = (s: string) => s.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+        const fileName = `${sanitize(userProfile.personalInfo.name || 'CV').substring(0, 20)}_${sanitize(cv.name).substring(0, 25)}.pdf`;
         try {
+            // Try pixel-perfect Playwright server first
+            const playwrightAvail = await isPlaywrightServerAvailable();
+            if (playwrightAvail) {
+                const result = await downloadViaPlaywright(fileName);
+                if (result.success) return;
+            }
+            // Fallback: legacy jsPDF path
             await downloadCVAsPDF({
                 cvData: cv.data,
                 personalInfo: userProfile.personalInfo,
                 template: selectedTemplate,
                 font: 'inter',
-                fileName: `${sanitize(userProfile.personalInfo.name || 'CV').substring(0, 20)}_${sanitize(cv.name).substring(0, 25)}.pdf`,
+                fileName,
                 jobDescription: '',
             });
         } finally {
@@ -110,11 +119,10 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                             <button
                                 key={t}
                                 onClick={() => setSelectedTemplate(t)}
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 border ${
-                                    selectedTemplate === t
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 border ${selectedTemplate === t
                                         ? 'bg-[#1B2B4B] border-[#1B2B4B] text-white shadow-sm'
                                         : 'bg-white dark:bg-neutral-700 border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:border-[#C9A84C]/60 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C]'
-                                }`}
+                                    }`}
                             >
                                 {templateDisplayNames[t]}
                             </button>
@@ -144,7 +152,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                                 personalInfo={userProfile.personalInfo}
                                 template={selectedTemplate}
                                 isEditing={false}
-                                onDataChange={() => {}}
+                                onDataChange={() => { }}
                                 jobDescriptionForATS=""
                             />
                         </div>
@@ -211,8 +219,8 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${filter === f
-                                    ? 'bg-[#1B2B4B] text-white shadow-md shadow-[#1B2B4B]/20'
-                                    : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700'
+                                ? 'bg-[#1B2B4B] text-white shadow-md shadow-[#1B2B4B]/20'
+                                : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700'
                                 }`}
                         >
                             {f === 'all' ? `All (${savedCVs.length})` :

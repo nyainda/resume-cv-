@@ -63,7 +63,7 @@ function friendlyError(err: unknown, action = 'complete that action'): string {
   return `Could not ${action}. Please try again.`;
 }
 
-const REACT_PDF_TEMPLATES: string[] = [];
+// PDFDownloadButton (Playwright pixel-perfect path) is now always shown when a CV exists.
 
 /**
  * Directly converts a UserProfile into CVData without any AI call.
@@ -869,7 +869,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   )}
                 </Button>
               )}
-              {currentCV && REACT_PDF_TEMPLATES.includes(template as any) ? (
+              {currentCV ? (
                 <PDFDownloadButton
                   cvData={currentCV}
                   personalInfo={userProfile.personalInfo}
@@ -878,11 +878,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   onFallback={handleDownload}
                   disabled={isEditing}
                 />
-              ) : (
-                <Button onClick={handleDownload} disabled={isEditing} size="sm">
-                  <Download className="h-4 w-4 mr-2" />Download PDF
-                </Button>
-              )}
+              ) : null}
               <Button
                 variant="secondary"
                 onClick={() => setShowShareModal(true)}

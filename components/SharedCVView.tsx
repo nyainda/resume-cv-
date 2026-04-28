@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
 import { downloadCVAsPDF } from '../services/pdfService';
+import { downloadViaPlaywright, isPlaywrightServerAvailable } from '../services/playwrightPdfService';
 import type { FontName } from '../types';
 
 interface SharedCVViewProps {
@@ -39,10 +40,17 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const isOwner = !!onLoadIntoEditor;
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     setDownloading(true);
     try {
       const fileName = `${personalInfo.name.replace(/\s+/g, '_')}_CV.pdf`;
+      // Try pixel-perfect Playwright server first
+      const playwrightAvail = await isPlaywrightServerAvailable();
+      if (playwrightAvail) {
+        const result = await downloadViaPlaywright(fileName);
+        if (result.success) return;
+      }
+      // Fallback: legacy jsPDF
       downloadCVAsPDF({ cvData, personalInfo, template, font: 'inter' as FontName, fileName });
     } finally {
       setDownloading(false);
@@ -109,8 +117,8 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white text-sm font-semibold transition-colors shadow-sm"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                        <polyline points="22,6 12,13 2,6"/>
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
                       </svg>
                       Contact Candidate
                     </button>
@@ -123,12 +131,12 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                     >
                       {contactCopied ? (
                         <svg className="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                          <polyline points="20 6 9 17 4 12"/>
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
                       ) : (
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                         </svg>
                       )}
                     </button>
@@ -142,7 +150,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                       title="LinkedIn profile"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
                       </svg>
                     </a>
                   )}
@@ -159,9 +167,9 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                 ) : (
                   <>
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                     Download PDF
                   </>
@@ -176,7 +184,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                   title="Close preview"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
               )}
@@ -188,8 +196,8 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
             {personalInfo.location && (
               <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                  <circle cx="12" cy="10" r="3"/>
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
                 </svg>
                 {personalInfo.location}
               </span>
@@ -197,8 +205,8 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
             {personalInfo.email && (
               <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
                 </svg>
                 {personalInfo.email}
               </span>
@@ -206,7 +214,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
             {personalInfo.phone && (
               <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                 </svg>
                 {personalInfo.phone}
               </span>
@@ -223,11 +231,10 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                 <button
                   key={doc}
                   onClick={() => setActiveDoc(doc)}
-                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
-                    activeDoc === doc
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeDoc === doc
                       ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]'
                       : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                  }`}
+                    }`}
                 >
                   {doc === 'cv' ? 'CV' : 'Cover Letter'}
                 </button>
@@ -246,7 +253,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
               personalInfo={personalInfo}
               template={template}
               isEditing={false}
-              onDataChange={() => {}}
+              onDataChange={() => { }}
               jobDescriptionForATS=""
             />
           </div>

@@ -16,11 +16,11 @@
 
 'use strict';
 
-const express  = require('express');
-const cors     = require('cors');
+const express = require('express');
+const cors = require('cors');
 const { chromium } = require('playwright');
 
-const app  = express();
+const app = express();
 const PORT = 3001;
 const MAX_CONCURRENT = 3; // max simultaneous Playwright pages
 
@@ -29,9 +29,9 @@ app.use(express.json({ limit: '25mb' }));
 
 // ─── Browser pool ──────────────────────────────────────────────────────────────
 
-let browser     = null;
-let activePgs   = 0;
-let waitQueue   = [];   // array of () => void resolve callbacks
+let browser = null;
+let activePgs = 0;
+let waitQueue = [];   // array of () => void resolve callbacks
 
 async function getBrowserArgs() {
     const { execSync } = require('child_process');
@@ -99,20 +99,22 @@ async function renderPdf(pageContent) {
     const b = await ensureBrowser();
     const page = await b.newPage();
     try {
+        // 794 × 1123 px ≈ A4 at 96 dpi — matches the browser preview exactly
         await page.setViewportSize({ width: 794, height: 1123 });
-        await page.setContent(pageContent, { waitUntil: 'networkidle', timeout: 20000 });
+        await page.setContent(pageContent, { waitUntil: 'networkidle', timeout: 25000 });
+        // Wait for all web fonts to load before snapshotting
         await page.evaluate(() => document.fonts.ready);
-        // Brief stabilisation delay for CSS transitions / lazy images
-        await page.waitForTimeout(400);
+        // Extra stabilisation: CSS transitions, lazy images, font swap
+        await page.waitForTimeout(600);
         const pdfBuffer = await page.pdf({
             format: 'A4',
             printBackground: true,
             margin: { top: '0mm', bottom: '0mm', left: '0mm', right: '0mm' },
-            preferCSSPageSize: false,
+            preferCSSPageSize: true,
         });
         return pdfBuffer;
     } finally {
-        await page.close().catch(() => {});
+        await page.close().catch(() => { });
         releaseSlot();
     }
 }
