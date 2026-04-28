@@ -30,8 +30,9 @@ interface WorkerCheck {
 }
 
 const HEALTH_TIMEOUT_MS = 5000;
+const LLM_PROBE_TIMEOUT_MS = 8000;
 
-async function checkHealth(url: string): Promise<{ ok: boolean; status: number }> {
+async function checkHealth(url: string): Promise<{ ok: boolean; status: number; note?: string }> {
     if (!url) return { ok: false, status: 0 };
     try {
         const res = await fetch(`${url.replace(/\/$/, '')}/health`, {
@@ -44,13 +45,49 @@ async function checkHealth(url: string): Promise<{ ok: boolean; status: number }
     }
 }
 
+/**
+ * Real LLM probe — calls the tiered-llm endpoint with the cheapest free task
+ * ("general" → Llama 3.1 8B free) and 2 tokens. Edge `/health` only checks D1
+ * row counts and stays green even when Workers AI is wedged with 502s, so we
+ * verify the actual AI binding instead. ~free, runs once per page load.
+ */
+async function probeCVEngineLLM(url: string): Promise<{ ok: boolean; status: number; note?: string }> {
+    if (!url) return { ok: false, status: 0 };
+    try {
+        const res = await fetch(`${url.replace(/\/$/, '')}/api/cv/tiered-llm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                task: 'general',
+                system: 'Reply with the single word: ok',
+                prompt: 'ping',
+                temperature: 0,
+                maxTokens: 64,
+            }),
+            signal: AbortSignal.timeout(LLM_PROBE_TIMEOUT_MS),
+        });
+        if (!res.ok) {
+            return { ok: false, status: res.status, note: `LLM probe failed (HTTP ${res.status}) — Workers AI upstream may be rate-limited or down.` };
+        }
+        const data = await res.json().catch(() => null) as { text?: string } | null;
+        const text = (data?.text || '').trim();
+        if (!text) {
+            return { ok: false, status: res.status, note: 'LLM probe returned empty text — Workers AI binding is reachable but not generating output.' };
+        }
+        return { ok: true, status: res.status };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { ok: false, status: 0, note: `LLM probe network error: ${msg}` };
+    }
+}
+
 async function runChecks(): Promise<WorkerCheck[]> {
     const pdfConfigured = isCloudflareConfigured();
     const enginedConfigured = isCVEngineConfigured();
 
-    const [pdfHealth, engineHealth] = await Promise.all([
+    const [pdfHealth, engineProbe] = await Promise.all([
         pdfConfigured ? checkHealth(PDF_WORKER_URL) : Promise.resolve({ ok: false, status: 0 }),
-        enginedConfigured ? checkHealth(CV_ENGINE_URL) : Promise.resolve({ ok: false, status: 0 }),
+        enginedConfigured ? probeCVEngineLLM(CV_ENGINE_URL) : Promise.resolve({ ok: false, status: 0 }),
     ]);
 
     return [
@@ -66,9 +103,9 @@ async function runChecks(): Promise<WorkerCheck[]> {
             name: 'CV Engine Worker',
             configured: enginedConfigured,
             url: CV_ENGINE_URL || '(unset)',
-            reachable: enginedConfigured ? engineHealth.ok : null,
-            httpStatus: enginedConfigured ? engineHealth.status : undefined,
-            note: enginedConfigured ? undefined : 'VITE_CV_ENGINE_URL is not set in this build.',
+            reachable: enginedConfigured ? engineProbe.ok : null,
+            httpStatus: enginedConfigured ? engineProbe.status : undefined,
+            note: enginedConfigured ? engineProbe.note : 'VITE_CV_ENGINE_URL is not set in this build.',
         },
     ];
 }
