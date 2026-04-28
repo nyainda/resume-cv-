@@ -1,0 +1,301 @@
+{
+    "_meta": {
+        "version": "1.0.0",
+        "description": "Master CV Generation Rules — single source of truth. Both the AI prompt builder and the post-generation programmatic validator read from this file. Any rule change here automatically propagates to both.",
+        "lastUpdated": "2026-04-28"
+    },
+    "summary": {
+        "minWords": 55,
+        "maxWords": 80,
+        "minSentences": 3,
+        "maxSentences": 4,
+        "mustNotStartWith": [
+            "I ",
+            "A ",
+            "An "
+        ],
+        "mustStartWithPattern": "number_or_title",
+        "bannedPhrases": [
+            "passionate",
+            "dynamic",
+            "results-driven",
+            "detail-oriented",
+            "innovative",
+            "seasoned professional",
+            "proactive",
+            "go-getter",
+            "versatile",
+            "excited to",
+            "team player"
+        ],
+        "minJDKeywordsRequired": 3,
+        "description": "55–80 words, 3–4 sentences. Must start with years of experience or job title. Must contain at least 3 critical JD keywords verbatim."
+    },
+    "experience": {
+        "bulletCounts": {
+            "current": {
+                "min": 5,
+                "max": 6,
+                "label": "Current / most recent role"
+            },
+            "recent": {
+                "min": 3,
+                "max": 5,
+                "label": "Roles within last 5 years"
+            },
+            "older": {
+                "min": 2,
+                "max": 3,
+                "label": "Roles 5–10 years ago"
+            },
+            "early": {
+                "min": 1,
+                "max": 2,
+                "label": "Early career / internships"
+            }
+        },
+        "absoluteMaxBulletsPerRole": 6,
+        "olderRoleCannotExceedNewerRole": true,
+        "bulletMinWords": 12,
+        "bulletMaxWords": 35,
+        "firstBulletMustBeScopeAnchor": true,
+        "scopeAnchorKeywords": [
+            "managed",
+            "oversaw",
+            "led",
+            "coordinated",
+            "directed",
+            "portfolio",
+            "team",
+            "region",
+            "county",
+            "client",
+            "project",
+            "across",
+            "comprising",
+            "spanning"
+        ],
+        "verbTense": {
+            "currentRole": "present",
+            "pastRoles": "past"
+        },
+        "noDuplicateVerbStartersAcrossDocument": true,
+        "noSameFirstLetterWithinRole": true,
+        "forbiddenOpeners": [
+            "Responsible for",
+            "Helped",
+            "Assisted",
+            "Worked on",
+            "Was part of",
+            "Participated in",
+            "Involved in",
+            "Contributed to",
+            "Tasked with",
+            "Played a key role in",
+            "Supported the"
+        ],
+        "metricsMaxPercentPerRole": 55,
+        "description": "5–6 bullets for current role, decreasing for older roles. Min 12 words per bullet. First bullet = scope anchor. Max 55% of bullets per role may have metrics."
+    },
+    "skills": {
+        "exactCount": 15,
+        "ordering": [
+            {
+                "positions": "1–5",
+                "type": "JD-matching tools/technologies (verbatim)"
+            },
+            {
+                "positions": "6–10",
+                "type": "Core technical/domain skills"
+            },
+            {
+                "positions": "11–13",
+                "type": "Soft/transferable skills as demonstrated competencies"
+            },
+            {
+                "positions": "14–15",
+                "type": "Industry/domain ATS keywords"
+            }
+        ],
+        "top5MustAppearInBullets": true,
+        "description": "Exactly 15 skills. Top 5 must match JD verbatim and also appear in experience bullets."
+    },
+    "education": {
+        "descriptionMaxWords": 30,
+        "includeGPAIfAbove": 3.5,
+        "includeThesisIfRelevant": true,
+        "description": "1 concise sentence per entry. Include GPA if ≥3.5, thesis if relevant."
+    },
+    "projects": {
+        "descriptionMinWords": 15,
+        "descriptionMaxWords": 40,
+        "mustNameTechnology": true,
+        "format": "Problem/Goal → Solution with technology → Measurable outcome",
+        "description": "Each project: 15–40 words. Must name at least one technology. Follow Problem → Solution → Outcome format."
+    },
+    "languageAndTone": {
+        "bannedPhrasesGlobal": [
+            "delve",
+            "robust",
+            "seamlessly",
+            "synergy",
+            "cutting-edge",
+            "state-of-the-art",
+            "passionate about",
+            "in today's fast-paced world",
+            "it is worth noting",
+            "navigate the landscape",
+            "groundbreaking",
+            "thought leader",
+            "game-changer",
+            "best-in-class",
+            "world-class",
+            "holistic",
+            "moving the needle",
+            "at the end of the day",
+            "take it to the next level",
+            "transformative",
+            "impactful",
+            "in order to",
+            "as well as",
+            "a variety of",
+            "various",
+            "numerous",
+            "several"
+        ],
+        "leverageMaxCount": 1,
+        "fillerPhrases": [
+            "in order to",
+            "as well as",
+            "a variety of",
+            "various",
+            "etc",
+            "numerous",
+            "many",
+            "several"
+        ],
+        "sentenceRhythm": {
+            "shortSentenceWords": {
+                "min": 4,
+                "max": 8
+            },
+            "longSentenceWords": {
+                "min": 15,
+                "max": 25
+            },
+            "maxConsecutiveSimilarLength": 2,
+            "similarLengthToleranceWords": 5
+        },
+        "description": "Zero tolerance for banned AI phrases. Max 1 usage of 'leverage'. Must vary sentence length — never 3 similar-length sentences in a row."
+    },
+    "formatting": {
+        "noDuplicateVerbsAcrossEntireDocument": true,
+        "noSameFirstLetterInRoleBullets": true,
+        "careerArcMustShowGrowth": true,
+        "companyNamesAreSacred": true,
+        "datesAreLocked": true,
+        "singleCurrencyOnly": true,
+        "noRoundNumbers": {
+            "enabled": true,
+            "roundNumberPatterns": [
+                "exactly 10",
+                "exactly 20",
+                "exactly 50",
+                "exactly 100"
+            ],
+            "description": "Use irregular numbers (13%, 2.3M, 11 clients) to appear authentic. Round numbers (10%, 5M, 20 clients) look fabricated."
+        }
+    },
+    "antiHallucination": {
+        "companyNamesMustMatchProfile": true,
+        "datesMustMatchProfile": true,
+        "jobTitlesMustMatchProfile": true,
+        "skillsMustBeFromProfileOrJD": true,
+        "maxNewSkillsAllowed": {
+            "honest": 0,
+            "boosted": 2,
+            "aggressive": 4
+        },
+        "noInventedDegrees": true,
+        "noInventedCertifications": true,
+        "metricsCannotExceedCeilings": true,
+        "groundTruthFields": [
+            "company",
+            "jobTitle",
+            "startDate",
+            "endDate",
+            "school",
+            "degree"
+        ],
+        "description": "Every factual claim in the CV must trace back to the user's profile or the JD. The AI cannot invent companies, degrees, dates, or job titles. Skills additions are mode-dependent."
+    },
+    "humanVoice": {
+        "burstiessScoreMin": 0.35,
+        "burstiessScoreDescription": "Burstiness measures variation in sentence/bullet lengths. AI text typically has burstiness near 0 (uniform length). Humans write with burstiness 0.3–0.7. Score = standard deviation of word counts / mean word count.",
+        "transitionPhraseVariety": {
+            "maxRepeatCount": 1,
+            "bannedTransitions": [
+                "Moreover",
+                "Furthermore",
+                "Additionally",
+                "In addition",
+                "Consequently",
+                "Subsequently",
+                "Notably",
+                "Significantly",
+                "Importantly",
+                "Ultimately",
+                "Essentially"
+            ],
+            "description": "AI overuses formal transition words. These should appear at most once each across the entire CV."
+        },
+        "sentenceStarterVariety": {
+            "maxSameStructureInARow": 2,
+            "description": "No more than 2 consecutive bullets/sentences may share the same grammatical structure (e.g., all starting with a past-tense verb + noun)."
+        },
+        "contractionUsage": {
+            "allowInSummary": false,
+            "allowInBullets": false,
+            "note": "CVs should not use contractions — but this is a reminder that if contractions slip in, it can signal rushed AI output."
+        },
+        "specifityOverGenerality": {
+            "vaguePhrases": [
+                "improved efficiency",
+                "increased revenue",
+                "led a team",
+                "streamlined processes",
+                "enhanced performance",
+                "optimized operations",
+                "drove growth",
+                "managed stakeholders",
+                "delivered results",
+                "handled responsibilities"
+            ],
+            "description": "Each of these must be replaced with a specific fact: what exactly was improved, by how much, using what method."
+        },
+        "description": "Rules that make AI-generated text pass human detection. Focus on burstiness (length variation), specificity, and natural sentence rhythm."
+    },
+    "roundNumberDetection": {
+        "enabled": true,
+        "suspiciousPatterns": [
+            "\\b10%\\b",
+            "\\b20%\\b",
+            "\\b25%\\b",
+            "\\b30%\\b",
+            "\\b40%\\b",
+            "\\b50%\\b",
+            "\\b75%\\b",
+            "\\b100%\\b",
+            "\\b5 (million|billion|projects|clients|team)\\b",
+            "\\b10 (million|billion|projects|clients|team|members)\\b",
+            "\\b15 (projects|clients|team|members)\\b",
+            "\\b20 (projects|clients|team|members)\\b",
+            "\\b50 (projects|clients|team|members)\\b",
+            "\\b100 (projects|clients|team|members)\\b",
+            "\\$[0-9]+M\\b",
+            "\\$[0-9]+B\\b"
+        ],
+        "preferredAlternatives": "Use 13% instead of 10%, 2.3M instead of 2M, 11 clients instead of 10, 47% instead of 50%",
+        "description": "Round numbers are the #1 tell of fabricated metrics. Irregular, specific numbers (13%, 2.3M, 11 clients) read as real. Round numbers (10%, 5M, 20 clients) read as invented."
+    }
+}

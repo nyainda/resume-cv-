@@ -3,6 +3,7 @@ import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode,
 import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
+import { validateCV, getRulesForPrompt, autoFixWithReprompt } from './cvRulesValidator';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -260,8 +261,8 @@ TONE RULE:
 
 GAP HANDLING RULES:
 ${gaps.length === 0
-    ? '- No significant gaps detected in this profile.'
-    : `- Gaps detected (see Block context above). Handle each intelligently:
+            ? '- No significant gaps detected in this profile.'
+            : `- Gaps detected (see Block context above). Handle each intelligently:
   - If the gap is under 12 months: address it subtly in the summary or the adjacent role bullets ("while pursuing independent professional development", "during a period of focused study and certification").
   - If the gap is 12+ months: in Honest/Boosted modes, reference it briefly in the summary with a neutral, human framing. In Aggressive mode, you may use the self-directed entry rules below to fill the most significant gap.
   - Never leave a long gap completely unacknowledged if it appears suspicious — a recruiter will notice it and make negative assumptions. Control the narrative.
@@ -297,8 +298,8 @@ METRIC CEILINGS for ${seniority} in ${market}: ${metricsCeiling}
 
 CURRENCY RULE:
 ${currency === 'NONE'
-    ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Express everything as percentages, counts, and units.'
-    : `Use only ${currency} throughout. If more than one currency symbol appears anywhere in the document, remove ALL monetary figures and rewrite using percentages and counts only.`}
+                ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Express everything as percentages, counts, and units.'
+                : `Use only ${currency} throughout. If more than one currency symbol appears anywhere in the document, remove ALL monetary figures and rewrite using percentages and counts only.`}
 
 ${sharedHumanizationRules}
 
@@ -341,8 +342,8 @@ ${metricsCeiling}
 
 CURRENCY RULE:
 ${currency === 'NONE'
-    ? 'Block A detected NO currency. Use ZERO monetary figures. Counts, percentages, and units only throughout the entire document.'
-    : `Use only ${currency} throughout the entire document. Never mix currencies. Never use a currency that was not detected.`}
+                ? 'Block A detected NO currency. Use ZERO monetary figures. Counts, percentages, and units only throughout the entire document.'
+                : `Use only ${currency} throughout the entire document. Never mix currencies. Never use a currency that was not detected.`}
 
 ${sharedHumanizationRules}
 
@@ -378,8 +379,8 @@ WHAT YOU CAN DO (everything in Boosted Mode, plus):
 
 FILLING A GENUINE EXPERIENCE GAP:
 ${gaps.length === 0
-    ? 'No significant gaps detected — do not add any self-directed entry.'
-    : `Gaps detected (see Block context above). You may add ONE self-directed work entry to fill the most significant gap only, if and only if ALL of these rules are satisfied:
+            ? 'No significant gaps detected — do not add any self-directed entry.'
+            : `Gaps detected (see Block context above). You may add ONE self-directed work entry to fill the most significant gap only, if and only if ALL of these rules are satisfied:
 - RULE A: Self-directed work only — freelance, independent project, short-term contract, or voluntary work. NEVER an employed role at a named company. The reason: a named employed role can be checked by calling HR. A freelance or consulting entry cannot be disproved in the same way — freelancers commonly work without formal contracts or payroll records.
 - RULE B: The work type must exactly match the user's real skills. A water engineer's self-directed entry involves water engineering. A sales professional's entry involves sales consulting. Do not introduce any skill type that does not already exist in the profile.
 - RULE C: Dates must sit entirely within the gap. No overlap with any real employment on either side. Cannot extend beyond today's date.
@@ -397,8 +398,8 @@ ${metricsCeiling}
 
 CURRENCY RULE:
 ${currency === 'NONE'
-    ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Percentages, counts, and units only throughout.'
-    : `Use only ${currency} throughout. Final pass before returning: scan every bullet for currency symbols. If more than one appears anywhere in the entire document, remove ALL monetary figures and rewrite those bullets using percentages and counts only.`}
+            ? 'Block A detected NO currency. Use ZERO monetary figures anywhere. Percentages, counts, and units only throughout.'
+            : `Use only ${currency} throughout. Final pass before returning: scan every bullet for currency symbols. If more than one appears anywhere in the entire document, remove ALL monetary figures and rewrite those bullets using percentages and counts only.`}
 
 ${sharedHumanizationRules}
 
@@ -797,7 +798,7 @@ function smartTruncateJD(jd: string, maxChars = 2500): string {
     const reqMatch = jd.search(/\b(requirements|qualifications|what you('ll| will) (need|bring)|must have|key skills|about you)\b/i);
     if (reqMatch > 0 && reqMatch < jd.length * 0.7) {
         // Keep first 900 chars (role overview) + requirements section
-        const overview   = jd.substring(0, 900);
+        const overview = jd.substring(0, 900);
         const reqSection = jd.substring(reqMatch, reqMatch + (maxChars - 900));
         return `${overview}\n\n${reqSection}`;
     }
@@ -1142,6 +1143,8 @@ export const generateCV = async (
 
             ${humanizationInstruction}
 
+            ${getRulesForPrompt()}
+
             ${CV_DATA_SCHEMA}
         `;
     } else if (purpose === 'academic') {
@@ -1194,6 +1197,8 @@ export const generateCV = async (
                - Link to published papers, repositories, or datasets where available.
 
             ${humanizationInstruction}
+
+            ${getRulesForPrompt()}
 
             ${CV_DATA_SCHEMA}
         `;
@@ -1295,6 +1300,8 @@ export const generateCV = async (
                Each project description must name at least one specific technology, tool, framework, or methodology.
 
             ${humanizationInstruction}
+
+            ${getRulesForPrompt()}
 
             ${CV_DATA_SCHEMA}
         `;
@@ -1398,6 +1405,44 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         }
         return getStartDate(b.startDate).getTime() - getStartDate(a.startDate).getTime();
     });
+
+    // ── PART 8 — Programmatic Rules Validator + Hallucination Detector ──
+    // Reads rules from cvRules.json and enforces measurable constraints:
+    // word counts, bullet counts, banned phrases, duplicate verbs,
+    // hallucinated companies/schools/dates, burstiness score, round numbers, etc.
+    try {
+        const validation = validateCV(cvData, profile, generationMode);
+        cvData = validation.fixedCV;
+
+        // Log hallucination detection results
+        if (validation.hallucinations.length > 0) {
+            console.warn(`[Hallucination Detector] ${validation.hallucinations.length} issue(s):`, validation.hallucinations);
+        }
+        console.log(`[Human Voice] Burstiness score: ${validation.burstiessScore.toFixed(3)} (min: 0.35, human range: 0.30–0.70)`);
+
+        // ── PART 9 — Auto-Fix Re-prompting ──
+        // If there are fixable violations, send them back to Groq for targeted correction.
+        // This is the "retry with error feedback" pattern from LLM best practices.
+        const fixableViolations = validation.violations.filter(v => !v.autoFixed && v.severity !== 'warning');
+        if (fixableViolations.length > 0) {
+            console.log(`[CV Auto-Fix] Re-prompting Groq to fix ${fixableViolations.length} violation(s)...`);
+            cvData = await autoFixWithReprompt(cvData, fixableViolations);
+
+            // Re-validate after fix to confirm improvements
+            const revalidation = validateCV(cvData, profile, generationMode);
+            cvData = revalidation.fixedCV;
+            const remaining = revalidation.violations.filter(v => v.severity === 'error' && !v.autoFixed).length;
+            if (remaining > 0) {
+                console.warn(`[CV Auto-Fix] ${remaining} unfixed error(s) remain after re-prompt.`);
+            } else {
+                console.log('[CV Auto-Fix] ✅ All errors resolved after re-prompt.');
+            }
+        } else if (!validation.passed) {
+            console.warn(`[CV Rules Validator] ${validation.violations.filter(v => v.severity === 'error' && !v.autoFixed).length} unfixed error(s) — warnings only, no re-prompt needed.`);
+        }
+    } catch (validationError) {
+        console.error('[CV Rules Validator] Validation skipped due to error:', validationError);
+    }
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
