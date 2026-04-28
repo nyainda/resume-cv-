@@ -6,9 +6,13 @@ import App from './App';
 import { restoreLocalStorageFromIDB } from './services/storage/AppDataPersistence';
 import { warmCVEngine } from './services/cvEngineClient';
 import { runWorkerStatusDiagnostic } from './services/workerStatusDiagnostic';
+import { startAutoProbe } from './services/providerHealth';
 
 warmCVEngine();
 runWorkerStatusDiagnostic();
+// Re-probe any open AI-provider circuits every 3 min so transient outages
+// auto-recover without a page reload.
+startAutoProbe();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

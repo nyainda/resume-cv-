@@ -13,6 +13,7 @@
 
 import { isCloudflareConfigured, isCloudflareWorkerOnline } from './cloudflareWorkerService';
 import { isCVEngineConfigured } from './cvEngineClient';
+import { markFailure, markSuccess } from './providerHealth';
 
 // IMPORTANT: access `import.meta.env.X` directly (no `as any` cast), otherwise
 // Vite's static replacement skips it and the value comes back undefined in
@@ -218,6 +219,18 @@ function publish(checks: WorkerCheck[]): void {
     if (typeof window === 'undefined') return;
     const detail = summarise(checks);
     latestStatus = detail;
+
+    // Mirror the diagnostic result into the central providerHealth circuit so
+    // every other client (cvEngineClient call sites, banner, etc.) stays in
+    // sync. We only care about the CV Engine probe here — the PDF worker has
+    // its own healthcheck path and isn't part of the AI provider routing.
+    if (detail.reason === 'healthy') {
+        markSuccess('cf-worker');
+    } else if (detail.reason === 'quota_exhausted' || detail.reason === 'unreachable') {
+        markFailure('cf-worker', detail.rawNote || detail.reason);
+    }
+    // 'misconfigured' → no env var; nothing to circuit-break.
+
     try {
         window.dispatchEvent(new CustomEvent<WorkerStatusDetail>(WORKER_STATUS_EVENT, { detail }));
     } catch {

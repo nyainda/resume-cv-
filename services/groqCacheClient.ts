@@ -17,18 +17,36 @@ const CACHE_MAX_PROMPT_SIZE = 100_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CIRCUIT BREAKER — when the Vercel cache function returns 503 (or fails to
-// respond at all) it's almost always because the route is unhealthy for the
-// rest of this session. Each cache lookup costs ~2s of wasted timeout. After
-// the first failure we open the circuit and skip ALL subsequent cache calls
-// for the lifetime of the page — saves dozens of seconds across a single CV
-// generation. The next page load resets it.
+// respond at all) it's almost always because the route is unhealthy. Each
+// cache lookup costs ~2s of wasted timeout, so we skip them while open.
+//
+// Delegated to the central providerHealth module so:
+//   - The banner sees groq-cache failures alongside cf-worker failures.
+//   - Auto-probe re-opens the circuit (half-open) every 3 min instead of
+//     keeping it dead until full page reload.
+//   - The 'groq-cache' circuit is intentionally separate from 'groq' (the
+//     main API) — the cache function on Vercel can be down while Groq itself
+//     is fine, and vice versa.
 // ─────────────────────────────────────────────────────────────────────────────
-let circuitOpen = false;
+import { markFailure, markSuccess, isHealthy } from './providerHealth';
+
+let logged = false;
 
 function openCircuit(reason: string): void {
-    if (circuitOpen) return;
-    circuitOpen = true;
-    console.warn(`[Groq Cache] Circuit opened (${reason}) — skipping all subsequent cache calls this session.`);
+    if (!logged) {
+        logged = true;
+        console.warn(`[Groq Cache] Marking failure (${reason}) — subsequent cache calls will skip until auto-probe recovers.`);
+    }
+    markFailure('groq-cache', reason);
+}
+
+function closeCircuit(): void {
+    logged = false;
+    markSuccess('groq-cache');
+}
+
+function circuitIsOpen(): boolean {
+    return !isHealthy('groq-cache');
 }
 
 /** SHA-256 hex of the joined cache inputs. */
@@ -61,7 +79,7 @@ export async function lookupGroqCache(
     userPrompt: string,
     temperature: number,
 ): Promise<string | null> {
-    if (circuitOpen) return null;
+    if (circuitIsOpen()) return null;
     if (!isCacheable(temperature, systemPrompt, userPrompt)) return null;
 
     try {
@@ -76,6 +94,8 @@ export async function lookupGroqCache(
             if (res.status >= 500) openCircuit(`HTTP ${res.status}`);
             return null;
         }
+        // Reaching a 2xx (even on a miss) proves the cache route is alive.
+        closeCircuit();
         const body = await res.json().catch(() => null);
         if (body && body.hit && typeof body.response === 'string') {
             console.log(`[Groq Cache] HIT (${model}, hits=${body.hitCount})`);
@@ -100,7 +120,7 @@ export function storeGroqCache(
     temperature: number,
     response: string,
 ): void {
-    if (circuitOpen) return;
+    if (circuitIsOpen()) return;
     if (!isCacheable(temperature, systemPrompt, userPrompt)) return;
     if (!response || response.length > 500_000) return;
 

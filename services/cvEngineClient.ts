@@ -28,16 +28,38 @@ const DEFAULT_TIMEOUT_MS = 6000;
 // Keyed by endpoint path so the GET helper, POST helper, workerLLM, and
 // workerTieredLLM each break independently.
 // ─────────────────────────────────────────────────────────────────────────────
-const deadEndpoints = new Set<string>();
+// Per-endpoint dead flags are now thin wrappers around the central
+// providerHealth module. We keep the same `markDead` / `isDead` API so call
+// sites don't need to change. The central module gives us:
+//   - cross-client visibility (banner sees ALL CF failures)
+//   - auto-recovery via half-open re-probing every 3 minutes
+//   - one place to flip "use CF" on/off site-wide
+import { markFailure, markSuccess, isHealthy } from './providerHealth';
+
+// Track which endpoints we've already logged so the per-endpoint message
+// only fires once per session even though the central circuit also logs.
+const loggedEndpoints = new Set<string>();
 
 function markDead(path: string, reason: string): void {
-    if (deadEndpoints.has(path)) return;
-    deadEndpoints.add(path);
-    console.warn(`[cvEngineClient] Circuit opened for ${path} (${reason}) — skipping subsequent calls this session.`);
+    if (!loggedEndpoints.has(path)) {
+        loggedEndpoints.add(path);
+        console.warn(`[cvEngineClient] Marking failure on ${path} (${reason}).`);
+    }
+    markFailure('cf-worker', `${path}: ${reason}`);
 }
 
-function isDead(path: string): boolean {
-    return deadEndpoints.has(path);
+function markAlive(path: string): void {
+    // Reset the per-endpoint logging flag and let the central module record
+    // a successful call. If the circuit was open or half-open, this closes it.
+    loggedEndpoints.delete(path);
+    markSuccess('cf-worker');
+}
+
+function isDead(_path: string): boolean {
+    // We track health at the provider level (cf-worker), not per endpoint.
+    // If any endpoint is up the whole worker is considered up; the auto-probe
+    // will close us when the next call succeeds.
+    return !isHealthy('cf-worker');
 }
 
 export interface BannedEntry {
@@ -99,7 +121,9 @@ async function getJSON<T>(path: string, params?: Record<string, string>): Promis
             if (r.status >= 500) markDead(path, `HTTP ${r.status}`);
             return null;
         }
-        return (await r.json()) as T;
+        const data = (await r.json()) as T;
+        markAlive(path);
+        return data;
     } catch (e: any) {
         markDead(path, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] GET failed:', path, e);
@@ -121,7 +145,9 @@ async function postJSON<T>(path: string, body: unknown): Promise<T | null> {
             if (r.status >= 500) markDead(path, `HTTP ${r.status}`);
             return null;
         }
-        return (await r.json()) as T;
+        const data = (await r.json()) as T;
+        markAlive(path);
+        return data;
     } catch (e: any) {
         markDead(path, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] POST failed:', path, e);
@@ -430,7 +456,9 @@ export async function workerTieredLLM(
         }
         const data = await r.json() as { text?: string; error?: string };
         if (data.error) return null;
-        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+        const text = typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+        if (text) markAlive(deadKey);
+        return text;
     } catch (e: any) {
         markDead(deadKey, e?.name === 'AbortError' ? `timeout (task=${task})` : `network (task=${task})`);
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerTieredLLM failed:', task, e);
@@ -628,7 +656,9 @@ export async function workerLLM(
             return null;
         }
         const data = await r.json() as { text?: string };
-        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+        const text = typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+        if (text) markAlive(ENDPOINT);
+        return text;
     } catch (e: any) {
         markDead(ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerLLM failed:', e);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { WORKER_STATUS_EVENT, getLatestWorkerStatus, type WorkerStatusDetail } from '../services/workerStatusDiagnostic';
+import { PROVIDER_HEALTH_EVENT, getAllStatus, type ProviderHealthChange } from '../services/providerHealth';
 
 const DISMISS_STORAGE_KEY = 'procv:worker-status-banner:dismissed-utc-day';
 
@@ -19,6 +20,15 @@ export default function WorkerStatusBanner() {
     // event already fired before this component mounted (e.g. user spent
     // time on the landing page first).
     const [detail, setDetail] = useState<WorkerStatusDetail | null>(() => getLatestWorkerStatus());
+
+    // Track whether the central providerHealth circuit for the CV worker is
+    // currently open. When the auto-probe recovers it we hide the banner
+    // automatically — no need to make the user click Dismiss.
+    const [cfWorkerHealthy, setCfWorkerHealthy] = useState<boolean>(() => {
+        const cf = getAllStatus().find((s) => s.provider === 'cf-worker');
+        return !cf || cf.state === 'closed';
+    });
+
     const [dismissed, setDismissed] = useState<boolean>(() => {
         try {
             return localStorage.getItem(DISMISS_STORAGE_KEY) === currentUtcDay();
@@ -32,13 +42,31 @@ export default function WorkerStatusBanner() {
             const ce = e as CustomEvent<WorkerStatusDetail>;
             if (ce?.detail) setDetail(ce.detail);
         };
+        const onHealth = (e: Event) => {
+            const ce = e as CustomEvent<ProviderHealthChange>;
+            if (ce?.detail?.provider !== 'cf-worker') return;
+            const healthy = ce.detail.state === 'closed';
+            setCfWorkerHealthy(healthy);
+            // Recovery clears the per-day dismiss flag so the next outage
+            // (later today) will surface the banner again.
+            if (healthy) {
+                try { localStorage.removeItem(DISMISS_STORAGE_KEY); } catch { /* ignore */ }
+                setDismissed(false);
+            }
+        };
         window.addEventListener(WORKER_STATUS_EVENT, onStatus);
-        return () => window.removeEventListener(WORKER_STATUS_EVENT, onStatus);
+        window.addEventListener(PROVIDER_HEALTH_EVENT, onHealth);
+        return () => {
+            window.removeEventListener(WORKER_STATUS_EVENT, onStatus);
+            window.removeEventListener(PROVIDER_HEALTH_EVENT, onHealth);
+        };
     }, []);
 
     if (!detail || detail.healthy) return null;
     if (detail.reason === 'misconfigured') return null;
     if (dismissed) return null;
+    // Auto-recovered? Don't show even if the last diagnostic detail was bad.
+    if (cfWorkerHealthy) return null;
 
     const isQuota = detail.reason === 'quota_exhausted';
     const hours = isQuota ? hoursUntilUtcReset() : 0;
