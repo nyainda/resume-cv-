@@ -57,14 +57,21 @@ function groqModelToCerebrasChain(groqModel: string): string[] {
 // ── OpenRouter free-tier models (separate daily quota from CF Workers AI) ─
 // Each entry is tried in order; "404 / no longer available" cycles to the next.
 // All `:free` variants — no spend on the user's OpenRouter account.
+// Verified live against https://openrouter.ai/api/v1/models on Apr 28 2026.
+// If a model 404s in the wild, swap it for another from /api/v1/models filtered by `:free`.
 const OPENROUTER_LARGE_CHAIN = [
-    'meta-llama/llama-3.3-70b-instruct:free',
-    'qwen/qwen-2.5-72b-instruct:free',
-    'google/gemma-3-27b-it:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',         // 120B MoE, 262K ctx — top quality free
+    'qwen/qwen3-next-80b-a3b-instruct:free',          // 80B MoE, 262K ctx — fast & strong
+    'meta-llama/llama-3.3-70b-instruct:free',         // 70B, 65K ctx — battle-tested
+    'openai/gpt-oss-120b:free',                       // 120B, 131K ctx — OpenAI open model
+    'nousresearch/hermes-3-llama-3.1-405b:free',      // 405B, 131K ctx — biggest free
+    'google/gemma-3-27b-it:free',                     // 27B, 131K ctx — solid backup
 ];
 const OPENROUTER_FAST_CHAIN = [
-    'meta-llama/llama-3.2-3b-instruct:free',
-    'mistralai/mistral-small-3.1-24b-instruct:free',
+    'nvidia/nemotron-nano-9b-v2:free',                // 9B, 128K ctx — fast & long context
+    'openai/gpt-oss-20b:free',                        // 20B, 131K ctx — fast OpenAI open
+    'google/gemma-3-12b-it:free',                     // 12B, 32K ctx — fast Gemma
+    'meta-llama/llama-3.2-3b-instruct:free',          // 3B, 131K ctx — tiny & fast
 ];
 function groqModelToOpenRouterChain(groqModel: string): string[] {
     if (groqModel === GROQ_LARGE) return OPENROUTER_LARGE_CHAIN;

@@ -498,7 +498,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 <span className="text-lg">🛣️</span>
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">OpenRouter — Free Fallback</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Free Llama 3.3 70B & more — separate daily quota from Cloudflare/Groq/Cerebras</p>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">NVIDIA Nemotron 120B, Qwen3 80B, Llama 3.3 70B & more — fires when CF Worker daily quota runs out</p>
                 </div>
               </div>
               {openrouterKey ? (
@@ -510,9 +510,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
             <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-orange-100 dark:border-orange-900/40 p-3 space-y-1.5">
               {[
-                '🆓 Free tier — Llama 3.3 70B, Qwen 2.5 72B, Gemma 3 27B',
-                '🔄 Auto-cycles models if one is rate-limited',
-                '⚡ Kicks in if Cloudflare, Groq & Cerebras all fail',
+                '🆓 6 large free models — Nemotron 3 Super 120B, Qwen3 Next 80B, Llama 3.3 70B, GPT-OSS 120B, Hermes 3 405B, Gemma 3 27B',
+                '⚡ 4 fast free models — Nemotron Nano 9B, GPT-OSS 20B, Gemma 3 12B, Llama 3.2 3B',
+                '🔄 Auto-cycles to next model on 404/402 (deprecated or paid-only)',
+                '🆘 Fires automatically when the CF Worker is offline or hits its daily neuron limit',
                 '🔒 Encrypted & stored securely in your browser',
               ].map(f => (
                 <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
