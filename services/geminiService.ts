@@ -1535,6 +1535,121 @@ function buildStaleProfileRefreshInstruction(
     `;
 }
 
+// ── Number-fidelity helpers ───────────────────────────────────────────────
+//
+// Rule 5 ("strip generated metric claims not grounded in source bullets")
+// used to delete the digits and leave the surrounding "%", "+", "-noun",
+// or currency symbol behind, producing garbage like "by % from Dec 2023",
+// "a -person team", and "KES , in revenue". These helpers consume the
+// entire numeric phrase and tidy any orphan punctuation.
+
+const CURRENCY_WORDS = 'USD|EUR|GBP|KES|KSH|NGN|ZAR|GHS|UGX|TZS|RWF|XOF|XAF|JPY|CNY|INR|AUD|CAD|CHF|AED';
+const UNIT_SUFFIXES = '%|x|times|m|million|k|thousand|bn|billion|M|K';
+const HYPHEN_NOUN_SUFFIXES = 'person|people|day|days|week|weeks|month|months|year|years|strong|fold|member|members|hour|hours|minute|minutes|second|seconds';
+
+// Matches a full numeric expression: optional currency prefix, the number
+// itself (with thousand-separators / decimals), and optional unit / "+" /
+// "-noun" suffix. Use 'g' flag at call site.
+const NUMERIC_PHRASE_SOURCE =
+    `(?:\\b(?:${CURRENCY_WORDS})\\s*)?` +     // optional "KES " / "USD "
+    `[$€£₦₹¥]?\\s*` +                         // optional symbol
+    `\\d[\\d,]*(?:\\.\\d+)?` +                // the number
+    `(?:\\s*(?:${UNIT_SUFFIXES})\\b)?` +      // optional unit (%, x, m, k…)
+    `(?:-(?:${HYPHEN_NOUN_SUFFIXES})\\b)?` +  // optional "-person" / "-day"
+    `\\+?`;                                   // optional trailing +
+
+const YEAR_NUMERIC_RX = /^(?:19|20)\d{2}$/;
+
+function collectSourceNumberTokens(sourceBullets: string[], profile?: UserProfile): Set<string> {
+    const haystacks: string[] = [...sourceBullets];
+    if (profile) {
+        if (typeof (profile as any).professionalSummary === 'string') haystacks.push((profile as any).professionalSummary);
+        if (typeof (profile as any).summary === 'string') haystacks.push((profile as any).summary);
+        for (const role of (profile.workExperience || [])) {
+            const r: any = (role as any).responsibilities;
+            if (typeof r === 'string') haystacks.push(r);
+            else if (Array.isArray(r)) haystacks.push(...(r as string[]));
+        }
+        for (const proj of ((profile as any).projects || [])) {
+            if (proj && typeof proj.description === 'string') haystacks.push(proj.description);
+        }
+    }
+    const tokens = new Set<string>();
+    for (const h of haystacks) {
+        const hits = String(h || '').match(/\b\d+(?:[.,]\d+)*\b/g) || [];
+        for (const t of hits) {
+            tokens.add(t);
+            tokens.add(t.replace(/,/g, '')); // also accept comma-stripped form
+        }
+    }
+    return tokens;
+}
+
+function stripUngroundedNumbers(text: string, sourceNumberTokens: Set<string>): string {
+    if (!text) return '';
+    const rx = new RegExp(NUMERIC_PHRASE_SOURCE, 'gi');
+    let out = text.replace(rx, (full) => {
+        const digitMatch = full.match(/\d[\d,]*(?:\.\d+)?/);
+        if (!digitMatch) return full;
+        const digitCore = digitMatch[0];
+        const digitNoCommas = digitCore.replace(/,/g, '');
+        // Always keep 4-digit calendar years — they are almost never
+        // hallucinations and stripping them produces "from Dec to Present".
+        if (YEAR_NUMERIC_RX.test(digitNoCommas)) return full;
+        // Keep if the same number (with or without commas) appears anywhere
+        // in the source profile bullets / summary / projects.
+        if (sourceNumberTokens.has(digitCore) || sourceNumberTokens.has(digitNoCommas)) return full;
+        // Otherwise drop the entire phrase.
+        return '';
+    });
+    // Tidy orphan connectors and punctuation left by the strip.
+    out = tidyOrphanRemnants(out);
+    return out;
+}
+
+function tidyOrphanRemnants(text: string): string {
+    let out = text;
+    // Remove orphan currency word/symbol followed by stray comma group
+    // ("KES , in revenue", "$ ,000 in sales", "USD ,500,000").
+    out = out.replace(
+        new RegExp(
+            `\\s*\\b(?:${CURRENCY_WORDS}|KSh|Ksh)\\s*[,]+(?:\\d{3}(?:,\\d{3})*)?\\s*(?:in\\s+(?:revenue|sales|costs?|savings?|earnings?|profit))?`,
+            'gi',
+        ),
+        '',
+    );
+    out = out.replace(/\s*[$€£₦₹¥]\s*[,]+(?:\d{3}(?:,\d{3})*)?\s*/g, ' ');
+    // Orphan currency word with nothing after it ("of KES from Dec 2023").
+    out = out.replace(
+        new RegExp(`\\s*\\b(?:of|by|to|with|at|from|for|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\\s+to)\\s+(?:${CURRENCY_WORDS}|KSh|Ksh)\\b(?!\\s*[\\d$€£₦₹¥])`, 'gi'),
+        '',
+    );
+    // Orphan "%" with no preceding digit.
+    out = out.replace(
+        /\s*\b(?:by|of|to|with|at|achieving|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to|a|an|the)\s+%(?!\w)/gi,
+        '',
+    );
+    out = out.replace(/(?<!\d)\s*%(?!\w)/g, '');
+    // Orphan "+" sitting where a leading number used to be ("of + clients").
+    out = out.replace(/\s*\b(?:of|with|by|over|under|across|up\s+to|reaching|approximately|around|about|roughly|nearly|almost)\s+\+\s+/gi, ' ');
+    out = out.replace(/(^|[\s(])\+(?=\s|$|[a-zA-Z])/g, '$1');
+    // Orphan hyphen between an article and a noun ("a -person team", "the -day window").
+    out = out.replace(
+        new RegExp(`\\b(a|an|the)\\s+-(?:${HYPHEN_NOUN_SUFFIXES})\\b\\s*`, 'gi'),
+        '',
+    );
+    // Generic orphan leading hyphen ("- person", " - day").
+    out = out.replace(/(^|\s)-(?=[a-zA-Z])/g, '$1');
+    // Drop stranded prepositions left at the end ("…driving a increase in").
+    out = out.replace(/\b(by|of|to|with|at|from|for|in|on|across|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to)\s*([.,;:!?]|$)/gi, '$2');
+    // Collapse ", ," / " , " / multi-spaces / space-before-punct.
+    out = out.replace(/\s*,\s*,/g, ',');
+    out = out.replace(/\s+([,.;:!?])/g, '$1');
+    out = out.replace(/\(\s*\)/g, '');
+    out = out.replace(/\s{2,}/g, ' ').trim();
+    return out;
+}
+
 function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData {
     const sourceRoles = profile.workExperience || [];
     const sourceSkills = Array.from(new Set((profile.skills || []).map(s => String(s || '').trim()).filter(Boolean)));
@@ -1555,22 +1670,10 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
             const sourceBullets = typeof src.responsibilities === 'string'
                 ? src.responsibilities.split('\n').map(x => x.trim()).filter(Boolean)
                 : (src.responsibilities || []);
-            const sourceNumberTokens = new Set(
-                sourceBullets.flatMap(b => (b.match(/\b\d+(?:[.,]\d+)?\b/g) || []))
-            );
+            const sourceNumberTokens = collectSourceNumberTokens(sourceBullets, profile);
             const fixedResponsibilities = (exp.responsibilities || []).map(r => {
-                let out = String(r || '');
                 // Rule 2: strip generated metric-like claims not grounded in source bullets.
-                if (sourceNumberTokens.size === 0) {
-                    out = out
-                        .replace(/\b\d+([.,]\d+)?\s*%/g, '')
-                        .replace(/\$\s?\d[\d,]*/g, '')
-                        .replace(/\b\d+([.,]\d+)?\s*(x|times)\b/gi, '')
-                        .replace(/\b\d+(?:[.,]\d+)?\b/g, '');
-                } else {
-                    out = out.replace(/\b\d+(?:[.,]\d+)?\b/g, (m) => sourceNumberTokens.has(m) ? m : '');
-                }
-                return out.replace(/\s{2,}/g, ' ').trim();
+                return stripUngroundedNumbers(String(r || ''), sourceNumberTokens);
             }).filter(Boolean);
 
             return {
