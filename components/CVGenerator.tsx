@@ -3,6 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import { pdf } from '@react-pdf/renderer';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
+import { auditCvQuality } from '../services/cvNumberFidelity';
 import { getLastAiEngine } from '../services/groqService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
@@ -249,6 +250,57 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isScoringCV, setIsScoringCV] = useState(false);
+
+  // Live, deterministic quality audit. Recomputes only when currentCV changes.
+  // Pure regex, runs in <5 ms, never hits the network.
+  const qualityReport = useMemo(() => {
+    if (!currentCV) return null;
+    try {
+      return auditCvQuality(currentCV as any);
+    } catch {
+      return null;
+    }
+  }, [currentCV]);
+
+  const handleDownloadQualityReport = useCallback(() => {
+    if (!currentCV || !qualityReport) return;
+    const payload = {
+      auditedAt: new Date().toISOString(),
+      cvSnapshot: {
+        summary: currentCV.summary,
+        skillCount: currentCV.skills?.length ?? 0,
+        experienceRoleCount: currentCV.experience?.length ?? 0,
+        projectCount: currentCV.projects?.length ?? 0,
+      },
+      report: qualityReport,
+      legend: {
+        score: '0–100, higher is better. 100 = no orphan symbols, no stub bullets, no duplicates.',
+        kinds: {
+          orphan_currency_comma: 'A currency code (KES, $, €) was followed by a stray comma — usually a stripped number.',
+          orphan_currency_word: 'A preposition was followed by a currency code with no number after it.',
+          orphan_percent: 'A "%" sign appeared without a leading digit.',
+          orphan_plus: 'A "+" appeared between words instead of after a number.',
+          orphan_hyphen_noun: 'An article was followed by "-noun" (e.g. "a -person team").',
+          orphan_dollar: 'A "$" was followed by a word instead of a number.',
+          stub_bullet: 'A bullet started with a preposition (by, of, with, from, …).',
+          empty_bullet: 'A bullet was empty or whitespace-only.',
+          duplicate_adjacent_word: 'Two identical words appeared back-to-back.',
+          mid_sentence_period: 'A period was followed by a lowercase word.',
+        },
+      },
+    };
+    const firstRoleTitle = currentCV.experience?.[0]?.jobTitle || 'cv';
+    const safeName = String(firstRoleTitle).replace(/[^a-z0-9-_]+/gi, '-').toLowerCase().replace(/^-+|-+$/g, '') || 'cv';
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}-quality-report.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [currentCV, qualityReport]);
 
   const [targetLanguage, setTargetLanguage] = useLocalStorage<string>('cv:targetLanguage', 'English');
 
@@ -1037,6 +1089,29 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
                   <Download className="h-4 w-4 mr-2" />
                   {downloadStatus || 'Download PDF'}
+                </Button>
+              )}
+              {qualityReport && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleDownloadQualityReport}
+                  disabled={isEditing}
+                  title={
+                    qualityReport.totalIssues === 0
+                      ? `Perfect score across ${qualityReport.totalBullets} bullet(s) — download the JSON audit.`
+                      : `${qualityReport.totalIssues} issue(s) detected across ${qualityReport.totalBullets} bullet(s) — download the JSON audit.`
+                  }
+                  className={
+                    qualityReport.totalIssues === 0
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                      : qualityReport.score >= 80
+                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                        : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40'
+                  }
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Quality {qualityReport.score}/100
                 </Button>
               )}
               <Button

@@ -220,6 +220,23 @@ export interface SavedCV {
   data: CVData;
   purpose: 'job' | 'academic' | 'general';
   template?: TemplateName;  // template used when saved
+  qualityReport?: SavedCvQualityReport; // post-flight quality audit snapshot at save time
+}
+
+// Mirrors services/cvNumberFidelity::CvQualityReport but kept here so types.ts
+// stays the single source of truth and we don't introduce circular imports.
+export interface SavedCvQualityIssue {
+  kind: string;
+  where: string;
+  snippet: string;
+}
+export interface SavedCvQualityReport {
+  score: number;
+  totalBullets: number;
+  totalIssues: number;
+  issues: SavedCvQualityIssue[];
+  durationMs: number;
+  auditedAt: string; // ISO timestamp when the audit ran
 }
 
 export interface SavedCoverLetter {

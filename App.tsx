@@ -7,6 +7,7 @@ import { useStorage } from './hooks/useStorage';
 import * as KeyVault from './services/security/KeyVault';
 import { setRuntimeKeys } from './services/security/RuntimeKeys';
 import { invalidateCVCache } from './services/geminiService';
+import { auditCvQuality } from './services/cvNumberFidelity';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/ui/Toast';
@@ -526,6 +527,25 @@ const AppInner: React.FC = () => {
   }, [setProfiles, toast]);
 
   // ── CV handlers ─────────────────────────────────────────────────────────
+  // Snapshot the deterministic quality audit at save time so the saved-CV
+  // library can show a per-CV score badge and you have a record of the CV's
+  // quality at the moment it was saved (separate from any later edits).
+  const buildQualitySnapshot = (cvData: CVData) => {
+    try {
+      const r = auditCvQuality(cvData as any);
+      return {
+        score: r.score,
+        totalBullets: r.totalBullets,
+        totalIssues: r.totalIssues,
+        issues: r.issues.map(i => ({ kind: i.kind, where: i.where, snippet: i.snippet })),
+        durationMs: r.durationMs,
+        auditedAt: new Date().toISOString(),
+      };
+    } catch {
+      return undefined;
+    }
+  };
+
   const handleSaveCV = (cvData: CVData, purpose: 'job' | 'academic' | 'general') => {
     const cvName = prompt(
       'Enter a name for this CV (e.g., Software Engineer - Google):',
@@ -538,6 +558,7 @@ const AppInner: React.FC = () => {
         createdAt: new Date().toISOString(),
         data: cvData,
         purpose,
+        qualityReport: buildQualitySnapshot(cvData),
       };
       setSavedCVs(prev => [newSavedCV, ...prev]);
       toast.success('CV Saved Successfully!', `"${cvName}" has been saved to your library.`);
@@ -551,6 +572,7 @@ const AppInner: React.FC = () => {
       createdAt: new Date().toISOString(),
       data: cvData,
       purpose: 'job',
+      qualityReport: buildQualitySnapshot(cvData),
     };
     setSavedCVs(prev => [newSavedCV, ...prev]);
     toast.success('CV Saved!', `"${name}" saved to your CV library.`);

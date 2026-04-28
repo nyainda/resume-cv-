@@ -16,13 +16,31 @@ const SavedCVs: React.FC<SavedCVsProps> = ({ savedCVs, onLoad, onDelete }) => {
         <div key={cv.id} className="p-3 bg-zinc-50 dark:bg-neutral-700/30 rounded-lg flex items-center justify-between gap-2 transition-colors hover:bg-zinc-100 dark:hover:bg-neutral-700/60">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate text-zinc-800 dark:text-zinc-200">{cv.name}</p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 {new Date(cv.createdAt).toLocaleDateString()}
                 </p>
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cv.purpose === 'academic' ? 'bg-purple-200 text-purple-800' : 'bg-sky-200 text-sky-800'}`}>
                     {cv.purpose === 'academic' ? 'ACADEMIC' : 'JOB'}
                 </span>
+                {cv.qualityReport && (
+                    <span
+                        title={
+                            cv.qualityReport.totalIssues === 0
+                                ? `Quality ${cv.qualityReport.score}/100 — clean across ${cv.qualityReport.totalBullets} bullet(s) at save time.`
+                                : `Quality ${cv.qualityReport.score}/100 — ${cv.qualityReport.totalIssues} issue(s) across ${cv.qualityReport.totalBullets} bullet(s) at save time.`
+                        }
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            cv.qualityReport.totalIssues === 0
+                                ? 'bg-emerald-200 text-emerald-800'
+                                : cv.qualityReport.score >= 80
+                                    ? 'bg-amber-200 text-amber-800'
+                                    : 'bg-rose-200 text-rose-800'
+                        }`}
+                    >
+                        Q {cv.qualityReport.score}/100
+                    </span>
+                )}
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
