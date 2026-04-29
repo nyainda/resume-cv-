@@ -54,6 +54,17 @@ export interface DownloadCVResult {
   via?: 'playwright' | 'cloudflare';
   /** Human-readable error when ok === false. */
   error?: string;
+  /** Total wall-clock duration in ms for the whole download path. */
+  totalMs?: number;
+  /** Stage-level timings — undefined keys = stage was skipped. */
+  timing?: {
+    /** Health probe(s). */
+    probeMs?: number;
+    /** getCVHtml() — base64-fontified template HTML. */
+    htmlMs?: number;
+    /** Network + headless-Chrome render + download trigger. */
+    renderMs?: number;
+  };
 }
 
 // ── Health probe cache ───────────────────────────────────────────────────────
@@ -97,12 +108,45 @@ async function probeCloudflare(): Promise<boolean> {
 export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVResult> {
   const { fileName, containerEl, onStatus } = opts;
 
+  // ── Telemetry: capture per-stage timings so we can show "PDF ready in X.Xs"
+  // in the UI and surface a structured log entry for debugging slow downloads.
+  // Times are in ms, derived from performance.now() to avoid clock drift.
+  const t0 = performance.now();
+  const timing: NonNullable<DownloadCVResult['timing']> = {};
+
+  const finish = (
+    result: Omit<DownloadCVResult, 'totalMs' | 'timing'>,
+  ): DownloadCVResult => {
+    const totalMs = Math.round(performance.now() - t0);
+    const full: DownloadCVResult = { ...result, totalMs, timing };
+    // Single structured log line — easy to grep in browser devtools and to
+    // wire into a future analytics sink without re-instrumenting callers.
+    // eslint-disable-next-line no-console
+    console.info('[pdf-telemetry]', {
+      ok: full.ok,
+      via: full.via ?? null,
+      totalMs,
+      probeMs: timing.probeMs ?? null,
+      htmlMs: timing.htmlMs ?? null,
+      renderMs: timing.renderMs ?? null,
+      fileName,
+      error: full.error ?? null,
+    });
+    return full;
+  };
+
   // ── Tier 1: Local Playwright ────────────────────────────────────────────
   try {
-    if (await probePlaywright()) {
+    const tProbe = performance.now();
+    const playwrightUp = await probePlaywright();
+    timing.probeMs = Math.round(performance.now() - tProbe);
+
+    if (playwrightUp) {
       onStatus?.('Rendering preview…');
+      const tRender = performance.now();
       const r = await downloadViaPlaywright(fileName, containerEl);
-      if (r.success) return { ok: true, via: 'playwright' };
+      timing.renderMs = Math.round(performance.now() - tRender);
+      if (r.success) return finish({ ok: true, via: 'playwright' });
       console.warn('[cvDownloadService] Playwright failed:', r.error);
       // Invalidate cache — server may have crashed mid-request.
       playwrightHealthCache = null;
@@ -114,8 +158,15 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
 
   // ── Tier 2: Cloudflare Worker ────────────────────────────────────────────
   try {
-    if (await probeCloudflare()) {
+    const tProbe2 = performance.now();
+    const cfUp = await probeCloudflare();
+    // Add CF probe time on top of (any) tier-1 probe — represents total
+    // pre-flight overhead for this download.
+    timing.probeMs = (timing.probeMs ?? 0) + Math.round(performance.now() - tProbe2);
+
+    if (cfUp) {
       onStatus?.('Sending to Cloudflare renderer…');
+      const tHtml = performance.now();
       const html = await getCVHtml({
         containerEl,
         extraStyles: `
@@ -123,14 +174,17 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
           body { margin: 0; padding: 0; }
         `,
       });
+      timing.htmlMs = Math.round(performance.now() - tHtml);
       if (html) {
+        const tRender2 = performance.now();
         const r = await generateAndDownloadViaCF({
           html,
           filename: fileName,
           format: 'A4',
           onStatus,
         });
-        if (r.ok) return { ok: true, via: 'cloudflare' };
+        timing.renderMs = Math.round(performance.now() - tRender2);
+        if (r.ok) return finish({ ok: true, via: 'cloudflare' });
         console.warn('[cvDownloadService] Cloudflare failed:', r.error);
         cfHealthCache = null;
       }
@@ -141,12 +195,12 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
   }
 
   // ── No renderer available ───────────────────────────────────────────────
-  return {
+  return finish({
     ok: false,
     error:
       'PDF renderer unavailable. Please refresh the page or try again in a moment. ' +
       'If the problem persists, contact support.',
-  };
+  });
 }
 
 /**

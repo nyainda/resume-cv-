@@ -641,6 +641,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           company: companyName,
           savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`,
         });
+        // Show timing so the user can see how fast the download was — flashes
+        // for ~2.5s before the status auto-clears in the finally block.
+        if (typeof result.totalMs === 'number') {
+          const seconds = (result.totalMs / 1000).toFixed(1);
+          const viaLabel = result.via === 'playwright' ? 'local' : 'cloud';
+          setDownloadStatus(`PDF ready in ${seconds}s (${viaLabel} renderer)`);
+          await new Promise((r) => setTimeout(r, 2500));
+        }
       } else {
         setDownloadError(result.error || 'Download failed.');
       }
