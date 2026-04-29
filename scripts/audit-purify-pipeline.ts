@@ -84,12 +84,27 @@ const dummyCV: CVData = {
                 '**Spearheaded** a project that improved metrics through % significantly',
                 // SHORT bullet (<12 words)
                 'Did stuff at work',
-                // LONG bullet (>30 words) — also has unicode digits + Arabic-Indic
+                // LONG bullet (>30 words) — also has unicode digits + Arabic-Indic.
+                // NOTE: keep it well above 30 words so the new "end-to-end" stripper
+                // (which removes ~1 word) doesn't push it back under the threshold.
                 'Architected and shipped a comprehensive end-to-end distributed system across ٢٥ '
                 + 'microservices serving over ＄１２，０００，０００ in transactions handled with rigor and '
-                + 'reliability while mentoring a cross functional team of ten engineers daily.',
+                + 'reliability while mentoring a cross functional team of ten engineers daily across '
+                + 'four global offices spanning multiple regions and product lines.',
                 // weird_opener "Worked on" or similar weak verb + capitalise + first_person variant
                 'my goal was to enable knowledge sharing across the org through documentation',
+                // BLANK-METRIC bug (real CV, Apr 2026): the AI emitted the connector
+                // "in revenue" but lost the leading number. Pattern: "<verb>, in revenue and <continuation>".
+                // After fix: ", in revenue" should be dropped (no digit precedes within 12 chars).
+                'Sell water solutions materials and equipment, in revenue and beating monthly targets by 15% since Dec 2023',
+                // INCOMPLETE-METRIC bug: "by through X" — leading prep "by" lost
+                // its number ("by [50%] through better coordination"). After fix:
+                // "by " should be dropped, leaving "through better coordination".
+                'Streamline project workflows, reducing lead times by through better coordination between sales and engineering teams',
+                // ENSURING filler bug: ", ensuring <participle phrase>" is the most
+                // over-used filler in real generations. After fix: the trailing
+                // ", ensuring timely completion" clause should be dropped entirely.
+                'Navigate a portfolio of end-to-end irrigation projects across western Kenya, ensuring timely completion through effective coordination',
             ],
         },
         // PAST JOB (endDate set) — bullets MUST be past-tense.
@@ -344,6 +359,46 @@ const checks: Check[] = [
         name: '"Currently pursuing" stripped from completed degree',
         expectFire: false,
         actualFired: /currently pursuing/i.test(cleaned.education[0].description || ''),
+    },
+
+    // ── New checks added Apr 28 2026 from real-CV bug report ──────────────────
+    {
+        name: 'No ", ensuring …" filler clause remains in any bullet',
+        expectFire: false,
+        actualFired: /,\s*ensuring\s+/i.test(allBullets),
+    },
+    {
+        name: 'No "end-to-end" buzzword remains anywhere',
+        expectFire: false,
+        actualFired: /\bend[- ]to[- ]end\b/i.test(fullText),
+    },
+    {
+        name: 'No consecutive prepositions like "by through" remain',
+        expectFire: false,
+        actualFired: /\b(?:by|of|to|from|with|over|under)\s+(?:through|via|by|with|using|including|featuring|across|within|during)\b/i.test(allBullets),
+    },
+    {
+        name: 'No dangling ", in revenue/sales/profit" without leading number',
+        expectFire: false,
+        actualFired: cleaned.experience.flatMap(e => e.responsibilities).some(b => {
+            // Find every ", in <noun>" occurrence and verify a digit precedes it within 12 chars.
+            const re = /,\s+in\s+(revenue|sales|profits?|earnings|growth|costs?|savings?|expenses?|margins?)\b/gi;
+            let m: RegExpExecArray | null;
+            while ((m = re.exec(b)) !== null) {
+                const prev = b.slice(Math.max(0, m.index - 12), m.index);
+                if (!/\d/.test(prev)) return true; // dangling — fail
+            }
+            return false;
+        }),
+    },
+    // Check the new probes also produced their corresponding leak entries —
+    // the substitution diff records "ensuring …" / "end-to-end …" through the
+    // "banned_phrase" leak type (substitutions are tagged that way upstream).
+    {
+        name: 'banned_phrase leak captured "ensuring" or "end-to-end" hits',
+        expectFire: true,
+        actualFired: report.leaks.some(l => l.leakType === 'banned_phrase' &&
+            (/ensuring/i.test(l.phrase) || /end[- ]to[- ]end/i.test(l.phrase))),
     },
 ];
 

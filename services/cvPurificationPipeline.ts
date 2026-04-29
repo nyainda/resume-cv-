@@ -50,6 +50,20 @@ const SUBSTITUTIONS: Array<[RegExp, string]> = [
     [/\bteam player\b/gi,                'collaborator'],
     // "dynamic" — just delete (rarely adds meaning)
     [/\bdynamic\s+/gi,                   ''],
+    // "end-to-end" — borderline buzzword that user-flagged after seeing it
+    // overused in real generations ("end-to-end project", "end-to-end system",
+    // "end-to-end pipeline"). Drop the modifier and let the noun stand alone —
+    // safer than substituting a synonym that might not fit every context.
+    [/\bend[- ]to[- ]end\s+/gi,          ''],
+    // ", ensuring <participle phrase>" — the most over-used filler the user
+    // reported (11 hits in a single CV). It's almost always tautological
+    // ("ensuring timely completion", "ensuring effective communication",
+    // "ensuring long-term partnerships"). We strip from the comma through the
+    // next sentence-boundary punctuation. Conservative: only when prefixed by
+    // a comma so we don't mangle a sentence that genuinely starts with
+    // "Ensuring X happens before Y…". Substitution diff log records it as
+    // "ensuring … → (removed)" so telemetry tracks the leak.
+    [/,\s*ensuring\s+[^.;:!?]+/gi,       ''],
 ];
 
 /**
@@ -1145,6 +1159,34 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
         /(?:\s+|^)\b(?:by|from|to|of|with|over|under|reaching|achieving|approximately|around|about|roughly|nearly|almost|up\s+to|through|via|while|during|across|within|including|featuring|representing|generating|delivering|producing)\b(?=\s*[,.;:!?]|\s*$)/gi;
     out = out.replace(danglingPrepRx, '');
     out = out.replace(danglingPrepRx, '');
+
+    // 4a) CONSECUTIVE PREPOSITION COLLAPSE — "by through X" / "of via Y" /
+    //     "to with Z" appears when the AI elided a metric ("reducing lead
+    //     times by [50%] through better coordination") and only the connector
+    //     survived. We drop the LEADING preposition and keep the second one,
+    //     so "reducing lead times by through better coordination" becomes
+    //     "reducing lead times through better coordination" — still a clean
+    //     bullet with no dangling fragment. Real user-reported pattern from
+    //     a sales-engineer CV, Apr 2026.
+    out = out.replace(
+        /\b(?:by|of|to|from|with|over|under|above|below|reaching|achieving|approximately|around|about|roughly|nearly|almost)\s+(?=(?:through|via|by|with|using|including|featuring|across|within|during|on|over|under|above|below)\b)/gi,
+        '',
+    );
+
+    // 4b) DANGLING METRIC CONNECTOR — "..., in revenue and beating monthly
+    //     targets" without a leading number. The AI emitted the connector
+    //     ("$50K in revenue") but lost the metric, leaving a fragment that
+    //     reads as broken. We drop "<comma> in <metric-noun>" ONLY when
+    //     followed by a clause continuation AND no digit appears in the
+    //     immediately preceding 12 chars (so we never clobber a real
+    //     "$50K in revenue" that we want to keep).
+    out = out.replace(
+        /,\s+in\s+(revenue|sales|profits?|earnings|growth|costs?|savings?|expenses?|margins?)\b(?=\s+(?:and|while|but|then|since|using|via|to|from|by|hitting|beating|exceeding)\b|[,.;:!?]|\s*$)/gi,
+        (match: string, _noun: string, offset: number, full: string) => {
+            const prevSlice = full.slice(Math.max(0, offset - 12), offset);
+            return /\d/.test(prevSlice) ? match : '';
+        },
+    );
 
     // 5) Tidy the side-effects: collapse double spaces, fix spacing before
     //    punctuation, fix orphan commas/empty parens, fix article disagreement
