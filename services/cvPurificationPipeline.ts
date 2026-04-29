@@ -1251,6 +1251,70 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
 }
 
 /**
+ * UNIVERSAL CV DEFECT — "metric verb without a number".
+ *
+ * AI-generated CVs frequently emit clauses like:
+ *   - "..., achieving water savings through precise emitter placement"
+ *   - "..., cutting lead time"
+ *   - "..., increasing adoption of scheduling features"
+ *   - "..., reducing variance on test plots"
+ *   - "..., improving accuracy of forecasts"
+ *
+ * These read as "censored bullets" — the verb signals a measurable change
+ * (achieving X, reducing Y, increasing Z) but no number ever lands. A human
+ * recruiter sees this as either lazy writing or a redacted bullet. The
+ * cleanest fix is to drop the dangling gerund clause entirely so the bullet
+ * stands on its own merit without an empty promise.
+ *
+ * Conservative rules:
+ *   1. Only fires on COMMA-PRECEDED gerund clauses (",  achieving …" /
+ *      ", reducing …") — we never touch a bullet whose primary verb is
+ *      a metric gerund.
+ *   2. Only fires when the matched clause contains NO digit anywhere —
+ *      so legitimate "increasing revenue by 30%" / "reducing costs by KES 5M"
+ *      stays untouched.
+ *   3. Only fires when stripping leaves the bullet with ≥6 words —
+ *      we never reduce a bullet to a stub.
+ *   4. Stops at the next sentence-boundary punctuation (",.;:!?") so we
+ *      only consume the gerund clause itself, not surrounding bullet text.
+ *
+ * Emits a `unquantified_metric_verb` leak so the AI provider gets feedback
+ * to either include a number or drop the metric verb upstream next time.
+ */
+const METRIC_GERUNDS = [
+    // "achievement" verbs
+    'achieving', 'reaching', 'delivering', 'generating', 'producing',
+    'driving', 'netting', 'earning', 'saving', 'hitting', 'exceeding',
+    'surpassing', 'beating', 'realising', 'realizing',
+    // "growth" verbs
+    'increasing', 'growing', 'boosting', 'raising', 'lifting', 'scaling',
+    'expanding', 'doubling', 'tripling', 'multiplying',
+    // "reduction" verbs
+    'reducing', 'cutting', 'shrinking', 'decreasing', 'lowering', 'dropping',
+    'slashing', 'trimming', 'minimising', 'minimizing', 'eliminating',
+    // "improvement" verbs
+    'improving', 'enhancing', 'optimising', 'optimizing',
+    'streamlining', 'accelerating', 'strengthening',
+];
+function stripUnquantifiedMetricGerund(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    const verbsAlt = METRIC_GERUNDS.join('|');
+    // Match ", <gerund> <stuff up to next punct/end>". The clause body uses
+    // [^,.;:!?] so we never cross a sentence boundary.
+    const rx = new RegExp(`,\\s+(?:${verbsAlt})\\s+[^,.;:!?]+`, 'gi');
+
+    // Replace each match: drop only when no digit appears in the clause.
+    const cleaned = text.replace(rx, (match) => /\d/.test(match) ? match : '');
+    if (cleaned === text) return { text, changed: false };
+
+    // Safety: refuse to leave the bullet too short (≥6 content words).
+    const remainingWords = (cleaned.match(/\b\w+\b/g) || []).length;
+    if (remainingWords < 6) return { text, changed: false };
+
+    return { text: cleaned, changed: true };
+}
+
+/**
  * The CF Workers AI fallback for "voice-fix" rewrites sometimes prepends
  * "Re-" to existing verbs ("framed" → "Re-framed", "positioned" →
  * "Re-positioned", "narrated" → "Re-narrated") in a misguided attempt to
@@ -1468,6 +1532,10 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     // sees the space and treats them as orphans.
     apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
+    // Universal: strip ", <metric-gerund> …" clauses with no number.
+    // Runs AFTER orphan_metric so a stripped orphan ("…, achieving.8M")
+    // doesn't mask a still-dangling clause ("…, achieving water savings").
+    apply('unquantified_metric_verb', stripUnquantifiedMetricGerund);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     apply('trailing_period',  stripTrailingPeriod);
     apply('capitalise',       capitaliseFirst);
@@ -1528,7 +1596,11 @@ export interface PurifyLeak {
         | 'orphan_metric' | 'short_bullet' | 'long_bullet'
         | 'unicode_glyph'
         // New leak categories surfaced by the audit harness.
-        | 'dup_prep_phrase' | 'article_agreement';
+        | 'dup_prep_phrase' | 'article_agreement'
+        // Universal "metric verb without a number" — gerund clauses like
+        // ", achieving water savings" / ", cutting lead time" stripped when
+        // the clause carries no digit.
+        | 'unquantified_metric_verb';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -1701,6 +1773,7 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 f === 'number_format'      ? 'number_format'      :
                 f === 'dup_prep_phrase'    ? 'dup_prep_phrase'    :
                 f === 'article_agreement'  ? 'article_agreement'  :
+                f === 'unquantified_metric_verb' ? 'unquantified_metric_verb' :
                 /* whitespace_dashes */      'whitespace_dash';
             leaks.push({
                 leakType, phrase: f,

@@ -128,6 +128,20 @@ const dummyCV: CVData = {
                 // the broken fragment "within of reporting". After fix: whole "within of
                 // reporting" stripped, comma preserved so the next clause stays grammatical.
                 'Lead follow-up visits and troubleshoot system inefficiencies within of reporting, improving client retention to 95%',
+                // UNIVERSAL "metric verb without a number" probes (Apr 29 2026):
+                // The AI commonly tacks "achieving/cutting/increasing/reducing X" onto
+                // the end of a bullet without a number, producing a "censored bullet"
+                // feel. The new stripUnquantifiedMetricGerund step should drop the
+                // dangling clause when no digit is present in it.
+                'Design drip and sprinkler systems using IrriCAD and AutoCAD, achieving water savings through precise emitter placement',
+                'Streamline handover between sales and installation teams using a shared project management dashboard, cutting lead time',
+                'Train farmers on operation of automated irrigation controls, increasing adoption of scheduling features',
+                // SAFETY: a metric-gerund clause WITH a number must NOT be stripped.
+                // "increasing revenue by 30%" stays untouched.
+                'Run cross-functional alignment sessions weekly with engineering and sales, increasing revenue by 30% across the region',
+                // SAFETY: a metric-gerund as PRIMARY verb (no leading comma) must
+                // NOT trigger this rule. Bullet stands as written.
+                'Achieving water savings on every project I design across western Kenya monthly',
             ],
         },
         // PAST JOB (endDate set) — bullets MUST be past-tense.
@@ -487,6 +501,47 @@ const checks: Check[] = [
         // to the pre-existing summary/bullet probes (which contributed ~5 already).
         actualFired: (byType.get('orphan_metric') || 0) >= 6,
     },
+
+    // ── Universal "metric verb without a number" coverage (Apr 29 2026) ──────
+    {
+        name: 'unquantified_metric_verb fired (3 probes: achieving/cutting/increasing)',
+        expectFire: true,
+        actualFired: byType.has('unquantified_metric_verb'),
+    },
+    {
+        name: 'unquantified_metric_verb fired AT LEAST 3 times (one per probe bullet)',
+        expectFire: true,
+        actualFired: (byType.get('unquantified_metric_verb') || 0) >= 3,
+    },
+    {
+        name: 'No ", achieving water savings" clause remains in any bullet',
+        expectFire: false,
+        actualFired: /,\s+achieving\s+water\s+savings\b/i.test(allBullets),
+    },
+    {
+        name: 'No ", cutting lead time" clause remains in any bullet',
+        expectFire: false,
+        actualFired: /,\s+cutting\s+lead\s+time\b/i.test(allBullets),
+    },
+    {
+        name: 'No ", increasing adoption of scheduling features" clause remains',
+        expectFire: false,
+        actualFired: /,\s+increasing\s+adoption\s+of\s+scheduling\b/i.test(allBullets),
+    },
+    {
+        name: 'SAFETY: ", increasing revenue by 30%" preserved (has digit)',
+        expectFire: false,
+        actualFired: !cleaned.experience[0].responsibilities.some(
+            b => /increasing revenue by 30/i.test(b),
+        ),
+    },
+    {
+        name: 'SAFETY: primary-verb gerund "Achieving water savings on every project" preserved',
+        expectFire: false,
+        actualFired: !cleaned.experience[0].responsibilities.some(
+            b => /Achieving water savings on every project/i.test(b),
+        ),
+    },
 ];
 
 let passed = 0, failed = 0;
@@ -596,6 +651,7 @@ const ALL_LEAK_TYPES = [
     'skill_casing', 'duplicate_skill', 'low_quantification',
     'orphan_metric', 'short_bullet', 'long_bullet', 'unicode_glyph',
     'dup_prep_phrase', 'article_agreement',
+    'unquantified_metric_verb',
 ] as const;
 
 const combinedTypes = new Set<string>([...byType.keys(), ...sparseTypes]);
