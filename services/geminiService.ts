@@ -545,12 +545,26 @@ ${buildGapContext(gaps)}`;
 
     // ─── Shared rules injected into every mode ────────────────────────────────
     const sharedHumanizationRules = `
-BULLET LENGTH & RHYTHM RULES (mix lengths deliberately within each role):
-- Within EACH role, deliberately MIX three bullet lengths to give the eye visual rhythm:
-    • PUNCHY bullets (8–14 words): a single crisp sentence — verb, what, outcome. Use 1–2 per role.
-    • STANDARD bullets (15–22 words): the workhorse length. Use 2–3 per role.
-    • NARRATIVE bullets (25–40 words, two sentences): one short context sentence + one outcome sentence. Use 1 per role on the strongest achievement.
+BULLET LENGTH & RHYTHM RULES (mix lengths PROPORTIONALLY in every role):
+- Within EACH role, MIX three bullet lengths to give the eye visual rhythm:
+    • PUNCHY bullets (8–14 words): a single crisp sentence — verb, what, outcome.
+    • STANDARD bullets (15–22 words): the workhorse length.
+    • NARRATIVE bullets (25–40 words, two sentences): one short context sentence + one outcome sentence — reserve for the strongest achievement.
+- Proportional targets (scale with the role's total bullet count N):
+    • Punchy   ≈ 25% of bullets — minimum 1 per role.
+    • Standard ≈ 50% of bullets — the bulk of the role.
+    • Narrative ≈ 15–25% of bullets — minimum 1 if N ≥ 4; up to 2 if N ≥ 8; up to 3 if N ≥ 10.
+- Worked examples (N = total bullets in the role):
+    • N=3  → 1 punchy + 2 standard           (narrative optional)
+    • N=4  → 1 punchy + 2 standard + 1 narrative
+    • N=5  → 1 punchy + 3 standard + 1 narrative
+    • N=6  → 2 punchy + 3 standard + 1 narrative
+    • N=7  → 2 punchy + 4 standard + 1 narrative
+    • N=8  → 2 punchy + 4 standard + 2 narrative
+    • N=9  → 2 punchy + 5 standard + 2 narrative
+    • N=10 → 2 punchy + 5 standard + 3 narrative
 - Three bullets in a row of similar length within the same role = failure. The reader's eye should land on different visual masses as it scans down.
+- A role with ≥5 bullets that uses only ONE length band (all standard, all narrative, or all punchy) = failure, regardless of how many bullets it has.
 - Hard floors and ceilings: under 8 words = stub (failure). Over 45 words = rambling (failure).
 - Structure (every length): [Strong Verb] + [What + How/Where/Who] + [Measurable Outcome or Observable Impact].
 
@@ -921,7 +935,12 @@ PROBLEM 4 — DUPLICATE VERB STARTERS (no two bullets across the whole document 
 Scan all responsibilities across ALL roles. If two bullets start with the same verb, rewrite the second one to start with a different strong action verb.
 
 PROBLEM 5 — MONOTONE BULLET RHYTHM (each role must MIX bullet lengths):
-Within each role, count bullets by length band: punchy (8–14 words), standard (15–22 words), narrative (25–40 words, two sentences). A healthy role has at least 2 of these 3 bands represented. If every bullet in a role falls in the same band — or if every bullet is within 5 words of the role's average — the role reads as monotone. Fix by: shortening one bullet to the punchy band, OR expanding the strongest bullet to a two-sentence narrative (one short context sentence + one outcome sentence). Never make all bullets the same length.
+Within each role, count bullets by length band: punchy (8–14 words), standard (15–22 words), narrative (25–40 words, two sentences). The mix scales with the role's bullet count N:
+  • N=3 → 1 punchy + 2 standard (narrative optional).
+  • N=4–5 → 1 punchy + 2–3 standard + 1 narrative.
+  • N=6–7 → 2 punchy + 3–4 standard + 1 narrative.
+  • N=8–10 → 2 punchy + 4–5 standard + 2–3 narrative.
+A role with ≥5 bullets that uses ONLY ONE band (e.g. eight bullets all in the standard band) = failure, regardless of how many bullets it has. If every bullet in a role is within 5 words of the role's average, that's also a failure. Fix by: shortening one bullet to the punchy band, OR expanding the strongest bullet to a two-sentence narrative (one short context sentence + one outcome sentence). Never make all bullets the same length.
 
 PROBLEM 6 — AI TONE PHRASES IN SUMMARY (check professionalSummary field):
 The professional summary must not contain: ${liveBannedSummary}.
@@ -2193,8 +2212,10 @@ ${experienceInstructionLines}
                - If the profile has no work experience → omit the experience section.
                - If the profile has no projects → omit the projects section.
 
-            ⑥ BULLET QUALITY & RHYTHM RULES:
-               - Within EACH role, MIX bullet lengths: 1–2 punchy (8–14 words), 2–3 standard (15–22 words), 1 narrative (25–40 words, two sentences). Three bullets in a row of similar length = failure.
+            ⑥ BULLET QUALITY & RHYTHM RULES (mix lengths PROPORTIONALLY by role bullet count N):
+               - N=3 → 1 punchy + 2 standard. N=4–5 → 1 punchy + 2–3 standard + 1 narrative. N=6–7 → 2 punchy + 3–4 standard + 1 narrative. N=8–10 → 2 punchy + 4–5 standard + 2–3 narrative.
+               - Bands: PUNCHY 8–14 words, STANDARD 15–22 words, NARRATIVE 25–40 words (two sentences).
+               - A role with ≥5 bullets that uses only ONE band (e.g. all 8 bullets standard-length) = failure. Three bullets in a row of similar length = failure.
                - Hard floors and ceilings: under 8 words = stub (failure). Over 45 words = rambling (failure).
                - Max 55% of bullets per role may contain a number. With 5 bullets, at most 3 may have metrics.
                - Only add a metric when you can honestly infer it from what the user wrote. Never force a number.

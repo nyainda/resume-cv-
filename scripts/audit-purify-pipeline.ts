@@ -208,6 +208,33 @@ const dummyCV: CVData = {
                 'Reduced churn by 20% across all customer segments in two quarters by introducing a 90-day onboarding success plan and a 30-day check-in cadence.',
             ],
         },
+        // PROBE: 8-BULLET HEALTHY MIX (Apr 29 2026).
+        // Verifies the rhythm rules SCALE with bullet count. Users can set
+        // pointCount up to 8+ per role. Composition mirrors the prompt's
+        // proportional formula for N=8: 2 punchy + 4 standard + 2 narrative.
+        // Must NOT trigger bullet_rhythm_monotone (stddev ≈ 9, well > 3).
+        // Must NOT trigger short_bullet (no bullet < 8w).
+        // Must NOT trigger long_bullet (no bullet > 45w).
+        {
+            company: 'Big Mix Co',
+            jobTitle: 'Programme Director',
+            dates: '2010–2012',
+            startDate: '2010-01',
+            endDate: '2011-12',
+            responsibilities: [
+                // Punchy x2 (10w, 11w)
+                'Owned the regional growth scorecard for the Africa hub.',
+                'Chaired the weekly cross-functional pricing standup with three teams.',
+                // Standard x4 (17w, 18w, 19w, 20w)
+                'Built the customer-success dashboard from scratch and deployed it to twelve country offices in twenty weeks.',
+                'Led a sixty-person delivery organisation across Nairobi Lagos and Cape Town through three product launches.',
+                'Restructured the partner-channel commercial model to align incentives across resellers system integrators and direct sales teams.',
+                'Translated the corporate growth strategy into seven measurable quarterly objectives for each of four regional general managers.',
+                // Narrative x2 (32w, 35w)
+                'Architected the rollout plan for the new pricing engine across four lines of business over an eighteen-month window. The transition closed with a ninety-five percent customer-retention rate during the cutover quarter.',
+                'Stood up the executive briefing programme for the top fifty enterprise accounts in the region. The programme generated forty qualified expansion conversations in its first half-year and seeded eleven seven-figure renewals.',
+            ],
+        },
         // PROBE: HEALTHY MIXED RHYTHM (Apr 29 2026).
         // Mix of one PUNCHY (~10w), two STANDARD (~18w), one NARRATIVE
         // (~32w, two sentences). Stddev ≈ 9 → comfortably above 3.
@@ -637,6 +664,40 @@ const checks: Check[] = [
             l => l.leakType === 'long_bullet'
               && /Architected the rollout plan/i.test(l.phrase || ''),
         ),
+    },
+
+    // ── 8-bullet rhythm scaling checks (Apr 29 2026) ─────────────────────────
+    // The rules must SCALE — a user setting pointCount=8 with a healthy
+    // proportional mix (2 punchy + 4 standard + 2 narrative) must pass
+    // every length-related detector.
+    {
+        name: 'bullet_rhythm_monotone did NOT fire on the 8-bullet Big Mix Co role (proportional mix)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_rhythm_monotone'
+              && /Big Mix Co/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'No short_bullet leaks on the 8-bullet Big Mix Co role (all bullets ≥ 8 words)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'short_bullet'
+              && /experience\[4\]/.test(l.fieldLocation || ''),
+        ),
+    },
+    {
+        name: 'No long_bullet leaks on the 8-bullet Big Mix Co role (all bullets ≤ 45 words)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'long_bullet'
+              && /experience\[4\]/.test(l.fieldLocation || ''),
+        ),
+    },
+    {
+        name: 'Big Mix Co role retains all 8 bullets after polish (no silent drops)',
+        expectFire: false,
+        actualFired: cleaned.experience[4].responsibilities.length !== 8,
     },
 ];
 
