@@ -10,7 +10,9 @@
     "pdf-server": "node server-pdf.cjs",
     "check:cloudflare": "node scripts/check-cloudflare-connections.mjs",
     "audit:rules": "node scripts/audit-rule-counts.mjs",
-    "test:numbers": "npx tsx scripts/test-cv-number-fidelity.ts"
+    "test:numbers": "npx tsx scripts/test-cv-number-fidelity.ts",
+    "test:cv-quality": "npx tsx scripts/test-cv-quality.ts",
+    "test:cv": "npm run test:numbers && npm run test:cv-quality"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
