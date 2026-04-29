@@ -25,6 +25,7 @@
 
 import type { CVData } from '../types';
 import type { PurifyReport } from '../services/cvPurificationPipeline';
+import { fixPronouns } from '../services/cvPromptHelpers';
 
 const { purifyCV } = await import('../services/cvPurificationPipeline');
 
@@ -872,6 +873,47 @@ for (const c of sparseChecks) {
     else { sparseFailed++; fails.push(`[secondary] ${c.name}`); }
 }
 
+// ─── fixPronouns standalone unit checks (Apr 29 2026) ──────────────────────
+// fixPronouns lives in cvPromptHelpers and is wired into the AI generation
+// path (services/geminiService.ts → fixPronounsInCV), NOT into the deterministic
+// purify pipeline above. So we exercise it here as a small standalone block
+// to lock in the pattern set the audit revealed was missing:
+//   - "Goal was X" → "My goal was X" (was: only "Goal is X" handled)
+//   - "Am a X"     → "I am a X"      (was: not handled at all)
+//   - "Am the X"   → "I am the X"    (was: not handled at all)
+
+sub('FIXPRONOUNS UNIT CHECKS');
+
+const pronounChecks: Array<{ name: string; input: string; expected: string }> = [
+    // Pre-existing patterns — must keep working.
+    { name: '"goal is" → "My goal is"',           input: 'Goal is to ship faster.',          expected: 'My goal is to ship faster.' },
+    { name: '"\'ve" → "I\'ve" at start',          input: "'ve shipped 12 features.",          expected: "I've shipped 12 features." },
+    // NEW patterns added Apr 29 2026 to close the audit gaps.
+    { name: '"Goal was" → "My goal was"',         input: 'Goal was to cut churn.',            expected: 'My goal was to cut churn.' },
+    { name: '"Aim was" → "My aim was"',           input: 'Aim was to grow ARR.',              expected: 'My aim was to grow ARR.' },
+    { name: '"Am a engineer" → "I am a engineer"', input: 'Am a engineer building tools.',     expected: 'I am a engineer building tools.' },
+    { name: '"Am an engineer" → "I am an engineer"', input: 'Am an engineer building tools.', expected: 'I am an engineer building tools.' },
+    { name: '"Am the lead" → "I am the lead"',    input: 'Am the lead on platform.',          expected: 'I am the lead on platform.' },
+    // SAFETY: must NOT mangle text where "Am" / "Goal" appears mid-sentence
+    // or as part of a name / acronym.
+    { name: 'SAFETY: "I am the lead" preserved',  input: 'I am the lead on platform.',        expected: 'I am the lead on platform.' },
+    { name: 'SAFETY: "the goal was clear" preserved', input: 'Then the goal was clear.',      expected: 'Then the goal was clear.' },
+    { name: 'SAFETY: mid-sentence "Sam an analyst" preserved', input: 'Met Sam an analyst on the call.', expected: 'Met Sam an analyst on the call.' },
+];
+
+let pronounPassed = 0, pronounFailed = 0;
+for (const c of pronounChecks) {
+    const actual = fixPronouns(c.input);
+    const ok = actual === c.expected;
+    const label = ok ? `${C.green}PASS${C.reset}` : `${C.red}FAIL${C.reset}`;
+    console.log(`  ${label}  ${c.name}`);
+    if (!ok) console.log(`         input    : ${C.dim}${c.input}${C.reset}`);
+    if (!ok) console.log(`         expected : ${C.dim}${c.expected}${C.reset}`);
+    if (!ok) console.log(`         actual   : ${C.red}${actual}${C.reset}`);
+    if (ok) pronounPassed++;
+    else { pronounFailed++; fails.push(`[fixPronouns] ${c.name}`); }
+}
+
 // ─── leakType coverage matrix ───────────────────────────────────────────────
 // Cross-check every leakType in the PurifyLeak union against the combined
 // fire-set. Anything missing means a regression in coverage.
@@ -904,14 +946,15 @@ for (const t of ALL_LEAK_TYPES) {
 
 // ─── Summary ────────────────────────────────────────────────────────────────
 
-const totalChecks = checks.length + sparseChecks.length + ALL_LEAK_TYPES.length;
-const totalPassed = passed + sparsePassed + coveragePassed;
-const totalFailed = failed + sparseFailed + coverageFailed;
+const totalChecks = checks.length + sparseChecks.length + pronounChecks.length + ALL_LEAK_TYPES.length;
+const totalPassed = passed + sparsePassed + pronounPassed + coveragePassed;
+const totalFailed = failed + sparseFailed + pronounFailed + coverageFailed;
 
 sub('SUMMARY');
 console.log(`  Pipeline ran in ${C.bold}${elapsed} ms${C.reset}`);
 console.log(`  Main checks       : ${passed}/${checks.length}`);
 console.log(`  Secondary checks  : ${sparsePassed}/${sparseChecks.length}`);
+console.log(`  fixPronouns checks: ${pronounPassed}/${pronounChecks.length}`);
 console.log(`  LeakType coverage : ${coveragePassed}/${ALL_LEAK_TYPES.length}` +
     (missing.length ? `  ${C.red}(missing: ${missing.join(', ')})${C.reset}` : ''));
 console.log(`  Verdict: ${C.bold}${totalPassed}/${totalChecks}${C.reset} checks passed, ${totalFailed > 0 ? C.red : C.green}${totalFailed} failed${C.reset}`);

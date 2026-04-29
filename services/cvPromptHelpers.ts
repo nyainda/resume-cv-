@@ -332,8 +332,24 @@ export function fixPronouns(text: string): string {
     let out = text;
     // Bare "'ve" / "'m" / "'ll" / "'d" at start-of-token (no letter before) → prepend "I".
     out = out.replace(/(^|[\s(\[{>"'`])'(ve|m|ll|d)\b/g, "$1I'$2");
-    // "goal is" / "aim is" / "plan is" at start of a clause → "My ___ is".
-    out = out.replace(/(^|[.!?]\s+|[\s(\[{>"'`])(goal|aim|plan|hope|intent)\s+is\b/gi, (_m, p1, w) => `${p1}My ${w.toLowerCase()} is`);
+    // "goal is/was" / "aim is/was" / "plan is/was" at start of a clause → "My ___ is/was".
+    // ANCHORED to start-of-text or end-of-sentence punctuation ONLY — never to bare
+    // whitespace, otherwise mid-sentence "the goal was clear" would mangle to
+    // "theMy goal was clear" (real safety bug exposed by the Apr 29 2026 audit). The
+    // earlier wider variant `[\s(\[{>"'\`]` had this latent bug; tightening here also
+    // covers the past-tense form ("Goal was X" → "My goal was X") that was missing.
+    out = out.replace(
+        /(^|[.!?]\s+)(goal|aim|plan|hope|intent)\s+(is|was)\b/gi,
+        (_m, p1, w, v) => `${p1}My ${w.toLowerCase()} ${v.toLowerCase()}`,
+    );
+    // "Am a / Am an / Am the" at start of a clause → "I am a / I am an / I am the".
+    // Same root cause: stripFirstPerson drops the leading "I" from "I am the lead engineer"
+    // and leaves a dangling "Am the lead engineer". Restore the "I". Added Apr 29 2026.
+    // Same start-anchored discipline so we don't wreck names like "Sam an analyst".
+    out = out.replace(
+        /(^|[.!?]\s+)Am\s+(an?|the)\b/g,
+        (_m, p1, det) => `${p1}I am ${det}`,
+    );
     // Collapse double spaces from substitutions.
     out = out.replace(/[ \t]{2,}/g, ' ');
     return out;
