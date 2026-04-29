@@ -254,6 +254,45 @@ const dummyCV: CVData = {
                 'Architected the rollout plan for the new CRM across 4 country offices over an 18-month window. The transition closed with a 92% user-adoption rate and zero unplanned downtime during go-live weekends.',
             ],
         },
+        // PROBE: BAND IMBALANCE WITH OUTLIER (Apr 29 2026).
+        // Targets the edge case the new bullet_band_imbalance detector was
+        // designed for: 5 punchy bullets at 9w each + 1 narrative bullet at
+        // 30w. The single 30w outlier inflates stddev to ≈ 7.83 — well above
+        // the bullet_rhythm_monotone threshold of 3 — so the OLD detector
+        // gives this role a clean bill of health. But 5 of 6 bullets are
+        // still stuck in the punchy band, so the role still reads as
+        // visually flat. The NEW detector must fire here.
+        // Expected detector behaviour for this role:
+        //   bullet_rhythm_monotone   → MUST NOT fire (stddev ≈ 7.83 > 3)
+        //   bullet_band_imbalance    → MUST fire (5 bullets in punchy band)
+        //   short_bullet             → MUST NOT fire (every bullet ≥ 8w)
+        //   long_bullet              → MUST NOT fire (no bullet > 45w)
+        {
+            company: 'Punchy Stack Co',
+            jobTitle: 'Operations Lead',
+            dates: '2008–2010',
+            startDate: '2008-01',
+            endDate: '2009-12',
+            responsibilities: [
+                // Punchy x5 — each exactly 9 words → all in the punchy band.
+                // Digits chosen as round multiples of 5/10/25/100 so this
+                // role also keeps the dataset-level round_number ratio
+                // above its firing threshold (those checks pre-date this
+                // probe and would otherwise fall silent).
+                'Hosted 50 weekly reviews with the engineering teams here.',
+                'Owned 20 standup notes for the regional sales group.',
+                'Tracked 100 forecast variance reports against the baseline targets.',
+                'Reviewed 10 partner performance scorecards with channel operations leads.',
+                'Audited 25 budget submissions across the four business units.',
+                // Narrative x1 — 30 words → in the narrative band. Pulls
+                // stddev above 3 so the monotone check abstains, leaving
+                // the band-imbalance detector as the only line of defence.
+                // Vocabulary deliberately distinct from the other narrative
+                // bullets in this fixture so the dataset-level
+                // repeated_phrase detector is not nudged off-target.
+                'Consolidated the regional finance reporting stack onto a single shared warehouse across two fiscal quarters by retiring six redundant pipelines and standardising the chart of accounts for every subsidiary entity.',
+            ],
+        },
     ],
 
     education: [
@@ -699,6 +738,45 @@ const checks: Check[] = [
         expectFire: false,
         actualFired: cleaned.experience[4].responsibilities.length !== 8,
     },
+
+    // ── Band-imbalance detector checks (Apr 29 2026) ─────────────────────────
+    // Punchy Stack Co lives at experience[6] (after Healthy Mix Inc at [5]).
+    // The role has 6 bullets: 5 punchy (9w each) + 1 narrative (30w). Stddev
+    // works out to ≈ 7.83, well above the monotone threshold of 3, so the
+    // OLD detector abstains. The NEW band-imbalance detector must catch it
+    // — this is the exact edge case it was added for.
+    {
+        name: 'bullet_band_imbalance fired on the Punchy Stack Co role (5 bullets in punchy band, 1 outlier)',
+        expectFire: true,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_band_imbalance'
+              && /Punchy Stack Co/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'bullet_rhythm_monotone did NOT fire on Punchy Stack Co (stddev ≈ 7.83 — proves band detector closes the gap)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_rhythm_monotone'
+              && /Punchy Stack Co/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'bullet_band_imbalance did NOT fire on the 8-bullet Big Mix Co role (max 4 in any band — healthy 2/4/2 split)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_band_imbalance'
+              && /Big Mix Co/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'bullet_band_imbalance did NOT fire on the 4-bullet Healthy Mix Inc role (below the ≥5-bullet threshold)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_band_imbalance'
+              && /Healthy Mix Inc/i.test(l.phrase || ''),
+        ),
+    },
 ];
 
 let passed = 0, failed = 0;
@@ -810,6 +888,7 @@ const ALL_LEAK_TYPES = [
     'dup_prep_phrase', 'article_agreement',
     'unquantified_metric_verb',
     'bullet_rhythm_monotone',
+    'bullet_band_imbalance',
 ] as const;
 
 const combinedTypes = new Set<string>([...byType.keys(), ...sparseTypes]);
