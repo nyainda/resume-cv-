@@ -31,6 +31,18 @@ import {
     auditCvQuality,
     isBulletDegraded,
 } from '../services/cvNumberFidelity';
+// We import the polish pipeline indirectly through purifyCV in production,
+// but for the trailing-period unit test we re-implement the same single rule
+// inline so this script stays free of Vite-only dependencies.
+function ensureTrailingPeriod(text: string): string {
+    if (!text) return text;
+    let out = text.replace(/\s+$/g, '');
+    if (!out) return text;
+    out = out.replace(/[,;]+$/g, '.');
+    if (/\.{2,}$/.test(out) && !/\.\.\.$/.test(out)) out = out.replace(/\.+$/, '.');
+    if (/[.!?…]$/.test(out)) return out;
+    return out + '.';
+}
 
 // ── Tiny ANSI helpers (no deps) ────────────────────────────────────────────
 const C = {
@@ -146,6 +158,43 @@ expectClean('"on average" at end',
     [/\bon\s+average\.?$/]);
 expectPreserved('"on average," at start kept',
     'On average, the team ships 3 features a week.');
+
+console.log(C.b('\nTrailing period on bullets (NEW rule — every bullet ends with .):'));
+function expectBullet(label: string, input: string, expected: string) {
+    const out = ensureTrailingPeriod(input);
+    if (out === expected) {
+        totalPassed++;
+        console.log(`  ${PASS} ${label}`);
+        console.log(`         out: ${out}`);
+    } else {
+        totalFailed++;
+        console.log(`  ${FAIL} ${label}`);
+        console.log(`         in  : ${C.d(input)}`);
+        console.log(`         got : ${C.r(out)}`);
+        console.log(`         want: ${C.g(expected)}`);
+    }
+}
+expectBullet('Bare bullet gets a period',
+    'Managed 15 irrigation projects across 3 counties',
+    'Managed 15 irrigation projects across 3 counties.');
+expectBullet('Already-period bullet unchanged',
+    'Cut energy use by 18%.',
+    'Cut energy use by 18%.');
+expectBullet('Trailing comma → period',
+    'Built the team, hired five engineers,',
+    'Built the team, hired five engineers.');
+expectBullet('Trailing semicolon → period',
+    'Designed the system;',
+    'Designed the system.');
+expectBullet('Question mark preserved',
+    'Why ship without tests?',
+    'Why ship without tests?');
+expectBullet('Ellipsis preserved',
+    'And then it shipped...',
+    'And then it shipped...');
+expectBullet('Double period collapses to one',
+    'Generated revenue..',
+    'Generated revenue.');
 
 console.log(C.b('\nCapitalisation & punctuation:'));
 expectExact('Capitalises after period',

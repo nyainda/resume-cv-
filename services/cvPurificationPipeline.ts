@@ -1377,14 +1377,39 @@ function capitaliseFirst(text: string): { text: string; changed: boolean } {
     return { text: m[1] + m[2].toUpperCase() + m[3], changed: true };
 }
 
-/** Removes a single trailing period from a bullet (modern resume style). */
-function stripTrailingPeriod(text: string): { text: string; changed: boolean } {
+/**
+ * Ensures a bullet ends with exactly one sentence-terminating period.
+ *
+ * Rules:
+ *   • Empty / whitespace-only bullets are left alone (they get filtered out
+ *     elsewhere).
+ *   • Bullets that already end with `.`, `!`, `?`, `…` or an ellipsis `...`
+ *     are left alone — we don't want to turn `"What now?"` into `"What now?."`.
+ *   • Trailing whitespace, semicolons or commas are normalised to a single
+ *     `.` so we don't ship `"…delivery,"` or `"…delivery;"` on a bullet end.
+ *   • Multiple trailing periods (`"shipped it.."`) collapse to one.
+ *   • Otherwise: append a single `.` so every bullet reads as a complete
+ *     sentence in the rendered CV.
+ */
+function ensureTrailingPeriod(text: string): { text: string; changed: boolean } {
     if (!text) return { text: text || '', changed: false };
-    if (/[.!?…]$/.test(text) && !/[.][.][.]$/.test(text)) {
-        const out = text.replace(/[.!?]+$/, '');
-        return { text: out, changed: out !== text };
+    const original = text;
+    let out = text.replace(/\s+$/g, ''); // trim trailing whitespace
+    if (!out) return { text: original, changed: false };
+    // Normalise stray trailing comma / semicolon to a period.
+    out = out.replace(/[,;]+$/g, '.');
+    // Collapse repeated terminal periods to one (preserve real ellipsis "…"
+    // and the three-dot `...` form by checking for those first).
+    if (/\.{2,}$/.test(out) && !/\.\.\.$/.test(out)) {
+        out = out.replace(/\.+$/, '.');
     }
-    return { text, changed: false };
+    // Already ends with valid terminal punctuation? Done.
+    if (/[.!?…]$/.test(out)) {
+        return { text: out, changed: out !== original };
+    }
+    // Otherwise append a single period.
+    out = out + '.';
+    return { text: out, changed: out !== original };
 }
 
 /**
@@ -1580,7 +1605,7 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     // doesn't mask a still-dangling clause ("…, achieving water savings").
     apply('unquantified_metric_verb', stripUnquantifiedMetricGerund);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
-    apply('trailing_period',  stripTrailingPeriod);
+    apply('trailing_period',  ensureTrailingPeriod);
     apply('capitalise',       capitaliseFirst);
     return { text: cur, fixes };
 }
