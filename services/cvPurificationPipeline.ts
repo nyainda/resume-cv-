@@ -1604,7 +1604,13 @@ export interface PurifyLeak {
         // Detect-only: a role's bullets are all within ~5 words of each
         // other (population stddev < 3) — monotone visual rhythm. The
         // prompt asks for a mix of punchy/standard/narrative lengths.
-        | 'bullet_rhythm_monotone';
+        | 'bullet_rhythm_monotone'
+        // Detect-only: ≥5 bullets in a single length band (punchy 8–14w,
+        // standard 15–22w, narrative 23–45w) within one role. Catches
+        // band-imbalance even when stddev looks fine — e.g. five 9-word
+        // bullets plus one 30-word bullet has stddev > 7 but is still
+        // visually monotone in the punchy band.
+        | 'bullet_band_imbalance';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -1960,6 +1966,55 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
     });
     if (monotoneRoles > 0) {
         console.warn(`[Purify] ${monotoneRoles} role(s) have monotone bullet rhythm — mix punchy/standard/narrative bullet lengths.`);
+    }
+
+    // Detect-only: BULLET BAND IMBALANCE. Stddev catches "all bullets ±5w
+    // of the mean" but misses cases where most bullets share one band and
+    // a single outlier inflates the spread. Example: bullets at
+    // [9, 9, 9, 9, 9, 30] → stddev ≈ 7.6 (passes the monotone check) but
+    // 5 bullets are still stuck in the punchy band, so the role still
+    // reads as visually flat. Bands match the prompt copy:
+    //   punchy    8–14 words
+    //   standard  15–22 words
+    //   narrative 23–45 words
+    // (<8 and >45 are caught separately by short_bullet / long_bullet.)
+    // Flag when ≥5 bullets sit in a single band within one role.
+    const BAND_THRESHOLD = 5;
+    const bandOf = (n: number): 'punchy' | 'standard' | 'narrative' | null => {
+        if (n >= 8  && n <= 14) return 'punchy';
+        if (n >= 15 && n <= 22) return 'standard';
+        if (n >= 23 && n <= 45) return 'narrative';
+        return null;
+    };
+    let bandImbalancedRoles = 0;
+    (working.experience || []).forEach((e, i) => {
+        const lens = (e.responsibilities || [])
+            .map(b => (b || '').trim().split(/\s+/).filter(Boolean).length)
+            .filter(n => n > 0);
+        if (lens.length < BAND_THRESHOLD) return;
+        const counts: Record<'punchy' | 'standard' | 'narrative', number> =
+            { punchy: 0, standard: 0, narrative: 0 };
+        for (const n of lens) {
+            const band = bandOf(n);
+            if (band) counts[band]++;
+        }
+        const overloaded = (Object.entries(counts) as Array<['punchy' | 'standard' | 'narrative', number]>)
+            .filter(([, c]) => c >= BAND_THRESHOLD)
+            .sort((a, b) => b[1] - a[1]);
+        if (overloaded.length === 0) return;
+        bandImbalancedRoles++;
+        const [topBand, topCount] = overloaded[0];
+        const breakdown = `punchy=${counts.punchy} standard=${counts.standard} narrative=${counts.narrative}`;
+        leaks.push({
+            leakType: 'bullet_band_imbalance',
+            phrase: `role[${i}] (${e.company || '?'}): ${topCount}/${lens.length} bullets in '${topBand}' band (${breakdown})`,
+            fieldLocation: `experience[${i}].responsibilities`,
+            occurrences: topCount,
+            fixedBy: 'none',
+        });
+    });
+    if (bandImbalancedRoles > 0) {
+        console.warn(`[Purify] ${bandImbalancedRoles} role(s) have ≥${BAND_THRESHOLD} bullets stuck in a single length band — break the band by shortening one bullet to punchy or expanding one to a 2-sentence narrative.`);
     }
 
     return {
