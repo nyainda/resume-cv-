@@ -1499,6 +1499,49 @@ function dropRedundantPrepPhrase(text: string): { text: string; changed: boolean
     return { text: head.replace(/\s+$/, '') + (m[3] || ''), changed: true };
 }
 
+/**
+ * Strips the "As a / As an" opener from the professional summary.
+ * One of the most reliable LLM tells — ChatGPT, Claude and Gemini all default
+ * to this pattern. The prompt rule says the summary MUST open with the job
+ * title or years of experience, never "A", "An", "As a", or "I".
+ *
+ * "As a Field & Sales Engineer delivering…" → "Field & Sales Engineer delivering…"
+ * Idempotent. Only fires at the very start of the summary paragraph.
+ */
+function fixSummaryLLMOpener(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    const out = text.replace(/^\s*As an?\s+/i, '');
+    if (out !== text) {
+        return { text: out.charAt(0).toUpperCase() + out.slice(1), changed: true };
+    }
+    return { text, changed: false };
+}
+
+/**
+ * Strips company-targeting / cover-letter sentences from the professional
+ * summary. The AI tailors the summary to the target role by appending a
+ * sentence like "Bringing expertise to a management consulting team driving
+ * agricultural transformations" — an instant tell for any human reviewer.
+ * That sentence belongs in a cover letter, not the summary.
+ *
+ * Operates at the sentence level: splits on sentence boundaries, removes any
+ * sentence matching a targeting pattern, rejoins cleanly. Safe fallback: if
+ * every sentence matches (edge case) the original is returned unchanged.
+ */
+function stripSummaryTargetingClause(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z])/);
+    if (sentences.length < 2) return { text, changed: false };
+    const TARGETING_RX =
+        /\b(?:bringing|bring)\b.{0,50}\b(?:expertise|experience|skills|knowledge)\s+to\b/i;
+    const filtered = sentences.filter(s => !TARGETING_RX.test(s));
+    if (filtered.length === 0 || filtered.length === sentences.length) {
+        return { text, changed: false };
+    }
+    const out = filtered.join(' ').replace(/\s{2,}/g, ' ').trim();
+    return { text: out, changed: true };
+}
+
 /** Composite polish pass for a single bullet — order matters. */
 function polishBullet(bullet: string): { text: string; fixes: string[] } {
     const fixes: string[] = [];
@@ -1560,18 +1603,24 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
         const r = fn(cur);
         if (r.changed) { fixes.push(name); cur = r.text; }
     };
-    // unicode_glyph FIRST — see polishBullet for rationale (font-fallback fix).
-    apply('unicode_glyph',    normaliseUnicodeDigitsAndSymbols);
-    apply('markup_strip',     stripMarkupArtifacts);
+    // llm_summary_opener FIRST — strip "As a / As an" before any other pass
+    // so the rewritten opener benefits from all downstream fixes.
+    apply('llm_summary_opener',   fixSummaryLLMOpener);
+    // unicode_glyph — see polishBullet for rationale (font-fallback fix).
+    apply('unicode_glyph',        normaliseUnicodeDigitsAndSymbols);
+    apply('markup_strip',         stripMarkupArtifacts);
     // first_person SKIPPED — summary keeps its voice.
     // weak_opener  SKIPPED — paragraph, not a bullet.
-    apply('weak_qualifier',   stripWeakQualifiers);
+    apply('weak_qualifier',       stripWeakQualifiers);
+    // summary_targeting: strip company-addressing tailoring sentences that
+    // belong in a cover letter, not the summary.
+    apply('summary_targeting',    stripSummaryTargetingClause);
     // dup_prep_phrase + article_agreement: same rationale as polishBullet.
     // The summary is the highest-visibility free-text field on the CV, so it
     // is also the most likely place a substitution-induced grammar bug shows
     // up to the user.
-    apply('dup_prep_phrase',  dropRedundantPrepPhrase);
-    apply('article_agreement', fixArticleAgreement);
+    apply('dup_prep_phrase',      dropRedundantPrepPhrase);
+    apply('article_agreement',    fixArticleAgreement);
     // number_format BEFORE orphan_metric — see polishBullet for rationale.
     apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
@@ -1579,6 +1628,96 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
     // trailing_period SKIPPED — summaries DO end with a period.
     apply('capitalise',       capitaliseFirst);
     return { text: cur, fixes };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 4d. PER-ROLE WORD OVERUSE — flags when a non-stop-word appears 3+ times in
+//     a single role's bullets. Catches single-word repetition like "stakeholder"
+//     3× in the same role that the phrase-repetition detector misses.
+// ────────────────────────────────────────────────────────────────────────────
+
+const WORD_OVERUSE_STOPWORDS = new Set([
+    'the', 'and', 'a', 'an', 'of', 'in', 'to', 'for', 'with', 'on', 'at', 'by',
+    'is', 'was', 'as', 'or', 'this', 'that', 'it', 'be', 'from', 'their',
+    'all', 'have', 'has', 'had', 'were', 'are', 'not', 'but', 'they', 'which',
+    'into', 'over', 'through', 'using', 'while', 'during', 'across', 'within',
+    'its', 'each', 'both', 'such', 'any', 'than', 'also', 'well', 'new',
+    'been', 'will', 'would', 'could', 'should', 'may', 'can', 'did', 'get',
+    'when', 'then', 'thus', 'under', 'per', 'out', 'up', 'down', 'our', 'your',
+]);
+
+/**
+ * Returns words that appear 3+ times within a single role's bullets (detect-only).
+ * Minimum word length of 5 chars to skip noise like "led", "ran", "own".
+ */
+export function detectWordOverusePerRole(cv: CVData): Array<{
+    role: string; roleIndex: number; word: string; count: number;
+}> {
+    const results: Array<{ role: string; roleIndex: number; word: string; count: number }> = [];
+    (cv.experience || []).forEach((role, i) => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 2) return;
+        const text = bullets.join(' ').toLowerCase().replace(/[^\w\s]/g, ' ');
+        const words = text.split(/\s+/).filter(w => w.length >= 5 && !WORD_OVERUSE_STOPWORDS.has(w));
+        const counts = new Map<string, number>();
+        for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
+        const roleLabel = `${role.jobTitle || '?'} @ ${role.company || '?'}`;
+        for (const [word, count] of Array.from(counts.entries())) {
+            if (count >= 3) results.push({ role: roleLabel, roleIndex: i, word, count });
+        }
+    });
+    return results;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 4e. SUMMARY → BULLET PHRASE LEAK — catches 2-4 word phrases from the
+//     summary that are recycled verbatim into experience bullets. This is a
+//     classic AI tic (e.g. "client-focused design" and "technical analysis"
+//     appearing in both summary and role bullets in the same CV).
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns 2-4 word content phrases from the summary that also appear word-for-
+ * word in at least one experience bullet. Stop-word-heavy phrases are skipped.
+ */
+export function detectSummaryBulletPhraseLeaks(cv: CVData): Array<{
+    phrase: string; locations: string[];
+}> {
+    if (!cv.summary) return [];
+    const STOP = new Set(['the', 'and', 'a', 'an', 'of', 'in', 'to', 'for', 'with', 'on', 'at',
+        'by', 'is', 'was', 'as', 'or', 'this', 'that', 'it', 'be', 'from', 'their', 'its']);
+    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ');
+    const summaryNorm = normalize(cv.summary);
+    const summaryWords = summaryNorm.split(/\s+/).filter(Boolean);
+
+    const summaryPhrases = new Set<string>();
+    for (let n = 2; n <= 4; n++) {
+        for (let i = 0; i + n <= summaryWords.length; i++) {
+            const window = summaryWords.slice(i, i + n);
+            const contentWords = window.filter(w => !STOP.has(w) && w.length >= 4).length;
+            if (contentWords >= Math.ceil(n * 0.6)) summaryPhrases.add(window.join(' '));
+        }
+    }
+
+    const results: Array<{ phrase: string; locations: string[] }> = [];
+    for (const phrase of summaryPhrases) {
+        const locations: string[] = [];
+        (cv.experience || []).forEach((role, ri) => {
+            (role.responsibilities || []).forEach((b, bi) => {
+                if (normalize(b).includes(phrase)) {
+                    locations.push(`experience[${ri}].responsibilities[${bi}]`);
+                }
+            });
+        });
+        if (locations.length > 0) results.push({ phrase, locations });
+    }
+    // Keep only the longest match when shorter phrases are subsets.
+    results.sort((a, b) => b.phrase.length - a.phrase.length);
+    const kept: typeof results = [];
+    for (const r of results) {
+        if (!kept.some(k => k.phrase.includes(r.phrase))) kept.push(r);
+    }
+    return kept.slice(0, 10);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1610,7 +1749,17 @@ export interface PurifyLeak {
         // band-imbalance even when stddev looks fine — e.g. five 9-word
         // bullets plus one 30-word bullet has stddev > 7 but is still
         // visually monotone in the punchy band.
-        | 'bullet_band_imbalance';
+        | 'bullet_band_imbalance'
+        // Auto-fixed: "As a [title]..." opener stripped from summary.
+        | 'llm_summary_opener'
+        // Auto-fixed: company-targeting / cover-letter sentence stripped from summary.
+        | 'summary_targeting_clause'
+        // Detect-only: a single word repeated 3+ times within one role's bullets.
+        | 'word_overuse_per_role'
+        // Detect-only: 2-4 word phrase from the summary recycled verbatim into bullets.
+        | 'summary_bullet_phrase_leak'
+        // Detect-only: a role where 0 bullets contain any number.
+        | 'low_quantification_role';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -1784,6 +1933,8 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 f === 'dup_prep_phrase'    ? 'dup_prep_phrase'    :
                 f === 'article_agreement'  ? 'article_agreement'  :
                 f === 'unquantified_metric_verb' ? 'unquantified_metric_verb' :
+                f === 'llm_summary_opener' ? 'llm_summary_opener' :
+                f === 'summary_targeting'  ? 'summary_targeting_clause' :
                 /* whitespace_dashes */      'whitespace_dash';
             leaks.push({
                 leakType, phrase: f,
@@ -2016,6 +2167,63 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
     if (bandImbalancedRoles > 0) {
         console.warn(`[Purify] ${bandImbalancedRoles} role(s) have ≥${BAND_THRESHOLD} bullets stuck in a single length band — break the band by shortening one bullet to punchy or expanding one to a 2-sentence narrative.`);
     }
+
+    // Detect-only: PER-ROLE WORD OVERUSE. Single keyword repeated 3+ times
+    // within one role's bullets (e.g. "stakeholder" 3× in the same role).
+    // The 4-7 word phrase detector above misses this class of repetition.
+    const wordOveruse = detectWordOverusePerRole(working);
+    if (wordOveruse.length) {
+        const top = wordOveruse.slice(0, 5).map(r => `"${r.word}" ×${r.count} in ${r.role}`).join('; ');
+        console.warn(`[Purify] Per-role word overuse: ${top}`);
+        for (const { role, roleIndex, word, count } of wordOveruse) {
+            leaks.push({
+                leakType: 'word_overuse_per_role',
+                phrase: `"${word}" ×${count}`,
+                occurrences: count,
+                fieldLocation: `experience[${roleIndex}].responsibilities`,
+                fixedBy: 'none',
+                contextSnippet: role,
+            });
+        }
+    }
+
+    // Detect-only: SUMMARY → BULLET PHRASE LEAKS. 2-4 word phrases recycled
+    // verbatim from the summary into experience bullets (e.g. "technical analysis",
+    // "client-focused design"). A human reviewer spots these in seconds.
+    const summaryPhraseLeaks = detectSummaryBulletPhraseLeaks(working);
+    if (summaryPhraseLeaks.length) {
+        console.warn(`[Purify] ${summaryPhraseLeaks.length} summary phrase(s) recycled into bullets:`,
+            summaryPhraseLeaks.map(r => `"${r.phrase}"`).join(', '));
+        for (const { phrase, locations } of summaryPhraseLeaks) {
+            leaks.push({
+                leakType: 'summary_bullet_phrase_leak',
+                phrase,
+                occurrences: locations.length,
+                fieldLocation: locations[0],
+                fixedBy: 'none',
+                contextSnippet: `appears in summary and: ${locations.join(', ')}`,
+            });
+        }
+    }
+
+    // Detect-only: PER-ROLE ZERO QUANTIFICATION. A role where no bullet at all
+    // contains a number. Internship and attachment roles are the most common
+    // offenders — even one or two real figures dramatically lift credibility.
+    (working.experience || []).forEach((e, i) => {
+        const bullets = e.responsibilities || [];
+        if (bullets.length < 2) return;
+        const withNum = bullets.filter(b => /\d/.test(b)).length;
+        if (withNum === 0) {
+            const roleLabel = `${e.jobTitle || '?'} @ ${e.company || '?'}`;
+            console.warn(`[Purify] Role "${roleLabel}" has 0 quantified bullets.`);
+            leaks.push({
+                leakType: 'low_quantification_role',
+                phrase: `${roleLabel}: 0 of ${bullets.length} bullets have a number`,
+                fieldLocation: `experience[${i}].responsibilities`,
+                fixedBy: 'none',
+            });
+        }
+    });
 
     return {
         cv: working,

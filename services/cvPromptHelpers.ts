@@ -245,6 +245,8 @@ const SUMMARY_GOOD_EXAMPLES: string[] = [
 ];
 
 const SUMMARY_BAD_EXAMPLES: Array<{ text: string; issue: string }> = [
+    { text: '"As a Field & Sales Engineer delivering water and energy solutions..."', issue: 'LLM opener — the summary MUST start with the job title or years of experience, NEVER with "As a", "As an", "A", "An", or "I". Drop "As a" and start directly: "Field & Sales Engineer with 2+ years…"' },
+    { text: '"Bringing expertise to a management consulting team driving agricultural transformations."', issue: 'cover-letter tailoring artifact — the summary is role-agnostic; never address the target employer or team in it. Move this sentence to the cover letter.' },
     { text: '"2 years as Field & Sales Engineer accomplished KES 8,000,000 in revenue..."', issue: 'wrong number — added an extra zero (was 800,000)' },
     { text: '"Looking to join a team like McKinsey to drive solutions..."', issue: 'invented company name — never name companies that are not in the profile' },
     { text: '"Currently pursuing a Bachelor\'s degree in Agricultural Engineering..."', issue: 'wrong: candidate already graduated, and the degree name is also wrong' },
@@ -315,6 +317,20 @@ ${SUMMARY_GOOD_EXAMPLES.map(e => `   ✅ "${e}"`).join('\n')}
 
 === BAD EXAMPLES — never produce output that looks like these ===
 ${SUMMARY_BAD_EXAMPLES.map(b => `   ❌ ${b.text}\n      └─ ${b.issue}`).join('\n')}
+
+=== SUMMARY OPENER RULE (CRITICAL) ===
+The professional summary's first word MUST be either:
+  a) The candidate's job title: "Field & Sales Engineer with 2+ years…"
+  b) Their years of experience: "2+ years delivering water and energy solutions…"
+NEVER start with "As a", "As an", "A", "An", "I", or "I'm".
+NEVER end the summary with a sentence that addresses the employer or names the target role/company.
+That belongs in a cover letter — the summary is role-agnostic.
+
+=== WORD REPETITION RULE ===
+Within a single role's bullets, no non-generic word may appear more than twice.
+Replace the 3rd+ occurrence with a synonym or a more specific noun.
+Example: "stakeholder" used 3 times in the same role → replace 2 of the 3 with
+"clients", "farm owners", "project sponsors", or another concrete noun.
 
 === PRONOUN INTEGRITY (CRITICAL) ===
 - Every contraction must keep its pronoun: write "I've", "I'm", "I'll" — never bare "'ve", "'m", "'ll".

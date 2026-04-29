@@ -77,7 +77,13 @@ export interface LeakRecord {
         | 'capitalisation' | 'trailing_period' | 'number_format' | 'whitespace_dash'
         | 'skill_casing' | 'duplicate_skill' | 'low_quantification'
         | 'orphan_metric' | 'short_bullet' | 'long_bullet'
-        | 'unicode_glyph';
+        | 'unicode_glyph'
+        | 'dup_prep_phrase' | 'article_agreement'
+        | 'unquantified_metric_verb'
+        | 'bullet_rhythm_monotone' | 'bullet_band_imbalance'
+        | 'llm_summary_opener' | 'summary_targeting_clause'
+        | 'word_overuse_per_role' | 'summary_bullet_phrase_leak'
+        | 'low_quantification_role';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
