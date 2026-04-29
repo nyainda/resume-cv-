@@ -23,8 +23,15 @@
  */
 
 import { groqChat } from './groqService';
-import { CvQualityIssueKind } from './cvNumberFidelity';
-import { CVData } from '../types';
+import {
+    CvQualityIssueKind,
+    CvQualityIssue,
+    auditCvQuality,
+    tidyOrphanRemnants,
+    collectSourceNumberTokens,
+    isBulletDegraded,
+} from './cvNumberFidelity';
+import { CVData, UserProfile } from '../types';
 
 /**
  * Human-readable description of each issue kind, used both in the system
@@ -77,6 +84,30 @@ export const ISSUE_KIND_INSTRUCTIONS: Record<CvQualityIssueKind, string> = {
         'A time reference like "with years" or "of months experience" lost its ' +
         'number. Either restore the duration only if the user clearly knows it, ' +
         'or remove the dangling phrase entirely. Do not invent a duration.',
+    orphan_decimal_stub:
+        'A leading-period decimal like ".8M" or "$.5K" appears without its ' +
+        'whole-number prefix. Remove the orphan decimal entirely so the ' +
+        'sentence reads naturally. Do not invent the missing leading digit ' +
+        '(e.g. do NOT turn ".8M" into "$2.8M").',
+    chained_preposition:
+        'Two prepositions or temporal connectors sit back-to-back ("by since", ' +
+        '"to in", "of from"), which means a number was stripped from between ' +
+        'them. Remove the first preposition so the sentence flows. Do not ' +
+        'invent the missing number.',
+    unanchored_with_participle:
+        '"with delivering / leading / managing / …" appears, which means a ' +
+        'duration anchor was lost. Drop the dangling "with" so the participle ' +
+        'leads its phrase, or rewrite the clause without it. Do not invent a ' +
+        'duration like "5 years".',
+    unanchored_hedged_outcome:
+        'A hedged-outcome claim like "achieving average water savings" or ' +
+        '"reaching substantial growth" appears without a number. Either delete ' +
+        'the hollow claim cleanly or replace it with a concrete fact from the ' +
+        'snippet. Do not invent a percentage or amount.',
+    half_open_range:
+        'A range opener like "from over 95%" appears without its "to" partner. ' +
+        'Remove the orphan opener so the sentence reads naturally, or rewrite ' +
+        'as a single-point statement. Do not invent the missing endpoint.',
 };
 
 const SYSTEM_PROMPT = `You are a precision CV editor. The user will give you ONE
@@ -269,4 +300,188 @@ export function getOriginalTextAt(cv: CVData, where: string): string {
         return String(p?.description ?? '');
     }
     return '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// repairCvSummaryWithAi — universal one-shot summary repair
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Runs ONLY when the deterministic audit (auditCvQuality) flags one or more
+// orphan/grammar issues in the professional summary. Asks a small, fast LLM
+// to rewrite the summary with three hard constraints:
+//
+//   1. Use ONLY the numbers, currencies, organisations and dates that are
+//      present in the user's profile (we extract and pass them as a locked
+//      whitelist) — never invent figures.
+//   2. Preserve the candidate's voice, role title, and key skills.
+//   3. Return plain text ≤ 3 sentences, no preamble, no quotes.
+//
+// After the LLM returns, we run the result through tidyOrphanRemnants and
+// re-audit. If the rewrite still has issues we fall back to the user's own
+// profile.summary (or the original generated summary, whichever is cleaner).
+//
+// This is the universal fix path — every CV generation route (Groq, Cerebras,
+// Gemini, OpenRouter, Together, the cv-engine-worker race & tiered endpoints)
+// flows through finalizeCvData / runQualityPolishPasses, which is where this
+// helper is invoked. There is no per-template or per-flow wiring.
+
+const SUMMARY_REPAIR_SYSTEM = `You are a precision CV editor. You will receive
+ONE professional summary that has known grammar/orphan issues from an over-
+aggressive number-stripping pass, plus a whitelist of numbers and facts the
+candidate actually owns.
+
+YOUR JOB:
+1. Rewrite the summary in 2–3 short sentences, no longer.
+2. Use ONLY numbers, currencies, percentages, dates, durations, company names
+   and degrees that appear in the WHITELIST. Every other number must be removed
+   — do NOT invent or estimate any figure.
+3. Keep the candidate's role title, skills, and tone. Match a calm, confident,
+   third-person register. No first-person ("I", "we", "my").
+4. No AI clichés ("leveraging", "spearheaded", "passionate", "results-driven",
+   "track record of"). No filler hedges ("on average", "approximately") unless
+   immediately followed by a whitelisted number.
+5. Return ONLY the rewritten summary as plain text. No preamble, no quotes,
+   no markdown. End with a period.
+
+If the summary cannot be fixed without inventing facts, return the literal
+string "(remove)" so the caller can fall back to the user's own profile
+summary.`.trim();
+
+interface SummaryRepairContext {
+    /** The original generated summary that failed the audit. */
+    brokenSummary: string;
+    /** The user's own profile.summary, used as a tone/fact reference + ultimate fallback. */
+    profileSummary: string;
+    /** All numeric tokens (digits only, comma-stripped) the candidate actually owns. */
+    whitelistedNumbers: string[];
+    /** Audit issues that triggered the repair, used to nudge the model. */
+    issues: ReadonlyArray<CvQualityIssue>;
+}
+
+function buildSummaryRepairPrompt(ctx: SummaryRepairContext): string {
+    const issueLabels = ctx.issues
+        .map(i => `- ${i.kind}: "${i.snippet}"`)
+        .join('\n');
+    const numberWhitelist = ctx.whitelistedNumbers.length
+        ? ctx.whitelistedNumbers.join(', ')
+        : '(no numbers — keep the rewrite numeric-free)';
+    const profileRef = ctx.profileSummary
+        ? `\nCANDIDATE'S OWN PROFILE SUMMARY (reference for tone/facts only — do not copy verbatim if it has its own issues):\n${ctx.profileSummary}\n`
+        : '';
+    return [
+        'KNOWN ISSUES IN THE GENERATED SUMMARY:',
+        issueLabels,
+        '',
+        `WHITELISTED NUMBERS (the only figures you may use): ${numberWhitelist}`,
+        profileRef,
+        'BROKEN GENERATED SUMMARY (rewrite this):',
+        ctx.brokenSummary,
+        '',
+        'Return only the rewritten summary, ≤ 3 sentences, ending with a period.',
+    ].filter(Boolean).join('\n');
+}
+
+/**
+ * Universal summary repair. Returns the cleaned summary string. Never throws —
+ * on any failure (audit error, network error, model returns garbage), falls
+ * back deterministically to the cleanest source available.
+ *
+ * Call this inside the post-generation pipeline, AFTER finalizeCvData has run
+ * its deterministic strip. It is a no-op when the audit reports zero summary
+ * issues, so the network + token cost is paid only when actually needed.
+ */
+export async function repairCvSummaryWithAi(
+    cv: CVData,
+    profile: UserProfile | undefined,
+): Promise<string> {
+    const currentSummary = String((cv as any).summary ?? '').trim();
+    if (!currentSummary) return currentSummary;
+
+    let summaryIssues: CvQualityIssue[] = [];
+    try {
+        const report = auditCvQuality(cv as any);
+        summaryIssues = report.issues.filter(i => i.where === 'summary');
+    } catch (e) {
+        // Audit failure is non-fatal — keep the existing summary.
+        if (typeof console !== 'undefined') {
+            console.debug('[Summary Repair] audit failed, skipping:', e);
+        }
+        return currentSummary;
+    }
+
+    if (summaryIssues.length === 0) return currentSummary;
+
+    // Build the locked whitelist of numbers from the candidate's profile.
+    const numbers: string[] = [];
+    try {
+        const tokenSet = collectSourceNumberTokens([], profile as any);
+        // Sort descending by length so larger figures are read first by the LLM.
+        for (const t of tokenSet) numbers.push(t);
+        numbers.sort((a, b) => b.length - a.length);
+    } catch {
+        // ignore — pass an empty whitelist, model will produce a numeric-free rewrite.
+    }
+
+    const profileSummary = String(((profile as any)?.summary) ?? ((profile as any)?.professionalSummary) ?? '').trim();
+
+    let raw = '';
+    try {
+        const userPrompt = buildSummaryRepairPrompt({
+            brokenSummary: currentSummary,
+            profileSummary,
+            whitelistedNumbers: numbers,
+            issues: summaryIssues,
+        });
+        raw = await groqChat(
+            'llama-3.1-8b-instant',
+            SUMMARY_REPAIR_SYSTEM,
+            userPrompt,
+            { temperature: 0.15, maxTokens: 360 },
+        );
+    } catch (e) {
+        // Network / provider failure — fall back below.
+        if (typeof console !== 'undefined') {
+            console.debug('[Summary Repair] LLM call failed, falling back:', e);
+        }
+    }
+
+    const candidate = _sanitizeAiOutput(raw, '');
+    // Special token: model said "can't fix without invention" → fall back to profile.
+    if (/^\(remove[d]?\)$/i.test(candidate)) {
+        return profileSummary || currentSummary;
+    }
+    if (!candidate) {
+        return profileSummary || currentSummary;
+    }
+
+    // Re-run the deterministic cleanup chain on the AI rewrite — defense in depth.
+    const cleaned = tidyOrphanRemnants(candidate);
+
+    // Re-audit a stub CV that contains ONLY the new summary, so we don't get
+    // false positives from elsewhere in the CV. If it still has issues, fall
+    // back to the cleanest source.
+    let stillBroken = false;
+    try {
+        const probeReport = auditCvQuality({ summary: cleaned } as any);
+        stillBroken = probeReport.issues.some(i => i.where === 'summary');
+    } catch {
+        // If the audit explodes, prefer the AI rewrite over the broken original.
+    }
+
+    if (stillBroken) {
+        // Final safety net: prefer profile summary if it audits clean, else
+        // keep the AI rewrite (already cleaner than the original orphan-laden
+        // version), else the original.
+        if (profileSummary) {
+            try {
+                const ps = auditCvQuality({ summary: profileSummary } as any);
+                if (!ps.issues.some(i => i.where === 'summary')) return profileSummary;
+            } catch { /* fallthrough */ }
+        }
+        // Use isBulletDegraded as a tiebreaker between cleaned-AI and original.
+        if (!isBulletDegraded(cleaned, currentSummary)) return cleaned;
+        return profileSummary || currentSummary;
+    }
+
+    return cleaned;
 }

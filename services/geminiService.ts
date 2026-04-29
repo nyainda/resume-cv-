@@ -14,7 +14,9 @@ import {
     repairBulletsAgainstSource as _repairBulletsAgainstSource,
     repairTextAgainstSource as _repairTextAgainstSource,
     logCvQualityReport as _logCvQualityReport,
+    auditCvQuality as _auditCvQuality,
 } from './cvNumberFidelity';
+import { repairCvSummaryWithAi as _repairCvSummaryWithAi } from './aiInlineFix';
 import {
     stripFirstPersonPronouns as _stripFirstPersonPronouns,
     normalizePresentTenseToImperative as _normalizePresentTenseToImperative,
@@ -3953,6 +3955,35 @@ async function runQualityPolishPasses(
         out = finalizeCvData(out, { profile: finalize.profile, runPurify: false });
     } else {
         out = finalizeCvData(out, { sourceCv: finalize.sourceCv, runPurify: false });
+    }
+
+    // 9.5. Universal AI summary repair — runs ONLY when the deterministic
+    // audit at step 9 still flags issues in the professional summary (e.g.
+    // an orphan stub that even tidyOrphanRemnants couldn't safely repair
+    // without inventing facts). The model gets a locked whitelist of the
+    // user's own numbers, so it cannot hallucinate figures. On any failure
+    // (no profile, network down, model returns garbage) we silently keep
+    // whatever finalizeCvData already produced — never blocks generation.
+    try {
+        const profileForRepair = ('profile' in finalize) ? finalize.profile : undefined;
+        const auditedSummary = String((out as any).summary ?? '');
+        if (auditedSummary) {
+            const audit = _auditCvQuality(out as any);
+            const hasSummaryIssues = audit.issues.some(i => i.where === 'summary');
+            if (hasSummaryIssues) {
+                const repaired = await _repairCvSummaryWithAi(out, profileForRepair);
+                if (repaired && repaired.trim() && repaired.trim() !== auditedSummary.trim()) {
+                    out = { ...out, summary: repaired.trim() } as CVData;
+                    if (typeof console !== 'undefined') {
+                        console.info('[Summary Repair] Applied AI rewrite to resolve audit-flagged issues.');
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        if (typeof console !== 'undefined') {
+            console.debug('[Summary Repair] step 9.5 skipped (non-fatal):', e);
+        }
     }
 
     // 10. Pronoun safety net.
