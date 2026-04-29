@@ -118,6 +118,16 @@ const dummyCV: CVData = {
                 // into "Am a engineer" — fixArticleAgreement must repair to "Am an engineer",
                 // emitting `article_agreement`.
                 'I am a engineer focused on platform reliability and developer experience',
+                // ORPHAN-LEADING-DECIMAL probe (Apr 29 2026 — Bruce Oyugi McKinsey CV):
+                // AI dropped the leading "$1" from "$1.8M", leaving "achieving.8M in sales".
+                // After fix: the verb + orphan + "in sales" connector should all be stripped,
+                // leaving the bullet ending cleanly with no trailing comma.
+                'Generate revenue from Water Solutions sales by aligning equipment specifications with client crop water requirements, resulting.8M in sales',
+                // TIME-PREP DROPPED-UNIT probe (Apr 29 2026 — Bruce Oyugi McKinsey CV):
+                // AI dropped the duration from "within [24 hours] of reporting", leaving
+                // the broken fragment "within of reporting". After fix: whole "within of
+                // reporting" stripped, comma preserved so the next clause stays grammatical.
+                'Lead follow-up visits and troubleshoot system inefficiencies within of reporting, improving client retention to 95%',
             ],
         },
         // PAST JOB (endDate set) — bullets MUST be past-tense.
@@ -136,6 +146,10 @@ const dummyCV: CVData = {
                 'Reduced costs by 50% through process optimisation',
                 'Boosted retention by 200% via improved onboarding',
                 'Delivered 1000 units to enterprise customers',
+                // Extra round-number bullet keeps the saturation > 60% threshold
+                // even after the new orphan-decimal/time-prep probes were added
+                // to the current-job dataset upstream.
+                'Saved 500 hours of manual reporting via automation',
                 // CJK comma + period probe — should normalise to ASCII
                 'Managed budget of $1\u3001000\u3002 5 in operating expenses',
             ],
@@ -442,6 +456,36 @@ const checks: Check[] = [
         expectFire: false,
         actualFired: cleaned.experience.flatMap(e => e.responsibilities)
             .some(b => /\b[Aa]\s+[aeiouAEIOU]\w/.test(b) || /\b[Aa]n\s+[bcdfghjklmnpqrstvwxz]/.test(b)),
+    },
+
+    // ── New checks added Apr 29 2026 — Bruce Oyugi McKinsey CV ────────────────
+    {
+        name: 'No orphan leading-decimal ".8M/.5K/.25%" remains anywhere',
+        expectFire: false,
+        actualFired: /(?<![\d])\.\d+\s*(?:K|M|B|%)\b/.test(fullText),
+    },
+    {
+        name: 'No "<verb>.<digit>M/K/B" glued fragment remains (e.g. "achieving.8M")',
+        expectFire: false,
+        actualFired: /\b(?:achieving|reaching|delivering|generating|resulting|adding|earning|saving|hitting|exceeding|producing|driving|netting)\.\d/i.test(fullText),
+    },
+    {
+        name: 'No "within|after|before|during of <noun>" broken fragment remains',
+        expectFire: false,
+        actualFired: /\b(?:within|after|before|during)\s+of\b/i.test(allBullets),
+    },
+    {
+        name: 'No bullet ends with a dangling comma/semicolon',
+        expectFire: false,
+        actualFired: cleaned.experience.flatMap(e => e.responsibilities)
+            .some(b => /[,;:]\s*$/.test(b)),
+    },
+    {
+        name: 'orphan_metric leak captured the new orphan-leading-decimal/time-prep probes',
+        expectFire: true,
+        // Both probe bullets should each fire orphan_metric — at least 2 hits in addition
+        // to the pre-existing summary/bullet probes (which contributed ~5 already).
+        actualFired: (byType.get('orphan_metric') || 0) >= 6,
     },
 ];
 

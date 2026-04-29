@@ -1097,6 +1097,29 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
     // 0b) Bare placeholder anywhere → strip it (will be cleaned up by tidy below).
     out = out.replace(new RegExp(PLACEHOLDER_TOKEN.source, 'g'), '');
 
+    // 0c) ORPHAN LEADING DECIMAL — the AI emitted "$1.8M" but lost the leading
+    //     digit / currency symbol, so the field now contains glued fragments
+    //     like "achieving.8M in sales" or "resulting.8M in sales" or
+    //     "delivering.5K customers". Real user-reported pattern from a
+    //     sales-engineer CV, Apr 29 2026 — Bruce Oyugi McKinsey CV.
+    //
+    //     The decimal is "orphan" when it is NOT preceded by a digit
+    //     (e.g. "0.8M" / "$1.8M" stay protected because the dot is preceded
+    //     by 0 / 1). We strip the verb/prep + orphan + optional connector
+    //     ("in revenue/sales/profits/etc.") so the bullet still reads
+    //     naturally without a fabricated number.
+    //
+    //     Pass A: "<verb-or-prep><optional-space>.<digits><scale>?<connector>?"
+    out = out.replace(
+        /\s*\b(?:achieving|reaching|delivering|generating|resulting|adding|earning|saving|hitting|exceeding|producing|driving|netting|by|of|to|from|with|over|under|above|below|approximately|around|about|roughly|nearly|almost|up\s+to)\s*(?<![\d])\.\d+\s*(?:K|M|B|%|\+)?\b(?:\s+in\s+(?:revenue|sales|profits?|earnings|growth|costs?|savings?|expenses?|margins?))?/gi,
+        '',
+    );
+    //     Pass B: bare ".8M" anywhere with leading whitespace/comma/semi —
+    //     no preceding digit means orphan. Restrict to recognised scale
+    //     suffixes (K/M/B/%) to avoid clobbering legit punctuation like
+    //     "v2.0" or sentence ".5 percent" (rare but possible).
+    out = out.replace(/(?<![\d.])([\s,;])\.\d+\s*(?:K|M|B|%)\b/g, '$1');
+
     // 1) Currency code/symbol followed by an ORPHAN THOUSANDS GROUP. The CF
     //    Workers AI fallback sometimes emits "KES ,000" / "USD ,500,000" /
     //    "$ ,000" when it tried to "soften" a too-large number from the
@@ -1173,6 +1196,23 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
         '',
     );
 
+    // 4c) TIME-PREP DROPPED-UNIT — "within of reporting" / "after of testing"
+    //     / "before of launch" / "during of rollout" appears when the AI
+    //     emitted a duration phrase ("within [24 hours] of reporting") but
+    //     deleted the bracketed time unit. The result is a broken
+    //     "<time-prep> of <noun>" fragment that contributes nothing. We
+    //     strip the whole "<time-prep> of <noun(s)>" up to the next
+    //     punctuation OR clause-connector, so the bullet still reads
+    //     naturally. Real user-reported pattern from a sales-engineer CV,
+    //     Apr 29 2026 — Bruce Oyugi McKinsey CV.
+    //     NOTE: use [^\s,;:.!?] (not \S) so the noun matcher never eats the
+    //     trailing comma/punctuation — that comma keeps the surrounding
+    //     clause grammatical ("inefficiencies, improving retention").
+    out = out.replace(
+        /\s*\b(?:within|after|before|during)\s+of\s+[^\s,;:.!?]+(?:\s+[^\s,;:.!?]+){0,2}?(?=[,.;:!?]|\s+(?:and|while|but|then|since|using|via|to|from|by|hitting|beating|exceeding|improving|reducing|increasing|cutting|streamlining|driving|generating|delivering)\b|\s*$)/gi,
+        '',
+    );
+
     // 4b) DANGLING METRIC CONNECTOR — "..., in revenue and beating monthly
     //     targets" without a leading number. The AI emitted the connector
     //     ("$50K in revenue") but lost the metric, leaving a fragment that
@@ -1195,7 +1235,10 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
         .replace(/\(\s*\)/g, '')
         .replace(/,\s*,/g, ',')
         .replace(/\s{2,}/g, ' ')
-        .replace(/\s+([.,;:!?])/g, '$1');
+        .replace(/\s+([.,;:!?])/g, '$1')
+        // Trim trailing comma/semicolon (left dangling when an orphan
+        // metric/connector at end of field was stripped, e.g. "requirements,").
+        .replace(/[,;:]\s*$/g, '');
     // Article agreement after orphan-% strip: "a [vowel]" → "an [vowel]";
     // "an [consonant]" → "a [consonant]". Preserve original capitalization.
     out = out.replace(/\b([Aa])\s+([aeiouAEIOU])/g,
