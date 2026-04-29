@@ -882,7 +882,59 @@ The "cv" field must ALWAYS be present — even when all checks pass.
  * Runs after the Groq validator (or after Gemini generation in Honest mode).
  * Checks and fixes: short bullets, banned phrases, metric overload, and uniform rhythm.
  */
-async function runHumanizationAudit(cvData: CVData): Promise<CVData> {
+/**
+ * Build the PROBLEM 9 ("must-fix leaks") block for the audit prompt.
+ *
+ * We only forward leak types where the LLM has a fighting chance of doing better
+ * than the deterministic layer because it has surrounding context AND access to
+ * the candidate's voice — round numbers, orphan metrics (gerund-without-digit
+ * fragments the regex was forced to drop), and band imbalance (rhythm).
+ *
+ * Why these three specifically:
+ *   • round_number          — jitter is deliberately disabled (it lied about real
+ *                             100% achievements). The AI can ask itself "is this
+ *                             a placeholder or the truth?" using surrounding
+ *                             context, which the regex cannot.
+ *   • orphan_metric         — stripOrphanMetrics conservatively DROPS the dangling
+ *                             clause to avoid fabricating outcomes. The AI can
+ *                             rebuild the bullet with real claims from the rest
+ *                             of the role.
+ *   • bullet_band_imbalance — pure rhythm flag. Already covered by PROBLEM 5
+ *                             but worth surfacing the SPECIFIC offending role
+ *                             so the editor doesn't have to re-derive it.
+ *
+ * Everything else (banned phrases, repeated phrases, tense, casing, whitespace,
+ * skill canonicalisation, etc.) the deterministic layer already FIXES — it would
+ * be wasteful to re-ask the LLM.
+ */
+function buildMustFixLeakBlock(leaks: ReadonlyArray<{ leakType: string; phrase?: string; fieldLocation?: string; contextSnippet?: string }>): string {
+    const FORWARDED = new Set(['round_number', 'orphan_metric', 'bullet_band_imbalance']);
+    const filtered = leaks.filter(l => FORWARDED.has(l.leakType));
+    if (filtered.length === 0) return '';
+
+    // Cap at 12 entries to keep the prompt token-budget sane on heavy CVs.
+    const capped = filtered.slice(0, 12);
+    const lines = capped.map((l, i) => {
+        const loc = l.fieldLocation ? ` [${l.fieldLocation}]` : '';
+        const snippet = l.contextSnippet ? ` — "${l.contextSnippet.slice(0, 140)}"` : '';
+        return `  ${i + 1}. ${l.leakType}${loc}: ${l.phrase || ''}${snippet}`;
+    }).join('\n');
+
+    return `
+
+PROBLEM 9 — DETERMINISTIC PURIFY FLAGGED THESE SPECIFIC LEAKS (must fix every one):
+The deterministic purify layer ran a pre-scan and identified the following items it could NOT safely auto-fix without inventing content. You have access to the full CV context and the candidate's voice — fix them using truthful surrounding signal:
+
+${lines}
+
+How to fix each leakType:
+  • round_number — the metric reads as suspicious (e.g. "exactly 25%", "exactly 50,000", "exactly 100"). If a less-round figure (e.g. "27%", "48,200", "11") is supported by other parts of the same bullet/role, use that. If you cannot ground a precise number, REWRITE the bullet to use scope language ("across 11 counties", "for the largest cohort to date") instead of inventing a digit. Never fabricate a number.
+  • orphan_metric — the bullet contains/contained a gerund clause that promised a metric but had none ("achieving water savings", "cutting lead time"). The regex stripped the clause; you should REBUILD the outcome with a concrete result drawn from the rest of the role's responsibilities, the company name, or the role title. If no real outcome can be grounded, leave the bullet shorter rather than fabricate.
+  • bullet_band_imbalance — the named role has ≥5 bullets all in the same length band. Apply PROBLEM 5's mix rule SPECIFICALLY to this role: shorten one bullet to the punchy band (8–14 words) AND/OR expand the strongest bullet into a two-sentence narrative (25–40 words).
+`.trimEnd();
+}
+
+async function runHumanizationAudit(cvData: CVData, mustFixLeaks: ReadonlyArray<{ leakType: string; phrase?: string; fieldLocation?: string; contextSnippet?: string }> = []): Promise<CVData> {
     // Sync the prompt with the LIVE banned-phrase list from the worker's KV cache
     // (D1 → KV → here). Falls back to the small hardcoded list when offline so the
     // pipeline never breaks. Cap at 80 phrases to keep the prompt token-budget sane.
@@ -909,6 +961,11 @@ async function runHumanizationAudit(cvData: CVData): Promise<CVData> {
     }
     if (liveCount > 0) {
         console.log(`[CV Humanizer] Audit prompt synced with ${liveCount} live banned phrases from CV engine.`);
+    }
+
+    const mustFixBlock = buildMustFixLeakBlock(mustFixLeaks);
+    if (mustFixBlock) {
+        console.log(`[CV Humanizer] Forwarding ${mustFixLeaks.filter(l => ['round_number', 'orphan_metric', 'bullet_band_imbalance'].includes(l.leakType)).length} must-fix leak(s) into audit prompt.`);
     }
 
     const auditPrompt = `
@@ -956,6 +1013,7 @@ PROBLEM 8 — FIRST BULLET MUST BE A SCOPE ANCHOR:
 The first bullet of EVERY role should describe the SCOPE of the role (team size, geographic coverage, client count, budget, project count) — not an achievement.
 If the first bullet is currently an achievement bullet, keep it as bullet #2 and write a new scope anchor as bullet #1.
 If the role already has 6 bullets, remove the weakest achievement bullet to make room for the scope anchor.
+${mustFixBlock}
 
 Here is the CV JSON to audit and correct:
 ${JSON.stringify(cvData, null, 2)}
@@ -3750,10 +3808,26 @@ async function runQualityPolishPasses(
 
     // 1. Humanizer pass — fixes short bullets, banned phrases in summary,
     //    duplicate verb starters, scope-anchor first bullet, etc.
+    //
+    //    Apr 29 2026 — feedback loop: run a deterministic purify pre-scan on a
+    //    deep CLONE of the CV first, harvest the high-leverage leak types
+    //    (round_number, orphan_metric, bullet_band_imbalance) the regex layer
+    //    cannot safely auto-fix, and forward them to the humanizer as an
+    //    explicit must-fix list with concrete contexts. The clone ensures the
+    //    real `out` reaches the humanizer untouched — the authoritative
+    //    purifyCV pass still runs at step 6 after the LLM rewrite.
     if (runHumanizer) {
         try {
             const preAudit: CVData = JSON.parse(JSON.stringify(out));
-            out = await runHumanizationAudit(out);
+            let scanLeaks: ReadonlyArray<{ leakType: string; phrase?: string; fieldLocation?: string; contextSnippet?: string }> = [];
+            try {
+                const scanCopy: CVData = JSON.parse(JSON.stringify(out));
+                const scan = purifyCV(scanCopy);
+                scanLeaks = scan.report.leaks || [];
+            } catch (scanErr) {
+                console.debug('[Polish] Pre-humanizer leak scan failed (non-fatal):', scanErr);
+            }
+            out = await runHumanizationAudit(out, scanLeaks);
             const auditRevert = revertCorruptedMetrics(out, preAudit);
             if (auditRevert.reverted.length > 0) {
                 console.warn(`[Polish] Humanizer reverted ${auditRevert.reverted.length} corrupted metric(s):`, auditRevert.reverted);
