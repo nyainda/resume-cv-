@@ -166,6 +166,65 @@ const dummyCV: CVData = {
                 'Saved 500 hours of manual reporting via automation',
                 // CJK comma + period probe — should normalise to ASCII
                 'Managed budget of $1\u3001000\u3002 5 in operating expenses',
+                // PROBE: pathological RAMBLING bullet (>45 words) to exercise
+                // the relaxed long_bullet threshold. A bullet this long carries
+                // too many ideas and is a real defect. (Apr 29 2026)
+                'Owned the complete redesign of the regional sales playbook including the discovery script the qualification scorecard the executive briefing template the proposal cadence the renewal motion the upsell motion the partner referral motion the quarterly account review template the win-loss debrief template and the customer reference programme across all four lines of business this fiscal year.',
+            ],
+        },
+        // PROBE: MONOTONE BULLET RHYTHM (Apr 29 2026).
+        // 4 bullets, all 18–20 words long → population stddev < 3.
+        // The new bullet_rhythm_monotone detector should fire on this role.
+        // Also exercises the relaxed long_bullet threshold (45w) — none of
+        // these crosses it, so long_bullet must NOT fire on this role.
+        {
+            company: 'Monotone Co',
+            jobTitle: 'Operations Manager',
+            dates: '2018–2020',
+            startDate: '2018-01',
+            endDate: '2020-12',
+            responsibilities: [
+                'Coordinated quarterly supplier reviews across the East African region with the procurement and logistics teams jointly.',
+                'Owned monthly inventory reconciliation for the central warehouse working closely with finance and operations leadership weekly.',
+                'Streamlined the goods-receiving process across three distribution sites by aligning shift schedules with arrival windows.',
+                'Trained new warehouse supervisors on safety protocols and stocktake procedures during onboarding sessions every quarter.',
+            ],
+        },
+        // PROBE: ROUND-NUMBER SATURATION (Apr 29 2026).
+        // Restores round-number coverage after the new rhythm probe roles
+        // diluted the overall numbers ratio. 4 bullets, all containing only
+        // round numbers (multiples of 5/10/100). Lengths span 9w / 14w / 19w /
+        // 25w → stddev ≈ 6 → does NOT trigger the monotone leak.
+        {
+            company: 'Round Numbers Co',
+            jobTitle: 'Growth Lead',
+            dates: '2012–2015',
+            startDate: '2012-01',
+            endDate: '2014-12',
+            responsibilities: [
+                'Closed 50 enterprise deals reaching the 100 milestone.',
+                'Hit a 30% gross margin target consistently for 10 consecutive months across the region.',
+                'Grew the partner ecosystem by 40% in 12 months hitting 200 active partners across East Africa.',
+                'Reduced churn by 20% across all customer segments in two quarters by introducing a 90-day onboarding success plan and a 30-day check-in cadence.',
+            ],
+        },
+        // PROBE: HEALTHY MIXED RHYTHM (Apr 29 2026).
+        // Mix of one PUNCHY (~10w), two STANDARD (~18w), one NARRATIVE
+        // (~32w, two sentences). Stddev ≈ 9 → comfortably above 3.
+        // The bullet_rhythm_monotone detector must NOT fire on this role.
+        // Also verifies the relaxed short_bullet threshold (now 8w not 12w):
+        // the punchy bullet is 10 words and must NOT trigger short_bullet.
+        {
+            company: 'Healthy Mix Inc',
+            jobTitle: 'Senior Project Lead',
+            dates: '2015–2018',
+            startDate: '2015-01',
+            endDate: '2017-12',
+            responsibilities: [
+                'Closed 3 enterprise accounts in the first quarter alone.',
+                'Built the regional dashboard from scratch with the engineering team and rolled it out to 12 sites.',
+                'Led the cross-functional pricing committee through a six-month overhaul of the commercial discount structure.',
+                'Architected the rollout plan for the new CRM across 4 country offices over an 18-month window. The transition closed with a 92% user-adoption rate and zero unplanned downtime during go-live weekends.',
             ],
         },
     ],
@@ -542,6 +601,43 @@ const checks: Check[] = [
             b => /Achieving water savings on every project/i.test(b),
         ),
     },
+
+    // ── Bullet rhythm / length-threshold checks (Apr 29 2026) ───────────────
+    {
+        name: 'bullet_rhythm_monotone fired on the Monotone Co role (4 bullets all ~19w)',
+        expectFire: true,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_rhythm_monotone'
+              && /Monotone Co/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'bullet_rhythm_monotone did NOT fire on the Healthy Mix Inc role (mixed lengths)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'bullet_rhythm_monotone'
+              && /Healthy Mix Inc/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'short_bullet did NOT fire on the 10-word punchy bullet (threshold loosened from 12 → 8)',
+        expectFire: false,
+        // The "Closed 3 enterprise accounts in the first quarter alone." bullet
+        // is 10 words. Under the OLD rule (<12) this would have fired. Under
+        // the NEW rule (<8) it must not.
+        actualFired: report.leaks.some(
+            l => l.leakType === 'short_bullet'
+              && /Closed 3 enterprise accounts/i.test(l.phrase || ''),
+        ),
+    },
+    {
+        name: 'long_bullet did NOT fire on the 32-word narrative bullet (threshold loosened from 30 → 45)',
+        expectFire: false,
+        actualFired: report.leaks.some(
+            l => l.leakType === 'long_bullet'
+              && /Architected the rollout plan/i.test(l.phrase || ''),
+        ),
+    },
 ];
 
 let passed = 0, failed = 0;
@@ -652,6 +748,7 @@ const ALL_LEAK_TYPES = [
     'orphan_metric', 'short_bullet', 'long_bullet', 'unicode_glyph',
     'dup_prep_phrase', 'article_agreement',
     'unquantified_metric_verb',
+    'bullet_rhythm_monotone',
 ] as const;
 
 const combinedTypes = new Set<string>([...byType.keys(), ...sparseTypes]);

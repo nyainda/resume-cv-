@@ -1600,7 +1600,11 @@ export interface PurifyLeak {
         // Universal "metric verb without a number" — gerund clauses like
         // ", achieving water savings" / ", cutting lead time" stripped when
         // the clause carries no digit.
-        | 'unquantified_metric_verb';
+        | 'unquantified_metric_verb'
+        // Detect-only: a role's bullets are all within ~5 words of each
+        // other (population stddev < 3) — monotone visual rhythm. The
+        // prompt asks for a mix of punchy/standard/narrative lengths.
+        | 'bullet_rhythm_monotone';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -1882,15 +1886,24 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         });
     }
 
-    // Detect-only: BULLET LENGTH RULE. The prompt says "every bullet 15–25
-    // words; under 12 words = failure". We flag short bullets so the UI / AI
-    // rewriter can catch and fix them. Counting words by whitespace splits.
+    // Detect-only: BULLET LENGTH RULES.
+    //
+    // Updated Apr 29 2026 — the prompt now allows DELIBERATE rhythm-mixing
+    // within each role: a healthy role contains a mix of (a) short punchy
+    // bullets (8–14 words), (b) standard bullets (15–22 words), and
+    // (c) longer two-sentence narrative bullets (25–40 words). Variety
+    // makes the experience section feel like prose rather than a uniform
+    // bullet list — closer to how a human-written CV reads.
+    //
+    // We therefore flag only PATHOLOGICAL outliers:
+    //   - short_bullet  : < 8 words (true stub, not a punchy bullet)
+    //   - long_bullet   : > 45 words (rambling, not a 2-sentence narrative)
     let shortBullets = 0;
     let longBullets = 0;
     (working.experience || []).forEach((e, i) => {
         (e.responsibilities || []).forEach((b, j) => {
             const words = (b || '').trim().split(/\s+/).filter(Boolean).length;
-            if (words > 0 && words < 12) {
+            if (words > 0 && words < 8) {
                 shortBullets++;
                 leaks.push({
                     leakType: 'short_bullet',
@@ -1898,7 +1911,7 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                     fieldLocation: `experience[${i}].responsibilities[${j}]`,
                     fixedBy: 'none',
                 });
-            } else if (words > 30) {
+            } else if (words > 45) {
                 longBullets++;
                 leaks.push({
                     leakType: 'long_bullet',
@@ -1910,10 +1923,43 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         });
     });
     if (shortBullets > 0) {
-        console.warn(`[Purify] ${shortBullets} bullet(s) under 12 words — should be 15–25.`);
+        console.warn(`[Purify] ${shortBullets} bullet(s) under 8 words — too thin even as a punchy bullet.`);
     }
     if (longBullets > 0) {
-        console.warn(`[Purify] ${longBullets} bullet(s) over 30 words — should be 15–25.`);
+        console.warn(`[Purify] ${longBullets} bullet(s) over 45 words — rambling beyond a 2-sentence narrative.`);
+    }
+
+    // Detect-only: BULLET RHYTHM MONOTONY. Within a single role with ≥3
+    // bullets, if every bullet is within ~5 words of the role's average
+    // (population stddev < 3), the role reads as monotone — same visual
+    // mass on every line, no breath for the eye. The prompt asks the AI
+    // to MIX punchy/standard/narrative bullets; this flag catches roles
+    // where the AI ignored the mix-rhythm rule.
+    //
+    // Detect-only — no auto-fix. The UI / next AI pass can rewrite a few
+    // bullets to break the monotony. We don't auto-edit because the right
+    // fix depends on which bullets carry the strongest content.
+    let monotoneRoles = 0;
+    (working.experience || []).forEach((e, i) => {
+        const lens = (e.responsibilities || [])
+            .map(b => (b || '').trim().split(/\s+/).filter(Boolean).length)
+            .filter(n => n > 0);
+        if (lens.length < 3) return;
+        const mean = lens.reduce((s, n) => s + n, 0) / lens.length;
+        const variance = lens.reduce((s, n) => s + (n - mean) * (n - mean), 0) / lens.length;
+        const stddev = Math.sqrt(variance);
+        if (stddev < 3) {
+            monotoneRoles++;
+            leaks.push({
+                leakType: 'bullet_rhythm_monotone',
+                phrase: `role[${i}] (${e.company || '?'}): ${lens.length} bullets, mean ${mean.toFixed(0)}w, stddev ${stddev.toFixed(1)}`,
+                fieldLocation: `experience[${i}].responsibilities`,
+                fixedBy: 'none',
+            });
+        }
+    });
+    if (monotoneRoles > 0) {
+        console.warn(`[Purify] ${monotoneRoles} role(s) have monotone bullet rhythm — mix punchy/standard/narrative bullet lengths.`);
     }
 
     return {

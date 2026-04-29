@@ -545,9 +545,14 @@ ${buildGapContext(gaps)}`;
 
     // ─── Shared rules injected into every mode ────────────────────────────────
     const sharedHumanizationRules = `
-BULLET LENGTH RULES:
-- Every bullet must be 15–25 words. Aim for 18–22 words. Under 12 words = failure — expand with scope and outcome.
-- Structure: [Strong Verb] + [What + How/Where/Who] + [Measurable Outcome or Observable Impact].
+BULLET LENGTH & RHYTHM RULES (mix lengths deliberately within each role):
+- Within EACH role, deliberately MIX three bullet lengths to give the eye visual rhythm:
+    • PUNCHY bullets (8–14 words): a single crisp sentence — verb, what, outcome. Use 1–2 per role.
+    • STANDARD bullets (15–22 words): the workhorse length. Use 2–3 per role.
+    • NARRATIVE bullets (25–40 words, two sentences): one short context sentence + one outcome sentence. Use 1 per role on the strongest achievement.
+- Three bullets in a row of similar length within the same role = failure. The reader's eye should land on different visual masses as it scans down.
+- Hard floors and ceilings: under 8 words = stub (failure). Over 45 words = rambling (failure).
+- Structure (every length): [Strong Verb] + [What + How/Where/Who] + [Measurable Outcome or Observable Impact].
 
 METRIC DENSITY RULES:
 - Max 55% of bullets per role may contain a number. With 5 bullets, at most 3 may have metrics.
@@ -898,11 +903,11 @@ Your ONLY job is to fix the specific problems listed below. Do not rewrite anyth
 
 PROBLEMS TO FIX — check every experience role's responsibilities array:
 
-PROBLEM 1 — SHORT BULLETS (expand any bullet under 12 words):
-A bullet under 12 words is too thin. Expand it by adding context: what was the scope, who was affected, what was the outcome, or how was it done. Keep it truthful to what the bullet was saying.
+PROBLEM 1 — STUB BULLETS (expand any bullet under 8 words):
+A bullet under 8 words is a stub — too thin to carry any signal. Expand it by adding context: scope, who was affected, the outcome, or how it was done. Keep it truthful to what the bullet was saying. Bullets in the 8–14 word "punchy" band are intentional and should be kept short and crisp.
 Example fix:
-  BEFORE: "Managed client accounts across Kenya."  (5 words)
-  AFTER:  "Managed a portfolio of 11 commercial client accounts across Central and Eastern Kenya, conducting quarterly reviews and maintaining service continuity."
+  BEFORE: "Managed client accounts."  (3 words — stub)
+  AFTER:  "Managed 11 commercial accounts across Eastern Kenya."  (8 words — punchy, kept short)
 
 PROBLEM 2 — BANNED PHRASES (replace these with specific, direct language):
 Scan for and replace: ${liveBannedBullets}.
@@ -915,8 +920,8 @@ Priority: keep numbers in the bullets with the STRONGEST outcomes. Remove number
 PROBLEM 4 — DUPLICATE VERB STARTERS (no two bullets across the whole document may start with the same verb):
 Scan all responsibilities across ALL roles. If two bullets start with the same verb, rewrite the second one to start with a different strong action verb.
 
-PROBLEM 5 — UNIFORM RHYTHM (no three bullets of similar length in a row):
-If three consecutive bullets in a role are all approximately the same length (within 5 words of each other), shorten the middle one slightly or expand the last one slightly to create variation.
+PROBLEM 5 — MONOTONE BULLET RHYTHM (each role must MIX bullet lengths):
+Within each role, count bullets by length band: punchy (8–14 words), standard (15–22 words), narrative (25–40 words, two sentences). A healthy role has at least 2 of these 3 bands represented. If every bullet in a role falls in the same band — or if every bullet is within 5 words of the role's average — the role reads as monotone. Fix by: shortening one bullet to the punchy band, OR expanding the strongest bullet to a two-sentence narrative (one short context sentence + one outcome sentence). Never make all bullets the same length.
 
 PROBLEM 6 — AI TONE PHRASES IN SUMMARY (check professionalSummary field):
 The professional summary must not contain: ${liveBannedSummary}.
@@ -2188,8 +2193,9 @@ ${experienceInstructionLines}
                - If the profile has no work experience → omit the experience section.
                - If the profile has no projects → omit the projects section.
 
-            ⑥ BULLET QUALITY RULES:
-               - Every bullet: 15–25 words. Under 12 words = failure. Expand with scope and outcome.
+            ⑥ BULLET QUALITY & RHYTHM RULES:
+               - Within EACH role, MIX bullet lengths: 1–2 punchy (8–14 words), 2–3 standard (15–22 words), 1 narrative (25–40 words, two sentences). Three bullets in a row of similar length = failure.
+               - Hard floors and ceilings: under 8 words = stub (failure). Over 45 words = rambling (failure).
                - Max 55% of bullets per role may contain a number. With 5 bullets, at most 3 may have metrics.
                - Only add a metric when you can honestly infer it from what the user wrote. Never force a number.
 
