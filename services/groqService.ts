@@ -139,6 +139,64 @@ export function hasCerebrasKey(): boolean {
     return !!getCerebrasApiKey();
 }
 
+// ── Per-provider health tracker (in-memory, this session only) ──────────────
+// Records the most recent outcome of every fallback-chain attempt so the user
+// can see, at a glance, *why* a provider was used or skipped — including which
+// providers got rate-limited or have exhausted their daily quota.
+type ProviderHealthState =
+    | 'never_tried'      // not attempted yet this session
+    | 'ok'               // last call returned a usable result
+    | 'no_key'           // no API key configured (or runtime store empty)
+    | 'quota_exhausted'  // 429 / quota / rate-limit / daily-allocation message
+    | 'auth_failed'      // 401 / 403 / invalid key
+    | 'failed';          // any other transient/unknown error
+
+interface ProviderHealth {
+    state: ProviderHealthState;
+    lastError?: string;     // truncated reason
+    lastAttemptAt?: number; // epoch ms
+    attempts: number;
+}
+
+const PROVIDERS = [
+    'Workers AI', 'Groq', 'Cerebras', 'OpenRouter', 'Together.ai', 'Claude', 'Gemini',
+] as const;
+type ProviderName = typeof PROVIDERS[number];
+
+const _providerHealth: Record<ProviderName, ProviderHealth> = {
+    'Workers AI':  { state: 'never_tried', attempts: 0 },
+    'Groq':        { state: 'never_tried', attempts: 0 },
+    'Cerebras':    { state: 'never_tried', attempts: 0 },
+    'OpenRouter':  { state: 'never_tried', attempts: 0 },
+    'Together.ai': { state: 'never_tried', attempts: 0 },
+    'Claude':      { state: 'never_tried', attempts: 0 },
+    'Gemini':      { state: 'never_tried', attempts: 0 },
+};
+
+function _classifyErrorState(err: any): ProviderHealthState {
+    const status = err?.status;
+    const msg = (err?.message || '').toLowerCase();
+    if (status === 401 || status === 403 || /invalid.*key|unauthor|forbidden/.test(msg)) {
+        return 'auth_failed';
+    }
+    if (status === 429 || status === 402 || /rate.?limit|quota|daily.*allocation|exhaust|neuron|too many/.test(msg)) {
+        return 'quota_exhausted';
+    }
+    return 'failed';
+}
+
+function _recordProviderResult(
+    name: ProviderName,
+    state: ProviderHealthState,
+    err?: any,
+): void {
+    const h = _providerHealth[name];
+    h.state = state;
+    h.lastAttemptAt = Date.now();
+    if (state !== 'no_key' && state !== 'never_tried') h.attempts += 1;
+    h.lastError = err?.message ? String(err.message).substring(0, 120) : undefined;
+}
+
 // One-shot warning so the user (and we) can see when an OpenRouter / Together
 // key is sitting in localStorage in the encrypted form but the runtime
 // decryption hasn't populated the in-memory store. Without this warning, a
@@ -782,17 +840,23 @@ export async function groqChat(
             });
             if (workerText && workerText.length > 0) {
                 _lastAiEngine = 'Workers AI';
+                _recordProviderResult('Workers AI', 'ok');
                 storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, workerText);
                 return workerText;
             }
             // Worker returned null (network/timeout/circuit-breaker open) — fall through
             // to legacy Groq/Cerebras path so the user still gets a result if they
-            // happen to have a key configured.
+            // happen to have a key configured. Most often this is the daily neuron
+            // quota being exhausted, so record it as such.
+            _recordProviderResult('Workers AI', 'quota_exhausted', { message: 'Worker returned no text (likely daily neuron quota exhausted)' });
             console.warn('[AI] Cloudflare Workers AI tiered call returned no text — checking for legacy fallback keys.');
         } catch (workerErr: any) {
             // workerTieredLLM never throws (returns null), but defend in depth.
+            _recordProviderResult('Workers AI', _classifyErrorState(workerErr), workerErr);
             console.warn('[AI] Cloudflare Workers AI tiered call threw — checking for legacy fallback keys:', workerErr?.message);
         }
+    } else {
+        _recordProviderResult('Workers AI', 'no_key');
     }
 
     // ── FALLBACK: Groq (only when worker unreachable AND user has a key) ─────
@@ -805,11 +869,13 @@ export async function groqChat(
                 openAiCompatChat(GROQ_API_URL, groqKey!, model, systemPrompt, userPrompt, opts, parseGroqError)
             );
             _lastAiEngine = 'Groq';
+            _recordProviderResult('Groq', 'ok');
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, groqResult);
             return groqResult;
         } catch (groqErr: any) {
             const status = groqErr?.status;
             const errMsg = (groqErr?.message || '').toLowerCase();
+            _recordProviderResult('Groq', _classifyErrorState(groqErr), groqErr);
             // 413 / "too large" → only large-context providers (Claude 200K, Gemini 1M) can help.
             const isTooLarge = status === 413 || errMsg.includes('too large') || errMsg.includes('too long');
             // For non-retryable errors (400 bad request, 401 invalid key) AND non-too-large,
@@ -877,6 +943,7 @@ async function runFreeProviderChain(
         const cerebrasKey = getCerebrasApiKey();
         if (!cerebrasKey) {
             console.info('[AI] Skipping Cerebras (no key)');
+            _recordProviderResult('Cerebras', 'no_key');
         } else {
             console.info('[AI] Trying Cerebras…');
             try {
@@ -885,9 +952,11 @@ async function runFreeProviderChain(
                     systemPrompt, userPrompt, opts,
                 );
                 _lastAiEngine = 'Cerebras';
+                _recordProviderResult('Cerebras', 'ok');
                 storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
                 return r;
             } catch (e: any) {
+                _recordProviderResult('Cerebras', _classifyErrorState(e), e);
                 console.warn('[AI] Cerebras failed:', e?.message ?? e);
             }
         }
@@ -900,6 +969,7 @@ async function runFreeProviderChain(
         const orKey = getOpenRouterApiKey();
         if (!orKey) {
             console.info('[AI] Skipping OpenRouter (no key)');
+            _recordProviderResult('OpenRouter', 'no_key');
         } else {
             console.info('[AI] Trying OpenRouter (free tier, separate daily quota)…');
             try {
@@ -909,9 +979,11 @@ async function runFreeProviderChain(
                     systemPrompt, userPrompt, opts, parseOpenRouterError,
                 );
                 _lastAiEngine = 'OpenRouter';
+                _recordProviderResult('OpenRouter', 'ok');
                 storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
                 return r;
             } catch (e: any) {
+                _recordProviderResult('OpenRouter', _classifyErrorState(e), e);
                 console.warn('[AI] OpenRouter failed:', e?.message ?? e);
             }
         }
@@ -924,6 +996,7 @@ async function runFreeProviderChain(
         const tgKey = getTogetherApiKey();
         if (!tgKey) {
             console.info('[AI] Skipping Together.ai (no key)');
+            _recordProviderResult('Together.ai', 'no_key');
         } else {
             console.info('[AI] Trying Together.ai (free tier, separate daily quota)…');
             try {
@@ -933,9 +1006,11 @@ async function runFreeProviderChain(
                     systemPrompt, userPrompt, opts, parseTogetherError,
                 );
                 _lastAiEngine = 'Together.ai';
+                _recordProviderResult('Together.ai', 'ok');
                 storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
                 return r;
             } catch (e: any) {
+                _recordProviderResult('Together.ai', _classifyErrorState(e), e);
                 console.warn('[AI] Together.ai failed:', e?.message ?? e);
             }
         }
@@ -945,14 +1020,17 @@ async function runFreeProviderChain(
     const clKey = getClaudeApiKey();
     if (!clKey) {
         console.info('[AI] Skipping Claude (no key)');
+        _recordProviderResult('Claude', 'no_key');
     } else {
         console.info('[AI] Trying Claude (200K context)…');
         try {
             const r = await claudeChat(systemPrompt, userPrompt, opts);
             _lastAiEngine = 'Claude';
+            _recordProviderResult('Claude', 'ok');
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
             return r;
         } catch (e: any) {
+            _recordProviderResult('Claude', _classifyErrorState(e), e);
             console.warn('[AI] Claude failed:', e?.message ?? e);
         }
     }
@@ -961,14 +1039,17 @@ async function runFreeProviderChain(
     const gemKey = getGeminiApiKey();
     if (!gemKey) {
         console.info('[AI] Skipping Gemini (no key)');
+        _recordProviderResult('Gemini', 'no_key');
     } else {
         console.info('[AI] Trying Gemini (1M context, last resort)…');
         try {
             const r = await geminiChat(systemPrompt, userPrompt, opts);
             _lastAiEngine = 'Gemini';
+            _recordProviderResult('Gemini', 'ok');
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
             return r;
         } catch (e: any) {
+            _recordProviderResult('Gemini', _classifyErrorState(e), e);
             console.warn('[AI] Gemini failed:', e?.message ?? e);
         }
     }
@@ -977,31 +1058,55 @@ async function runFreeProviderChain(
 }
 
 // ── Browser console diagnostic ──────────────────────────────────────────────
-// Lets the user (and us) see at a glance which providers have a usable key in
-// the runtime store and which fallback was last actually used. Run from the
-// devtools console: `window.__providerStatus()`
+// Run `window.__providerStatus()` in DevTools to see, for every provider:
+//   • whether a key is configured for this session,
+//   • the most recent attempt result (✓ ok / ⏳ never tried / 💸 quota exhausted /
+//     🔒 auth failed / ⚠ failed / — no key),
+//   • how many times it was attempted, and the last error message if any.
+// This is the fastest way to confirm "is OpenRouter actually being skipped, or
+// did it fail with a quota error?"
 if (typeof window !== 'undefined') {
+    const STATE_LABEL: Record<ProviderHealthState, string> = {
+        ok:               '✓ OK (last call succeeded)',
+        never_tried:      '⏳ Not tried yet this session',
+        no_key:           '— No key configured',
+        quota_exhausted:  '💸 Quota exhausted / rate-limited',
+        auth_failed:      '🔒 Auth failed (bad key)',
+        failed:           '⚠ Failed (other error)',
+    };
     (window as any).__providerStatus = () => {
-        const probe = (name: string, has: boolean) =>
-            `${has ? '✓' : '✗'} ${name}`;
         let groqHas = false; try { groqHas = !!getGroqApiKey(); } catch {}
-        const status = {
-            lastEngineUsed: _lastAiEngine ?? '(none yet this session)',
-            providers: [
-                probe('Workers AI (CF Worker)', isCVEngineConfigured()),
-                probe('Groq',         groqHas),
-                probe('Cerebras',     !!getCerebrasApiKey()),
-                probe('OpenRouter',   !!getOpenRouterApiKey()),
-                probe('Together.ai',  !!getTogetherApiKey()),
-                probe('Claude',       !!getClaudeApiKey()),
-                probe('Gemini',       !!getGeminiApiKey()),
-            ],
-            fallbackOrder:
-                'Workers AI → Groq → Cerebras → OpenRouter → Together → Claude → Gemini',
+        const haveKey: Record<ProviderName, boolean> = {
+            'Workers AI':  isCVEngineConfigured(),
+            'Groq':        groqHas,
+            'Cerebras':    !!getCerebrasApiKey(),
+            'OpenRouter':  !!getOpenRouterApiKey(),
+            'Together.ai': !!getTogetherApiKey(),
+            'Claude':      !!getClaudeApiKey(),
+            'Gemini':      !!getGeminiApiKey(),
         };
-        console.table(status.providers.map(p => ({ provider: p })));
-        console.info('Last engine used:', status.lastEngineUsed);
-        console.info('Fallback order :', status.fallbackOrder);
-        return status;
+        const rows = PROVIDERS.map(name => {
+            const h = _providerHealth[name];
+            // If a key was just removed but the cached state is stale, prefer 'no_key'.
+            const effectiveState: ProviderHealthState =
+                !haveKey[name] ? 'no_key' : h.state;
+            return {
+                provider: name,
+                key: haveKey[name] ? '✓ configured' : '— missing',
+                status: STATE_LABEL[effectiveState],
+                attempts: h.attempts,
+                lastError: h.lastError ?? '',
+            };
+        });
+        console.group('%cAI provider health', 'font-weight:bold;color:#2563eb');
+        console.table(rows);
+        console.info('Last engine used:', _lastAiEngine ?? '(none yet this session)');
+        console.info('Fallback order  : Workers AI → Groq → Cerebras → OpenRouter → Together.ai → Claude → Gemini');
+        console.groupEnd();
+        return {
+            lastEngineUsed: _lastAiEngine,
+            providers: rows,
+            fallbackOrder: 'Workers AI → Groq → Cerebras → OpenRouter → Together.ai → Claude → Gemini',
+        };
     };
 }
