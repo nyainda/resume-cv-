@@ -23,6 +23,7 @@ import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
+import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
 import { buildReactPDFDocument, REACT_PDF_TEMPLATES } from '../services/reactPdfTemplates';
 
 const ACCENT_COLORS = [
@@ -238,6 +239,30 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [targetJobTitle, setTargetJobTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
+  // Stage-based progress tracking — used by the CVGenerationProgress modal
+  // alongside the legacy loadingMessage string (kept so other call sites still
+  // work). `activeStageIds` is the subset of stages that will actually run for
+  // THIS generation (e.g. "research" only when market research is reachable;
+  // "scoring" only when there's a job description).
+  const [progressStage, setProgressStage] = useState<GenerationStageId | null>(null);
+  const [progressDone, setProgressDone] = useState<GenerationStageId[]>([]);
+  const [progressActiveIds, setProgressActiveIds] = useState<GenerationStageId[]>([]);
+  const [progressRetryNotice, setProgressRetryNotice] = useState<string | null>(null);
+  const advanceStage = useCallback((next: GenerationStageId, message: string) => {
+    setProgressStage(prev => {
+      if (prev && prev !== next) {
+        setProgressDone(d => (d.includes(prev) ? d : [...d, prev]));
+      }
+      return next;
+    });
+    setLoadingMessage(message);
+  }, []);
+  const resetProgress = useCallback(() => {
+    setProgressStage(null);
+    setProgressDone([]);
+    setProgressActiveIds([]);
+    setProgressRetryNotice(null);
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
@@ -357,23 +382,42 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setAtsDataEmbedded(false);
     setCvScore(null);
 
+    // Compute which stages are actually relevant for THIS run so the modal
+    // only shows steps that will execute (no greyed-out "Scoring" when there
+    // is no JD, no "Researching market" when we're in scholarship mode).
+    const hasJD = jobDescription.trim().length > 0;
+    const willScore = hasJD && cvPurpose === 'job';
+    const activeIds: GenerationStageId[] = ['profile'];
+    if (cvPurpose === 'job') activeIds.push('research');
+    if (hasJD) activeIds.push('jd');
+    activeIds.push('drafting', 'polishing');
+    if (willScore) activeIds.push('scoring');
+    setProgressActiveIds(activeIds);
+    setProgressDone([]);
+    setProgressRetryNotice(null);
+    advanceStage('profile', 'Reading your profile…');
+
     // Phase 1 — Market research (silent fail)
     let marketResearch: MarketResearchResult | null = null;
-    try {
-      const { role } = detectRoleAndIndustry(userProfile, jobDescription);
-      setLoadingMessage(`Researching ${role} market & salary benchmarks...`);
-      marketResearch = await conductMarketResearch(userProfile, jobDescription);
-    } catch (err) {
-      console.warn('[CVGenerator] Market research failed silently:', err);
+    if (cvPurpose === 'job') {
+      try {
+        const { role } = detectRoleAndIndustry(userProfile, jobDescription);
+        advanceStage('research', `Researching ${role} market & salary benchmarks…`);
+        marketResearch = await conductMarketResearch(userProfile, jobDescription);
+      } catch (err) {
+        console.warn('[CVGenerator] Market research failed silently:', err);
+      }
     }
 
     // Helper — run one generation attempt and populate generatedData
     const runGenerate = async (): Promise<CVData> => {
-      setLoadingMessage('Extracting JD keywords & role signals...');
-      await new Promise(r => setTimeout(r, 400));
-      setLoadingMessage('Crafting your tailored summary & bullets...');
+      if (hasJD) {
+        advanceStage('jd', 'Extracting job-description keywords & role signals…');
+        await new Promise(r => setTimeout(r, 400));
+      }
+      advanceStage('drafting', 'Drafting your tailored summary & bullets…');
       const data = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch, targetLanguage);
-      setLoadingMessage('Applying ATS optimisation & humanisation...');
+      advanceStage('polishing', 'Polishing every line — capitals, punctuation, numbers…');
       await new Promise(r => setTimeout(r, 300));
       if (userProfile.references && userProfile.references.length > 0) {
         data.references = userProfile.references.map(ref => ({
@@ -405,22 +449,26 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       if (isRateLimit) {
         const waitSec: number = firstErr?.retryAfterSeconds ?? 45;
         for (let i = waitSec; i > 0; i--) {
+          setProgressRetryNotice(`Provider is busy — retrying in ${i}s…`);
           setLoadingMessage(`Rate limited — retrying in ${i}s…`);
           await new Promise(r => setTimeout(r, 1000));
         }
         try {
-          setLoadingMessage('Retrying CV generation…');
+          setProgressRetryNotice(null);
+          advanceStage('drafting', 'Retrying CV generation…');
           generatedData = await runGenerate();
         } catch (retryErr) {
           setError(friendlyError(retryErr, 'generate your CV'));
           setIsLoading(false);
           setLoadingMessage('Generating...');
+          resetProgress();
           return;
         }
       } else {
         setError(friendlyError(firstErr, 'generate your CV'));
         setIsLoading(false);
         setLoadingMessage('Generating...');
+        resetProgress();
         return;
       }
     }
@@ -432,9 +480,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
 
     // Phase 3 — Auto-score against JD (job mode only, silent fail)
-    if (generatedData && jobDescription.trim() && cvPurpose === 'job') {
+    if (generatedData && willScore) {
       try {
-        setLoadingMessage('Scoring CV against job description...');
+        advanceStage('scoring', 'Scoring CV against the job description…');
         const score = await scoreCV(generatedData, jobDescription);
         setCvScore(score);
       } catch {
@@ -442,9 +490,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       }
     }
 
+    // Mark whatever stage we ended on as done so the bar reaches 100 % before
+    // the modal closes.
+    setProgressDone(d => {
+      const finalStage = willScore ? 'scoring' : 'polishing';
+      return d.includes(finalStage) ? d : [...d, finalStage];
+    });
+    setProgressStage(null);
+    // Tiny pause so the user sees the bar hit 100 % before the modal vanishes.
+    await new Promise(r => setTimeout(r, 350));
     setIsLoading(false);
     setLoadingMessage('Generating...');
-  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage]);
+    resetProgress();
+  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress]);
 
   // ── One-click score optimizer ────────────────────────────────────────────
   const handleAutoOptimize = useCallback(async () => {
@@ -658,6 +716,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   return (
     <div className="space-y-8">
+      {/* ── Generation progress overlay (modal, only while generating) ── */}
+      <CVGenerationProgress
+        isOpen={isLoading && progressActiveIds.length > 0}
+        currentStage={progressStage}
+        completedStages={progressDone}
+        activeStageIds={progressActiveIds}
+        statusMessage={loadingMessage}
+        retryNotice={progressRetryNotice}
+      />
       {/* ── CV Toolkit Suggestions Banner ── */}
       {toolkitSuggestions && (
         <div className="bg-gradient-to-br from-violet-50 to-[#F8F7F4] dark:from-violet-900/20 dark:to-[#1B2B4B]/10 border border-violet-300 dark:border-violet-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start gap-4">
