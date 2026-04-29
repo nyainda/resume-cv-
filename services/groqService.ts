@@ -139,6 +139,25 @@ export function hasCerebrasKey(): boolean {
     return !!getCerebrasApiKey();
 }
 
+// One-shot warning so the user (and we) can see when an OpenRouter / Together
+// key is sitting in localStorage in the encrypted form but the runtime
+// decryption hasn't populated the in-memory store. Without this warning, a
+// connected provider silently looks unconfigured to the fallback chain — the
+// exact symptom the user reported when OpenRouter was never called even though
+// Settings showed "✓ Connected".
+const _encWarned: { [k: string]: boolean } = {};
+function _warnEncryptedKeyOnce(provider: string): void {
+    if (_encWarned[provider]) return;
+    _encWarned[provider] = true;
+    console.warn(
+        `[AI] ${provider} key is stored encrypted (enc:v1:) but the runtime ` +
+        `decrypted store is empty — the fallback chain will skip ${provider}. ` +
+        `If you can see "${provider} ✓ Connected" in Settings but never see ` +
+        `"[AI] Trying ${provider}" in this console, the runtime store wasn't ` +
+        `loaded for this session. Re-saving the key in Settings will fix it.`,
+    );
+}
+
 // ── OpenRouter key retrieval ─────────────────────────────────────────────────
 export function getOpenRouterApiKey(): string | null {
     const rt = _rtOpenRouter();
@@ -147,10 +166,16 @@ export function getOpenRouterApiKey(): string | null {
         const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
         if (settingsString) {
             const s = JSON.parse(settingsString);
-            if (s.openrouterApiKey && !s.openrouterApiKey.startsWith('enc:v1:')) return s.openrouterApiKey.replace(/^"|"$/g, '');
+            if (s.openrouterApiKey) {
+                if (s.openrouterApiKey.startsWith('enc:v1:')) _warnEncryptedKeyOnce('OpenRouter');
+                else return s.openrouterApiKey.replace(/^"|"$/g, '');
+            }
         }
         const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-        if (providerKeys.openrouter && !providerKeys.openrouter.startsWith('enc:v1:')) return providerKeys.openrouter.replace(/^"|"$/g, '');
+        if (providerKeys.openrouter) {
+            if (providerKeys.openrouter.startsWith('enc:v1:')) _warnEncryptedKeyOnce('OpenRouter');
+            else return providerKeys.openrouter.replace(/^"|"$/g, '');
+        }
     } catch {}
     return null;
 }
@@ -165,10 +190,16 @@ export function getTogetherApiKey(): string | null {
         const settingsString = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
         if (settingsString) {
             const s = JSON.parse(settingsString);
-            if (s.togetherApiKey && !s.togetherApiKey.startsWith('enc:v1:')) return s.togetherApiKey.replace(/^"|"$/g, '');
+            if (s.togetherApiKey) {
+                if (s.togetherApiKey.startsWith('enc:v1:')) _warnEncryptedKeyOnce('Together.ai');
+                else return s.togetherApiKey.replace(/^"|"$/g, '');
+            }
         }
         const providerKeys = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
-        if (providerKeys.together && !providerKeys.together.startsWith('enc:v1:')) return providerKeys.together.replace(/^"|"$/g, '');
+        if (providerKeys.together) {
+            if (providerKeys.together.startsWith('enc:v1:')) _warnEncryptedKeyOnce('Together.ai');
+            else return providerKeys.together.replace(/^"|"$/g, '');
+        }
     } catch {}
     return null;
 }
@@ -778,212 +809,38 @@ export async function groqChat(
             return groqResult;
         } catch (groqErr: any) {
             const status = groqErr?.status;
-            // Only fall back to Cerebras for transient errors (rate limits, quota, overload).
-            // For 400 (bad request) or 401 (invalid key) keep the specific Groq error message.
             const errMsg = (groqErr?.message || '').toLowerCase();
-            // 413 / "too large" → Cerebras can't help (same context limits). Don't fall back.
+            // 413 / "too large" → only large-context providers (Claude 200K, Gemini 1M) can help.
             const isTooLarge = status === 413 || errMsg.includes('too large') || errMsg.includes('too long');
-            const isFallbackCandidate = !isTooLarge && (
+            // For non-retryable errors (400 bad request, 401 invalid key) AND non-too-large,
+            // re-throw Groq's specific message immediately — we'd just spam the chain otherwise.
+            const isFallbackCandidate = isTooLarge || (
                 status === 429 || status === 503 || status == null ||
-                errMsg.match(/rate|quota|overload|unavailable|limit/)
+                !!errMsg.match(/rate|quota|overload|unavailable|limit/)
             );
+            if (!isFallbackCandidate) throw groqErr;
 
-            const cerebrasKey = isFallbackCandidate ? getCerebrasApiKey() : null;
-            if (cerebrasKey) {
-                const reason = groqErr?.message?.substring(0, 80) ?? `status ${status ?? 'unknown'}`;
-                console.warn(`[AI] Groq failed (${reason}) — falling back to Cerebras`);
-                try {
-                    const cbResult = await callCerebrasWithFallback(
-                        cerebrasKey, groqModelToCerebrasChain(model),
-                        systemPrompt, userPrompt, opts
-                    );
-                    _lastAiEngine = 'Cerebras';
-                    storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
-                    return cbResult;
-                } catch (cerebrasErr: any) {
-                    if (cerebrasErr?.isUserFacing && cerebrasErr?.status !== 429) {
-                        // Hard failure (bad key etc.) — but still try the cheap free providers below before throwing.
-                    }
-                    // Try OpenRouter (separate daily quota from CF/Groq/Cerebras)
-                    const orKey = getOpenRouterApiKey();
-                    if (orKey) {
-                        console.info('[AI] Cerebras failed — falling back to OpenRouter (free tier)');
-                        try {
-                            const orResult = await callOpenAiCompatChain(
-                                'OpenRouter', OPENROUTER_API_URL, orKey,
-                                groqModelToOpenRouterChain(model),
-                                systemPrompt, userPrompt, opts, parseOpenRouterError
-                            );
-                            _lastAiEngine = 'OpenRouter';
-                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, orResult);
-                            return orResult;
-                        } catch (orErr: any) {
-                            console.warn('[AI] OpenRouter also failed:', orErr?.message);
-                        }
-                    }
-                    // Try Together.ai (separate free quota again)
-                    const tgKey = getTogetherApiKey();
-                    if (tgKey) {
-                        console.info('[AI] OpenRouter failed/missing — falling back to Together.ai (free tier)');
-                        try {
-                            const tgResult = await callOpenAiCompatChain(
-                                'Together.ai', TOGETHER_API_URL, tgKey,
-                                groqModelToTogetherChain(model),
-                                systemPrompt, userPrompt, opts, parseTogetherError
-                            );
-                            _lastAiEngine = 'Together.ai';
-                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, tgResult);
-                            return tgResult;
-                        } catch (tgErr: any) {
-                            console.warn('[AI] Together.ai also failed:', tgErr?.message);
-                        }
-                    }
-                    if (cerebrasErr?.isUserFacing) throw cerebrasErr;
-                    // Then try Claude before giving up
-                    const clKey = getClaudeApiKey();
-                    if (clKey) {
-                        console.info('[AI] Cerebras also failed — falling back to Claude');
-                        try {
-                            const clResult = await claudeChat(systemPrompt, userPrompt, opts);
-                            _lastAiEngine = 'Claude';
-                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
-                            return clResult;
-                        } catch { /* fall through to Gemini */ }
-                    }
-                    const gemKey2 = getGeminiApiKey();
-                    if (gemKey2) {
-                        console.info('[AI] Cerebras & Claude failed — last resort: Gemini');
-                        try {
-                            const gemResult2 = await geminiChat(systemPrompt, userPrompt, opts);
-                            _lastAiEngine = 'Gemini';
-                            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult2);
-                            return gemResult2;
-                        } catch { /* fall through to throw */ }
-                    }
-                    const err: any = new Error('Groq, Cerebras, Claude and Gemini all failed. Please check your API keys in Settings.');
-                    err.isUserFacing = true;
-                    throw err;
-                }
-            }
-            // For 413 (prompt too large for Groq), try Claude (200K) then Gemini (1M)
-            if (isTooLarge) {
-                const clKey = getClaudeApiKey();
-                if (clKey) {
-                    console.info('[AI] Groq 413 (content too large) — falling back to Claude (200K context)');
-                    try {
-                        const clResult = await claudeChat(systemPrompt, userPrompt, opts);
-                        _lastAiEngine = 'Claude';
-                        storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
-                        return clResult;
-                    } catch { /* fall through to Gemini */ }
-                }
-                const gemKey = getGeminiApiKey();
-                if (gemKey) {
-                    console.info('[AI] Groq 413 — Claude unavailable, falling back to Gemini (1M token context)');
-                    try {
-                        const gemResult = await geminiChat(systemPrompt, userPrompt, opts);
-                        _lastAiEngine = 'Gemini';
-                        storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, gemResult);
-                        return gemResult;
-                    } catch { /* fall through to re-throw Groq error */ }
-                }
-            }
-            // No viable fallback — re-throw the Groq error
+            const reason = (groqErr?.message?.substring(0, 80)) ?? `status ${status ?? 'unknown'}`;
+            console.warn(`[AI] Groq failed (${reason}) — walking flat fallback chain`);
+            const fallback = await runFreeProviderChain(
+                model, systemPrompt, userPrompt, opts, effectiveTemp,
+                { skipCerebras: isTooLarge }, // Cerebras has Groq-class context limits
+            );
+            if (fallback !== null) return fallback;
+            // Nothing in the chain worked; re-throw the original Groq error so the
+            // user sees the most informative message (rate-limit reset time etc.).
             throw groqErr;
         }
     }
 
-    // ── No Groq key — try Cerebras as primary ────────────────────────────────
-    const cerebrasKey = getCerebrasApiKey();
-    if (cerebrasKey) {
-        console.info('[AI] No Groq key configured — using Cerebras as primary provider');
-        try {
-            const cbResult = await callCerebrasWithFallback(
-                cerebrasKey, groqModelToCerebrasChain(model),
-                systemPrompt, userPrompt, opts
-            );
-            _lastAiEngine = 'Cerebras';
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, cbResult);
-            return cbResult;
-        } catch (cerebrasErr: any) {
-            if (cerebrasErr?.isUserFacing) {
-                // Don't bail yet — OpenRouter and Together each have their own free quota.
-            }
-            // fall through to OpenRouter / Together / Claude / Gemini below
-        }
-    }
-
-    // ── OpenRouter (free tier, separate daily quota) ─────────────────────────
-    const openrouterKey = getOpenRouterApiKey();
-    if (openrouterKey) {
-        console.info('[AI] Trying OpenRouter (free tier, separate daily quota)');
-        try {
-            const orResult = await callOpenAiCompatChain(
-                'OpenRouter', OPENROUTER_API_URL, openrouterKey,
-                groqModelToOpenRouterChain(model),
-                systemPrompt, userPrompt, opts, parseOpenRouterError
-            );
-            _lastAiEngine = 'OpenRouter';
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, orResult);
-            return orResult;
-        } catch (orErr: any) {
-            console.warn('[AI] OpenRouter failed:', orErr?.message);
-            // fall through to Together
-        }
-    }
-
-    // ── Together.ai (free tier, separate daily quota) ────────────────────────
-    const togetherKey = getTogetherApiKey();
-    if (togetherKey) {
-        console.info('[AI] Trying Together.ai (free tier, separate daily quota)');
-        try {
-            const tgResult = await callOpenAiCompatChain(
-                'Together.ai', TOGETHER_API_URL, togetherKey,
-                groqModelToTogetherChain(model),
-                systemPrompt, userPrompt, opts, parseTogetherError
-            );
-            _lastAiEngine = 'Together.ai';
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, tgResult);
-            return tgResult;
-        } catch (tgErr: any) {
-            console.warn('[AI] Together.ai failed:', tgErr?.message);
-            // fall through to Claude / Gemini
-        }
-    }
-
-    // ── Claude fallback (no Groq/Cerebras/OpenRouter/Together key, or they failed) ─
-    const claudeKeyDirect = getClaudeApiKey();
-    if (claudeKeyDirect) {
-        console.info('[AI] Workers AI quota exhausted — falling back to Claude (200K context)');
-        try {
-            const clResult = await claudeChat(systemPrompt, userPrompt, opts);
-            _lastAiEngine = 'Claude';
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, clResult);
-            return clResult;
-        } catch (clErr: any) {
-            if (clErr?.isUserFacing) throw clErr;
-            // fall through to Gemini
-        }
-    }
-
-    // ── Gemini fallback (Workers AI quota exhausted, no Groq/Cerebras/Claude) ─
-    const geminiKey = getGeminiApiKey();
-    if (geminiKey) {
-        console.info('[AI] Workers AI quota exhausted — falling back to Gemini (1M token context)');
-        try {
-            const geminiResult = await geminiChat(systemPrompt, userPrompt, opts);
-            _lastAiEngine = 'Gemini';
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, geminiResult);
-            return geminiResult;
-        } catch (geminiErr: any) {
-            if (geminiErr?.isUserFacing) throw geminiErr;
-            const err: any = new Error(
-                `Gemini fallback failed: ${geminiErr?.message ?? 'unknown error'}. Please check your Gemini key in Settings.`
-            );
-            err.isUserFacing = true;
-            throw err;
-        }
-    }
+    // ── No Groq key (or Groq returned non-fallback error already re-thrown) ──
+    // Walk the same flat chain. Cerebras is included here because we never
+    // attempted Groq (so context limits aren't an issue we know about).
+    const fallback = await runFreeProviderChain(
+        model, systemPrompt, userPrompt, opts, effectiveTemp,
+        { skipCerebras: false },
+    );
+    if (fallback !== null) return fallback;
 
     // ── Every path exhausted ─────────────────────────────────────────────────
     const err: any = new Error(
@@ -991,4 +848,160 @@ export async function groqChat(
     );
     err.isUserFacing = true;
     throw err;
+}
+
+/**
+ * Flat fallback chain shared by both the "Groq failed" and "no Groq key" paths.
+ * Walks Cerebras → OpenRouter → Together.ai → Claude → Gemini in order.
+ *
+ * For each provider:
+ *   - Logs `[AI] Skipping <provider> (no key)` when no key is configured.
+ *   - Logs `[AI] Trying <provider>…` before the call.
+ *   - Logs `[AI] <provider> failed: <reason>` on error and continues.
+ *
+ * Returns the first successful result, or `null` if every configured provider
+ * failed (the caller decides what error to surface).
+ */
+async function runFreeProviderChain(
+    model: string,
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { temperature?: number; json?: boolean; maxTokens?: number },
+    effectiveTemp: number,
+    options: { skipCerebras: boolean },
+): Promise<string | null> {
+    // 1. Cerebras (skipped on prompt-too-large since context limits match Groq's)
+    if (options.skipCerebras) {
+        console.info('[AI] Skipping Cerebras (prompt too large — needs 200K+ context)');
+    } else {
+        const cerebrasKey = getCerebrasApiKey();
+        if (!cerebrasKey) {
+            console.info('[AI] Skipping Cerebras (no key)');
+        } else {
+            console.info('[AI] Trying Cerebras…');
+            try {
+                const r = await callCerebrasWithFallback(
+                    cerebrasKey, groqModelToCerebrasChain(model),
+                    systemPrompt, userPrompt, opts,
+                );
+                _lastAiEngine = 'Cerebras';
+                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+                return r;
+            } catch (e: any) {
+                console.warn('[AI] Cerebras failed:', e?.message ?? e);
+            }
+        }
+    }
+
+    // 2. OpenRouter (skipped on too-large — most free models have <32K context)
+    if (options.skipCerebras) {
+        console.info('[AI] Skipping OpenRouter (prompt too large — needs 200K+ context)');
+    } else {
+        const orKey = getOpenRouterApiKey();
+        if (!orKey) {
+            console.info('[AI] Skipping OpenRouter (no key)');
+        } else {
+            console.info('[AI] Trying OpenRouter (free tier, separate daily quota)…');
+            try {
+                const r = await callOpenAiCompatChain(
+                    'OpenRouter', OPENROUTER_API_URL, orKey,
+                    groqModelToOpenRouterChain(model),
+                    systemPrompt, userPrompt, opts, parseOpenRouterError,
+                );
+                _lastAiEngine = 'OpenRouter';
+                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+                return r;
+            } catch (e: any) {
+                console.warn('[AI] OpenRouter failed:', e?.message ?? e);
+            }
+        }
+    }
+
+    // 3. Together.ai (skipped on too-large — same reason as OpenRouter)
+    if (options.skipCerebras) {
+        console.info('[AI] Skipping Together.ai (prompt too large — needs 200K+ context)');
+    } else {
+        const tgKey = getTogetherApiKey();
+        if (!tgKey) {
+            console.info('[AI] Skipping Together.ai (no key)');
+        } else {
+            console.info('[AI] Trying Together.ai (free tier, separate daily quota)…');
+            try {
+                const r = await callOpenAiCompatChain(
+                    'Together.ai', TOGETHER_API_URL, tgKey,
+                    groqModelToTogetherChain(model),
+                    systemPrompt, userPrompt, opts, parseTogetherError,
+                );
+                _lastAiEngine = 'Together.ai';
+                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+                return r;
+            } catch (e: any) {
+                console.warn('[AI] Together.ai failed:', e?.message ?? e);
+            }
+        }
+    }
+
+    // 4. Claude (200K context — handles too-large prompts)
+    const clKey = getClaudeApiKey();
+    if (!clKey) {
+        console.info('[AI] Skipping Claude (no key)');
+    } else {
+        console.info('[AI] Trying Claude (200K context)…');
+        try {
+            const r = await claudeChat(systemPrompt, userPrompt, opts);
+            _lastAiEngine = 'Claude';
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+            return r;
+        } catch (e: any) {
+            console.warn('[AI] Claude failed:', e?.message ?? e);
+        }
+    }
+
+    // 5. Gemini (1M context — last resort)
+    const gemKey = getGeminiApiKey();
+    if (!gemKey) {
+        console.info('[AI] Skipping Gemini (no key)');
+    } else {
+        console.info('[AI] Trying Gemini (1M context, last resort)…');
+        try {
+            const r = await geminiChat(systemPrompt, userPrompt, opts);
+            _lastAiEngine = 'Gemini';
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+            return r;
+        } catch (e: any) {
+            console.warn('[AI] Gemini failed:', e?.message ?? e);
+        }
+    }
+
+    return null;
+}
+
+// ── Browser console diagnostic ──────────────────────────────────────────────
+// Lets the user (and us) see at a glance which providers have a usable key in
+// the runtime store and which fallback was last actually used. Run from the
+// devtools console: `window.__providerStatus()`
+if (typeof window !== 'undefined') {
+    (window as any).__providerStatus = () => {
+        const probe = (name: string, has: boolean) =>
+            `${has ? '✓' : '✗'} ${name}`;
+        let groqHas = false; try { groqHas = !!getGroqApiKey(); } catch {}
+        const status = {
+            lastEngineUsed: _lastAiEngine ?? '(none yet this session)',
+            providers: [
+                probe('Workers AI (CF Worker)', isCVEngineConfigured()),
+                probe('Groq',         groqHas),
+                probe('Cerebras',     !!getCerebrasApiKey()),
+                probe('OpenRouter',   !!getOpenRouterApiKey()),
+                probe('Together.ai',  !!getTogetherApiKey()),
+                probe('Claude',       !!getClaudeApiKey()),
+                probe('Gemini',       !!getGeminiApiKey()),
+            ],
+            fallbackOrder:
+                'Workers AI → Groq → Cerebras → OpenRouter → Together → Claude → Gemini',
+        };
+        console.table(status.providers.map(p => ({ provider: p })));
+        console.info('Last engine used:', status.lastEngineUsed);
+        console.info('Fallback order :', status.fallbackOrder);
+        return status;
+    };
 }
