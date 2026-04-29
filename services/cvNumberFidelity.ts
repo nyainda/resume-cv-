@@ -198,9 +198,19 @@ function tidyOrphanRemnantsImpl(text: string, depth: number): string {
     // for legitimate ranges — "from 50% to over 95%" must keep its "to",
     // because the second preposition is followed by a real number, so this
     // is a real range end, not a stripped-number orphan.
-    const PREP_CHAIN_RX = /\b(by|of|to|with|at|for|over|under|above|below|across|reaching|achieving|approximately|around|about|roughly|nearly|almost)\s+(?=(?:by|of|to|with|at|from|for|in|on|over|under|above|below|across|and|or|since|when|until|after|before|while|within|throughout|during)\b(?![a-z]*\s+[\d$€£₦₹¥]))/gi;
-    out = out.replace(PREP_CHAIN_RX, '');
-    out = out.replace(PREP_CHAIN_RX, '');
+    // STRICT preps that are NEVER the start of a numeric range — they always
+    // need a number/object after them, so when chained directly into another
+    // preposition they are always orphans (e.g. "by from 90%" — "by" lost
+    // its anchor, "from" still has 90% so the strip below would spare it).
+    const STRICT_PREP_CHAIN_RX = /\b(by|of|with|at|for|over|under|above|below|across|reaching|achieving|approximately|around|about|roughly|nearly|almost)\s+(?=(?:by|of|to|with|at|from|for|in|on|over|under|above|below|across|and|or|since|when|until|after|before|while|within|throughout|during)\b)/gi;
+    // RANGE-START preps ("to" / "from") need the digit-aware safety lookahead
+    // because legitimate ranges like "from 50% to over 95%" must survive.
+    const RANGE_PREP_CHAIN_RX = /\b(to|from)\s+(?=(?:by|of|to|with|at|from|for|in|on|over|under|above|below|across|and|or|since|when|until|after|before|while|within|throughout|during)\b(?![a-z]*\s+[\d$€£₦₹¥]))/gi;
+    // Run twice — first pass may expose new chains for the second.
+    out = out.replace(STRICT_PREP_CHAIN_RX, '');
+    out = out.replace(RANGE_PREP_CHAIN_RX, '');
+    out = out.replace(STRICT_PREP_CHAIN_RX, '');
+    out = out.replace(RANGE_PREP_CHAIN_RX, '');
     // "with delivering / leading / managing …" — left behind when a
     // duration was stripped from "with 5 years delivering …". Drop the
     // dangling "with" so the participle can lead the phrase naturally
@@ -234,6 +244,26 @@ function tidyOrphanRemnantsImpl(text: string, depth: number): string {
     // Drop a trailing comma at end of string.
     out = out.replace(/,\s*$/g, '');
     out = out.replace(/\(\s*\)/g, '');
+    // Collapse repeated terminal punctuation (".." / ",,," / "!!!" → single).
+    // Three-dot ellipsis is preserved (handled by negative lookahead earlier
+    // pass + this rule only collapses 2+ identical punct of "." "," ";").
+    out = out.replace(/([,;:])\1+/g, '$1');
+    out = out.replace(/\.{2}(?!\.)/g, '.');
+    // Ensure single space after sentence-ending punctuation when followed by
+    // a word (".Designed" → ". Designed"). Skips decimals (handled above)
+    // AND skips abbreviations like "i.e." / "e.g." / "U.S.A." / "Ph.D."
+    // where the previous segment was a single letter (so the period is part
+    // of an abbreviation, not a sentence terminator).
+    out = out.replace(/(?<![A-Za-z]\.[A-Za-z])(?<!\b[A-Za-z])([.!?])([A-Za-z])/g, '$1 $2');
+    // Capitalise the first letter after a sentence terminator (". the team"
+    // → ". The team"). Same abbreviation guard as above.
+    out = out.replace(
+        /(?<![A-Za-z]\.[A-Za-z])(?<!\b[A-Za-z])([.!?]\s+)([a-z])/g,
+        (_m, p, c) => p + c.toUpperCase(),
+    );
+    // Standalone lowercase "i" pronoun → "I" (never matches "i.e.", "in", etc.
+    // because we require word boundaries on both sides and a single letter).
+    out = out.replace(/\bi\b(?!\.)/g, 'I');
     out = out.replace(/\s{2,}/g, ' ').trim();
     // ── STRICT PASS 2: re-run the cleanup chain once more ──────────────────
     // Some cleanups expose new orphans (e.g. removing a number reveals a
