@@ -105,6 +105,19 @@ const dummyCV: CVData = {
                 // over-used filler in real generations. After fix: the trailing
                 // ", ensuring timely completion" clause should be dropped entirely.
                 'Navigate a portfolio of end-to-end irrigation projects across western Kenya, ensuring timely completion through effective coordination',
+                // WEIRD-OPENER probe: "Re-framed" prefix is a CF Workers AI artifact —
+                // rewriteWeirdOpeners must drop the "Re-" and uppercase the next char,
+                // emitting a `weird_opener` leak.
+                'Re-framed the customer onboarding journey across 3 product lines and 12 markets',
+                // DUP-PREP-PHRASE probe: same content word ("training") appears twice
+                // separated by a prep phrase ("across the team through training"), and
+                // the trailing "<prep> WORD" duplicates an earlier WORD. dropRedundantPrepPhrase
+                // should strip the trailing fragment, emitting `dup_prep_phrase`.
+                'Built training materials and rolled out training across the team through training',
+                // ARTICLE-AGREEMENT probe: first-person strip turns "I am a engineer"
+                // into "Am a engineer" — fixArticleAgreement must repair to "Am an engineer",
+                // emitting `article_agreement`.
+                'I am a engineer focused on platform reliability and developer experience',
             ],
         },
         // PAST JOB (endDate set) — bullets MUST be past-tense.
@@ -400,6 +413,36 @@ const checks: Check[] = [
         actualFired: report.leaks.some(l => l.leakType === 'banned_phrase' &&
             (/ensuring/i.test(l.phrase) || /end[- ]to[- ]end/i.test(l.phrase))),
     },
+
+    // ── Coverage for the previously-untested leakTypes ────────────────────────
+    // Each one has a dedicated probe bullet upstream (Acme bullets [9]–[11]).
+    {
+        name: 'weird_opener fired (Re-framed → Framed)',
+        expectFire: true,
+        actualFired: byType.has('weird_opener'),
+    },
+    {
+        name: 'No "Re-" verb prefix remains in any bullet',
+        expectFire: false,
+        actualFired: cleaned.experience.flatMap(e => e.responsibilities)
+            .some(b => /^\s*Re-[a-z]/.test(b)),
+    },
+    {
+        name: 'dup_prep_phrase fired (trailing "through training" stripped)',
+        expectFire: true,
+        actualFired: byType.has('dup_prep_phrase'),
+    },
+    {
+        name: 'article_agreement fired ("a engineer" → "an engineer")',
+        expectFire: true,
+        actualFired: byType.has('article_agreement'),
+    },
+    {
+        name: 'No "a engineer" / "an manager" disagreement remains',
+        expectFire: false,
+        actualFired: cleaned.experience.flatMap(e => e.responsibilities)
+            .some(b => /\b[Aa]\s+[aeiouAEIOU]\w/.test(b) || /\b[Aa]n\s+[bcdfghjklmnpqrstvwxz]/.test(b)),
+    },
 ];
 
 let passed = 0, failed = 0;
@@ -415,11 +458,126 @@ for (const c of checks) {
     else { failed++; fails.push(c.name); }
 }
 
+// ─── Secondary mini-CV: dataset-level leak coverage ─────────────────────────
+// The main dummy CV above is keyword-dense and metric-rich, so the dataset-level
+// detectors (low_quantification at <40%, repeated_phrase across bullets, the
+// whitespace_dash polish step) don't necessarily fire. This second pass uses a
+// sparse CV intentionally engineered to trigger ONLY those three leak categories.
+
+sub('SECONDARY CV — coverage for low_quantification, repeated_phrase, whitespace_dash');
+
+const sparseCv: CVData = {
+    summary: 'Engineer with experience in software systems and platform tools.',
+    skills: ['Python'],
+    experience: [
+        {
+            company: 'Past Co',
+            jobTitle: 'Engineer',
+            dates: '2020 - 2023',
+            startDate: '2020-01-01',
+            endDate: '2023-12-31',
+            responsibilities: [
+                // Whitespace + dash artefacts: tab, double-space, hyphen-with-spaces around dash
+                // → normaliseWhitespaceAndDashes should normalise → emits whitespace_dash leak.
+                'Built\tnew  features  -  shipped to production for the platform team',
+                // Repeated 3-gram across bullets ("delivered measurable results") — appears 3×
+                // → detectPhraseRepetition should flag → emits repeated_phrase leak.
+                'Owned the rollout strategy and delivered measurable results for the customer team',
+                'Drove cross-team alignment and delivered measurable results for the partner team',
+                'Designed onboarding flows and delivered measurable results for the analytics team',
+                // Bullets WITHOUT any number — these drive the quantification ratio below 40%.
+                'Mentored newer engineers across the platform group',
+                'Supported on-call rotation for the core services team',
+                'Collaborated with product managers on roadmap planning',
+            ],
+        },
+    ],
+    education: [],
+};
+
+const { cv: sparseClean, report: sparseReport } = purifyCV(sparseCv);
+const sparseTypes = new Set(sparseReport.leaks.map(l => l.leakType));
+
+const sparseChecks: Check[] = [
+    {
+        name: 'low_quantification fired (<40% of bullets have a number)',
+        expectFire: true,
+        actualFired: sparseTypes.has('low_quantification'),
+        extra: `actual ratio ${(sparseReport.quantificationRatio * 100).toFixed(0)}%`,
+    },
+    {
+        name: 'repeated_phrase fired ("delivered measurable results" ×3)',
+        expectFire: true,
+        actualFired: sparseTypes.has('repeated_phrase'),
+        extra: `${sparseReport.repeatedPhrases.length} phrase(s) flagged`,
+    },
+    {
+        name: 'whitespace_dash fired (tab + double-space + bare dash)',
+        expectFire: true,
+        actualFired: sparseTypes.has('whitespace_dash'),
+    },
+    {
+        name: 'No tab characters remain in any sparse-CV bullet',
+        expectFire: false,
+        actualFired: sparseClean.experience[0].responsibilities.some(b => /\t/.test(b)),
+    },
+    {
+        name: 'No double-space remains in any sparse-CV bullet',
+        expectFire: false,
+        actualFired: sparseClean.experience[0].responsibilities.some(b => /  /.test(b)),
+    },
+];
+
+let sparsePassed = 0, sparseFailed = 0;
+for (const c of sparseChecks) {
+    const ok = c.expectFire === c.actualFired;
+    const label = ok ? `${C.green}PASS${C.reset}` : `${C.red}FAIL${C.reset}`;
+    const extra = c.extra ? `  ${C.dim}(${c.extra})${C.reset}` : '';
+    console.log(`  ${label}  ${c.name}${extra}`);
+    if (ok) sparsePassed++;
+    else { sparseFailed++; fails.push(`[secondary] ${c.name}`); }
+}
+
+// ─── leakType coverage matrix ───────────────────────────────────────────────
+// Cross-check every leakType in the PurifyLeak union against the combined
+// fire-set. Anything missing means a regression in coverage.
+
+sub('LEAK-TYPE COVERAGE MATRIX');
+
+const ALL_LEAK_TYPES = [
+    'banned_phrase', 'duplicate_word', 'pursuing_phrase', 'tense_mismatch',
+    'round_number', 'repeated_phrase',
+    'first_person', 'weak_qualifier', 'weak_opener', 'weird_opener', 'markup_artifact',
+    'capitalisation', 'trailing_period', 'number_format', 'whitespace_dash',
+    'skill_casing', 'duplicate_skill', 'low_quantification',
+    'orphan_metric', 'short_bullet', 'long_bullet', 'unicode_glyph',
+    'dup_prep_phrase', 'article_agreement',
+] as const;
+
+const combinedTypes = new Set<string>([...byType.keys(), ...sparseTypes]);
+const missing = ALL_LEAK_TYPES.filter(t => !combinedTypes.has(t));
+let coveragePassed = 0, coverageFailed = 0;
+for (const t of ALL_LEAK_TYPES) {
+    const fired = combinedTypes.has(t);
+    const label = fired ? `${C.green}COVERED${C.reset}` : `${C.red}MISSING${C.reset}`;
+    console.log(`  ${label}  ${t}`);
+    if (fired) coveragePassed++;
+    else { coverageFailed++; fails.push(`[coverage] ${t} not exercised by any probe`); }
+}
+
 // ─── Summary ────────────────────────────────────────────────────────────────
+
+const totalChecks = checks.length + sparseChecks.length + ALL_LEAK_TYPES.length;
+const totalPassed = passed + sparsePassed + coveragePassed;
+const totalFailed = failed + sparseFailed + coverageFailed;
 
 sub('SUMMARY');
 console.log(`  Pipeline ran in ${C.bold}${elapsed} ms${C.reset}`);
-console.log(`  Verdict: ${C.bold}${passed}/${checks.length}${C.reset} checks passed, ${failed > 0 ? C.red : C.green}${failed} failed${C.reset}`);
+console.log(`  Main checks       : ${passed}/${checks.length}`);
+console.log(`  Secondary checks  : ${sparsePassed}/${sparseChecks.length}`);
+console.log(`  LeakType coverage : ${coveragePassed}/${ALL_LEAK_TYPES.length}` +
+    (missing.length ? `  ${C.red}(missing: ${missing.join(', ')})${C.reset}` : ''));
+console.log(`  Verdict: ${C.bold}${totalPassed}/${totalChecks}${C.reset} checks passed, ${totalFailed > 0 ? C.red : C.green}${totalFailed} failed${C.reset}`);
 if (fails.length) {
     console.log(`\n  ${C.red}Failed checks:${C.reset}`);
     fails.forEach(f => console.log(`    - ${f}`));
@@ -430,4 +588,4 @@ if (captured.length) {
 }
 
 console.log('');
-process.exit(failed > 0 ? 1 : 0);
+process.exit(totalFailed > 0 ? 1 : 0);

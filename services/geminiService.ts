@@ -1394,7 +1394,11 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): str
  * Strategy: keep the first block (role summary), then keyword-dense middle,
  * then requirements/skills section — discarding boilerplate filler.
  */
-function smartTruncateJD(jd: string, maxChars = 3200): string {
+// Exported for the audit harness (`scripts/audit-jd-pipeline.ts`) — verifies
+// that short JDs pass through unchanged, that high-signal chunks beat
+// boilerplate when truncating, and that the safety-fallback head/tail keeps
+// the result under maxChars even on adversarial inputs.
+export function smartTruncateJD(jd: string, maxChars = 3200): string {
     const clean = (jd || '').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
     if (!clean || clean.length <= maxChars) return clean;
 
@@ -1405,7 +1409,7 @@ function smartTruncateJD(jd: string, maxChars = 3200): string {
         .filter(Boolean)
         .flatMap(s => s.length > 420 ? s.split(/(?<=[.;])\s+/).map(x => x.trim()).filter(Boolean) : [s]);
 
-    const weakBoilerplate = /\b(equal opportunity|eeo|accommodation|background check|drug test|benefits|perks|about us|our culture|privacy policy|cookie|applicants with disabilities|all qualified applicants)\b/i;
+    const weakBoilerplate = /\b(equal opportunity|eeo|accommodation|background check|drug test|benefits|perks|about us|our culture|privacy policy|cookie|applicants with disabilities|all qualified applicants|do not discriminat\w*|authorized to work|protected status|veteran status|gender identity|sexual orientation|paid time off|pto\b|401k|401\(k\))\b/i;
     const highSignal = /\b(requirements?|qualifications?|responsibilities?|must have|nice to have|key skills?|experience with|proficient|degree|certification|tools?|tech stack|kubernetes|python|java|sql|aws|gcp|azure)\b/i;
 
     const scored = chunks.map((c, idx) => {
@@ -1444,7 +1448,10 @@ function smartTruncateJD(jd: string, maxChars = 3200): string {
     return out;
 }
 
-function jdProfileSimilarity(profile: UserProfile, jd: string): number {
+// Exported for the audit harness (`scripts/audit-jd-pipeline.ts`) — verifies
+// that the routing similarity score correctly separates "rewrite from scratch"
+// (low overlap) from "preserve & polish" (high overlap) cases.
+export function jdProfileSimilarity(profile: UserProfile, jd: string): number {
     if (!jd.trim()) return 0;
     const jdTokens = new Set(
         jd.toLowerCase()

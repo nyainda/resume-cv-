@@ -81,7 +81,10 @@ function getGeminiApiKey(): string | null {
 
 // ─── Scenario detection ───────────────────────────────────────────────────────
 
-function detectScenario(jd: string): Scenario {
+// Exported for the audit harness (`scripts/audit-jd-pipeline.ts`) so the
+// scenario-detection contract — empty JD → A, short hint → B, full JD → C —
+// can be regression-tested without spinning up the full marketResearch flow.
+export function detectScenario(jd: string): Scenario {
     const words = jd.trim().split(/\s+/).filter(Boolean).length;
     if (words === 0) return 'A';
     if (words < 100) return 'B';
@@ -108,19 +111,49 @@ export function detectRoleAndIndustry(profile: UserProfile, jd: string): { role:
         jd,
     ].filter(Boolean).join(' ').toLowerCase();
 
-    let industry = 'Technology';
-    if (/financ|bank|invest|trading|fintech|payment|fund|asset|wealth/.test(corpus)) industry = 'Finance & Banking';
-    else if (/health|medical|pharma|clinical|hospital|biotech|nurs|doctor|patient|ehrs|ehr/.test(corpus)) industry = 'Healthcare & Life Sciences';
-    else if (/market|brand|campaign|seo|sem|content|social media|copywrite|pr|advertis/.test(corpus)) industry = 'Marketing & Communications';
-    else if (/legal|law|compliance|regulat|paralegal|solicitor|barrister/.test(corpus)) industry = 'Legal & Compliance';
-    else if (/engineer|software|developer|devops|cloud|ml|ai|data science|machine learn|backend|frontend|fullstack/.test(corpus)) industry = 'Technology & Engineering';
-    else if (/design|ux|ui|figma|product design|creative director|illustrat/.test(corpus)) industry = 'Design & Creative';
-    else if (/sales|business development|account executive|quota|crm|pipeline|sdr|bdr/.test(corpus)) industry = 'Sales & Business Development';
-    else if (/consult|strateg|management consultant|mckinsey|bain|bcg|deloitte/.test(corpus)) industry = 'Management Consulting';
-    else if (/academ|research|university|phd|professor|lecturer|postdoc|grant|fellowship/.test(corpus)) industry = 'Academia & Research';
-    else if (/manufactur|supply chain|logistics|operations|procurement|warehouse|lean|six sigma/.test(corpus)) industry = 'Operations & Supply Chain';
-    else if (/educat|teach|curriculum|school|tutor|elearning/.test(corpus)) industry = 'Education';
-    else if (/real estate|property|construction|architect|civil engineer/.test(corpus)) industry = 'Real Estate & Construction';
+    // SCORING-BASED industry detection. The previous if/else-if chain was
+    // first-match-wins on whichever bucket appeared first in the chain — so a
+    // JD that mentions "health benefits" in its EOE boilerplate would be
+    // misclassified as Healthcare even when the role is Sales Engineer; a
+    // Legal Counsel JD that mentioned "financial services" would be tagged
+    // Finance; a Frontend Engineer JD that mentioned "marketing campaigns"
+    // would be tagged Marketing. The downstream effect was wrong verb pools
+    // (user-reported "wrong verb for field — verb pool filter not working").
+    //
+    // Fix: count keyword hits for every bucket, pick the bucket with the
+    // highest score. Ties broken by the order below (most-specific first so a
+    // tie favours Legal over Finance, Sales over Tech, etc.). Each bucket's
+    // pattern is /g so we count *all* occurrences, not just the first match.
+    // Word-boundary anchors (\b) keep stems like "health" from matching "wealth"
+    // and "market" from matching "supermarket"; multi-word phrases like
+    // "real estate" don't need \b at both ends because the space already
+    // anchors them.
+    type IndustryRule = { name: string; rx: RegExp; weight?: number };
+    const RULES: IndustryRule[] = [
+        // Most-specific buckets first (tie-break order). Weights default to 1
+        // but we boost rare/strong signals (e.g. "McKinsey" → consulting +3).
+        { name: 'Legal & Compliance',         rx: /\b(legal|law(yer)?|compliance|regulat\w*|paralegal|solicitor|barrister|attorney|counsel|gdpr|ccpa|jd from|admitted to the bar|securities law|aml)\b/gi, weight: 2 },
+        { name: 'Design & Creative',          rx: /\b(figma|sketch|adobe (xd|illustrator|photoshop)|product design(er)?|ux research|design system|ui design|creative director|illustrat\w*|wireframe|mockup|motion design)\b/gi, weight: 2 },
+        { name: 'Sales & Business Development', rx: /\b(sales (engineer|representative|rep|manager|quota|cycle)?|business development|account executive|quota attainment|crm|salesforce|hubspot|pipeline (build|management)|sdr|bdr|close (deals|complex deals)|commission|cold (call|outreach))\b/gi, weight: 2 },
+        { name: 'Management Consulting',      rx: /\b(management consult\w*|strategy consult\w*|mckinsey|bain|bcg|deloitte|accenture|kpmg|engagement (manager|partner)|case interview|workstream|client delivery)\b/gi, weight: 3 },
+        { name: 'Academia & Research',        rx: /\b(academ\w*|university|phd|professor|lecturer|postdoc(toral)?|grant funding|fellowship|tenure[- ]track|peer[- ]review|publication record|research group)\b/gi, weight: 2 },
+        { name: 'Operations & Supply Chain',  rx: /\b(supply chain|logistics|procurement|warehouse|fulfillment center|lean|six sigma|kanban|operations (manager|director)|inventory (turn|management)|inbound flow|sap|oracle erp)\b/gi, weight: 2 },
+        { name: 'Education',                  rx: /\b(teacher|teaching|classroom|curriculum|school|tutor|elearning|state teaching certification|ap (calculus|standards)|lesson plan|student progress)\b/gi, weight: 2 },
+        { name: 'Real Estate & Construction', rx: /\b(real estate|property|construction|architect(ural)?|civil engineer(ing)?|stamped (construction )?drawings|building code|seismic|revit|bim|construction management|pe license)\b/gi, weight: 2 },
+        // Broader buckets last. Use stricter anchors so "health benefits" or
+        // "market" inside other domains don't poison the score.
+        { name: 'Healthcare & Life Sciences', rx: /\b(healthcare|medical|pharma|pharmaceutical|clinical (trial|research)|hospital|biotech|nurse|nursing|doctor|patient (chart|safety|care)|ehr|epic|gcp certification|fda|irb)\b/gi, weight: 2 },
+        { name: 'Finance & Banking',          rx: /\b(finance|financial (services|institution)|banking|invest(ment|ing)|trading|fintech|payments? (platform|protocol)|hedge fund|asset management|wealth management|securities|swift|sepa|ach)\b/gi, weight: 2 },
+        { name: 'Marketing & Communications', rx: /\b(brand (storytelling|identity)?|marketing (lead|manager|campaign)?|seo\b|sem\b|content marketing|social media|copywrit\w*|public relations|advertising|growth marketing|google analytics|hubspot|semrush)\b/gi, weight: 2 },
+        { name: 'Technology & Engineering',   rx: /\b(software engineer|backend|frontend|fullstack|devops|cloud (engineer|architect)?|ml engineer|ai engineer|data science|machine learning|kubernetes|docker|react\b|node\.?js|typescript|python|java\b|aws\b|gcp\b|azure)\b/gi, weight: 1 },
+    ];
+
+    const scores = RULES.map(r => {
+        const hits = (corpus.match(r.rx) || []).length;
+        return { name: r.name, score: hits * (r.weight || 1) };
+    });
+    const top = scores.reduce((a, b) => (b.score > a.score ? b : a), { name: '', score: 0 });
+    const industry = top.score > 0 ? top.name : 'Technology';
 
     return { role, industry };
 }
