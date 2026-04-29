@@ -53,10 +53,14 @@ async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Pr
  * Fetch a Google Fonts CSS URL and replace every `url(...)` font reference
  * with a base64 data-URI so no network requests are needed at render time.
  *
- * Both the CSS request and every font-file request have hard timeouts
- * (4s/3s) so a single slow Google Fonts response can't stall the entire
- * download flow indefinitely. Result is memoised per-href so re-clicking
- * the Download button is effectively instant.
+ * Timeouts are generous (8s CSS, 6s per font) so a slow connection on the
+ * first click doesn't leave font URLs un-embedded — that was the cause of
+ * the "box-like glyphs" the user saw in downloaded PDFs (the headless
+ * browser fell back to a system font that lacked the right characters).
+ *
+ * Result is memoised per-href so subsequent download clicks are instant,
+ * and `prewarmFontEmbedCache()` populates this cache during browser idle
+ * time so even the FIRST click pays no font-fetch latency.
  */
 async function embedFontCSS(href: string): Promise<string> {
   const cached = _fontCssMemo.get(href);
@@ -64,7 +68,7 @@ async function embedFontCSS(href: string): Promise<string> {
 
   const promise = (async () => {
     try {
-      const cssRes = await fetchWithTimeout(href, 4000, {
+      const cssRes = await fetchWithTimeout(href, 8000, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -82,11 +86,13 @@ async function embedFontCSS(href: string): Promise<string> {
       }
 
       // Fetch every font file and swap the URL for a data-URI.
-      // 3s timeout per font — if a font hangs, fall back to its CDN URL.
+      // 6s timeout per font — if a single weight hangs, the others still
+      // embed and the CV gets a working font; the missing weight falls
+      // back via Playwright's outbound network (same-origin to CDN).
       await Promise.all(
         fontUrls.map(async (fontUrl) => {
           try {
-            const fontRes = await fetchWithTimeout(fontUrl, 3000);
+            const fontRes = await fetchWithTimeout(fontUrl, 6000);
             if (!fontRes.ok) return;
             const buf = await fontRes.arrayBuffer();
             const b64 = arrayBufferToBase64(buf);
@@ -118,6 +124,43 @@ async function embedFontCSS(href: string): Promise<string> {
 /** Clear the font CSS cache. Call this if the user changes themes/templates with new fonts. */
 export function clearFontEmbedCache(): void {
   _fontCssMemo.clear();
+}
+
+/**
+ * Pre-warm the font embed cache during browser idle time. Walks the page's
+ * stylesheets, finds every Google Fonts URL, and starts embedding them in
+ * the background so the first Download-PDF click no longer pays the
+ * ~2-5 second font-fetch latency.
+ *
+ * Safe to call multiple times — embedFontCSS memoises per-href.
+ * Call once after app boot (e.g. from App.tsx in a useEffect).
+ */
+export function prewarmFontEmbedCache(): void {
+  if (typeof window === 'undefined') return;
+  const start = () => {
+    const hrefs = new Set<string>();
+    // <link rel="stylesheet"> Google Fonts in <head>.
+    document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((l) => {
+      if (l.href && l.href.includes('fonts.googleapis.com')) hrefs.add(l.href);
+    });
+    // Stylesheets we can read via the CSSOM (covers @import declarations).
+    for (const sheet of Array.from(document.styleSheets)) {
+      if (sheet.href && sheet.href.includes('fonts.googleapis.com')) hrefs.add(sheet.href);
+    }
+    for (const href of hrefs) {
+      // Fire-and-forget — embedFontCSS catches its own errors.
+      void embedFontCSS(href).catch(() => {/* swallow */});
+    }
+  };
+  // Wait for the browser to be idle; fall back to a 1s timeout in browsers
+  // (Safari) without requestIdleCallback.
+  const ric: ((cb: () => void, opts?: { timeout?: number }) => void) | undefined =
+    (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => void }).requestIdleCallback;
+  if (typeof ric === 'function') {
+    ric(start, { timeout: 5000 });
+  } else {
+    setTimeout(start, 1000);
+  }
 }
 
 export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | null> {

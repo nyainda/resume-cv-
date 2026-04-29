@@ -12,7 +12,8 @@
     "audit:rules": "node scripts/audit-rule-counts.mjs",
     "test:numbers": "npx tsx scripts/test-cv-number-fidelity.ts",
     "test:cv-quality": "npx tsx scripts/test-cv-quality.ts",
-    "test:cv": "npm run test:numbers && npm run test:cv-quality"
+    "test:cv": "npm run test:numbers && npm run test:cv-quality",
+    "test:pdf": "node scripts/test-pdf-download.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

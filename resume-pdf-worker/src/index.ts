@@ -95,11 +95,16 @@ export default {
       await page.setContent(html, { waitUntil: "networkidle0" });
       await page.evaluateHandle("document.fonts.ready");
 
+      // 0mm margins + preferCSSPageSize:true so the @page rule injected by
+      // getCVHtml ("@page { size: A4; margin: 0mm }") wins. The CV templates
+      // bring their OWN internal padding (sized for full 210mm width); adding
+      // a 0.5in worker margin on top of that compressed every layout — that
+      // was the #1 reason "the PDF doesn't match the preview".
       const pdf = await page.pdf({
         format,
         printBackground: true,
-        margin: { top: "0.5in", right: "0.5in", bottom: "0.5in", left: "0.5in" },
-        preferCSSPageSize: false,
+        margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+        preferCSSPageSize: true,
       });
 
       await browser.close();

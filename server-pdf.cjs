@@ -152,11 +152,15 @@ async function renderPdf(pageContent) {
         // Tiny stabilisation delay — was 600ms, dropped to 100ms now that
         // network idle is no longer the gate.
         await page.waitForTimeout(100);
+        // preferCSSPageSize:true so getCVHtml's "@page { size: A4; margin: 0mm }"
+        // wins. Keeps local Playwright output identical to the Cloudflare worker
+        // output — both render at full 210x297mm with zero margin so the
+        // template's own internal padding controls the layout.
         const pdfBuffer = await page.pdf({
             format: 'A4',
             printBackground: true,
             margin: { top: '0mm', bottom: '0mm', left: '0mm', right: '0mm' },
-            preferCSSPageSize: false,
+            preferCSSPageSize: true,
         });
         return pdfBuffer;
     } finally {

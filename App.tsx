@@ -7,6 +7,7 @@ import { useStorage } from './hooks/useStorage';
 import * as KeyVault from './services/security/KeyVault';
 import { setRuntimeKeys } from './services/security/RuntimeKeys';
 import { invalidateCVCache } from './services/geminiService';
+import { prewarmFontEmbedCache } from './services/getCVHtml';
 import { auditCvQuality } from './services/cvNumberFidelity';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
@@ -154,6 +155,13 @@ const AppInner: React.FC = () => {
       return { ...p, currentCV: resolved };
     }));
   }, [activeSlot, setProfiles]);
+
+  // Pre-warm the PDF font embed cache during browser idle time so the first
+  // Download-PDF click no longer pays the ~2-5s Google Fonts fetch latency.
+  // Safe to call once on mount — internal memo prevents duplicate work.
+  useEffect(() => {
+    prewarmFontEmbedCache();
+  }, []);
 
   // One-time migration: move any existing global currentCV into the active slot
   useEffect(() => {
