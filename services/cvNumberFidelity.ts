@@ -112,7 +112,31 @@ export function stripUngroundedNumbers(
 }
 
 export function tidyOrphanRemnants(text: string): string {
+    return tidyOrphanRemnantsImpl(text, 0);
+}
+
+function tidyOrphanRemnantsImpl(text: string, depth: number): string {
     let out = text;
+    // ── STRICT PASS 1: orphan decimal stubs ────────────────────────────────
+    // Catches residue like "Generated.8M", "Generated $.8M", "from $.5K to"
+    // — when the leading integer of a decimal currency figure was stripped
+    // (or never generated) and only the decimal tail survived. Matches an
+    // optional currency symbol followed by a leading-period decimal that is
+    // NOT preceded by another digit (so "version 1.8" stays intact).
+    out = out.replace(
+        /(?<!\d)[$€£₦₹¥]?\.\d+(?:\s*[KMBkmb])?\b\+?/g,
+        '',
+    );
+    // Currency word ("KES", "USD"…) immediately followed by a period or
+    // semicolon with no digits in between — leftover after a decimal strip
+    // ("KES .8M" → ".8M" → ""; sweep the orphan currency word now).
+    out = out.replace(
+        new RegExp(
+            `\\b(?:${CURRENCY_WORDS}|KSh|Ksh)\\s*(?=[.,;:!?])`,
+            'g',
+        ),
+        '',
+    );
     // Remove orphan currency word/symbol followed by stray comma group
     // ("KES , in revenue", "$ ,000 in sales", "USD ,500,000").
     out = out.replace(
@@ -164,21 +188,60 @@ export function tidyOrphanRemnants(text: string): string {
         /\b(by|of|to|with|at|from|for|in|on|across|reaching|approximately|around|about|roughly|nearly|almost|over|under|above|below|up\s+to)\s*([.,;:!?]|$)/gi,
         '$2',
     );
-    // Drop a preposition immediately followed by another preposition or the
-    // word "and"/"or" — common after a number is stripped from between them
-    // ("by 30% from Dec 2023" → "by from Dec 2023" → "from Dec 2023").
-    // Run twice to handle "by of from" type chains.
-    const PREP_CHAIN_RX = /\b(by|of|to|with|at|for|over|under|above|below|across|reaching|achieving|approximately|around|about|roughly|nearly|almost)\s+(?=(?:by|of|to|with|at|from|for|in|on|over|under|above|below|across|and|or)\b)/gi;
+    // Drop a preposition immediately followed by another preposition, a
+    // temporal connector, or "and"/"or" — common after a number is stripped
+    // from between them ("by 30% from Dec 2023" → "by from Dec 2023" →
+    // "from Dec 2023"; "exceeding targets by since Dec" → "exceeding
+    // targets since Dec"). Run twice to handle "by of from" type chains.
+    //
+    // The trailing negative lookahead `(?![a-z]+\s+\d)` is the safety valve
+    // for legitimate ranges — "from 50% to over 95%" must keep its "to",
+    // because the second preposition is followed by a real number, so this
+    // is a real range end, not a stripped-number orphan.
+    const PREP_CHAIN_RX = /\b(by|of|to|with|at|for|over|under|above|below|across|reaching|achieving|approximately|around|about|roughly|nearly|almost)\s+(?=(?:by|of|to|with|at|from|for|in|on|over|under|above|below|across|and|or|since|when|until|after|before|while|within|throughout|during)\b(?![a-z]*\s+[\d$€£₦₹¥]))/gi;
     out = out.replace(PREP_CHAIN_RX, '');
     out = out.replace(PREP_CHAIN_RX, '');
+    // "with delivering / leading / managing …" — left behind when a
+    // duration was stripped from "with 5 years delivering …". Drop the
+    // dangling "with" so the participle can lead the phrase naturally
+    // ("Field Engineer with delivering …" → "Field Engineer delivering …").
+    out = out.replace(
+        /\bwith\s+(?=(?:delivering|leading|managing|driving|building|creating|developing|engineering|designing|implementing|providing|generating|achieving|owning|spearheading|growing|expanding|optimi[sz]ing|automating|launching|coordinating|orchestrating|architecting|operating|running|scaling|integrating|deploying|migrating|maintaining)\b)/gi,
+        '',
+    );
+    // Hedged-outcome orphan: "achieving / reaching / driving / yielding +
+    // (average|approximately|around|substantial|...) + [optional adjective] +
+    // (savings|growth|reduction|...)" — appears when the LLM attached a
+    // metric verb to a hedge but the actual number was stripped. Strip the
+    // entire hollow claim so we don't leave "achieving average water savings".
+    const HEDGE_OUTCOME_RX = /(?:[,;:]\s*)?\b(?:achieving|reaching|driving|yielding|delivering|generating|enabling|producing|resulting\s+in|leading\s+to)\s+(?:an?\s+)?(?:average|approximately|around|about|roughly|nearly|almost|over|under|substantial|significant|notable|measurable|consistent|meaningful|noticeable|considerable)\s+(?:[a-z]+\s+){0,2}(?:savings?|growth|reduction|reductions|improvement|improvements|increase|increases|decrease|decreases|gains?|wins?|results?|impact|efficiency|adoption|engagement|retention|conversion|throughput|productivity|performance|uptime|accuracy|coverage|quality)\b/gi;
+    out = out.replace(HEDGE_OUTCOME_RX, '');
+    // "on average" / "by on average" with no nearby digit in the same clause
+    // is almost always residue ("improve water use efficiency on average").
+    // Drop only the trailing "on average" tail when it sits at sentence end
+    // or before a comma — keeps "on average, we ship 3 a week" intact.
+    out = out.replace(/\s+(?:by\s+)?on\s+average(?=\s*[,.;:!?]|\s*$)/gi, '');
     // "a "/"an "/"the " followed immediately by another article or a
     // preposition is also a strip-orphan ("achieved a increase").
     out = out.replace(/\b(a|an|the)\s+(?=(?:by|of|to|with|at|from|for|in|on|and|or|a|an|the)\b)/gi, '');
     // Collapse ", ," / " , " / multi-spaces / space-before-punct.
     out = out.replace(/\s*,\s*,/g, ',');
     out = out.replace(/\s+([,.;:!?])/g, '$1');
+    // Drop a comma that now sits immediately before a sentence terminator
+    // ("…water conservation,." → "…water conservation.") — common after
+    // the hedged-outcome strip removes a trailing clause.
+    out = out.replace(/,(?=\s*[.;:!?])/g, '');
+    // Drop a trailing comma at end of string.
+    out = out.replace(/,\s*$/g, '');
     out = out.replace(/\(\s*\)/g, '');
     out = out.replace(/\s{2,}/g, ' ').trim();
+    // ── STRICT PASS 2: re-run the cleanup chain once more ──────────────────
+    // Some cleanups expose new orphans (e.g. removing a number reveals a
+    // chained preposition that the first pass couldn't see). One re-entry
+    // is enough to settle cascading damage. Depth is capped at 1.
+    if (depth < 1 && out !== text) {
+        return tidyOrphanRemnantsImpl(out, depth + 1);
+    }
     return out;
 }
 
@@ -193,6 +256,20 @@ export function isBulletDegraded(stripped: string, original: string): boolean {
     // Sentence stub starting with a preposition is almost always wrong.
     const firstWord = trimmed.replace(/^[\s•\-*·»"']+/, '').split(/\s+/)[0]?.toLowerCase();
     if (firstWord && STRANDED_PREPOSITIONS.has(firstWord)) return true;
+    // ── STRICT signatures: defense-in-depth against orphans that survived
+    //    tidyOrphanRemnants. Any of these means "fall back to source bullet".
+    // Orphan decimal stub anywhere ("Generated.8M", "delivered .5M ARR").
+    if (/(?<!\d)\.\d+\s*[KMBkmb]?\b/.test(trimmed)) return true;
+    // Chained prepositions / temporals ("by since", "by from", "to in").
+    if (/\b(?:by|of|to|with|at|for|over|under|across)\s+(?:by|of|to|with|at|from|for|in|on|since|when|until|after|before|while)\b/i.test(trimmed)) return true;
+    // "with delivering / leading / managing …" — lost duration anchor.
+    if (/\bwith\s+(?:delivering|leading|managing|driving|building|creating|developing|engineering|designing|implementing|providing|generating|achieving|owning|spearheading|growing|expanding|optimi[sz]ing|automating|launching|coordinating|orchestrating|architecting|operating|running|scaling|integrating|deploying|migrating|maintaining)\b/i.test(trimmed)) return true;
+    // "from over X% within …" / "from approximately X% to …" with no second
+    // value present — the start-of-range anchor was stripped.
+    if (/\bfrom\s+(?:over|under|about|approximately|around|roughly|nearly|almost|~)\s+\d/i.test(trimmed)
+        && !/\bto\s+(?:over|under|about|approximately|around|roughly|nearly|almost|~)?\s*\d/i.test(trimmed)) return true;
+    // Hedged-outcome orphan that escaped the strip.
+    if (/\b(?:achieving|reaching|driving|yielding|delivering|generating|enabling)\s+(?:an?\s+)?(?:average|approximately|around|about|roughly|nearly|almost|substantial|significant|notable|measurable)\s+\w+\s+(?:savings?|growth|reduction|improvement|increase|decrease|gains?)\b/i.test(trimmed)) return true;
     // Lost more than 40 % of the words AND the original had a sentence-leading
     // action verb — the bullet is hollowed out.
     const origWords = (original || '').split(/\s+/).filter(Boolean).length;
@@ -280,7 +357,12 @@ export type CvQualityIssueKind =
     | 'mid_sentence_period'          // ". " followed by lowercase letter
     | 'first_person_pronoun'         // "I", "I've", "my", "we", "our"
     | 'tense_third_person_singular'  // "Generates" / "Delivers" in current role
-    | 'dangling_time_ref';           // "with years", "of months", "for experience"
+    | 'dangling_time_ref'            // "with years", "of months", "for experience"
+    | 'orphan_decimal_stub'          // "Generated.8M", "$.5K"
+    | 'chained_preposition'          // "by since", "to in", "of from"
+    | 'unanchored_with_participle'   // "with delivering", "with leading"
+    | 'unanchored_hedged_outcome'    // "achieving average water savings"
+    | 'half_open_range';             // "from over 95%" with no "to" anchor
 
 export interface CvQualityIssue {
     kind: CvQualityIssueKind;
@@ -321,6 +403,14 @@ const ORPHAN_PROBES: Array<{ kind: CvQualityIssueKind; rx: RegExp }> = [
     // Dangling time / experience reference left after a hallucinated number
     // was stripped: "with years delivering", "of months across", "for experience".
     { kind: 'dangling_time_ref', rx: /\b(?:with|of|for|in|over|across|during)\s+(?:years?|months?|weeks?|days?|hours?|experience)\b/i },
+    // Orphan decimal stub: ".8M" / "$.5K" not preceded by a digit.
+    { kind: 'orphan_decimal_stub', rx: /(?<!\d)[$€£₦₹¥]?\.\d+\s*[KMBkmb]?\b/ },
+    // Chained prepositions / temporals exposing a stripped number.
+    { kind: 'chained_preposition', rx: /\b(?:by|of|to|with|at|for|over|under|across)\s+(?:by|of|to|with|at|from|for|in|on|since|when|until|after|before|while)\b/i },
+    // "with delivering / leading / managing …" — duration anchor lost.
+    { kind: 'unanchored_with_participle', rx: /\bwith\s+(?:delivering|leading|managing|driving|building|creating|developing|engineering|designing|implementing|providing|generating|achieving|owning|spearheading|growing|expanding|optimi[sz]ing|automating|launching|coordinating|orchestrating|architecting|operating|running|scaling|integrating|deploying|migrating|maintaining)\b/i },
+    // Hedged-outcome orphan that escaped the strip.
+    { kind: 'unanchored_hedged_outcome', rx: /\b(?:achieving|reaching|driving|yielding|delivering|generating|enabling)\s+(?:an?\s+)?(?:average|approximately|around|about|roughly|nearly|almost|substantial|significant|notable|measurable)\s+\w+\s+(?:savings?|growth|reduction|improvement|increase|decrease|gains?)\b/i },
 ];
 
 const STUB_FIRST_WORDS = new Set([

@@ -46,6 +46,11 @@ const KIND_LABEL: Record<CvQualityIssueKind, string> = {
     first_person_pronoun:        'First-person pronoun ("I", "we", "my")',
     tense_third_person_singular: 'Wrong tense in current role',
     dangling_time_ref:           'Time reference without a number',
+    orphan_decimal_stub:         'Decimal stub without leading number (e.g. ".8M")',
+    chained_preposition:         'Two prepositions in a row ("by since")',
+    unanchored_with_participle:  '"with" + verb-ing without a duration',
+    unanchored_hedged_outcome:   'Hedged outcome without a number',
+    half_open_range:             'Range "from over X" missing the "to" anchor',
 };
 
 function formatLocation(where: string): string {
