@@ -22,6 +22,7 @@ import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
 import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
+import DownloadProgressModal from './DownloadProgressModal';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -625,6 +626,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  // Captured at the end of a successful download so the progress modal can
+  // display "Saved in X.Xs · cloud renderer" before auto-dismissing.
+  const [downloadTotalMs, setDownloadTotalMs] = useState<number | null>(null);
+  const [downloadVia, setDownloadVia] = useState<'playwright' | 'cloudflare' | null>(null);
 
   const handleDownload = useCallback(async () => {
     if (!currentCV) return;
@@ -632,6 +637,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     const companyName = targetCompany || 'Unknown';
 
     setDownloadError(null);
+    setDownloadTotalMs(null);
+    setDownloadVia(null);
     setDownloadStatus('Preparing download…');
     try {
       // Single source of truth: render the live preview DOM via headless Chrome
@@ -655,19 +662,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           company: companyName,
           savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`,
         });
-        // Show timing so the user can see how fast the download was — flashes
-        // for ~2.5s before the status auto-clears in the finally block.
-        if (typeof result.totalMs === 'number') {
-          const seconds = (result.totalMs / 1000).toFixed(1);
-          const viaLabel = result.via === 'playwright' ? 'local' : 'cloud';
-          setDownloadStatus(`PDF ready in ${seconds}s (${viaLabel} renderer)`);
-          await new Promise((r) => setTimeout(r, 2500));
-        }
+        // Switch the modal into success mode (green checkmark, "Ready in X.Xs")
+        // and let it linger for a moment so the user sees the win before it
+        // auto-dismisses. The modal also has a close button for instant
+        // dismissal if they prefer.
+        setDownloadTotalMs(result.totalMs ?? null);
+        setDownloadVia(result.via ?? null);
+        setDownloadStatus('PDF ready');
+        await new Promise((r) => setTimeout(r, 2200));
+        setDownloadStatus(null);
       } else {
+        setDownloadStatus(null);
         setDownloadError(result.error || 'Download failed.');
       }
-    } finally {
+    } catch (err) {
+      // Defensive: never leave the modal stuck open if the service throws
+      // unexpectedly (e.g. network error before any onStatus is emitted).
       setDownloadStatus(null);
+      setDownloadError(err instanceof Error ? err.message : 'Download failed.');
     }
   }, [currentCV, targetCompany, targetJobTitle, onAutoTrack, pdfFileName, jdTier1Keywords.length]);
 
@@ -1139,8 +1151,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 </Button>
               )}
               <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                {downloadStatus || 'Download PDF'}
+                {downloadStatus ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Downloading…
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download PDF
+                  </>
+                )}
               </Button>
               {qualityReport && (
                 <Button
@@ -1609,6 +1633,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           onDownloadJson={handleDownloadQualityReport}
         />
       )}
+
+      {/* Animated download progress modal — replaces the previous inline
+          "Rendering preview…" button text with a step-by-step progress
+          experience. Mounted unconditionally so the open/close fade is owned
+          by the modal itself (it returns null when status is null). */}
+      <DownloadProgressModal
+        status={downloadStatus}
+        totalMs={downloadTotalMs}
+        via={downloadVia}
+        onClose={() => setDownloadStatus(null)}
+      />
     </div>
   );
 };
