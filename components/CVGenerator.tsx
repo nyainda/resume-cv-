@@ -270,6 +270,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [scholarshipFormat, setScholarshipFormat] = useLocalStorage<ScholarshipFormat>('scholarshipFormat', 'standard');
   const [atsDataEmbedded, setAtsDataEmbedded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  // Tight wrapper around <CVPreview> with NO outer chrome (no padding, no
+  // borders, no margins). This is what we hand to `downloadCV()` as the
+  // capture container so the editor download is byte-for-byte identical to
+  // the Share download (which uses the same data-cv-preview-active pattern).
+  // Keeping this separate from `previewRef` (which carries editor-only chrome
+  // like the top border + padding used for visual separation) prevents that
+  // chrome from leaking into the captured PDF.
+  const cvCaptureRef = useRef<HTMLDivElement>(null);
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isScoringCV, setIsScoringCV] = useState(false);
@@ -628,6 +636,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       // job-description keywords are baked into the PDF automatically.
       const result = await downloadCV({
         fileName: pdfFileName,
+        // Pass the tight capture wrapper explicitly — same pattern Share uses,
+        // which the user confirmed produces a perfect WYSIWYG PDF. Without this
+        // we'd fall back to auto-discovery and capture a different DOM subtree
+        // that doesn't match the on-screen layout exactly.
+        containerEl: cvCaptureRef.current,
         onStatus: (m) => setDownloadStatus(m),
       });
 
@@ -1465,14 +1478,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </div>
 
           <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6">
-            <CVPreview
-              cvData={currentCV}
-              personalInfo={userProfile.personalInfo}
-              isEditing={isEditing}
-              onDataChange={setCurrentCV}
-              jobDescriptionForATS={jobDescription}
-              template={template}
-            />
+            {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
+                so the editor download is byte-identical to the share download.
+                The data-cv-preview-active marker is what `getCVHtml`'s default
+                selector prefers, and what we pass explicitly via cvCaptureRef. */}
+            <div ref={cvCaptureRef} data-cv-preview-active="true">
+              <CVPreview
+                cvData={currentCV}
+                personalInfo={userProfile.personalInfo}
+                isEditing={isEditing}
+                onDataChange={setCurrentCV}
+                jobDescriptionForATS={jobDescription}
+                template={template}
+              />
+            </div>
           </div>
         </div>
       )}
