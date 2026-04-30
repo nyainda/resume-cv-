@@ -10,6 +10,7 @@ import { idbAppSet } from '../services/storage/AppDataPersistence';
 import { LocalStorageService } from '../services/storage/LocalStorageService';
 import { testProviderConnection } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
+import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
 
 const LS_MS_TOKEN = 'cv_builder:ms_access_token';
 const LS_MS_USER  = 'cv_builder:ms_user';
@@ -52,6 +53,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
   const [msConnecting, setMsConnecting] = useState(false);
   const [msError, setMsError] = useState<string | null>(null);
+
+  // ── Wake-AI-models state (manual re-warm of cv-engine-worker models) ──
+  type WakeState = { status: 'idle' | 'waking' | 'done'; results: PrewarmResult[]; finishedAt?: number };
+  const [wakeState, setWakeState] = useState<WakeState>({ status: 'idle', results: [] });
+
+  const wakeAIModels = useCallback(async () => {
+    setWakeState({ status: 'waking', results: [] });
+    try {
+      const results = await rewarmCVEngineModels();
+      setWakeState({ status: 'done', results, finishedAt: Date.now() });
+    } catch (e) {
+      setWakeState({
+        status: 'done',
+        results: [{ task: 'wake', ok: false, ms: 0, note: e instanceof Error ? e.message : String(e) }],
+        finishedAt: Date.now(),
+      });
+    }
+  }, []);
 
   // ── Test connection state ──────────────────────────────────────────────
   type TestState = { status: 'idle' | 'testing' | 'ok' | 'fail'; message?: string };
@@ -344,7 +363,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           <DriveDataPanel onDataRestored={() => window.location.reload()} />
 
           {/* ── CV Engine Banner (the new default) ── */}
-          <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-700/40 p-4 bg-emerald-50/50 dark:bg-emerald-900/10">
+          <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-700/40 p-4 bg-emerald-50/50 dark:bg-emerald-900/10 space-y-3">
             <div className="flex items-start gap-3">
               <span className="text-2xl shrink-0">✨</span>
               <div className="space-y-1.5">
@@ -356,6 +375,58 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                   The Groq and Cerebras keys below are <strong>optional offline fallbacks</strong> — they only activate if our CV Engine is temporarily unreachable.
                 </p>
               </div>
+            </div>
+
+            {/* ── Wake AI models button ── */}
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-emerald-100 dark:border-emerald-900/40 p-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Wake AI models now</p>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">
+                    Models can sleep after idle. Tap to fire a tiny warm-up so the next CV generation starts instantly.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={wakeAIModels}
+                  disabled={wakeState.status === 'waking'}
+                  className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                >
+                  {wakeState.status === 'waking' ? 'Waking…' : wakeState.status === 'done' ? 'Wake again' : 'Wake models'}
+                </Button>
+              </div>
+
+              {wakeState.status !== 'idle' && (
+                <div className="mt-3 space-y-1 border-t border-emerald-100 dark:border-emerald-900/40 pt-2">
+                  {wakeState.status === 'waking' && (
+                    <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">Pinging Cloudflare models…</p>
+                  )}
+                  {wakeState.status === 'done' && wakeState.results.length === 0 && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">CV Engine URL not configured — nothing to warm.</p>
+                  )}
+                  {wakeState.status === 'done' && wakeState.results.length > 0 && (
+                    <>
+                      <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
+                        {wakeState.results.filter(r => r.ok).length}/{wakeState.results.length} models hot
+                      </p>
+                      <ul className="space-y-0.5">
+                        {wakeState.results.map((r) => (
+                          <li key={r.task} className="text-[11px] font-mono flex items-center gap-2">
+                            <span className={r.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+                              {r.ok ? '✓' : '✗'}
+                            </span>
+                            <span className="text-zinc-700 dark:text-zinc-200 w-24 truncate">{r.task}</span>
+                            <span className="text-zinc-500 dark:text-zinc-400">{r.ms}ms</span>
+                            {!r.ok && r.note && (
+                              <span className="text-red-500 dark:text-red-400 truncate">— {r.note}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
