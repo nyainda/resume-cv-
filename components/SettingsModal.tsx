@@ -11,6 +11,7 @@ import { LocalStorageService } from '../services/storage/LocalStorageService';
 import { testProviderConnection } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
+import { runCompareDiagnostic, type CompareResult, type CompareLeg } from '../services/cvCompareDiagnostic';
 
 const LS_MS_TOKEN = 'cv_builder:ms_access_token';
 const LS_MS_USER  = 'cv_builder:ms_user';
@@ -69,6 +70,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
         results: [{ task: 'wake', ok: false, ms: 0, note: e instanceof Error ? e.message : String(e) }],
         finishedAt: Date.now(),
       });
+    }
+  }, []);
+
+  // ── Compare-worker-vs-Groq diagnostic ──────────────────────────────────
+  type CompareState =
+    | { status: 'idle' }
+    | { status: 'running' }
+    | { status: 'done'; result: CompareResult }
+    | { status: 'error'; message: string };
+  const [compareState, setCompareState] = useState<CompareState>({ status: 'idle' });
+
+  const runCompare = useCallback(async () => {
+    setCompareState({ status: 'running' });
+    try {
+      const result = await runCompareDiagnostic();
+      setCompareState({ status: 'done', result });
+    } catch (e) {
+      setCompareState({ status: 'error', message: e instanceof Error ? e.message : String(e) });
     }
   }, []);
 
@@ -426,6 +445,44 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                     </>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* ── Compare worker vs Groq diagnostic ── */}
+            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-emerald-100 dark:border-emerald-900/40 p-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Compare worker vs Groq</p>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">
+                    Generates the same 5 CV bullets through both providers, then scores each on JSON validity,
+                    banned-phrase hits, verb-pool adherence, opener variety, rhythm match, and latency.
+                    {!groqKey && <span className="block mt-0.5 text-[10px] text-amber-700 dark:text-amber-400">Add a Groq key below to enable the side-by-side comparison.</span>}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={runCompare}
+                  disabled={compareState.status === 'running'}
+                  className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                >
+                  {compareState.status === 'running' ? 'Comparing…' : compareState.status === 'done' ? 'Run again' : 'Run comparison'}
+                </Button>
+              </div>
+
+              {compareState.status === 'running' && (
+                <p className="mt-3 text-[11px] font-mono text-zinc-500 dark:text-zinc-400 border-t border-emerald-100 dark:border-emerald-900/40 pt-2">
+                  Building brief, firing both providers in parallel, scoring outputs…
+                </p>
+              )}
+
+              {compareState.status === 'error' && (
+                <p className="mt-3 text-[11px] text-red-600 dark:text-red-400 border-t border-emerald-100 dark:border-emerald-900/40 pt-2 font-mono">
+                  Comparison failed: {compareState.message}
+                </p>
+              )}
+
+              {compareState.status === 'done' && (
+                <CompareResultPanel result={compareState.result} />
               )}
             </div>
           </div>
