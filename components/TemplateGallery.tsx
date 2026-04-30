@@ -19,6 +19,7 @@ const templateCategories = {
   'Minimal': ['minimalist', 'compact', 'timeline', 'paris-vibe'] as TemplateName[],
   'Technical': ['swe-elite', 'software-engineer', 'technical'] as TemplateName[],
   'Photo': ['photo-sidebar', 'navy-sidebar', 'executive-sidebar'] as TemplateName[],
+  'Compact Sidebar': ['compact-slate', 'compact-sage', 'compact-charcoal'] as TemplateName[],
 };
 
 const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar', 'executive-sidebar'];
@@ -39,6 +40,9 @@ const templateBadges: Partial<Record<TemplateName, { label: string; emoji: strin
   'photo-sidebar': { label: 'With Photo', emoji: '📷', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
   'executive-sidebar': { label: 'Premium Photo', emoji: '🏆', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
   'ats-clean-pro': { label: 'ATS Optimized', emoji: '🎯', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  'compact-slate': { label: 'One-Page', emoji: '📄', color: 'bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300' },
+  'compact-sage': { label: 'One-Page', emoji: '🌿', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  'compact-charcoal': { label: 'One-Page', emoji: '⬛', color: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-300' },
 };
 
 const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
@@ -76,6 +80,9 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'swe-vivid': 'low',
   'photo-sidebar': 'low',
   'executive-sidebar': 'low',
+  'compact-slate': 'medium',
+  'compact-sage': 'medium',
+  'compact-charcoal': 'medium',
 };
 
 const atsConfig = {

@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
@@ -9,9 +9,10 @@ interface TemplateProps {
   isEditing: boolean;
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
+  sidebarSections?: SidebarSectionsVisibility;
 }
 
-const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
   const accent = cvData.accentColor ?? '#1f2937';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -104,8 +105,9 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
               </div>
             </section>
 
-            {/* IMPACT section — quantitative wins styled as terminal output. */}
-            {keyAchievements.length > 0 && (
+            {/* IMPACT section — quantitative wins styled as terminal output.
+                Toggle controlled by Sidebar Section Picker. */}
+            {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
               <section>
                 <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'/*'}</span> Impact <span className="text-gray-500">{'*/'}</span>
@@ -121,8 +123,9 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
               </section>
             )}
 
-            {/* REPOS section — project titles as ~/kebab-case paths. */}
-            {cvData.projects && cvData.projects.length > 0 && (
+            {/* REPOS section — project titles as ~/kebab-case paths.
+                Toggle controlled by Sidebar Section Picker. */}
+            {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
               <section>
                 <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'/*'}</span> Repos <span className="text-gray-500">{'*/'}</span>
@@ -137,7 +140,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
               </section>
             )}
 
-            {cvData.references && cvData.references.length > 0 && (
+            {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
               <section>
                 <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'/*'}</span> Refs <span className="text-gray-500">{'*/'}</span>

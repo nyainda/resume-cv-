@@ -612,6 +612,106 @@ const TemplateThumbnail: React.FC<TemplateThumbnailProps> = ({ templateName, cvD
         </div>
       );
 
+    case 'compact-slate':
+      return (
+        <div className={`${base} flex-row gap-0`}>
+          <div className="w-[28%] h-full p-1 flex flex-col gap-0.5" style={{ backgroundColor: '#1e293b' }}>
+            <div className="h-1 bg-white w-3/4 rounded-sm" />
+            <div className="h-0.5 bg-slate-400 w-1/2" />
+            {['', '', ''].map((_, i) => (
+              <div key={i} className="mt-1">
+                <div className="h-0.5 bg-slate-500 rounded-sm w-2/3 mb-0.5" />
+                <div className="space-y-0.5">
+                  <div className="h-px bg-slate-600 w-full" />
+                  <div className="h-px bg-slate-600 w-4/5" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 p-1.5 flex flex-col gap-1 bg-white">
+            {['', '', '', ''].map((_, i) => (
+              <div key={i}>
+                <div className="h-0.5 bg-slate-700 rounded-sm w-1/2 mb-0.5" />
+                <div className="h-px bg-slate-200 w-full mb-0.5" />
+                <div className="h-px bg-slate-300 w-full mb-px" />
+                <div className="h-px bg-slate-300 w-4/5" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'compact-sage':
+      return (
+        <div className={`${base} flex-row gap-0`}>
+          <div className="w-[30%] h-full p-1 flex flex-col gap-0.5" style={{ backgroundColor: '#3d4f3a' }}>
+            <div className="flex items-center gap-0.5 mb-0.5">
+              <div className="w-2 h-2 rounded-full border" style={{ borderColor: '#a3b598' }} />
+              <div className="flex-1">
+                <div className="h-0.5 bg-white w-full rounded-sm" />
+                <div className="h-px mt-px w-3/4" style={{ backgroundColor: '#a3b598' }} />
+              </div>
+            </div>
+            {['', '', ''].map((_, i) => (
+              <div key={i} className="mt-1">
+                <div className="h-0.5 rounded-sm w-2/3 mb-0.5" style={{ backgroundColor: '#a3b598' }} />
+                <div className="space-y-0.5">
+                  <div className="h-px w-full" style={{ backgroundColor: '#d8e0d3' }} />
+                  <div className="h-px w-4/5" style={{ backgroundColor: '#d8e0d3' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 p-1.5 flex flex-col gap-1 bg-white">
+            {['', '', '', ''].map((_, i) => (
+              <div key={i}>
+                <div className="h-0.5 rounded-sm w-1/2 mb-0.5" style={{ backgroundColor: '#5b6f56' }} />
+                <div className="h-px w-full mb-0.5" style={{ backgroundColor: '#d4dcd0' }} />
+                <div className="h-px bg-zinc-300 w-full mb-px" />
+                <div className="h-px bg-zinc-300 w-4/5" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'compact-charcoal':
+      return (
+        <div className={`${base} flex-row gap-0`}>
+          <div className="w-[30%] h-full p-1 flex flex-col gap-0.5 relative" style={{ backgroundColor: '#1a1a1a' }}>
+            <div className="absolute top-0 right-0 bottom-0 w-px" style={{ backgroundColor: '#d4af37' }} />
+            <div className="h-1 bg-white w-full rounded-sm" />
+            <div className="h-px w-1/2" style={{ backgroundColor: '#d4af37' }} />
+            <div className="h-px bg-zinc-700 w-full mt-0.5" />
+            {['', '', ''].map((_, i) => (
+              <div key={i} className="mt-1">
+                <div className="h-0.5 rounded-sm w-2/3 mb-0.5" style={{ backgroundColor: '#d4af37' }} />
+                <div className="flex flex-wrap gap-px">
+                  <div className="h-1 w-3 border" style={{ borderColor: '#3a3a3a' }} />
+                  <div className="h-1 w-2 border" style={{ borderColor: '#3a3a3a' }} />
+                  <div className="h-1 w-3 border" style={{ borderColor: '#3a3a3a' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 p-1.5 flex flex-col gap-1 bg-white">
+            {['', '', '', ''].map((_, i) => (
+              <div key={i}>
+                <div className="flex justify-between items-center mb-px">
+                  <div className="h-0.5 bg-zinc-900 rounded-sm w-1/2" />
+                  <div className="h-0.5 w-1/4" style={{ backgroundColor: '#d4af37' }} />
+                </div>
+                <div className="h-px w-full mb-0.5 bg-zinc-900" />
+                <div className="flex items-start gap-0.5">
+                  <div className="w-px h-px mt-0.5" style={{ backgroundColor: '#d4af37' }} />
+                  <div className="h-px bg-zinc-300 flex-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
     default:
       return (
         <div className={`${base} bg-white p-2 space-y-1`}>

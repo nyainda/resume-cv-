@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
 
@@ -10,12 +10,13 @@ interface TemplateProps {
   isEditing: boolean;
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
+  sidebarSections?: SidebarSectionsVisibility;
 }
 
 const SIDEBAR_BG = '#2e2510';
 const ACCENT    = '#c8a84b';
 
-const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
   // Allow accent color override from cvData — shadows module-level constant
   // eslint-disable-next-line no-shadow
   const ACCENT = cvData.accentColor ?? '#c8a84b';
@@ -165,8 +166,8 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
             </SidebarSection>
           )}
 
-          {/* Certifications */}
-          {cvData.projects && cvData.projects.length > 0 && (
+          {/* Certifications — toggle controlled by Sidebar Section Picker */}
+          {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Certifications &amp; Licenses">
               <ul className="space-y-1">
                 {cvData.projects.map((proj, i) => (
@@ -196,7 +197,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
           {/* Notable Achievements — italic serif, em-dash leaders. Sits as
               the last content section before the gold crest absorbs the
               remaining vertical space. */}
-          {keyAchievements.length > 0 && (
+          {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
             <SidebarSection title="Notable Achievements">
               <ul className="space-y-2">
                 {keyAchievements.map((line, i) => (

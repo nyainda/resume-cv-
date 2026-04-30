@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
 
@@ -10,9 +10,10 @@ interface TemplateProps {
   isEditing: boolean;
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
+  sidebarSections?: SidebarSectionsVisibility;
 }
 
-const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -192,7 +193,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           {/* Career Highlights — magazine pull-quote style: small orange
               square + italic serif text, no bullet dots. Replaces the
               previous hardcoded "Personal Attributes" canned-string list. */}
-          {keyAchievements.length > 0 && (
+          {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
             <SidebarSection title="Career Highlights">
               <ul className="space-y-2">
                 {keyAchievements.map((line, i) => (
@@ -207,7 +208,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
 
           {/* Featured Work — project titles in bold uppercase, magazine
               section-divider feel. Descriptions remain in the right column. */}
-          {cvData.projects && cvData.projects.length > 0 && (
+          {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Featured Work">
               <ul className="space-y-1.5">
                 {cvData.projects.slice(0, 4).map((p, i) => (
@@ -220,7 +221,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </SidebarSection>
           )}
 
-          {cvData.references && cvData.references.length > 0 && (
+          {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
             <SidebarSection title="References">
               <p className="text-[11px] text-zinc-600 italic leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                 {cvData.references.length} reference{cvData.references.length === 1 ? '' : 's'} available on request.

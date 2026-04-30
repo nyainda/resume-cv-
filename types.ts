@@ -397,7 +397,41 @@ export type TemplateName =
   | 'swe-vivid'
   | 'swe-impact'
   | 'ats-clean-pro'
-  | 'executive-sidebar';
+  | 'executive-sidebar'
+  | 'compact-slate'
+  | 'compact-sage'
+  | 'compact-charcoal';
+
+// ── Sidebar section visibility (Sidebar Section Picker) ──────────────────────
+// Controls which auto-generated sidebar fillers appear in templates that have
+// a sidebar (TwoColumnBlue, NavySidebar, ExecutiveSidebar, PhotoSidebar,
+// ModernTech, CompactSlate, CompactSage, CompactCharcoal). Stored in
+// localStorage so the user's choice persists between sessions.
+export interface SidebarSectionsVisibility {
+  keyAchievements: boolean;
+  selectedProjects: boolean;
+  references: boolean;
+}
+
+export const DEFAULT_SIDEBAR_SECTIONS: SidebarSectionsVisibility = {
+  keyAchievements: true,
+  selectedProjects: true,
+  references: true,
+};
+
+// Templates whose sidebar contains togglable Key Achievements / Selected
+// Projects / References fillers. The Sidebar Section Picker toolbar only
+// appears in the editor when one of these is selected.
+export const SIDEBAR_TEMPLATES: TemplateName[] = [
+  'twoColumnBlue',
+  'navy-sidebar',
+  'executive-sidebar',
+  'photo-sidebar',
+  'modern-tech',
+  'compact-slate',
+  'compact-sage',
+  'compact-charcoal',
+];
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',
@@ -434,6 +468,9 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'swe-impact': 'SWE Impact',
   'ats-clean-pro': 'ATS Clean Pro',
   'executive-sidebar': 'Executive Sidebar',
+  'compact-slate': 'Compact Slate',
+  'compact-sage': 'Compact Sage',
+  'compact-charcoal': 'Compact Charcoal',
 };
 
 // --- CV Generation Mode ---

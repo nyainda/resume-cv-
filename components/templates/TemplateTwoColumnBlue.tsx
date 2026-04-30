@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
@@ -9,9 +9,10 @@ interface TemplateProps {
   isEditing: boolean;
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
+  sidebarSections?: SidebarSectionsVisibility;
 }
 
-const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
   const accent = cvData.accentColor ?? '#1e40af';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -144,8 +145,9 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               </section>
 
               {/* Quantitative wins extracted from experience bullets — recruiter
-                  scan-magnet content that uses real CV data, not placeholders. */}
-              {keyAchievements.length > 0 && (
+                  scan-magnet content that uses real CV data, not placeholders.
+                  Toggle controlled by the Sidebar Section Picker toolbar. */}
+              {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
                 <section>
                   <h2 className="text-[9px] font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-2">Key Achievements</h2>
                   <ul className="space-y-1.5 text-xs">
@@ -160,8 +162,9 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               )}
 
               {/* Selected projects — titles only, the right column keeps the
-                  full descriptions. Complementary, not duplicate. */}
-              {cvData.projects && cvData.projects.length > 0 && (
+                  full descriptions. Complementary, not duplicate.
+                  Toggle controlled by the Sidebar Section Picker toolbar. */}
+              {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
                 <section>
                   <h2 className="text-[9px] font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-2">Selected Projects</h2>
                   <ul className="space-y-1 text-xs">
@@ -175,7 +178,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 </section>
               )}
 
-              {cvData.references && cvData.references.length > 0 && (
+              {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
                 <section>
                   <h2 className="text-[9px] font-bold uppercase tracking-widest text-blue-200 border-b border-blue-500 pb-1 mb-2">References</h2>
                   <p className="text-[10px] text-blue-100 italic leading-snug">

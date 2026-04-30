@@ -1,5 +1,5 @@
 import React from 'react';
-import { CVData, PersonalInfo, TemplateName } from '../types';
+import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
 import TemplateModern from './templates/TemplateModern';
 import TemplateProfessional from './templates/TemplateProfessional';
 import TemplateMinimalist from './templates/TemplateMinimalist';
@@ -30,6 +30,9 @@ import TemplatePhotoSidebar from './templates/TemplatePhotoSidebar';
 import TemplateSWEElite from './templates/TemplateSWEElite';
 import TemplateATSCleanPro from './templates/TemplateATSCleanPro';
 import TemplateExecutiveSidebar from './templates/TemplateExecutiveSidebar';
+import TemplateCompactSlate from './templates/TemplateCompactSlate';
+import TemplateCompactSage from './templates/TemplateCompactSage';
+import TemplateCompactCharcoal from './templates/TemplateCompactCharcoal';
 
 
 interface CVPreviewProps {
@@ -39,6 +42,11 @@ interface CVPreviewProps {
   onDataChange?: (newData: CVData) => void;
   jobDescriptionForATS?: string;
   template: TemplateName;
+  // Sidebar Section Picker — only consumed by templates that have a sidebar
+  // with auto-generated fillers (TwoColumnBlue, NavySidebar,
+  // ExecutiveSidebar, PhotoSidebar, ModernTech, CompactSlate, CompactSage,
+  // CompactCharcoal). All other templates ignore this prop.
+  sidebarSections?: SidebarSectionsVisibility;
 }
 
 // ─── Main CVPreview ──────────────────────────────────────────────────────────
@@ -51,9 +59,14 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     isEditing = false,
     onDataChange = () => {},
     jobDescriptionForATS = '',
+    sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
   } = props;
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
+  // Sidebar templates additionally receive sidebarSections; spreading
+  // sidebarTemplateProps onto a non-sidebar template is harmless because
+  // those components don't declare the prop in their interface.
+  const sidebarTemplateProps = { ...templateProps, sidebarSections };
 
   const renderTemplate = () => {
     switch (template) {
@@ -63,13 +76,13 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       case 'corporate':          return <TemplateCorporate {...templateProps} />;
       case 'creative':           return <TemplateCreative {...templateProps} />;
       case 'timeline':           return <TemplateTimeline {...templateProps} />;
-      case 'twoColumnBlue':      return <TemplateTwoColumnBlue {...templateProps} />;
+      case 'twoColumnBlue':      return <TemplateTwoColumnBlue {...sidebarTemplateProps} />;
       case 'executive':          return <TemplateExecutive {...templateProps} />;
       case 'technical':          return <TemplateTechnical {...templateProps} />;
       case 'compact':            return <TemplateCompact {...templateProps} />;
       case 'elegant':            return <TemplateElegant {...templateProps} />;
       case 'software-engineer':  return <TemplateSoftwareEngineer {...templateProps} />;
-      case 'modern-tech':        return <TemplateModernTech {...templateProps} />;
+      case 'modern-tech':        return <TemplateModernTech {...sidebarTemplateProps} />;
       case 'infographic':        return <TemplateInfographic {...templateProps} />;
       case 'classic':            return <TemplateClassic {...templateProps} />;
       case 'standard-pro':       return <TemplateStandardPro {...templateProps} />;
@@ -82,11 +95,14 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       case 'sydney-creative':    return <TemplateSydneyCreative {...templateProps} />;
       case 'scholarship-pro':    return <TemplateScholarshipPro {...templateProps} />;
       case 'medical-standard':   return <TemplateMedicalStandard {...templateProps} />;
-      case 'navy-sidebar':       return <TemplateNavySidebar {...templateProps} />;
-      case 'photo-sidebar':      return <TemplatePhotoSidebar {...templateProps} />;
+      case 'navy-sidebar':       return <TemplateNavySidebar {...sidebarTemplateProps} />;
+      case 'photo-sidebar':      return <TemplatePhotoSidebar {...sidebarTemplateProps} />;
       case 'swe-elite':          return <TemplateSWEElite {...templateProps} />;
       case 'ats-clean-pro':      return <TemplateATSCleanPro {...templateProps} />;
-      case 'executive-sidebar':  return <TemplateExecutiveSidebar {...templateProps} />;
+      case 'executive-sidebar':  return <TemplateExecutiveSidebar {...sidebarTemplateProps} />;
+      case 'compact-slate':      return <TemplateCompactSlate {...sidebarTemplateProps} />;
+      case 'compact-sage':       return <TemplateCompactSage {...sidebarTemplateProps} />;
+      case 'compact-charcoal':   return <TemplateCompactCharcoal {...sidebarTemplateProps} />;
       default:                   return <TemplateProfessional {...templateProps} />;
     }
   };

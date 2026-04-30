@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
-import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
+import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { auditCvQuality } from '../services/cvNumberFidelity';
 import { getLastAiEngine } from '../services/groqService';
@@ -263,6 +263,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
+  // Sidebar Section Picker — persists user's choice of which auto-generated
+  // sidebar fillers (Key Achievements, Selected Projects, References) are
+  // visible. Only takes effect for templates listed in SIDEBAR_TEMPLATES.
+  const [sidebarSections, setSidebarSections] = useLocalStorage<SidebarSectionsVisibility>('sidebarSections', DEFAULT_SIDEBAR_SECTIONS);
   const [font, setFont] = useLocalStorage<FontName>('cvFont', 'lora');
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [generationMode, setGenerationMode] = useLocalStorage<CVGenerationMode>('generationMode', 'honest');
@@ -1477,6 +1481,57 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             </div>
           </div>
 
+          {/* ── Sidebar Section Picker ───────────────────────────────────
+              Only visible for sidebar templates. Lets the user toggle off the
+              auto-generated fillers (Key Achievements, Selected Projects,
+              References summary) when they prefer a cleaner sidebar with only
+              their own data. The toolbar is intentionally compact and lives
+              right above the preview so the effect is immediately visible. */}
+          {SIDEBAR_TEMPLATES.includes(template) && (
+            <div className="mt-5">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Sidebar Sections</span>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">
+                  Toggle auto-generated sidebar content
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700">
+                {([
+                  { key: 'keyAchievements', label: 'Key Achievements', hint: 'Quantitative wins from your experience' },
+                  { key: 'selectedProjects', label: 'Selected Projects', hint: 'Project titles in the sidebar' },
+                  { key: 'references', label: 'References', hint: '"Available on request" note' },
+                ] as const).map(({ key, label, hint }) => {
+                  const isOn = sidebarSections[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSidebarSections({ ...sidebarSections, [key]: !isOn })}
+                      title={hint}
+                      aria-pressed={isOn}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 ${
+                        isOn
+                          ? 'bg-[#C9A84C] text-white shadow-sm hover:bg-[#b89740]'
+                          : 'bg-white dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-neutral-600 hover:border-[#C9A84C]/50'
+                      }`}
+                    >
+                      <span className={`inline-block w-3 h-3 rounded-sm flex-shrink-0 flex items-center justify-center ${
+                        isOn ? 'bg-white/30' : 'border border-zinc-300 dark:border-neutral-500'
+                      }`}>
+                        {isOn && (
+                          <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M2 6 L5 9 L10 3" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6">
             {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
                 so the editor download is byte-identical to the share download.
@@ -1490,6 +1545,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 onDataChange={setCurrentCV}
                 jobDescriptionForATS={jobDescription}
                 template={template}
+                sidebarSections={sidebarSections}
               />
             </div>
           </div>

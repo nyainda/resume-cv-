@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
 
@@ -9,10 +9,11 @@ interface TemplateProps {
   personalInfo: PersonalInfo;
   isEditing: boolean;
   onDataChange: (newData: CVData) => void;
+  sidebarSections?: SidebarSectionsVisibility;
   jobDescriptionForATS: string;
 }
 
-const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
+const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -146,7 +147,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
 
           {/* Career Highlights — vertical accent-bar treatment, no bullets,
               gives a "pull-quote" feel that matches the classical aesthetic. */}
-          {keyAchievements.length > 0 && (
+          {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
             <SidebarSection title="Career Highlights">
               <ul className="space-y-2.5">
                 {keyAchievements.map((line, i) => (
@@ -160,7 +161,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
 
           {/* Recognized Projects — boxed cards (titles only, descriptions
               live in the right column under Projects). */}
-          {cvData.projects && cvData.projects.length > 0 && (
+          {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Recognized Projects">
               <div className="space-y-1.5">
                 {cvData.projects.slice(0, 4).map((p, i) => (
@@ -172,7 +173,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             </SidebarSection>
           )}
 
-          {cvData.references && cvData.references.length > 0 && (
+          {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
             <SidebarSection title="References">
               <p className="text-[11px] text-blue-100 italic leading-snug">
                 {cvData.references.length} reference{cvData.references.length === 1 ? '' : 's'} available on request.
