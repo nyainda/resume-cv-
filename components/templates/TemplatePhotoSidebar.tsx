@@ -13,6 +13,10 @@ interface TemplateProps {
   sidebarSections?: SidebarSectionsVisibility;
 }
 
+// Photo Sidebar — compact one-page edition. Same warm magazine-style cream
+// sidebar with photo avatar, italic-serif Career Highlights pull-quotes,
+// uppercase Featured Work bullets and the "Portfolio · MMM YYYY" stamp. Photo
+// shrunk from w-28 to w-20, sidebar width trimmed from 38% to 32%.
 const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -37,15 +41,15 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     onBlur: (e: React.FocusEvent<HTMLElement>) => {
       handleUpdate(path, e.currentTarget.innerHTML);
     },
-    className: "outline-none ring-1 ring-transparent focus:ring-orange-400 focus:bg-orange-50/30 rounded px-1 -mx-1 transition-all"
+    className: "outline-none ring-1 ring-transparent focus:ring-orange-400 focus:bg-orange-50/30 rounded px-0.5 -mx-0.5 transition-all"
   } : {};
 
   const accentColor = cvData.accentColor ?? '#c8701a';
   const sidebarBg = '#f5f0e8';
 
   const SidebarSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section className="mb-5">
-      <h2 className="text-xs font-black uppercase tracking-widest mb-2 pb-1 border-b border-zinc-400" style={{ color: '#333' }}>
+    <section className="mb-3">
+      <h2 className="text-[8px] font-black uppercase tracking-[0.18em] mb-1 pb-0.5 border-b border-zinc-400" style={{ color: '#333' }}>
         {title}
       </h2>
       {children}
@@ -53,29 +57,21 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   );
 
   const RightSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section className="mb-5">
-      <h2 className="text-sm font-black capitalize tracking-wide mb-2 pb-1 border-b border-zinc-300" style={{ color: '#222' }}>
+    <section className="mb-3">
+      <h2 className="text-[10px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: '#222' }}>
         {title}
       </h2>
       {children}
     </section>
   );
 
-  const certifications = cvData.skills.slice(0, 5);
-  const skills = cvData.skills;
+  const certifications = cvData.skills.slice(0, 4);
+  const skills = cvData.skills.slice(0, 12);
   const memberships = cvData.languages && cvData.languages.length > 0
     ? cvData.languages.map(l => `${l.name}${l.proficiency ? ` (${l.proficiency})` : ''}`)
     : [];
 
-  // Sidebar fillers — Photo template uses warm magazine typography. Career
-  // Highlights render as italic serif "pull-quotes" with a small orange
-  // square in front (editorial style). Featured Work uses the same square
-  // but with the project title in bold caps. Bottom anchor is a paper-style
-  // divider + italic "Portfolio · MMM YYYY" stamp.
-  //
-  // We also REMOVE the previous hardcoded "Personal Attributes" list (which
-  // showed identical canned strings on every CV — "Results-driven and
-  // metrics-oriented", etc.) and replace it with real data.
+  // Capped at 2 (vs 3) for the compact layout.
   const keyAchievements = (() => {
     const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
     const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
@@ -83,7 +79,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
       .sort((a, b) => a.length - b.length)
-      .slice(0, 3);
+      .slice(0, 2);
   })();
 
   const stampLabel = new Date().toLocaleDateString('en-US', {
@@ -93,41 +89,37 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
 
   return (
     <div id="cv-preview-photo-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${sidebarBg} 38%, white 38%)` }}>
+      <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${sidebarBg} 32%, white 32%)` }}>
 
-        {/* Left Sidebar — background from parent gradient.
-            flex-col so the warm "Portfolio" stamp pins to the bottom when
-            the right column is taller than the sidebar content. */}
-        <div className="w-[38%] flex-shrink-0 p-5 flex flex-col">
+        <div className="w-[32%] flex-shrink-0 p-4 flex flex-col">
 
           {/* Photo + Name */}
-          <div className="mb-5 flex flex-col items-center text-center">
+          <div className="mb-3 flex flex-col items-center text-center">
             {personalInfo.photo ? (
               <img
                 src={personalInfo.photo}
                 alt={personalInfo.name}
-                className="w-28 h-28 object-cover mb-3"
-                style={{ border: `3px solid ${accentColor}` }}
+                className="w-20 h-20 object-cover mb-2"
+                style={{ border: `2px solid ${accentColor}` }}
               />
             ) : (
               <div
-                className="w-28 h-28 flex items-center justify-center mb-3 text-white text-3xl font-bold"
+                className="w-20 h-20 flex items-center justify-center mb-2 text-white text-2xl font-bold"
                 style={{ backgroundColor: accentColor }}
               >
                 {personalInfo.name ? personalInfo.name.charAt(0).toUpperCase() : '?'}
               </div>
             )}
-            <h1 className="text-lg font-black leading-tight text-zinc-900">{personalInfo.name}</h1>
+            <h1 className="text-base font-black leading-tight text-zinc-900">{personalInfo.name}</h1>
             {cvData.experience.length > 0 && (
-              <p className="text-xs font-semibold mt-0.5" style={{ color: accentColor }}>
+              <p className="text-[9.5px] font-semibold mt-0.5" style={{ color: accentColor }}>
                 {cvData.experience[0].jobTitle}
               </p>
             )}
           </div>
 
-          {/* Contact */}
           <SidebarSection title="Contact">
-            <ul className="space-y-1.5 text-xs text-zinc-700">
+            <ul className="space-y-1 text-[9.5px] text-zinc-700">
               {personalInfo.phone && (
                 <li className="flex items-center gap-1.5">
                   <span style={{ color: accentColor }}>📞</span>
@@ -155,20 +147,18 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </ul>
           </SidebarSection>
 
-          {/* Summary */}
           {cvData.summary && (
             <SidebarSection title="Summary">
-              <p className="text-xs leading-relaxed text-zinc-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+              <p className="text-[9.5px] leading-snug text-zinc-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
             </SidebarSection>
           )}
 
-          {/* Skills */}
           {skills.length > 0 && (
             <SidebarSection title="Skills">
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {skills.map((skill, i) => (
-                  <li key={i} className="text-xs text-zinc-700 flex items-start gap-1.5">
-                    <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
+                  <li key={i} className="text-[9.5px] text-zinc-700 flex items-start gap-1 leading-snug">
+                    <span className="mt-1 flex-shrink-0 w-1 h-1 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
                     <span {...editableProps(['skills', i])}>{skill}</span>
                   </li>
                 ))}
@@ -176,13 +166,12 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </SidebarSection>
           )}
 
-          {/* Certifications & Licenses */}
           {certifications.length > 0 && (
-            <SidebarSection title="Certifications &amp; Licenses">
-              <ul className="space-y-1">
+            <SidebarSection title="Certifications">
+              <ul className="space-y-0.5">
                 {certifications.map((cert, i) => (
-                  <li key={i} className="text-xs text-zinc-700 flex items-start gap-1.5">
-                    <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
+                  <li key={i} className="text-[9.5px] text-zinc-700 flex items-start gap-1 leading-snug">
+                    <span className="mt-1 flex-shrink-0 w-1 h-1 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
                     <span>{cert}</span>
                   </li>
                 ))}
@@ -190,14 +179,13 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </SidebarSection>
           )}
 
-          {/* Career Highlights — magazine pull-quote style: small orange
-              square + italic serif text, no bullet dots. Replaces the
-              previous hardcoded "Personal Attributes" canned-string list. */}
+          {/* Career Highlights — magazine pull-quote: italic serif + small
+              orange square (no bullet dot). */}
           {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
             <SidebarSection title="Career Highlights">
-              <ul className="space-y-2">
+              <ul className="space-y-1.5">
                 {keyAchievements.map((line, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[11px] text-zinc-700 leading-snug italic" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                  <li key={i} className="flex items-start gap-1.5 text-[9.5px] text-zinc-700 leading-snug italic" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                     <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 inline-block" style={{ backgroundColor: accentColor }}></span>
                     {line}
                   </li>
@@ -206,13 +194,12 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </SidebarSection>
           )}
 
-          {/* Featured Work — project titles in bold uppercase, magazine
-              section-divider feel. Descriptions remain in the right column. */}
+          {/* Featured Work — uppercase tracked-out project titles. */}
           {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Featured Work">
-              <ul className="space-y-1.5">
-                {cvData.projects.slice(0, 4).map((p, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[11px] text-zinc-800 uppercase tracking-wider font-bold leading-snug">
+              <ul className="space-y-1">
+                {cvData.projects.slice(0, 3).map((p, i) => (
+                  <li key={i} className="flex items-start gap-1.5 text-[9px] text-zinc-800 uppercase tracking-wider font-bold leading-snug">
                     <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 inline-block" style={{ backgroundColor: accentColor }}></span>
                     {p.name}
                   </li>
@@ -223,20 +210,19 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
 
           {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
             <SidebarSection title="References">
-              <p className="text-[11px] text-zinc-600 italic leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                {cvData.references.length} reference{cvData.references.length === 1 ? '' : 's'} available on request.
+              <p className="text-[9px] text-zinc-600 italic leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                {cvData.references.length} available on request.
               </p>
             </SidebarSection>
           )}
 
-          {/* Bottom-anchored magazine stamp — paper-style double rule + an
-              italic serif "Portfolio · MMM YYYY" stamp. Absorbs leftover
-              vertical space and reinforces the editorial aesthetic. */}
-          <div className="mt-auto pt-10">
+          {/* Bottom-anchored magazine stamp — same paper double-rule + italic
+              "Portfolio · MMM YYYY" stamp. */}
+          <div className="mt-auto pt-4">
             <div className="h-px bg-zinc-400" />
-            <div className="h-px mt-1 mb-3" style={{ backgroundColor: accentColor, opacity: 0.6 }} />
+            <div className="h-px mt-0.5 mb-2" style={{ backgroundColor: accentColor, opacity: 0.6 }} />
             <p
-              className="text-[11px] text-center italic"
+              className="text-[9px] text-center italic"
               style={{
                 color: accentColor,
                 fontFamily: 'Georgia, "Times New Roman", serif',
@@ -249,19 +235,18 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
         </div>
 
         {/* Right Main Content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 px-5 py-4">
 
-          {/* Education */}
           {cvData.education.length > 0 && (
             <RightSection title="Education">
-              <div className="space-y-3">
-                {cvData.education.map((edu, index) => (
-                  <div key={index} className="flex items-start gap-2">
-                    <span className="mt-1.5 flex-shrink-0 w-2.5 h-2.5 rounded-full border-2 border-zinc-800 inline-block"></span>
+              <div className="space-y-1.5">
+                {cvData.education.slice(0, 2).map((edu, index) => (
+                  <div key={index} className="flex items-start gap-1.5">
+                    <span className="mt-1 flex-shrink-0 w-2 h-2 rounded-full border-2 border-zinc-800 inline-block"></span>
                     <div>
-                      <p className="text-xs font-bold leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
-                      <p className="text-xs text-zinc-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                      <p className="text-xs text-zinc-500" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                      <p className="text-[10.5px] font-bold leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
+                      <p className="text-[9.5px] text-zinc-600" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                      <p className="text-[9px] text-zinc-500" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
                     </div>
                   </div>
                 ))}
@@ -269,13 +254,12 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </RightSection>
           )}
 
-          {/* Experience */}
           {cvData.experience.length > 0 && (
             <RightSection title="Experience">
-              <div className="space-y-4">
+              <div className="space-y-2.5">
                 {cvData.experience.map((job, index) => (
-                  <div key={index} className="relative group flex items-start gap-2">
-                    <span className="mt-1.5 flex-shrink-0 w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
+                  <div key={index} className="relative group flex items-start gap-1.5">
+                    <span className="mt-1.5 flex-shrink-0 w-2 h-2 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
                     <div className="flex-1">
                       {isEditing && (
                         <button
@@ -287,13 +271,13 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                         </button>
                       )}
                       <div className="flex justify-between items-baseline gap-2">
-                        <h3 className="text-xs font-bold text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                        <span className="text-xs text-zinc-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                        <h3 className="text-[10.5px] font-bold text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                        <span className="text-[9px] text-zinc-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                       </div>
-                      <p className="text-xs font-semibold text-zinc-600 mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                      <p className="text-[9.5px] font-semibold text-zinc-600 mb-0.5" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                       <ul className="list-disc list-outside ml-3 space-y-0.5">
                         {job.responsibilities.map((resp, i) => (
-                          <li key={i} className="text-xs text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                          <li key={i} className="text-[9.5px] text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                         ))}
                       </ul>
                     </div>
@@ -303,12 +287,11 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </RightSection>
           )}
 
-          {/* Professional Highlights */}
           {cvData.projects && cvData.projects.length > 0 && (
-            <RightSection title="Professional Highlights &amp; Metrics">
-              <ul className="space-y-1.5 list-disc list-outside ml-4">
+            <RightSection title="Highlights">
+              <ul className="space-y-0.5 list-disc list-outside ml-3.5">
                 {cvData.projects.map((proj, index) => (
-                  <li key={index} className="text-xs text-zinc-700 leading-snug">
+                  <li key={index} className="text-[9.5px] text-zinc-700 leading-snug">
                     <span className="font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}:</span>{' '}
                     <span dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                   </li>
@@ -317,13 +300,12 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </RightSection>
           )}
 
-          {/* Memberships */}
           {memberships.length > 0 && (
             <RightSection title="Memberships">
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {memberships.map((m, i) => (
-                  <li key={i} className="text-xs text-zinc-700 flex items-start gap-1.5">
-                    <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full inline-block bg-zinc-500"></span>
+                  <li key={i} className="text-[9.5px] text-zinc-700 flex items-start gap-1 leading-snug">
+                    <span className="mt-1 flex-shrink-0 w-1 h-1 rounded-full inline-block bg-zinc-500"></span>
                     {m}
                   </li>
                 ))}
@@ -331,14 +313,13 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </RightSection>
           )}
 
-          {/* Publications */}
           {cvData.publications && cvData.publications.length > 0 && (
             <RightSection title="Publications">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {cvData.publications.map((pub, index) => (
                   <div key={index}>
-                    <p className="text-xs font-semibold" {...editableProps(['publications', index, 'title'])}>{pub.title}</p>
-                    <p className="text-xs text-zinc-500 italic">
+                    <p className="text-[9.5px] font-semibold" {...editableProps(['publications', index, 'title'])}>{pub.title}</p>
+                    <p className="text-[9px] text-zinc-500 italic">
                       <span {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>
                     </p>
                   </div>
@@ -349,18 +330,17 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
         </div>
       </div>
 
-      
-        <TemplateCustomSections
-          customSections={cvData.customSections}
-          references={cvData.references}
-          renderHeader={title => <h2 className="text-sm font-black capitalize tracking-wide mb-2 pb-1 border-b border-zinc-300" style={{ color: '#222' }}>{title}</h2>}
-          sectionClassName="mt-5"
-          titleClass="text-xs font-bold"
-          subtitleClass="text-xs text-zinc-500"
-          descClass="text-xs text-zinc-600 mt-0.5"
-          yearClass="text-xs text-zinc-400"
-        />
-{jobDescriptionForATS && (
+      <TemplateCustomSections
+        customSections={cvData.customSections}
+        references={cvData.references}
+        renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: '#222' }}>{title}</h2>}
+        sectionClassName="mt-3 px-5"
+        titleClass="text-[10px] font-bold"
+        subtitleClass="text-[9.5px] text-zinc-500"
+        descClass="text-[9.5px] text-zinc-600 mt-0.5"
+        yearClass="text-[9px] text-zinc-400"
+      />
+      {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />
       )}
     </div>
