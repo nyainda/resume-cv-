@@ -64,13 +64,29 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
     <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: SIDEBAR_BG }} />
   );
 
+  // Sidebar fillers — Executive uses serif italic with em-dash separators
+  // (no bullets) and a gold double-rule "Est. YYYY" footer. The italic
+  // typography intentionally contrasts the sans-serif body for that
+  // luxury-brand editorial feel (think old-money letterhead).
+  const keyAchievements = (() => {
+    const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
+    const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
+    return cvData.experience
+      .flatMap((e) => e.responsibilities.map(stripHtml))
+      .filter((b) => numberPattern.test(b))
+      .sort((a, b) => a.length - b.length)
+      .slice(0, 3);
+  })();
+
   return (
     <div id="cv-preview-executive-sidebar" className="bg-white text-zinc-900 shadow-xl border border-zinc-200"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${SIDEBAR_BG} 38%, white 38%)` }}>
 
-        {/* ── Left Sidebar — background from parent gradient ── */}
-        <div className="w-[38%] flex-shrink-0 px-5 py-6">
+        {/* ── Left Sidebar — background from parent gradient.
+            flex-col so the gold "Est. YYYY" crest can be pinned to the
+            bottom via mt-auto when the right column runs longer. ── */}
+        <div className="w-[38%] flex-shrink-0 px-5 py-6 flex flex-col">
 
           {/* Photo + Name */}
           <div className="flex flex-col items-center text-center mb-5">
@@ -176,6 +192,43 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
               </ul>
             </SidebarSection>
           )}
+
+          {/* Notable Achievements — italic serif, em-dash leaders. Sits as
+              the last content section before the gold crest absorbs the
+              remaining vertical space. */}
+          {keyAchievements.length > 0 && (
+            <SidebarSection title="Notable Achievements">
+              <ul className="space-y-2">
+                {keyAchievements.map((line, i) => (
+                  <li
+                    key={i}
+                    className="text-[11px] text-white/85 leading-snug italic"
+                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                  >
+                    <span style={{ color: ACCENT }}>—</span> {line}
+                  </li>
+                ))}
+              </ul>
+            </SidebarSection>
+          )}
+
+          {/* Bottom-anchored gold crest — double rule + "EST. YYYY" in
+              wide-tracked serif. Pure decoration that absorbs leftover
+              vertical space and reinforces the luxury aesthetic. */}
+          <div className="mt-auto pt-10">
+            <div className="h-px" style={{ backgroundColor: ACCENT, opacity: 0.7 }} />
+            <div className="h-px mt-1 mb-3" style={{ backgroundColor: ACCENT, opacity: 0.35 }} />
+            <p
+              className="text-[10px] text-center uppercase"
+              style={{
+                color: ACCENT,
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                letterSpacing: '0.4em',
+              }}
+            >
+              Est. {new Date().getFullYear()}
+            </p>
+          </div>
         </div>
 
         {/* ── Right Main Content ── */}

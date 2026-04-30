@@ -54,12 +54,49 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     ? cvData.languages.map(l => l.name)
     : [];
 
+  // Sidebar fillers — Navy uses a serif/classical aesthetic, distinct from
+  // TwoColumnBlue's modern bullet style. Career Highlights are presented as
+  // vertical accent-bar quotes (no dots), and Recognized Projects render as
+  // thin-bordered cards. The bottom anchor is a serif monogram + Roman
+  // numeral year for that gravitas-y professional feel.
+  const keyAchievements = (() => {
+    const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
+    const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
+    return cvData.experience
+      .flatMap((e) => e.responsibilities.map(stripHtml))
+      .filter((b) => numberPattern.test(b))
+      .sort((a, b) => a.length - b.length)
+      .slice(0, 3);
+  })();
+
+  const initials = (personalInfo.name || 'CV')
+    .split(/\s+/)
+    .map((w) => w[0]?.toUpperCase())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('');
+
+  const toRoman = (num: number) => {
+    const map: [number, string][] = [
+      [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+      [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+      [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+    ];
+    let n = num; let result = '';
+    for (const [val, sym] of map) { while (n >= val) { result += sym; n -= val; } }
+    return result;
+  };
+  const yearRoman = toRoman(new Date().getFullYear());
+
   return (
     <div id="cv-preview-navy-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${navyBg} 35%, white 35%)` }}>
-        {/* Left Navy Sidebar — background from parent gradient */}
-        <div className="w-[35%] text-white p-6 flex-shrink-0">
+        {/* Left Navy Sidebar — background from parent gradient.
+            flex-col enables mt-auto on the monogram footer so any leftover
+            vertical space sits cleanly between content and the crest. */}
+        <div className="w-[35%] text-white p-6 flex-shrink-0 flex flex-col">
 
+          <div>
           <SidebarSection title="Education">
             <div className="space-y-4">
               {cvData.education.map((edu, index) => (
@@ -106,6 +143,69 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
               </ul>
             </SidebarSection>
           )}
+
+          {/* Career Highlights — vertical accent-bar treatment, no bullets,
+              gives a "pull-quote" feel that matches the classical aesthetic. */}
+          {keyAchievements.length > 0 && (
+            <SidebarSection title="Career Highlights">
+              <ul className="space-y-2.5">
+                {keyAchievements.map((line, i) => (
+                  <li key={i} className="text-xs text-blue-100 leading-snug pl-3 border-l-2" style={{ borderColor: '#7fa8d8' }}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </SidebarSection>
+          )}
+
+          {/* Recognized Projects — boxed cards (titles only, descriptions
+              live in the right column under Projects). */}
+          {cvData.projects && cvData.projects.length > 0 && (
+            <SidebarSection title="Recognized Projects">
+              <div className="space-y-1.5">
+                {cvData.projects.slice(0, 4).map((p, i) => (
+                  <div key={i} className="text-[11px] text-blue-100 px-2 py-1.5 border" style={{ borderColor: '#3a5a8a' }}>
+                    {p.name}
+                  </div>
+                ))}
+              </div>
+            </SidebarSection>
+          )}
+
+          {cvData.references && cvData.references.length > 0 && (
+            <SidebarSection title="References">
+              <p className="text-[11px] text-blue-100 italic leading-snug">
+                {cvData.references.length} reference{cvData.references.length === 1 ? '' : 's'} available on request.
+              </p>
+            </SidebarSection>
+          )}
+          </div>
+
+          {/* Bottom-anchored monogram crest — pure decoration that absorbs
+              leftover vertical space when the right column is much taller.
+              Serif typography matches Navy's professional/classical mood. */}
+          <div className="mt-auto pt-10 flex flex-col items-center gap-1.5">
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold border-2"
+              style={{
+                borderColor: '#7fa8d8',
+                color: '#7fa8d8',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {initials}
+            </div>
+            <p
+              className="text-[10px] tracking-[0.3em]"
+              style={{
+                color: '#7fa8d8',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+              }}
+            >
+              {yearRoman}
+            </p>
+          </div>
         </div>
 
         {/* Right Main Content */}

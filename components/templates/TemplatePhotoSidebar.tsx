@@ -66,12 +66,38 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     ? cvData.languages.map(l => `${l.name}${l.proficiency ? ` (${l.proficiency})` : ''}`)
     : [];
 
+  // Sidebar fillers — Photo template uses warm magazine typography. Career
+  // Highlights render as italic serif "pull-quotes" with a small orange
+  // square in front (editorial style). Featured Work uses the same square
+  // but with the project title in bold caps. Bottom anchor is a paper-style
+  // divider + italic "Portfolio · MMM YYYY" stamp.
+  //
+  // We also REMOVE the previous hardcoded "Personal Attributes" list (which
+  // showed identical canned strings on every CV — "Results-driven and
+  // metrics-oriented", etc.) and replace it with real data.
+  const keyAchievements = (() => {
+    const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
+    const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
+    return cvData.experience
+      .flatMap((e) => e.responsibilities.map(stripHtml))
+      .filter((b) => numberPattern.test(b))
+      .sort((a, b) => a.length - b.length)
+      .slice(0, 3);
+  })();
+
+  const stampLabel = new Date().toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+  });
+
   return (
     <div id="cv-preview-photo-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       <div className="flex min-h-[297mm]" style={{ backgroundImage: `linear-gradient(to right, ${sidebarBg} 38%, white 38%)` }}>
 
-        {/* Left Sidebar — background from parent gradient */}
-        <div className="w-[38%] flex-shrink-0 p-5">
+        {/* Left Sidebar — background from parent gradient.
+            flex-col so the warm "Portfolio" stamp pins to the bottom when
+            the right column is taller than the sidebar content. */}
+        <div className="w-[38%] flex-shrink-0 p-5 flex flex-col">
 
           {/* Photo + Name */}
           <div className="mb-5 flex flex-col items-center text-center">
@@ -163,17 +189,62 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </SidebarSection>
           )}
 
-          {/* Personal Attributes */}
-          <SidebarSection title="Personal Attributes">
-            <ul className="space-y-1">
-              {['Results-driven and metrics-oriented', 'Exceptional communicator', 'Strategic thinker', 'Adaptable to fast-changing conditions', 'Team leader and mentor'].map((attr, i) => (
-                <li key={i} className="text-xs text-zinc-700 flex items-start gap-1.5">
-                  <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
-                  {attr}
-                </li>
-              ))}
-            </ul>
-          </SidebarSection>
+          {/* Career Highlights — magazine pull-quote style: small orange
+              square + italic serif text, no bullet dots. Replaces the
+              previous hardcoded "Personal Attributes" canned-string list. */}
+          {keyAchievements.length > 0 && (
+            <SidebarSection title="Career Highlights">
+              <ul className="space-y-2">
+                {keyAchievements.map((line, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[11px] text-zinc-700 leading-snug italic" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 inline-block" style={{ backgroundColor: accentColor }}></span>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </SidebarSection>
+          )}
+
+          {/* Featured Work — project titles in bold uppercase, magazine
+              section-divider feel. Descriptions remain in the right column. */}
+          {cvData.projects && cvData.projects.length > 0 && (
+            <SidebarSection title="Featured Work">
+              <ul className="space-y-1.5">
+                {cvData.projects.slice(0, 4).map((p, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[11px] text-zinc-800 uppercase tracking-wider font-bold leading-snug">
+                    <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 inline-block" style={{ backgroundColor: accentColor }}></span>
+                    {p.name}
+                  </li>
+                ))}
+              </ul>
+            </SidebarSection>
+          )}
+
+          {cvData.references && cvData.references.length > 0 && (
+            <SidebarSection title="References">
+              <p className="text-[11px] text-zinc-600 italic leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                {cvData.references.length} reference{cvData.references.length === 1 ? '' : 's'} available on request.
+              </p>
+            </SidebarSection>
+          )}
+
+          {/* Bottom-anchored magazine stamp — paper-style double rule + an
+              italic serif "Portfolio · MMM YYYY" stamp. Absorbs leftover
+              vertical space and reinforces the editorial aesthetic. */}
+          <div className="mt-auto pt-10">
+            <div className="h-px bg-zinc-400" />
+            <div className="h-px mt-1 mb-3" style={{ backgroundColor: accentColor, opacity: 0.6 }} />
+            <p
+              className="text-[11px] text-center italic"
+              style={{
+                color: accentColor,
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Portfolio · {stampLabel}
+            </p>
+          </div>
         </div>
 
         {/* Right Main Content */}

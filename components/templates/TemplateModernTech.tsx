@@ -33,6 +33,24 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
+  // Sidebar fillers — Modern Tech leans into a code-editor / terminal
+  // aesthetic. Section headers wrap in /* ... */ comment markers, key
+  // achievements get a green chevron prompt (›) like a CLI output line,
+  // and projects render as ~/ kebab-cased "repos". The bottom anchor is a
+  // terminal `$ generated --on=YYYY-MM-DD` line. All in monospace so it
+  // visually contrasts the sans-serif body content on the right.
+  const keyAchievements = (() => {
+    const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
+    const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
+    return cvData.experience
+      .flatMap((e) => e.responsibilities.map(stripHtml))
+      .filter((b) => numberPattern.test(b))
+      .sort((a, b) => a.length - b.length)
+      .slice(0, 3);
+  })();
+
+  const generatedDate = new Date().toISOString().slice(0, 10);
+
   return (
     <div id="cv-preview-modern-tech" className="bg-white shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       {/* gradient paints the two-column background on every page when content overflows */}
@@ -85,6 +103,59 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 ))}
               </div>
             </section>
+
+            {/* IMPACT section — quantitative wins styled as terminal output. */}
+            {keyAchievements.length > 0 && (
+              <section>
+                <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                  <span className="text-gray-500">{'/*'}</span> Impact <span className="text-gray-500">{'*/'}</span>
+                </h2>
+                <ul className="space-y-1.5">
+                  {keyAchievements.map((line, i) => (
+                    <li key={i} className="text-[10px] text-gray-300 leading-snug flex items-start gap-1.5" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                      <span className="text-green-400 flex-shrink-0">›</span>
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* REPOS section — project titles as ~/kebab-case paths. */}
+            {cvData.projects && cvData.projects.length > 0 && (
+              <section>
+                <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                  <span className="text-gray-500">{'/*'}</span> Repos <span className="text-gray-500">{'*/'}</span>
+                </h2>
+                <ul className="space-y-1">
+                  {cvData.projects.slice(0, 4).map((p, i) => (
+                    <li key={i} className="text-[10px] text-gray-300" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                      <span className="text-blue-400">~/</span>{p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {cvData.references && cvData.references.length > 0 && (
+              <section>
+                <h2 className="text-[9px] font-bold uppercase tracking-widest text-gray-400 pb-1 mb-2 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                  <span className="text-gray-500">{'/*'}</span> Refs <span className="text-gray-500">{'*/'}</span>
+                </h2>
+                <p className="text-[10px] text-gray-300" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                  <span className="text-gray-500">{'//'}</span> {cvData.references.length} available on request
+                </p>
+              </section>
+            )}
+          </div>
+
+          {/* Bottom-anchored terminal prompt — pure decoration that absorbs
+              leftover vertical space and reinforces the code-editor theme. */}
+          <div className="mt-auto pt-6">
+            <div className="h-px bg-gray-700 mb-2" />
+            <p className="text-[9px] text-gray-500" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+              <span className="text-green-500">$</span> generated --on={generatedDate}
+            </p>
           </div>
         </div>
 
