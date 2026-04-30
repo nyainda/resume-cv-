@@ -1,6 +1,6 @@
 import { getGroqKey as _rtGroq, getCerebrasKey as _rtCerebras, getGeminiKey as _rtGemini, getClaudeKey as _rtClaude, getOpenRouterKey as _rtOpenRouter, getTogetherKey as _rtTogether } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
-import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
+import { workerTieredLLM, isCVEngineConfigured, rewarmCVEngineModels } from './cvEngineClient';
 import { GoogleGenAI } from '@google/genai';
 
 // ── Active AI engine tracker ──────────────────────────────────────────────────
@@ -850,6 +850,12 @@ export async function groqChat(
             // quota being exhausted, so record it as such.
             _recordProviderResult('Workers AI', 'quota_exhausted', { message: 'Worker returned no text (likely daily neuron quota exhausted)' });
             console.warn('[AI] Cloudflare Workers AI tiered call returned no text — checking for legacy fallback keys.');
+            // Fire-and-forget re-warm: if the empty text was a cold-model
+            // symptom rather than a real quota exhaustion, the next
+            // generation will succeed because the model is now loading.
+            // Quota-exhausted warm-ups are also harmless (they just return
+            // empty themselves and don't burn additional Neurons).
+            void rewarmCVEngineModels();
         } catch (workerErr: any) {
             // workerTieredLLM never throws (returns null), but defend in depth.
             _recordProviderResult('Workers AI', _classifyErrorState(workerErr), workerErr);

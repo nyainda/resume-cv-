@@ -4,11 +4,16 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { restoreLocalStorageFromIDB } from './services/storage/AppDataPersistence';
-import { warmCVEngine } from './services/cvEngineClient';
+import { warmCVEngine, prewarmCVEngineModels } from './services/cvEngineClient';
 import { runWorkerStatusDiagnostic } from './services/workerStatusDiagnostic';
 import { startAutoProbe } from './services/providerHealth';
 
 warmCVEngine();
+// Wake the actual generation models (Llama 4 Scout, GLM 4.7 Flash, Mistral
+// Small 3.1, Hermes-2 Pro) so the first real CV request doesn't hit a cold
+// model and return empty text. Fire-and-forget — silent on failure, costs
+// fractions of a cent per page load. See cvEngineClient.ts for full notes.
+void prewarmCVEngineModels();
 runWorkerStatusDiagnostic();
 // Re-probe any open AI-provider circuits every 3 min so transient outages
 // auto-recover without a page reload.

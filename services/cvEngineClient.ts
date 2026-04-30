@@ -339,6 +339,140 @@ export function warmCVEngine(): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LLM MODEL PRE-WARM — wakes the actual generation models so the first real
+// CV request doesn't pay a cold-start penalty.
+//
+// Cloudflare Workers AI loads model weights per-region on demand. After a
+// model has been idle, the next call can either time out internally or
+// return empty text (this is exactly the "tiered call returned no text"
+// symptom users see when the workers are "on but sleeping").
+//
+// The existing /health probe and the diagnostic LLM probe only touch the
+// FREE Llama 3.1 8B model (`task: 'general'`). The real CV pipeline routes
+// to other models that stay cold. We warm the three currently-healthy ones:
+//   - cvGenerate → @cf/meta/llama-4-scout-17b-16e-instruct (PAID, the workhorse)
+//   - cvFallback → @cf/mistralai/mistral-small-3.1-24b-instruct (FREE, parallel-sections fallback)
+//   - humanize   → @hf/nousresearch/hermes-2-pro-mistral-7b (FREE, audit/cover-letter)
+//
+// NOT WARMED: cvGenerateLong (@cf/zai-org/glm-4.7-flash). Cloudflare's
+// deployment of this model currently returns empty text for every prompt
+// (worker classifies as `llm_empty` → HTTP 502). Warming would just produce
+// noise. The race endpoint and parallel-sections both already fall back to
+// Scout / Mistral when GLM 4.7 fails at runtime, so there is no functional
+// regression. Re-add to PREWARM_TASKS once Cloudflare fixes the upstream.
+//
+// This function fires one tiny prompt against each (maxTokens: 16) so all
+// three models are hot when the user clicks "Generate CV". Total cost per
+// page load ≈ $0.000004 (Scout 17B ~5 input tokens × $0.27/M). All other
+// models are FREE within the daily Neuron allowance.
+//
+// STRICT RULES PRESERVED — every call goes through the public tiered-llm
+// endpoint, which enforces task-to-model mapping, prompt size caps,
+// system prompt caps, token caps, and JSON-format injection server-side.
+// We are not bypassing any worker validation; we're just keeping the
+// models warm.
+//
+// Idempotent — only fires once per page load. Fire-and-forget.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PREWARM_TASKS = ['cvGenerate', 'cvFallback', 'humanize'] as const;
+const PREWARM_TIMEOUT_MS = 15000;
+let prewarmStarted = false;
+let prewarmPromise: Promise<PrewarmResult[]> | null = null;
+
+export interface PrewarmResult {
+    task: string;
+    ok: boolean;
+    ms: number;
+    model?: string;
+    note?: string;
+}
+
+async function prewarmOne(task: string): Promise<PrewarmResult> {
+    const t0 = Date.now();
+    const u = new URL('/api/cv/tiered-llm', ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task,
+                    system: 'You are a warm-up probe. Reply with a single short word.',
+                    // GLM 4.7 Flash returns empty (worker → 502 llm_empty) on
+                    // 1-token prompts like "ok". A short complete-the-sentence
+                    // prompt forces every model to produce at least one token.
+                    prompt: 'Complete with one word: hello, world, ',
+                    temperature: 0,
+                    maxTokens: 16,
+                }),
+            },
+            PREWARM_TIMEOUT_MS,
+        );
+        const ms = Date.now() - t0;
+        if (!r.ok) {
+            return { task, ok: false, ms, note: `HTTP ${r.status}` };
+        }
+        const data = await r.json().catch(() => null) as { text?: string; model?: string; error?: string } | null;
+        const text = (data?.text || '').trim();
+        if (!text) {
+            return { task, ok: false, ms, model: data?.model, note: data?.error || 'empty text (model likely cold-loading or quota exhausted)' };
+        }
+        return { task, ok: true, ms, model: data?.model };
+    } catch (e) {
+        const ms = Date.now() - t0;
+        const msg = e instanceof Error ? e.message : String(e);
+        return { task, ok: false, ms, note: msg.slice(0, 120) };
+    }
+}
+
+/**
+ * Fire tiny warm-up calls against the actual CV-generation models so the
+ * first real generation doesn't hit a cold model. Idempotent — safe to call
+ * multiple times. Returns the same Promise on subsequent calls during the
+ * session (so a manual "wake up" button can `await` the in-flight warm-up).
+ */
+export function prewarmCVEngineModels(): Promise<PrewarmResult[]> {
+    if (!isCVEngineConfigured()) return Promise.resolve([]);
+    if (prewarmStarted && prewarmPromise) return prewarmPromise;
+    prewarmStarted = true;
+    prewarmPromise = Promise.all(PREWARM_TASKS.map(prewarmOne)).then((results) => {
+        const okCount = results.filter((r) => r.ok).length;
+        const slowest = results.reduce((max, r) => (r.ms > max ? r.ms : max), 0);
+        if (typeof console !== 'undefined') {
+            const tag = okCount === results.length ? '✓' : okCount === 0 ? '✗' : '~';
+            const lines = results.map((r) => {
+                const flag = r.ok ? '✓' : '✗';
+                const detail = r.ok ? `${r.ms}ms ${r.model || ''}`.trim() : `${r.ms}ms — ${r.note || 'failed'}`;
+                return `  ${flag} ${r.task.padEnd(15)} ${detail}`;
+            }).join('\n');
+            console.info(`[CV Engine] Pre-warm ${tag} ${okCount}/${results.length} models hot (slowest ${slowest}ms)\n${lines}`);
+        }
+        return results;
+    }).catch((e) => {
+        // Defence in depth — Promise.all of catches above can't reject, but
+        // keep the promise resolution path total so callers never see a throw.
+        if (typeof console !== 'undefined') {
+            console.warn('[CV Engine] Pre-warm orchestration failed:', e);
+        }
+        return [];
+    });
+    return prewarmPromise;
+}
+
+/**
+ * Manually re-fire the warm-up. Use this from a Settings "Wake workers"
+ * button or after detecting a "no text" response so the user can recover
+ * without a full page reload.
+ */
+export function rewarmCVEngineModels(): Promise<PrewarmResult[]> {
+    prewarmStarted = false;
+    prewarmPromise = null;
+    return prewarmCVEngineModels();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Semantic JD ↔ Skills matching (Workers AI embeddings, stateless).
 // Sends keywords + profile text chunks to the worker; worker embeds both
 // with @cf/baai/bge-large-en-v1.5 and returns per-keyword best match + status.
