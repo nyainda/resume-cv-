@@ -1,6 +1,5 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
-import { pdf } from '@react-pdf/renderer';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { auditCvQuality } from '../services/cvNumberFidelity';
@@ -8,7 +7,6 @@ import { getLastAiEngine } from '../services/groqService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCV } from '../services/cvDownloadService';
-import PDFDownloadButton from './PDFDownloadButton';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CVPreview from './CVPreview';
 import TemplateThumbnail from './TemplateThumbnail';
@@ -24,7 +22,6 @@ import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe } from './icons';
 import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
-import { buildReactPDFDocument, REACT_PDF_TEMPLATES } from '../services/reactPdfTemplates';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -680,35 +677,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setJdTier1Keywords(Array.from(new Set(tier1)).slice(0, 15));
   }, []);
 
-  const handleReactPdfDownload = useCallback(async () => {
-    if (!currentCV) return;
-    try {
-      const reactPdfDoc = buildReactPDFDocument(template, currentCV, userProfile.personalInfo, {
-        atsKeywords: jdTier1Keywords,
-      });
-      const blob = await pdf(reactPdfDoc).toBlob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = pdfFileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setAtsDataEmbedded(jdTier1Keywords.length > 0);
-
-      const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
-      const companyName = targetCompany || 'Unknown';
-      onAutoTrack({
-        roleTitle: jobTitle,
-        company: companyName,
-        savedCvName: `Auto-Generated CV (${new Date().toLocaleDateString()})`
-      });
-    } catch {
-      handleDownload();
-    }
-  }, [currentCV, template, userProfile.personalInfo, jdTier1Keywords, pdfFileName, targetJobTitle, targetCompany, onAutoTrack, handleDownload]);
-
   const selectedMode = cvGenerationModes.find(m => m.id === generationMode)!;
   const modeColors = modeColorMap[generationMode];
   const selectedScholarshipFormat = scholarshipFormats.find(f => f.id === scholarshipFormat)!;
@@ -1153,21 +1121,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   )}
                 </Button>
               )}
-              {currentCV && REACT_PDF_TEMPLATES.includes(template as any) ? (
-                <PDFDownloadButton
-                  cvData={currentCV}
-                  personalInfo={userProfile.personalInfo}
-                  template={template}
-                  fileName={pdfFileName}
-                  onFallback={handleReactPdfDownload}
-                  disabled={isEditing}
-                />
-              ) : (
-                <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  {downloadStatus || 'Download PDF'}
-                </Button>
-              )}
+              <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                {downloadStatus || 'Download PDF'}
+              </Button>
               {qualityReport && (
                 <Button
                   variant="secondary"
