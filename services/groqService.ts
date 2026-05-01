@@ -143,7 +143,7 @@ export function hasCerebrasKey(): boolean {
 // Records the most recent outcome of every fallback-chain attempt so the user
 // can see, at a glance, *why* a provider was used or skipped — including which
 // providers got rate-limited or have exhausted their daily quota.
-type ProviderHealthState =
+export type ProviderHealthState =
     | 'never_tried'      // not attempted yet this session
     | 'ok'               // last call returned a usable result
     | 'no_key'           // no API key configured (or runtime store empty)
@@ -156,6 +156,25 @@ interface ProviderHealth {
     lastError?: string;     // truncated reason
     lastAttemptAt?: number; // epoch ms
     attempts: number;
+}
+
+// ── Provider chain live event ─────────────────────────────────────────────────
+// Dispatched on window after every _recordProviderResult() call so UI (e.g.
+// WorkerStatusBanner) can update in real time without polling.
+export const PROVIDER_CHAIN_EVENT = 'procv:provider-chain';
+
+export interface ProviderChainEntry {
+    name: string;
+    state: ProviderHealthState;
+    hasKey: boolean;
+    lastError?: string;
+    attempts: number;
+}
+
+export interface ProviderChainStatus {
+    providers: ProviderChainEntry[];
+    lastEngineUsed: string;
+    timestamp: number;
 }
 
 const PROVIDERS = [
@@ -185,6 +204,37 @@ function _classifyErrorState(err: any): ProviderHealthState {
     return 'failed';
 }
 
+function _buildChainStatus(): ProviderChainStatus {
+    let groqHas = false; try { groqHas = !!getGroqApiKey(); } catch {}
+    const haveKey: Record<ProviderName, boolean> = {
+        'Workers AI':  isCVEngineConfigured(),
+        'Groq':        groqHas,
+        'Cerebras':    !!getCerebrasApiKey(),
+        'OpenRouter':  !!getOpenRouterApiKey(),
+        'Together.ai': !!getTogetherApiKey(),
+        'Claude':      !!getClaudeApiKey(),
+        'Gemini':      !!getGeminiApiKey(),
+    };
+    return {
+        providers: PROVIDERS.map(name => {
+            const h = _providerHealth[name];
+            return {
+                name,
+                state: !haveKey[name] ? 'no_key' : h.state,
+                hasKey: haveKey[name],
+                lastError: h.lastError,
+                attempts: h.attempts,
+            };
+        }),
+        lastEngineUsed: _lastAiEngine,
+        timestamp: Date.now(),
+    };
+}
+
+export function getProviderChainStatus(): ProviderChainStatus {
+    return _buildChainStatus();
+}
+
 function _recordProviderResult(
     name: ProviderName,
     state: ProviderHealthState,
@@ -195,6 +245,13 @@ function _recordProviderResult(
     h.lastAttemptAt = Date.now();
     if (state !== 'no_key' && state !== 'never_tried') h.attempts += 1;
     h.lastError = err?.message ? String(err.message).substring(0, 120) : undefined;
+    if (typeof window !== 'undefined') {
+        try {
+            window.dispatchEvent(new CustomEvent<ProviderChainStatus>(
+                PROVIDER_CHAIN_EVENT, { detail: _buildChainStatus() },
+            ));
+        } catch { /* ignore */ }
+    }
 }
 
 // One-shot warning so the user (and we) can see when an OpenRouter / Together
