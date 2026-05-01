@@ -3,7 +3,8 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { auditCvQuality } from '../services/cvNumberFidelity';
-import { getLastAiEngine } from '../services/groqService';
+import { getLastAiEngine, PROVIDER_TRYING_EVENT } from '../services/groqService';
+import type { ProviderTryingPayload } from '../services/groqService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCV } from '../services/cvDownloadService';
@@ -285,6 +286,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const cvCaptureRef = useRef<HTMLDivElement>(null);
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
 
   // Live, deterministic quality audit. Recomputes only when currentCV changes.
@@ -513,6 +515,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setLoadingMessage('Generating...');
     resetProgress();
   }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress]);
+
+  // Track active AI provider during auto-optimize so the button label can show it.
+  useEffect(() => {
+    if (!isOptimizing) {
+      setOptimizingProvider(null);
+      return;
+    }
+    const onTrying = (e: Event) => {
+      const { label, type } = (e as CustomEvent<ProviderTryingPayload>).detail;
+      setOptimizingProvider(type === 'race' ? `Racing: ${label}` : label);
+    };
+    window.addEventListener(PROVIDER_TRYING_EVENT, onTrying);
+    return () => window.removeEventListener(PROVIDER_TRYING_EVENT, onTrying);
+  }, [isOptimizing]);
 
   // ── One-click score optimizer ────────────────────────────────────────────
   const handleAutoOptimize = useCallback(async () => {
@@ -1349,11 +1365,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 {/* Auto-Optimize footer */}
                 {cvScore.overall < 95 && (
                   <div className="px-5 py-3 border-t border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-900/10 flex items-center justify-between gap-3">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {isOptimizing
-                        ? 'AI is rewriting your CV to fix every issue above…'
-                        : 'Let AI fix every issue above and push your score higher.'}
-                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {isOptimizing
+                          ? 'AI is rewriting your CV to fix every issue above…'
+                          : 'Let AI fix every issue above and push your score higher.'}
+                      </p>
+                      {isOptimizing && optimizingProvider && (
+                        <p className="flex items-center gap-1.5 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+                          {optimizingProvider}
+                        </p>
+                      )}
+                    </div>
                     <button
                       onClick={handleAutoOptimize}
                       disabled={isOptimizing}

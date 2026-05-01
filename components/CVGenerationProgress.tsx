@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Sparkles, RefreshCw } from './icons';
+import { PROVIDER_TRYING_EVENT, PROVIDER_CHAIN_EVENT } from '../services/groqService';
+import type { ProviderTryingPayload, ProviderChainStatus } from '../services/groqService';
 
 export type GenerationStageId =
   | 'profile'
@@ -35,6 +37,13 @@ const TIPS: string[] = [
   'Cover letters reuse the same tone and keywords as your CV.',
 ];
 
+interface ProviderAttempt {
+  label: string;
+  state: 'trying' | 'ok' | 'failed' | 'retry';
+  type: 'single' | 'race' | 'retry';
+  retryAfterSeconds?: number;
+}
+
 interface Props {
   isOpen: boolean;
   currentStage: GenerationStageId | null;
@@ -54,11 +63,15 @@ const CVGenerationProgress: React.FC<Props> = ({
 }) => {
   const [elapsed, setElapsed] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
+  const [providerAttempts, setProviderAttempts] = useState<ProviderAttempt[]>([]);
+  const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
 
   // Reset & start the elapsed-time counter whenever the modal opens.
   useEffect(() => {
     if (!isOpen) return;
     setElapsed(0);
+    setProviderAttempts([]);
+    setRetryCountdown(null);
     const startedAt = Date.now();
     const tick = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 250);
     return () => clearInterval(tick);
@@ -70,6 +83,55 @@ const CVGenerationProgress: React.FC<Props> = ({
     const rotate = setInterval(() => setTipIndex(i => (i + 1) % TIPS.length), 5000);
     return () => clearInterval(rotate);
   }, [isOpen]);
+
+  // Listen to provider "now trying" events.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onTrying = (e: Event) => {
+      const { label, type, retryAfterSeconds } = (e as CustomEvent<ProviderTryingPayload>).detail;
+      setProviderAttempts(prev => {
+        // Mark the previous "trying" entry as failed (it didn't succeed, new one is taking over).
+        const updated = prev.map(p => p.state === 'trying' ? { ...p, state: 'failed' as const } : p);
+        if (type === 'retry') {
+          setRetryCountdown(retryAfterSeconds ?? null);
+          return [...updated, { label, state: 'retry', type, retryAfterSeconds }];
+        }
+        setRetryCountdown(null);
+        return [...updated, { label, state: 'trying', type }];
+      });
+    };
+    window.addEventListener(PROVIDER_TRYING_EVENT, onTrying);
+    return () => window.removeEventListener(PROVIDER_TRYING_EVENT, onTrying);
+  }, [isOpen]);
+
+  // Listen to provider result events to mark the current attempt as ok/failed.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onChain = (e: Event) => {
+      const status = (e as CustomEvent<ProviderChainStatus>).detail;
+      const lastEngine = status.lastEngineUsed;
+      const lastProvider = status.providers.find(p => p.name === lastEngine);
+      if (lastProvider?.state === 'ok') {
+        setRetryCountdown(null);
+        setProviderAttempts(prev =>
+          prev.map(p => p.state === 'trying' ? { ...p, state: 'ok' } : p)
+        );
+      } else {
+        setProviderAttempts(prev =>
+          prev.map(p => p.state === 'trying' ? { ...p, state: 'failed' } : p)
+        );
+      }
+    };
+    window.addEventListener(PROVIDER_CHAIN_EVENT, onChain);
+    return () => window.removeEventListener(PROVIDER_CHAIN_EVENT, onChain);
+  }, [isOpen]);
+
+  // Countdown ticker for retry wait.
+  useEffect(() => {
+    if (retryCountdown === null || retryCountdown <= 0) return;
+    const timer = setTimeout(() => setRetryCountdown(c => (c !== null && c > 0 ? c - 1 : null)), 1000);
+    return () => clearTimeout(timer);
+  }, [retryCountdown]);
 
   // Only show stages that are actually being executed for THIS run.
   const visibleStages = useMemo(
@@ -86,9 +148,6 @@ const CVGenerationProgress: React.FC<Props> = ({
       .filter(s => completedStages.includes(s.id))
       .reduce((sum, s) => sum + s.weight, 0);
     const activeStage = visibleStages.find(s => s.id === currentStage);
-    // Add up to 80 % of the active stage's weight as time elapses inside it.
-    // This is an estimate (we can't peek inside the LLM), but it keeps the bar
-    // alive — typical drafting is ~12 s, so we lerp over ~15 s before holding.
     const activeBump = activeStage
       ? Math.min(0.8, elapsed / 15) * activeStage.weight
       : 0;
@@ -103,6 +162,10 @@ const CVGenerationProgress: React.FC<Props> = ({
     const r = s % 60;
     return `${m}m ${r}s`;
   };
+
+  // Only show the last N provider attempts to keep the panel compact.
+  const visibleAttempts = providerAttempts.slice(-4);
+  const currentAttempt = providerAttempts[providerAttempts.length - 1] ?? null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -180,7 +243,60 @@ const CVGenerationProgress: React.FC<Props> = ({
           })}
         </ul>
 
-        {/* Retry notice (only during rate-limit retry) */}
+        {/* Live AI provider panel */}
+        {visibleAttempts.length > 0 && (
+          <div className="mx-6 mb-3 px-3 py-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1.5">
+              AI Provider
+            </p>
+            <div className="flex flex-col gap-1">
+              {visibleAttempts.map((attempt, i) => {
+                const isLast = i === visibleAttempts.length - 1;
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    {/* State icon */}
+                    <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                      {attempt.state === 'ok' ? (
+                        <span className="text-emerald-500 text-xs">✓</span>
+                      ) : attempt.state === 'failed' ? (
+                        <span className="text-zinc-400 dark:text-zinc-600 text-xs">✕</span>
+                      ) : attempt.state === 'retry' ? (
+                        <span className="text-amber-500 text-xs">↩</span>
+                      ) : (
+                        <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+                      )}
+                    </span>
+                    {/* Label */}
+                    <span
+                      className={[
+                        'text-xs font-medium',
+                        attempt.state === 'ok'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : attempt.state === 'failed'
+                          ? 'text-zinc-400 dark:text-zinc-600 line-through decoration-1'
+                          : attempt.state === 'retry'
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-zinc-800 dark:text-zinc-200',
+                      ].join(' ')}
+                    >
+                      {attempt.type === 'race' && attempt.state === 'trying'
+                        ? `Racing: ${attempt.label}`
+                        : attempt.type === 'retry'
+                        ? `${attempt.label} retry${retryCountdown !== null && isLast ? ` in ${retryCountdown}s` : '…'}`
+                        : attempt.label}
+                    </span>
+                    {/* "trying" suffix */}
+                    {attempt.state === 'trying' && attempt.type !== 'race' && (
+                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500">contacting…</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Retry notice (only during rate-limit retry from CVGenerator level) */}
         {retryNotice && (
           <div className="mx-6 mb-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
             {retryNotice}

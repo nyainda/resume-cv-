@@ -163,6 +163,26 @@ interface ProviderHealth {
 // WorkerStatusBanner) can update in real time without polling.
 export const PROVIDER_CHAIN_EVENT = 'procv:provider-chain';
 
+// ── Provider "now trying" event ───────────────────────────────────────────────
+// Dispatched just BEFORE a provider attempt begins, so the UI can show
+// "Contacting Groq…" or "Racing Cerebras + OpenRouter…" in real time rather
+// than waiting for the post-attempt result event.
+export const PROVIDER_TRYING_EVENT = 'procv:provider-trying';
+export interface ProviderTryingPayload {
+    /** Human-readable label, e.g. "Workers AI" or "Cerebras + OpenRouter" */
+    label: string;
+    /** 'single' = one provider; 'race' = parallel race; 'retry' = short-wait retry */
+    type: 'single' | 'race' | 'retry';
+    /** Seconds until retry fires (only set when type === 'retry') */
+    retryAfterSeconds?: number;
+}
+function _dispatchTrying(payload: ProviderTryingPayload): void {
+    if (typeof window === 'undefined') return;
+    try {
+        window.dispatchEvent(new CustomEvent<ProviderTryingPayload>(PROVIDER_TRYING_EVENT, { detail: payload }));
+    } catch { /* ignore */ }
+}
+
 export interface ProviderChainEntry {
     name: string;
     state: ProviderHealthState;
@@ -931,6 +951,7 @@ export async function groqChat(
     // 8B/Mistral/Hermes models; ~3× cheaper than Groq's paid 70b for Scout 17B.
     if (isCVEngineConfigured()) {
         const workerTask = groqModelToWorkerTask(model);
+        _dispatchTrying({ label: 'Workers AI', type: 'single' });
         try {
             const workerText = await workerTieredLLM(workerTask, userPrompt, {
                 system: systemPrompt,
@@ -963,6 +984,7 @@ export async function groqChat(
     try { groqKey = getGroqApiKey(); } catch { /* no key configured */ }
 
     if (groqKey) {
+        _dispatchTrying({ label: 'Groq', type: 'single' });
         try {
             const groqResult = await retryGroq(() =>
                 openAiCompatChat(GROQ_API_URL, groqKey!, model, systemPrompt, userPrompt, opts, parseGroqError)
@@ -992,7 +1014,9 @@ export async function groqChat(
             const retryAfter: number | undefined = groqErr?.retryAfterSeconds;
             if (retryAfter && retryAfter <= 15 && !isTooLarge) {
                 console.info(`[AI] Groq 429 with ${retryAfter}s retry-after — waiting then retrying Groq first…`);
+                _dispatchTrying({ label: 'Groq', type: 'retry', retryAfterSeconds: retryAfter });
                 await sleep(retryAfter * 1000);
+                _dispatchTrying({ label: 'Groq', type: 'single' });
                 try {
                     const retryResult = await openAiCompatChat(
                         GROQ_API_URL, groqKey!, model, systemPrompt, userPrompt, opts, parseGroqError
@@ -1116,6 +1140,7 @@ async function runFreeProviderChain(
     if (fastEntries.length > 0) {
         const names = fastEntries.map(e => e.name).join(' + ');
         console.info(`[AI] Racing fast free providers in parallel: ${names}`);
+        _dispatchTrying({ label: names, type: fastEntries.length > 1 ? 'race' : 'single' });
 
         // Tag each promise with its provider name so we know who won.
         const taggedPromises = fastEntries.map(({ name, promise }) =>
@@ -1148,6 +1173,7 @@ async function runFreeProviderChain(
         _recordProviderResult('Claude', 'no_key');
     } else {
         console.info('[AI] Trying Claude (200K context)…');
+        _dispatchTrying({ label: 'Claude', type: 'single' });
         try {
             const r = await claudeChat(systemPrompt, userPrompt, opts);
             _lastAiEngine = 'Claude';
@@ -1167,6 +1193,7 @@ async function runFreeProviderChain(
         _recordProviderResult('Gemini', 'no_key');
     } else {
         console.info('[AI] Trying Gemini (1M context, last resort)…');
+        _dispatchTrying({ label: 'Gemini', type: 'single' });
         try {
             const r = await geminiChat(systemPrompt, userPrompt, opts);
             _lastAiEngine = 'Gemini';
