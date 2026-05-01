@@ -949,10 +949,12 @@ async function runHumanizationAudit(cvData: CVData, mustFixLeaks: ReadonlyArray<
         const banned = await getCachedBannedPhrases();
         if (banned && banned.length) {
             const phrases = banned.map(b => b.phrase).filter(p => typeof p === 'string' && p.length > 0);
-            const bulletList = phrases.slice(0, 80);
+            // Cap at 40 (not 80) — keeps the humanizer prompt under Groq's TPM limit
+            // while still covering the most common AI-ism violations.
+            const bulletList = phrases.slice(0, 40);
             liveBannedBullets = bulletList.map(p => `"${p.replace(/"/g, '\\"')}"`).join(', ');
             // Summary check: single-word adjectives only (1 token, no spaces)
-            const summaryList = phrases.filter(p => !p.includes(' ') && p.length <= 18).slice(0, 30);
+            const summaryList = phrases.filter(p => !p.includes(' ') && p.length <= 18).slice(0, 20);
             if (summaryList.length >= 5) {
                 liveBannedSummary = summaryList.map(p => `"${p.replace(/"/g, '\\"')}"`).join(', ');
             }
@@ -970,7 +972,7 @@ async function runHumanizationAudit(cvData: CVData, mustFixLeaks: ReadonlyArray<
         console.log(`[CV Humanizer] Forwarding ${mustFixLeaks.filter(l => ['round_number', 'orphan_metric', 'bullet_band_imbalance'].includes(l.leakType)).length} must-fix leak(s) into audit prompt.`);
     }
 
-    const auditPrompt = `
+    let auditPrompt = `
 You are a senior career writing editor with 20 years of experience. You are reviewing a CV JSON object.
 Your ONLY job is to fix the specific problems listed below. Do not rewrite anything that isn't broken. Do not change dates, company names, job titles, or skills. Return the complete, corrected JSON.
 
@@ -1017,14 +1019,49 @@ If the first bullet is currently an achievement bullet, keep it as bullet #2 and
 If the role already has 6 bullets, remove the weakest achievement bullet to make room for the scope anchor.
 ${mustFixBlock}
 
-Here is the CV JSON to audit and correct:
-${JSON.stringify(cvData, null, 2)}
+Here is the CV section to audit and correct (summary + experience only):
+${JSON.stringify({ summary: cvData.summary, experience: cvData.experience })}
 
-Return ONLY the corrected JSON object, no markdown, no explanation, no code fences.
+Return ONLY a JSON object with exactly two keys: "summary" (string) and "experience" (array). No markdown, no code fences, no other fields.
 `.trim();
 
-    const auditSystem = 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON.';
+    // --- Prompt-size guard ---
+    // Groq llama-3.3-70b-versatile has a 128K token context but the free tier
+    // has a strict Tokens-Per-Minute limit. A large CV + long prompt can push a
+    // single request over the TPM budget, causing a 413.
+    // Approx 4 chars ≈ 1 token. We target <5 000 tokens total input (~20 000 chars).
+    const HUMANIZER_CHAR_LIMIT = 20_000;
+    const promptChars = auditPrompt.length;
+    if (promptChars > HUMANIZER_CHAR_LIMIT) {
+        console.warn(`[CV Humanizer] Prompt ${promptChars.toLocaleString()} chars > ${HUMANIZER_CHAR_LIMIT.toLocaleString()} — truncating CV experience to 3 roles to stay under Groq TPM limit.`);
+        const slimExp = (cvData.experience ?? []).slice(0, 3);
+        const slimJson = JSON.stringify({ summary: cvData.summary, experience: slimExp });
+        auditPrompt = auditPrompt.replace(
+            /Here is the CV section to audit.*$/s,
+            `Here is the CV section to audit and correct (summary + top 3 experience roles only):\n${slimJson}\n\nReturn ONLY a JSON object with exactly two keys: "summary" (string) and "experience" (array). No markdown, no code fences, no other fields.`,
+        );
+    }
+
+    const auditSystem = 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON with keys: summary and experience.';
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    // Helper: merge the auditor's partial response (only summary + experience)
+    // back into the full CV so nothing else is lost.
+    const mergePartial = (raw: string): CVData => {
+        const partial = JSON.parse(stripFences(raw));
+        const merged: CVData = { ...cvData };
+        if (typeof partial.summary === 'string' && partial.summary.trim()) {
+            merged.summary = partial.summary;
+        }
+        if (Array.isArray(partial.experience) && partial.experience.length > 0) {
+            merged.experience = partial.experience;
+        }
+        // If the model returned the whole CV anyway, accept it wholesale.
+        if (partial.skills || partial.education || partial.fullName) {
+            return partial as CVData;
+        }
+        return merged;
+    };
 
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
     // Tiered route: 'cvAudit' → Llama 4 Scout 17B (PAID but cheap, replaces the
@@ -1034,13 +1071,13 @@ Return ONLY the corrected JSON object, no markdown, no explanation, no code fenc
             system: auditSystem,
             temperature: 0.15,
             json: true,
-            maxTokens: 10000,
+            maxTokens: 8000,
         });
         if (cf) {
             try {
-                const parsed = JSON.parse(stripFences(cf));
+                const merged = mergePartial(cf);
                 console.log('[CV Humanizer] Audit pass complete via Cloudflare Workers AI (tiered: cvAudit).');
-                return parsed as CVData;
+                return merged;
             } catch (parseErr) {
                 console.warn('[CV Humanizer] Worker JSON parse failed, falling back to Groq:', parseErr);
             }
@@ -1050,10 +1087,10 @@ Return ONLY the corrected JSON object, no markdown, no explanation, no code fenc
     }
 
     try {
-        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 10000 });
-        const parsed = JSON.parse(stripFences(result));
+        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 8000 });
+        const merged = mergePartial(result);
         console.log('[CV Humanizer] Audit pass complete.');
-        return parsed as CVData;
+        return merged;
     } catch (e) {
         console.error('[CV Humanizer] Audit pass failed, returning original:', e);
         return cvData;

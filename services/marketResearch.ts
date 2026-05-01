@@ -35,10 +35,13 @@ export interface MarketResearchResult {
 type Scenario = 'A' | 'B' | 'C';
 
 // ─── Session-level Gemini quota guard ────────────────────────────────────────
-// If Gemini returns a quota/rate error, pause Gemini calls for 10 minutes so
+// If Gemini returns a quota/rate error, pause Gemini calls for 90 seconds so
 // every subsequent CV generation in the same session uses Groq instead of
 // hammering the already-exhausted free-tier endpoint.
-const GEMINI_BACKOFF_MS = 10 * 60 * 1000; // 10 minutes
+// 90 s matches Gemini's own "retry in 44–60 s" window with a comfortable buffer.
+// The previous 10-minute cooldown caused the humanizer (which runs ~2 min later)
+// to skip Gemini entirely and fall through to a slow last-resort chain.
+const GEMINI_BACKOFF_MS = 90 * 1000; // 90 seconds
 let _geminiQuotaHitAt: number | null = null;
 
 function geminiIsBlocked(): boolean {

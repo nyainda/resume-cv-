@@ -1383,32 +1383,33 @@ function capitaliseFirst(text: string): { text: string; changed: boolean } {
  * Rules:
  *   • Empty / whitespace-only bullets are left alone (they get filtered out
  *     elsewhere).
- *   • Bullets that already end with `.`, `!`, `?`, `…` or an ellipsis `...`
- *     are left alone — we don't want to turn `"What now?"` into `"What now?."`.
- *   • Trailing whitespace, semicolons or commas are normalised to a single
- *     `.` so we don't ship `"…delivery,"` or `"…delivery;"` on a bullet end.
- *   • Multiple trailing periods (`"shipped it.."`) collapse to one.
- *   • Otherwise: append a single `.` so every bullet reads as a complete
- *     sentence in the rendered CV.
+ *   • Trailing terminal punctuation (`.`, `!`, `?`, `,`, `;`) is stripped —
+ *     modern CV bullets do not end with a period. Summaries DO have periods,
+ *     which is why this function is SKIPPED in polishSummary.
+ *   • Mid-sentence periods (e.g. two-sentence narrative bullets) are preserved —
+ *     only the final character is tested and stripped.
  */
+// CV BULLETS should NOT end with a period (modern CV style — no terminal
+// punctuation on bullet points). Summaries DO end with a period, which is
+// why this function is SKIPPED in polishSummary (see that function's comment).
+// This function strips trailing punctuation from bullet text so the CV is
+// consistently formatted without bullet-end periods.
+// Note: mid-sentence periods (e.g. in two-sentence narrative bullets like
+// "Built X. The result was Y.") are NOT affected — only the FINAL character
+// of the bullet is stripped if it is terminal punctuation.
 function ensureTrailingPeriod(text: string): { text: string; changed: boolean } {
     if (!text) return { text: text || '', changed: false };
     const original = text;
     let out = text.replace(/\s+$/g, ''); // trim trailing whitespace
     if (!out) return { text: original, changed: false };
-    // Normalise stray trailing comma / semicolon to a period.
-    out = out.replace(/[,;]+$/g, '.');
-    // Collapse repeated terminal periods to one (preserve real ellipsis "…"
-    // and the three-dot `...` form by checking for those first).
-    if (/\.{2,}$/.test(out) && !/\.\.\.$/.test(out)) {
-        out = out.replace(/\.+$/, '.');
-    }
-    // Already ends with valid terminal punctuation? Done.
-    if (/[.!?…]$/.test(out)) {
-        return { text: out, changed: out !== original };
-    }
-    // Otherwise append a single period.
-    out = out + '.';
+    // Strip any trailing terminal punctuation (period, !, ?, ellipsis, or
+    // stray comma/semicolon) — bullets are meant to be read without them.
+    // Preserve real ellipsis characters ("…" / "...") only if they are the
+    // intended style (not an accidental typo period — difficult to distinguish,
+    // so we leave them; they are rare in CV bullets).
+    out = out.replace(/[.,;!?]+$/, '');
+    // Trim any whitespace that the strip may have exposed.
+    out = out.trimEnd();
     return { text: out, changed: out !== original };
 }
 
