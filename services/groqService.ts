@@ -610,6 +610,7 @@ async function callOpenAiCompatChain(
 ): Promise<string> {
     const CYCLABLE_STATUSES = new Set([404, 402, 429, 408, 500, 502, 503, 504]);
     let lastErr: any = null;
+    let consecutive429 = 0;
     for (let i = 0; i < modelChain.length; i++) {
         const model = modelChain[i];
         try {
@@ -623,6 +624,20 @@ async function callOpenAiCompatChain(
             if (!CYCLABLE_STATUSES.has(status)) {
                 console.warn(`[AI] ${providerLabel} model "${model}" returned hard error ${status ?? 'unknown'} — stopping chain.`);
                 throw err;
+            }
+            // Early exit: 2+ consecutive 429s means a key-wide daily quota is exhausted —
+            // all remaining models share the same limit so retrying them wastes 30s per model.
+            if (status === 429) {
+                consecutive429++;
+                if (consecutive429 >= 2) {
+                    console.warn(`[AI] ${providerLabel} — 2 consecutive 429s detected, key-wide daily quota exhausted. Stopping chain early.`);
+                    const wrapped: any = new Error(`${providerLabel} free-tier daily quota exhausted — stopping early to save time.`);
+                    wrapped.status = 429;
+                    wrapped.isUserFacing = true;
+                    throw wrapped;
+                }
+            } else {
+                consecutive429 = 0;
             }
             console.warn(`[AI] ${providerLabel} model "${model}" returned ${status} — trying next in chain.`);
         }
@@ -970,6 +985,28 @@ export async function groqChat(
             );
             if (!isFallbackCandidate) throw groqErr;
 
+            // ── Short-wait retry on Groq before walking the full chain ────────
+            // If Groq says "wait N seconds" and N ≤ 15, it's faster to pause
+            // and retry the same fast provider than to walk Cerebras → OpenRouter
+            // → Together sequentially (which can take 30+ s per failed provider).
+            const retryAfter: number | undefined = groqErr?.retryAfterSeconds;
+            if (retryAfter && retryAfter <= 15 && !isTooLarge) {
+                console.info(`[AI] Groq 429 with ${retryAfter}s retry-after — waiting then retrying Groq first…`);
+                await sleep(retryAfter * 1000);
+                try {
+                    const retryResult = await openAiCompatChat(
+                        GROQ_API_URL, groqKey!, model, systemPrompt, userPrompt, opts, parseGroqError
+                    );
+                    _lastAiEngine = 'Groq';
+                    _recordProviderResult('Groq', 'ok');
+                    storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, retryResult);
+                    console.info('[AI] Groq short-wait retry succeeded — skipped chain walk.');
+                    return retryResult;
+                } catch {
+                    console.info('[AI] Groq short-wait retry still failed — walking fallback chain.');
+                }
+            }
+
             const reason = (groqErr?.message?.substring(0, 80)) ?? `status ${status ?? 'unknown'}`;
             console.warn(`[AI] Groq failed (${reason}) — walking flat fallback chain`);
             const fallback = await runFreeProviderChain(
@@ -1002,12 +1039,14 @@ export async function groqChat(
 
 /**
  * Flat fallback chain shared by both the "Groq failed" and "no Groq key" paths.
- * Walks Cerebras → OpenRouter → Together.ai → Claude → Gemini in order.
  *
- * For each provider:
- *   - Logs `[AI] Skipping <provider> (no key)` when no key is configured.
- *   - Logs `[AI] Trying <provider>…` before the call.
- *   - Logs `[AI] <provider> failed: <reason>` on error and continues.
+ * Fast free providers (Cerebras, OpenRouter, Together.ai) are raced IN PARALLEL
+ * using Promise.any — the first to succeed wins and the others are abandoned.
+ * This cuts worst-case latency from (sum of all sequential timeouts) to
+ * (the slowest winner's latency), e.g. 90s sequential → ~30s parallel.
+ *
+ * Claude and Gemini are still tried sequentially as large-context last resorts
+ * (they cost real tokens so we avoid speculative parallel calls).
  *
  * Returns the first successful result, or `null` if every configured provider
  * failed (the caller decides what error to surface).
@@ -1020,87 +1059,89 @@ async function runFreeProviderChain(
     effectiveTemp: number,
     options: { skipCerebras: boolean },
 ): Promise<string | null> {
-    // 1. Cerebras (skipped on prompt-too-large since context limits match Groq's)
+
+    // ── Phase 1: Race fast free providers in parallel ──────────────────────
+    // Build a tagged list of providers that have keys and aren't skipped.
+    type FastEntry = { name: string; promise: Promise<string> };
+    const fastEntries: FastEntry[] = [];
+
     if (options.skipCerebras) {
-        console.info('[AI] Skipping Cerebras (prompt too large — needs 200K+ context)');
+        console.info('[AI] Skipping Cerebras + OpenRouter + Together.ai (prompt too large — needs 200K+ context)');
     } else {
         const cerebrasKey = getCerebrasApiKey();
         if (!cerebrasKey) {
             console.info('[AI] Skipping Cerebras (no key)');
             _recordProviderResult('Cerebras', 'no_key');
         } else {
-            console.info('[AI] Trying Cerebras…');
-            try {
-                const r = await callCerebrasWithFallback(
+            fastEntries.push({
+                name: 'Cerebras',
+                promise: callCerebrasWithFallback(
                     cerebrasKey, groqModelToCerebrasChain(model),
                     systemPrompt, userPrompt, opts,
-                );
-                _lastAiEngine = 'Cerebras';
-                _recordProviderResult('Cerebras', 'ok');
-                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
-                return r;
-            } catch (e: any) {
-                _recordProviderResult('Cerebras', _classifyErrorState(e), e);
-                console.warn('[AI] Cerebras failed:', e?.message ?? e);
-            }
+                ),
+            });
         }
-    }
 
-    // 2. OpenRouter (skipped on too-large — most free models have <32K context)
-    if (options.skipCerebras) {
-        console.info('[AI] Skipping OpenRouter (prompt too large — needs 200K+ context)');
-    } else {
         const orKey = getOpenRouterApiKey();
         if (!orKey) {
             console.info('[AI] Skipping OpenRouter (no key)');
             _recordProviderResult('OpenRouter', 'no_key');
         } else {
-            console.info('[AI] Trying OpenRouter (free tier, separate daily quota)…');
-            try {
-                const r = await callOpenAiCompatChain(
+            fastEntries.push({
+                name: 'OpenRouter',
+                promise: callOpenAiCompatChain(
                     'OpenRouter', OPENROUTER_API_URL, orKey,
                     groqModelToOpenRouterChain(model),
                     systemPrompt, userPrompt, opts, parseOpenRouterError,
-                );
-                _lastAiEngine = 'OpenRouter';
-                _recordProviderResult('OpenRouter', 'ok');
-                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
-                return r;
-            } catch (e: any) {
-                _recordProviderResult('OpenRouter', _classifyErrorState(e), e);
-                console.warn('[AI] OpenRouter failed:', e?.message ?? e);
-            }
+                ),
+            });
         }
-    }
 
-    // 3. Together.ai (skipped on too-large — same reason as OpenRouter)
-    if (options.skipCerebras) {
-        console.info('[AI] Skipping Together.ai (prompt too large — needs 200K+ context)');
-    } else {
         const tgKey = getTogetherApiKey();
         if (!tgKey) {
             console.info('[AI] Skipping Together.ai (no key)');
             _recordProviderResult('Together.ai', 'no_key');
         } else {
-            console.info('[AI] Trying Together.ai (free tier, separate daily quota)…');
-            try {
-                const r = await callOpenAiCompatChain(
+            fastEntries.push({
+                name: 'Together.ai',
+                promise: callOpenAiCompatChain(
                     'Together.ai', TOGETHER_API_URL, tgKey,
                     groqModelToTogetherChain(model),
                     systemPrompt, userPrompt, opts, parseTogetherError,
-                );
-                _lastAiEngine = 'Together.ai';
-                _recordProviderResult('Together.ai', 'ok');
-                storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
-                return r;
-            } catch (e: any) {
-                _recordProviderResult('Together.ai', _classifyErrorState(e), e);
-                console.warn('[AI] Together.ai failed:', e?.message ?? e);
-            }
+                ),
+            });
         }
     }
 
-    // 4. Claude (200K context — handles too-large prompts)
+    if (fastEntries.length > 0) {
+        const names = fastEntries.map(e => e.name).join(' + ');
+        console.info(`[AI] Racing fast free providers in parallel: ${names}`);
+
+        // Tag each promise with its provider name so we know who won.
+        const taggedPromises = fastEntries.map(({ name, promise }) =>
+            promise.then((r): [string, string] => [name, r])
+        );
+
+        try {
+            const [winner, result] = await Promise.any(taggedPromises);
+            _lastAiEngine = winner;
+            _recordProviderResult(winner as any, 'ok');
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, result);
+            console.info(`[AI] Parallel race won by: ${winner}`);
+            return result;
+        } catch (aggregateErr: any) {
+            // All fast providers failed — record each failure and continue.
+            const errors: any[] = aggregateErr?.errors ?? [];
+            fastEntries.forEach(({ name }, i) => {
+                const err = errors[i];
+                _recordProviderResult(name as any, _classifyErrorState(err), err);
+                console.warn(`[AI] ${name} failed:`, err?.message ?? err);
+            });
+            console.info('[AI] All fast free providers failed — trying large-context providers.');
+        }
+    }
+
+    // ── Phase 2: Claude (200K context — handles too-large prompts) ─────────
     const clKey = getClaudeApiKey();
     if (!clKey) {
         console.info('[AI] Skipping Claude (no key)');
@@ -1119,7 +1160,7 @@ async function runFreeProviderChain(
         }
     }
 
-    // 5. Gemini (1M context — last resort)
+    // ── Phase 3: Gemini (1M context — last resort) ─────────────────────────
     const gemKey = getGeminiApiKey();
     if (!gemKey) {
         console.info('[AI] Skipping Gemini (no key)');
