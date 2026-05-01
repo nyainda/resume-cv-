@@ -277,6 +277,9 @@ function looksLikeGoodBrief(brief: CVBrief | null): brief is CVBrief {
 
 export async function buildBrief(input: BuildBriefInput): Promise<CVBrief | null> {
     if (!isCVEngineConfigured()) return null;
+    // Skip immediately when the CF worker circuit is open — avoids 2× ~3s
+    // round-trips to a quota-exhausted worker before the caller can fall back.
+    if (isDead('/api/cv/brief')) return null;
 
     const payload: BuildBriefInput = {
         ...input,
@@ -293,20 +296,27 @@ export async function buildBrief(input: BuildBriefInput): Promise<CVBrief | null
                 body: JSON.stringify(payload),
             });
 
-            if ((r.status === 429 || r.status >= 500) && attempt === 0) {
-                await sleep(450);
-                continue;
+            if (r.status >= 500) {
+                // 5xx on either attempt → mark dead immediately and bail.
+                // Retrying a quota-exhausted or overloaded worker just wastes time.
+                markDead('/api/cv/brief', `HTTP ${r.status}`);
+                return null;
             }
             if (!r.ok) return null;
 
             const data = (await r.json()) as CVBrief | { brief?: CVBrief };
             const brief = (data as any)?.brief ?? data;
-            return looksLikeGoodBrief(brief as CVBrief) ? (brief as CVBrief) : null;
-        } catch {
+            if (looksLikeGoodBrief(brief as CVBrief)) {
+                markAlive('/api/cv/brief');
+                return brief as CVBrief;
+            }
+            return null;
+        } catch (e: any) {
             if (attempt === 0) {
                 await sleep(300);
                 continue;
             }
+            markDead('/api/cv/brief', e?.name === 'AbortError' ? 'timeout' : 'network');
             return null;
         }
     }
