@@ -740,6 +740,9 @@ export async function workerParallelSections(
         preamble?: string;
         fallbackTask?: string;
         timeoutMs?: number;
+        /** If the preamble contains {{PROFILE}}, the worker will substitute
+         *  the cached compact profile JSON fetched from D1 by this hash. */
+        profileHash?: string | null;
     } = {},
 ): Promise<WorkerParallelSectionsResult | null> {
     if (!isCVEngineConfigured()) return null;
@@ -748,17 +751,19 @@ export async function workerParallelSections(
     if (isDead(ENDPOINT)) return null;
     const u = new URL(ENDPOINT, ENGINE_URL);
     try {
+        const bodyObj: Record<string, unknown> = {
+            system: opts.system ?? '',
+            preamble: opts.preamble ?? '',
+            fallbackTask: opts.fallbackTask ?? 'cvFallback',
+            sections,
+        };
+        if (opts.profileHash) bodyObj.profile_hash = opts.profileHash;
         const r = await fetchWithTimeout(
             u.toString(),
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    system: opts.system ?? '',
-                    preamble: opts.preamble ?? '',
-                    fallbackTask: opts.fallbackTask ?? 'cvFallback',
-                    sections,
-                }),
+                body: JSON.stringify(bodyObj),
             },
             opts.timeoutMs ?? WORKER_PARALLEL_SECTIONS_DEFAULT_TIMEOUT_MS,
         );

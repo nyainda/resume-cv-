@@ -1696,11 +1696,38 @@ interface ParallelSectionResult {
 async function handleParallelSections(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
 
-    const system   = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
-    const preamble = typeof body?.preamble === 'string' ? body.preamble.slice(0, PARALLEL_SECTIONS_PREAMBLE_MAX) : '';
+    const system      = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    const profileHash = typeof body?.profile_hash === 'string' ? body.profile_hash.trim() : '';
+    const rawPreamble = typeof body?.preamble === 'string' ? body.preamble.slice(0, PARALLEL_SECTIONS_PREAMBLE_MAX) : '';
     const fallbackTask: string = typeof body?.fallbackTask === 'string' && body.fallbackTask.trim()
         ? body.fallbackTask.trim()
         : PARALLEL_SECTIONS_DEFAULT_FALLBACK;
+
+    // If the preamble contains the {{PROFILE}} placeholder and a profile_hash
+    // was provided, resolve the cached compact profile from D1 and substitute.
+    // On any failure we fall through with the placeholder left intact — the LLM
+    // will still produce output, just without the resolved profile text.
+    let preamble = rawPreamble;
+    const PROFILE_PLACEHOLDER = '{{PROFILE}}';
+    if (profileHash && preamble.includes(PROFILE_PLACEHOLDER)) {
+        try {
+            const row = await env.CV_DB.prepare(
+                `SELECT compact_json FROM profile_cache WHERE hash = ?`
+            ).bind(profileHash).first<{ compact_json: string }>();
+
+            if (row?.compact_json) {
+                preamble = preamble.replaceAll(PROFILE_PLACEHOLDER, row.compact_json);
+                // Update usage stats in the background — non-critical.
+                const now = Math.floor(Date.now() / 1000);
+                env.CV_DB.prepare(
+                    `UPDATE profile_cache SET last_used_at = ?, use_count = use_count + 1 WHERE hash = ?`
+                ).bind(now, profileHash).run().catch(() => {});
+            }
+        } catch {
+            // D1 read failure — leave preamble as-is (placeholder won't match
+            // any real profile, but the LLM can still attempt output).
+        }
+    }
 
     const rawSections: any[] = Array.isArray(body?.sections) ? body.sections : [];
     if (rawSections.length === 0) {

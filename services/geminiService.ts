@@ -27,6 +27,7 @@ import {
     storeCVExample,
     buildReferenceBlock,
 } from './cvExamplesClient';
+import { getHashIfCached } from './profileCacheClient';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -2572,7 +2573,23 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         // Strip the full-CVData schema reference from the preamble — each
         // section call has its own narrower schema in its instruction tail.
         const stripCvSchema = (s: string) => s.split(CV_DATA_SCHEMA).join('').trim();
-        const preamble = stripCvSchema(mainPromptInstruction);
+        let preamble = stripCvSchema(mainPromptInstruction);
+
+        // Profile cache optimisation — if the compact profile was previously
+        // uploaded to D1, replace its text with {{PROFILE}} so the worker
+        // fetches it server-side. This shrinks the HTTP request body significantly
+        // and keeps the profile out of the network layer on every generation.
+        // Fully optional: if the lookup fails the full preamble is used as-is.
+        let profileHashForWorker: string | null = null;
+        try {
+            const compactText = compactProfile(profile);
+            const cachedHash = await getHashIfCached(compactText);
+            if (cachedHash && preamble.includes(compactText)) {
+                preamble = preamble.replaceAll(compactText, '{{PROFILE}}');
+                profileHashForWorker = cachedHash;
+                console.info(`[ProfileCache] Using cached profile (hash ${cachedHash.substring(0, 12)}…) — profile text stripped from preamble`);
+            }
+        } catch { /* non-critical */ }
 
         // ⚠ IMPORTANT: Scout 17B silently returns empty responses when the
         // user prompt contains literal JSON example blobs like
@@ -2594,6 +2611,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             preamble,
             fallbackTask: 'cvFallback',
             timeoutMs: 90000,
+            profileHash: profileHashForWorker,
         });
 
         if (psResult) {

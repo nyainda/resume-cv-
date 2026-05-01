@@ -100,3 +100,12 @@ Added in May 2026 to reduce heavy prompt payloads that caused 413 (Prompt Too La
 
 ### Graceful fallback
 All caching operations are fire-and-forget. If the worker is unreachable (circuit open, 502, timeout), the app continues using the current inline-profile approach without any visible error.
+
+### Phase 2 — Profile placeholder in generation requests
+When `workerParallelSections` is called (the main CV generation path), `geminiService.ts` checks if the compact profile text is already cached in D1 using `getHashIfCached()`. If yes:
+1. The compact profile text is replaced with `{{PROFILE}}` in the preamble string
+2. The profile hash is sent alongside: `{ preamble: "...{{PROFILE}}...", profile_hash: "<hex>" }`
+3. The worker's `handleParallelSections` fetches the compact profile from D1 by hash, substitutes `{{PROFILE}}`, and proceeds with the LLM call
+4. Net result: the HTTP request body is much smaller (profile text removed from client→worker transfer)
+
+If no hash is found (profile not yet cached, first generation), the full preamble is sent as before — zero regression. The D1 lookup inside `getHashIfCached` is a pure localStorage scan (no network call), so it adds negligible overhead.

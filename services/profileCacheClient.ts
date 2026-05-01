@@ -118,6 +118,32 @@ export function getProfileCacheHash(slotId: string): string | null {
 }
 
 /**
+ * Given a compact profile JSON string, returns its SHA-256 hash if any profile
+ * slot has already synced that exact content to D1.
+ *
+ * This lets generation code check "is this profile cached?" without needing to
+ * know which slot ID is active — it works by computing the hash and checking
+ * all localStorage keys with the profile cache prefix.
+ *
+ * Returns the hex hash string if cached, null if not yet uploaded.
+ */
+export async function getHashIfCached(compactJson: string): Promise<string | null> {
+    try {
+        const hash = await sha256Hex(compactJson);
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(LS_PREFIX)) {
+                const stored = localStorage.getItem(key);
+                if (stored === hash) return hash;
+            }
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Syncs a profile slot to the D1 profile cache.
  *
  * - Computes the compact profile JSON and its SHA-256 hash.
