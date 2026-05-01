@@ -10,6 +10,7 @@ export default defineConfig(() => {
       hmr: {
         clientPort: 443,
         protocol: 'wss',
+        host: process.env.REPLIT_DEV_DOMAIN || undefined,
       },
       allowedHosts: true,
       // Same-origin proxy to the local Playwright PDF server (port 3001).
