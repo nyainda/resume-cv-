@@ -28,6 +28,10 @@ interface WorkerCheck {
     reachable: boolean | null;
     httpStatus?: number;
     note?: string;
+    /** True when the worker replied HTTP 200 but the LLM produced no tokens.
+     *  This is a cold-start symptom only — the endpoint IS reachable, the
+     *  model is still loading. Must NOT open the circuit breaker. */
+    coldModel?: boolean;
 }
 
 const HEALTH_TIMEOUT_MS = 5000;
@@ -52,7 +56,22 @@ async function checkHealth(url: string): Promise<{ ok: boolean; status: number; 
  * row counts and stays green even when Workers AI is wedged with 502s, so we
  * verify the actual AI binding instead. ~free, runs once per page load.
  */
-async function probeCVEngineLLM(url: string): Promise<{ ok: boolean; status: number; note?: string }> {
+/**
+ * Extended result that distinguishes "HTTP 200 but model returned empty text"
+ * (cold model — transient, NOT a circuit-breaker event) from "HTTP 5xx or no
+ * response" (genuine failure that should open the circuit).
+ */
+interface LLMProbeResult {
+    ok: boolean;
+    status: number;
+    note?: string;
+    /** True only when the worker replied HTTP 200 but the LLM produced no text.
+     *  This is a COLD-START symptom, not a real connectivity failure. The
+     *  circuit-breaker must NOT be opened in this case — the worker IS up. */
+    emptyResponseHttp200?: boolean;
+}
+
+async function probeCVEngineLLM(url: string): Promise<LLMProbeResult> {
     if (!url) return { ok: false, status: 0 };
     try {
         const res = await fetch(`${url.replace(/\/$/, '')}/api/cv/tiered-llm`, {
@@ -80,7 +99,16 @@ async function probeCVEngineLLM(url: string): Promise<{ ok: boolean; status: num
         }
         const text = (data?.text || '').trim();
         if (!text) {
-            return { ok: false, status: res.status, note: 'LLM probe returned empty text — Workers AI binding is reachable but not generating output.' };
+            // HTTP 200 but the LLM returned no tokens — this is a COLD-START symptom,
+            // NOT a connectivity failure. The worker endpoint is reachable; the model
+            // is just still loading weights. Mark emptyResponseHttp200 so the caller
+            // can show a banner warning WITHOUT opening the circuit-breaker.
+            return {
+                ok: false,
+                status: res.status,
+                note: 'LLM probe returned empty text — Workers AI model is cold-loading. Generation will work once the model warms up.',
+                emptyResponseHttp200: true,
+            };
         }
         return { ok: true, status: res.status };
     } catch (err) {
@@ -99,7 +127,7 @@ async function runChecks(): Promise<WorkerCheck[]> {
             : Promise.resolve({ ok: false, status: 0 } as { ok: boolean; status: number; note?: string }),
         enginedConfigured
             ? probeCVEngineLLM(CV_ENGINE_URL)
-            : Promise.resolve({ ok: false, status: 0 } as { ok: boolean; status: number; note?: string }),
+            : Promise.resolve({ ok: false, status: 0 } as LLMProbeResult),
     ]);
 
     return [
@@ -118,6 +146,7 @@ async function runChecks(): Promise<WorkerCheck[]> {
             reachable: enginedConfigured ? engineProbe.ok : null,
             httpStatus: enginedConfigured ? engineProbe.status : undefined,
             note: enginedConfigured ? engineProbe.note : 'VITE_CV_ENGINE_URL is not set in this build.',
+            coldModel: enginedConfigured ? (engineProbe as LLMProbeResult).emptyResponseHttp200 : false,
         },
     ];
 }
@@ -165,7 +194,7 @@ function printReport(checks: WorkerCheck[]): void {
 // importantly the daily Cloudflare Workers AI Neuron-quota exhaustion (error
 // 4006) which makes every CV generation silently fall back until 00:00 UTC.
 
-export type WorkerStatusReason = 'healthy' | 'quota_exhausted' | 'unreachable' | 'misconfigured';
+export type WorkerStatusReason = 'healthy' | 'quota_exhausted' | 'unreachable' | 'misconfigured' | 'cold_model';
 
 export interface WorkerStatusDetail {
     healthy: boolean;
@@ -196,6 +225,18 @@ function summarise(checks: WorkerCheck[]): WorkerStatusDetail {
     }
     if (engine.reachable) {
         return { healthy: true, reason: 'healthy', message: 'AI worker connected.' };
+    }
+    // Cold-start: the worker replied HTTP 200 but the LLM returned empty text.
+    // The endpoint IS reachable — the model is just still loading weights.
+    // This is a transient state; CV generation should be attempted normally
+    // and the worker will serve real output once warm.
+    if (engine.coldModel) {
+        return {
+            healthy: false,
+            reason: 'cold_model',
+            message: 'AI worker is warming up — CV generation will work momentarily. Click "Wake AI models" to speed this up.',
+            rawNote: engine.note,
+        };
     }
     const note = (engine.note || '').toLowerCase();
     const isQuota = note.includes('4006') || note.includes('neuron') || note.includes('daily free allocation');
@@ -229,6 +270,10 @@ function publish(checks: WorkerCheck[]): void {
     } else if (detail.reason === 'quota_exhausted' || detail.reason === 'unreachable') {
         markFailure('cf-worker', detail.rawNote || detail.reason);
     }
+    // 'cold_model' → HTTP 200 but LLM returned no tokens (model is loading).
+    //   The worker IS reachable, so we must NOT open the circuit. We also
+    //   must NOT call markSuccess yet (the LLM isn't ready). The circuit
+    //   stays in whatever state it was in before this probe ran.
     // 'misconfigured' → no env var; nothing to circuit-break.
 
     try {

@@ -414,6 +414,12 @@ async function prewarmOne(task: string): Promise<PrewarmResult> {
         if (!r.ok) {
             return { task, ok: false, ms, note: `HTTP ${r.status}` };
         }
+        // HTTP 200 → the worker endpoint is reachable. Close the circuit
+        // breaker immediately so any parallel calls that were gated behind
+        // isDead('cf-worker') can proceed. We do this BEFORE checking
+        // whether the LLM actually produced text, because an empty body just
+        // means the model is still loading — the WORKER itself is healthy.
+        markAlive('/api/cv/prewarm');
         const data = await r.json().catch(() => null) as { text?: string; model?: string; error?: string } | null;
         const text = (data?.text || '').trim();
         if (!text) {
