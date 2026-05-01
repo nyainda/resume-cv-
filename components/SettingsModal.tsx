@@ -1097,4 +1097,131 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   );
 };
 
+// ── Compare result display panel ─────────────────────────────────────────────
+const verdictColors: Record<string, string> = {
+  pass: 'text-emerald-600 dark:text-emerald-400',
+  warn: 'text-amber-600 dark:text-amber-400',
+  fail: 'text-red-600 dark:text-red-400',
+};
+const verdictBg: Record<string, string> = {
+  pass: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40',
+  warn: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/40',
+  fail: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40',
+};
+const checkIcon = (level: string) =>
+  level === 'pass' ? '✓' : level === 'warn' ? '△' : '✗';
+
+function CompareLegCard({ leg, winnerIs }: { leg: CompareLeg; winnerIs: string | null | undefined }) {
+  const label = leg.provider === 'worker' ? 'Cloudflare Workers AI' : 'Groq';
+  const modelShort = leg.model?.replace('@cf/meta/', '').replace('@cf/mistralai/', '') || '—';
+  const s = leg.score;
+  const isWinner = winnerIs === leg.provider;
+
+  return (
+    <div className={`rounded-md border p-2.5 space-y-1.5 flex-1 min-w-0 ${s ? verdictBg[s.verdict] : 'border-zinc-200 dark:border-neutral-700'}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-1 flex-wrap">
+        <p className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200 truncate">{label}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {isWinner && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold">winner</span>}
+          {s && <span className={`text-[11px] font-bold ${verdictColors[s.verdict]}`}>{s.verdict.toUpperCase()}</span>}
+        </div>
+      </div>
+
+      {/* Status / error */}
+      {leg.skipped && (
+        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 italic">{leg.error}</p>
+      )}
+      {!leg.ok && !leg.skipped && (
+        <p className="text-[10px] text-red-600 dark:text-red-400 font-mono break-all">{leg.error}</p>
+      )}
+
+      {/* Metrics */}
+      {leg.ok && s && (
+        <>
+          <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 space-y-0.5">
+            <p>model: <span className="text-zinc-700 dark:text-zinc-200">{modelShort}</span></p>
+            <p>latency: <span className="text-zinc-700 dark:text-zinc-200">{leg.ms}ms</span></p>
+            <p>bullets: <span className="text-zinc-700 dark:text-zinc-200">{s.bulletCount}</span>  avg {s.avgWords}w</p>
+            <p>verb pool: <span className="text-zinc-700 dark:text-zinc-200">{Math.round(s.poolAdherence * 100)}%</span>  variety: <span className="text-zinc-700 dark:text-zinc-200">{Math.round(s.variety * 100)}%</span></p>
+            <p>rhythm: <span className="text-zinc-700 dark:text-zinc-200">{Math.round(s.rhythmMatch * 100)}%</span> match</p>
+            {s.bannedHits.length > 0 && <p className="text-red-600 dark:text-red-400">banned: {s.bannedHits.join(', ')}</p>}
+            {s.aiismHits.length > 0 && <p className="text-amber-600 dark:text-amber-400">AI-isms: {s.aiismHits.join(', ')}</p>}
+          </div>
+          <div className="space-y-0.5 border-t border-current/10 pt-1">
+            {s.checks.map(c => (
+              <div key={c.label} className={`flex items-start gap-1 text-[10px] ${verdictColors[c.level]}`}>
+                <span className="font-mono shrink-0">{checkIcon(c.level)}</span>
+                <span>{c.label}{c.detail ? ` — ${c.detail}` : ''}</span>
+              </div>
+            ))}
+          </div>
+          {/* Sample bullets (first 2) */}
+          {s.bullets.length > 0 && (
+            <div className="space-y-0.5 border-t border-current/10 pt-1">
+              {s.bullets.slice(0, 2).map((b, i) => (
+                <p key={i} className="text-[10px] text-zinc-600 dark:text-zinc-300 leading-snug line-clamp-2">
+                  {i + 1}. {b}
+                </p>
+              ))}
+              {s.bullets.length > 2 && (
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500">+{s.bullets.length - 2} more…</p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CompareResultPanel({ result }: { result: CompareResult }) {
+  const elapsed = ((result.finishedAt - result.startedAt) / 1000).toFixed(1);
+
+  if (!result.briefOk) {
+    return (
+      <div className="mt-3 border-t border-emerald-100 dark:border-emerald-900/40 pt-2 space-y-1">
+        <p className="text-[11px] text-red-600 dark:text-red-400 font-mono">
+          Brief fetch failed: {result.briefError || 'unknown error'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 border-t border-emerald-100 dark:border-emerald-900/40 pt-2 space-y-2">
+      {/* Meta row */}
+      <div className="flex items-center justify-between flex-wrap gap-x-3 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+        <span>
+          brief: {result.briefSummary?.seniority} / {result.briefSummary?.field} / {result.briefSummary?.voice} / {result.briefSummary?.rhythm}
+          {'  '}verbs: {result.briefSummary?.verbCount}  forbidden: {result.briefSummary?.forbiddenCount}
+        </span>
+        <span>{elapsed}s total</span>
+      </div>
+
+      {/* Winner banner */}
+      {result.winner && (
+        <div className={`rounded px-2.5 py-1 text-[11px] font-semibold text-center ${
+          result.winner === 'tie'
+            ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300'
+            : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+        }`}>
+          {result.winner === 'tie'
+            ? 'Tie — both providers matched on quality'
+            : `${result.winner === 'worker' ? 'Cloudflare Workers AI' : 'Groq'} scored higher`}
+        </div>
+      )}
+      {result.winner === null && result.groq.skipped && (
+        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 italic">Add a Groq key to see a side-by-side winner comparison.</p>
+      )}
+
+      {/* Side-by-side cards */}
+      <div className="flex gap-2 flex-col sm:flex-row">
+        <CompareLegCard leg={result.worker} winnerIs={result.winner} />
+        <CompareLegCard leg={result.groq}   winnerIs={result.winner} />
+      </div>
+    </div>
+  );
+}
+
 export default SettingsModal;
