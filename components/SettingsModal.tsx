@@ -640,6 +640,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               {[
                 '🆓 6 large free models — Nemotron 3 Super 120B, Qwen3 Next 80B, Llama 3.3 70B, GPT-OSS 120B, Hermes 3 405B, Gemma 3 27B',
                 '⚡ 4 fast free models — Nemotron Nano 9B, GPT-OSS 20B, Gemma 3 12B, Llama 3.2 3B',
+                '📐 Up to 262K context window — handles large CVs that exceed Groq\'s 128K limit',
                 '🔄 Auto-cycles to next model on 404/402 (deprecated or paid-only)',
                 '🆘 Fires automatically when the CF Worker is offline or hits its daily neuron limit',
                 '🔒 Encrypted & stored securely in your browser',

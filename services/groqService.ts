@@ -1035,7 +1035,10 @@ export async function groqChat(
             console.warn(`[AI] Groq failed (${reason}) — walking flat fallback chain`);
             const fallback = await runFreeProviderChain(
                 model, systemPrompt, userPrompt, opts, effectiveTemp,
-                { skipCerebras: isTooLarge }, // Cerebras has Groq-class context limits
+                // When prompt is too large for Groq (~128K ctx), also skip Cerebras
+                // and Together.ai (same context limits) but still try OpenRouter —
+                // its top free models (Nemotron 120B, Qwen3 80B) support 262K ctx.
+                { skipCerebras: isTooLarge, skipTogether: isTooLarge },
             );
             if (fallback !== null) return fallback;
             // Nothing in the chain worked; re-throw the original Groq error so the
@@ -1081,7 +1084,7 @@ async function runFreeProviderChain(
     userPrompt: string,
     opts: { temperature?: number; json?: boolean; maxTokens?: number },
     effectiveTemp: number,
-    options: { skipCerebras: boolean },
+    options: { skipCerebras: boolean; skipTogether?: boolean },
 ): Promise<string | null> {
 
     // ── Phase 1: Race fast free providers in parallel ──────────────────────
@@ -1089,8 +1092,10 @@ async function runFreeProviderChain(
     type FastEntry = { name: string; promise: Promise<string> };
     const fastEntries: FastEntry[] = [];
 
+    // Cerebras has ~128K context (same as Groq) — skip when prompt is too large.
     if (options.skipCerebras) {
-        console.info('[AI] Skipping Cerebras + OpenRouter + Together.ai (prompt too large — needs 200K+ context)');
+        console.info('[AI] Skipping Cerebras (prompt too large — needs 200K+ context)');
+        _recordProviderResult('Cerebras', 'no_key');
     } else {
         const cerebrasKey = getCerebrasApiKey();
         if (!cerebrasKey) {
@@ -1105,22 +1110,30 @@ async function runFreeProviderChain(
                 ),
             });
         }
+    }
 
-        const orKey = getOpenRouterApiKey();
-        if (!orKey) {
-            console.info('[AI] Skipping OpenRouter (no key)');
-            _recordProviderResult('OpenRouter', 'no_key');
-        } else {
-            fastEntries.push({
-                name: 'OpenRouter',
-                promise: callOpenAiCompatChain(
-                    'OpenRouter', OPENROUTER_API_URL, orKey,
-                    groqModelToOpenRouterChain(model),
-                    systemPrompt, userPrompt, opts, parseOpenRouterError,
-                ),
-            });
-        }
+    // OpenRouter top free models support up to 262K context — always try if key is set,
+    // even when the prompt was too large for Groq/Cerebras.
+    const orKey = getOpenRouterApiKey();
+    if (!orKey) {
+        console.info('[AI] Skipping OpenRouter (no key)');
+        _recordProviderResult('OpenRouter', 'no_key');
+    } else {
+        fastEntries.push({
+            name: 'OpenRouter',
+            promise: callOpenAiCompatChain(
+                'OpenRouter', OPENROUTER_API_URL, orKey,
+                groqModelToOpenRouterChain(model),
+                systemPrompt, userPrompt, opts, parseOpenRouterError,
+            ),
+        });
+    }
 
+    // Together.ai free models have ~128K context — skip when prompt is too large.
+    if (options.skipTogether) {
+        console.info('[AI] Skipping Together.ai (prompt too large — needs 200K+ context)');
+        _recordProviderResult('Together.ai', 'no_key');
+    } else {
         const tgKey = getTogetherApiKey();
         if (!tgKey) {
             console.info('[AI] Skipping Together.ai (no key)');
