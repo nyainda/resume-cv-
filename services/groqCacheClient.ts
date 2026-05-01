@@ -1,32 +1,27 @@
 /**
- * Postgres-backed Groq response cache.
+ * Cloudflare D1-backed LLM response cache.
  *
  * Identical (model + temperature + system + user) prompts return instantly
- * without burning Groq quota. The browser hits a same-origin Vercel function
- * (`/api/groq-cache`) which talks to the existing telemetry Postgres pool.
+ * without burning any AI provider quota. The browser hits the cv-engine-worker
+ * at `/api/cv/llm-cache` which reads/writes the `llm_cache` D1 table.
  *
  * We only cache when temperature <= 0.5 — creative outputs should vary.
  *
- * Behaviour is "best-effort": any cache failure (network, DB down, etc.) is
- * swallowed silently and the caller falls through to the live Groq call.
+ * Behaviour is "best-effort": any cache failure (network, worker down, etc.)
+ * is swallowed silently and the caller falls through to the live AI call.
  */
 
-const CACHE_ENDPOINT = '/api/groq-cache';
+// IMPORTANT: access import.meta.env.X directly — the (import.meta as any) cast
+// pattern defeats Vite's static replacement at build time.
+const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
+const CACHE_ENDPOINT = ENGINE_URL ? `${ENGINE_URL}/api/cv/llm-cache` : '';
+
 const CACHE_MAX_TEMPERATURE = 0.5;
 const CACHE_MAX_PROMPT_SIZE = 100_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CIRCUIT BREAKER — when the Vercel cache function returns 503 (or fails to
-// respond at all) it's almost always because the route is unhealthy. Each
-// cache lookup costs ~2s of wasted timeout, so we skip them while open.
-//
-// Delegated to the central providerHealth module so:
-//   - The banner sees groq-cache failures alongside cf-worker failures.
-//   - Auto-probe re-opens the circuit (half-open) every 3 min instead of
-//     keeping it dead until full page reload.
-//   - The 'groq-cache' circuit is intentionally separate from 'groq' (the
-//     main API) — the cache function on Vercel can be down while Groq itself
-//     is fine, and vice versa.
+// CIRCUIT BREAKER — when the worker cache route fails, skip it temporarily.
+// Delegated to the central providerHealth module so the banner can display it.
 // ─────────────────────────────────────────────────────────────────────────────
 import { markFailure, markSuccess, isHealthy } from './providerHealth';
 
@@ -35,7 +30,7 @@ let logged = false;
 function openCircuit(reason: string): void {
     if (!logged) {
         logged = true;
-        console.warn(`[Groq Cache] Marking failure (${reason}) — subsequent cache calls will skip until auto-probe recovers.`);
+        console.warn(`[LLM Cache] Marking failure (${reason}) — cache calls will skip until auto-probe recovers.`);
     }
     markFailure('groq-cache', reason);
 }
@@ -65,6 +60,7 @@ async function cacheKey(
 }
 
 function isCacheable(temperature: number, systemPrompt: string, userPrompt: string): boolean {
+    if (!CACHE_ENDPOINT) return false; // no engine configured
     if (!Number.isFinite(temperature) || temperature > CACHE_MAX_TEMPERATURE) return false;
     if ((systemPrompt.length + userPrompt.length) > CACHE_MAX_PROMPT_SIZE) return false;
     return true;
@@ -89,22 +85,17 @@ export async function lookupGroqCache(
             signal: AbortSignal.timeout(2000),
         });
         if (!res.ok) {
-            // 503 / 502 / 504 / 500 → upstream cache function is unhealthy.
-            // Open the circuit so we don't waste 2s on every subsequent call.
             if (res.status >= 500) openCircuit(`HTTP ${res.status}`);
             return null;
         }
-        // Reaching a 2xx (even on a miss) proves the cache route is alive.
         closeCircuit();
         const body = await res.json().catch(() => null);
         if (body && body.hit && typeof body.response === 'string') {
-            console.log(`[Groq Cache] HIT (${model}, hits=${body.hitCount})`);
+            console.log(`[LLM Cache] HIT (${model}, hits=${body.hitCount})`);
             return body.response;
         }
         return null;
     } catch (e: any) {
-        // AbortError (timeout) or network error → cache route is unreachable.
-        // Open the circuit on the first failure.
         openCircuit(e?.name === 'AbortError' ? 'timeout' : 'network');
         return null;
     }
@@ -122,7 +113,7 @@ export function storeGroqCache(
 ): void {
     if (circuitIsOpen()) return;
     if (!isCacheable(temperature, systemPrompt, userPrompt)) return;
-    if (!response || response.length > 500_000) return;
+    if (!response || response.length > 200_000) return;
 
     void (async () => {
         try {
@@ -141,8 +132,6 @@ export function storeGroqCache(
             });
             if (!res.ok && res.status >= 500) openCircuit(`POST HTTP ${res.status}`);
         } catch (e: any) {
-            // Best-effort — but on the first failure open the circuit so we
-            // don't keep wasting 3s on the next dozen writes.
             openCircuit(e?.name === 'AbortError' ? 'POST timeout' : 'POST network');
         }
     })();

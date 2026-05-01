@@ -65,6 +65,9 @@ export default {
             if (url.pathname === '/api/cv/admin/tokens' && request.method === 'POST') return handleTokensCreate(request, env);
             if (url.pathname === '/api/cv/admin/tokens/revoke' && request.method === 'POST') return handleTokensRevoke(request, env);
 
+            if (url.pathname === '/api/cv/llm-cache' && request.method === 'GET')  return handleLLMCacheGet(request, env, url);
+            if (url.pathname === '/api/cv/llm-cache' && request.method === 'POST') return handleLLMCachePost(request, env, ctx);
+
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
@@ -2089,4 +2092,89 @@ async function handleTokensRevoke(request: Request, env: Env): Promise<Response>
         if (r.meta?.changes) revoked += Number(r.meta.changes);
     }
     return json({ ok: true, revoked }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LLM Response Cache  (GET + POST /api/cv/llm-cache)
+// ─────────────────────────────────────────────────────────────────────────────
+// Cache TTL: 30 days from last access.
+// Max response stored: 200 KB (prevent D1 bloat from giant JSON responses).
+// Cleanup: a background DELETE evicts expired rows on every write so the table
+// never grows unboundedly without needing a cron job.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LLM_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+const LLM_CACHE_MAX_RESPONSE_BYTES = 200_000;      // 200 KB
+
+async function handleLLMCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const key = (url.searchParams.get('key') ?? '').trim();
+    if (!key || key.length !== 64) {
+        return json({ hit: false, error: 'invalid_key' }, request, env, 400);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const expireBefore = now - LLM_CACHE_TTL_SECONDS;
+
+    const row = await env.CV_DB.prepare(
+        `SELECT response, hit_count, created_at, last_hit_at
+         FROM llm_cache
+         WHERE cache_key = ?
+           AND COALESCE(last_hit_at, created_at) > ?`
+    ).bind(key, expireBefore).first<{ response: string; hit_count: number; created_at: number; last_hit_at: number | null }>();
+
+    if (!row) {
+        return json({ hit: false }, request, env);
+    }
+
+    // Increment hit counter + refresh last_hit_at in the background — fire-and-forget.
+    void env.CV_DB.prepare(
+        `UPDATE llm_cache SET hit_count = hit_count + 1, last_hit_at = ? WHERE cache_key = ?`
+    ).bind(now, key).run().catch(() => { /* best-effort */ });
+
+    return json({ hit: true, response: row.response, hitCount: row.hit_count + 1 }, request, env);
+}
+
+async function handleLLMCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const key      = typeof body?.key      === 'string' ? body.key.trim()      : '';
+    const model    = typeof body?.model    === 'string' ? body.model.trim()    : '';
+    const response = typeof body?.response === 'string' ? body.response        : '';
+    const temperature = typeof body?.temperature === 'number' ? body.temperature : -1;
+    const promptSize  = typeof body?.promptSize  === 'number' ? body.promptSize  : 0;
+
+    if (!key || key.length !== 64)          return json({ error: 'invalid_key' }, request, env, 400);
+    if (!model)                             return json({ error: 'missing_model' }, request, env, 400);
+    if (temperature < 0 || temperature > 2) return json({ error: 'invalid_temperature' }, request, env, 400);
+    if (!response || response.length > LLM_CACHE_MAX_RESPONSE_BYTES) {
+        return json({ error: 'response_too_large_or_empty' }, request, env, 400);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Upsert — if the same key already exists (hash collision is astronomically
+    // unlikely but possible in theory), just update hit_count so we don't lose data.
+    await env.CV_DB.prepare(
+        `INSERT INTO llm_cache (cache_key, model, temperature, response, prompt_size, hit_count, created_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?)
+         ON CONFLICT(cache_key) DO UPDATE SET
+             hit_count  = hit_count + 1,
+             last_hit_at = excluded.created_at`
+    ).bind(key, model, temperature, response, promptSize, now).run();
+
+    // Background cleanup — evict rows older than TTL (cap to 200 rows per run).
+    const expireBefore = now - LLM_CACHE_TTL_SECONDS;
+    ctx.waitUntil(
+        env.CV_DB.prepare(
+            `DELETE FROM llm_cache
+             WHERE cache_key IN (
+                 SELECT cache_key FROM llm_cache
+                 WHERE COALESCE(last_hit_at, created_at) < ?
+                 LIMIT 200
+             )`
+        ).bind(expireBefore).run().catch(() => { /* best-effort */ })
+    );
+
+    return json({ ok: true, stored: true }, request, env);
 }
