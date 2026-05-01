@@ -748,6 +748,11 @@ async function retryGroq<T>(fn: () => Promise<T>, retries = 2, delay = 1500): Pr
 }
 
 /** Fire a single chat request to a generic OpenAI-compatible endpoint */
+// Max ms to wait for a single OpenAI-compat request (Groq, Cerebras, OpenRouter, Together).
+// OpenRouter free-tier queues can take 30-120 s per request; we cap at 30 s so a slow
+// provider doesn't stall the entire pipeline for minutes.
+const COMPAT_CHAT_TIMEOUT_MS = 30_000;
+
 async function openAiCompatChat(
     url: string,
     apiKey: string,
@@ -768,14 +773,29 @@ async function openAiCompatChat(
     };
     if (opts.json) body.response_format = { type: 'json_object' };
 
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(body),
-    });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), COMPAT_CHAT_TIMEOUT_MS);
+    let res: Response;
+    try {
+        res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+            signal: ctrl.signal,
+        });
+    } catch (fetchErr: any) {
+        clearTimeout(timer);
+        if (fetchErr?.name === 'AbortError') {
+            const err: any = new Error(`Request timed out after ${COMPAT_CHAT_TIMEOUT_MS / 1000}s`);
+            err.status = 408;
+            throw err;
+        }
+        throw fetchErr;
+    }
+    clearTimeout(timer);
     if (!res.ok) {
         const text = await res.text();
         const friendly = errorParser(res.status, text);
@@ -792,7 +812,15 @@ async function openAiCompatChat(
         throw err;
     }
     const data = await res.json();
-    return data.choices?.[0]?.message?.content ?? '';
+    const content = data.choices?.[0]?.message?.content ?? '';
+    if (!content) {
+        // Provider returned HTTP 200 but empty content — treat as a transient
+        // failure so callOpenAiCompatChain can try the next model in the chain.
+        const err: any = new Error(`${errorParser.name || 'Provider'} returned empty content (status 200 but no text).`);
+        err.status = 503;
+        throw err;
+    }
+    return content;
 }
 
 /**

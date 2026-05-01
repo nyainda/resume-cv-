@@ -418,6 +418,10 @@ async function prewarmOne(task: string): Promise<PrewarmResult> {
         );
         const ms = Date.now() - t0;
         if (!r.ok) {
+            // 5xx → quota exhausted or worker down. Open the circuit immediately
+            // so every subsequent workerTieredLLM / buildBrief call skips CF
+            // without making another round-trip.
+            if (r.status >= 500) markDead('/api/cv/tiered-llm', `HTTP ${r.status} (prewarm)`);
             return { task, ok: false, ms, note: `HTTP ${r.status}` };
         }
         // HTTP 200 → the worker endpoint is reachable. Close the circuit
@@ -435,6 +439,9 @@ async function prewarmOne(task: string): Promise<PrewarmResult> {
     } catch (e) {
         const ms = Date.now() - t0;
         const msg = e instanceof Error ? e.message : String(e);
+        // Network failure / timeout → open the circuit so callers don't retry immediately.
+        const reason = (e instanceof Error && e.name === 'AbortError') ? 'timeout (prewarm)' : 'network (prewarm)';
+        markDead('/api/cv/tiered-llm', reason);
         return { task, ok: false, ms, note: msg.slice(0, 120) };
     }
 }
