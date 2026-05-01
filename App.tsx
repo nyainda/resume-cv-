@@ -8,6 +8,7 @@ import * as KeyVault from './services/security/KeyVault';
 import { setRuntimeKeys } from './services/security/RuntimeKeys';
 import { invalidateCVCache } from './services/geminiService';
 import { prewarmFontEmbedCache } from './services/getCVHtml';
+import { syncProfileToCache } from './services/profileCacheClient';
 import { auditCvQuality } from './services/cvNumberFidelity';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
@@ -162,6 +163,16 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     prewarmFontEmbedCache();
   }, []);
+
+  // Boot-time profile cache sync — runs whenever the active slot changes.
+  // Uploads the profile to D1 if it hasn't been synced yet (or has changed
+  // since the last upload). Best-effort; a failure is silent.
+  useEffect(() => {
+    if (!activeSlot) return;
+    const t = setTimeout(() => { syncProfileToCache(activeSlot).catch(() => {}); }, 3000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlot?.id]);
 
   // One-time migration: move any existing global currentCV into the active slot
   useEffect(() => {
@@ -435,6 +446,8 @@ const AppInner: React.FC = () => {
     if (activeSlot) {
       setUserProfile(profile);
       setIsEditingProfile(false);
+      // Sync updated profile to D1 cache in the background (fire-and-forget).
+      syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
     } else {
       // First-time: auto-create a slot
       const id = Date.now().toString();
@@ -448,6 +461,8 @@ const AppInner: React.FC = () => {
       setProfiles([slot]);
       setActiveProfileId(id);
       setIsEditingProfile(false);
+      // Sync new profile to D1 cache in the background (fire-and-forget).
+      syncProfileToCache(slot).catch(() => {});
     }
 
     // Immediately sync profile fields into the current CV so the preview
@@ -686,6 +701,7 @@ const AppInner: React.FC = () => {
     if (activeSlot) {
       setUserProfile(profile);
       toast.success('Profile Imported from Word!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
+      syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
     } else {
       const id = Date.now().toString();
       const slot: UserProfileSlot = {
@@ -698,6 +714,7 @@ const AppInner: React.FC = () => {
       setProfiles([slot]);
       setActiveProfileId(id);
       toast.success('Profile Imported!', 'Your Word CV has been imported. Edit your profile or go to the Generator.');
+      syncProfileToCache(slot).catch(() => {});
     }
   }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId, toast]);
 

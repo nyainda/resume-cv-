@@ -78,5 +78,25 @@ ProCV is built as a React 19, TypeScript, and Vite 6 PWA, styled using Tailwind 
 - **Analytics**:
     - **@vercel/analytics/react**: For tracking page views.
 - **Cloudflare Services (for `cv-engine-worker`)**:
-    - **Cloudflare D1**: SQLite database for deterministic CV engine data.
+    - **Cloudflare D1**: SQLite database for deterministic CV engine data (LLM cache, CV examples, profile cache).
     - **Cloudflare KV**: Key-Value store for hot lookups in the worker.
+
+## Profile Caching (D1)
+
+Added in May 2026 to reduce heavy prompt payloads that caused 413 (Prompt Too Large) errors with Groq.
+
+### How it works
+1. When a user saves or imports a profile, `syncProfileToCache()` (in `services/profileCacheClient.ts`) computes a SHA-256 hash of the compact profile JSON (mirrors `compactProfile()` logic from `geminiService.ts`).
+2. If the hash matches the last stored hash for that slot (in `localStorage`), no network call is made.
+3. Otherwise, the compact JSON is uploaded to `POST /api/cv/profile` on the cv-engine-worker, stored in the `profile_cache` D1 table keyed by hash.
+4. At app boot, a 3-second delayed sync uploads any profile that hasn't been cached yet.
+5. Generation requests can reference `{ slot_id, profile_hash }` instead of re-embedding the full profile in the prompt — the worker fetches it from D1 on demand.
+
+### Key files
+- `cv-engine-worker/migrations/010_profile_cache.sql` — D1 table schema
+- `cv-engine-worker/src/index.ts` — `handleProfileCacheGet` / `handleProfileCachePost` endpoints
+- `services/profileCacheClient.ts` — client service: `syncProfileToCache`, `getProfileCacheHash`, `ensureProfileCached`
+- `App.tsx` — sync triggered in `handleProfileSave`, `handleWordProfileImported`, and boot-time effect
+
+### Graceful fallback
+All caching operations are fire-and-forget. If the worker is unreachable (circuit open, 502, timeout), the app continues using the current inline-profile approach without any visible error.

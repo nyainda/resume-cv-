@@ -71,6 +71,9 @@ export default {
             if (url.pathname === '/api/cv/examples' && request.method === 'GET')  return handleCVExamplesGet(request, env, url);
             if (url.pathname === '/api/cv/examples' && request.method === 'POST') return handleCVExamplesPost(request, env);
 
+            if (url.pathname === '/api/cv/profile' && request.method === 'GET')  return handleProfileCacheGet(request, env, url);
+            if (url.pathname === '/api/cv/profile' && request.method === 'POST') return handleProfileCachePost(request, env, ctx);
+
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
@@ -2274,4 +2277,88 @@ async function handleCVExamplesPost(request: Request, env: Env): Promise<Respons
            summaryWords, skillsCount, experienceJson, now, now).run();
 
     return json({ ok: true }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Profile cache — GET /api/cv/profile?hash=<hex>  or  ?slot_id=<uuid>
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleProfileCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const hash   = url.searchParams.get('hash')    || '';
+    const slotId = url.searchParams.get('slot_id') || '';
+
+    if (!hash && !slotId) {
+        return json({ error: 'missing_param', detail: 'Provide hash or slot_id' }, request, env, 400);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    if (hash) {
+        // Exact lookup by content hash — used during generation.
+        const row = await env.CV_DB.prepare(
+            `SELECT hash, slot_id, slot_name, compact_json, created_at, last_used_at, use_count
+             FROM profile_cache WHERE hash = ?`
+        ).bind(hash).first<{ hash: string; slot_id: string; slot_name: string; compact_json: string; created_at: number; last_used_at: number; use_count: number }>();
+
+        if (!row) return json({ found: false }, request, env, 404);
+
+        // Update last_used_at + use_count in the background.
+        env.CV_DB.prepare(
+            `UPDATE profile_cache SET last_used_at = ?, use_count = use_count + 1 WHERE hash = ?`
+        ).bind(now, hash).run().catch(() => {});
+
+        return json({ found: true, hash: row.hash, slot_id: row.slot_id, slot_name: row.slot_name, compact_json: row.compact_json, use_count: row.use_count + 1 }, request, env);
+    }
+
+    // Lookup by slot_id — returns the most recently stored profile for that slot.
+    const rows = await env.CV_DB.prepare(
+        `SELECT hash, slot_name, compact_json, last_used_at, use_count
+         FROM profile_cache WHERE slot_id = ?
+         ORDER BY last_used_at DESC LIMIT 1`
+    ).bind(slotId).first<{ hash: string; slot_name: string; compact_json: string; last_used_at: number; use_count: number }>();
+
+    if (!rows) return json({ found: false }, request, env, 404);
+
+    return json({ found: true, hash: rows.hash, slot_id: slotId, slot_name: rows.slot_name, compact_json: rows.compact_json, use_count: rows.use_count }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Profile cache — POST /api/cv/profile
+// Body: { hash, slot_id, slot_name, compact_json }
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleProfileCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const hash        = typeof body?.hash        === 'string' ? body.hash.trim()        : '';
+    const slotId      = typeof body?.slot_id     === 'string' ? body.slot_id.trim()     : '';
+    const slotName    = typeof body?.slot_name   === 'string' ? body.slot_name.trim().substring(0, 120) : '';
+    const compactJson = typeof body?.compact_json === 'string' ? body.compact_json       : '';
+
+    if (!hash || hash.length < 16)  return json({ error: 'invalid_hash' }, request, env, 400);
+    if (!slotId)                    return json({ error: 'missing_slot_id' }, request, env, 400);
+    if (!compactJson)               return json({ error: 'missing_compact_json' }, request, env, 400);
+
+    // Reject payloads larger than 64 KB — a compactProfile should never be this large.
+    if (compactJson.length > 65536) return json({ error: 'compact_json_too_large', max: 65536 }, request, env, 413);
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await env.CV_DB.prepare(
+        `INSERT INTO profile_cache (hash, slot_id, slot_name, compact_json, created_at, last_used_at, use_count)
+         VALUES (?, ?, ?, ?, ?, ?, 0)
+         ON CONFLICT(hash) DO UPDATE SET
+             last_used_at = excluded.last_used_at,
+             slot_name    = excluded.slot_name`
+    ).bind(hash, slotId, slotName, compactJson, now, now).run();
+
+    // Expire any stale entries for this slot that are older than 90 days and
+    // have a different hash (i.e. old versions of this profile).
+    const ninetyDaysAgo = now - 90 * 24 * 3600;
+    ctx.waitUntil(
+        env.CV_DB.prepare(
+            `DELETE FROM profile_cache WHERE slot_id = ? AND hash != ? AND last_used_at < ?`
+        ).bind(slotId, hash, ninetyDaysAgo).run().catch(() => {})
+    );
+
+    return json({ ok: true, hash, cached: true }, request, env);
 }
