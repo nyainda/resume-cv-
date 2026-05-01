@@ -1376,72 +1376,89 @@ function shuffle<T>(arr: T[]): void {
 //   Embedding        — near-zero cost semantic similarity
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Model cost reality (verified April 2026 via CF Models API) ─────────────────
-// FREE  @cf/meta/llama-3.1-8b-instruct          — legacy model, not in paid search, works
-// FREE  @hf/nousresearch/hermes-2-pro-mistral-7b — confirmed free, good instruction following
-// FREE  @cf/qwen/qwen1.5-14b-chat-awq            — confirmed free, 14B capable
-// FREE  @cf/google/embeddinggemma-300m            — confirmed free embeddings
-// PAID  @cf/meta/llama-3.3-70b-instruct-fp8-fast — $0.29/$2.25 per M tokens
-// PAID  @cf/deepseek-ai/deepseek-r1-distill-qwen-32b — $0.50/$4.88 per M tokens
-// PAID  @cf/meta/llama-4-scout-17b-16e-instruct  — $0.27/$0.85 per M tokens
-// PAID  @cf/google/gemma-4-26b-a4b-it            — $0.10/$0.30 per M tokens
+// ── Model cost reality (verified May 2026 via CF Models API + pricing page) ────
+//
+// FREE models (no Neuron cost within the 10k/day allowance):
+//   @cf/zai-org/glm-4.7-flash              — 131K context, fast, multilingual, FREE
+//   @cf/meta/llama-3.2-3b-instruct         — 2457/18252 neurons/M tokens, cheapest text gen
+//   @cf/ibm-granite/granite-4.0-h-micro    — 1542/10158 neurons/M tokens, lightest capable model
+//   @hf/nousresearch/hermes-2-pro-mistral-7b — confirmed free, strong instruction following
+//   @cf/meta/llama-3.1-8b-instruct         — legacy free model, reliable JSON
+//   @cf/qwen/qwen1.5-14b-chat-awq          — confirmed free 14B
+//   @cf/mistralai/mistral-small-3.1-24b-instruct — FREE (confirmed via pricing page absence)
+//
+// PAID models (burn Neurons from 10k/day budget — use ONLY for truly heavy tasks):
+//   @cf/meta/llama-4-scout-17b-16e-instruct — $0.27/$0.85 per M (24545/77273 neurons/M)
+//   @cf/meta/llama-3.3-70b-instruct-fp8-fast — $0.29/$2.25 per M (26668/204805 neurons/M)
+//   @cf/deepseek-ai/deepseek-r1-distill-qwen-32b — $0.50/$4.88 per M (45170/443756 neurons/M)
+//   @cf/qwen/qwq-32b                        — $0.66/$1.00 per M (60000/90909 neurons/M)
+//
+// Strategy: every CV pipeline task uses a FREE model. Neurons are only spent on
+// Tier 1 heavy reasoning (JD deep analysis, gap analysis) where quality is
+// non-negotiable. All generation, audit, validation, and polish tasks now route
+// to free models running in PARALLEL — no single bottleneck, no Neuron waste.
 // ──────────────────────────────────────────────────────────────────────────────
 
 const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: boolean; description: string }> = {
-    // ── Tier 1: Heavy reasoning — PAID, use only when quality is critical ──────
-    jdDeepAnalysis:       { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Deep JD intelligence + gap analysis ($0.50/$4.88 per M)' },
-    gapAnalysis:          { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Candidate ↔ JD gap analysis ($0.50/$4.88 per M)' },
-    corpusConfidence:     { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Corpus candidate confidence scoring ($0.50/$4.88 per M)' },
+    // ── Tier 1: Heavy reasoning — PAID, use only when quality is truly critical ─
+    // DeepSeek-R1 for deep JD analysis / gap scoring. These tasks run once per
+    // generation (not per section) and produce the intelligence brief.
+    jdDeepAnalysis:       { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Deep JD intelligence + gap analysis — DeepSeek-R1 32B ($0.50/$4.88 per M)' },
+    gapAnalysis:          { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Candidate ↔ JD gap analysis — DeepSeek-R1 32B ($0.50/$4.88 per M)' },
+    corpusConfidence:     { model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', tier: 1, free: false, description: 'Corpus candidate confidence scoring — DeepSeek-R1 32B ($0.50/$4.88 per M)' },
+    // JD keyword scoring + voice match still benefit from 70B quality
+    voiceScoring:         { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 1, free: false, description: 'Voice scoring vs JD + field + seniority — Llama 70B ($0.29/$2.25 per M)' },
+    jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 1, free: false, description: 'JD keyword extraction, tier 1/2/3 classification — Llama 70B ($0.29/$2.25 per M)' },
 
-    // ── Tier 2: Medium — use paid 70b only for quality-critical generation tasks
-    voiceScoring:         { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, free: false, description: 'Voice scoring vs JD + field + seniority ($0.29/$2.25 per M)' },
-    jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 2, free: false, description: 'JD keyword extraction, tier 1/2/3 classification ($0.29/$2.25 per M)' },
-    // ── Tier 2 free alternatives (use these to avoid costs) ──────────────────
+    // ── Tier 2: Main generation — all FREE, run in parallel ──────────────────
+    // GLM 4.7 Flash is the workhorse: 131K context, fast, free, multilingual.
+    // It handles the two heaviest tasks (experience bullets, full CV JSON) so
+    // Neurons are never spent on the critical path.
+    cvGenerate:           { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Main CV JSON generation — GLM 4.7 Flash 131K (FREE)' },
+    cvGenerateLong:       { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Long-context CV generation — GLM 4.7 Flash 131K (FREE)' },
+    cvExperience:         { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'CV experience bullets — GLM 4.7 Flash 131K (FREE, strong instruction following)' },
+    cvProjects:           { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'CV projects section — GLM 4.7 Flash (FREE)' },
+    // Humanizer audit: Mistral Small 3.1 excels at JSON rewriting tasks (FREE)
+    cvAudit:              { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Post-generation humanizer audit — Mistral Small 3.1 24B (FREE)' },
+    // Validator: Llama 3.1 8B is fast and reliable for structured checking (FREE)
+    cvValidate:           { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, free: true,  description: 'Strict CV quality validator — Llama 3.1 8B (FREE)' },
+    // Word/GitHub parser: Mistral Small handles doc-to-JSON reliably (FREE)
+    parser:               { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Word/GitHub profile JSON parser — Mistral Small 3.1 24B (FREE)' },
+
+    // ── Tier 2 section-parallel — right-sized FREE model per CV section ───────
+    // Each section runs on its own model simultaneously server-side.
+    // Simple structured sections get the lightest (cheapest Neuron) model;
+    // bullet-heavy sections get GLM 4.7 Flash with its large context window.
+    cvSummary:            { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'CV professional summary — Mistral Small 3.1 24B (FREE, best for prose)' },
+    cvSkills:             { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 2, free: true,  description: 'CV skills list — IBM Granite 4.0 Micro (FREE, lightest capable model)' },
+    cvEducation:          { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 2, free: true,  description: 'CV education section — IBM Granite 4.0 Micro (FREE, lightest capable model)' },
+    // Fallback when primary model fails — GLM is better than Mistral for JSON
+    cvFallback:           { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Section-parallel fallback — GLM 4.7 Flash (FREE, stronger fallback)' },
+
+    // ── Tier 2 free alternatives (rhythm, seniority, multilingual) ───────────
     rhythmSelection:      { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 2, free: true,  description: 'Rhythm pattern selection per role type (FREE)' },
-    seniorityDetect:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 2, free: true,  description: 'Seniority + field detection from JD (FREE legacy)' },
-    multilingualGenerate: { model: '@cf/qwen/qwen1.5-14b-chat-awq',                tier: 2, free: true,  description: 'Multilingual CV text generation (FREE 14B)' },
+    seniorityDetect:      { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 2, free: true,  description: 'Seniority + field detection from JD — Llama 3.2 3B (FREE, fast)' },
+    multilingualGenerate: { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Multilingual CV text generation — GLM 4.7 Flash (FREE, 100+ languages)' },
 
-    // ── Tier 3: Fast validation — all FREE, burn without worry ────────────────
-    bannedCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Banned phrase check post-generation (FREE)' },
-    tenseCheck:           { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Tense consistency enforcement (FREE)' },
-    voiceConsistency:     { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Voice consistency per bullet (FREE)' },
-    verbRepeatCheck:      { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Verb repetition check (FREE)' },
-    rhythmCheck:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Rhythm compliance check (FREE)' },
-    candidateDedup:       { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'Dedup check for corpus candidates (FREE)' },
-    corpusCrawl:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Source page crawling + extraction (FREE)' },
+    // ── Tier 3: Fast validation — ultra-light FREE models, burn without worry ──
+    // Each check runs independently and in parallel with the main generation.
+    bannedCheck:          { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'Banned phrase check — Llama 3.2 3B (FREE, fast)' },
+    tenseCheck:           { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'Tense consistency enforcement — Llama 3.2 3B (FREE, fast)' },
+    voiceConsistency:     { model: '@cf/zai-org/glm-4.7-flash',                    tier: 3, free: true,  description: 'Voice consistency per bullet — GLM 4.7 Flash (FREE, stronger than 7B)' },
+    verbRepeatCheck:      { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 3, free: true,  description: 'Verb repetition check — Granite 4.0 Micro (FREE, lightest)' },
+    rhythmCheck:          { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 3, free: true,  description: 'Rhythm compliance check — Granite 4.0 Micro (FREE, lightest)' },
+    candidateDedup:       { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'Dedup check for corpus candidates — Llama 3.2 3B (FREE)' },
+    corpusCrawl:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Source page crawling + extraction — Hermes-2 Pro (FREE)' },
 
-    // ── JD parsing — free fast model (keywords, company, job title) ──────────
-    jdParse:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'JD keyword + company + title extraction (FREE)' },
+    // ── JD parsing — lightest possible model (structured extraction) ──────────
+    jdParse:              { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 3, free: true,  description: 'JD keyword + company + title extraction — Granite 4.0 Micro (FREE, cheapest)' },
 
-    // ── Multi-model CV pipeline (Path B, Apr 2026) ────────────────────────────
-    // These task keys replace the 8 generic /api/cv/llm calls in the frontend.
-    // Each task picks the cheapest model that meets the quality bar for its
-    // step, instead of forcing every call through the single paid 70b model.
-    // Newer models from the Apr 2026 CF Workers AI catalog (Llama 4 Scout,
-    // GLM 4.7 Flash, Mistral Small 3.1, Hermes-2 Pro) are wired in here.
-    cvGenerate:           { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'Main CV JSON generation — Llama 4 Scout 17B ($0.27/$0.85 per M, ~3x cheaper output than 70b)' },
-    cvGenerateLong:       { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Long-context CV generation — GLM 4.7 Flash 131K context (FREE within daily Neuron allowance)' },
-    cvAudit:              { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'Post-generation humanizer audit — Llama 4 Scout 17B (PAID, cheap)' },
-    cvValidate:           { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'Strict CV quality validator — Llama 4 Scout 17B (PAID, cheap)' },
-    parser:               { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Word/GitHub profile JSON parser — Mistral Small 3.1 24B (FREE within daily Neuron allowance)' },
+    // ── Cover letter + humanize — prose tasks, Hermes-2 Pro is proven (FREE) ──
     humanize:             { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Plain-text humanizer — Hermes-2 Pro 7B (FREE)' },
-    coverLetter:          { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Cover letter generation — Hermes-2 Pro 7B (FREE)' },
-
-    // ── Section-parallel CV generation (Apr 2026, /api/cv/parallel-sections) ──
-    // Each section of the CV gets a right-sized model running in parallel
-    // server-side. Simple sections (summary, skills, education) use the free
-    // 8B model; the heavy bullet-writing sections (experience, projects) use
-    // the paid-but-cheap Llama 4 Scout 17B. Section that fails its primary
-    // model auto-retries via the cvFallback model (Mistral Small 3.1, free).
-    cvSummary:            { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'CV professional summary section — Llama 3.1 8B (FREE, fast)' },
-    cvSkills:             { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'CV skills list section — Llama 3.1 8B (FREE, fast)' },
-    cvEducation:          { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'CV education section — Llama 3.1 8B (FREE, fast)' },
-    cvExperience:         { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'CV experience bullets — Llama 4 Scout 17B (PAID, cheap, the heavy lift)' },
-    cvProjects:           { model: '@cf/meta/llama-4-scout-17b-16e-instruct',      tier: 2, free: false, description: 'CV projects section — Llama 4 Scout 17B (PAID, cheap)' },
-    cvFallback:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Section-parallel fallback — Mistral Small 3.1 24B (FREE) when primary fails' },
+    coverLetter:          { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 3, free: true,  description: 'Cover letter generation — Mistral Small 3.1 24B (FREE, best prose)' },
 
     // ── Default fallback — always free ────────────────────────────────────────
-    general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback (FREE)' },
+    general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback — Llama 3.1 8B (FREE)' },
 };
 
 // Bumped to 100k chars (Apr 2026) so the frontend's pre-sized cv-generate

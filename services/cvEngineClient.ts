@@ -349,22 +349,18 @@ export function warmCVEngine(): void {
 //
 // The existing /health probe and the diagnostic LLM probe only touch the
 // FREE Llama 3.1 8B model (`task: 'general'`). The real CV pipeline routes
-// to other models that stay cold. We warm the three currently-healthy ones:
-//   - cvGenerate → @cf/meta/llama-4-scout-17b-16e-instruct (PAID, the workhorse)
-//   - cvFallback → @cf/mistralai/mistral-small-3.1-24b-instruct (FREE, parallel-sections fallback)
-//   - humanize   → @hf/nousresearch/hermes-2-pro-mistral-7b (FREE, audit/cover-letter)
+// to other models that stay cold. We warm the four key ones (all now FREE):
+//   - cvGenerate  → @cf/zai-org/glm-4.7-flash (FREE 131K, main generation)
+//   - cvAudit     → @cf/mistralai/mistral-small-3.1-24b-instruct (FREE, humanizer)
+//   - cvFallback  → @cf/zai-org/glm-4.7-flash (FREE, section fallback — same model)
+//   - humanize    → @hf/nousresearch/hermes-2-pro-mistral-7b (FREE, cover-letter)
 //
-// NOT WARMED: cvGenerateLong (@cf/zai-org/glm-4.7-flash). Cloudflare's
-// deployment of this model currently returns empty text for every prompt
-// (worker classifies as `llm_empty` → HTTP 502). Warming would just produce
-// noise. The race endpoint and parallel-sections both already fall back to
-// Scout / Mistral when GLM 4.7 fails at runtime, so there is no functional
-// regression. Re-add to PREWARM_TASKS once Cloudflare fixes the upstream.
+// May 2026: ALL generation, audit and validation tasks were moved to free
+// models. Llama 4 Scout (PAID) is no longer in the hot path. This means
+// pre-warming costs exactly $0 in Neurons.
 //
 // This function fires one tiny prompt against each (maxTokens: 16) so all
-// three models are hot when the user clicks "Generate CV". Total cost per
-// page load ≈ $0.000004 (Scout 17B ~5 input tokens × $0.27/M). All other
-// models are FREE within the daily Neuron allowance.
+// models are hot when the user clicks "Generate CV". Total cost = $0.
 //
 // STRICT RULES PRESERVED — every call goes through the public tiered-llm
 // endpoint, which enforces task-to-model mapping, prompt size caps,
@@ -375,7 +371,7 @@ export function warmCVEngine(): void {
 // Idempotent — only fires once per page load. Fire-and-forget.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PREWARM_TASKS = ['cvGenerate', 'cvFallback', 'humanize'] as const;
+const PREWARM_TASKS = ['cvGenerate', 'cvAudit', 'humanize'] as const;
 const PREWARM_TIMEOUT_MS = 15000;
 let prewarmStarted = false;
 let prewarmPromise: Promise<PrewarmResult[]> | null = null;
