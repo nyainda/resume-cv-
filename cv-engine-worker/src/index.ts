@@ -68,6 +68,9 @@ export default {
             if (url.pathname === '/api/cv/llm-cache' && request.method === 'GET')  return handleLLMCacheGet(request, env, url);
             if (url.pathname === '/api/cv/llm-cache' && request.method === 'POST') return handleLLMCachePost(request, env, ctx);
 
+            if (url.pathname === '/api/cv/examples' && request.method === 'GET')  return handleCVExamplesGet(request, env, url);
+            if (url.pathname === '/api/cv/examples' && request.method === 'POST') return handleCVExamplesPost(request, env);
+
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
@@ -2177,4 +2180,98 @@ async function handleLLMCachePost(request: Request, env: Env, ctx: ExecutionCont
     );
 
     return json({ ok: true, stored: true }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CV Structural Examples  (GET + POST /api/cv/examples)
+// ─────────────────────────────────────────────────────────────────────────────
+// Stores compact "structural blueprints" of high-quality generated CVs.
+// The fingerprint is SHA-256(normalised_role:seniority:purpose:mode) — never
+// user-specific. The stored data encodes bullet-rhythm patterns (word counts
+// per bullet, per role) and section sizes so the LLM can mirror proven
+// structure without seeing any personal content.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const fingerprint = (url.searchParams.get('fingerprint') ?? '').trim();
+    if (!fingerprint || fingerprint.length !== 64) {
+        return json({ example: null, error: 'invalid_fingerprint' }, request, env, 400);
+    }
+
+    const row = await env.CV_DB.prepare(
+        `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
+                summary_words, skills_count, experience_structure, created_at, updated_at
+         FROM cv_examples
+         WHERE fingerprint = ?`
+    ).bind(fingerprint).first<{
+        fingerprint: string;
+        primary_title: string;
+        seniority: string;
+        generation_mode: string;
+        purpose: string;
+        summary_words: number;
+        skills_count: number;
+        experience_structure: string;
+        created_at: number;
+        updated_at: number;
+    }>();
+
+    if (!row) return json({ example: null }, request, env);
+
+    let experienceStructure: number[][] = [];
+    try { experienceStructure = JSON.parse(row.experience_structure); } catch { /* ignore */ }
+
+    return json({
+        example: {
+            fingerprint: row.fingerprint,
+            primaryTitle: row.primary_title,
+            seniority: row.seniority,
+            generationMode: row.generation_mode,
+            purpose: row.purpose,
+            summaryWords: row.summary_words,
+            skillsCount: row.skills_count,
+            experienceStructure,
+            updatedAt: row.updated_at,
+        },
+    }, request, env);
+}
+
+async function handleCVExamplesPost(request: Request, env: Env): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const fingerprint      = typeof body?.fingerprint      === 'string' ? body.fingerprint.trim() : '';
+    const primaryTitle     = typeof body?.primaryTitle     === 'string' ? body.primaryTitle.trim().substring(0, 120) : '';
+    const seniority        = typeof body?.seniority        === 'string' ? body.seniority.trim()   : 'mid';
+    const generationMode   = typeof body?.generationMode   === 'string' ? body.generationMode.trim() : 'honest';
+    const purpose          = typeof body?.purpose          === 'string' ? body.purpose.trim()     : 'job';
+    const summaryWords     = typeof body?.summaryWords     === 'number' ? Math.round(body.summaryWords) : 0;
+    const skillsCount      = typeof body?.skillsCount      === 'number' ? Math.round(body.skillsCount)  : 0;
+    const experienceStructure: number[][] = Array.isArray(body?.experienceStructure) ? body.experienceStructure : [];
+
+    if (!fingerprint || fingerprint.length !== 64) return json({ error: 'invalid_fingerprint' }, request, env, 400);
+    if (!primaryTitle) return json({ error: 'missing_primary_title' }, request, env, 400);
+
+    const experienceJson = JSON.stringify(
+        experienceStructure.map(role =>
+            Array.isArray(role) ? role.map(n => (typeof n === 'number' ? Math.round(n) : 0)).slice(0, 20) : []
+        ).slice(0, 10)
+    );
+
+    const now = Math.floor(Date.now() / 1000);
+    await env.CV_DB.prepare(
+        `INSERT INTO cv_examples
+             (fingerprint, primary_title, seniority, generation_mode, purpose,
+              summary_words, skills_count, experience_structure, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(fingerprint) DO UPDATE SET
+             primary_title        = excluded.primary_title,
+             summary_words        = excluded.summary_words,
+             skills_count         = excluded.skills_count,
+             experience_structure = excluded.experience_structure,
+             updated_at           = excluded.updated_at`
+    ).bind(fingerprint, primaryTitle, seniority, generationMode, purpose,
+           summaryWords, skillsCount, experienceJson, now, now).run();
+
+    return json({ ok: true }, request, env);
 }

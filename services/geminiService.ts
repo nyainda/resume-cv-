@@ -21,6 +21,12 @@ import {
     stripFirstPersonPronouns as _stripFirstPersonPronouns,
     normalizePresentTenseToImperative as _normalizePresentTenseToImperative,
 } from './cvVoiceFidelity';
+import {
+    computeExampleFingerprint,
+    fetchCVExample,
+    storeCVExample,
+    buildReferenceBlock,
+} from './cvExamplesClient';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -2077,6 +2083,14 @@ export const generateCV = async (
         return sum + (sy ? Math.max(0, ey - sy) : 0);
     }, 0);
     const primaryTitle = profile.workExperience?.[0]?.jobTitle || '';
+    const seniority = totalYears < 3 ? 'junior' : totalYears < 7 ? 'mid' : totalYears < 12 ? 'senior' : 'exec';
+
+    // Start reference-example lookup in the background (parallel with brief + keywords).
+    // A fingerprint miss returns null quickly; a hit adds ~150 tokens that guide structure.
+    const cvExamplePromise: Promise<{ fingerprint: string; example: Awaited<ReturnType<typeof fetchCVExample>> }> =
+        computeExampleFingerprint(primaryTitle, totalYears, purpose, generationMode)
+            .then(async fp => ({ fingerprint: fp, example: await fetchCVExample(fp) }))
+            .catch(() => ({ fingerprint: '', example: null }));
 
     // Run keyword extraction and CV-engine brief in parallel — both are best-effort.
     let keywordInstruction = '';
@@ -2519,6 +2533,17 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
 `;
     }
 
+    // ── Structural reference injection (parallel lookup resolves here) ──────────
+    // cvExamplePromise ran in parallel with buildBrief, so typically 0 added latency.
+    // On a hit: prepend a ~150-token structural blueprint so the LLM mirrors a proven
+    // bullet-rhythm pattern rather than inventing from scratch.
+    const { fingerprint: exampleFingerprint, example: cvExample } = await cvExamplePromise;
+    if (cvExample) {
+        const referenceBlock = buildReferenceBlock(cvExample);
+        mainPromptInstruction = `${referenceBlock}\n\n${mainPromptInstruction}`;
+        console.log(`[CV Examples] Structural reference injected (${cvExample.seniority} ${cvExample.primaryTitle}, ${cvExample.experienceStructure.length} roles)`);
+    }
+
     const temperature = purpose === 'academic' ? 0.5 :
         generationMode === 'honest' ? 0.5 :
             generationMode === 'boosted' ? 0.65 : 0.75;
@@ -2803,6 +2828,21 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             engineBrief: null,
             finalize: { profile },
         });
+    }
+
+    // ── Store structural example in D1 (fire-and-forget, best-effort) ──────────
+    // Only store for job/general purpose with full pipeline — not academic or
+    // scholarship variants, which have unusual structural requirements.
+    if (exampleFingerprint && (purpose === 'job' || purpose === 'general')) {
+        storeCVExample(
+            exampleFingerprint,
+            primaryTitle,
+            seniority,
+            generationMode,
+            purpose,
+            cvData,
+        );
+        console.log(`[CV Examples] Stored structural blueprint (fingerprint=${exampleFingerprint.substring(0, 8)}…)`);
     }
 
     // ── Store result in cache ──
