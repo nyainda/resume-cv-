@@ -1696,6 +1696,202 @@ export function detectWordOverusePerRole(cv: CVData): Array<{
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 4f. WORD-OVERUSE AUTO-FIX — deterministic synonym substitution.
+//     When a word appears 3+ times within a single role's bullets AND is in
+//     WORD_SYNONYM_MAP, occurrences 2+ are replaced with cycling synonyms.
+//     The first occurrence is always kept so the reader can anchor the term.
+//     Case-preserving. Pure / zero AI calls. Runs after tense enforcement so
+//     we only see correctly-tensed surface forms.
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The most frequently overused content words in AI-generated CVs,
+ * mapped to ordered synonym alternatives that cycle when needed.
+ * Only nouns, adjectives and selected mid-bullet verbs are listed —
+ * leading action verbs are handled by the verb-pool enforcement pass.
+ */
+const WORD_SYNONYM_MAP: Record<string, string[]> = {
+    // ── Nouns: tech / infrastructure ────────────────────────────────────────
+    'storage':        ['repository', 'archive', 'data store'],
+    'storages':       ['repositories', 'archives', 'data stores'],
+    'system':         ['platform', 'infrastructure', 'framework'],
+    'systems':        ['platforms', 'frameworks', 'environments'],
+    'process':        ['workflow', 'methodology', 'pipeline'],
+    'processes':      ['workflows', 'pipelines', 'procedures'],
+    'solution':       ['approach', 'tool', 'method'],
+    'solutions':      ['approaches', 'tools', 'methods'],
+    'platform':       ['environment', 'infrastructure', 'system'],
+    'platforms':      ['environments', 'systems', 'stacks'],
+    'database':       ['repository', 'data store', 'datastore'],
+    'databases':      ['repositories', 'data stores', 'datastores'],
+    'application':    ['system', 'tool', 'programme'],
+    'applications':   ['systems', 'tools', 'programmes'],
+    'pipeline':       ['workflow', 'chain', 'process'],
+    'pipelines':      ['workflows', 'chains', 'processes'],
+    'framework':      ['structure', 'approach', 'methodology'],
+    'frameworks':     ['structures', 'approaches', 'methodologies'],
+    'component':      ['module', 'element', 'unit'],
+    'components':     ['modules', 'elements', 'units'],
+    'interface':      ['integration', 'connector', 'endpoint'],
+    'interfaces':     ['integrations', 'connectors', 'endpoints'],
+    'integration':    ['connector', 'linkage', 'bridge'],
+    'integrations':   ['connectors', 'connections', 'links'],
+    'environment':    ['infrastructure', 'setup', 'platform'],
+    'environments':   ['setups', 'platforms', 'systems'],
+    'function':       ['capability', 'feature', 'operation'],
+    'functions':      ['capabilities', 'features', 'operations'],
+    'feature':        ['capability', 'component', 'module'],
+    'features':       ['capabilities', 'components', 'modules'],
+    'structure':      ['architecture', 'design', 'layout'],
+    'structures':     ['architectures', 'designs', 'layouts'],
+    'service':        ['offering', 'capability', 'facility'],
+    'services':       ['offerings', 'capabilities', 'facilities'],
+    'tool':           ['solution', 'utility', 'instrument'],
+    'tools':          ['solutions', 'utilities', 'instruments'],
+    // ── Nouns: business / project ───────────────────────────────────────────
+    'project':        ['initiative', 'programme', 'effort'],
+    'projects':       ['initiatives', 'programmes', 'efforts'],
+    'requirement':    ['specification', 'objective', 'criterion'],
+    'requirements':   ['specifications', 'objectives', 'criteria'],
+    'stakeholder':    ['partner', 'client', 'collaborator'],
+    'stakeholders':   ['partners', 'clients', 'collaborators'],
+    'issue':          ['challenge', 'defect', 'concern'],
+    'issues':         ['challenges', 'defects', 'concerns'],
+    'change':         ['transformation', 'enhancement', 'modification'],
+    'changes':        ['transformations', 'enhancements', 'modifications'],
+    'report':         ['analysis', 'summary', 'review'],
+    'reports':        ['analyses', 'summaries', 'reviews'],
+    'strategy':       ['approach', 'plan', 'roadmap'],
+    'strategies':     ['approaches', 'plans', 'roadmaps'],
+    'initiative':     ['programme', 'project', 'effort'],
+    'initiatives':    ['programmes', 'projects', 'efforts'],
+    'objective':      ['goal', 'target', 'priority'],
+    'objectives':     ['goals', 'targets', 'priorities'],
+    'challenge':      ['problem', 'constraint', 'obstacle'],
+    'challenges':     ['problems', 'constraints', 'obstacles'],
+    'resource':       ['asset', 'capability', 'input'],
+    'resources':      ['assets', 'capabilities', 'inputs'],
+    'workflow':       ['process', 'pipeline', 'procedure'],
+    'workflows':      ['processes', 'pipelines', 'procedures'],
+    'output':         ['deliverable', 'result', 'artefact'],
+    'outputs':        ['deliverables', 'results', 'artefacts'],
+    'metric':         ['measure', 'indicator', 'benchmark'],
+    'metrics':        ['measures', 'indicators', 'benchmarks'],
+    'insight':        ['finding', 'recommendation', 'observation'],
+    'insights':       ['findings', 'recommendations', 'observations'],
+    'standard':       ['guideline', 'convention', 'benchmark'],
+    'standards':      ['guidelines', 'conventions', 'benchmarks'],
+    'analysis':       ['assessment', 'evaluation', 'review'],
+    'opportunity':    ['prospect', 'avenue', 'opening'],
+    'opportunities':  ['prospects', 'avenues', 'openings'],
+    // ── Mid-bullet verbs (gerund / past tense forms only, not leading verbs) ─
+    'ensure':         ['verify', 'confirm', 'maintain'],
+    'ensuring':       ['verifying', 'confirming', 'maintaining'],
+    'ensured':        ['verified', 'confirmed', 'maintained'],
+    'improve':        ['enhance', 'optimise', 'strengthen'],
+    'improving':      ['enhancing', 'optimising', 'strengthening'],
+    'improved':       ['enhanced', 'optimised', 'strengthened'],
+    'implement':      ['deploy', 'introduce', 'execute'],
+    'implementing':   ['deploying', 'introducing', 'executing'],
+    'implemented':    ['deployed', 'introduced', 'executed'],
+    'develop':        ['build', 'create', 'design'],
+    'developing':     ['building', 'creating', 'designing'],
+    'developed':      ['built', 'created', 'designed'],
+    'manage':         ['oversee', 'direct', 'coordinate'],
+    'managing':       ['overseeing', 'directing', 'coordinating'],
+    'managed':        ['oversaw', 'directed', 'coordinated'],
+    'provide':        ['deliver', 'supply', 'offer'],
+    'providing':      ['delivering', 'supplying', 'offering'],
+    'provided':       ['delivered', 'supplied', 'offered'],
+    'support':        ['assist', 'enable', 'facilitate'],
+    'supporting':     ['assisting', 'enabling', 'facilitating'],
+    'supported':      ['assisted', 'enabled', 'facilitated'],
+    // ── Adjectives ──────────────────────────────────────────────────────────
+    'critical':       ['essential', 'vital', 'core'],
+    'effective':      ['efficient', 'impactful', 'productive'],
+    'efficient':      ['streamlined', 'optimised', 'effective'],
+    'robust':         ['resilient', 'reliable', 'scalable'],
+    'comprehensive':  ['extensive', 'thorough', 'complete'],
+    'significant':    ['substantial', 'notable', 'considerable'],
+    'various':        ['multiple', 'diverse', 'numerous'],
+    'complex':        ['sophisticated', 'intricate', 'advanced'],
+    'existing':       ['current', 'established', 'legacy'],
+    'multiple':       ['several', 'various', 'numerous'],
+};
+
+/**
+ * Deterministic synonym substitution for per-role word overuse.
+ * When a word in WORD_SYNONYM_MAP appears 3+ times within a role's bullets,
+ * the 2nd and subsequent occurrences are replaced with cycling synonyms.
+ * The first occurrence in the role is always preserved.
+ *
+ * Returns the fixed CV plus a human-readable description of each role fixed.
+ */
+export function fixWordOverusePerRole(cv: CVData): { cv: CVData; fixes: string[] } {
+    const fixes: string[] = [];
+    if (!cv || !cv.experience) return { cv, fixes };
+
+    const fixedExperience = (cv.experience || []).map((role) => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 2) return role;
+
+        // Count exact lowercase surface forms across all bullets in this role.
+        const tokenCounts = new Map<string, number>();
+        for (const b of bullets) {
+            const tokens = (b || '')
+                .toLowerCase()
+                .replace(/[^\w\s]/g, ' ')
+                .split(/\s+/)
+                .filter(w => w.length >= 4);
+            for (const tok of tokens) {
+                tokenCounts.set(tok, (tokenCounts.get(tok) || 0) + 1);
+            }
+        }
+
+        // Build the substitution table: tokens that appear ≥3 times AND have synonyms.
+        const targets = new Map<string, { synonyms: string[]; seen: number }>();
+        for (const [tok, count] of tokenCounts.entries()) {
+            if (count < 3) continue;
+            const syns = WORD_SYNONYM_MAP[tok];
+            if (!syns || syns.length === 0) continue;
+            targets.set(tok, { synonyms: syns, seen: 0 });
+        }
+
+        if (targets.size === 0) return role;
+
+        const roleLabel = `${role.jobTitle || '?'} @ ${role.company || '?'}`;
+        let bulletsFixed = 0;
+
+        const newBullets = bullets.map((bullet) => {
+            let out = bullet;
+            for (const [tok, state] of targets.entries()) {
+                const re = new RegExp(`\\b${escapeRegexLiteral(tok)}\\b`, 'gi');
+                out = out.replace(re, (match) => {
+                    state.seen++;
+                    if (state.seen === 1) return match; // always keep the first occurrence
+                    const syn = state.synonyms[(state.seen - 2) % state.synonyms.length];
+                    return matchCase(match, syn);
+                });
+            }
+            if (out !== bullet) bulletsFixed++;
+            return out;
+        });
+
+        if (bulletsFixed > 0) {
+            const detail = [...targets.entries()]
+                .filter(([, s]) => s.seen >= 2)
+                .map(([tok]) => `"${tok}" ×${tokenCounts.get(tok)}`)
+                .join(', ');
+            fixes.push(`[${roleLabel}] ${bulletsFixed} bullet(s): ${detail}`);
+        }
+
+        return { ...role, responsibilities: newBullets };
+    });
+
+    return { cv: { ...cv, experience: fixedExperience }, fixes };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // 4e. SUMMARY → BULLET PHRASE LEAK — catches 2-4 word phrases from the
 //     summary that are recycled verbatim into experience bullets. This is a
 //     classic AI tic (e.g. "client-focused design" and "technical analysis"
@@ -1790,7 +1986,7 @@ export interface PurifyLeak {
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
-        | 'polish' | 'canonicalise' | 'dedupe' | 'none';
+        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'none';
     contextSnippet?: string;
     /** AI provider whose output produced this leak — set by the caller after
      *  purifyCV returns. Lets telemetry attribute leaks to a specific engine. */
@@ -1906,6 +2102,22 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 fieldLocation: c.split(']')[0].replace('[', '') || 'experience',
                 fixedBy: 'tense_flip',
                 contextSnippet: c.slice(0, 300),
+            });
+        }
+    }
+
+    // Step 2.5 — WORD-OVERUSE AUTO-FIX (deterministic synonym substitution).
+    // Runs after tense enforcement (so we see the correct surface forms) and
+    // before the polish pass (so any minor whitespace effects are tidied up).
+    const overusePass = fixWordOverusePerRole(working);
+    working = overusePass.cv;
+    if (overusePass.fixes.length > 0) {
+        console.warn(`[Purify] Word-overuse auto-fix: ${overusePass.fixes.length} role(s) — ${overusePass.fixes.join(' | ')}`);
+        for (const fix of overusePass.fixes) {
+            leaks.push({
+                leakType: 'word_overuse_per_role',
+                phrase: fix,
+                fixedBy: 'synonym_sub',
             });
         }
     }

@@ -88,7 +88,7 @@ export interface LeakRecord {
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
-        | 'polish' | 'canonicalise' | 'dedupe' | 'none';
+        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'none';
     contextSnippet?: string;
     /** AI provider (e.g. 'Workers AI', 'Groq', 'Cerebras') whose output
      *  produced this leak. Lets the leaks-summary endpoint break down
