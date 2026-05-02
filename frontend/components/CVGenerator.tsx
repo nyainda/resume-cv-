@@ -250,6 +250,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [progressDone, setProgressDone] = useState<GenerationStageId[]>([]);
   const [progressActiveIds, setProgressActiveIds] = useState<GenerationStageId[]>([]);
   const [progressRetryNotice, setProgressRetryNotice] = useState<string | null>(null);
+  // Post-generation ATS re-score — computed instantly after each generation to
+  // show how many gap terms the AI successfully incorporated vs how many remain.
+  const [postGenGapResult, setPostGenGapResult] = useState<{
+    before: number; closed: number; after: number;
+  } | null>(null);
   const advanceStage = useCallback((next: GenerationStageId, message: string) => {
     setProgressStage(prev => {
       if (prev && prev !== next) {
@@ -425,6 +430,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setAtsDataEmbedded(false);
     setCvScore(null);
     setPurifyLeaks([]);
+    setPostGenGapResult(null);
 
     // Compute which stages are actually relevant for THIS run so the modal
     // only shows steps that will execute (no greyed-out "Scoring" when there
@@ -545,6 +551,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       setCurrentCV(generatedData);
       setLastEngine(getLastAiEngine());
       setJustGenerated(true);
+      // Instant zero-cost re-score: compare the newly generated CV against the
+      // same JD to measure how many of the pinned gap terms were incorporated.
+      if (_gapKeywords && _gapKeywords.length > 0 && jobDescription.trim()) {
+        const afterCount = Math.min(
+          scoreAtsCoverage(generatedData, jobDescription).missing.length,
+          _gapKeywords.length,
+        );
+        setPostGenGapResult({
+          before: _gapKeywords.length,
+          closed: Math.max(0, _gapKeywords.length - afterCount),
+          after:  afterCount,
+        });
+      }
     }
 
     // Phase 3 — Auto-score against JD (job mode only, silent fail)
@@ -1170,14 +1189,44 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             ) : <><Sparkles className="h-5 w-5 mr-2" />Generate CV with AI</>}
           </Button>
 
-          {/* Gap-targeting badge — shown when JD + existing CV give us confirmed missing keywords */}
-          {previewGapCount > 0 && !isLoading && (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                 title="These ATS keywords appear in the JD but are missing from your current CV. The AI will specifically incorporate them in the next generation.">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-              🎯 {previewGapCount} gap term{previewGapCount === 1 ? '' : 's'} will be targeted
-            </div>
-          )}
+          {/* Gap badge — two states:
+               1. Pre-generation: "N gap terms will be targeted" (emerald, pre-run hint)
+               2. Post-generation: delta showing how many were closed vs remaining */}
+          {!isLoading && (() => {
+            if (postGenGapResult) {
+              const { before, closed, after } = postGenGapResult;
+              const allClosed  = after === 0;
+              const mostClosed = closed >= Math.ceil(before / 2);
+              const colorCls   = allClosed  ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                               : mostClosed ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                               :              'bg-amber-50  dark:bg-amber-900/20  text-amber-700  dark:text-amber-300  border-amber-200  dark:border-amber-800';
+              const dotCls     = allClosed || mostClosed ? 'bg-emerald-500' : 'bg-amber-500';
+              const icon       = allClosed ? '✅' : mostClosed ? '✅' : '⚠️';
+              const label      = allClosed
+                ? `All ${before} gap term${before === 1 ? '' : 's'} incorporated`
+                : `${closed}/${before} gap term${before === 1 ? '' : 's'} incorporated${after > 0 ? ` · ${after} still open` : ''}`;
+              const tip = allClosed
+                ? 'Every targeted ATS keyword now appears in your CV.'
+                : `${closed} of the ${before} targeted keywords were incorporated. ${after} remain — try generating again to close more gaps.`;
+              return (
+                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${colorCls}`}
+                     title={tip}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${dotCls} flex-shrink-0`} />
+                  {icon} {label}
+                </div>
+              );
+            }
+            if (previewGapCount > 0) {
+              return (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                     title="These ATS keywords appear in the JD but are missing from your current CV. The AI will specifically incorporate them in the next generation.">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  🎯 {previewGapCount} gap term{previewGapCount === 1 ? '' : 's'} will be targeted
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {/* AI engine badge — shown after successful generation */}
           {lastEngine && !isLoading && (() => {
