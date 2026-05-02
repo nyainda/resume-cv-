@@ -147,6 +147,82 @@ export function extractJdKeywords(jd: string): string[] {
     return final;
 }
 
+// ── Bullet candidate finder ───────────────────────────────────────────────────
+
+export interface BulletCandidate {
+    /** The raw bullet text. */
+    text: string;
+    /**
+     * `where` path in the format that `applyFixToCv` / `parseAuditPath` expect:
+     * `experience[N] jobTitle @ company#M`
+     */
+    where: string;
+    /** Human-readable location label for the UI. */
+    label: string;
+}
+
+/**
+ * Finds the single most relevant bullet in the CV to insert a given keyword.
+ *
+ * Scoring (pure, deterministic):
+ *  +3 per token of the keyword found as a whole word in the bullet
+ *  +1 if the bullet already contains a number (it's quantified — a strong bullet)
+ *  -1 if the bullet is very short (<30 chars) — not enough room to expand
+ *  Tie-break: prefer bullets that are already longer (more context to weave into)
+ *
+ * Returns null when no experience bullets exist.
+ */
+export function findBestBulletForKeyword(
+    cv: CVData,
+    keyword: string,
+): BulletCandidate | null {
+    const kwTokens = keyword.toLowerCase().split(/\s+/).filter(Boolean);
+
+    let best: BulletCandidate | null = null;
+    let bestScore = -Infinity;
+
+    const roles = cv.experience ?? [];
+    for (let ri = 0; ri < roles.length; ri++) {
+        const role = roles[ri];
+        const bullets = role.responsibilities ?? [];
+        for (let bi = 0; bi < bullets.length; bi++) {
+            const text = String(bullets[bi] ?? '').trim();
+            if (!text) continue;
+
+            const tl = text.toLowerCase();
+            let score = 0;
+
+            // Token overlap with keyword
+            for (const tok of kwTokens) {
+                const rx = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+                if (rx.test(tl)) score += 3;
+            }
+
+            // Prefer quantified bullets (already strong)
+            if (/\d/.test(text)) score += 1;
+
+            // Penalise very short bullets
+            if (text.length < 30) score -= 1;
+
+            // Prefer longer bullets as tie-break
+            score += text.length * 0.001;
+
+            if (score > bestScore) {
+                bestScore = score;
+                const jobTitle = role.jobTitle ?? '';
+                const company = role.company ?? '';
+                best = {
+                    text,
+                    where: `experience[${ri}] ${jobTitle} @ ${company}#${bi}`,
+                    label: jobTitle ? `${jobTitle}${company ? ` @ ${company}` : ''}` : `Role ${ri + 1}`,
+                };
+            }
+        }
+    }
+
+    return best;
+}
+
 // ── CV text flattening ────────────────────────────────────────────────────────
 
 /** Concatenates all searchable CV text into one string for keyword scanning. */

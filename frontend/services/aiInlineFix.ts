@@ -196,6 +196,54 @@ function _sanitizeAiOutput(raw: string, fallback: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// insertKeywordIntoBullet — ATS keyword suggestion rewrite
+// ─────────────────────────────────────────────────────────────────────────────
+
+const KEYWORD_INSERT_SYSTEM = `You are a precise CV editor helping a job-seeker
+pass ATS screening. You will receive ONE existing CV bullet and ONE keyword that
+is missing from their CV but required by the job description.
+
+YOUR JOB:
+1. Rewrite the bullet so it naturally incorporates the keyword.
+2. The keyword must appear in the rewritten bullet verbatim (case-insensitive).
+3. Make the smallest coherent edit — preserve the original achievement, all
+   numbers, all dates, all company names, and all technologies already present.
+4. Keep the same strong past-tense active verb that opens the bullet.
+5. Do NOT invent new metrics, percentages, or facts not in the original.
+6. Do NOT add a preamble, explanation, or quotation marks.
+7. Return ONLY the rewritten bullet as plain text.`.trim();
+
+/**
+ * Rewrites a single CV bullet to naturally include a missing ATS keyword.
+ * Uses the fast model — this is a targeted, low-stakes edit.
+ */
+export async function insertKeywordIntoBullet(
+    bulletText: string,
+    keyword: string,
+): Promise<string> {
+    const cleanBullet = String(bulletText ?? '').trim();
+    if (!cleanBullet) return cleanBullet;
+
+    const userPrompt = [
+        `MISSING KEYWORD: ${keyword}`,
+        '',
+        'EXISTING BULLET:',
+        cleanBullet,
+        '',
+        `Rewrite the bullet to naturally include "${keyword}". Return only the rewritten bullet.`,
+    ].join('\n');
+
+    const raw = await groqChat(
+        'llama-3.1-8b-instant',
+        KEYWORD_INSERT_SYSTEM,
+        userPrompt,
+        { temperature: 0.15, maxTokens: 320 },
+    );
+
+    return _sanitizeAiOutput(raw, cleanBullet);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // applyFixToCv — write the corrected text back into a cloned CV object
 // ─────────────────────────────────────────────────────────────────────────────
 

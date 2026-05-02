@@ -22,8 +22,12 @@ import { CVData } from '../types';
 import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import {
     fixCvIssueWithAi, applyFixToCv, getOriginalTextAt, ISSUE_KIND_INSTRUCTIONS,
+    insertKeywordIntoBullet,
 } from '../services/aiInlineFix';
-import { scoreAtsCoverage, type AtsKeywordReport } from '../services/cvAtsKeywords';
+import {
+    scoreAtsCoverage, findBestBulletForKeyword,
+    type AtsKeywordReport, type BulletCandidate,
+} from '../services/cvAtsKeywords';
 
 interface Props {
     open: boolean;
@@ -137,6 +141,42 @@ export default function QualityIssuesPanel({
         () => (jd.trim() ? scoreAtsCoverage(cv, jd) : null),
         [cv, jd],
     );
+
+    // ── ATS keyword suggestion state ──────────────────────────────────────────
+    type KwStatus = 'idle' | 'loading' | 'done' | 'applied' | 'error';
+    type KwState = { status: KwStatus; rewritten?: string; error?: string };
+    const [expandedKw, setExpandedKw] = useState<string | null>(null);
+    const [kwCandidate, setKwCandidate] = useState<BulletCandidate | null>(null);
+    const [kwStates, setKwStates] = useState<Record<string, KwState>>({});
+
+    const handleKwExpand = useCallback((kw: string) => {
+        if (expandedKw === kw) { setExpandedKw(null); return; }
+        const candidate = findBestBulletForKeyword(cv, kw);
+        setKwCandidate(candidate);
+        setExpandedKw(kw);
+        setKwStates(s => ({ ...s, [kw]: { status: 'idle' } }));
+    }, [cv, expandedKw]);
+
+    const handleKwRewrite = useCallback(async (kw: string) => {
+        if (!kwCandidate) return;
+        setKwStates(s => ({ ...s, [kw]: { status: 'loading' } }));
+        try {
+            const rewritten = await insertKeywordIntoBullet(kwCandidate.text, kw);
+            setKwStates(s => ({ ...s, [kw]: { status: 'done', rewritten } }));
+        } catch (e: any) {
+            const msg = e?.isUserFacing ? e.message : 'AI rewrite failed — every provider was unavailable.';
+            setKwStates(s => ({ ...s, [kw]: { status: 'error', error: msg } }));
+        }
+    }, [kwCandidate]);
+
+    const handleKwApply = useCallback((kw: string) => {
+        const state = kwStates[kw];
+        if (!kwCandidate || state?.status !== 'done' || !state.rewritten) return;
+        const newCv = applyFixToCv(cv, kwCandidate.where, state.rewritten);
+        onApplyFix(newCv);
+        setKwStates(s => ({ ...s, [kw]: { status: 'applied' } }));
+        setExpandedKw(null);
+    }, [cv, kwCandidate, kwStates, onApplyFix]);
 
     // Stable per-issue key so React doesn't re-shuffle rows when fixes land.
     const issueKey = useCallback(
@@ -323,18 +363,117 @@ export default function QualityIssuesPanel({
                             {atsReport.missing.length > 0 && (
                                 <div className="mb-2">
                                     <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1.5">
-                                        Missing from CV — add to bullets or skills ({atsReport.missing.length}):
+                                        Missing from CV — click a keyword to get a smart suggestion ({atsReport.missing.length}):
                                     </p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {atsReport.missing.map(kw => (
-                                            <span
-                                                key={kw}
-                                                className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/60"
-                                            >
-                                                {kw}
-                                            </span>
-                                        ))}
+                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                        {atsReport.missing.map(kw => {
+                                            const st = kwStates[kw];
+                                            const isApplied = st?.status === 'applied';
+                                            const isExpanded = expandedKw === kw;
+                                            return (
+                                                <button
+                                                    key={kw}
+                                                    onClick={() => !isApplied && handleKwExpand(kw)}
+                                                    disabled={isApplied}
+                                                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                                                        isApplied
+                                                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/60 cursor-default'
+                                                            : isExpanded
+                                                            ? 'bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-200 border-amber-400 dark:border-amber-600'
+                                                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700/60 hover:bg-amber-200 dark:hover:bg-amber-800/40'
+                                                    }`}
+                                                >
+                                                    {isApplied ? `✓ ${kw}` : `+ ${kw}`}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
+
+                                    {/* Expanded suggestion card for the selected keyword */}
+                                    {expandedKw && atsReport.missing.includes(expandedKw) && (() => {
+                                        const kw = expandedKw;
+                                        const st = kwStates[kw] ?? { status: 'idle' };
+                                        return (
+                                            <div className="mt-2 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50/80 dark:bg-amber-900/15 p-3 text-[11px]">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="font-semibold text-amber-800 dark:text-amber-300">
+                                                        Smart suggestion for "{kw}"
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setExpandedKw(null)}
+                                                        className="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+
+                                                {!kwCandidate ? (
+                                                    <p className="text-amber-700/80 dark:text-amber-400/70 italic">
+                                                        No experience bullets found — add this skill to your Skills section manually.
+                                                    </p>
+                                                ) : (
+                                                    <>
+                                                        <p className="text-[10px] uppercase tracking-wide text-amber-600/70 dark:text-amber-500/70 mb-1">
+                                                            Best matching bullet · {kwCandidate.label}
+                                                        </p>
+                                                        <p className="text-amber-800/90 dark:text-amber-200/80 bg-white/60 dark:bg-black/20 rounded px-2 py-1.5 mb-2 leading-relaxed">
+                                                            {kwCandidate.text}
+                                                        </p>
+
+                                                        {st.status === 'idle' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleKwRewrite(kw)}
+                                                                className="text-[11px] h-7 px-3 border-amber-400 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                                                            >
+                                                                <Sparkles className="h-3 w-3 mr-1" />
+                                                                Rewrite with AI to include "{kw}"
+                                                            </Button>
+                                                        )}
+                                                        {st.status === 'loading' && (
+                                                            <p className="text-amber-700/70 dark:text-amber-400/70 flex items-center gap-1.5">
+                                                                <RefreshCw className="h-3 w-3 animate-spin" />
+                                                                Rewriting…
+                                                            </p>
+                                                        )}
+                                                        {st.status === 'error' && (
+                                                            <p className="text-rose-600 dark:text-rose-400">{st.error}</p>
+                                                        )}
+                                                        {st.status === 'done' && st.rewritten && (
+                                                            <>
+                                                                <p className="text-[10px] uppercase tracking-wide text-emerald-600/70 dark:text-emerald-500/70 mb-1">
+                                                                    Suggested rewrite
+                                                                </p>
+                                                                <p className="text-emerald-800/90 dark:text-emerald-200/80 bg-emerald-50/80 dark:bg-emerald-900/20 rounded px-2 py-1.5 mb-2 leading-relaxed border border-emerald-200 dark:border-emerald-700/40">
+                                                                    {st.rewritten}
+                                                                </p>
+                                                                <div className="flex gap-2">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        onClick={() => handleKwApply(kw)}
+                                                                        className="text-[11px] h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                    >
+                                                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                                                        Apply to CV
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        onClick={() => handleKwRewrite(kw)}
+                                                                        className="text-[11px] h-7 px-3"
+                                                                    >
+                                                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                                                        Retry
+                                                                    </Button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                             {atsReport.matched.length > 0 && (
