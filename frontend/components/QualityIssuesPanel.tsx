@@ -23,6 +23,7 @@ import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import {
     fixCvIssueWithAi, applyFixToCv, getOriginalTextAt, ISSUE_KIND_INSTRUCTIONS,
 } from '../services/aiInlineFix';
+import { scoreAtsCoverage, type AtsKeywordReport } from '../services/cvAtsKeywords';
 
 interface Props {
     open: boolean;
@@ -30,6 +31,8 @@ interface Props {
     cv: CVData;
     report: CvQualityReport;
     purifyLeaks?: PurifyLeak[];
+    /** Job description text — when provided, ATS keyword coverage is shown. */
+    jd?: string;
     onApplyFix: (newCv: CVData) => void;
     onDownloadJson: () => void;
 }
@@ -121,7 +124,7 @@ interface RowState {
 }
 
 export default function QualityIssuesPanel({
-    open, onClose, cv, report, purifyLeaks = [], onApplyFix, onDownloadJson,
+    open, onClose, cv, report, purifyLeaks = [], jd = '', onApplyFix, onDownloadJson,
 }: Props) {
     const [rowState, setRowState] = useState<Record<string, RowState>>({});
     const [bulkFixing, setBulkFixing] = useState(false);
@@ -129,6 +132,11 @@ export default function QualityIssuesPanel({
     const synonymFixes = useMemo(() =>
         purifyLeaks.filter(l => l.fixedBy === 'synonym_sub'),
     [purifyLeaks]);
+
+    const atsReport = useMemo(
+        () => (jd.trim() ? scoreAtsCoverage(cv, jd) : null),
+        [cv, jd],
+    );
 
     // Stable per-issue key so React doesn't re-shuffle rows when fixes land.
     const issueKey = useCallback(
@@ -279,6 +287,76 @@ export default function QualityIssuesPanel({
 
                 {/* Issue list */}
                 <div className="flex-1 overflow-y-auto p-5">
+                    {/* ATS keyword coverage — shown only when a JD is pasted */}
+                    {atsReport && (
+                        <div className="mb-5 rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-900/10 px-4 py-3">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                    ATS keyword match
+                                </span>
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                    atsReport.score >= 80
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                        : atsReport.score >= 60
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                                }`}>
+                                    {atsReport.matched.length}/{atsReport.keywords.length} keywords ({atsReport.score}%)
+                                </span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-blue-200/60 dark:bg-blue-800/40 overflow-hidden mb-1.5">
+                                <div
+                                    className={`h-full rounded-full transition-all ${
+                                        atsReport.score >= 80 ? 'bg-emerald-500' :
+                                        atsReport.score >= 60 ? 'bg-amber-400' : 'bg-rose-400'
+                                    }`}
+                                    style={{ width: `${Math.max(2, atsReport.score)}%` }}
+                                />
+                            </div>
+                            <p className="text-[11px] text-blue-600/80 dark:text-blue-400/70 mb-3">
+                                {atsReport.score >= 80
+                                    ? 'Strong match — your CV reflects the JD well. ATS should parse this successfully.'
+                                    : atsReport.score >= 60
+                                    ? 'Moderate match — adding the missing keywords below to bullets or skills will improve ATS ranking.'
+                                    : 'Weak match — ATS may filter this CV before a recruiter sees it. Add the missing keywords where truthful.'}
+                            </p>
+                            {atsReport.missing.length > 0 && (
+                                <div className="mb-2">
+                                    <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1.5">
+                                        Missing from CV — add to bullets or skills ({atsReport.missing.length}):
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {atsReport.missing.map(kw => (
+                                            <span
+                                                key={kw}
+                                                className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/60"
+                                            >
+                                                {kw}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {atsReport.matched.length > 0 && (
+                                <div>
+                                    <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1.5">
+                                        Found in CV ({atsReport.matched.length}):
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {atsReport.matched.map(kw => (
+                                            <span
+                                                key={kw}
+                                                className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/60"
+                                            >
+                                                {kw}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Achievement density bar — always shown when there are bullets */}
                     <AchievementDensityBar density={report.achievementDensity} />
 

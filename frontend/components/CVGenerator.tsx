@@ -19,6 +19,7 @@ import ShareCVModal from './ShareCVModal';
 import AIImprovementPanel from './AIImprovementPanel';
 import GitHubSyncModal from './GitHubSyncModal';
 import QualityIssuesPanel from './QualityIssuesPanel';
+import { scoreAtsCoverage } from '../services/cvAtsKeywords';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
@@ -308,6 +309,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const handleDownloadQualityReport = useCallback(() => {
     if (!currentCV || !qualityReport) return;
     const synonymFixes = purifyLeaks.filter(l => l.fixedBy === 'synonym_sub');
+    const atsReport = jobDescription.trim() ? scoreAtsCoverage(currentCV, jobDescription) : null;
     const payload = {
       auditedAt: new Date().toISOString(),
       cvSnapshot: {
@@ -317,6 +319,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         projectCount: currentCV.projects?.length ?? 0,
       },
       report: qualityReport,
+      atsKeywordCoverage: atsReport
+        ? {
+            score: atsReport.score,
+            matched: atsReport.matched,
+            missing: atsReport.missing,
+            totalKeywords: atsReport.keywords.length,
+          }
+        : null,
       pipelineAutoFixes: {
         synonymSubstitutions: synonymFixes.length,
         detail: synonymFixes.map(l => ({
@@ -328,6 +338,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       legend: {
         score: '0-100, higher is better. 100 = no orphan symbols, no stub bullets, no passive voice, no repeated leading verbs.',
         achievementDensity: 'Informational only (does not affect score). Shows what % of experience bullets contain at least one measurable number or metric.',
+        atsKeywordCoverage: 'Informational only (does not affect score). Null when no job description was provided. Lists which JD keywords were found in the CV and which are missing.',
         pipelineAutoFixes: 'Words the purification pipeline replaced with synonyms before you saw the CV. These are already fixed -- no action needed.',
         kinds: {
           orphan_currency_comma: 'A currency code (KES, $, EUR) was followed by a stray comma -- usually a stripped number.',
@@ -356,7 +367,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [currentCV, qualityReport, purifyLeaks]);
+  }, [currentCV, qualityReport, purifyLeaks, jobDescription]);
 
   const [targetLanguage, setTargetLanguage] = useLocalStorage<string>('cv:targetLanguage', 'English');
 
@@ -1681,6 +1692,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           cv={currentCV}
           report={qualityReport}
           purifyLeaks={purifyLeaks}
+          jd={jobDescription || undefined}
           onApplyFix={(newCv) => {
             setCurrentCV(newCv);
             // Surface which provider just produced the rewrite, so the engine
