@@ -53,7 +53,51 @@ const KIND_LABEL: Record<CvQualityIssueKind, string> = {
     unanchored_with_participle:  '"with" + verb-ing without a duration',
     unanchored_hedged_outcome:   'Hedged outcome without a number',
     half_open_range:             'Range "from over X" missing the "to" anchor',
+    passive_voice:               'Passive voice — rewrite with an action verb',
+    leading_verb_repetition:     'Same opening verb used 3+ times in one role',
 };
+
+function AchievementDensityBar({ density }: { density: CvQualityReport['achievementDensity'] }) {
+    const { bulletsWithMetrics, totalBullets, percent } = density;
+    if (totalBullets === 0) return null;
+    const color =
+        percent >= 50 ? 'bg-emerald-500' :
+        percent >= 30 ? 'bg-amber-400' :
+        'bg-rose-400';
+    const label =
+        percent >= 50 ? 'Good' :
+        percent >= 30 ? 'Low' :
+        'Very low';
+    const tip =
+        percent >= 50
+            ? 'Over half your bullets contain numbers — recruiters can see measurable impact.'
+            : percent >= 30
+            ? 'Fewer than half your bullets have a number. Add metrics where possible.'
+            : 'Most bullets lack measurable outcomes. Aim for at least 40% with numbers.';
+    return (
+        <div className="mb-5 rounded-lg border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/40 px-4 py-3">
+            <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    Achievement density
+                </span>
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                    percent >= 50 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                    percent >= 30 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                    'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                }`}>
+                    {label} — {bulletsWithMetrics}/{totalBullets} bullets have metrics ({percent}%)
+                </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-zinc-200 dark:bg-neutral-700 overflow-hidden">
+                <div
+                    className={`h-full rounded-full transition-all ${color}`}
+                    style={{ width: `${Math.max(2, percent)}%` }}
+                />
+            </div>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5">{tip}</p>
+        </div>
+    );
+}
 
 function formatLocation(where: string): string {
     if (where === 'summary') return 'Professional summary';
@@ -235,6 +279,9 @@ export default function QualityIssuesPanel({
 
                 {/* Issue list */}
                 <div className="flex-1 overflow-y-auto p-5">
+                    {/* Achievement density bar — always shown when there are bullets */}
+                    <AchievementDensityBar density={report.achievementDensity} />
+
                     {/* Auto-fixed by pipeline — shown whenever the purifier made synonym substitutions */}
                     {hasSynonymFixes && (
                         <section className="mb-5">

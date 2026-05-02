@@ -108,6 +108,17 @@ export const ISSUE_KIND_INSTRUCTIONS: Record<CvQualityIssueKind, string> = {
         'A range opener like "from over 95%" appears without its "to" partner. ' +
         'Remove the orphan opener so the sentence reads naturally, or rewrite ' +
         'as a single-point statement. Do not invent the missing endpoint.',
+    passive_voice:
+        'A passive-voice construction ("was implemented", "were managed", "was ' +
+        'responsible for") appears in a bullet that should use an active verb. ' +
+        'Rewrite so the candidate is the subject performing the action. Start ' +
+        'with a strong past-tense action verb. Preserve all numbers, dates, ' +
+        'company names, and technologies exactly as written.',
+    leading_verb_repetition:
+        'Three or more bullets in this role start with the same verb. Rewrite ' +
+        'this bullet so it opens with a different, equally strong action verb. ' +
+        'Keep the original meaning, all numbers, and every specific detail — ' +
+        'only swap the opening verb for a non-repeated alternative.',
 };
 
 const SYSTEM_PROMPT = `You are a precision CV editor. The user will give you ONE

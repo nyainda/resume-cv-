@@ -2197,6 +2197,24 @@ export const generateCV = async (
         `;
     }
 
+    // ── Proactive slim-profile ────────────────────────────────────────────────
+    // If the profile's total responsibility text exceeds ~12 K chars (roughly
+    // 6+ roles with detailed bullet lists), use 120 chars/role instead of the
+    // default 350 from the very start. This prevents 413s on large profiles
+    // without ever needing the retry path — slim-retry remains as a safety net.
+    const _totalRespChars = (profile.workExperience || []).reduce((sum: number, exp: any) => {
+        const r = exp.responsibilities;
+        if (!r) return sum;
+        return sum + (typeof r === 'string' ? r.length : (r as string[]).join('\n').length);
+    }, 0);
+    const _profileMaxChars = _totalRespChars > 12_000 ? 120 : 350;
+    if (_profileMaxChars === 120) {
+        console.info(
+            `[CV Gen] Large profile detected — ${_totalRespChars.toLocaleString()} resp. chars across ` +
+            `${(profile.workExperience || []).length} roles. Using slim profile (120 chars/role) proactively.`,
+        );
+    }
+
     let mainPromptInstruction: string;
     let githubInstruction = '';
 
@@ -2320,7 +2338,7 @@ ${experienceInstructionLines}
             ${pivotBlock}
 
             USER PROFILE:
-            ${compactProfile(profile)}
+            ${compactProfile(profile, _profileMaxChars)}
             ${githubInstruction}
 
             ${promptAnchorBlock}
@@ -2381,7 +2399,7 @@ ${experienceInstructionLines}
             You are the world's leading academic CV specialist and grant-writing consultant. Create an outstanding academic CV that maximizes the candidate's chances for this specific scholarship, grant, or academic opportunity.
 
             USER PROFILE:
-            ${compactProfile(profile)}
+            ${compactProfile(profile, _profileMaxChars)}
             ${githubInstruction}
 
             GRANT/SCHOLARSHIP/ACADEMIC PURPOSE:
@@ -2464,7 +2482,7 @@ ${experienceInstructionLines}
             ${pivotBlock}
 
             USER PROFILE:
-            ${compactProfile(profile)}
+            ${compactProfile(profile, _profileMaxChars)}
             ${githubInstruction}
 
             JOB DESCRIPTION / TARGET CONTEXT:

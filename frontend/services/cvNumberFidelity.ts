@@ -392,7 +392,9 @@ export type CvQualityIssueKind =
     | 'chained_preposition'          // "by since", "to in", "of from"
     | 'unanchored_with_participle'   // "with delivering", "with leading"
     | 'unanchored_hedged_outcome'    // "achieving average water savings"
-    | 'half_open_range';             // "from over 95%" with no "to" anchor
+    | 'half_open_range'             // "from over 95%" with no "to" anchor
+    | 'passive_voice'               // "was implemented", "were managed"
+    | 'leading_verb_repetition';    // 3+ bullets in same role start with the same verb
 
 export interface CvQualityIssue {
     kind: CvQualityIssueKind;
@@ -406,6 +408,13 @@ export interface CvQualityReport {
     totalIssues: number;
     issues: CvQualityIssue[];
     durationMs: number;
+    /** How many experience bullets contain at least one numeric metric. */
+    achievementDensity: {
+        bulletsWithMetrics: number;
+        totalBullets: number;
+        /** 0–100 rounded integer. */
+        percent: number;
+    };
 }
 
 interface CvLikeForAudit {
@@ -468,16 +477,29 @@ function probeText(text: string, where: string, issues: CvQualityIssue[]): void 
     }
 }
 
+// Detects "was implemented", "were managed" and similar past-passive patterns.
+// Conservative: only matches (was|were) + past participle ending in "ed".
+// Avoids adjective FPs ("was ready", "were happy") by requiring a verb-like
+// word with a recognisable action stem (≥5 chars to the "ed" suffix).
+const PASSIVE_VOICE_RX = /\b(was|were)\s+([a-z]{3,}ed)\b/i;
+
+// A bullet contains a numeric metric if it has a standalone digit, optionally
+// followed by common suffixes (%  K  M  B  x  million  billion  thousand).
+const METRIC_RX = /\b\d[\d,.]*\s*(?:%|percent|K\b|M\b|B\b|million|billion|thousand|x\b)?/i;
+
 export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
     const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     const issues: CvQualityIssue[] = [];
     let totalBullets = 0;
+    let bulletsWithMetrics = 0;
 
     if (typeof cv.summary === 'string') {
         probeText(cv.summary, 'summary', issues);
     }
 
     const experience = cv.experience || [];
+
+    // ── Per-bullet checks ────────────────────────────────────────────────────
     for (let i = 0; i < experience.length; i++) {
         const role = experience[i] || {};
         const label = `experience[${i}] ${role.jobTitle || '?'} @ ${role.company || '?'}`;
@@ -491,11 +513,56 @@ export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
                 issues.push({ kind: 'empty_bullet', where, snippet: '' });
                 continue;
             }
-            const firstWord = trimmed.replace(/^[\s•\-*·»"']+/, '').split(/\s+/)[0]?.toLowerCase();
+
+            // Achievement density counter (informational, not penalised).
+            if (METRIC_RX.test(trimmed)) bulletsWithMetrics++;
+
+            const stripped = trimmed.replace(/^[\s•\-*·»"']+/, '');
+            const firstWord = stripped.split(/\s+/)[0]?.toLowerCase();
             if (firstWord && STUB_FIRST_WORDS.has(firstWord)) {
                 issues.push({ kind: 'stub_bullet', where, snippet: trimmed.slice(0, 80) });
             }
+
+            // Passive voice: "was implemented", "were delivered" etc.
+            const pvm = PASSIVE_VOICE_RX.exec(stripped);
+            if (pvm) {
+                issues.push({
+                    kind: 'passive_voice',
+                    where,
+                    snippet: snippetAround(stripped, pvm.index ?? 0),
+                });
+            }
+
             probeText(b, where, issues);
+        }
+    }
+
+    // ── Leading-verb repetition check (per role) ─────────────────────────────
+    // Flags when ≥ 3 bullets in the SAME role start with the same action verb.
+    // Only one issue is raised per offending verb per role (naming the count)
+    // to avoid flooding the panel with redundant rows.
+    for (let i = 0; i < experience.length; i++) {
+        const role = experience[i] || {};
+        const label = `experience[${i}] ${role.jobTitle || '?'} @ ${role.company || '?'}`;
+        const bullets = Array.isArray(role.responsibilities) ? role.responsibilities : [];
+        const verbCount: Record<string, number> = {};
+        const verbFirst: Record<string, string> = {};
+        for (const raw of bullets) {
+            const stripped = String(raw || '').trim().replace(/^[\s•\-*·»"']+/, '');
+            if (!stripped) continue;
+            const verb = stripped.split(/\s+/)[0]?.toLowerCase().replace(/[^a-z]/g, '') ?? '';
+            if (verb.length < 3) continue;
+            verbCount[verb] = (verbCount[verb] || 0) + 1;
+            if (verbCount[verb] === 1) verbFirst[verb] = stripped.slice(0, 60);
+        }
+        for (const [verb, count] of Object.entries(verbCount)) {
+            if (count >= 3) {
+                issues.push({
+                    kind: 'leading_verb_repetition',
+                    where: label,
+                    snippet: `"${verb}" starts ${count} bullets — e.g. "${verbFirst[verb]}"`,
+                });
+            }
         }
     }
 
@@ -521,10 +588,20 @@ export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
     }
 
     const totalIssues = issues.length;
-    // Score: 100 minus 8 per issue, floored at 0.
     const score = Math.max(0, 100 - totalIssues * 8);
     const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
-    return { score, totalBullets, totalIssues, issues, durationMs };
+    return {
+        score,
+        totalBullets,
+        totalIssues,
+        issues,
+        durationMs,
+        achievementDensity: {
+            bulletsWithMetrics,
+            totalBullets,
+            percent: totalBullets > 0 ? Math.round((bulletsWithMetrics / totalBullets) * 100) : 0,
+        },
+    };
 }
 
 /**
@@ -538,7 +615,7 @@ export function logCvQualityReport(cv: CvLikeForAudit, contextLabel = 'CV'): CvQ
     try {
         report = auditCvQuality(cv);
     } catch {
-        return { score: 0, totalBullets: 0, totalIssues: 0, issues: [], durationMs: 0 };
+        return { score: 0, totalBullets: 0, totalIssues: 0, issues: [], durationMs: 0, achievementDensity: { bulletsWithMetrics: 0, totalBullets: 0, percent: 0 } };
     }
     const ms = report.durationMs.toFixed(1);
     if (report.totalIssues === 0) {
