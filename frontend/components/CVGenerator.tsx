@@ -307,6 +307,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const handleDownloadQualityReport = useCallback(() => {
     if (!currentCV || !qualityReport) return;
+    const synonymFixes = purifyLeaks.filter(l => l.fixedBy === 'synonym_sub');
     const payload = {
       auditedAt: new Date().toISOString(),
       cvSnapshot: {
@@ -316,8 +317,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         projectCount: currentCV.projects?.length ?? 0,
       },
       report: qualityReport,
+      pipelineAutoFixes: {
+        synonymSubstitutions: synonymFixes.length,
+        detail: synonymFixes.map(l => ({
+          word: l.phrase,
+          location: l.fieldLocation ?? null,
+          context: l.contextSnippet ?? null,
+        })),
+      },
       legend: {
         score: '0–100, higher is better. 100 = no orphan symbols, no stub bullets, no duplicates.',
+        pipelineAutoFixes: 'Words the purification pipeline replaced with synonyms before you saw the CV. These are already fixed — no action needed.',
         kinds: {
           orphan_currency_comma: 'A currency code (KES, $, €) was followed by a stray comma — usually a stripped number.',
           orphan_currency_word: 'A preposition was followed by a currency code with no number after it.',
@@ -343,7 +353,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [currentCV, qualityReport]);
+  }, [currentCV, qualityReport, purifyLeaks]);
 
   const [targetLanguage, setTargetLanguage] = useLocalStorage<string>('cv:targetLanguage', 'English');
 
