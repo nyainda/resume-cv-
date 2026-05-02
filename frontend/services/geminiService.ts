@@ -55,7 +55,13 @@ function cvCacheKey(
     jd: string,
     mode: string,
     purpose: string,
-    opts?: { targetLanguage?: string; scholarshipFormat?: ScholarshipFormat; marketResearch?: MarketResearchResult | null }
+    opts?: {
+        targetLanguage?: string;
+        scholarshipFormat?: ScholarshipFormat;
+        marketResearch?: MarketResearchResult | null;
+        /** Confirmed-missing ATS keywords to pin — included so gap-targeted runs cache separately. */
+        targetKeywords?: string[];
+    }
 ): string {
     const profileSnap = {
         name: profile.personalInfo?.name,
@@ -75,6 +81,9 @@ function cvCacheKey(
     const profileHash = quickHash(JSON.stringify(profileSnap));
     const jdHash = quickHash((jd || '').replace(/\s+/g, ' ').trim());
     const marketHash = opts?.marketResearch ? quickHash(JSON.stringify(opts.marketResearch)) : 'none';
+    const kwHash = (opts?.targetKeywords?.length)
+        ? quickHash([...(opts.targetKeywords)].sort().join(','))
+        : 'none';
     return [
         `v${CV_RULES_VERSION}`,
         `p:${profileHash}`,
@@ -84,6 +93,7 @@ function cvCacheKey(
         `lang:${opts?.targetLanguage || 'default'}`,
         `scholarship:${opts?.scholarshipFormat || 'standard'}`,
         `market:${marketHash}`,
+        `kw:${kwHash}`,
     ].join('|');
 }
 
@@ -2089,7 +2099,15 @@ export const generateCV = async (
     scholarshipFormat: ScholarshipFormat = 'standard',
     marketResearch?: MarketResearchResult | null,
     targetLanguage?: string,
-    callerOnPurifyReport?: (report: PurifyReport) => void
+    callerOnPurifyReport?: (report: PurifyReport) => void,
+    /**
+     * Deterministic ATS gap-pins: keywords confirmed missing from the user's
+     * *current* CV via `scoreAtsCoverage`. When provided, these are injected
+     * into the prompt as a highest-priority "MUST APPEAR" list so the generated
+     * CV specifically bridges the gap between the current draft and the JD.
+     * Capped at 12 terms inside the function regardless of what is passed.
+     */
+    targetKeywords?: string[],
 ): Promise<CVData> => {
 
     // ── HOT FIRE (inbound) ── Scrub banned phrases out of the source profile
@@ -2102,10 +2120,12 @@ export const generateCV = async (
     const jd = smartTruncateJD(contextDescription.trim());
 
     // ── Cache check: return immediately if profile+JD+mode haven't changed ──
+    const _pinnedKeywords = (targetKeywords || []).slice(0, 12);
     const cacheKey = cvCacheKey(profile, jd, generationMode, purpose, {
         targetLanguage,
         scholarshipFormat,
         marketResearch: marketResearch || null,
+        targetKeywords: _pinnedKeywords.length ? _pinnedKeywords : undefined,
     });
     const cached = cvCacheGet(cacheKey);
     if (cached) {
@@ -2172,6 +2192,25 @@ export const generateCV = async (
     } else if (keywordRes.status === 'rejected') {
         console.error("Keyword analysis failed, proceeding without explicit keywords.", keywordRes.reason);
     }
+
+    // ── Gap-pin block ──────────────────────────────────────────────────────────
+    // Deterministic layer: keywords confirmed ABSENT from the user's current CV
+    // via `scoreAtsCoverage`. Sits on top of `keywordInstruction` (which is
+    // LLM-extracted and lists *all* JD keywords) — the gap-pin block is narrower
+    // and higher-priority: it names only the terms that are actually missing so
+    // the model knows exactly where to focus its integration effort.
+    let gapPinBlock = '';
+    if (_pinnedKeywords.length > 0) {
+        const kwLines = _pinnedKeywords.map(k => `  - ${k}`).join('\n');
+        gapPinBlock = `
+**⚠ ATS GAP-PIN — VERIFIED MISSING FROM CURRENT CV (highest priority)**
+An automated scan confirmed the following keywords appear in the job description but are ABSENT from the candidate's existing CV. Every term below MUST appear verbatim somewhere in the output. Find the most natural location for each (experience bullets, skills section, or summary). If a term cannot be worked naturally into a bullet given the candidate's actual experience, place it in the skills section instead. Do NOT invent achievements to shoehorn a keyword — use it only where the experience genuinely supports it.
+Missing terms that must be incorporated:
+${kwLines}
+`;
+        console.log(`[CV Gen] Gap-pin: pinning ${_pinnedKeywords.length} missing ATS keywords: ${_pinnedKeywords.join(', ')}`);
+    }
+
     if (briefRes.status === 'fulfilled' && briefRes.value) {
         engineBrief = briefRes.value;
         console.log(`[CV Engine] Brief: ${engineBrief.seniority?.level} / ${engineBrief.field?.field} / voice=${engineBrief.voice.primary?.name} / verbs=${engineBrief.verb_pool.length}`);
@@ -2407,6 +2446,7 @@ ${experienceInstructionLines}
 
             ${scholarshipFormatInstruction}
             ${keywordInstruction}
+            ${gapPinBlock}
 
             === ACADEMIC CV STRATEGY ===
 
@@ -2489,6 +2529,7 @@ ${experienceInstructionLines}
             ${jd}
 
             ${keywordInstruction}
+            ${gapPinBlock}
 
             ${promptAnchorBlock}
 

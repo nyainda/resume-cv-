@@ -141,3 +141,23 @@ When `workerParallelSections` is called (the main CV generation path), `geminiSe
 4. Net result: the HTTP request body is much smaller (profile text removed from client→worker transfer)
 
 If no hash is found (profile not yet cached, first generation), the full preamble is sent as before — zero regression. The D1 lookup inside `getHashIfCached` is a pure localStorage scan (no network call), so it adds negligible overhead.
+
+## Tailored Generation — ATS Gap-Pin (May 2026)
+
+Before every Job CV generation, `handleGenerateCV` in `CVGenerator.tsx` now:
+1. Calls `scoreAtsCoverage(currentCV, jobDescription)` **synchronously** (zero tokens, instant) to find which JD keywords are absent from the user's existing CV.
+2. Takes the top 12 missing terms (`_gapKeywords`) and passes them to `generateCV` as the new optional `targetKeywords` parameter.
+3. Inside `generateCV`, a `gapPinBlock` is appended directly after the existing `keywordInstruction` in the job prompt (and academic prompt), telling the AI these terms are **confirmed missing** and must appear verbatim in the output.
+4. The JD progress stage message updates to show the gap count ("targeting N confirmed gap terms…") so the user can see tailored generation is active.
+5. The CV generation cache key now includes a hash of the pinned keywords (`kw:…`), so gap-targeted runs never share a cache entry with non-targeted runs.
+
+### Persistence fixes (same release)
+The following state that was previously lost on page refresh is now `useLocalStorage`:
+- `cvPurpose` → `'cv:purpose'`
+- `jdTier1Keywords` → `'cv:jdKeywords'`
+- `targetCompany` → `'cv:targetCompany'`
+- `targetJobTitle` → `'cv:targetJobTitle'`
+
+### Key files changed
+- `frontend/services/geminiService.ts` — `generateCV` signature + `cvCacheKey` opts + `gapPinBlock` construction + prompt injection
+- `frontend/components/CVGenerator.tsx` — gap keyword pre-computation, `generateCV` call updated, 4 persistence upgrades

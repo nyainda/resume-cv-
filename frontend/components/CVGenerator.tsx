@@ -237,8 +237,8 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
-  const [targetCompany, setTargetCompany] = useState('');
-  const [targetJobTitle, setTargetJobTitle] = useState('');
+  const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
+  const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
   // Stage-based progress tracking — used by the CVGenerationProgress modal
@@ -275,7 +275,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [font, setFont] = useLocalStorage<FontName>('cvFont', 'lora');
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [generationMode, setGenerationMode] = useLocalStorage<CVGenerationMode>('generationMode', 'honest');
-  const [cvPurpose, setCvPurpose] = useState<CVPurpose>('job');
+  const [cvPurpose, setCvPurpose] = useLocalStorage<CVPurpose>('cv:purpose', 'job');
   const [scholarshipFormat, setScholarshipFormat] = useLocalStorage<ScholarshipFormat>('scholarshipFormat', 'standard');
   const [atsDataEmbedded, setAtsDataEmbedded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -381,7 +381,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
-  const [jdTier1Keywords, setJdTier1Keywords] = useState<string[]>([]);
+  const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>('cv:jdKeywords', []);
 
   // ── Active AI engine (shown as badge after generation) ──
   const [lastEngine, setLastEngine] = useState<string | null>(null);
@@ -453,10 +453,25 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       }
     }
 
+    // ── Gap-pin pre-computation ────────────────────────────────────────────────
+    // Deterministically score the CURRENT CV against the JD right now (zero
+    // tokens, instant) so we know exactly which ATS keywords are missing.
+    // These are passed to generateCV as `targetKeywords` so the AI is told
+    // explicitly which gaps to bridge — making every generation tailored.
+    const _gapKeywords: string[] | undefined =
+      (hasJD && cvPurpose === 'job' && currentCV)
+        ? scoreAtsCoverage(currentCV, jobDescription).missing.slice(0, 12)
+        : undefined;
+
     // Helper — run one generation attempt and populate generatedData
     const runGenerate = async (): Promise<CVData> => {
       if (hasJD) {
-        advanceStage('jd', 'Extracting job-description keywords & role signals…');
+        advanceStage(
+          'jd',
+          _gapKeywords?.length
+            ? `Extracting JD keywords — targeting ${_gapKeywords.length} confirmed gap term${_gapKeywords.length === 1 ? '' : 's'}…`
+            : 'Extracting job-description keywords & role signals…',
+        );
         await new Promise(r => setTimeout(r, 400));
       }
       advanceStage('drafting', 'Drafting your tailored summary & bullets…');
@@ -468,6 +483,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             setPurifyLeaks(prev => [...prev, ...fixes]);
           }
         },
+        _gapKeywords,
       );
       advanceStage('polishing', 'Polishing every line — capitals, punctuation, numbers…');
       await new Promise(r => setTimeout(r, 300));
