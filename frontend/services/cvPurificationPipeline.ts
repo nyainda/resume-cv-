@@ -1705,119 +1705,212 @@ export function detectWordOverusePerRole(cv: CVData): Array<{
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * The most frequently overused content words in AI-generated CVs,
- * mapped to ordered synonym alternatives that cycle when needed.
- * Only nouns, adjectives and selected mid-bullet verbs are listed —
- * leading action verbs are handled by the verb-pool enforcement pass.
+ * Base-form synonym map. Plurals and inflected forms are derived at runtime
+ * by `lookupSynonyms()` using the three morph helpers below, which eliminates
+ * ~40 redundant entries and makes it trivial to add new words in one line.
+ *
+ * Exception: verb entries with IRREGULAR synonyms (develop → built,
+ * manage → oversaw) keep explicit -ing / -ed rows so the auto-deriver
+ * never produces "builded" or "overseeed".
  */
 const WORD_SYNONYM_MAP: Record<string, string[]> = {
-    // ── Nouns: tech / infrastructure ────────────────────────────────────────
-    'storage':        ['repository', 'archive', 'data store'],
-    'storages':       ['repositories', 'archives', 'data stores'],
-    'system':         ['platform', 'infrastructure', 'framework'],
-    'systems':        ['platforms', 'frameworks', 'environments'],
-    'process':        ['workflow', 'methodology', 'pipeline'],
-    'processes':      ['workflows', 'pipelines', 'procedures'],
-    'solution':       ['approach', 'tool', 'method'],
-    'solutions':      ['approaches', 'tools', 'methods'],
-    'platform':       ['environment', 'infrastructure', 'system'],
-    'platforms':      ['environments', 'systems', 'stacks'],
-    'database':       ['repository', 'data store', 'datastore'],
-    'databases':      ['repositories', 'data stores', 'datastores'],
-    'application':    ['system', 'tool', 'programme'],
-    'applications':   ['systems', 'tools', 'programmes'],
-    'pipeline':       ['workflow', 'chain', 'process'],
-    'pipelines':      ['workflows', 'chains', 'processes'],
-    'framework':      ['structure', 'approach', 'methodology'],
-    'frameworks':     ['structures', 'approaches', 'methodologies'],
-    'component':      ['module', 'element', 'unit'],
-    'components':     ['modules', 'elements', 'units'],
-    'interface':      ['integration', 'connector', 'endpoint'],
-    'interfaces':     ['integrations', 'connectors', 'endpoints'],
-    'integration':    ['connector', 'linkage', 'bridge'],
-    'integrations':   ['connectors', 'connections', 'links'],
-    'environment':    ['infrastructure', 'setup', 'platform'],
-    'environments':   ['setups', 'platforms', 'systems'],
-    'function':       ['capability', 'feature', 'operation'],
-    'functions':      ['capabilities', 'features', 'operations'],
-    'feature':        ['capability', 'component', 'module'],
-    'features':       ['capabilities', 'components', 'modules'],
-    'structure':      ['architecture', 'design', 'layout'],
-    'structures':     ['architectures', 'designs', 'layouts'],
-    'service':        ['offering', 'capability', 'facility'],
-    'services':       ['offerings', 'capabilities', 'facilities'],
-    'tool':           ['solution', 'utility', 'instrument'],
-    'tools':          ['solutions', 'utilities', 'instruments'],
-    // ── Nouns: business / project ───────────────────────────────────────────
-    'project':        ['initiative', 'programme', 'effort'],
-    'projects':       ['initiatives', 'programmes', 'efforts'],
-    'requirement':    ['specification', 'objective', 'criterion'],
-    'requirements':   ['specifications', 'objectives', 'criteria'],
-    'stakeholder':    ['partner', 'client', 'collaborator'],
-    'stakeholders':   ['partners', 'clients', 'collaborators'],
-    'issue':          ['challenge', 'defect', 'concern'],
-    'issues':         ['challenges', 'defects', 'concerns'],
-    'change':         ['transformation', 'enhancement', 'modification'],
-    'changes':        ['transformations', 'enhancements', 'modifications'],
-    'report':         ['analysis', 'summary', 'review'],
-    'reports':        ['analyses', 'summaries', 'reviews'],
-    'strategy':       ['approach', 'plan', 'roadmap'],
-    'strategies':     ['approaches', 'plans', 'roadmaps'],
-    'initiative':     ['programme', 'project', 'effort'],
-    'initiatives':    ['programmes', 'projects', 'efforts'],
-    'objective':      ['goal', 'target', 'priority'],
-    'objectives':     ['goals', 'targets', 'priorities'],
-    'challenge':      ['problem', 'constraint', 'obstacle'],
-    'challenges':     ['problems', 'constraints', 'obstacles'],
-    'resource':       ['asset', 'capability', 'input'],
-    'resources':      ['assets', 'capabilities', 'inputs'],
-    'workflow':       ['process', 'pipeline', 'procedure'],
-    'workflows':      ['processes', 'pipelines', 'procedures'],
-    'output':         ['deliverable', 'result', 'artefact'],
-    'outputs':        ['deliverables', 'results', 'artefacts'],
-    'metric':         ['measure', 'indicator', 'benchmark'],
-    'metrics':        ['measures', 'indicators', 'benchmarks'],
-    'insight':        ['finding', 'recommendation', 'observation'],
-    'insights':       ['findings', 'recommendations', 'observations'],
-    'standard':       ['guideline', 'convention', 'benchmark'],
-    'standards':      ['guidelines', 'conventions', 'benchmarks'],
-    'analysis':       ['assessment', 'evaluation', 'review'],
-    'opportunity':    ['prospect', 'avenue', 'opening'],
-    'opportunities':  ['prospects', 'avenues', 'openings'],
-    // ── Mid-bullet verbs (gerund / past tense forms only, not leading verbs) ─
-    'ensure':         ['verify', 'confirm', 'maintain'],
-    'ensuring':       ['verifying', 'confirming', 'maintaining'],
-    'ensured':        ['verified', 'confirmed', 'maintained'],
-    'improve':        ['enhance', 'optimise', 'strengthen'],
-    'improving':      ['enhancing', 'optimising', 'strengthening'],
-    'improved':       ['enhanced', 'optimised', 'strengthened'],
-    'implement':      ['deploy', 'introduce', 'execute'],
-    'implementing':   ['deploying', 'introducing', 'executing'],
-    'implemented':    ['deployed', 'introduced', 'executed'],
-    'develop':        ['build', 'create', 'design'],
-    'developing':     ['building', 'creating', 'designing'],
-    'developed':      ['built', 'created', 'designed'],
-    'manage':         ['oversee', 'direct', 'coordinate'],
-    'managing':       ['overseeing', 'directing', 'coordinating'],
-    'managed':        ['oversaw', 'directed', 'coordinated'],
-    'provide':        ['deliver', 'supply', 'offer'],
-    'providing':      ['delivering', 'supplying', 'offering'],
-    'provided':       ['delivered', 'supplied', 'offered'],
-    'support':        ['assist', 'enable', 'facilitate'],
-    'supporting':     ['assisting', 'enabling', 'facilitating'],
-    'supported':      ['assisted', 'enabled', 'facilitated'],
+    // ── Nouns: tech / infrastructure (singular; plurals auto-derived) ────────
+    'storage':       ['repository', 'archive', 'data store'],
+    'system':        ['platform', 'infrastructure', 'framework'],
+    'process':       ['workflow', 'methodology', 'pipeline'],
+    'solution':      ['approach', 'tool', 'method'],
+    'platform':      ['environment', 'infrastructure', 'system'],
+    'database':      ['repository', 'data store', 'datastore'],
+    'application':   ['system', 'tool', 'programme'],
+    'pipeline':      ['workflow', 'chain', 'process'],
+    'framework':     ['structure', 'approach', 'methodology'],
+    'component':     ['module', 'element', 'unit'],
+    'interface':     ['integration', 'connector', 'endpoint'],
+    'integration':   ['connector', 'linkage', 'bridge'],
+    'environment':   ['infrastructure', 'setup', 'platform'],
+    'function':      ['capability', 'feature', 'operation'],
+    'feature':       ['capability', 'component', 'module'],
+    'structure':     ['architecture', 'design', 'layout'],
+    'service':       ['offering', 'capability', 'facility'],
+    'tool':          ['solution', 'utility', 'instrument'],
+    // ── Nouns: business / project ────────────────────────────────────────────
+    'project':       ['initiative', 'programme', 'effort'],
+    'requirement':   ['specification', 'objective', 'criterion'],
+    'stakeholder':   ['partner', 'client', 'collaborator'],
+    'issue':         ['challenge', 'defect', 'concern'],
+    'change':        ['transformation', 'enhancement', 'modification'],
+    'report':        ['analysis', 'summary', 'review'],
+    'strategy':      ['approach', 'plan', 'roadmap'],
+    'initiative':    ['programme', 'project', 'effort'],
+    'objective':     ['goal', 'target', 'priority'],
+    'challenge':     ['problem', 'constraint', 'obstacle'],
+    'resource':      ['asset', 'capability', 'input'],
+    'workflow':      ['process', 'pipeline', 'procedure'],
+    'output':        ['deliverable', 'result', 'artefact'],
+    'metric':        ['measure', 'indicator', 'benchmark'],
+    'insight':       ['finding', 'recommendation', 'observation'],
+    'standard':      ['guideline', 'convention', 'benchmark'],
+    'analysis':      ['assessment', 'evaluation', 'review'],
+    'opportunity':   ['prospect', 'avenue', 'opening'],
+    // ── Nouns: finance / PM domain ───────────────────────────────────────────
+    'budget':        ['funding', 'allocation', 'spend'],
+    'forecast':      ['projection', 'estimate', 'outlook'],
+    'revenue':       ['income', 'earnings', 'yield'],
+    'portfolio':     ['collection', 'programme', 'suite'],
+    'governance':    ['oversight', 'stewardship', 'administration'],
+    'compliance':    ['adherence', 'conformance', 'alignment'],
+    'milestone':     ['checkpoint', 'marker', 'benchmark'],
+    'deliverable':   ['output', 'artefact', 'product'],
+    'timeline':      ['schedule', 'roadmap', 'timetable'],
+    'contract':      ['agreement', 'engagement', 'arrangement'],
+    'proposal':      ['submission', 'recommendation', 'pitch'],
+    'vendor':        ['supplier', 'partner', 'provider'],
+    'programme':     ['initiative', 'project', 'effort'],
+    'program':       ['initiative', 'project', 'effort'],
+    'scope':         ['remit', 'boundary', 'coverage'],
+    'impact':        ['effect', 'outcome', 'result'],
+    'result':        ['outcome', 'achievement', 'finding'],
+    'approach':      ['method', 'technique', 'strategy'],
+    'model':         ['framework', 'method', 'structure'],
+    'partner':       ['collaborator', 'ally', 'associate'],
+    'customer':      ['client', 'account', 'buyer'],
+    'audit':         ['review', 'assessment', 'inspection'],
+    // ── Mid-bullet verbs — explicit -ing / -ed kept for IRREGULAR synonyms ──
+    //    (e.g. develop → built, manage → oversaw — cannot be auto-derived)
+    'ensure':        ['verify', 'confirm', 'maintain'],
+    'ensuring':      ['verifying', 'confirming', 'maintaining'],
+    'ensured':       ['verified', 'confirmed', 'maintained'],
+    'improve':       ['enhance', 'optimise', 'strengthen'],
+    'improving':     ['enhancing', 'optimising', 'strengthening'],
+    'improved':      ['enhanced', 'optimised', 'strengthened'],
+    'implement':     ['deploy', 'introduce', 'execute'],
+    'implementing':  ['deploying', 'introducing', 'executing'],
+    'implemented':   ['deployed', 'introduced', 'executed'],
+    'develop':       ['build', 'create', 'design'],
+    'developing':    ['building', 'creating', 'designing'],
+    'developed':     ['built', 'created', 'designed'],      // 'built' is irregular — explicit
+    'manage':        ['oversee', 'direct', 'coordinate'],
+    'managing':      ['overseeing', 'directing', 'coordinating'],
+    'managed':       ['oversaw', 'directed', 'coordinated'], // 'oversaw' is irregular — explicit
+    'provide':       ['deliver', 'supply', 'offer'],
+    'providing':     ['delivering', 'supplying', 'offering'],
+    'provided':      ['delivered', 'supplied', 'offered'],
+    'support':       ['assist', 'enable', 'facilitate'],
+    'supporting':    ['assisting', 'enabling', 'facilitating'],
+    'supported':     ['assisted', 'enabled', 'facilitated'],
     // ── Adjectives ──────────────────────────────────────────────────────────
-    'critical':       ['essential', 'vital', 'core'],
-    'effective':      ['efficient', 'impactful', 'productive'],
-    'efficient':      ['streamlined', 'optimised', 'effective'],
-    'robust':         ['resilient', 'reliable', 'scalable'],
-    'comprehensive':  ['extensive', 'thorough', 'complete'],
-    'significant':    ['substantial', 'notable', 'considerable'],
-    'various':        ['multiple', 'diverse', 'numerous'],
-    'complex':        ['sophisticated', 'intricate', 'advanced'],
-    'existing':       ['current', 'established', 'legacy'],
-    'multiple':       ['several', 'various', 'numerous'],
+    'critical':      ['essential', 'vital', 'core'],
+    'effective':     ['efficient', 'impactful', 'productive'],
+    'efficient':     ['streamlined', 'optimised', 'effective'],
+    'robust':        ['resilient', 'reliable', 'scalable'],
+    'comprehensive': ['extensive', 'thorough', 'complete'],
+    'significant':   ['substantial', 'notable', 'considerable'],
+    'various':       ['multiple', 'diverse', 'numerous'],
+    'complex':       ['sophisticated', 'intricate', 'advanced'],
+    'existing':      ['current', 'established', 'legacy'],
+    'multiple':      ['several', 'various', 'numerous'],
 };
+
+// ── Morphology helpers ───────────────────────────────────────────────────────
+
+/**
+ * Pluralise a synonym using standard English spelling rules.
+ * Multi-word synonyms (e.g. "data store") have their last word inflected.
+ */
+function pluraliseSynonym(word: string): string {
+    const sp = word.lastIndexOf(' ');
+    if (sp >= 0) return word.slice(0, sp + 1) + pluraliseSynonym(word.slice(sp + 1));
+    if (/(?:s|x|z|ch|sh)$/.test(word)) return word + 'es';          // process → processes
+    if (/[^aeiou]y$/.test(word))        return word.slice(0, -1) + 'ies'; // strategy → strategies
+    if (word.endsWith('fe'))            return word.slice(0, -2) + 'ves';
+    return word + 's';
+}
+
+/**
+ * Convert a synonym to -ing gerund form (silent-e drop handled).
+ * Multi-word: applies to the first word only ("roll out" → "rolling out").
+ */
+function gerundSynonym(word: string): string {
+    const sp = word.indexOf(' ');
+    if (sp >= 0) return gerundSynonym(word.slice(0, sp)) + word.slice(sp);
+    if (word.endsWith('ie'))                    return word.slice(0, -2) + 'ying';
+    if (word.endsWith('e') && word.length > 2) return word.slice(0, -1) + 'ing'; // provide → providing
+    return word + 'ing';
+}
+
+/**
+ * Convert a synonym to simple past tense (-ed form).
+ * Handles silent-e ("optimise" → "optimised") and -y → -ied ("verify" → "verified").
+ * Multi-word: applies to the first word only ("roll out" → "rolled out").
+ */
+function pastTenseSynonym(word: string): string {
+    const sp = word.indexOf(' ');
+    if (sp >= 0) return pastTenseSynonym(word.slice(0, sp)) + word.slice(sp);
+    if (word.endsWith('e'))        return word + 'd';                 // optimise → optimised
+    if (/[^aeiou]y$/.test(word))  return word.slice(0, -1) + 'ied'; // verify → verified
+    return word + 'ed';                                               // deploy → deployed
+}
+
+/**
+ * Look up synonyms for a token, with stem-aware morphological fallback.
+ *
+ * Order of resolution:
+ *   1. Exact match in WORD_SYNONYM_MAP (covers all explicitly listed forms).
+ *   2. De-pluralise (-ies → -y, -es → base, -s → base) → pluralise synonyms.
+ *   3. De-gerund (-ing → base or base+'e') → gerund synonyms.
+ *   4. De-past (-ed → base or base+'e', -ied → -y) → past-tense synonyms.
+ *
+ * Returns [] when no entry exists for this token or any of its stems.
+ */
+function lookupSynonyms(token: string): string[] {
+    // 1. Exact match.
+    const direct = WORD_SYNONYM_MAP[token];
+    if (direct) return direct;
+
+    // 2a. Plural -ies → -y  (strategies → strategy, opportunities → opportunity)
+    if (token.length > 4 && token.endsWith('ies')) {
+        const stem = token.slice(0, -3) + 'y';
+        const s = WORD_SYNONYM_MAP[stem];
+        if (s) return s.map(pluraliseSynonym);
+    }
+    // 2b. Plural -es → base  (processes → process)
+    if (token.length > 4 && token.endsWith('es')) {
+        const s = WORD_SYNONYM_MAP[token.slice(0, -2)];
+        if (s) return s.map(pluraliseSynonym);
+    }
+    // 2c. Plural plain -s  (systems → system, features → feature)
+    if (token.length > 4 && token.endsWith('s') && !token.endsWith('ss')) {
+        const s = WORD_SYNONYM_MAP[token.slice(0, -1)];
+        if (s) return s.map(pluraliseSynonym);
+    }
+
+    // 3. Gerund -ing  (managing → manage, providing → provide)
+    if (token.length > 5 && token.endsWith('ing')) {
+        const base = token.slice(0, -3);                   // managing → manag
+        if (WORD_SYNONYM_MAP[base])      return WORD_SYNONYM_MAP[base].map(gerundSynonym);
+        if (WORD_SYNONYM_MAP[base + 'e']) return WORD_SYNONYM_MAP[base + 'e'].map(gerundSynonym);
+        // Doubled-consonant: running → run (strip one consonant)
+        if (base.length > 2 && base.slice(-1) === base.slice(-2, -1)) {
+            const deDoubled = base.slice(0, -1);
+            if (WORD_SYNONYM_MAP[deDoubled]) return WORD_SYNONYM_MAP[deDoubled].map(gerundSynonym);
+        }
+    }
+
+    // 4. Past tense -ed  (provided → provide, deployed → deploy)
+    if (token.length > 4 && token.endsWith('ed')) {
+        const base  = token.slice(0, -2);                  // deployed → deploy
+        const baseE = token.slice(0, -1);                  // provided → provide
+        if (WORD_SYNONYM_MAP[base])  return WORD_SYNONYM_MAP[base].map(pastTenseSynonym);
+        if (WORD_SYNONYM_MAP[baseE]) return WORD_SYNONYM_MAP[baseE].map(pastTenseSynonym);
+        // -ied → -y  (identified → identify)
+        if (token.endsWith('ied') && token.length > 5) {
+            const stemY = token.slice(0, -3) + 'y';
+            if (WORD_SYNONYM_MAP[stemY]) return WORD_SYNONYM_MAP[stemY].map(pastTenseSynonym);
+        }
+    }
+
+    return [];
+}
 
 /**
  * Deterministic synonym substitution for per-role word overuse.
@@ -1849,11 +1942,13 @@ export function fixWordOverusePerRole(cv: CVData): { cv: CVData; fixes: string[]
         }
 
         // Build the substitution table: tokens that appear ≥3 times AND have synonyms.
+        // lookupSynonyms handles exact match first, then stem-aware fallback so
+        // "systems" derives coverage from the "system" entry automatically.
         const targets = new Map<string, { synonyms: string[]; seen: number }>();
         for (const [tok, count] of tokenCounts.entries()) {
             if (count < 3) continue;
-            const syns = WORD_SYNONYM_MAP[tok];
-            if (!syns || syns.length === 0) continue;
+            const syns = lookupSynonyms(tok);
+            if (syns.length === 0) continue;
             targets.set(tok, { synonyms: syns, seen: 0 });
         }
 
