@@ -2068,7 +2068,8 @@ export const generateCV = async (
     purpose: 'job' | 'academic' | 'general',
     scholarshipFormat: ScholarshipFormat = 'standard',
     marketResearch?: MarketResearchResult | null,
-    targetLanguage?: string
+    targetLanguage?: string,
+    callerOnPurifyReport?: (report: PurifyReport) => void
 ): Promise<CVData> => {
 
     // ── HOT FIRE (inbound) ── Scrub banned phrases out of the source profile
@@ -2848,6 +2849,12 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                 } catch (e) {
                     console.debug('[CV Gen] leak-report post failed (non-fatal):', e);
                 }
+
+                // ── Forward to caller hook (e.g. CVGenerator quality panel). ──
+                if (callerOnPurifyReport) {
+                    try { callerOnPurifyReport(report); }
+                    catch (e) { console.debug('[CV Gen] callerOnPurifyReport hook failed (non-fatal):', e); }
+                }
             },
         });
     } else {
@@ -2860,6 +2867,7 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             carryProfile: profile,
             engineBrief: null,
             finalize: { profile },
+            ...(callerOnPurifyReport ? { onPurifyReport: callerOnPurifyReport } : {}),
         });
     }
 

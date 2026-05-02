@@ -3,6 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { auditCvQuality } from '../services/cvNumberFidelity';
+import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
@@ -289,6 +290,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
 
+  // Leaks produced by the purification pipeline during the most recent generation.
+  // Accumulates synonym_sub fixes so the quality panel can display them.
+  const [purifyLeaks, setPurifyLeaks] = useState<PurifyLeak[]>([]);
+
   // Live, deterministic quality audit. Recomputes only when currentCV changes.
   // Pure regex, runs in <5 ms, never hits the network.
   const qualityReport = useMemo(() => {
@@ -393,6 +398,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setCoverLetter(null);
     setAtsDataEmbedded(false);
     setCvScore(null);
+    setPurifyLeaks([]);
 
     // Compute which stages are actually relevant for THIS run so the modal
     // only shows steps that will execute (no greyed-out "Scoring" when there
@@ -428,7 +434,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         await new Promise(r => setTimeout(r, 400));
       }
       advanceStage('drafting', 'Drafting your tailored summary & bullets…');
-      const data = await generateCV(userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch, targetLanguage);
+      const data = await generateCV(
+        userProfile, jobDescription, generationMode, cvPurpose, scholarshipFormat, marketResearch, targetLanguage,
+        (report) => {
+          const fixes = (report.leaks || []).filter(l => l.fixedBy === 'synonym_sub');
+          if (fixes.length > 0) {
+            setPurifyLeaks(prev => [...prev, ...fixes]);
+          }
+        },
+      );
       advanceStage('polishing', 'Polishing every line — capitals, punctuation, numbers…');
       await new Promise(r => setTimeout(r, 300));
       if (userProfile.references && userProfile.references.length > 0) {
@@ -1208,6 +1222,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                       {qualityReport.totalIssues}
                     </span>
                   )}
+                  {purifyLeaks.filter(l => l.fixedBy === 'synonym_sub').length > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                      {purifyLeaks.filter(l => l.fixedBy === 'synonym_sub').length} auto-fixed
+                    </span>
+                  )}
                 </Button>
               )}
               {lastEngine && (
@@ -1648,6 +1667,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           onClose={() => setShowQualityPanel(false)}
           cv={currentCV}
           report={qualityReport}
+          purifyLeaks={purifyLeaks}
           onApplyFix={(newCv) => {
             setCurrentCV(newCv);
             // Surface which provider just produced the rewrite, so the engine

@@ -19,6 +19,7 @@ import {
 } from './icons';
 import { CvQualityReport, CvQualityIssue, CvQualityIssueKind } from '../services/cvNumberFidelity';
 import { CVData } from '../types';
+import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import {
     fixCvIssueWithAi, applyFixToCv, getOriginalTextAt, ISSUE_KIND_INSTRUCTIONS,
 } from '../services/aiInlineFix';
@@ -28,6 +29,7 @@ interface Props {
     onClose: () => void;
     cv: CVData;
     report: CvQualityReport;
+    purifyLeaks?: PurifyLeak[];
     onApplyFix: (newCv: CVData) => void;
     onDownloadJson: () => void;
 }
@@ -75,10 +77,14 @@ interface RowState {
 }
 
 export default function QualityIssuesPanel({
-    open, onClose, cv, report, onApplyFix, onDownloadJson,
+    open, onClose, cv, report, purifyLeaks = [], onApplyFix, onDownloadJson,
 }: Props) {
     const [rowState, setRowState] = useState<Record<string, RowState>>({});
     const [bulkFixing, setBulkFixing] = useState(false);
+
+    const synonymFixes = useMemo(() =>
+        purifyLeaks.filter(l => l.fixedBy === 'synonym_sub'),
+    [purifyLeaks]);
 
     // Stable per-issue key so React doesn't re-shuffle rows when fixes land.
     const issueKey = useCallback(
@@ -154,6 +160,7 @@ export default function QualityIssuesPanel({
     if (!open) return null;
 
     const allClean = report.totalIssues === 0;
+    const hasSynonymFixes = synonymFixes.length > 0;
 
     return (
         <div
@@ -185,8 +192,10 @@ export default function QualityIssuesPanel({
                             </span>
                         </h2>
                         <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                            {allClean
+                            {allClean && !hasSynonymFixes
                                 ? 'No issues detected. Your CV passes every deterministic rule (numbers, voice, tense, openers).'
+                                : allClean && hasSynonymFixes
+                                ? `No remaining issues. The pipeline auto-fixed ${synonymFixes.length} overused word${synonymFixes.length === 1 ? '' : 's'} before you saw the CV.`
                                 : 'Click "Fix with AI" on any issue to rewrite just that snippet — the rest of the CV stays untouched.'}
                         </p>
                     </div>
@@ -226,6 +235,40 @@ export default function QualityIssuesPanel({
 
                 {/* Issue list */}
                 <div className="flex-1 overflow-y-auto p-5">
+                    {/* Auto-fixed by pipeline — shown whenever the purifier made synonym substitutions */}
+                    {hasSynonymFixes && (
+                        <section className="mb-5">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                Auto-fixed by pipeline ({synonymFixes.length})
+                            </h3>
+                            <ul className="space-y-1.5">
+                                {synonymFixes.map((fix, i) => (
+                                    <li
+                                        key={`syn-${i}`}
+                                        className="border border-emerald-200 dark:border-emerald-800/60 rounded-lg px-3 py-2 bg-emerald-50/60 dark:bg-emerald-900/10 flex items-start gap-2"
+                                    >
+                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                        <div className="min-w-0">
+                                            <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                                                Overused word replaced
+                                            </span>
+                                            {fix.phrase && (
+                                                <span className="ml-1.5 text-xs font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                                                    {fix.phrase}
+                                                </span>
+                                            )}
+                                            {fix.fieldLocation && (
+                                                <div className="text-[11px] text-emerald-600/70 dark:text-emerald-500/70 mt-0.5">
+                                                    {fix.fieldLocation}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
                     {allClean ? (
                         <div className="text-center py-8 text-zinc-500 dark:text-zinc-400">
                             <CheckCircle className="h-12 w-12 text-emerald-500 mx-auto mb-3" />
