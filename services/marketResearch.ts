@@ -18,6 +18,7 @@ import { GoogleGenAI } from '@google/genai';
 import { UserProfile } from '../types';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { groqChat, GROQ_LARGE } from './groqService';
+import { sha256Hex } from './profileCacheClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -280,12 +281,62 @@ function parseResearchJson(rawText: string, role: string, industry: string, scen
     return result;
 }
 
+// ─── D1 market research cache ─────────────────────────────────────────────────
+
+const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
+const MR_CACHE_TIMEOUT_MS = 4000; // don't block generation longer than 4 s
+
+/**
+ * Computes the D1 cache key for a given market research request.
+ * Key = SHA-256( scenario + ":" + role + ":" + industry + ":" + normalized_jd )
+ * The normalized JD is lowercased and collapsed whitespace so minor reformatting
+ * doesn't bust the cache.
+ */
+async function buildMRCacheKey(scenario: string, role: string, industry: string, jd: string): Promise<string> {
+    const normalizedJd = jd.toLowerCase().replace(/\s+/g, ' ').trim();
+    return sha256Hex(`${scenario}:${role.toLowerCase()}:${industry.toLowerCase()}:${normalizedJd}`);
+}
+
+/** Check D1 cache — returns MarketResearchResult if found and fresh, null otherwise. */
+async function checkMRCache(key: string): Promise<MarketResearchResult | null> {
+    if (!ENGINE_URL) return null;
+    try {
+        const res = await fetch(`${ENGINE_URL}/api/cv/market-research?key=${encodeURIComponent(key)}`, {
+            signal: AbortSignal.timeout(MR_CACHE_TIMEOUT_MS),
+        });
+        if (!res.ok) return null;
+        const data = await res.json() as { found?: boolean; result?: MarketResearchResult };
+        if (!data.found || !data.result) return null;
+        // Restore searchedAt to "now" so the prompt label reads correctly.
+        return { ...data.result, searchedAt: Date.now() };
+    } catch {
+        return null;
+    }
+}
+
+/** Store result in D1 cache — fire-and-forget, never blocks generation. */
+function storeMRCache(key: string, scenario: string, role: string, result: MarketResearchResult): void {
+    if (!ENGINE_URL) return;
+    fetch(`${ENGINE_URL}/api/cv/market-research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            key,
+            scenario,
+            detected_role: role,
+            result_json: JSON.stringify(result),
+        }),
+        signal: AbortSignal.timeout(6000),
+    }).catch(() => {});
+}
+
 // ─── Main exported function ───────────────────────────────────────────────────
 
 /**
  * Conducts market research.
- * Tries Gemini + Google Search first; falls back to Groq/Cerebras on any failure.
- * Returns null if both providers fail — CV generation always proceeds.
+ * Checks D1 cache first — skips the AI call entirely if a fresh result exists.
+ * Tries Gemini + Google Search; falls back to Groq/Cerebras on failure.
+ * Returns null if everything fails — CV generation always proceeds.
  */
 export async function conductMarketResearch(
     profile: UserProfile,
@@ -293,6 +344,33 @@ export async function conductMarketResearch(
 ): Promise<MarketResearchResult | null> {
     const scenario = detectScenario(jobDescription);
     const { role, industry } = detectRoleAndIndustry(profile, jobDescription);
+
+    // ── D1 cache check (fastest path — no AI call) ────────────────────────────
+    try {
+        const cacheKey = await buildMRCacheKey(scenario, role, industry, jobDescription);
+        const cached = await checkMRCache(cacheKey);
+        if (cached) {
+            console.info(`[MarketResearch] D1 cache hit — Scenario ${scenario}, role "${role}" (skipped AI call)`);
+            return cached;
+        }
+        // Cache miss — run AI call then store result in the background.
+        const fresh = await conductMarketResearchFresh(profile, jobDescription, scenario, role, industry);
+        if (fresh) storeMRCache(cacheKey, scenario, role, fresh);
+        return fresh;
+    } catch {
+        // If cache infrastructure fails, fall through to direct AI call.
+        return conductMarketResearchFresh(profile, jobDescription, scenario, role, industry);
+    }
+}
+
+/** Internal: makes the actual Gemini / Groq AI call (no caching). */
+async function conductMarketResearchFresh(
+    profile: UserProfile,
+    jobDescription: string,
+    scenario: Scenario,
+    role: string,
+    industry: string,
+): Promise<MarketResearchResult | null> {
 
     // ── Attempt 1: Gemini + Google Search (live results) ──────────────────────
     const geminiApiKey = getGeminiApiKey();

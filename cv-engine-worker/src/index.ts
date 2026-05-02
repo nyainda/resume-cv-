@@ -74,6 +74,9 @@ export default {
             if (url.pathname === '/api/cv/profile' && request.method === 'GET')  return handleProfileCacheGet(request, env, url);
             if (url.pathname === '/api/cv/profile' && request.method === 'POST') return handleProfileCachePost(request, env, ctx);
 
+            if (url.pathname === '/api/cv/market-research' && request.method === 'GET')  return handleMarketResearchCacheGet(request, env, url);
+            if (url.pathname === '/api/cv/market-research' && request.method === 'POST') return handleMarketResearchCachePost(request, env, ctx);
+
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
@@ -2388,4 +2391,73 @@ async function handleProfileCachePost(request: Request, env: Env, ctx: Execution
     );
 
     return json({ ok: true, hash, cached: true }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Market research cache — GET /api/cv/market-research?key=<hex>
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleMarketResearchCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const key = url.searchParams.get('key') || '';
+    if (!key || key.length < 16) return json({ error: 'missing_key' }, request, env, 400);
+
+    const row = await env.CV_DB.prepare(
+        `SELECT cache_key, scenario, detected_role, result_json, created_at, last_used_at, use_count
+         FROM market_research_cache WHERE cache_key = ?`
+    ).bind(key).first<{
+        cache_key: string; scenario: string; detected_role: string;
+        result_json: string; created_at: number; last_used_at: number; use_count: number;
+    }>();
+
+    if (!row) return json({ found: false }, request, env, 404);
+
+    // Expire entries older than 7 days.
+    const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+    if (row.created_at < sevenDaysAgo) {
+        env.CV_DB.prepare(`DELETE FROM market_research_cache WHERE cache_key = ?`).bind(key).run().catch(() => {});
+        return json({ found: false, expired: true }, request, env, 404);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    env.CV_DB.prepare(
+        `UPDATE market_research_cache SET last_used_at = ?, use_count = use_count + 1 WHERE cache_key = ?`
+    ).bind(now, key).run().catch(() => {});
+
+    let result: unknown;
+    try { result = JSON.parse(row.result_json); } catch { return json({ found: false, error: 'corrupt_json' }, request, env, 404); }
+
+    return json({ found: true, result, use_count: row.use_count + 1, cached_at: row.created_at }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Market research cache — POST /api/cv/market-research
+// Body: { key, scenario, detected_role, result_json }
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleMarketResearchCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const key          = typeof body?.key          === 'string' ? body.key.trim()          : '';
+    const scenario     = typeof body?.scenario     === 'string' ? body.scenario.trim()     : 'C';
+    const detectedRole = typeof body?.detected_role === 'string' ? body.detected_role.trim().substring(0, 200) : '';
+    const resultJson   = typeof body?.result_json  === 'string' ? body.result_json         : '';
+
+    if (!key || key.length < 16)  return json({ error: 'invalid_key' }, request, env, 400);
+    if (!resultJson)               return json({ error: 'missing_result_json' }, request, env, 400);
+    if (resultJson.length > 16384) return json({ error: 'result_too_large', max: 16384 }, request, env, 413);
+
+    const now = Math.floor(Date.now() / 1000);
+    await env.CV_DB.prepare(
+        `INSERT INTO market_research_cache (cache_key, scenario, detected_role, result_json, created_at, last_used_at, use_count)
+         VALUES (?, ?, ?, ?, ?, ?, 0)
+         ON CONFLICT(cache_key) DO NOTHING`
+    ).bind(key, scenario, detectedRole, resultJson, now, now).run();
+
+    // Prune very old entries (>14 days unused) in the background.
+    const fourteenDaysAgo = now - 14 * 24 * 3600;
+    ctx.waitUntil(
+        env.CV_DB.prepare(`DELETE FROM market_research_cache WHERE last_used_at < ?`)
+            .bind(fourteenDaysAgo).run().catch(() => {})
+    );
+
+    return json({ ok: true, key, cached: true }, request, env);
 }
