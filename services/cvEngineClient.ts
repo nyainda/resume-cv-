@@ -418,11 +418,22 @@ async function prewarmOne(task: string): Promise<PrewarmResult> {
         );
         const ms = Date.now() - t0;
         if (!r.ok) {
-            // 5xx → quota exhausted or worker down. Open the circuit immediately
-            // so every subsequent workerTieredLLM / buildBrief call skips CF
-            // without making another round-trip.
-            if (r.status >= 500) markDead('/api/cv/tiered-llm', `HTTP ${r.status} (prewarm)`);
-            return { task, ok: false, ms, note: `HTTP ${r.status}` };
+            if (r.status === 502) {
+                // 502 means the worker itself responded — it is reachable.
+                // tiered-llm returns 502 when the AI model produces empty text
+                // (error: 'llm_empty') or throws internally (error: 'llm_failed').
+                // Neither means the worker is down. Opening the cf-worker circuit
+                // here would block ALL Workers AI calls for 3 min even though
+                // the worker is healthy — e.g. a cold GLM 4.7 Flash would kill
+                // cvAudit and humanize too. Call markAlive so the race between
+                // parallel prewarm tasks doesn't leave the circuit open.
+                markAlive('/api/cv/prewarm');
+            } else if (r.status >= 500) {
+                // 503 / 504 / 500 — the worker gateway itself is unhealthy.
+                // Open the circuit so callers don't hammer a dead endpoint.
+                markDead('/api/cv/tiered-llm', `HTTP ${r.status} (prewarm)`);
+            }
+            return { task, ok: false, ms, note: `HTTP ${r.status} (model cold or quota-empty)` };
         }
         // HTTP 200 → the worker endpoint is reachable. Close the circuit
         // breaker immediately so any parallel calls that were gated behind
@@ -604,7 +615,15 @@ export async function workerTieredLLM(
             opts.timeoutMs ?? WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS,
         );
         if (!r.ok) {
-            if (r.status >= 500) markDead(deadKey, `HTTP ${r.status} (task=${task})`);
+            if (r.status === 502) {
+                // Worker responded → it is reachable. 502 from tiered-llm means
+                // the AI model returned empty text ('llm_empty') or threw
+                // ('llm_failed') — not that the worker itself is down. Don't
+                // open the global cf-worker circuit; callers will fall back to
+                // Groq for this request while the model warms up.
+            } else if (r.status >= 500) {
+                markDead(deadKey, `HTTP ${r.status} (task=${task})`);
+            }
             return null;
         }
         const data = await r.json() as { text?: string; error?: string };
@@ -672,7 +691,12 @@ export async function workerRaceLLM(
             opts.timeoutMs ?? WORKER_RACE_LLM_DEFAULT_TIMEOUT_MS,
         );
         if (!r.ok) {
-            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status} (tasks=${tasks.join(',')})`);
+            if (r.status === 502) {
+                // Worker responded — reachable. 502 = race candidates all failed
+                // (model-level), not a worker outage. Don't open the circuit.
+            } else if (r.status >= 500) {
+                markDead(ENDPOINT, `HTTP ${r.status} (tasks=${tasks.join(',')})`);
+            }
             return null;
         }
         const data = await r.json() as {
@@ -768,7 +792,13 @@ export async function workerParallelSections(
             opts.timeoutMs ?? WORKER_PARALLEL_SECTIONS_DEFAULT_TIMEOUT_MS,
         );
         if (!r.ok) {
-            if (r.status >= 500) markDead(ENDPOINT, `HTTP ${r.status}`);
+            if (r.status === 502) {
+                // Worker responded — reachable. 502 = all parallel sections
+                // failed at model level ('all_sections_failed'), not a worker
+                // outage. Don't open the circuit; fall back to Groq per-section.
+            } else if (r.status >= 500) {
+                markDead(ENDPOINT, `HTTP ${r.status}`);
+            }
             return null;
         }
         const data = await r.json() as WorkerParallelSectionsResult & { error?: string };
