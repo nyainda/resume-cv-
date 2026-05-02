@@ -1532,6 +1532,26 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): str
 }
 
 /**
+ * Rebuilds a prompt that was assembled with `compactProfile(profile)` (default
+ * 350 chars/role) by substituting a slimmer representation (120 chars/role).
+ * Used as a second-chance retry when Groq returns 413 — the reduced profile
+ * typically cuts 30–50 % off prompts for users with many detailed roles,
+ * bringing the token count back inside Groq's 128K context window.
+ *
+ * Returns the original prompt unchanged when:
+ * - the full-profile JSON is not found verbatim (safety guard)
+ * - the slim version is identical (profile was already small)
+ */
+function slimPromptProfile(prompt: string, profile: UserProfile): string {
+    const full = compactProfile(profile, 350);
+    const slim = compactProfile(profile, 120);
+    if (full === slim) return prompt;
+    const idx = prompt.indexOf(full);
+    if (idx === -1) return prompt;
+    return prompt.slice(0, idx) + slim + prompt.slice(idx + full.length);
+}
+
+/**
  * Smartly truncate a job description to a target character limit while
  * preserving as much keyword signal as possible.
  * Strategy: keep the first block (role summary), then keyword-dense middle,
@@ -2681,7 +2701,10 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         // the worker tiered endpoint by default — Groq only fires if the user
         // has a key AND the worker is dead). On size/rate failures, falls
         // back to the worker race endpoint, then errors out cleanly.
-        const PROMPT_SIZE_GROQ_413_THRESHOLD = 90_000;
+        // Lowered from 90K → 70K: Groq's token limit is ~128K tokens but dense
+        // profiles (many detailed roles) can hit that at ~70K chars. Pre-routing
+        // to Workers AI earlier avoids a wasted Groq round-trip that 413s.
+        const PROMPT_SIZE_GROQ_413_THRESHOLD = 70_000;
         const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
         const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
 
@@ -2696,8 +2719,12 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                 timeoutMs: 90000,
             });
             if (!cf) {
-                console.error('[CV Gen] Cloudflare Workers AI race unavailable for large prompt — last-resort attempt via groqChat (will route through worker tiered or user Groq key).');
-                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+                // Workers AI unavailable — slim the profile (350→120 chars/role) and
+                // retry through the full groqChat fallback chain (Groq → OpenRouter →
+                // Gemini). This avoids re-sending the same too-large prompt to Groq.
+                const slimPrompt = slimPromptProfile(mainPromptInstruction, profile);
+                console.warn(`[CV Gen] Workers AI unavailable — last-resort retry with slimmed profile (${slimPrompt.length.toLocaleString()} chars) via groqChat chain.`);
+                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimPrompt, { temperature, json: true, maxTokens: 6000 });
             } else {
                 rawText = cf.text;
                 console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms, pre-sized).`);
@@ -2711,20 +2738,44 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                 const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
                 const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
                 if (isTooLarge || isRateLimited) {
-                    console.warn(`[CV Gen] groqChat ${status ?? '?'} — falling back to Cloudflare Workers AI race.`);
-                    const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
-                        system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-                        temperature,
-                        json: true,
-                        maxTokens: 6000,
-                        timeoutMs: 90000,
-                    });
-                    if (!cf) {
-                        console.error('[CV Gen] Section-parallel, race, and groqChat all unavailable — re-throwing original error.');
-                        throw groqErr;
+                    let fallbackText: string | undefined;
+
+                    // For 413 specifically: the prompt slipped through the char-count
+                    // pre-check but is too large in tokens. Rebuild it with a slimmer
+                    // profile (120 chars/role vs 350) — typically cuts 30–50 % on large
+                    // profiles — and retry the full groqChat chain before touching the
+                    // Workers AI race (which has its own availability issues).
+                    if (isTooLarge) {
+                        const slimPrompt = slimPromptProfile(mainPromptInstruction, profile);
+                        if (slimPrompt.length < mainPromptInstruction.length) {
+                            try {
+                                console.warn(`[CV Gen] 413 — retrying with slimmed profile (${slimPrompt.length.toLocaleString()} chars vs ${mainPromptInstruction.length.toLocaleString()})…`);
+                                fallbackText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimPrompt, { temperature, json: true, maxTokens: 6000 });
+                                console.info('[CV Gen] Slim-profile retry succeeded.');
+                            } catch {
+                                // slim retry also failed — fall through to Workers AI race
+                            }
+                        }
                     }
-                    rawText = cf.text;
-                    console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
+
+                    if (!fallbackText) {
+                        console.warn(`[CV Gen] groqChat ${status ?? '?'} — falling back to Cloudflare Workers AI race.`);
+                        const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+                            system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+                            temperature,
+                            json: true,
+                            maxTokens: 6000,
+                            timeoutMs: 90000,
+                        });
+                        if (!cf) {
+                            console.error('[CV Gen] Section-parallel, race, groqChat, and slim-retry all unavailable — re-throwing original error.');
+                            throw groqErr;
+                        }
+                        fallbackText = cf.text;
+                        console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
+                    }
+
+                    rawText = fallbackText;
                 } else {
                     throw groqErr;
                 }
