@@ -23,9 +23,9 @@
 // first, which is why we resolve the pipeline at runtime instead.
 (import.meta as any).env = (import.meta as any).env || {};
 
-import type { CVData } from '../types';
-import type { PurifyReport } from '../services/cvPurificationPipeline';
-import { fixPronouns } from '../services/cvPromptHelpers';
+import type { CVData } from '../../types';
+import type { PurifyReport } from '../../services/cvPurificationPipeline';
+import { fixPronouns } from '../../services/cvPromptHelpers';
 
 const { purifyCV } = await import('../services/cvPurificationPipeline');
 

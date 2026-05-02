@@ -7,13 +7,13 @@
     "dev": "vite --port 5000 --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "pdf-server": "node server-pdf.cjs",
-    "check:cloudflare": "node scripts/check-cloudflare-connections.mjs",
-    "audit:rules": "node scripts/audit-rule-counts.mjs",
-    "test:numbers": "npx tsx scripts/test-cv-number-fidelity.ts",
-    "test:cv-quality": "npx tsx scripts/test-cv-quality.ts",
+    "pdf-server": "node backend/server-pdf.cjs",
+    "check:cloudflare": "node backend/scripts/check-cloudflare-connections.mjs",
+    "audit:rules": "node backend/scripts/audit-rule-counts.mjs",
+    "test:numbers": "npx tsx backend/scripts/test-cv-number-fidelity.ts",
+    "test:cv-quality": "npx tsx backend/scripts/test-cv-quality.ts",
     "test:cv": "npm run test:numbers && npm run test:cv-quality",
-    "test:pdf": "node scripts/test-pdf-download.mjs"
+    "test:pdf": "node backend/scripts/test-pdf-download.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

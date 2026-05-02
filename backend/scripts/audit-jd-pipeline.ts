@@ -23,7 +23,7 @@
 
 (import.meta as any).env = (import.meta as any).env || {};
 
-import type { UserProfile } from '../types';
+import type { UserProfile } from '../../types';
 
 const { detectScenario, detectRoleAndIndustry } = await import('../services/marketResearch');
 const { smartTruncateJD, jdProfileSimilarity } = await import('../services/geminiService');

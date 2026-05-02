@@ -30,7 +30,7 @@ import {
     tidyOrphanRemnants,
     auditCvQuality,
     isBulletDegraded,
-} from '../services/cvNumberFidelity';
+} from '../../services/cvNumberFidelity';
 // We import the polish pipeline indirectly through purifyCV in production,
 // but for the trailing-period unit test we re-implement the same single rule
 // inline so this script stays free of Vite-only dependencies.
