@@ -4,6 +4,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(() => {
   return {
+    root: path.resolve(__dirname, 'frontend'),
+    publicDir: path.resolve(__dirname, 'frontend/public'),
+    build: {
+      outDir: path.resolve(__dirname, 'dist'),
+      emptyOutDir: true,
+    },
     server: {
       port: 5000,
       host: '0.0.0.0',
@@ -13,9 +19,6 @@ export default defineConfig(() => {
         host: process.env.REPLIT_DEV_DOMAIN || undefined,
       },
       allowedHosts: true,
-      // Same-origin proxy to the local Playwright PDF server (port 3001).
-      // Required because the Replit preview iframe cannot reach localhost:3001
-      // directly; the browser only sees port 80 of the dev URL.
       proxy: {
         '/__pdf': {
           target: 'http://localhost:3001',
@@ -41,7 +44,7 @@ export default defineConfig(() => {
     plugins: [react()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, 'frontend'),
       },
       dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
     }

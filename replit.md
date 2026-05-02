@@ -23,14 +23,23 @@ backend/                        ← all server-side code
   scripts/                      ← audit / test / seeding scripts
   server-pdf.cjs                ← local Playwright PDF server (port 3001)
 
+frontend/                       ← all React/UI source code (Vite root)
+  components/                   ← React UI components (35+ CV templates)
+  services/                     ← frontend service layer (AI calls, storage, etc.)
+  hooks/                        ← React hooks
+  auth/                         ← Google OAuth context
+  data/                         ← static data (portals, role tracks)
+  utils/                        ← pure utility helpers
+  public/                       ← static assets served at / (icons, manifest, service-worker)
+  App.tsx                       ← root React component
+  index.tsx                     ← app entry point
+  index.html                    ← Vite HTML entry
+  types.ts                      ← shared TypeScript types
+
 api/                            ← Vercel serverless functions (stays at root — Vercel convention)
-components/                     ← React UI components
-services/                       ← frontend service layer (AI calls, storage, etc.)
-hooks/                          ← React hooks
-auth/                           ← Google OAuth context
-data/                           ← static data (portals, role tracks)
-utils/                          ← pure utility helpers
-public/                         ← static assets (icons, manifest)
+vite.config.ts                  ← Vite config (root: frontend/, publicDir: frontend/public/)
+tailwind.config.js              ← Tailwind config (content: frontend/**)
+tsconfig.json                   ← TypeScript config (include: frontend/**)
 ```
 
 Wrangler deploy commands always run from the worker subdirectory, e.g.:
