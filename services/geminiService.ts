@@ -1054,8 +1054,23 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
 
     // Helper: merge the auditor's partial response (only summary + experience)
     // back into the full CV so nothing else is lost.
+    // Attempt to recover truncated JSON by walking backwards to find the last
+    // well-formed root closing brace. Mistral Small sometimes stops mid-string
+    // when the output nears the token limit, leaving a JSON parse error at the
+    // truncation point (e.g. "Expected ',' or '}' at position 2667").
+    const repairJson = (s: string): string => {
+        try { JSON.parse(s); return s; } catch {}
+        for (let i = s.length - 1; i >= 0; i--) {
+            if (s[i] === '}') {
+                const candidate = s.slice(0, i + 1);
+                try { JSON.parse(candidate); return candidate; } catch {}
+            }
+        }
+        return s;
+    };
+
     const mergePartial = (raw: string): CVData => {
-        const partial = JSON.parse(stripFences(raw));
+        const partial = JSON.parse(repairJson(stripFences(raw)));
         const merged: CVData = { ...cvData };
         if (typeof partial.summary === 'string' && partial.summary.trim()) {
             merged.summary = partial.summary;

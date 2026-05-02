@@ -1444,8 +1444,12 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     cvSummary:            { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'CV professional summary — Mistral Small 3.1 24B (FREE, best for prose)' },
     cvSkills:             { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 2, free: true,  description: 'CV skills list — IBM Granite 4.0 Micro (FREE, lightest capable model)' },
     cvEducation:          { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 2, free: true,  description: 'CV education section — IBM Granite 4.0 Micro (FREE, lightest capable model)' },
-    // Fallback when primary model fails — GLM is better than Mistral for JSON
-    cvFallback:           { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Section-parallel fallback — GLM 4.7 Flash (FREE, stronger fallback)' },
+    // Fallback when primary model fails — Mistral Small 3.1 is the fallback so
+    // that when GLM 4.7 Flash (used by cvExperience, cvProjects, cvGenerate) is
+    // cold and returns empty, the retry lands on a DIFFERENT warm model instead
+    // of hammering the same cold GLM again. Mistral Small completed cvSummary
+    // in ~3s in the same session where GLM took 65s — ideal fallback choice.
+    cvFallback:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Section-parallel fallback — Mistral Small 3.1 24B (FREE, different model to GLM)' },
 
     // ── Tier 2 free alternatives (rhythm, seniority, multilingual) ───────────
     rhythmSelection:      { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 2, free: true,  description: 'Rhythm pattern selection per role type (FREE)' },

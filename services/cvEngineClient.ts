@@ -467,18 +467,36 @@ export function prewarmCVEngineModels(): Promise<PrewarmResult[]> {
     if (!isCVEngineConfigured()) return Promise.resolve([]);
     if (prewarmStarted && prewarmPromise) return prewarmPromise;
     prewarmStarted = true;
-    prewarmPromise = Promise.all(PREWARM_TASKS.map(prewarmOne)).then((results) => {
-        const okCount = results.filter((r) => r.ok).length;
-        const slowest = results.reduce((max, r) => (r.ms > max ? r.ms : max), 0);
-        if (typeof console !== 'undefined') {
-            const tag = okCount === results.length ? '✓' : okCount === 0 ? '✗' : '~';
-            const lines = results.map((r) => {
+    prewarmPromise = Promise.all(PREWARM_TASKS.map(prewarmOne)).then(async (results) => {
+        const logResults = (tag: string, res: PrewarmResult[]) => {
+            const okCount = res.filter((r) => r.ok).length;
+            const slowest = res.reduce((max, r) => (r.ms > max ? r.ms : max), 0);
+            const symbol = okCount === res.length ? '✓' : okCount === 0 ? '✗' : '~';
+            const lines = res.map((r) => {
                 const flag = r.ok ? '✓' : '✗';
                 const detail = r.ok ? `${r.ms}ms ${r.model || ''}`.trim() : `${r.ms}ms — ${r.note || 'failed'}`;
                 return `  ${flag} ${r.task.padEnd(15)} ${detail}`;
             }).join('\n');
-            console.info(`[CV Engine] Pre-warm ${tag} ${okCount}/${results.length} models hot (slowest ${slowest}ms)\n${lines}`);
+            console.info(`[CV Engine] Pre-warm ${tag} ${symbol} ${okCount}/${res.length} models hot (slowest ${slowest}ms)\n${lines}`);
+        };
+        logResults('', results);
+
+        // If some models failed (likely cold-loading) but the worker is reachable
+        // (at least one model succeeded), retry the cold ones once after 3 s.
+        // This is critical for GLM 4.7 Flash (cvGenerate) which sometimes needs
+        // a second warm-up call before it stops returning empty responses.
+        const failedTasks = results.filter((r) => !r.ok).map((r) => r.task);
+        const workerReachable = results.some((r) => r.ok);
+        if (failedTasks.length > 0 && workerReachable) {
+            await new Promise<void>((res) => setTimeout(res, 3000));
+            const retried = await Promise.all(failedTasks.map(prewarmOne));
+            logResults('retry', retried);
+            for (const r of retried) {
+                const idx = results.findIndex((x) => x.task === r.task);
+                if (idx >= 0) results[idx] = r;
+            }
         }
+
         return results;
     }).catch((e) => {
         // Defence in depth — Promise.all of catches above can't reject, but
