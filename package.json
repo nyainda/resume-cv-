@@ -13,7 +13,9 @@
     "test:numbers": "npx tsx backend/scripts/test-cv-number-fidelity.ts",
     "test:cv-quality": "npx tsx backend/scripts/test-cv-quality.ts",
     "test:cv": "npm run test:numbers && npm run test:cv-quality",
-    "test:pdf": "node backend/scripts/test-pdf-download.mjs"
+    "test:pdf": "node backend/scripts/test-pdf-download.mjs",
+    "test:gap-pin": "node backend/scripts/test-gap-pin.mjs",
+    "test:banned": "node backend/scripts/test-banned-phrase-filter.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

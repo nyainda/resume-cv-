@@ -3529,7 +3529,48 @@ Return ONLY a JSON array of 10 objects:
     return JSON.parse(text.trim());
 };
 
+// ─── D1 JD analysis cache ─────────────────────────────────────────────────────
+
+const _JD_CACHE_ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
+const _JD_CACHE_TIMEOUT_MS = 3500;
+
+/** Check D1 cache for a prior JD analysis result. Returns null on miss or any error. */
+async function checkJdAnalysisCache(jdHash: string): Promise<JobAnalysisResult | null> {
+    if (!_JD_CACHE_ENGINE_URL) return null;
+    try {
+        const res = await fetch(
+            `${_JD_CACHE_ENGINE_URL}/api/cv/jd-analysis?key=${encodeURIComponent(jdHash)}`,
+            { signal: AbortSignal.timeout(_JD_CACHE_TIMEOUT_MS) },
+        );
+        if (!res.ok) return null;
+        const data = await res.json() as { found?: boolean; result?: JobAnalysisResult };
+        if (!data.found || !data.result) return null;
+        console.log('[JD Analysis Cache] Hit — skipping AI call');
+        return data.result;
+    } catch {
+        return null;
+    }
+}
+
+/** Store a JD analysis result in D1 — fire-and-forget, never blocks generation. */
+function storeJdAnalysisCache(jdHash: string, result: JobAnalysisResult): void {
+    if (!_JD_CACHE_ENGINE_URL) return;
+    fetch(`${_JD_CACHE_ENGINE_URL}/api/cv/jd-analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: jdHash, result_json: JSON.stringify(result) }),
+        signal: AbortSignal.timeout(5000),
+    }).catch(() => {});
+}
+
 export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
+    // Check D1 cache first — same JD text always produces the same result so
+    // we can skip the AI call entirely on repeated generations.
+    const jdSnippet = jobDescription.substring(0, 1500);
+    const jdHash = quickHash(jdSnippet.replace(/\s+/g, ' ').trim());
+    const cached = await checkJdAnalysisCache(jdHash);
+    if (cached) return cached;
+
     const prompt = `
         Analyze the following job description with the goal of strategic resume tailoring. 
         1. Extract the top 10 most important technical keywords (specific technologies, tools, platforms, methodologies like Agile).
@@ -3561,13 +3602,17 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
         });
         if (cfText) {
             console.log('[JD Parse] Parsed via Workers AI (free tier).');
-            return JSON.parse(stripFencesJd(cfText));
+            const result = JSON.parse(stripFencesJd(cfText));
+            storeJdAnalysisCache(jdHash, result);
+            return result;
         }
     } catch (cfErr) {
         console.warn('[JD Parse] Workers AI failed, falling back to Groq:', cfErr);
     }
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 512 });
-    return JSON.parse(stripFencesJd(text));
+    const result = JSON.parse(stripFencesJd(text));
+    storeJdAnalysisCache(jdHash, result);
+    return result;
 };
 
 export const generateEnhancedSummary = async (profileInput: UserProfile): Promise<string> => {

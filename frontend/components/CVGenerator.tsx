@@ -765,6 +765,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     return text.toLowerCase();
   }, [currentCV]);
 
+  // Render-time gap count — shows the user how many confirmed-missing ATS keywords
+  // will be targeted BEFORE they click Generate. Recomputes whenever JD or CV changes.
+  const previewGapCount = useMemo(() => {
+    if (!currentCV || !jobDescription.trim() || cvPurpose !== 'job') return 0;
+    return Math.min(scoreAtsCoverage(currentCV, jobDescription).missing.length, 12);
+  }, [currentCV, jobDescription, cvPurpose]);
+
   const handleJobAnalysisComplete = useCallback((result: JobAnalysisResult) => {
     if (result.companyName) {
       setTargetCompany(result.companyName);
@@ -1162,6 +1169,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </>
             ) : <><Sparkles className="h-5 w-5 mr-2" />Generate CV with AI</>}
           </Button>
+
+          {/* Gap-targeting badge — shown when JD + existing CV give us confirmed missing keywords */}
+          {previewGapCount > 0 && !isLoading && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                 title="These ATS keywords appear in the JD but are missing from your current CV. The AI will specifically incorporate them in the next generation.">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+              🎯 {previewGapCount} gap term{previewGapCount === 1 ? '' : 's'} will be targeted
+            </div>
+          )}
 
           {/* AI engine badge — shown after successful generation */}
           {lastEngine && !isLoading && (() => {

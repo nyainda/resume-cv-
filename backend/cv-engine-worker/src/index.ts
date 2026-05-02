@@ -77,6 +77,9 @@ export default {
             if (url.pathname === '/api/cv/market-research' && request.method === 'GET')  return handleMarketResearchCacheGet(request, env, url);
             if (url.pathname === '/api/cv/market-research' && request.method === 'POST') return handleMarketResearchCachePost(request, env, ctx);
 
+            if (url.pathname === '/api/cv/jd-analysis' && request.method === 'GET')  return handleJdAnalysisCacheGet(request, env, url);
+            if (url.pathname === '/api/cv/jd-analysis' && request.method === 'POST') return handleJdAnalysisCachePost(request, env, ctx);
+
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
@@ -2398,8 +2401,66 @@ async function handleProfileCachePost(request: Request, env: Env, ctx: Execution
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Market research cache — GET /api/cv/market-research?key=<hex>
+// JD keyword analysis cache — GET /api/cv/jd-analysis?key=<hash>
+// Returns cached JobAnalysisResult for a given JD hash (7-day TTL).
 // ─────────────────────────────────────────────────────────────────────────────
+async function handleJdAnalysisCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const key = url.searchParams.get('key') || '';
+    if (!key || key.length < 16) return json({ error: 'missing_key' }, request, env, 400);
+
+    const row = await env.CV_DB.prepare(
+        `SELECT result_json, created_at FROM jd_analysis_cache WHERE cache_key = ?`
+    ).bind(key).first<{ result_json: string; created_at: number }>();
+
+    if (!row) return json({ found: false }, request, env, 404);
+
+    const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 3600;
+    if (row.created_at < sevenDaysAgo) {
+        env.CV_DB.prepare(`DELETE FROM jd_analysis_cache WHERE cache_key = ?`).bind(key).run().catch(() => {});
+        return json({ found: false, expired: true }, request, env, 404);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    env.CV_DB.prepare(
+        `UPDATE jd_analysis_cache SET last_used_at = ?, use_count = use_count + 1 WHERE cache_key = ?`
+    ).bind(now, key).run().catch(() => {});
+
+    let result: unknown;
+    try { result = JSON.parse(row.result_json); } catch { return json({ found: false, error: 'corrupt_json' }, request, env, 404); }
+    return json({ found: true, result }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JD keyword analysis cache — POST /api/cv/jd-analysis
+// Body: { key, result_json }
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleJdAnalysisCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const key        = typeof body?.key         === 'string' ? body.key.trim()        : '';
+    const resultJson = typeof body?.result_json === 'string' ? body.result_json       : '';
+
+    if (!key || key.length < 16)    return json({ error: 'invalid_key' }, request, env, 400);
+    if (!resultJson)                 return json({ error: 'missing_result_json' }, request, env, 400);
+    if (resultJson.length > 4096)    return json({ error: 'result_too_large', max: 4096 }, request, env, 413);
+
+    const now = Math.floor(Date.now() / 1000);
+    await env.CV_DB.prepare(
+        `INSERT INTO jd_analysis_cache (cache_key, result_json, created_at, last_used_at, use_count)
+         VALUES (?, ?, ?, ?, 0)
+         ON CONFLICT(cache_key) DO NOTHING`
+    ).bind(key, resultJson, now, now).run();
+
+    const fourteenDaysAgo = now - 14 * 24 * 3600;
+    ctx.waitUntil(
+        env.CV_DB.prepare(`DELETE FROM jd_analysis_cache WHERE last_used_at < ?`)
+            .bind(fourteenDaysAgo).run().catch(() => {})
+    );
+
+    return json({ ok: true, key, cached: true }, request, env);
+}
+
 async function handleMarketResearchCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
     const key = url.searchParams.get('key') || '';
     if (!key || key.length < 16) return json({ error: 'missing_key' }, request, env, 400);
