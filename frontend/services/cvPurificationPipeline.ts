@@ -64,6 +64,13 @@ const SUBSTITUTIONS: Array<[RegExp, string]> = [
     // "Ensuring X happens before Y…". Substitution diff log records it as
     // "ensuring … → (removed)" so telemetry tracks the leak.
     [/,\s*ensuring\s+[^.;:!?]+/gi,       ''],
+    // ", and incorporating / and supporting / and utilizing / and applying
+    // <phrase>" — same tautological filler pattern seen in bullet chains like
+    // "…monitoring networks, and incorporating groundwater monitoring proven
+    // methods" where the trailing clause duplicates what's already said. Only
+    // strip when following a comma+and so we don't clip genuine conjunctions
+    // that open a bullet ("Led X and incorporated Y into…").
+    [/,\s*and\s+(?:incorporating|supporting|utilizing|utilising|applying|implementing|integrating|leveraging|using)\s+[^.;:!?]+/gi, ''],
 ];
 
 /**

@@ -4265,6 +4265,59 @@ async function runQualityPolishPasses(
     return out;
 }
 
+// ── Leak-summary console reporter ──────────────────────────────────────────
+// Called from improveCV and polishExistingCV via onPurifyReport so every
+// auto-optimize run prints a structured summary of what was caught and fixed.
+function logLeakSummary(report: PurifyReport, label: string): void {
+    const leaks = report.leaks ?? [];
+    const fixed   = leaks.filter(l => l.fixedBy && l.fixedBy !== 'none');
+    const flagged = leaks.filter(l => !l.fixedBy || l.fixedBy === 'none');
+
+    const instructionLeaks = fixed.filter(l => l.leakType === 'instruction_leak');
+    const bannedFixed      = fixed.filter(l => l.leakType === 'banned_phrase');
+    const tenseFixed       = fixed.filter(l => l.leakType === 'tense_mismatch');
+    const polishFixed      = report.polishFixes ?? 0;
+    const subsFixed        = report.substitutionsMade ?? 0;
+
+    const totalFixed   = fixed.length;
+    const totalFlagged = flagged.length;
+
+    const hasAnything = totalFixed > 0 || totalFlagged > 0 || subsFixed > 0;
+    if (!hasAnything) {
+        console.info(`%c[ProCV Leak Guard — ${label}]%c No leaks detected ✓`, 'color:#16a34a;font-weight:bold', 'color:inherit');
+        return;
+    }
+
+    console.groupCollapsed(
+        `%c[ProCV Leak Guard — ${label}]%c ${totalFixed} fixed · ${totalFlagged} flagged`,
+        'color:#d97706;font-weight:bold', 'color:inherit',
+    );
+
+    if (instructionLeaks.length > 0) {
+        console.warn(`🚫 Instruction-leak preambles stripped (${instructionLeaks.length}):`);
+        instructionLeaks.forEach(l =>
+            console.warn(`   [${l.fieldLocation ?? 'unknown'}] pattern="${l.phrase}" → snippet: "${(l.contextSnippet ?? '').slice(0, 80)}…"`),
+        );
+    }
+    if (bannedFixed.length > 0)
+        console.info(`🔤 Banned-phrase substitutions: ${bannedFixed.length}`);
+    if (tenseFixed.length > 0)
+        console.info(`⏩ Tense corrections: ${tenseFixed.length}`);
+    if (polishFixed > 0)
+        console.info(`✨ Polish fixes (weak openers, first-person, etc.): ${polishFixed}`);
+    if (subsFixed > 0 && subsFixed !== bannedFixed.length)
+        console.info(`🔡 Total text substitutions: ${subsFixed}`);
+    if (totalFlagged > 0) {
+        console.warn(`⚠️ Flagged (not auto-fixed, review manually): ${totalFlagged}`);
+        flagged.slice(0, 5).forEach(l =>
+            console.warn(`   [${l.leakType}] ${l.phrase ?? ''} @ ${l.fieldLocation ?? 'unknown'}`),
+        );
+        if (totalFlagged > 5) console.warn(`   … and ${totalFlagged - 5} more`);
+    }
+
+    console.groupEnd();
+}
+
 // --- Polish-only (no Groq rewrite) -----------------------------------------
 // Runs the shared post-generation polish chain on an existing CV WITHOUT
 // re-asking Groq to rewrite anything. Useful when the user already likes
@@ -4277,6 +4330,7 @@ export const polishExistingCV = async (cvDataInput: CVData): Promise<CVData> => 
         runHumanizer: true,
         bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
         finalize: { sourceCv: cvDataInput },
+        onPurifyReport: (report) => logLeakSummary(report, 'Polish'),
     });
 };
 
@@ -4321,10 +4375,13 @@ ${CV_DATA_SCHEMA}
     // Run the SAME quality polish chain that generateCV runs, so Auto Optimize
     // produces output at parity with a fresh Generate (humanizer + bullet count
     // preservation + banned-phrase filter + purify + finalize + pronoun fix).
+    // onPurifyReport logs a structured leak summary to the dev console so any
+    // instruction-leak preambles, banned phrases, or tense issues are visible.
     return runQualityPolishPasses(parsed, {
         runHumanizer: true,
         bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
         finalize: { sourceCv: cvDataInput },
+        onPurifyReport: (report) => logLeakSummary(report, 'Auto Optimize'),
     });
 };
 
