@@ -4308,6 +4308,7 @@ Rules:
 3. Return the COMPLETE CVData object with ALL fields, not just the modified parts.
 4. Bullets follow "Strong Verb → Scope → Result". Only ~50–60% should carry a metric — leave some qualitative.
 5. Avoid AI clichés. Write like a confident, experienced professional.
+6. NEVER output reasoning, notes, or internal commentary into any CV field. CV fields must contain ONLY professional CV content a human would write themselves. Forbidden outputs in any field: "Years is not present", "Note:", "Based on the profile", "The candidate has/lacks", "As instructed", "Since no dates are provided", "[Internal]", or any other reasoning/assessment. If information is missing, simply write the best CV content you can from what is available — do NOT annotate the absence.
 
 ${HUMANIZATION_CHECKLIST}
 

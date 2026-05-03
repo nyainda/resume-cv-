@@ -2076,12 +2076,14 @@ export interface PurifyLeak {
         // Detect-only: 2-4 word phrase from the summary recycled verbatim into bullets.
         | 'summary_bullet_phrase_leak'
         // Detect-only: a role where 0 bullets contain any number.
-        | 'low_quantification_role';
+        | 'low_quantification_role'
+        // Auto-fixed: AI instruction / reasoning preamble stripped from CV field.
+        | 'instruction_leak';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
-        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'none';
+        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip' | 'none';
     contextSnippet?: string;
     /** AI provider whose output produced this leak — set by the caller after
      *  purifyCV returns. Lets telemetry attribute leaks to a specific engine. */
@@ -2117,6 +2119,96 @@ export interface PurifyReport {
  * (validator, humanizer audit) remain in geminiService.ts — they're called
  * before this function so their output also gets purified.
  */
+// ────────────────────────────────────────────────────────────────────────────
+// 5. INSTRUCTION-LEAK STRIPPER — deterministic, zero-cost safety net.
+//
+//    The LLM occasionally leaks internal reasoning or prompt-derived
+//    commentary directly into CV text fields, e.g.:
+//      "Years is not present, however, Biosystems Engineer…"
+//      "Note: The candidate lacks X…"
+//      "Based on the profile, …"
+//    These are NEVER valid CV content. We strip them from the start of every
+//    text field before any other pass runs. Patterns are conservative: they
+//    only match at the very beginning of the field (^ anchored) and only
+//    strip the offending preamble, leaving the actual content intact.
+// ────────────────────────────────────────────────────────────────────────────
+
+const INSTRUCTION_LEAK_PATTERNS: Array<{ re: RegExp; label: string }> = [
+    // "Years is not present, however," / "Years of experience is not provided, however,"
+    {
+        re: /^Years?\s+(?:of\s+experience\s+)?(?:is|are)\s+not\s+\w+[,.]?\s*(?:however[,]?\s*)?/i,
+        label: 'years_not_present_preamble',
+    },
+    // "Note: ..." / "Note — ..." at absolute start of field — strip only through the end of that sentence
+    {
+        re: /^Note[:\s—–-]+[^.!?]*[.!?]\s*/i,
+        label: 'note_preamble',
+    },
+    // "[Note]" / "[Internal]" / "[AI comment]" bracket-style annotations
+    {
+        re: /^\[(?:Note|Internal|Instruction|System|Comment|AI)[^\]]*\]\s*[:—]?\s*/i,
+        label: 'bracketed_annotation',
+    },
+    // "Based on the profile/CV/experience, …"
+    {
+        re: /^Based\s+on\s+(?:the|their|your)\s+(?:profile|CV|resume|experience|information|data)[,:\s]+/i,
+        label: 'based_on_preamble',
+    },
+    // "As instructed, …" / "Per the instructions, …" / "Per your guidelines, …"
+    {
+        re: /^(?:As\s+instructed|Per\s+(?:the|your)\s+(?:instruction|guideline|rule)s?)[,:\s—–-]+/i,
+        label: 'as_instructed_preamble',
+    },
+    // "The candidate has / does not have / lacks …" (internal assessment sentence)
+    {
+        re: /^The\s+(?:candidate|user|applicant|professional)\s+(?:has|does\s+not\s+have|lacks|appears|seems)[^.!?]*[.!?]\s*/i,
+        label: 'candidate_assessment',
+    },
+    // "There are no years / dates / experience provided." at field start
+    {
+        re: /^(?:There\s+(?:is|are)\s+no|No)\s+(?:year|date|experience|work\s+history)s?\s+(?:provided|available|mentioned|listed|given|present)[^.!?]*[.!?]\s*/i,
+        label: 'no_dates_preamble',
+    },
+    // "I have noted that …" / "I cannot determine …" (AI first-person reasoning)
+    {
+        re: /^I\s+(?:have\s+)?(?:noted?|cannot|could\s+not|will\s+not|need\s+to|must|should)[^.!?]*[.!?]\s*/i,
+        label: 'first_person_ai_reasoning',
+    },
+    // "Since no dates are provided, …" / "Since years are missing, …"
+    {
+        re: /^Since\s+(?:no\s+)?(?:date|year|experience|work)s?\s+(?:are|is|were)?\s*(?:not\s+)?(?:provided|available|given|present|missing|absent)[^,]*,\s*/i,
+        label: 'since_no_dates_preamble',
+    },
+    // "As [job title], …" when it looks like the LLM injected a role descriptor
+    // instead of prose — catch common pattern "As a [role], [candidate name]…"
+    // but NOT legitimate uses like "As a result, …" or "As an example, …"
+    // So we only strip if followed by candidate/profile nouns.
+    {
+        re: /^As\s+(?:a\s+)?(?:Biosystems|Software|Civil|Mechanical|Electrical|Chemical|Structural|Environmental|Data|Cloud|DevOps|Full[- ]Stack|Front[- ]?End|Back[- ]?End)\s+Engineer[^,]*,\s*/i,
+        label: 'as_role_descriptor_preamble',
+    },
+];
+
+/**
+ * Strips AI instruction/reasoning leakage from the start of a single text
+ * field. Returns the cleaned string and the label of what was stripped (or
+ * null if nothing matched).
+ */
+export function stripInstructionLeakPreamble(text: string): { text: string; stripped: string | null } {
+    if (!text || typeof text !== 'string') return { text: text || '', stripped: null };
+    for (const { re, label } of INSTRUCTION_LEAK_PATTERNS) {
+        const match = text.match(re);
+        if (match) {
+            const cleaned = text.slice(match[0].length).trim();
+            // Only accept the strip if meaningful content remains.
+            if (cleaned.length > 10) {
+                return { text: cleaned, stripped: label };
+            }
+        }
+    }
+    return { text, stripped: null };
+}
+
 export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
     const emptyReport: PurifyReport = {
         repeatedPhrases: [], roundNumberRatio: 0, roundNumberFlagged: false,
@@ -2130,6 +2222,40 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
 
     const leaks: PurifyLeak[] = [];
     let substitutionsMade = 0;
+
+    // Step 0 — INSTRUCTION-LEAK STRIP. Runs before everything else so
+    // reasoning preambles can't propagate through the later passes.
+    const leakStripField = (text: string, loc: string): string => {
+        const { text: cleaned, stripped } = stripInstructionLeakPreamble(text);
+        if (stripped) {
+            console.warn(`[Purify] Instruction-leak stripped from ${loc} (${stripped}): "${text.slice(0, 80)}…"`);
+            leaks.push({
+                leakType: 'instruction_leak',
+                phrase: stripped,
+                fieldLocation: loc,
+                fixedBy: 'instruction_leak_strip',
+                contextSnippet: text.slice(0, 200),
+            });
+        }
+        return cleaned;
+    };
+    cv = {
+        ...cv,
+        summary: leakStripField(cv.summary || '', 'summary'),
+        experience: (cv.experience || []).map((e, i) => ({
+            ...e,
+            responsibilities: (e.responsibilities || []).map((b, j) =>
+                leakStripField(b, `experience[${i}].responsibilities[${j}]`)),
+        })),
+        projects: (cv.projects || []).map((p, i) => ({
+            ...p,
+            description: leakStripField(p.description || '', `projects[${i}].description`),
+        })),
+        education: (cv.education || []).map((e, i) => ({
+            ...e,
+            description: leakStripField(e.description || '', `education[${i}].description`),
+        })),
+    };
 
     // Step 1 — substitution pass on every text field. We use the lower-level
     // helper so we can capture per-field change diagnostics for telemetry.
