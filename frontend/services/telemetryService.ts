@@ -84,12 +84,14 @@ export interface LeakRecord {
         | 'llm_summary_opener' | 'summary_targeting_clause'
         | 'word_overuse_per_role' | 'summary_bullet_phrase_leak'
         | 'low_quantification_role'
-        | 'instruction_leak';
+        | 'instruction_leak'
+        | 'duplicate_bullet';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
-        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip' | 'none';
+        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip'
+        | 'semantic_dedup' | 'none';
     contextSnippet?: string;
     /** AI provider (e.g. 'Workers AI', 'Groq', 'Cerebras') whose output
      *  produced this leak. Lets the leaks-summary endpoint break down

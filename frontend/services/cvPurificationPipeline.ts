@@ -2085,12 +2085,15 @@ export interface PurifyLeak {
         // Detect-only: a role where 0 bullets contain any number.
         | 'low_quantification_role'
         // Auto-fixed: AI instruction / reasoning preamble stripped from CV field.
-        | 'instruction_leak';
+        | 'instruction_leak'
+        // Auto-fixed: near-identical bullet within the same role removed (Jaccard ≥ 0.60).
+        | 'duplicate_bullet';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
     fixedBy?: 'substitution' | 'tense_flip' | 'jitter' | 'pursuing_strip' | 'duplicate_strip'
-        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip' | 'none';
+        | 'polish' | 'canonicalise' | 'dedupe' | 'synonym_sub' | 'instruction_leak_strip'
+        | 'semantic_dedup' | 'none';
     contextSnippet?: string;
     /** AI provider whose output produced this leak — set by the caller after
      *  purifyCV returns. Lets telemetry attribute leaks to a specific engine. */
@@ -2201,6 +2204,86 @@ const INSTRUCTION_LEAK_PATTERNS: Array<{ re: RegExp; label: string }> = [
  * field. Returns the cleaned string and the label of what was stripped (or
  * null if nothing matched).
  */
+// ────────────────────────────────────────────────────────────────────────────
+// 5b. SEMANTIC DUPLICATE BULLET DETECTOR — auto-removes near-identical bullets
+//     within the same role. The LLM sometimes generates two bullets that say
+//     the same thing with slightly different wording, e.g.:
+//       "Manage a portfolio of enterprise clients across Central Kenya"
+//       "Manage a programme of enterprise clients across Central Kenya"
+//     We use Jaccard similarity on content tokens (stop-words removed).
+//     Threshold: 0.60. We keep the bullet with more unique/content tokens
+//     (richer bullet wins). Runs after tense + overuse fixes so we compare
+//     the correct surface form.
+// ────────────────────────────────────────────────────────────────────────────
+
+const BULLET_STOP_WORDS = new Set([
+    'a','an','the','in','on','at','to','for','of','and','or','with','by',
+    'that','this','is','are','was','were','has','have','had','be','been',
+    'its','it','their','our','we','i','you','he','she','they','as','from',
+    'into','during','across','through','while','when','where','which','who',
+    'what','how','all','each','every','both','few','more','most','other',
+    'some','such','than','too','very','can','will','just','but','if','also',
+    'up','out','about','then','not','no','so','do','did','does','been',
+]);
+
+function tokeniseBullet(text: string): string[] {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !BULLET_STOP_WORDS.has(w));
+}
+
+function jaccardSimilarity(a: string[], b: string[]): number {
+    const setA = new Set(a);
+    const setB = new Set(b);
+    let intersect = 0;
+    for (const w of setA) if (setB.has(w)) intersect++;
+    const union = new Set([...setA, ...setB]).size;
+    return union === 0 ? 0 : intersect / union;
+}
+
+/**
+ * For a single role's bullet list, removes bullets that are ≥60% similar
+ * (Jaccard) to a bullet that appears earlier in the list (earlier bullet wins,
+ * since it is usually the primary statement). Returns the deduplicated list
+ * and an array of removed bullets with their index labels.
+ */
+export function dedupBulletsInRole(
+    bullets: string[],
+    roleLabel: string,
+): { bullets: string[]; removed: Array<{ bullet: string; fieldLocation: string; similarTo: string }> } {
+    if (bullets.length <= 1) return { bullets, removed: [] };
+
+    const kept: string[] = [];
+    const keptTokens: string[][] = [];
+    const removed: Array<{ bullet: string; fieldLocation: string; similarTo: string }> = [];
+
+    for (let i = 0; i < bullets.length; i++) {
+        const tokens = tokeniseBullet(bullets[i]);
+        if (tokens.length < 3) { kept.push(bullets[i]); keptTokens.push(tokens); continue; }
+
+        let isDuplicate = false;
+        for (let j = 0; j < kept.length; j++) {
+            const sim = jaccardSimilarity(tokens, keptTokens[j]);
+            if (sim >= 0.60) {
+                removed.push({
+                    bullet: bullets[i],
+                    fieldLocation: `${roleLabel}.responsibilities[${i}]`,
+                    similarTo: kept[j].slice(0, 80),
+                });
+                isDuplicate = true;
+                break;
+            }
+        }
+        if (!isDuplicate) {
+            kept.push(bullets[i]);
+            keptTokens.push(tokens);
+        }
+    }
+    return { bullets: kept, removed };
+}
+
 export function stripInstructionLeakPreamble(text: string): { text: string; stripped: string | null } {
     if (!text || typeof text !== 'string') return { text: text || '', stripped: null };
     for (const { re, label } of INSTRUCTION_LEAK_PATTERNS) {
@@ -2348,6 +2431,29 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 fixedBy: 'synonym_sub',
             });
         }
+    }
+
+    // Step 2.6 — SEMANTIC DUPLICATE BULLET REMOVAL.
+    // Runs after tense + overuse fixes so we compare the correct surface forms.
+    const deduped = (working.experience || []).map((role, ri) => {
+        const label = `experience[${ri}](${role.jobTitle ?? '?'} @ ${role.company ?? '?'})`;
+        const result = dedupBulletsInRole(role.responsibilities || [], label);
+        if (result.removed.length > 0) {
+            console.warn(`[Purify] Semantic dedup removed ${result.removed.length} bullet(s) from ${label}`);
+            for (const r of result.removed) {
+                leaks.push({
+                    leakType: 'duplicate_bullet',
+                    phrase: r.bullet.slice(0, 120),
+                    fieldLocation: r.fieldLocation,
+                    fixedBy: 'semantic_dedup',
+                    contextSnippet: `Duplicate of: "${r.similarTo}"`,
+                });
+            }
+        }
+        return result.removed.length > 0 ? { ...role, responsibilities: result.bullets } : role;
+    });
+    if (deduped.some((r, i) => r !== (working.experience || [])[i])) {
+        working = { ...working, experience: deduped };
     }
 
     // Step 3 — ROUND-NUMBER SATURATION CHECK (flag-only, no longer mutates).

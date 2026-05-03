@@ -4065,6 +4065,38 @@ type FinalizeStrategy =
     | { profile: UserProfile }
     | { sourceCv: CVData };
 
+// ── Public type so UI components can display what the pipeline caught ────────
+export interface LeakSummaryPayload {
+    totalFixed: number;
+    totalFlagged: number;
+    instructionLeaksStripped: number;
+    duplicateBulletsRemoved: number;
+    bannedPhrasesFixed: number;
+    tenseFixed: number;
+    polishFixes: number;
+    flaggedItems: Array<{ leakType: string; phrase: string; fieldLocation?: string }>;
+}
+
+function buildLeakSummaryPayload(report: PurifyReport): LeakSummaryPayload {
+    const leaks = report.leaks ?? [];
+    const fixed   = leaks.filter(l => l.fixedBy && l.fixedBy !== 'none');
+    const flagged = leaks.filter(l => !l.fixedBy || l.fixedBy === 'none');
+    return {
+        totalFixed:               fixed.length,
+        totalFlagged:             flagged.length,
+        instructionLeaksStripped: fixed.filter(l => l.leakType === 'instruction_leak').length,
+        duplicateBulletsRemoved:  fixed.filter(l => l.leakType === 'duplicate_bullet').length,
+        bannedPhrasesFixed:       fixed.filter(l => l.leakType === 'banned_phrase').length,
+        tenseFixed:               fixed.filter(l => l.leakType === 'tense_mismatch').length,
+        polishFixes:              report.polishFixes ?? 0,
+        flaggedItems:             flagged.slice(0, 10).map(l => ({
+            leakType:      l.leakType,
+            phrase:        l.phrase ?? '',
+            fieldLocation: l.fieldLocation,
+        })),
+    };
+}
+
 interface QualityPolishOpts {
     bulletCount: BulletCountStrategy;
     finalize: FinalizeStrategy;
@@ -4072,13 +4104,14 @@ interface QualityPolishOpts {
     carryProfile?: UserProfile;
     engineBrief?: CVBrief | null;
     onPurifyReport?: (report: PurifyReport) => void | Promise<void>;
+    onLeakSummary?: (summary: LeakSummaryPayload) => void;
 }
 
 async function runQualityPolishPasses(
     cvData: CVData,
     opts: QualityPolishOpts,
 ): Promise<CVData> {
-    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport } = opts;
+    const { runHumanizer = true, bulletCount, carryProfile, engineBrief, finalize, onPurifyReport, onLeakSummary } = opts;
     let out = cvData;
 
     // 1. Humanizer pass — fixes short bullets, banned phrases in summary,
@@ -4192,6 +4225,13 @@ async function runQualityPolishPasses(
         } catch (e) {
             console.debug('[Polish] onPurifyReport hook failed (non-fatal):', e);
         }
+    }
+    // 7b. UI leak-summary callback — called once with a digest so the UI can
+    //     show the user exactly what was caught and fixed without needing the
+    //     full raw PurifyReport.
+    if (onLeakSummary) {
+        try { onLeakSummary(buildLeakSummaryPayload(purified.report)); }
+        catch (e) { console.debug('[Polish] onLeakSummary hook failed (non-fatal):', e); }
     }
 
     // 8. Phase E — Voice consistency enforcement (only when an engine brief
@@ -4324,13 +4364,17 @@ function logLeakSummary(report: PurifyReport, label: string): void {
 // the wording but wants the latest banned-phrase rules, humanizer, and
 // deterministic purification re-applied. Costs ~one CF Workers AI call
 // (the humanizer) — no Groq tokens.
-export const polishExistingCV = async (cvDataInput: CVData): Promise<CVData> => {
+export const polishExistingCV = async (
+    cvDataInput: CVData,
+    onLeakSummary?: (s: LeakSummaryPayload) => void,
+): Promise<CVData> => {
     const cvData = purifyInboundCV(cvDataInput);
     return runQualityPolishPasses(cvData, {
         runHumanizer: true,
         bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
         finalize: { sourceCv: cvDataInput },
         onPurifyReport: (report) => logLeakSummary(report, 'Polish'),
+        ...(onLeakSummary ? { onLeakSummary } : {}),
     });
 };
 
@@ -4340,6 +4384,7 @@ export const improveCV = async (
     personalInfo: PersonalInfo,
     instruction: string,
     jobDescription?: string,
+    onLeakSummary?: (s: LeakSummaryPayload) => void,
 ): Promise<CVData> => {
     // ── HOT FIRE (inbound) ── scrub before serializing into the prompt
     const cvData = purifyInboundCV(cvDataInput);
@@ -4382,6 +4427,7 @@ ${CV_DATA_SCHEMA}
         bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
         finalize: { sourceCv: cvDataInput },
         onPurifyReport: (report) => logLeakSummary(report, 'Auto Optimize'),
+        ...(onLeakSummary ? { onLeakSummary } : {}),
     });
 };
 

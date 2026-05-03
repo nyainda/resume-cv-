@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CVData, PersonalInfo } from '../types';
-import { improveCV, polishExistingCV } from '../services/geminiService';
+import { improveCV, polishExistingCV, LeakSummaryPayload } from '../services/geminiService';
 import { Sparkles } from './icons';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   updatedCV?: CVData;
+  leakReport?: LeakSummaryPayload;
 }
 
 interface AIImprovementPanelProps {
@@ -26,6 +27,79 @@ const QUICK_PROMPTS = [
   { emoji: '🧠', label: 'Better summary', prompt: 'Rewrite the professional summary to be more compelling, specific, and tailored to my experience.' },
   { emoji: '🔧', label: 'Fix skills section', prompt: 'Reorganise and improve the skills section. Group by category and prioritise the most relevant skills.' },
 ];
+
+const LEAK_TYPE_LABELS: Record<string, string> = {
+  round_number: 'Round number',
+  repeated_phrase: 'Repeated phrase',
+  bullet_rhythm_monotone: 'Monotone bullet rhythm',
+  bullet_band_imbalance: 'Bullet length imbalance',
+  low_quantification: 'Low metric coverage',
+  low_quantification_role: 'Role missing metrics',
+  word_overuse_per_role: 'Overused word',
+  summary_bullet_phrase_leak: 'Summary phrase recycled in bullets',
+  orphan_metric: 'Orphan metric',
+  short_bullet: 'Very short bullet',
+  long_bullet: 'Very long bullet',
+};
+
+function LeakNotice({ report }: { report: LeakSummaryPayload }) {
+  const hasFixed   = report.totalFixed > 0 || report.polishFixes > 0;
+  const hasFlagged = report.totalFlagged > 0;
+  if (!hasFixed && !hasFlagged) return null;
+
+  const fixLines: string[] = [];
+  if (report.instructionLeaksStripped > 0)
+    fixLines.push(`🚫 ${report.instructionLeaksStripped} instruction preamble${report.instructionLeaksStripped > 1 ? 's' : ''} stripped`);
+  if (report.duplicateBulletsRemoved > 0)
+    fixLines.push(`♻️ ${report.duplicateBulletsRemoved} near-duplicate bullet${report.duplicateBulletsRemoved > 1 ? 's' : ''} removed`);
+  if (report.bannedPhrasesFixed > 0)
+    fixLines.push(`🔤 ${report.bannedPhrasesFixed} banned phrase${report.bannedPhrasesFixed > 1 ? 's' : ''} cleaned`);
+  if (report.tenseFixed > 0)
+    fixLines.push(`⏩ ${report.tenseFixed} tense error${report.tenseFixed > 1 ? 's' : ''} corrected`);
+  if (report.polishFixes > 0)
+    fixLines.push(`✨ ${report.polishFixes} style fix${report.polishFixes > 1 ? 'es' : ''} applied`);
+
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 text-xs">
+      {hasFixed && (
+        <>
+          <p className="font-semibold text-amber-800 dark:text-amber-300 mb-1 flex items-center gap-1">
+            <span>🛡️</span>
+            Leak Guard auto-fixed {report.totalFixed + (report.polishFixes > 0 && report.totalFixed === 0 ? 1 : 0)} issue{report.totalFixed !== 1 ? 's' : ''}
+          </p>
+          <ul className="space-y-0.5 text-amber-700 dark:text-amber-400">
+            {fixLines.map((l, i) => <li key={i}>{l}</li>)}
+          </ul>
+        </>
+      )}
+      {hasFlagged && (
+        <div className={hasFixed ? 'mt-2 pt-2 border-t border-amber-200 dark:border-amber-700/40' : ''}>
+          <p className="font-semibold text-amber-800 dark:text-amber-300 mb-1">
+            ⚠️ {report.totalFlagged} item{report.totalFlagged > 1 ? 's' : ''} flagged — review manually:
+          </p>
+          <ul className="space-y-1">
+            {report.flaggedItems.slice(0, 4).map((item, i) => (
+              <li key={i} className="text-amber-600 dark:text-amber-500 leading-snug">
+                <span className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 rounded text-[10px]">
+                  {item.fieldLocation
+                    ? item.fieldLocation.replace(/experience\[(\d+)\].*/, (_, n) => `Role ${+n + 1}`)
+                    : (LEAK_TYPE_LABELS[item.leakType] ?? item.leakType)
+                  }
+                </span>{' '}
+                <span className="text-[10px]">{item.phrase.slice(0, 60)}{item.phrase.length > 60 ? '…' : ''}</span>
+              </li>
+            ))}
+            {report.flaggedItems.length > 4 && (
+              <li className="text-amber-500 dark:text-amber-600 text-[10px]">
+                …and {report.flaggedItems.length - 4} more
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
   cvData,
@@ -64,7 +138,14 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
 
     try {
       const currentCV = pendingCV || cvData;
-      const result = await improveCV(currentCV, personalInfo, text, jobDescription);
+      let capturedLeakReport: LeakSummaryPayload | null = null;
+      const result = await improveCV(
+        currentCV,
+        personalInfo,
+        text,
+        jobDescription,
+        (report) => { capturedLeakReport = report; },
+      );
 
       const changes: string[] = [];
       if (result.summary !== currentCV.summary) changes.push('Updated summary');
@@ -86,7 +167,8 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: summary,
-        updatedCV: result,
+        updatedCV: changes.length > 0 ? result : undefined,
+        leakReport: capturedLeakReport ?? undefined,
       }]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
@@ -102,10 +184,6 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
     setMessages(prev => [...prev, { role: 'assistant', content: '✅ Changes applied to your CV! You can continue improving or close this panel.' }]);
   };
 
-  // Polish-only: re-runs the shared polish chain (humanizer + banned-phrase
-  // filter + purify + pronoun fix + finalize) on the current CV WITHOUT
-  // sending anything back to Groq. No tokens spent — instant cleanup using
-  // the latest deterministic rules.
   const runPolishOnly = async () => {
     if (isLoading) return;
     const currentCV = pendingCV || cvData;
@@ -114,7 +192,11 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
     setIsLoading(true);
 
     try {
-      const result = await polishExistingCV(currentCV);
+      let capturedLeakReport: LeakSummaryPayload | null = null;
+      const result = await polishExistingCV(
+        currentCV,
+        (report) => { capturedLeakReport = report; },
+      );
 
       const changes: string[] = [];
       if (result.summary !== currentCV.summary) changes.push('Cleaned up summary phrasing');
@@ -133,6 +215,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
         role: 'assistant',
         content: summary,
         updatedCV: changes.length > 0 ? result : undefined,
+        leakReport: capturedLeakReport ?? undefined,
       }]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
@@ -210,6 +293,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
                     <span>✓</span> Apply Changes to CV
                   </button>
                 )}
+                {msg.leakReport && <LeakNotice report={msg.leakReport} />}
               </div>
             </div>
           ))}
