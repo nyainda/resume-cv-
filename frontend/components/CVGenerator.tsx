@@ -71,69 +71,7 @@ function friendlyError(err: unknown, action = 'complete that action'): string {
   return `Could not ${action}. Please try again.`;
 }
 
-/**
- * Directly converts a UserProfile into CVData without any AI call.
- * Used for the "Use Template" (no-AI) path so users can just pick a template
- * and render their existing data without any API key or JD required.
- */
-function profileToCV(profile: UserProfile): CVData {
-  const formatDate = (dateStr: string | undefined): string => {
-    if (!dateStr) return '';
-    if (dateStr.toLowerCase() === 'present') return 'Present';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  };
-
-  const formatDateRange = (start: string | undefined, end: string | undefined): string => {
-    const s = formatDate(start);
-    const e = (end?.toLowerCase() === 'present') ? 'Present' : formatDate(end);
-    if (!s && !e) return '';
-    if (!s) return e;
-    if (!e) return s;
-    return `${s} – ${e}`;
-  };
-
-  return {
-    summary: profile.summary || '',
-    skills: profile.skills || [],
-    experience: (profile.workExperience || []).map(exp => ({
-      company: exp.company || '',
-      jobTitle: exp.jobTitle || '',
-      dates: formatDateRange(exp.startDate, exp.endDate),
-      startDate: exp.startDate || '',
-      endDate: exp.endDate || '',
-      responsibilities: typeof exp.responsibilities === 'string'
-        ? exp.responsibilities.split('\n').map(r => r.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
-        : (exp.responsibilities || []),
-    })),
-    education: (profile.education || []).map(edu => ({
-      degree: edu.degree || '',
-      school: edu.school || '',
-      year: edu.graduationYear || '',
-      description: (edu as any).description || '',
-    })),
-    projects: (profile.projects || []).map(p => ({
-      name: p.name || '',
-      description: p.description || '',
-      link: p.link || '',
-    })),
-    languages: (profile.languages || []).map(l => ({
-      name: l.name || '',
-      proficiency: l.proficiency || '',
-    })),
-    references: (profile.references || []).map(r => ({
-      name: r.name || '',
-      title: r.title || '',
-      company: r.company || '',
-      email: r.email || '',
-      phone: r.phone || '',
-      relationship: r.relationship || '',
-    })),
-    customSections: profile.customSections || [],
-    sectionOrder: profile.sectionOrder || [],
-  };
-}
+export { profileToCV } from '../utils/profileToCV';
 
 const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -167,6 +105,12 @@ interface CVGeneratorProps {
   onSaveStories?: (stories: import('../types').STARStory[]) => void;
   /** Called when user clicks "Interview Prep" — passes the JD to pre-fill the prep tool */
   onGoToInterviewPrep?: (jd: string) => void;
+  /**
+   * When true, the generator shows a dismissible "Import Quality Report" panel
+   * with completeness score and deterministic quality checks — no AI required.
+   * Pass a fresh Date timestamp string each time to re-trigger the panel.
+   */
+  importedFromJson?: string;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -235,7 +179,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, importedFromJson }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
   const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
@@ -386,6 +330,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
+  const [showImportReport, setShowImportReport] = useState(false);
   const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>('cv:jdKeywords', []);
 
   // ── Active AI engine (shown as badge after generation) ──
@@ -409,6 +354,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setCoverLetter(null);
     setAtsDataEmbedded(false);
   }, [userProfile, setCurrentCV, setCoverLetter]);
+
+  // Show import quality report whenever a JSON import is triggered from parent
+  useEffect(() => {
+    if (importedFromJson) {
+      setShowImportReport(true);
+      // Scroll to preview after a short delay
+      setTimeout(() => {
+        previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 200);
+    }
+  }, [importedFromJson]);
 
   // JD is required only for job mode
   const jdRequired = cvPurpose === 'job';
@@ -1718,6 +1674,66 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </div>
             </div>
           )}
+
+          {/* ── Import Quality Report ─────────────────────────────────────── */}
+          {showImportReport && (() => {
+            const completeness = scoreCVCompleteness(currentCV, userProfile);
+            const issueCount = qualityReport?.issues?.length ?? 0;
+            const gradeColors: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+              strong: { bg: 'bg-emerald-50 dark:bg-emerald-900/15', border: 'border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-300', badge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200' },
+              good:   { bg: 'bg-blue-50 dark:bg-blue-900/15',    border: 'border-blue-200 dark:border-blue-800',    text: 'text-blue-700 dark:text-blue-300',    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200' },
+              fair:   { bg: 'bg-amber-50 dark:bg-amber-900/15',  border: 'border-amber-200 dark:border-amber-800',  text: 'text-amber-700 dark:text-amber-300',  badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' },
+              weak:   { bg: 'bg-red-50 dark:bg-red-900/15',      border: 'border-red-200 dark:border-red-800',      text: 'text-red-700 dark:text-red-300',      badge: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200' },
+            };
+            const c = gradeColors[completeness.grade];
+            return (
+              <div className={`mt-4 mb-2 rounded-xl border ${c.border} ${c.bg} p-4`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-full border-2 ${c.border} flex flex-col items-center justify-center`}>
+                      <span className={`text-base font-bold leading-none ${c.text}`}>{completeness.percent}</span>
+                      <span className={`text-[9px] font-medium leading-none ${c.text} opacity-70`}>/ 100</span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Import Quality Report</span>
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full capitalize ${c.badge}`}>{completeness.grade}</span>
+                        {issueCount > 0 && (
+                          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300">
+                            {issueCount} quality {issueCount === 1 ? 'issue' : 'issues'}
+                          </span>
+                        )}
+                      </div>
+                      {completeness.missing.length > 0 ? (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
+                          <span className="font-medium">Missing: </span>{completeness.missing.slice(0, 4).join(', ')}{completeness.missing.length > 4 ? ` +${completeness.missing.length - 4} more` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">All key fields are filled in — great start!</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {issueCount > 0 && (
+                      <button
+                        onClick={() => { setShowImportReport(false); setShowQualityPanel(true); }}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-lg border ${c.border} ${c.text} hover:opacity-80 transition-opacity`}
+                      >
+                        View issues
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowImportReport(false)}
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1"
+                      aria-label="Dismiss"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6">
             {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout

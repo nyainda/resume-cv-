@@ -10,6 +10,7 @@ import { invalidateCVCache } from './services/geminiService';
 import { prewarmFontEmbedCache } from './services/getCVHtml';
 import { syncProfileToCache } from './services/profileCacheClient';
 import { auditCvQuality } from './services/cvNumberFidelity';
+import { profileToCV } from './utils/profileToCV';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/ui/Toast';
@@ -718,6 +719,34 @@ const AppInner: React.FC = () => {
     }
   }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId, toast]);
 
+  // ── JSON profile import — saves profile, populates CV, navigates to generator
+  const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>('');
+  const handleJsonProfileImported = useCallback((profile: UserProfile) => {
+    const cvData = profileToCV(profile);
+    if (activeSlot) {
+      setUserProfile(profile);
+      setCurrentCV(cvData);
+      syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
+    } else {
+      const id = Date.now().toString();
+      const slot: UserProfileSlot = {
+        id,
+        name: profile.personalInfo.name || 'Imported Profile',
+        color: 'indigo',
+        createdAt: new Date().toISOString(),
+        profile,
+        currentCV: cvData,
+      };
+      setProfiles([slot]);
+      setActiveProfileId(id);
+      syncProfileToCache(slot).catch(() => {});
+    }
+    setCurrentView('generator');
+    setIsEditingProfile(false);
+    setJsonImportTimestamp(new Date().toISOString());
+    toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
+  }, [activeSlot, setUserProfile, setCurrentCV, setProfiles, setActiveProfileId, toast]);
+
   const handleSaveMerge = useCallback((merge: SavedMerge) => {
     setSavedMerges(prev => [merge, ...prev]);
     toast.success('Merge Saved', `"${merge.name}" saved to your merge presets.`);
@@ -1198,6 +1227,7 @@ const AppInner: React.FC = () => {
                 apiKeySet={apiKeySet}
                 openSettings={() => setIsSettingsOpen(true)}
                 onProfileImported={handleWordProfileImported}
+                onJsonImported={handleJsonProfileImported}
               />
             ) : (
               <div className="space-y-6">
@@ -1216,6 +1246,7 @@ const AppInner: React.FC = () => {
                     toolkitSuggestions={toolkitSuggestions}
                     onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}
                     onSaveStories={handleSaveStories}
+                    importedFromJson={jsonImportTimestamp}
                   />
                 )}
                 {currentView === 'linkedin' && (

@@ -77,6 +77,7 @@ interface ProfileFormProps {
   apiKeySet: boolean;
   openSettings: () => void;
   onProfileImported?: (profile: UserProfile) => void;
+  onJsonImported?: (profile: UserProfile) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -173,7 +174,7 @@ const EmptyState: React.FC<{ message: string; action?: React.ReactNode }> = ({ m
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported }) => {
+const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported, onJsonImported }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
   const [showWordImport, setShowWordImport] = useState(false);
   const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload'>('text');
@@ -381,11 +382,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const imported = JSON.parse(ev.target?.result as string);
-        if (imported.personalInfo && imported.summary) {
+        const imported = JSON.parse(ev.target?.result as string) as UserProfile;
+        if (imported.personalInfo && imported.summary !== undefined) {
           reset(imported);
-          alert('Profile imported! Please review and save.');
-        } else throw new Error('Invalid profile format.');
+          if (onJsonImported) {
+            onJsonImported(imported);
+          }
+        } else throw new Error('Invalid profile format — missing personalInfo or summary.');
       } catch (err) {
         alert(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
