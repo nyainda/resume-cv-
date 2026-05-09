@@ -64,6 +64,122 @@ const KIND_LABEL: Record<CvQualityIssueKind, string> = {
     leading_verb_repetition:     'Same opening verb used 3+ times in one role',
 };
 
+// ── Style governance — detect-only leak types ────────────────────────────────
+
+const GOVERNANCE_LEAK_KINDS = new Set([
+    'opener_category_monotone',
+    'all_verb_led',
+    'verb_cluster_dominance',
+    'bare_metric_opener',
+    'context_missing',
+    'meaning_cluster_repetition',
+]);
+
+const DETECT_ONLY_LEAK_KINDS = new Set([
+    'bullet_rhythm_monotone',
+    'bullet_band_imbalance',
+    'word_overuse_per_role',
+    'summary_bullet_phrase_leak',
+    'low_quantification_role',
+    'round_number',
+    'short_bullet',
+    'long_bullet',
+    'repeated_phrase',
+    'low_quantification',
+]);
+
+interface StyleLeakMeta {
+    label: string;
+    severity: 'warn' | 'info';
+    guidance: string;
+}
+
+const GOVERNANCE_LEAK_META: Record<string, StyleLeakMeta> = {
+    opener_category_monotone: {
+        label: 'Opener monotony — same category throughout',
+        severity: 'warn',
+        guidance: 'Mix opener types: add 1–2 bullets led by a number ("3 patents filed"), a scope clause ("Across 4 teams…"), or a context phrase ("As the only engineer…") to break the pattern.',
+    },
+    all_verb_led: {
+        label: 'All bullets start with an action verb',
+        severity: 'warn',
+        guidance: 'Rotate 1–2 bullets to number-led or context-led openers — e.g. "12 engineers supported across 3 squads" instead of "Supported 12 engineers across 3 squads".',
+    },
+    verb_cluster_dominance: {
+        label: 'Verb family overused in this role',
+        severity: 'warn',
+        guidance: 'Swap a few bullets to a different action family. If you have many "built / designed / created" openers, try "analysed", "trained", "reduced", or "delivered".',
+    },
+    bare_metric_opener: {
+        label: 'Metric placed before context',
+        severity: 'info',
+        guidance: 'Lead with the action, then the number. "Rebuilt pricing model, lifting revenue by 40%" reads more naturally than "40% revenue increase through…".',
+    },
+    context_missing: {
+        label: 'No context clause before the metric',
+        severity: 'info',
+        guidance: 'Add a setup clause before your number. "Increased revenue by 40%" → "Redesigned pricing across 3 tiers, increasing revenue by 40%".',
+    },
+    meaning_cluster_repetition: {
+        label: 'Same outcome type repeated across bullets',
+        severity: 'warn',
+        guidance: 'Vary your result type per bullet: mix revenue impact, risk reduction, speed, quality, and team growth. Avoid 3+ bullets all about efficiency or growth.',
+    },
+};
+
+const DETECT_ONLY_LEAK_META: Record<string, StyleLeakMeta> = {
+    bullet_rhythm_monotone: {
+        label: 'Bullet lengths are monotone',
+        severity: 'warn',
+        guidance: 'Mix punchy (8–14 words), standard (15–22 words), and narrative (25–40 words) bullets. Uniform length makes the role feel template-generated.',
+    },
+    bullet_band_imbalance: {
+        label: 'Bullet length band is lopsided',
+        severity: 'info',
+        guidance: 'Shorten one bullet to a punchy 8–12 word statement, or expand one to a two-sentence narrative to break the visual uniformity.',
+    },
+    word_overuse_per_role: {
+        label: 'A word is repeated too often in this role',
+        severity: 'warn',
+        guidance: 'Replace the flagged word in 1–2 bullets with a synonym — e.g. swap "data" for "information", "records", or "metrics".',
+    },
+    summary_bullet_phrase_leak: {
+        label: 'Summary phrase echoed in an experience bullet',
+        severity: 'info',
+        guidance: 'Rephrase the experience bullet — it mirrors a specific phrase from your summary, making both sections feel redundant to recruiters.',
+    },
+    low_quantification_role: {
+        label: 'No numbers in this role',
+        severity: 'warn',
+        guidance: 'Add at least one metric, even a scope: team size, client count, budget, or project count. Unquantified roles lose credibility against quantified ones.',
+    },
+    round_number: {
+        label: 'Too many round numbers',
+        severity: 'info',
+        guidance: 'More than 60% of your metrics are round figures (25%, 50%, 100). Specific numbers (23%, £3.8M) feel more credible and authentic.',
+    },
+    short_bullet: {
+        label: 'Bullet is very short',
+        severity: 'info',
+        guidance: 'Expand this bullet with an outcome or context — a result-oriented sentence of 15–22 words reads much stronger than a stub.',
+    },
+    long_bullet: {
+        label: 'Bullet is very long',
+        severity: 'info',
+        guidance: 'Split this bullet or tighten the language. Bullets over 45 words are hard to scan during a 6-second CV review.',
+    },
+    repeated_phrase: {
+        label: 'Repeated phrase across bullets',
+        severity: 'warn',
+        guidance: 'Remove or rephrase one of the bullets sharing this phrase — duplication reduces impact and can signal AI generation.',
+    },
+    low_quantification: {
+        label: 'Overall metric density is low',
+        severity: 'warn',
+        guidance: 'Add at least one measurable outcome per role (%, £/$, time saved, team size). Even scopes like "across 3 offices" count toward a stronger impression.',
+    },
+};
+
 function AchievementDensityBar({ density }: { density: CvQualityReport['achievementDensity'] }) {
     const { bulletsWithMetrics, totalBullets, percent } = density;
     if (totalBullets === 0) return null;
@@ -248,6 +364,14 @@ export default function QualityIssuesPanel({
         }
         setBulkFixing(false);
     }, [cv, report, onApplyFix, issueKey]);
+
+    const governanceLeaks = useMemo(() =>
+        purifyLeaks.filter(l => l.fixedBy === 'none' && GOVERNANCE_LEAK_KINDS.has(l.leakType)),
+    [purifyLeaks]);
+
+    const detectOnlyLeaks = useMemo(() =>
+        purifyLeaks.filter(l => l.fixedBy === 'none' && DETECT_ONLY_LEAK_KINDS.has(l.leakType)),
+    [purifyLeaks]);
 
     if (!open) return null;
 
@@ -498,6 +622,98 @@ export default function QualityIssuesPanel({
 
                     {/* Achievement density bar — always shown when there are bullets */}
                     <AchievementDensityBar density={report.achievementDensity} />
+
+                    {/* Style Intelligence — governance pattern issues (detect-only, no AI fix) */}
+                    {governanceLeaks.length > 0 && (
+                        <section className="mb-5">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400 mb-2 flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                Style Intelligence ({governanceLeaks.length})
+                            </h3>
+                            <ul className="space-y-2">
+                                {governanceLeaks.map((leak, i) => {
+                                    const meta = GOVERNANCE_LEAK_META[leak.leakType];
+                                    if (!meta) return null;
+                                    return (
+                                        <li
+                                            key={`gov-${i}`}
+                                            className={`border rounded-lg px-3 py-2.5 flex items-start gap-2.5 ${
+                                                meta.severity === 'warn'
+                                                    ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/10'
+                                                    : 'border-blue-200 dark:border-blue-800/50 bg-blue-50/40 dark:bg-blue-900/10'
+                                            }`}
+                                        >
+                                            <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${
+                                                meta.severity === 'warn' ? 'text-amber-500' : 'text-blue-400'
+                                            }`} />
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                                                    {meta.label}
+                                                </div>
+                                                {leak.phrase && (
+                                                    <div className="text-[11px] font-mono mt-0.5 text-zinc-600 dark:text-zinc-400 bg-white/60 dark:bg-black/20 rounded px-1.5 py-0.5 break-words">
+                                                        {leak.phrase}
+                                                    </div>
+                                                )}
+                                                {leak.contextSnippet && (
+                                                    <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 italic">
+                                                        {leak.contextSnippet}
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
+                                                    {meta.guidance}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </section>
+                    )}
+
+                    {/* Writing patterns — other detect-only pipeline flags */}
+                    {detectOnlyLeaks.length > 0 && (
+                        <section className="mb-5">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                Writing patterns to review ({detectOnlyLeaks.length})
+                            </h3>
+                            <ul className="space-y-1.5">
+                                {detectOnlyLeaks.map((leak, i) => {
+                                    const meta = DETECT_ONLY_LEAK_META[leak.leakType];
+                                    if (!meta) return null;
+                                    return (
+                                        <li
+                                            key={`det-${i}`}
+                                            className="border border-zinc-200 dark:border-neutral-700 rounded-lg px-3 py-2.5 bg-zinc-50/60 dark:bg-neutral-800/30 flex items-start gap-2.5"
+                                        >
+                                            <div className={`h-2 w-2 rounded-full flex-shrink-0 mt-1 ${
+                                                meta.severity === 'warn' ? 'bg-amber-400' : 'bg-zinc-400 dark:bg-zinc-500'
+                                            }`} />
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                                    {meta.label}
+                                                </div>
+                                                {leak.phrase && (
+                                                    <div className="text-[11px] mt-0.5 text-zinc-500 dark:text-zinc-400 break-words">
+                                                        {leak.phrase}
+                                                    </div>
+                                                )}
+                                                {leak.fieldLocation && (
+                                                    <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                                        {formatLocation(leak.fieldLocation)}
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                                                    {meta.guidance}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </section>
+                    )}
 
                     {/* Auto-fixed by pipeline — shown whenever the purifier made synonym substitutions */}
                     {hasSynonymFixes && (

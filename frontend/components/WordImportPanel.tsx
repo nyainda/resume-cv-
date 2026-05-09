@@ -45,7 +45,7 @@ interface WordImportPanelProps {
 }
 
 type ImportStep = 'idle' | 'extracting' | 'parsing' | 'preview' | 'done' | 'error';
-type PanelMode = 'upload' | 'onedrive';
+type PanelMode = 'upload' | 'onedrive' | 'json';
 
 function formatRelativeTime(date: Date): string {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -54,6 +54,17 @@ function formatRelativeTime(date: Date): string {
     if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
     return `${Math.floor(secs / 3600)}h ago`;
 }
+
+const JsonIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="8" y1="13" x2="10" y2="13" />
+        <line x1="14" y1="13" x2="16" y2="13" />
+        <line x1="11" y1="10" x2="11" y2="16" />
+        <line x1="13" y1="10" x2="13" y2="16" />
+    </svg>
+);
 
 const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, onProfileImported }) => {
     const [mode, setMode] = useState<PanelMode>('upload');
@@ -81,6 +92,16 @@ const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettin
                     <LinkIcon className="h-4 w-4" />
                     Word Online Sync
                 </button>
+                <button
+                    onClick={() => setMode('json')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'json'
+                        ? 'bg-white dark:bg-neutral-700 shadow text-zinc-900 dark:text-zinc-100'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                        }`}
+                >
+                    <JsonIcon className="h-4 w-4" />
+                    Import JSON
+                </button>
             </div>
 
             {mode === 'upload' && (
@@ -89,6 +110,250 @@ const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettin
             {mode === 'onedrive' && (
                 <OneDriveMode apiKeySet={apiKeySet} openSettings={openSettings} onProfileImported={onProfileImported} />
             )}
+            {mode === 'json' && (
+                <JsonImportMode onProfileImported={onProfileImported} />
+            )}
+        </div>
+    );
+};
+
+// ── JSON Import ───────────────────────────────────────────────────────────────
+
+interface JsonImportModeProps {
+    onProfileImported: (profile: UserProfile) => void;
+}
+
+function validateAndNormaliseProfile(raw: unknown): UserProfile {
+    if (!raw || typeof raw !== 'object') throw new Error('Not a valid JSON object.');
+    const obj = raw as Record<string, unknown>;
+
+    if (!obj.personalInfo || typeof obj.personalInfo !== 'object')
+        throw new Error('Missing "personalInfo" — make sure you copied the full ProCV JSON output.');
+    if (!Array.isArray(obj.workExperience))
+        throw new Error('Missing "workExperience" array.');
+    if (!Array.isArray(obj.skills))
+        throw new Error('Missing "skills" array.');
+
+    const pi = obj.personalInfo as Record<string, unknown>;
+
+    const coerceStr = (v: unknown) => (typeof v === 'string' ? v : '');
+    const coerceId = (v: unknown, fallback: string) =>
+        typeof v === 'string' && v ? v : fallback;
+
+    const profile: UserProfile = {
+        personalInfo: {
+            name:     coerceStr(pi.name),
+            email:    coerceStr(pi.email),
+            phone:    coerceStr(pi.phone),
+            location: coerceStr(pi.location),
+            linkedin: coerceStr(pi.linkedin),
+            website:  coerceStr(pi.website),
+            github:   coerceStr(pi.github),
+            photo:    typeof pi.photo === 'string' ? pi.photo : undefined,
+        },
+        summary: coerceStr(obj.summary),
+        workExperience: (obj.workExperience as unknown[]).map((we, i) => {
+            const w = (we || {}) as Record<string, unknown>;
+            return {
+                id:               coerceId(w.id, `we_${i}`),
+                company:          coerceStr(w.company),
+                jobTitle:         coerceStr(w.jobTitle),
+                startDate:        coerceStr(w.startDate),
+                endDate:          coerceStr(w.endDate),
+                responsibilities: coerceStr(w.responsibilities),
+            };
+        }),
+        education: Array.isArray(obj.education)
+            ? (obj.education as unknown[]).map((ed, i) => {
+                const e = (ed || {}) as Record<string, unknown>;
+                return {
+                    id:             coerceId(e.id, `edu_${i}`),
+                    degree:         coerceStr(e.degree),
+                    school:         coerceStr(e.school),
+                    graduationYear: coerceStr(e.graduationYear),
+                };
+            })
+            : [],
+        skills: (obj.skills as unknown[]).map(s => coerceStr(s)).filter(Boolean),
+        projects: Array.isArray(obj.projects)
+            ? (obj.projects as unknown[]).map((pr, i) => {
+                const p = (pr || {}) as Record<string, unknown>;
+                return {
+                    id:          coerceId(p.id, `proj_${i}`),
+                    name:        coerceStr(p.name),
+                    description: coerceStr(p.description),
+                    link:        coerceStr(p.link),
+                };
+            })
+            : [],
+        languages: Array.isArray(obj.languages)
+            ? (obj.languages as unknown[]).map((la, i) => {
+                const l = (la || {}) as Record<string, unknown>;
+                return {
+                    id:          coerceId(l.id, `lang_${i}`),
+                    name:        coerceStr(l.name),
+                    proficiency: coerceStr(l.proficiency),
+                };
+            })
+            : [],
+        references: Array.isArray(obj.references)
+            ? (obj.references as unknown[]).map((re, i) => {
+                const r = (re || {}) as Record<string, unknown>;
+                return {
+                    id:           coerceId(r.id, `ref_${i}`),
+                    name:         coerceStr(r.name),
+                    title:        coerceStr(r.title),
+                    company:      coerceStr(r.company),
+                    email:        coerceStr(r.email),
+                    phone:        coerceStr(r.phone),
+                    relationship: coerceStr(r.relationship),
+                };
+            })
+            : undefined,
+    };
+
+    return profile;
+}
+
+const JsonImportMode: React.FC<JsonImportModeProps> = ({ onProfileImported }) => {
+    const [text, setText] = useState('');
+    const [step, setStep] = useState<'idle' | 'preview' | 'done' | 'error'>('idle');
+    const [error, setError] = useState<string | null>(null);
+    const [parsedProfile, setParsedProfile] = useState<UserProfile | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const parseJson = useCallback((json: string) => {
+        setError(null);
+        try {
+            const raw = JSON.parse(json);
+            const profile = validateAndNormaliseProfile(raw);
+            setParsedProfile(profile);
+            setStep('preview');
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Could not parse JSON.';
+            setError(msg);
+            setStep('error');
+        }
+    }, []);
+
+    const handleFile = useCallback((file: File) => {
+        if (!file.name.match(/\.json$/i)) {
+            setError('Please drop a .json file.');
+            setStep('error');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const content = ev.target?.result;
+            if (typeof content === 'string') {
+                setText(content);
+                parseJson(content);
+            }
+        };
+        reader.readAsText(file);
+    }, [parseJson]);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) { handleFile(file); return; }
+        const dropped = e.dataTransfer.getData('text/plain');
+        if (dropped) { setText(dropped); parseJson(dropped); }
+    }, [handleFile, parseJson]);
+
+    const handleApply = useCallback(() => {
+        if (!parsedProfile) return;
+        onProfileImported(parsedProfile);
+        setStep('done');
+    }, [parsedProfile, onProfileImported]);
+
+    const reset = () => {
+        setText(''); setStep('idle'); setError(null); setParsedProfile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-violet-50/60 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800/40">
+                <div className="p-2.5 bg-violet-600 rounded-xl flex-shrink-0">
+                    <JsonIcon className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Import ProCV JSON</h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                        Paste the JSON output from the ProCV master prompt — or drop a <strong>.json</strong> file. No AI processing needed; the data is mapped directly.
+                    </p>
+                </div>
+            </div>
+
+            {(step === 'idle' || step === 'error') && (
+                <>
+                    {/* Drop zone + textarea */}
+                    <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                        onDragLeave={() => setIsDragging(false)}
+                        onDrop={handleDrop}
+                        className={`relative rounded-2xl border-2 border-dashed transition-all ${isDragging
+                            ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                            : 'border-zinc-300 dark:border-neutral-600'
+                        }`}
+                    >
+                        <textarea
+                            value={text}
+                            onChange={e => setText(e.target.value)}
+                            placeholder={'Paste your ProCV JSON here…\n\nOr drop a .json file onto this area.'}
+                            rows={10}
+                            className="w-full bg-transparent resize-none rounded-2xl px-4 py-3 text-xs font-mono text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-600"
+                            spellCheck={false}
+                        />
+                        {isDragging && (
+                            <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-violet-50/80 dark:bg-violet-900/40 pointer-events-none">
+                                <p className="text-sm font-semibold text-violet-600 dark:text-violet-300">Drop .json file here</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* File pick alternative */}
+                    <div className="flex items-center gap-3">
+                        <input ref={fileInputRef} type="file" accept=".json" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} className="hidden" />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                        >
+                            Browse for a .json file instead
+                        </button>
+                        <span className="text-zinc-300 dark:text-neutral-600">·</span>
+                        <button
+                            onClick={() => parseJson(text)}
+                            disabled={!text.trim()}
+                            className="ml-auto px-4 py-1.5 text-sm font-semibold rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white transition-colors"
+                        >
+                            Parse JSON
+                        </button>
+                    </div>
+
+                    {step === 'error' && error && (
+                        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {error}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {step === 'preview' && parsedProfile && (
+                <ProfilePreview
+                    parsedProfile={parsedProfile}
+                    onApply={handleApply}
+                    onReset={reset}
+                    applyLabel="Import to My Profile"
+                    resetLabel="Edit JSON"
+                />
+            )}
+
+            {step === 'done' && <DoneState onReset={reset} resetLabel="Import Another JSON" />}
         </div>
     );
 };
