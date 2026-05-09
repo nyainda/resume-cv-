@@ -56,6 +56,7 @@ export default {
             if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
             if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
             if (url.pathname === '/api/cv/tiered-llm' && request.method === 'POST') return handleTieredLLM(request, env);
+            if (url.pathname === '/api/cv/account-tier' && request.method === 'GET') return handleAccountTier(request, env);
             if (url.pathname === '/api/cv/race-llm'   && request.method === 'POST') return handleRaceLLM(request, env);
             if (url.pathname === '/api/cv/parallel-sections' && request.method === 'POST') return handleParallelSections(request, env);
             if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
@@ -1482,6 +1483,58 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     general:              { model: '@cf/meta/llama-3.1-8b-instruct',               tier: 3, free: true,  description: 'General purpose fallback — Llama 3.1 8B (FREE)' },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Paid-account upgrade map — when the frontend detects a Cloudflare paid
+// account (via /api/cv/account-tier) it passes paidUpgrade:true. Generation
+// tasks listed here are then silently promoted to Llama 3.3 70B FP8, which
+// produces measurably better bullet rhythm and seniority calibration.
+// Only generation tasks are upgraded; audit/validate/humanize remain free to
+// avoid unnecessary Neuron spend on tasks that don't benefit from 70B quality.
+// ─────────────────────────────────────────────────────────────────────────────
+const PAID_UPGRADE_MAP: Record<string, string> = {
+    cvGenerate:     '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    cvGenerateLong: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    cvExperience:   '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    cvProjects:     '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    cvSummary:      '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Account Tier Probe — GET /api/cv/account-tier
+//
+// Sends a 1-token probe to Llama 3.3 70B (a paid model). If the model
+// responds, the account has paid Workers AI access; if it fails with a
+// neuron-quota or access error, the account is on the free tier.
+//
+// Response: { tier: 'paid' | 'free', model: string, note?: string }
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleAccountTier(request: Request, env: Env): Promise<Response> {
+    const PAID_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+    try {
+        const res: any = await env.AI.run(PAID_MODEL as any, {
+            messages: [
+                { role: 'system', content: 'Reply with the single word: ok' },
+                { role: 'user',   content: 'ping' },
+            ],
+            temperature: 0,
+            max_tokens: 4,
+        });
+        let text = '';
+        if (typeof res === 'string') text = res;
+        else if (typeof res?.response === 'string') text = res.response;
+        else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
+
+        if (text.trim()) {
+            return json({ tier: 'paid', model: PAID_MODEL }, request, env);
+        }
+        return json({ tier: 'free', model: PAID_MODEL, note: 'paid model returned empty — likely free tier' }, request, env);
+    } catch (e: any) {
+        const msg = String(e?.message || e || '');
+        const isQuota = msg.includes('4006') || msg.toLowerCase().includes('neuron') || msg.toLowerCase().includes('quota');
+        return json({ tier: 'free', model: PAID_MODEL, note: isQuota ? 'neuron quota exhausted' : msg.slice(0, 120) }, request, env);
+    }
+}
+
 // Bumped to 100k chars (Apr 2026) so the frontend's pre-sized cv-generate
 // path — which routes prompts > 90k chars away from Groq into the worker —
 // fits through tiered-llm + race-llm without truncation. Long-context models
@@ -1494,14 +1547,18 @@ const TIERED_LLM_HARD_MAX_TOKENS   = 8192;
 async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
 
-    const taskKey  = typeof body?.task === 'string' ? body.task.trim() : 'general';
-    const system   = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
-    const prompt   = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
+    const taskKey     = typeof body?.task === 'string' ? body.task.trim() : 'general';
+    const paidUpgrade = body?.paidUpgrade === true;
+    const system      = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    const prompt      = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
 
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
 
-    const mapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
-    const { model, tier, free, description } = mapping;
+    const baseMapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
+    const upgradedModel = paidUpgrade ? PAID_UPGRADE_MAP[taskKey] : undefined;
+    const model       = upgradedModel ?? baseMapping.model;
+    const { tier, free: baseFree, description } = baseMapping;
+    const free        = upgradedModel ? false : baseFree;
 
     const wantsJson  = body?.json === true;
     const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
@@ -1586,6 +1643,7 @@ async function handleRaceLLM(request: Request, env: Env): Promise<Response> {
         return json({ error: 'need_at_least_two_tasks' }, request, env, 400);
     }
 
+    const paidUpgrade = body?.paidUpgrade === true;
     const system = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
     const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
@@ -1610,8 +1668,11 @@ async function handleRaceLLM(request: Request, env: Env): Promise<Response> {
     const t0 = Date.now();
 
     const runOne = async (taskKey: string) => {
-        const mapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
-        const { model, tier, free, description } = mapping;
+        const baseMapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
+        const upgradedModel = paidUpgrade ? PAID_UPGRADE_MAP[taskKey] : undefined;
+        const model = upgradedModel ?? baseMapping.model;
+        const { tier, free: baseFree, description } = baseMapping;
+        const free = upgradedModel ? false : baseFree;
 
         const payload: Record<string, unknown> = { messages: baseMessages, temperature, max_tokens: maxTokens };
         const supports70bJsonFormat = model.includes('llama-3.3-70b') || model.includes('llama-3.1-70b');

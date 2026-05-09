@@ -500,6 +500,12 @@ export function prewarmCVEngineModels(): Promise<PrewarmResult[]> {
             }
         }
 
+        // Fire account-tier detection in parallel with any retry — zero latency
+        // cost when the worker is already warm. Runs fire-and-forget so it never
+        // blocks prewarm from resolving. The result persists in localStorage and
+        // `_cachedTier` for the rest of the session (TTL 1 hour).
+        void detectAccountTier();
+
         return results;
     }).catch((e) => {
         // Defence in depth — Promise.all of catches above can't reject, but
@@ -521,6 +527,86 @@ export function rewarmCVEngineModels(): Promise<PrewarmResult[]> {
     prewarmStarted = false;
     prewarmPromise = null;
     return prewarmCVEngineModels();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Account Tier Detection — calls /api/cv/account-tier to probe whether the
+// Cloudflare Workers AI binding has paid-model access (Llama 3.3 70B).
+// Result is cached in localStorage for 1 hour so the probe only runs once per
+// session (or after the TTL expires). Fire-and-forget from the prewarm path.
+//
+// When tier is 'paid', all workerTieredLLM / workerRaceLLM calls automatically
+// pass paidUpgrade:true so the worker upgrades generation tasks to 70B without
+// any manual config change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ACCOUNT_TIER_CACHE_KEY = 'procv:cf_account_tier';
+const ACCOUNT_TIER_TTL_MS    = 60 * 60 * 1000; // 1 hour
+const ACCOUNT_TIER_TIMEOUT_MS = 10000;
+
+type CFAccountTier = 'paid' | 'free' | 'unknown';
+
+interface AccountTierCache {
+    tier: CFAccountTier;
+    detectedAt: number;
+}
+
+let _cachedTier: CFAccountTier = 'unknown';
+
+function loadCachedTier(): CFAccountTier {
+    try {
+        const raw = localStorage.getItem(ACCOUNT_TIER_CACHE_KEY);
+        if (!raw) return 'unknown';
+        const parsed: AccountTierCache = JSON.parse(raw);
+        if (Date.now() - parsed.detectedAt > ACCOUNT_TIER_TTL_MS) return 'unknown';
+        return parsed.tier;
+    } catch {
+        return 'unknown';
+    }
+}
+
+function saveCachedTier(tier: CFAccountTier): void {
+    try {
+        const entry: AccountTierCache = { tier, detectedAt: Date.now() };
+        localStorage.setItem(ACCOUNT_TIER_CACHE_KEY, JSON.stringify(entry));
+    } catch { /* storage full — silently ignore */ }
+}
+
+/**
+ * Returns the last-detected Cloudflare account tier without making a network
+ * call. 'unknown' until detectAccountTier() has resolved at least once.
+ */
+export function getAccountTier(): CFAccountTier {
+    return _cachedTier;
+}
+
+/**
+ * Probes /api/cv/account-tier to determine whether the Cloudflare Workers AI
+ * binding has paid-model access. Result is cached in localStorage for 1 hour.
+ * Safe to call multiple times — resolves immediately from cache on hits.
+ */
+export async function detectAccountTier(): Promise<CFAccountTier> {
+    if (!isCVEngineConfigured()) return 'unknown';
+
+    const cached = loadCachedTier();
+    if (cached !== 'unknown') {
+        _cachedTier = cached;
+        return cached;
+    }
+
+    const u = new URL('/api/cv/account-tier', ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(u.toString(), { method: 'GET' }, ACCOUNT_TIER_TIMEOUT_MS);
+        if (!r.ok) return 'unknown';
+        const data = await r.json() as { tier?: string };
+        const tier: CFAccountTier = data?.tier === 'paid' ? 'paid' : data?.tier === 'free' ? 'free' : 'unknown';
+        _cachedTier = tier;
+        if (tier !== 'unknown') saveCachedTier(tier);
+        console.info(`[CV Engine] Account tier: ${tier.toUpperCase()} — ${tier === 'paid' ? 'Llama 3.3 70B auto-enabled for generation' : 'using free models (Mistral Small 3.1 24B)'}`);
+        return tier;
+    } catch {
+        return 'unknown';
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -631,6 +717,7 @@ export async function workerTieredLLM(
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
                     maxTokens: opts.maxTokens ?? 2048,
+                    paidUpgrade: _cachedTier === 'paid',
                 }),
             },
             opts.timeoutMs ?? WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS,
@@ -707,6 +794,7 @@ export async function workerRaceLLM(
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
                     maxTokens: opts.maxTokens ?? 2048,
+                    paidUpgrade: _cachedTier === 'paid',
                 }),
             },
             opts.timeoutMs ?? WORKER_RACE_LLM_DEFAULT_TIMEOUT_MS,
