@@ -37,6 +37,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [brevoKey, setBrevoKey]           = useState(currentApiSettings.brevoApiKey || '');
   const [msClientId, setMsClientId]       = useState(currentApiSettings.msClientId || '');
   const [jsearchKey, setJsearchKey]       = useState(currentApiSettings.jsearchApiKey || '');
+  const [preferredFallback, setPreferredFallback] = useState<'claude' | 'gemini'>(
+    currentApiSettings.preferredFallback ?? 'claude'
+  );
   const [msConnected, setMsConnected]   = useState(false);
   const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
   const [msConnecting, setMsConnecting] = useState(false);
@@ -94,6 +97,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setBrevoKey(currentApiSettings.brevoApiKey || '');
     setMsClientId(currentApiSettings.msClientId || '');
     setJsearchKey(currentApiSettings.jsearchApiKey || '');
+    setPreferredFallback(currentApiSettings.preferredFallback ?? 'claude');
 
     const storedMsUser = localStorage.getItem(LS_MS_USER);
     if (storedMsUser) {
@@ -200,6 +204,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       brevoApiKey: brevoKey.trim() || null,
       msClientId: msClientId.trim() || null,
       jsearchApiKey: jsearchKey.trim() || null,
+      preferredFallback,
     };
     onSave(settingsToSave);
     onClose();
@@ -371,6 +376,46 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               )}
             </div>
 
+          </div>
+
+          {/* ── Preferred Fallback Picker ── */}
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-3 bg-zinc-50/50 dark:bg-neutral-800/30">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Preferred Fallback Provider</h3>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Used when Workers AI quota is exhausted</p>
+              </div>
+            </div>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">
+              Choose which provider kicks in first when the CV Engine is unavailable. The other one is only tried if you have no key for the preferred one.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['claude', 'gemini'] as const).map((p) => {
+                const active = preferredFallback === p;
+                const label = p === 'claude' ? '🧠 Claude (Haiku)' : '🔍 Gemini 2.0 Flash';
+                const hasKey = p === 'claude' ? !!claudeKey.trim() : !!geminiKey.trim();
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPreferredFallback(p)}
+                    className={`flex flex-col items-center gap-1 rounded-lg border-2 px-3 py-2.5 text-xs font-semibold transition-all ${
+                      active
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                        : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-500'
+                    }`}
+                  >
+                    <span>{label}</span>
+                    {hasKey
+                      ? <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">● Key configured</span>
+                      : <span className="text-[10px] font-normal text-zinc-400">○ No key yet</span>
+                    }
+                    {active && <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400">✓ Selected</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* ── Google Gemini (Optional — file/image parsing + last-resort fallback) ── */}

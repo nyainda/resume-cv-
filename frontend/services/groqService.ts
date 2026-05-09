@@ -151,6 +151,20 @@ function _recordProviderResult(name: ProviderName, state: ProviderHealthState, e
     }
 }
 
+// ── Preferred fallback provider ───────────────────────────────────────────────
+// Read from localStorage (saved by SettingsModal). Defaults to 'claude' so
+// existing users who have a Claude key keep the same behaviour automatically.
+function getPreferredFallback(): 'claude' | 'gemini' {
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const p = JSON.parse(s);
+            if (p.preferredFallback === 'gemini') return 'gemini';
+        }
+    } catch { /* ignore */ }
+    return 'claude';
+}
+
 // ── Gemini key + chat ─────────────────────────────────────────────────────────
 function getGeminiApiKey(): string | null {
     const rt = _rtGemini();
@@ -338,48 +352,54 @@ export async function groqChat(
         _recordProviderResult('Workers AI', 'no_key');
     }
 
-    // ── FALLBACK: Claude Haiku (+ Sonnet on overload) ─────────────────────────
-    const clKey = getClaudeApiKey();
-    if (!clKey) {
-        _recordProviderResult('Claude', 'no_key');
-        console.info('[AI] Skipping Claude (no key)');
-    } else {
-        _dispatchTrying({ label: 'Claude', type: 'single' });
-        try {
-            const r = await claudeChat(systemPrompt, userPrompt, opts);
-            _lastAiEngine = 'Claude';
-            _recordProviderResult('Claude', 'ok');
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
-            return r;
-        } catch (claudeErr: any) {
-            _recordProviderResult('Claude', _classifyErrorState(claudeErr), claudeErr);
-            console.warn('[AI] Claude failed:', claudeErr?.message);
-        }
-    }
-
-    // ── LAST RESORT: Gemini 2.0 Flash (1 M context) ───────────────────────────
+    // ── FALLBACK: user's preferred provider, then the other one if no key set ──
+    const preferred = getPreferredFallback();
+    const clKey  = getClaudeApiKey();
     const gemKey = getGeminiApiKey();
-    if (!gemKey) {
-        _recordProviderResult('Gemini', 'no_key');
-        console.info('[AI] Skipping Gemini (no key)');
-    } else {
-        _dispatchTrying({ label: 'Gemini', type: 'single' });
+
+    // Build the two-step fallback order based on preference.
+    // If the preferred provider has no key, automatically try the other one.
+    type FallbackStep = { name: ProviderName; hasKey: boolean };
+    const fallbackOrder: FallbackStep[] =
+        preferred === 'claude'
+            ? [{ name: 'Claude', hasKey: !!clKey }, { name: 'Gemini', hasKey: !!gemKey }]
+            : [{ name: 'Gemini', hasKey: !!gemKey }, { name: 'Claude', hasKey: !!clKey }];
+
+    for (const step of fallbackOrder) {
+        if (!step.hasKey) {
+            _recordProviderResult(step.name, 'no_key');
+            console.info(`[AI] Skipping ${step.name} (no key)`);
+            continue;
+        }
+        _dispatchTrying({ label: step.name, type: 'single' });
         try {
-            const r = await geminiChat(systemPrompt, userPrompt, opts);
-            _lastAiEngine = 'Gemini';
-            _recordProviderResult('Gemini', 'ok');
+            let r: string;
+            if (step.name === 'Claude') {
+                r = await claudeChat(systemPrompt, userPrompt, opts);
+                _lastAiEngine = 'Claude';
+            } else {
+                r = await geminiChat(systemPrompt, userPrompt, opts);
+                _lastAiEngine = 'Gemini';
+            }
+            _recordProviderResult(step.name, 'ok');
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
             return r;
-        } catch (gemErr: any) {
-            _recordProviderResult('Gemini', _classifyErrorState(gemErr), gemErr);
-            console.warn('[AI] Gemini failed:', gemErr?.message);
+        } catch (provErr: any) {
+            const errState = _classifyErrorState(provErr);
+            _recordProviderResult(step.name, errState, provErr);
+            console.warn(`[AI] ${step.name} failed:`, provErr?.message);
+            // If this is the preferred provider and it has a key but failed with quota/auth,
+            // only continue to the next provider if the next one has a key AND the preferred
+            // was set explicitly (i.e. user hasn't locked in to one provider).
+            // Either way we let the loop continue to the secondary provider.
         }
     }
 
     // ── All paths exhausted ───────────────────────────────────────────────────
+    const preferredName = preferred === 'claude' ? 'Claude' : 'Gemini';
     const err: any = new Error(
-        'All AI providers are currently unavailable. The CV Engine free quota resets daily at 00:00 UTC. ' +
-        'Add a Claude or Gemini API key in Settings to generate CVs any time.'
+        `All AI providers are currently unavailable. The CV Engine free quota resets daily at 00:00 UTC. ` +
+        `Your preferred fallback (${preferredName}) also failed — check your API key in Settings or switch providers.`
     );
     err.isUserFacing = true;
     throw err;

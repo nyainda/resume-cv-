@@ -322,6 +322,7 @@ export interface ApiSettings {
   brevoApiKey?: string | null;      // For sending emails via Brevo SMTP API
   msClientId?: string | null;       // Azure AD Client ID for Microsoft/OneDrive integration
   jsearchApiKey?: string | null;    // RapidAPI JSearch — live job listings
+  preferredFallback?: 'claude' | 'gemini'; // Which provider to use when Workers AI is unavailable
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';
