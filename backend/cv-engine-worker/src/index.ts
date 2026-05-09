@@ -1426,13 +1426,15 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     jdKeywords:           { model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',     tier: 1, free: false, description: 'JD keyword extraction, tier 1/2/3 classification — Llama 70B ($0.29/$2.25 per M)' },
 
     // ── Tier 2: Main generation — all FREE, run in parallel ──────────────────
-    // GLM 4.7 Flash is the workhorse: 131K context, fast, free, multilingual.
-    // It handles the two heaviest tasks (experience bullets, full CV JSON) so
-    // Neurons are never spent on the critical path.
-    cvGenerate:           { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Main CV JSON generation — GLM 4.7 Flash 131K (FREE)' },
-    cvGenerateLong:       { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Long-context CV generation — GLM 4.7 Flash 131K (FREE)' },
-    cvExperience:         { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'CV experience bullets — GLM 4.7 Flash 131K (FREE, strong instruction following)' },
-    cvProjects:           { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'CV projects section — GLM 4.7 Flash (FREE)' },
+    // Mistral Small 3.1 24B is the new workhorse for all generation tasks.
+    // GLM 4.7 Flash was previously used here but is currently broken on
+    // Cloudflare's infrastructure (returns empty text / HTTP 502 on most
+    // prompts). Mistral Small 3.1 is confirmed warm, FREE, and handles
+    // structured JSON generation reliably.
+    cvGenerate:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Main CV JSON generation — Mistral Small 3.1 24B (FREE)' },
+    cvGenerateLong:       { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Long-context CV generation — Mistral Small 3.1 24B (FREE)' },
+    cvExperience:         { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'CV experience bullets — Mistral Small 3.1 24B (FREE, strong JSON following)' },
+    cvProjects:           { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'CV projects section — Mistral Small 3.1 24B (FREE)' },
     // Humanizer audit: Mistral Small 3.1 excels at JSON rewriting tasks (FREE)
     cvAudit:              { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Post-generation humanizer audit — Mistral Small 3.1 24B (FREE)' },
     // Validator: Llama 3.1 8B is fast and reliable for structured checking (FREE)
@@ -1457,13 +1459,13 @@ const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; free: bool
     // ── Tier 2 free alternatives (rhythm, seniority, multilingual) ───────────
     rhythmSelection:      { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 2, free: true,  description: 'Rhythm pattern selection per role type (FREE)' },
     seniorityDetect:      { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 2, free: true,  description: 'Seniority + field detection from JD — Llama 3.2 3B (FREE, fast)' },
-    multilingualGenerate: { model: '@cf/zai-org/glm-4.7-flash',                    tier: 2, free: true,  description: 'Multilingual CV text generation — GLM 4.7 Flash (FREE, 100+ languages)' },
+    multilingualGenerate: { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 2, free: true,  description: 'Multilingual CV text generation — Mistral Small 3.1 24B (FREE, multilingual)' },
 
     // ── Tier 3: Fast validation — ultra-light FREE models, burn without worry ──
     // Each check runs independently and in parallel with the main generation.
     bannedCheck:          { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'Banned phrase check — Llama 3.2 3B (FREE, fast)' },
     tenseCheck:           { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'Tense consistency enforcement — Llama 3.2 3B (FREE, fast)' },
-    voiceConsistency:     { model: '@cf/zai-org/glm-4.7-flash',                    tier: 3, free: true,  description: 'Voice consistency per bullet — GLM 4.7 Flash (FREE, stronger than 7B)' },
+    voiceConsistency:     { model: '@hf/nousresearch/hermes-2-pro-mistral-7b',     tier: 3, free: true,  description: 'Voice consistency per bullet — Hermes-2 Pro 7B (FREE, strong instruction following)' },
     verbRepeatCheck:      { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 3, free: true,  description: 'Verb repetition check — Granite 4.0 Micro (FREE, lightest)' },
     rhythmCheck:          { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 3, free: true,  description: 'Rhythm compliance check — Granite 4.0 Micro (FREE, lightest)' },
     candidateDedup:       { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'Dedup check for corpus candidates — Llama 3.2 3B (FREE)' },

@@ -359,11 +359,14 @@ export function warmCVEngine(): void {
 //
 // The existing /health probe and the diagnostic LLM probe only touch the
 // FREE Llama 3.1 8B model (`task: 'general'`). The real CV pipeline routes
-// to other models that stay cold. We warm the four key ones (all now FREE):
-//   - cvGenerate  → @cf/zai-org/glm-4.7-flash (FREE 131K, main generation)
+// to other models that stay cold. We warm the three key ones (all FREE):
+//   - cvGenerate  → @cf/mistralai/mistral-small-3.1-24b-instruct (FREE, main generation)
 //   - cvAudit     → @cf/mistralai/mistral-small-3.1-24b-instruct (FREE, humanizer)
-//   - cvFallback  → @cf/zai-org/glm-4.7-flash (FREE, section fallback — same model)
 //   - humanize    → @hf/nousresearch/hermes-2-pro-mistral-7b (FREE, cover-letter)
+//
+// Note: GLM 4.7 Flash was previously used for cvGenerate/cvExperience/cvProjects
+// but is currently broken on Cloudflare infrastructure (returns 502/empty text).
+// All those tasks were remapped to Mistral Small 3.1 24B in the worker (May 2026).
 //
 // May 2026: ALL generation, audit and validation tasks were moved to free
 // models. Llama 4 Scout (PAID) is no longer in the hot path. This means
