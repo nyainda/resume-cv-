@@ -15,6 +15,7 @@
 
 import { CVData, UserProfile } from '../types';
 import { getCachedBannedPhrases, type BannedEntry } from './cvEngineClient';
+import { auditStyleGovernance, GOVERNANCE_SUBSTITUTIONS } from './cvStyleGovernance';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 1. FORBIDDEN-WORD SUBSTITUTIONS — applied to imported CV text BEFORE parsing,
@@ -109,7 +110,7 @@ export function cleanImportedText(input: string): { cleaned: string; changes: st
     if (!input || typeof input !== 'string') return { cleaned: input || '', changes: [] };
     let out = input;
     const changes: string[] = [];
-    for (const [pattern, replacement] of SUBSTITUTIONS) {
+    for (const [pattern, replacement] of [...SUBSTITUTIONS, ...GOVERNANCE_SUBSTITUTIONS]) {
         const matches = out.match(pattern);
         if (matches && matches.length) {
             const sample = matches[0];
@@ -2087,7 +2088,25 @@ export interface PurifyLeak {
         // Auto-fixed: AI instruction / reasoning preamble stripped from CV field.
         | 'instruction_leak'
         // Auto-fixed: near-identical bullet within the same role removed (Jaccard ≥ 0.60).
-        | 'duplicate_bullet';
+        | 'duplicate_bullet'
+        // ── Stylistic governance (detect-only, from cvStyleGovernance.ts) ──
+        // ≥3 consecutive bullets share the same opener category (verb/number/
+        // scope/context/timeframe/collaboration/fragment/outcome).
+        | 'opener_category_monotone'
+        // >85% of bullets in a role open with an action verb — AI rhythm.
+        | 'all_verb_led'
+        // One semantic verb cluster (leadership/build/growth/…) accounts for
+        // >50% of a role's bullets.
+        | 'verb_cluster_dominance'
+        // A non-trivial bullet (≥8w) opens with a raw metric/number with no
+        // action-verb setup before it.
+        | 'bare_metric_opener'
+        // Verb→metric appears within 6 words with no context clause between
+        // them ("Increased revenue by 40%" has no setup).
+        | 'context_missing'
+        // The same outcome MEANING (improvement/growth/reduction/…) expressed
+        // by 3+ bullets in one role using different words.
+        | 'meaning_cluster_repetition';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -2796,6 +2815,32 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
             });
         }
     });
+
+    // Detect-only: STYLISTIC GOVERNANCE. Seven AI-rhythm checks that catch
+    // patterns word-level substitution cannot fix: opener category monotony,
+    // verb-led saturation, semantic cluster dominance, bare metric openers,
+    // missing context clauses, and meaning-cluster repetition.
+    try {
+        const sgReport = auditStyleGovernance(working);
+        if (sgReport.totalIssues > 0) {
+            const topKinds = Object.entries(sgReport.issuesByKind)
+                .sort((a, b) => b[1] - a[1])
+                .map(([k, n]) => `${k}×${n}`)
+                .join(' ');
+            console.warn(`[Purify] Style governance: ${sgReport.totalIssues} issue(s) in ${sgReport.durationMs.toFixed(1)}ms — ${topKinds}`);
+            for (const iss of sgReport.issues) {
+                leaks.push({
+                    leakType: iss.kind,
+                    phrase: iss.detail,
+                    fieldLocation: iss.fieldLocation,
+                    fixedBy: 'none',
+                    contextSnippet: iss.where,
+                });
+            }
+        }
+    } catch {
+        // Style governance must never block the rest of the pipeline.
+    }
 
     return {
         cv: working,

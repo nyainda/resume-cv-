@@ -85,7 +85,10 @@ export interface LeakRecord {
         | 'word_overuse_per_role' | 'summary_bullet_phrase_leak'
         | 'low_quantification_role'
         | 'instruction_leak'
-        | 'duplicate_bullet';
+        | 'duplicate_bullet'
+        // Style governance (detect-only — see cvStyleGovernance.ts)
+        | 'opener_category_monotone' | 'all_verb_led' | 'verb_cluster_dominance'
+        | 'bare_metric_opener' | 'context_missing' | 'meaning_cluster_repetition';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
