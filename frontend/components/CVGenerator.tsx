@@ -3,7 +3,10 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { auditCvQuality } from '../services/cvNumberFidelity';
+import { purifyCV } from '../services/cvPurificationPipeline';
 import type { PurifyLeak } from '../services/cvPurificationPipeline';
+import { getCachedBannedPhrases } from '../services/cvEngineClient';
+import type { BannedEntry } from '../services/cvEngineClient';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
@@ -21,6 +24,7 @@ import GitHubSyncModal from './GitHubSyncModal';
 import QualityIssuesPanel from './QualityIssuesPanel';
 import CVCompareModal from './CVCompareModal';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
+import { profileToCV } from '../utils/profileToCV';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
@@ -71,7 +75,6 @@ function friendlyError(err: unknown, action = 'complete that action'): string {
   return `Could not ${action}. Please try again.`;
 }
 
-export { profileToCV } from '../utils/profileToCV';
 
 const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -256,6 +259,100 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
   }, [currentCV]);
 
+  const handleFixImportIssues = useCallback(async () => {
+    if (!currentCV) return;
+    setIsFixingIssues(true);
+    setFixSummary(null);
+    try {
+      // Step 1 — run deterministic purification pipeline (local rules, zero AI):
+      // tense enforcement, banned phrase substitution, first-person removal,
+      // duplicate bullet pruning, instruction-leak stripping, and more.
+      const { cv: purified, report } = purifyCV(currentCV);
+
+      // Step 2 — apply extra banned phrases from the worker's D1/KV store.
+      // This is a pure data read — no AI, no LLM, just a list of phrases and
+      // their replacements stored in Cloudflare D1 by the CV engine team.
+      let remoteFixes = 0;
+      let cvAfterRemote = purified;
+      try {
+        const remoteBanned: BannedEntry[] | null = await getCachedBannedPhrases();
+        if (remoteBanned && remoteBanned.length > 0) {
+          // Build one big replacement function that scans all text fields.
+          const applyToText = (text: string): { text: string; count: number } => {
+            let result = text;
+            let count = 0;
+            for (const entry of remoteBanned) {
+              if (!entry.phrase) continue;
+              const escaped = entry.phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const re = new RegExp(`\\b${escaped}\\b`, 'gi');
+              const replacement = entry.replacement ?? '';
+              const replaced = result.replace(re, (match) => {
+                // Preserve original capitalisation if the replacement is lower-case
+                const rep = replacement || '';
+                if (rep && match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase()) {
+                  return rep.charAt(0).toUpperCase() + rep.slice(1);
+                }
+                return rep;
+              });
+              if (replaced !== result) {
+                count += (result.match(re) ?? []).length;
+                result = replaced;
+              }
+            }
+            return { text: result, count };
+          };
+
+          const applyToArray = (arr: string[]): { arr: string[]; count: number } => {
+            let count = 0;
+            const out = arr.map(s => {
+              const { text, count: c } = applyToText(s);
+              count += c;
+              return text;
+            });
+            return { arr: out, count };
+          };
+
+          let totalRemote = 0;
+          const { text: newSummary, count: sc } = applyToText(cvAfterRemote.summary || '');
+          totalRemote += sc;
+
+          const newExperience = cvAfterRemote.experience?.map(role => {
+            const { arr, count } = applyToArray(role.responsibilities || []);
+            totalRemote += count;
+            return { ...role, responsibilities: arr };
+          }) ?? [];
+
+          const newProjects = cvAfterRemote.projects?.map(p => {
+            const { text, count } = applyToText(p.description || '');
+            totalRemote += count;
+            return { ...p, description: text };
+          }) ?? [];
+
+          cvAfterRemote = {
+            ...cvAfterRemote,
+            summary: newSummary,
+            experience: newExperience,
+            projects: newProjects,
+          };
+          remoteFixes = totalRemote;
+        }
+      } catch {
+        // Worker unavailable — that's fine, local fixes still applied.
+      }
+
+      const totalFixed = (report.substitutionsMade || 0) + (report.polishFixes || 0)
+        + (report.bulletsTenseFlipped || 0) + (report.skillsDeduped || 0)
+        + (report.leaks?.filter(l => l.fixedBy && l.fixedBy !== 'none').length || 0)
+        + remoteFixes;
+
+      setCurrentCV(cvAfterRemote);
+      setPurifyLeaks(report.leaks ?? []);
+      setFixSummary({ total: totalFixed, remote: remoteFixes });
+    } finally {
+      setIsFixingIssues(false);
+    }
+  }, [currentCV, setCurrentCV]);
+
   const handleDownloadQualityReport = useCallback(() => {
     if (!currentCV || !qualityReport) return;
     const synonymFixes = purifyLeaks.filter(l => l.fixedBy === 'synonym_sub');
@@ -331,6 +428,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showImportReport, setShowImportReport] = useState(false);
+  const [isFixingIssues, setIsFixingIssues] = useState(false);
+  const [fixSummary, setFixSummary] = useState<{ total: number; remote: number } | null>(null);
   const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>('cv:jdKeywords', []);
 
   // ── Active AI engine (shown as badge after generation) ──
@@ -1730,6 +1829,43 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
                     </button>
                   </div>
+                </div>
+
+                {/* Fix summary row — shown after a successful fix run */}
+                {fixSummary && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-3 py-2 border border-emerald-200 dark:border-emerald-800">
+                    <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <span>
+                      {fixSummary.total > 0
+                        ? <>Fixed <strong>{fixSummary.total}</strong> issue{fixSummary.total !== 1 ? 's' : ''}{fixSummary.remote > 0 ? ` (including ${fixSummary.remote} from the live banned-phrase database)` : ''} — your CV is cleaner now.</>
+                        : <>No common issues found — your CV text is already clean.</>
+                      }
+                    </span>
+                  </div>
+                )}
+
+                {/* Fix common issues button */}
+                <div className="mt-3 pt-3 border-t border-current/10 flex items-center justify-between gap-3">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug">
+                    Automatically removes overused AI words, passive-voice openers, stub bullets, duplicate phrases, and more — no AI used, instant.
+                  </p>
+                  <button
+                    onClick={handleFixImportIssues}
+                    disabled={isFixingIssues}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg bg-[#1B2B4B] hover:bg-[#243a65] text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isFixingIssues ? (
+                      <>
+                        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                        Fixing…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        Fix common issues
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             );
