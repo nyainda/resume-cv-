@@ -164,17 +164,32 @@ export async function fixCvIssueWithAi(
         'Return only the corrected snippet.',
     ].filter(Boolean).join('\n');
 
-    // Lowest reasonable temperature — we want a precise edit, not creativity.
-    // No JSON mode: the response is plain text.
+    // Use the large, capable model for quality fixes — inline edits are high-stakes
+    // (visible to the user) so accuracy beats speed here. The 70B model maps to the
+    // cvGenerate task on Workers AI (Llama 4 Scout 17B), which is much more reliable
+    // at following precise "smallest possible edit" instructions than the 8B model.
     const raw = await groqChat(
-        // Model id is a label only — `groqChat` maps it onto the chosen provider.
-        'llama-3.1-8b-instant',
+        'llama-3.3-70b-versatile',
         SYSTEM_PROMPT,
         userPrompt,
         { temperature: 0.1, maxTokens: 320 },
     );
 
-    return _sanitizeAiOutput(raw, cleanInput);
+    const result = _sanitizeAiOutput(raw, cleanInput);
+
+    // If the model returned the exact same text as the input (no change at all),
+    // signal this explicitly so the caller can show a meaningful message instead
+    // of silently "applying" an identical CV update.
+    if (result.trim() === cleanInput.trim()) {
+        const err: any = new Error(
+            'AI returned the same text without changes. The issue may require manual editing.'
+        );
+        err.isUserFacing = true;
+        err.noChange = true;
+        throw err;
+    }
+
+    return result;
 }
 
 /**

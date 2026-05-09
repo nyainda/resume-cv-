@@ -324,7 +324,11 @@ export default function QualityIssuesPanel({
                 [rowKey]: { status: 'fixed', appliedAt: Date.now() },
             }));
         } catch (e: any) {
-            const msg = e?.isUserFacing
+            // noChange = AI understood the text but made no edit (issue may be borderline).
+            // Show a softer "manual edit needed" hint instead of a hard error color.
+            const msg = e?.noChange
+                ? 'AI couldn\'t find a safe automatic fix — try editing this bullet manually.'
+                : e?.isUserFacing
                 ? e.message
                 : (e?.message || 'AI fix failed — every provider in the chain was unavailable.');
             setRowState(s => ({ ...s, [rowKey]: { status: 'error', error: msg } }));
