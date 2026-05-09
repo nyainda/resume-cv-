@@ -11,8 +11,6 @@ import { LocalStorageService } from '../services/storage/LocalStorageService';
 import { testProviderConnection } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
-import { runCompareDiagnostic, type CompareResult, type CompareLeg } from '../services/cvCompareDiagnostic';
-
 const LS_MS_TOKEN = 'cv_builder:ms_access_token';
 const LS_MS_USER  = 'cv_builder:ms_user';
 
@@ -25,13 +23,6 @@ const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const GroqIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path d="M8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm4-2v4m-2-2h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-  </svg>
-);
-
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -40,10 +31,6 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
-  const [groqKey, setGroqKey]             = useState(currentApiSettings.groqApiKey || '');
-  const [cerebrasKey, setCerebrasKey]     = useState(currentApiSettings.cerebrasApiKey || '');
-  const [openrouterKey, setOpenrouterKey] = useState(currentApiSettings.openrouterApiKey || '');
-  const [togetherKey, setTogetherKey]     = useState(currentApiSettings.togetherApiKey || '');
   const [geminiKey, setGeminiKey]         = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey]         = useState(currentApiSettings.claudeApiKey || '');
   const [tavilyKey, setTavilyKey]         = useState(currentApiSettings.tavilyApiKey || '');
@@ -73,80 +60,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     }
   }, []);
 
-  // ── Compare-worker-vs-Groq diagnostic ──────────────────────────────────
-  type CompareState =
-    | { status: 'idle' }
-    | { status: 'running' }
-    | { status: 'done'; result: CompareResult }
-    | { status: 'error'; message: string };
-  const [compareState, setCompareState] = useState<CompareState>({ status: 'idle' });
-
-  const runCompare = useCallback(async () => {
-    setCompareState({ status: 'running' });
-    try {
-      const result = await runCompareDiagnostic();
-      setCompareState({ status: 'done', result });
-    } catch (e) {
-      setCompareState({ status: 'error', message: e instanceof Error ? e.message : String(e) });
-    }
-  }, []);
-
   // ── Test connection state ──────────────────────────────────────────────
   type TestState = { status: 'idle' | 'testing' | 'ok' | 'fail'; message?: string };
-  const [groqTest, setGroqTest]             = useState<TestState>({ status: 'idle' });
-  const [cerebrasTest, setCerebrasTest]     = useState<TestState>({ status: 'idle' });
-  const [openrouterTest, setOpenrouterTest] = useState<TestState>({ status: 'idle' });
-  const [togetherTest, setTogetherTest]     = useState<TestState>({ status: 'idle' });
+  const [claudeTest, setClaudeTest] = useState<TestState>({ status: 'idle' });
 
-  const runTest = useCallback(async (provider: 'groq' | 'cerebras' | 'openrouter' | 'together') => {
-    const setter =
-      provider === 'groq'       ? setGroqTest :
-      provider === 'cerebras'   ? setCerebrasTest :
-      provider === 'openrouter' ? setOpenrouterTest :
-                                  setTogetherTest;
-    const key =
-      provider === 'groq'       ? groqKey :
-      provider === 'cerebras'   ? cerebrasKey :
-      provider === 'openrouter' ? openrouterKey :
-                                  togetherKey;
-    if (!key.trim()) {
-      setter({ status: 'fail', message: 'Please enter a key first.' });
+  const runClaudeTest = useCallback(async () => {
+    if (!claudeKey.trim()) {
+      setClaudeTest({ status: 'fail', message: 'Please enter a key first.' });
       return;
     }
-    setter({ status: 'testing' });
-    // Push the just-typed key into the in-memory runtime store so the test
-    // request uses it (without requiring the user to hit Save first).
+    setClaudeTest({ status: 'testing' });
     try {
-      setRuntimeKeys({
-        groqApiKey:       provider === 'groq'       ? key.trim() : groqKey.trim()       || null,
-        cerebrasApiKey:   provider === 'cerebras'   ? key.trim() : cerebrasKey.trim()   || null,
-        openrouterApiKey: provider === 'openrouter' ? key.trim() : openrouterKey.trim() || null,
-        togetherApiKey:   provider === 'together'   ? key.trim() : togetherKey.trim()   || null,
-      });
+      setRuntimeKeys({ claudeApiKey: claudeKey.trim() });
     } catch {}
     try {
-      const result = await testProviderConnection(provider);
+      const result = await testProviderConnection('claude');
       if (result.ok) {
-        setter({ status: 'ok', message: result.model ? `Connected — model: ${result.model}` : 'Connected' });
+        setClaudeTest({ status: 'ok', message: result.model ? `Connected — model: ${result.model}` : 'Connected' });
       } else {
-        setter({ status: 'fail', message: result.error || 'Connection failed.' });
+        setClaudeTest({ status: 'fail', message: result.error || 'Connection failed.' });
       }
     } catch (e: any) {
-      setter({ status: 'fail', message: e?.message || 'Connection failed.' });
+      setClaudeTest({ status: 'fail', message: e?.message || 'Connection failed.' });
     }
-  }, [groqKey, cerebrasKey, openrouterKey, togetherKey]);
+  }, [claudeKey]);
 
-  // Reset test status when the user edits the key.
-  useEffect(() => { setGroqTest({ status: 'idle' }); }, [groqKey]);
-  useEffect(() => { setCerebrasTest({ status: 'idle' }); }, [cerebrasKey]);
-  useEffect(() => { setOpenrouterTest({ status: 'idle' }); }, [openrouterKey]);
-  useEffect(() => { setTogetherTest({ status: 'idle' }); }, [togetherKey]);
+  useEffect(() => { setClaudeTest({ status: 'idle' }); }, [claudeKey]);
 
   useEffect(() => {
-    setGroqKey(currentApiSettings.groqApiKey || '');
-    setCerebrasKey(currentApiSettings.cerebrasApiKey || '');
-    setOpenrouterKey(currentApiSettings.openrouterApiKey || '');
-    setTogetherKey(currentApiSettings.togetherApiKey || '');
     setGeminiKey(currentApiSettings.apiKey || '');
     setClaudeKey(currentApiSettings.claudeApiKey || '');
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
@@ -254,10 +195,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     const settingsToSave: ApiSettings = {
       provider: 'gemini',
       apiKey: geminiKey.trim() || null,
-      groqApiKey: groqKey.trim() || null,
-      cerebrasApiKey: cerebrasKey.trim() || null,
-      openrouterApiKey: openrouterKey.trim() || null,
-      togetherApiKey: togetherKey.trim() || null,
       claudeApiKey: claudeKey.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
@@ -265,20 +202,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       jsearchApiKey: jsearchKey.trim() || null,
     };
     onSave(settingsToSave);
-    onClose();
-  };
-
-  const handleClearGroq = () => {
-    setGroqKey('');
-    const saved: ApiSettings = {
-      provider: 'gemini',
-      apiKey: geminiKey.trim() || null,
-      groqApiKey: null,
-      tavilyApiKey: tavilyKey.trim() || null,
-      brevoApiKey: brevoKey.trim() || null,
-      msClientId: msClientId.trim() || null,
-    };
-    onSave(saved);
     onClose();
   };
 
@@ -388,10 +311,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               <div className="space-y-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">CV Engine — now powered by Cloudflare Workers AI</h3>
                 <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                  All AI work — CV generation, cover letters, rewriting, ATS analysis — now runs on our hosted CV Engine using Cloudflare Workers AI (Llama 4 Scout, Mistral Small, GLM 4.7 Flash, and more). <strong>No API key required for normal use.</strong>
+                  All AI work — CV generation, cover letters, rewriting, ATS analysis — now runs on our hosted CV Engine using Cloudflare Workers AI (Llama 4 Scout, Mistral Small, and more). <strong>No API key required for normal use.</strong>
                 </p>
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  The Groq and Cerebras keys below are <strong>optional offline fallbacks</strong> — they only activate if our CV Engine is temporarily unreachable.
+                  Add a <strong>Claude</strong> or <strong>Gemini</strong> key below as a personal fallback — they activate automatically if the CV Engine daily quota is exhausted.
                 </p>
               </div>
             </div>
@@ -448,312 +371,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               )}
             </div>
 
-            {/* ── Compare worker vs Groq diagnostic ── */}
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-emerald-100 dark:border-emerald-900/40 p-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="space-y-0.5">
-                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Compare worker vs Groq</p>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">
-                    Generates the same 5 CV bullets through both providers, then scores each on JSON validity,
-                    banned-phrase hits, verb-pool adherence, opener variety, rhythm match, and latency.
-                    {!groqKey && <span className="block mt-0.5 text-[10px] text-amber-700 dark:text-amber-400">Add a Groq key below to enable the side-by-side comparison.</span>}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={runCompare}
-                  disabled={compareState.status === 'running'}
-                  className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                >
-                  {compareState.status === 'running' ? 'Comparing…' : compareState.status === 'done' ? 'Run again' : 'Run comparison'}
-                </Button>
-              </div>
-
-              {compareState.status === 'running' && (
-                <p className="mt-3 text-[11px] font-mono text-zinc-500 dark:text-zinc-400 border-t border-emerald-100 dark:border-emerald-900/40 pt-2">
-                  Building brief, firing both providers in parallel, scoring outputs…
-                </p>
-              )}
-
-              {compareState.status === 'error' && (
-                <p className="mt-3 text-[11px] text-red-600 dark:text-red-400 border-t border-emerald-100 dark:border-emerald-900/40 pt-2 font-mono">
-                  Comparison failed: {compareState.message}
-                </p>
-              )}
-
-              {compareState.status === 'done' && (
-                <CompareResultPanel result={compareState.result} />
-              )}
-            </div>
           </div>
 
-          {/* ── Groq AI (Optional fallback) ── */}
-          <div className="rounded-xl border-2 border-orange-200 dark:border-orange-700/40 p-4 space-y-3 bg-orange-50/50 dark:bg-orange-900/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">⚡</span>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">Groq AI — Optional Fallback</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Used only if the CV Engine is unreachable</p>
-                </div>
-              </div>
-              {groqKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
-              )}
-            </div>
-
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-orange-100 dark:border-orange-900/40 p-3 space-y-1.5">
-              {[
-                '🆓 Free tier with massive daily limits',
-                '🚀 llama-3.3-70b for CV gen, cover letters & rewriting',
-                '⚡ llama-3.1-8b for instant ATS & keyword analysis',
-                '🔒 Encrypted & stored securely in your browser',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-
-            <a
-              href="https://console.groq.com/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 underline font-semibold"
-            >
-              Get your free Groq API key →
-            </a>
-
-            <Input
-              id="groq-key"
-              type="password"
-              value={groqKey}
-              onChange={(e) => setGroqKey(e.target.value)}
-              placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="font-mono text-sm"
-            />
-
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => runTest('groq')}
-                disabled={groqTest.status === 'testing' || !groqKey.trim()}
-                className="text-xs px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                {groqTest.status === 'testing' ? 'Testing…' : 'Test connection'}
-              </Button>
-              {groqTest.status === 'ok' && (
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {groqTest.message}</span>
-              )}
-              {groqTest.status === 'fail' && (
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {groqTest.message}</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── Cerebras AI (Free fallback when Groq quota is exceeded) ── */}
-          <div className="rounded-xl border-2 border-violet-200 dark:border-violet-700/40 p-4 space-y-3 bg-violet-50/50 dark:bg-violet-900/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🧠</span>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">Cerebras AI — Optional Fallback</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Last-resort fallback if both CV Engine and Groq are unreachable</p>
-                </div>
-              </div>
-              {cerebrasKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
-              )}
-            </div>
-
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-violet-100 dark:border-violet-900/40 p-3 space-y-1.5">
-              {[
-                '🆓 Free tier — same Llama models as Groq',
-                '⚡ Kicks in automatically when Groq hits its daily limit',
-                '🔄 No code changes needed — seamless background switch',
-                '🔒 Encrypted & stored securely in your browser',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-
-            <a
-              href="https://cloud.cerebras.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 underline font-semibold"
-            >
-              Get your free Cerebras API key →
-            </a>
-
-            <Input
-              id="cerebras-key"
-              type="password"
-              value={cerebrasKey}
-              onChange={(e) => setCerebrasKey(e.target.value)}
-              placeholder="csk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="font-mono text-sm"
-            />
-
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => runTest('cerebras')}
-                disabled={cerebrasTest.status === 'testing' || !cerebrasKey.trim()}
-                className="text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white"
-              >
-                {cerebrasTest.status === 'testing' ? 'Testing…' : 'Test connection'}
-              </Button>
-              {cerebrasTest.status === 'ok' && (
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {cerebrasTest.message}</span>
-              )}
-              {cerebrasTest.status === 'fail' && (
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {cerebrasTest.message}</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── OpenRouter (Free fallback — separate daily quota) ── */}
-          <div className="rounded-xl border-2 border-orange-200 dark:border-orange-700/40 p-4 space-y-3 bg-orange-50/50 dark:bg-orange-900/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🛣️</span>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400">OpenRouter — Free Fallback</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">NVIDIA Nemotron 120B, Qwen3 80B, Llama 3.3 70B & more — fires when CF Worker daily quota runs out</p>
-                </div>
-              </div>
-              {openrouterKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
-              )}
-            </div>
-
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-orange-100 dark:border-orange-900/40 p-3 space-y-1.5">
-              {[
-                '🆓 6 large free models — Nemotron 3 Super 120B, Qwen3 Next 80B, Llama 3.3 70B, GPT-OSS 120B, Hermes 3 405B, Gemma 3 27B',
-                '⚡ 4 fast free models — Nemotron Nano 9B, GPT-OSS 20B, Gemma 3 12B, Llama 3.2 3B',
-                '📐 Up to 262K context window — handles large CVs that exceed Groq\'s 128K limit',
-                '🔄 Auto-cycles to next model on 404/402 (deprecated or paid-only)',
-                '🆘 Fires automatically when the CF Worker is offline or hits its daily neuron limit',
-                '🔒 Encrypted & stored securely in your browser',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-
-            <a
-              href="https://openrouter.ai/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 underline font-semibold"
-            >
-              Get your free OpenRouter API key →
-            </a>
-
-            <Input
-              id="openrouter-key"
-              type="password"
-              value={openrouterKey}
-              onChange={(e) => setOpenrouterKey(e.target.value)}
-              placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="font-mono text-sm"
-            />
-
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => runTest('openrouter')}
-                disabled={openrouterTest.status === 'testing' || !openrouterKey.trim()}
-                className="text-xs px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                {openrouterTest.status === 'testing' ? 'Testing…' : 'Test connection'}
-              </Button>
-              {openrouterTest.status === 'ok' && (
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {openrouterTest.message}</span>
-              )}
-              {openrouterTest.status === 'fail' && (
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {openrouterTest.message}</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── Together.ai (Free fallback — separate daily quota) ── */}
-          <div className="rounded-xl border-2 border-pink-200 dark:border-pink-700/40 p-4 space-y-3 bg-pink-50/50 dark:bg-pink-900/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🤝</span>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-pink-600 dark:text-pink-400">Together.ai — Free Fallback</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Free Llama 3.3 70B Turbo — separate daily quota again</p>
-                </div>
-              </div>
-              {togetherKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
-              )}
-            </div>
-
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-pink-100 dark:border-pink-900/40 p-3 space-y-1.5">
-              {[
-                '🆓 Free tier — Llama 3.3 70B Turbo Free',
-                '🚀 Fast Turbo inference, OpenAI-compatible',
-                '⚡ Last upstream try before Claude/Gemini paid keys',
-                '🔒 Encrypted & stored securely in your browser',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-
-            <a
-              href="https://api.together.xyz/settings/api-keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-pink-600 dark:text-pink-400 underline font-semibold"
-            >
-              Get your free Together.ai API key →
-            </a>
-
-            <Input
-              id="together-key"
-              type="password"
-              value={togetherKey}
-              onChange={(e) => setTogetherKey(e.target.value)}
-              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              className="font-mono text-sm"
-            />
-
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => runTest('together')}
-                disabled={togetherTest.status === 'testing' || !togetherKey.trim()}
-                className="text-xs px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white"
-              >
-                {togetherTest.status === 'testing' ? 'Testing…' : 'Test connection'}
-              </Button>
-              {togetherTest.status === 'ok' && (
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {togetherTest.message}</span>
-              )}
-              {togetherTest.status === 'fail' && (
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {togetherTest.message}</span>
-              )}
-            </div>
-          </div>
-
-          {/* ── Google Gemini (Optional — file/image parsing) ── */}
+          {/* ── Google Gemini (Optional — file/image parsing + last-resort fallback) ── */}
           <div className="rounded-xl border border-blue-200 dark:border-blue-800/40 p-4 space-y-3 bg-blue-50/30 dark:bg-blue-900/5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -771,7 +391,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </div>
 
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Only needed if you want to <strong>upload PDFs or images</strong> of your existing CV or job descriptions. Uses <strong>Gemini 2.5 Flash</strong> for vision/multimodal tasks.
+              Needed for <strong>PDF/image CV upload</strong> and as the <strong>last-resort AI fallback</strong> when Workers AI and Claude are both unavailable. Uses <strong>Gemini 2.0 Flash</strong>.
             </p>
 
             <a
@@ -797,14 +417,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </p>
           </div>
 
-          {/* ── Anthropic Claude (Optional) ── */}
-          <div className="rounded-xl border border-purple-200 dark:border-purple-800/40 p-4 space-y-3 bg-purple-50/30 dark:bg-purple-900/5">
+          {/* ── Anthropic Claude (Primary fallback) ── */}
+          <div className="rounded-xl border-2 border-purple-200 dark:border-purple-700/40 p-4 space-y-3 bg-purple-50/50 dark:bg-purple-900/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-lg">🧠</span>
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-600 dark:text-purple-400">Anthropic Claude — Optional</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Portal scan AI analysis • ATS keyword matching • Job intelligence</p>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-purple-600 dark:text-purple-400">Anthropic Claude — Primary Fallback</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Auto-activates when Workers AI quota is exhausted · 200 K context</p>
                 </div>
               </div>
               {claudeKey ? (
@@ -816,8 +436,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
             <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-purple-100 dark:border-purple-900/40 p-3 space-y-1.5">
               {[
-                '🆓 Free tier via API (claude-haiku is very affordable)',
-                '✍️ CV generation fallback when Workers AI quota is full',
+                '✍️ Full CV generation, cover letters & rewriting when Workers AI is down',
+                '🧠 claude-3-5-haiku-20241022 (fast) — falls back to Sonnet on overload',
                 '🔍 Powers portal scan AI summaries & job scoring',
                 '🎯 ATS keyword gap analysis on job descriptions',
                 '🔒 Encrypted & stored securely in your browser',
@@ -846,9 +466,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               className="font-mono text-sm"
             />
 
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-              Powers: Portal Scan AI analysis • ATS keyword gap detection • Job description intelligence
-            </p>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={runClaudeTest}
+                disabled={claudeTest.status === 'testing' || !claudeKey.trim()}
+                className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {claudeTest.status === 'testing' ? 'Testing…' : 'Test connection'}
+              </Button>
+              {claudeTest.status === 'ok' && (
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {claudeTest.message}</span>
+              )}
+              {claudeTest.status === 'fail' && (
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {claudeTest.message}</span>
+              )}
+            </div>
           </div>
 
           {/* ── Tavily Job Search ── */}
@@ -1076,20 +709,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             </p>
           </div>
 
-          {/* ── Mobile Save/Clear buttons ── */}
+          {/* ── Mobile Save/Cancel buttons ── */}
           <div className="sm:hidden flex flex-col gap-2 pb-2">
             <Button onClick={handleSave} className="w-full py-3 text-base">Save Settings</Button>
-            <div className="flex gap-2">
-              <Button variant="danger" onClick={handleClearGroq} className="flex-1">Clear Groq Key</Button>
-              <Button variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
-            </div>
+            <Button variant="secondary" onClick={onClose} className="w-full">Cancel</Button>
           </div>
 
         </div>
 
         {/* ── Sticky footer (desktop) ── */}
         <div className="hidden sm:flex justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-neutral-700 flex-shrink-0">
-          <Button variant="danger" onClick={handleClearGroq}>Clear Groq Key</Button>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave}>Save Settings</Button>
         </div>
@@ -1097,132 +726,5 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     </div>
   );
 };
-
-// ── Compare result display panel ─────────────────────────────────────────────
-const verdictColors: Record<string, string> = {
-  pass: 'text-emerald-600 dark:text-emerald-400',
-  warn: 'text-amber-600 dark:text-amber-400',
-  fail: 'text-red-600 dark:text-red-400',
-};
-const verdictBg: Record<string, string> = {
-  pass: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40',
-  warn: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/40',
-  fail: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40',
-};
-const checkIcon = (level: string) =>
-  level === 'pass' ? '✓' : level === 'warn' ? '△' : '✗';
-
-function CompareLegCard({ leg, winnerIs }: { leg: CompareLeg; winnerIs: string | null | undefined }) {
-  const label = leg.provider === 'worker' ? 'Cloudflare Workers AI' : 'Groq';
-  const modelShort = leg.model?.replace('@cf/meta/', '').replace('@cf/mistralai/', '') || '—';
-  const s = leg.score;
-  const isWinner = winnerIs === leg.provider;
-
-  return (
-    <div className={`rounded-md border p-2.5 space-y-1.5 flex-1 min-w-0 ${s ? verdictBg[s.verdict] : 'border-zinc-200 dark:border-neutral-700'}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-1 flex-wrap">
-        <p className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200 truncate">{label}</p>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {isWinner && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold">winner</span>}
-          {s && <span className={`text-[11px] font-bold ${verdictColors[s.verdict]}`}>{s.verdict.toUpperCase()}</span>}
-        </div>
-      </div>
-
-      {/* Status / error */}
-      {leg.skipped && (
-        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 italic">{leg.error}</p>
-      )}
-      {!leg.ok && !leg.skipped && (
-        <p className="text-[10px] text-red-600 dark:text-red-400 font-mono break-all">{leg.error}</p>
-      )}
-
-      {/* Metrics */}
-      {leg.ok && s && (
-        <>
-          <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 space-y-0.5">
-            <p>model: <span className="text-zinc-700 dark:text-zinc-200">{modelShort}</span></p>
-            <p>latency: <span className="text-zinc-700 dark:text-zinc-200">{leg.ms}ms</span></p>
-            <p>bullets: <span className="text-zinc-700 dark:text-zinc-200">{s.bulletCount}</span>  avg {s.avgWords}w</p>
-            <p>verb pool: <span className="text-zinc-700 dark:text-zinc-200">{Math.round(s.poolAdherence * 100)}%</span>  variety: <span className="text-zinc-700 dark:text-zinc-200">{Math.round(s.variety * 100)}%</span></p>
-            <p>rhythm: <span className="text-zinc-700 dark:text-zinc-200">{Math.round(s.rhythmMatch * 100)}%</span> match</p>
-            {s.bannedHits.length > 0 && <p className="text-red-600 dark:text-red-400">banned: {s.bannedHits.join(', ')}</p>}
-            {s.aiismHits.length > 0 && <p className="text-amber-600 dark:text-amber-400">AI-isms: {s.aiismHits.join(', ')}</p>}
-          </div>
-          <div className="space-y-0.5 border-t border-current/10 pt-1">
-            {s.checks.map(c => (
-              <div key={c.label} className={`flex items-start gap-1 text-[10px] ${verdictColors[c.level]}`}>
-                <span className="font-mono shrink-0">{checkIcon(c.level)}</span>
-                <span>{c.label}{c.detail ? ` — ${c.detail}` : ''}</span>
-              </div>
-            ))}
-          </div>
-          {/* Sample bullets (first 2) */}
-          {s.bullets.length > 0 && (
-            <div className="space-y-0.5 border-t border-current/10 pt-1">
-              {s.bullets.slice(0, 2).map((b, i) => (
-                <p key={i} className="text-[10px] text-zinc-600 dark:text-zinc-300 leading-snug line-clamp-2">
-                  {i + 1}. {b}
-                </p>
-              ))}
-              {s.bullets.length > 2 && (
-                <p className="text-[10px] text-zinc-400 dark:text-zinc-500">+{s.bullets.length - 2} more…</p>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function CompareResultPanel({ result }: { result: CompareResult }) {
-  const elapsed = ((result.finishedAt - result.startedAt) / 1000).toFixed(1);
-
-  if (!result.briefOk) {
-    return (
-      <div className="mt-3 border-t border-emerald-100 dark:border-emerald-900/40 pt-2 space-y-1">
-        <p className="text-[11px] text-red-600 dark:text-red-400 font-mono">
-          Brief fetch failed: {result.briefError || 'unknown error'}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-3 border-t border-emerald-100 dark:border-emerald-900/40 pt-2 space-y-2">
-      {/* Meta row */}
-      <div className="flex items-center justify-between flex-wrap gap-x-3 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
-        <span>
-          brief: {result.briefSummary?.seniority} / {result.briefSummary?.field} / {result.briefSummary?.voice} / {result.briefSummary?.rhythm}
-          {'  '}verbs: {result.briefSummary?.verbCount}  forbidden: {result.briefSummary?.forbiddenCount}
-        </span>
-        <span>{elapsed}s total</span>
-      </div>
-
-      {/* Winner banner */}
-      {result.winner && (
-        <div className={`rounded px-2.5 py-1 text-[11px] font-semibold text-center ${
-          result.winner === 'tie'
-            ? 'bg-zinc-100 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300'
-            : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-        }`}>
-          {result.winner === 'tie'
-            ? 'Tie — both providers matched on quality'
-            : `${result.winner === 'worker' ? 'Cloudflare Workers AI' : 'Groq'} scored higher`}
-        </div>
-      )}
-      {result.winner === null && result.groq.skipped && (
-        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 italic">Add a Groq key to see a side-by-side winner comparison.</p>
-      )}
-
-      {/* Side-by-side cards */}
-      <div className="flex gap-2 flex-col sm:flex-row">
-        <CompareLegCard leg={result.worker} winnerIs={result.winner} />
-        <CompareLegCard leg={result.groq}   winnerIs={result.winner} />
-      </div>
-    </div>
-  );
-}
 
 export default SettingsModal;

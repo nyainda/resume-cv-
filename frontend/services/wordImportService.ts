@@ -1,7 +1,7 @@
 import mammoth from 'mammoth';
 import { GoogleGenAI } from '@google/genai';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
-import { groqChat, GROQ_LARGE, GROQ_FAST, hasGroqKey } from './groqService';
+import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { cleanImportedText } from './cvPurificationPipeline';
 
@@ -95,7 +95,7 @@ async function parseWithGroq(text: string): Promise<UserProfile> {
 
 async function parseWithGemini(text: string): Promise<UserProfile> {
     const geminiKey = getGeminiKey();
-    if (!geminiKey) throw new Error('No AI API key configured. Please add a Gemini or Groq key in Settings.');
+    if (!geminiKey) throw new Error('No Gemini API key configured. Please add one in Settings to enable PDF/image CV upload.');
 
     const ai = new GoogleGenAI({ apiKey: geminiKey });
     const prompt = `You are an expert CV parser. Extract all structured information from the following CV/resume text and return ONLY a raw JSON object (no markdown, no code fences, no prose) matching this schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 8000)}`;

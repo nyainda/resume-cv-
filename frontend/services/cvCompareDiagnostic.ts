@@ -24,7 +24,7 @@
  */
 
 import { buildBrief, workerTieredLLM, isCVEngineConfigured, type CVBrief } from './cvEngineClient';
-import { hasGroqKey, getGroqApiKey, GROQ_LARGE } from './groqService';
+import { GROQ_LARGE } from './groqService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public types
@@ -204,41 +204,9 @@ async function callWorker(system: string, user: string): Promise<CompareLeg> {
   }
 }
 
-async function callGroq(system: string, user: string): Promise<CompareLeg> {
-  if (!hasGroqKey()) {
-    return { provider: 'groq', ok: false, ms: 0, skipped: true, error: 'no Groq API key set' };
-  }
-  const key = getGroqApiKey();
-  const t0 = Date.now();
-  try {
-    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model:           GROQ_LARGE,
-        temperature:     0.3,
-        max_tokens:      1024,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user',   content: user   },
-        ],
-      }),
-    });
-    const ms = Date.now() - t0;
-    if (!r.ok) {
-      const body = await r.text().catch(() => '');
-      return { provider: 'groq', ok: false, ms, error: `HTTP ${r.status} ${body.slice(0, 160)}` };
-    }
-    const data = await r.json() as { choices?: { message?: { content?: string } }[]; model?: string };
-    const text = data?.choices?.[0]?.message?.content || '';
-    return { provider: 'groq', ok: true, ms, text, model: data?.model || GROQ_LARGE };
-  } catch (e: any) {
-    return { provider: 'groq', ok: false, ms: Date.now() - t0, error: e?.message || String(e) };
-  }
+async function callGroq(_system: string, _user: string): Promise<CompareLeg> {
+  // Groq has been removed from the provider chain.
+  return { provider: 'groq', ok: false, ms: 0, skipped: true, error: 'Groq removed — provider chain is now Workers AI → Claude → Gemini' };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
