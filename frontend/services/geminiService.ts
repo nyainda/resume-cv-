@@ -4,7 +4,7 @@ import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine } from './groqService'
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, type PurifyReport } from './cvPurificationPipeline';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
-import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
+import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
 import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerRaceLLM, workerParallelSections, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult, type ParallelSectionRequest } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
@@ -1456,6 +1456,108 @@ function getGeminiClient(): GoogleGenAI {
 
     if (!apiKey) throw new Error('Gemini API key not set. Please add it in Settings to enable file/image upload.');
     return new GoogleGenAI({ apiKey });
+}
+
+// ── Claude helpers for client-side CV import ─────────────────────────────────
+function getClaudeApiKey(): string | null {
+    const rt = _rtClaude();
+    if (rt) return rt;
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const p = JSON.parse(s);
+            if (p.claudeApiKey && !p.claudeApiKey.startsWith('enc:v1:')) return p.claudeApiKey.replace(/^"|"$/g, '');
+        }
+    } catch { /* ignore */ }
+    return null;
+}
+
+const _CLAUDE_HAIKU = 'claude-3-5-haiku-20241022';
+const _CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
+
+/**
+ * Call Claude for text-only CV parsing / structuring tasks.
+ * Returns the raw response string.
+ */
+async function claudeTextCall(
+    apiKey: string,
+    system: string,
+    user: string,
+    opts: { maxTokens?: number; temperature?: number } = {},
+): Promise<string> {
+    const res = await fetch(_CLAUDE_API, {
+        method: 'POST',
+        headers: {
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: _CLAUDE_HAIKU,
+            max_tokens: opts.maxTokens ?? 4096,
+            temperature: opts.temperature ?? 0.1,
+            system,
+            messages: [{ role: 'user', content: user }],
+        }),
+    });
+    if (!res.ok) {
+        const raw = await res.text().catch(() => '');
+        let msg = '';
+        try { msg = JSON.parse(raw)?.error?.message || ''; } catch {}
+        const err: any = new Error(msg || `Claude error ${res.status}`);
+        err.status = res.status;
+        throw err;
+    }
+    const data = await res.json();
+    return (data?.content?.[0]?.text as string) || '';
+}
+
+/**
+ * Call Claude with a file (image or PDF base64) + text prompt.
+ * Images use the standard vision API; PDFs use the beta PDF header.
+ */
+async function claudeMultimodalCall(
+    apiKey: string,
+    base64Data: string,
+    mimeType: string,
+    textPrompt: string,
+    opts: { maxTokens?: number; temperature?: number } = {},
+): Promise<string> {
+    const isPdf = mimeType === 'application/pdf';
+    const filePart = isPdf
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
+        : { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Data } };
+
+    const headers: Record<string, string> = {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+    };
+    if (isPdf) headers['anthropic-beta'] = 'pdfs-2024-09-25';
+
+    const res = await fetch(_CLAUDE_API, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            model: _CLAUDE_HAIKU,
+            max_tokens: opts.maxTokens ?? 4096,
+            temperature: opts.temperature ?? 0.1,
+            messages: [{
+                role: 'user',
+                content: [filePart, { type: 'text', text: textPrompt }],
+            }],
+        }),
+    });
+    if (!res.ok) {
+        const raw = await res.text().catch(() => '');
+        let msg = '';
+        try { msg = JSON.parse(raw)?.error?.message || ''; } catch {}
+        const err: any = new Error(msg || `Claude multimodal error ${res.status}`);
+        err.status = res.status;
+        throw err;
+    }
+    const data = await res.json();
+    return (data?.content?.[0]?.text as string) || '';
 }
 
 // --- Gemini Retry Logic (for multimodal calls) ---
@@ -3167,27 +3269,40 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
     }
 }
 
-// --- Multimodal: Extract text from PDF/image using Gemini (vision required) ---
+// --- Multimodal: Extract text from PDF/image using Claude (primary) → Gemini (fallback) ---
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
 
-    // Worker-first for IMAGES (Llama 3.2 Vision). PDFs are not supported by the model
-    // and skip straight to Gemini. Falls back to Gemini on any worker failure.
+    // ── Step 1: CF Vision for images (fastest, free) ─────────────────────────
     if (/^image\//i.test(mimeType)) {
         try {
             const cf = await workerVisionExtract(base64Data, mimeType, prompt, { maxTokens: 4096 });
             if (cf && cf.trim().length > 50) {
-                console.log('[CV Import] Image extract via Cloudflare Workers AI Vision.');
+                console.log('[CV Import] Image text extracted via Cloudflare Workers AI Vision.');
                 return cf;
             }
         } catch (cfErr) {
-            console.warn('[CV Import] Worker vision failed, falling back to Gemini:', cfErr);
+            console.warn('[CV Import] CF Vision failed, trying Claude / Gemini:', cfErr);
         }
     }
 
+    // ── Step 2: Claude (supports both images and PDFs, 200 K context) ────────
+    const claudeKey = getClaudeApiKey();
+    if (claudeKey) {
+        try {
+            const text = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 4096 });
+            if (text && text.trim().length > 50) {
+                console.log('[CV Import] File text extracted via Claude.');
+                return text;
+            }
+        } catch (claudeErr) {
+            console.warn('[CV Import] Claude extraction failed, falling back to Gemini:', claudeErr);
+        }
+    }
+
+    // ── Step 3: Gemini 2.5 Flash (last resort) ────────────────────────────────
     const ai = getGeminiClient();
     const filePart = { inlineData: { data: base64Data, mimeType } };
-
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [filePart, { text: prompt }] },
@@ -3197,25 +3312,21 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
 };
 
 /**
- * Gemini-only: reads a file (PDF/image) AND structures it into a UserProfile JSON
- * in a single multimodal call. Does not require Groq.
+ * Parse a UserProfile from a file (PDF/image).
+ * Priority: Claude (multimodal, 200 K ctx) → Gemini 2.5 Flash.
+ * Named "WithGemini" for backward-compat; Claude is now the primary path.
  */
 export const generateProfileFromFileWithGemini = async (
     base64Data: string,
     mimeType: string,
     githubUrl?: string
 ): Promise<UserProfile> => {
-    const ai = getGeminiClient();
-
-    let githubInstruction = '';
-    if (githubUrl) {
-        githubInstruction = `
+    const githubInstruction = githubUrl ? `
         **GitHub Deep Analysis (CRITICAL)**: The user has also provided a GitHub profile: ${githubUrl}. Analyse the public data available (repositories, languages, commit history) to enrich the profile.
         - Populate the 'projects' array with the top 5 most impressive public repositories.
         - Add ALL key programming languages, frameworks, and tools to the 'skills' list.
         - Infer missing personal details (name, location, summary) from GitHub if not visible in the file.
-        `;
-    }
+    ` : '';
 
     const prompt = `
         You are looking at a resume, CV, or professional profile document. Your job is to read it thoroughly and convert ALL information into the structured JSON schema below.
@@ -3232,8 +3343,29 @@ export const generateProfileFromFileWithGemini = async (
         ${USER_PROFILE_SCHEMA}
     `;
 
-    const filePart = { inlineData: { data: base64Data, mimeType } };
+    // ── Claude first (primary: 200 K context, handles images + PDFs natively) ─
+    const claudeKey = getClaudeApiKey();
+    if (claudeKey) {
+        try {
+            const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 4096, temperature: 0.1 });
+            if (raw && raw.trim().length > 20) {
+                const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
+                const profileData: UserProfile = JSON.parse(cleaned);
+                profileData.projects      = profileData.projects      || [];
+                profileData.education     = profileData.education     || [];
+                profileData.workExperience = profileData.workExperience || [];
+                profileData.languages     = profileData.languages     || [];
+                console.log('[CV Import] Profile structured from file via Claude.');
+                return profileData;
+            }
+        } catch (claudeErr) {
+            console.warn('[CV Import] Claude file→profile failed, falling back to Gemini:', claudeErr);
+        }
+    }
 
+    // ── Gemini 2.5 Flash (fallback) ───────────────────────────────────────────
+    const ai = getGeminiClient();
+    const filePart = { inlineData: { data: base64Data, mimeType } };
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [filePart, { text: prompt }] },
@@ -3242,32 +3374,28 @@ export const generateProfileFromFileWithGemini = async (
 
     const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
     const profileData: UserProfile = JSON.parse(raw);
-    profileData.projects = profileData.projects || [];
-    profileData.education = profileData.education || [];
+    profileData.projects      = profileData.projects      || [];
+    profileData.education     = profileData.education     || [];
     profileData.workExperience = profileData.workExperience || [];
-    profileData.languages = profileData.languages || [];
+    profileData.languages     = profileData.languages     || [];
     return profileData;
 };
 
 /**
- * Gemini-only: structures plain text into a UserProfile JSON.
- * Used as a fallback when Groq is unavailable or quota-exhausted.
+ * Structure plain text into a UserProfile JSON.
+ * Priority: Claude (200 K ctx, text-only) → Gemini 2.5 Flash.
+ * Named "WithGemini" for backward-compat; Claude is now the primary path.
  */
 export const generateProfileFromTextWithGemini = async (
     rawText: string,
     githubUrl?: string
 ): Promise<UserProfile> => {
-    const ai = getGeminiClient();
-
-    let githubInstruction = '';
-    if (githubUrl) {
-        githubInstruction = `
+    const githubInstruction = githubUrl ? `
         **GitHub Deep Analysis (CRITICAL)**: The user has provided a GitHub profile: ${githubUrl}. Analyse the public repositories, languages, and commit history to enrich the profile.
         - Populate 'projects' with the top 5 most impressive public repositories.
         - Add all key languages, frameworks, and tools to 'skills'.
         - Infer any missing personal details from the GitHub profile.
-        `;
-    }
+    ` : '';
 
     const prompt = `
         Your goal is to convert the following resume/career text into a structured JSON profile.
@@ -3287,6 +3415,28 @@ export const generateProfileFromTextWithGemini = async (
         ${USER_PROFILE_SCHEMA}
     `;
 
+    // ── Claude first (primary: 200 K context, no token-limit issues) ─────────
+    const claudeKey = getClaudeApiKey();
+    if (claudeKey) {
+        try {
+            const raw = await claudeTextCall(claudeKey, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 4096, temperature: 0.1 });
+            if (raw && raw.trim().length > 20) {
+                const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
+                const profileData: UserProfile = JSON.parse(cleaned);
+                profileData.projects      = profileData.projects      || [];
+                profileData.education     = profileData.education     || [];
+                profileData.workExperience = profileData.workExperience || [];
+                profileData.languages     = profileData.languages     || [];
+                console.log('[CV Import] Profile structured from text via Claude.');
+                return profileData;
+            }
+        } catch (claudeErr) {
+            console.warn('[CV Import] Claude text→profile failed, falling back to Gemini:', claudeErr);
+        }
+    }
+
+    // ── Gemini 2.5 Flash (fallback) ───────────────────────────────────────────
+    const ai = getGeminiClient();
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [{ text: prompt }] },
@@ -3295,10 +3445,10 @@ export const generateProfileFromTextWithGemini = async (
 
     const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
     const profileData: UserProfile = JSON.parse(raw);
-    profileData.projects = profileData.projects || [];
-    profileData.education = profileData.education || [];
+    profileData.projects      = profileData.projects      || [];
+    profileData.education     = profileData.education     || [];
     profileData.workExperience = profileData.workExperience || [];
-    profileData.languages = profileData.languages || [];
+    profileData.languages     = profileData.languages     || [];
     return profileData;
 };
 
