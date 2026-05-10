@@ -26,37 +26,80 @@ export type CVField =
     | 'irrigation'
     | 'drought_management'
     | 'tech'
+    | 'data_analytics'
+    | 'civil_engineering'
+    | 'construction'
+    | 'architecture'
+    | 'manufacturing'
+    | 'logistics'
     | 'ngo'
     | 'government'
     | 'sales'
+    | 'marketing'
     | 'finance'
+    | 'legal'
     | 'healthcare'
     | 'education'
+    | 'hr'
+    | 'consulting'
+    | 'operations'
+    | 'hospitality'
+    | 'media'
     | 'general';
 
 const FIELD_KEYWORDS: Record<Exclude<CVField, 'general'>, string[]> = {
-    irrigation: ['irrigation', 'drip', 'water resource', 'biosystems', 'agricultural engineering', 'farm equipment', 'sprinkler'],
+    // ── Engineering & Built Environment ────────────────────────────────────────
+    irrigation:         ['irrigation', 'drip', 'water resource', 'biosystems', 'agricultural engineering', 'farm equipment', 'sprinkler', 'hydrology'],
     drought_management: ['drought', 'early warning', 'food security', 'famine', 'climate resilience', 'ndma', 'fewsnet'],
-    tech: ['software', 'developer', 'backend', 'frontend', 'full-stack', 'devops', 'data engineer', 'machine learning', 'react', 'node', 'python', 'java', 'cloud', 'kubernetes'],
-    ngo: ['ngo', 'community', 'humanitarian', 'donor', 'beneficiar', 'grassroots', 'civil society', 'non-profit', 'charity'],
-    government: ['government', 'county', 'public sector', 'ministry', 'authority', 'policy', 'regulator', 'civil service'],
-    sales: ['sales', 'revenue', 'business development', 'account manager', 'quota', 'pipeline', 'b2b', 'territory', 'commercial'],
-    finance: ['finance', 'accounting', 'audit', 'tax', 'banking', 'investment', 'cfa', 'cpa', 'treasury', 'risk'],
-    healthcare: ['healthcare', 'clinical', 'patient', 'hospital', 'nursing', 'pharmacy', 'medical', 'public health'],
-    education: ['teacher', 'lecturer', 'curriculum', 'pedagog', 'school', 'tutor', 'student outcomes', 'classroom'],
+    civil_engineering:  ['civil engineer', 'structural engineer', 'structural design', 'reinforced concrete', 'geotechnical', 'surveying', 'road design', 'infrastructure', 'construction supervision', 'site engineer', 'quantity surveyor', 'highway', 'bridge', 'retaining wall', 'drainage', 'foundation design', 'autocad', 'staad', 'etabs'],
+    construction:       ['construction', 'site management', 'contractor', 'subcontractor', 'project site', 'bill of quantities', 'bq', 'nec', 'fidic', 'building works', 'mep', 'mechanical electrical'],
+    architecture:       ['architect', 'architectural design', 'urban planning', 'master plan', 'bim', 'revit', 'building information', 'planning permission', 'landscape', 'facade'],
+    manufacturing:      ['manufacturing', 'production', 'assembly', 'quality control', 'qc', 'lean', 'six sigma', 'kaizen', 'factory', 'plant', 'tooling', 'machining', 'process engineer'],
+    logistics:          ['logistics', 'supply chain', 'procurement', 'warehouse', 'inventory', 'fleet', 'freight', 'shipping', 'customs', 'distribution', 'last mile', 'fulfilment'],
+    // ── Technology & Data ───────────────────────────────────────────────────────
+    tech:               ['software engineer', 'software developer', 'backend', 'frontend', 'full-stack', 'devops', 'react', 'node.js', 'kubernetes', 'cloud engineer', 'site reliability', 'api development', 'microservices', 'firmware', 'mobile developer'],
+    data_analytics:     ['data analyst', 'data scientist', 'business intelligence', 'bi developer', 'tableau', 'power bi', 'looker', 'data pipeline', 'data warehouse', 'etl', 'sql analyst', 'machine learning engineer', 'nlp', 'deep learning', 'data engineering', 'analytics engineer'],
+    // ── Business & Commercial ──────────────────────────────────────────────────
+    sales:              ['sales', 'business development', 'account manager', 'quota', 'pipeline', 'b2b', 'territory', 'commercial', 'key account', 'client acquisition'],
+    marketing:          ['marketing', 'brand', 'campaign', 'digital marketing', 'seo', 'sem', 'social media', 'content strategy', 'growth hacking', 'market research', 'copywriting', 'advertising', 'pr'],
+    finance:            ['finance', 'accounting', 'audit', 'tax', 'banking', 'investment', 'cfa', 'cpa', 'treasury', 'financial modelling', 'valuation', 'risk management', 'credit', 'capital markets'],
+    consulting:         ['consultant', 'consulting', 'advisory', 'strategy', 'management consulting', 'transformation', 'business case', 'stakeholder management', 'change management', 'due diligence'],
+    operations:         ['operations', 'process improvement', 'operational excellence', 'kpi', 'performance management', 'continuous improvement', 'sop', 'business operations'],
+    // ── Professional Services ──────────────────────────────────────────────────
+    legal:              ['legal', 'lawyer', 'attorney', 'advocate', 'barrister', 'solicitor', 'litigation', 'contract law', 'compliance', 'regulatory', 'intellectual property', 'corporate law'],
+    hr:                 ['human resources', 'hr', 'talent acquisition', 'recruitment', 'employer branding', 'payroll', 'hris', 'labour relations', 'learning and development', 'l&d', 'compensation and benefits'],
+    // ── Public & Social ───────────────────────────────────────────────────────
+    ngo:                ['ngo', 'community development', 'humanitarian', 'donor', 'beneficiar', 'grassroots', 'civil society', 'non-profit', 'charity', 'development programme'],
+    government:         ['government', 'county government', 'public sector', 'ministry', 'authority', 'policy', 'regulator', 'civil service', 'parastatal', 'state corporation'],
+    // ── Other Sectors ─────────────────────────────────────────────────────────
+    healthcare:         ['healthcare', 'clinical', 'patient', 'hospital', 'nursing', 'pharmacy', 'medical doctor', 'public health', 'epidemiology', 'disease surveillance'],
+    education:          ['teacher', 'lecturer', 'curriculum', 'pedagog', 'school', 'tutor', 'student outcomes', 'classroom', 'academic research', 'higher education'],
+    hospitality:        ['hotel', 'hospitality', 'tourism', 'housekeeping', 'front office', 'food and beverage', 'events management', 'concierge', 'restaurant'],
+    media:              ['journalism', 'broadcast', 'film', 'photography', 'media production', 'content creator', 'video editing', 'publishing', 'editorial', 'radio'],
 };
 
 export function detectField(jd: string | undefined, profile?: UserProfile): CVField {
-    const corpus = [
-        jd || '',
-        ...(profile?.workExperience || []).map(e => `${e.jobTitle || ''} ${e.company || ''} ${e.responsibilities || ''}`),
+    // Score JD and profile SEPARATELY.
+    // JD keywords get 3× weight so that a civil engineer applying with a structural-
+    // engineering JD is classified as "civil_engineering" — not "tech" or "data_analytics"
+    // because those keywords appear in the candidate's skills list (Python, Java, Git).
+    const jdCorpus = (jd || '').toLowerCase();
+    const profileCorpus = [
+        ...(profile?.workExperience || []).map(e =>
+            `${e.jobTitle || ''} ${e.company || ''} ${e.responsibilities || ''}`),
+        ...(Array.isArray((profile as any)?.skills) ? (profile as any).skills : []),
     ].join(' ').toLowerCase();
+
+    const jdPresent = jdCorpus.trim().length > 50;
 
     let best: { field: CVField; score: number } = { field: 'general', score: 0 };
     for (const [field, kws] of Object.entries(FIELD_KEYWORDS) as Array<[Exclude<CVField, 'general'>, string[]]>) {
         let score = 0;
         for (const kw of kws) {
-            if (corpus.includes(kw)) score += 1;
+            // JD match: worth 3 points (dominant signal when present).
+            if (jdCorpus.includes(kw)) score += jdPresent ? 3 : 1;
+            // Profile match: worth 1 point (tiebreaker / fallback when no JD).
+            if (profileCorpus.includes(kw)) score += 1;
         }
         if (score > best.score) best = { field, score };
     }
@@ -194,17 +237,47 @@ const FIELD_EXAMPLES: Record<CVField, string[]> = {
         'Debugged the legacy authentication system — login failures dropped to near zero within a week.',
         'Sole engineer on the v{N} rewrite — delivered on time with zero rework after handover.',
     ],
-    ngo: [
-        'Coordinated drought-response programmes reaching {N} households across {N} counties.',
-        'Trained {N} community health workers on early-warning systems across {COUNTY} County.',
-        'Facilitated quarterly stakeholder forums with county officials — zero duplication of effort.',
-        'Mobilised {N} NGO partners for joint response — delivered within {N} weeks of activation.',
+    civil_engineering: [
+        'Supervised construction of a {N} km road section — delivered {N} days ahead of programme at {REVENUE} project value.',
+        'Designed reinforced-concrete bridge deck for {N} t live load — passed third-party structural review first pass.',
+        'Coordinated geotechnical investigations across {N} sites, informing foundation designs for {N} structures.',
+        'Prepared bills of quantities for {N} infrastructure packages — cost estimates accurate to within {N}%.',
     ],
-    government: [
-        'Implemented county drought-response policy across {N} sub-counties, covering {N} vulnerable households.',
-        'Prepared and disseminated monthly bulletins to {N} county-government departments.',
-        'Coordinated {N} government and NGO stakeholders — zero missed reporting deadlines.',
-        'Monitored compliance with water-use regulations across {N} schemes, flagging {N} violations.',
+    construction: [
+        'Managed {N} concurrent subcontractors on a {REVENUE} civil works package — zero RIDDOR incidents.',
+        'Tracked daily progress against NEC3 programme — flagged {N} early warnings that prevented {N} days of delay.',
+        'Coordinated MEP installation across {N} floors — handover achieved {N} weeks ahead of contract completion date.',
+        'Prepared {N} interim payment certificates totalling {REVENUE} — approved without dispute by the employer.',
+    ],
+    architecture: [
+        'Produced planning drawings for {N} mixed-use schemes — all {N} achieved planning permission first submission.',
+        'Led BIM coordination on a {REVENUE} commercial development — resolved {N} clash-detection issues pre-construction.',
+        'Developed concept through RIBA Stage {N} for a {N}-unit residential scheme within a {REVENUE} client brief.',
+        'Prepared {N} sets of tender documentation — contractor queries reduced by roughly {N}% vs previous project.',
+    ],
+    data_analytics: [
+        'Built a {STACK} dashboard ingesting {N}M daily events — cut reporting turnaround from {N} days to {N} hours.',
+        'Designed an ETL pipeline processing {N}GB daily — data freshness improved from {N}-hour to {N}-minute lag.',
+        'Developed a churn-prediction model achieving {N}% recall — flagged {N} at-risk accounts before renewal cycle.',
+        'Automated {N} weekly reports in SQL + Python — freed {N} analyst-hours per week for higher-value work.',
+    ],
+    manufacturing: [
+        'Implemented a Kaizen initiative across {N} assembly lines — defect rate dropped by roughly {N}% in {N} months.',
+        'Led a Six Sigma DMAIC project that cut scrap from {N}% to {N}% — saving approximately {REVENUE}/year.',
+        'Maintained OEE above {N}% across {N} CNC machines through structured preventive-maintenance scheduling.',
+        'Coordinated handover of {N} tooling projects to production — all delivered on spec with zero rework.',
+    ],
+    logistics: [
+        'Managed last-mile distribution for {N} SKUs across {N} warehouses — on-time delivery rate above {N}%.',
+        'Negotiated {N} freight contracts, reducing average cost per shipment by roughly {N}%.',
+        'Implemented a WMS upgrade across {N} sites — pick accuracy improved from {N}% to {N}%.',
+        'Cleared {N} time-sensitive customs entries — zero late-release penalties across {N} months.',
+    ],
+    marketing: [
+        'Ran {N} paid-search campaigns across {N} markets — cost per acquisition reduced by roughly {N}%.',
+        'Grew organic traffic by roughly {N}% in {N} months through a structured SEO and content programme.',
+        'Managed a {REVENUE} campaign budget across {N} channels — ROAS of {N}x against a {N}x target.',
+        'Produced {N} long-form content pieces per month — average time-on-page up roughly {N}% quarter on quarter.',
     ],
     sales: [
         'Generated {REVENUE} in {PRODUCT} revenue across {REGION} in {YEAR}.',
@@ -217,6 +290,54 @@ const FIELD_EXAMPLES: Record<CVField, string[]> = {
         'Led the {YEAR} statutory audit for a {REVENUE} portfolio — closed with no management letter points.',
         'Built a forecasting model that improved cash-flow accuracy by roughly {N}% across {N} business units.',
         'Owned month-end close for {N} entities — cut close time from {N} days to {N} days.',
+    ],
+    legal: [
+        'Drafted and negotiated {N} commercial contracts per quarter — zero post-execution disputes.',
+        'Managed a litigation portfolio of {N} active matters — {N} resolved by settlement within {N} months.',
+        'Conducted regulatory compliance reviews across {N} business units — zero enforcement actions during tenure.',
+        'Advised on {N} M&A transactions with an aggregate deal value of {REVENUE} — all closed within agreed timelines.',
+    ],
+    consulting: [
+        'Delivered a cost-optimisation engagement for a {REVENUE}-revenue client — identified {REVENUE} in savings.',
+        'Managed {N} workstreams across {N} engagement teams — all milestones met within agreed fee budgets.',
+        'Facilitated {N} executive workshops that produced a board-approved 3-year strategic roadmap.',
+        'Built a financial model used to support a {REVENUE} capital-raise — model was accepted by lead investor first pass.',
+    ],
+    operations: [
+        'Reduced process cycle time by roughly {N}% across {N} workflows through structured SOP redesign.',
+        'Led a cross-functional team of {N} to implement a new ERP module — went live {N} weeks ahead of schedule.',
+        'Owned vendor management for {N} suppliers — consolidated to {N}, cutting procurement overhead by roughly {N}%.',
+        'Developed and monitored {N} operational KPIs across {N} departments — dashboard adopted company-wide.',
+    ],
+    hr: [
+        'Reduced time-to-hire from {N} to {N} days across {N} roles by restructuring the screening workflow.',
+        'Led learning-and-development programmes for {N} staff — training satisfaction score improved by roughly {N}%.',
+        'Managed payroll and benefits administration for {N} employees — zero compliance findings in {N}-year period.',
+        'Partnered with {N} hiring managers to fill {N} roles in {N} months — {N}% of hires passed probation.',
+    ],
+    hospitality: [
+        'Managed front-office operations for a {N}-room property — guest satisfaction score above {N}% for {N} quarters.',
+        'Oversaw food-and-beverage revenue of {REVENUE}/month — upselling programme lifted average cover spend by {N}%.',
+        'Coordinated {N} corporate events per month, achieving {N}% repeat-booking rate from clients.',
+        'Led a {N}-person team through peak season — zero service complaints escalated to management over {N} months.',
+    ],
+    media: [
+        'Produced {N} long-form documentary segments — {N} aired on national broadcast within {N} months of assignment.',
+        'Managed post-production workflow for {N} episodes — delivered {N} days ahead of broadcast schedule.',
+        'Grew digital audience by roughly {N}% over {N} months through a structured content and engagement strategy.',
+        'Shot and edited {N} commercial campaigns for {N} clients — all approved without revision on first submission.',
+    ],
+    ngo: [
+        'Coordinated drought-response programmes reaching {N} households across {N} counties.',
+        'Trained {N} community health workers on early-warning systems across {COUNTY} County.',
+        'Facilitated quarterly stakeholder forums with county officials — zero duplication of effort.',
+        'Mobilised {N} NGO partners for joint response — delivered within {N} weeks of activation.',
+    ],
+    government: [
+        'Implemented county drought-response policy across {N} sub-counties, covering {N} vulnerable households.',
+        'Prepared and disseminated monthly bulletins to {N} county-government departments.',
+        'Coordinated {N} government and NGO stakeholders — zero missed reporting deadlines.',
+        'Monitored compliance with water-use regulations across {N} schemes, flagging {N} violations.',
     ],
     healthcare: [
         'Triaged {N}+ outpatient cases per shift across {N} clinical pathways.',

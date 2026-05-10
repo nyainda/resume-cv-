@@ -492,16 +492,26 @@ async function buildBriefData(env: Env, body: any): Promise<any> {
     else if (/\bsenior\b|\bsr\.?\b/.test(titleHay) && years >= 5) seniorityLevel = 'senior';
     const seniority = (seniorityRows || []).find(s => s.level === seniorityLevel) || null;
 
-    // 2. Field detection: score JD against each field's jd_keywords
-    const haystack = `${jd} ${stringify(profile)}`.toLowerCase();
+    // 2. Field detection: score JD against each field's jd_keywords.
+    // IMPORTANT: JD signals get 3× weight vs profile signals.
+    // This prevents profile tech-skills (Python, Java, Git) from overriding a
+    // clear JD field signal — e.g. a "Graduate Structural Engineer" JD should
+    // classify as civil_engineering/construction, not data_analytics, even when
+    // the candidate lists Python in their skills section.
+    const jdHay     = jd.toLowerCase();
+    const profileHay = stringify(profile).toLowerCase();
+    const jdPresent  = jd.length > 50;
+
     const fieldScores: Array<{ field: string; score: number; row: any }> = (fieldRows || []).map(f => {
         if (explicitField && f.field === explicitField) return { field: f.field, score: 9999, row: f };
         const kws: string[] = Array.isArray(f.jd_keywords) ? f.jd_keywords : [];
         let score = 0;
         for (const kw of kws) {
             const re = new RegExp(`\\b${escapeRegex(String(kw).toLowerCase())}\\b`, 'g');
-            const m = haystack.match(re);
-            if (m) score += m.length;
+            const jdHits      = (jdHay.match(re) || []).length;
+            const profileHits = (profileHay.match(re) || []).length;
+            // JD hits weighted 3× when a JD is present; profile used as tiebreaker.
+            score += jdPresent ? (jdHits * 3 + profileHits) : (jdHits + profileHits);
         }
         return { field: f.field, score, row: f };
     }).sort((a, b) => b.score - a.score);
@@ -2469,7 +2479,9 @@ async function handleProfileCachePost(request: Request, env: Env, ctx: Execution
 // ─────────────────────────────────────────────────────────────────────────────
 async function handleJdAnalysisCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
     const key = url.searchParams.get('key') || '';
-    if (!key || key.length < 16) return json({ error: 'missing_key' }, request, env, 400);
+    // Min 4 chars — quickHash() produces 8-char hex; SHA-256 produces 64-char hex.
+    // The previous limit of 16 caused every GET to 400 when the client used quickHash.
+    if (!key || key.length < 4) return json({ error: 'missing_key' }, request, env, 400);
 
     const row = await env.CV_DB.prepare(
         `SELECT result_json, created_at FROM jd_analysis_cache WHERE cache_key = ?`
@@ -2504,7 +2516,8 @@ async function handleJdAnalysisCachePost(request: Request, env: Env, ctx: Execut
     const key        = typeof body?.key         === 'string' ? body.key.trim()        : '';
     const resultJson = typeof body?.result_json === 'string' ? body.result_json       : '';
 
-    if (!key || key.length < 16)    return json({ error: 'invalid_key' }, request, env, 400);
+    // Same fix as GET — quickHash() produces 8-char keys, not 16+.
+    if (!key || key.length < 4)      return json({ error: 'invalid_key' }, request, env, 400);
     if (!resultJson)                 return json({ error: 'missing_result_json' }, request, env, 400);
     if (resultJson.length > 4096)    return json({ error: 'result_too_large', max: 4096 }, request, env, 413);
 

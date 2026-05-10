@@ -833,9 +833,15 @@ CHECK 2 — TIMELINE LOGIC
 No role's start date after its own end date. No two full-time roles at different employers overlap by more than 1 month. Any self-directed entry must sit cleanly within a detected gap.
 Any timeline violation → FLAG and correct where obvious, remove where it cannot be explained.
 
-CHECK 3 — METRIC BELIEVABILITY
+CHECK 3 — METRIC BELIEVABILITY & TYPE CLASSIFICATION
 Apply the metric ceilings above. Anything above the ceiling → FLAG "Metric too high for ${seniority} in ${market}: [metric]" → Reduce to the top of the acceptable range.
 Suspiciously round numbers (exactly 50, exactly 10M, exactly 20%) → make them specific and slightly irregular.
+
+METRIC TYPE RULES — apply these BEFORE checking the ceiling:
+a) SALARY/COMPENSATION metrics — any phrase like "earning X/month", "salary of X", "package of X", "take-home X", "CTC X", "remuneration X" in an experience bullet → FLAG "Personal salary in bullet: [phrase]" → Remove the salary phrase entirely. A CV bullet describes impact and achievement, not personal pay.
+b) PROJECT VALUE / BUDGET metrics — phrases like "managed a KES X project", "project budget of X", "contract value X", "project worth X" are LEGITIMATE for civil engineers, project managers, procurement officers, and contractors. Apply the "Max project value" ceiling, not the "Max revenue" ceiling.
+c) SALES / REVENUE metrics — phrases like "generated X in revenue", "closed X in deals", "grew revenue by X%" are LEGITIMATE for sales, business development, and commercial roles. Apply the "Max revenue/yr" ceiling.
+d) Do NOT confuse a civil engineer's "KES 50M infrastructure project" with a fabricated revenue claim — judge by context (project, contract, budget, scheme, works = project value; revenue, sales, deals, bookings = sales metric).
 
 CHECK 4 — CURRENCY CONSISTENCY
 Scan every bullet, section, and summary for currency symbols. More than one distinct currency → FLAG "Currency mixing" → Remove all monetary figures from affected sections, rewrite as percentages and counts.
