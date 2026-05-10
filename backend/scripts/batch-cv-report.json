@@ -1,152 +1,18 @@
 {
-  "runAt": "2026-05-10T17:52:24.997Z",
+  "runAt": "2026-05-10T18:11:11.858Z",
   "results": [
     {
       "fixture": "senior-swe",
       "label": "Senior Software Engineer (Tech)",
-      "verdict": "FAIL",
-      "durationMs": 58907,
-      "usage": {
-        "completion_tokens": 7751,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 7296,
-          "rejected_prediction_tokens": 0
-        },
-        "latency_checkpoint": {
-          "engine_tbt_ms": 7,
-          "engine_ttft_ms": 54,
-          "engine_ttlt_ms": 57714,
-          "pre_inference_ms": 112,
-          "service_tbt_ms": 7,
-          "service_ttft_ms": 445,
-          "service_ttlt_ms": 58092,
-          "total_duration_ms": 57989,
-          "user_visible_ttft_ms": 333
-        },
-        "prompt_tokens": 1207,
-        "prompt_tokens_details": {
-          "audio_tokens": 0,
-          "cached_tokens": 0
-        },
-        "total_tokens": 8958
-      },
-      "ats": {
-        "score": 82,
-        "found": [
-          "python",
-          "AWS",
-          "docker",
-          "kubernetes",
-          "terraform",
-          "agile",
-          "scrum",
-          "ci/cd",
-          "REST"
-        ],
-        "missing": [
-          "sql",
-          "graphql"
-        ]
-      },
-      "issues": [
-        {
-          "severity": "WARN",
-          "rule": "all_verb_led",
-          "detail": "\"Senior Software Engineer @ FinTech Co\": 5/5 bullets (100%) start with a verb — add number/scope/context openers."
-        },
-        {
-          "severity": "WARN",
-          "rule": "opener_monotone",
-          "detail": "\"Senior Software Engineer @ FinTech Co\": 3+ consecutive \"verb\" openers."
-        },
-        {
-          "severity": "WARN",
-          "rule": "all_verb_led",
-          "detail": "\"Data Engineer @ Consulting Ltd\": 5/5 bullets (100%) start with a verb — add number/scope/context openers."
-        },
-        {
-          "severity": "WARN",
-          "rule": "opener_monotone",
-          "detail": "\"Data Engineer @ Consulting Ltd\": 3+ consecutive \"verb\" openers."
-        },
-        {
-          "severity": "FAIL",
-          "rule": "low_achievement_density",
-          "detail": "Only 1/10 bullets (10%) contain metrics. Min 20% — add measurable outcomes."
-        }
-      ],
-      "passCount": 31,
-      "cv": {
-        "name": "Alex Morgan",
-        "title": "Senior Software Engineer",
-        "summary": "Delivered high-performance platform capabilities that scaled payment and data services, reducing latency and accelerating release cadence across production systems. Seven years building Python and Go microservices, deploying on AWS with Kubernetes and Terraform, and improving CI/CD pipelines and observability. Experienced in PostgreSQL, Redis and distributed messaging patterns, with pragmatic automation and monitoring focus. Comfortable working in Agile/Scrum environments to produce reliable, scalable backend services for platform teams.",
-        "experience": [
-          {
-            "jobTitle": "Senior Software Engineer",
-            "company": "FinTech Co",
-            "startDate": "Jun 2021",
-            "endDate": "Present",
-            "isCurrent": true,
-            "responsibilities": [
-              "Build scalable Python microservices on Kubernetes, reducing API latency by 40% across payments processing.",
-              "Lead an 8-engineer effort to migrate monolith to services, improving deployment frequency by 3x.",
-              "Design REST APIs and PostgreSQL schemas ensuring consistent request validation and fault-tolerant data flows.",
-              "Improve CI/CD pipelines using Terraform and Kubernetes, enhancing rollback safety and build parallelism.",
-              "Deploy containerized services with Docker and Helm, managing autoscaling and reducing costs by 25%."
-            ]
-          },
-          {
-            "jobTitle": "Data Engineer",
-            "company": "Consulting Ltd",
-            "startDate": "Jul 2019",
-            "endDate": "May 2021",
-            "isCurrent": false,
-            "responsibilities": [
-              "Built ETL pipelines in Python ingesting data from 12 enterprise sources into PostgreSQL warehouses.",
-              "Designed streaming integrations using Kafka and Redis to reduce processing latency by 55% across reports.",
-              "Led migration of legacy pipelines to Docker containers, enabling consistent deployments across multiple environments.",
-              "Reduced data processing costs by 30% through query optimization and partitioning of large transactional tables.",
-              "Automated CI/CD for data workflows with Terraform and Kubernetes, improving deployment reliability and auditability."
-            ]
-          }
-        ],
-        "education": [
-          {
-            "degree": "MSc Data Science",
-            "institution": "UCL",
-            "year": "2018",
-            "description": ""
-          },
-          {
-            "degree": "BSc Computer Science",
-            "institution": "University of Manchester",
-            "year": "2016",
-            "description": ""
-          }
-        ],
-        "skills": [
-          "Python",
-          "Go",
-          "AWS",
-          "Kubernetes",
-          "Docker",
-          "PostgreSQL",
-          "Redis",
-          "REST APIs",
-          "Microservices",
-          "Terraform",
-          "Kafka",
-          "CI/CD"
-        ]
-      }
+      "verdict": "ERROR",
+      "error": "Unexpected end of JSON input",
+      "durationMs": 62403
     }
   ],
   "tokenSummary": {
-    "totalPromptTokens": 1207,
-    "totalCompletionTokens": 7751,
-    "totalTokens": 8958,
-    "estimatedCostUsd": 0.00483165
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalTokens": 0,
+    "estimatedCostUsd": 0
   }
 }
