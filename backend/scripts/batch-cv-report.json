@@ -1,0 +1,110 @@
+{
+  "runAt": "2026-05-10T16:48:07.340Z",
+  "results": [
+    {
+      "fixture": "senior-swe",
+      "label": "Senior Software Engineer (Tech)",
+      "verdict": "WARN",
+      "durationMs": 36237,
+      "ats": {
+        "score": 91,
+        "found": [
+          "python",
+          "AWS",
+          "sql",
+          "docker",
+          "kubernetes",
+          "terraform",
+          "agile",
+          "scrum",
+          "ci/cd",
+          "REST"
+        ],
+        "missing": [
+          "graphql"
+        ]
+      },
+      "issues": [
+        {
+          "severity": "WARN",
+          "rule": "opener_monotone",
+          "detail": "\"Senior Software Engineer @ FinTech Co\": 3+ consecutive \"verb\" openers."
+        },
+        {
+          "severity": "WARN",
+          "rule": "opener_monotone",
+          "detail": "\"Data Engineer @ Consulting Ltd\": 3+ consecutive \"verb\" openers."
+        },
+        {
+          "severity": "WARN",
+          "rule": "phrase_repetition",
+          "detail": "4 repeated phrase(s): \"python and go services\" ×2, \"postgresql and redis performance\" ×2, \"and redis performance tuning\" ×2"
+        }
+      ],
+      "passCount": 26,
+      "cv": {
+        "name": "Alex Morgan",
+        "title": "Senior Software Engineer",
+        "summary": "Platform-focused senior software engineer delivering scalable backend services, microservices architecture, and robust CI/CD pipelines across cloud environments. Seven years of experience designing and operating Python and Go services on AWS, with production Kubernetes and Docker deployments. Experienced in PostgreSQL and Redis performance tuning, REST API design, and infrastructure as code with Terraform. Comfortable working in Agile/Scrum teams to reduce latency, improve reliability, and accelerate feature delivery for fintech platforms.",
+        "experience": [
+          {
+            "jobTitle": "Senior Software Engineer",
+            "company": "FinTech Co",
+            "startDate": "2021-06",
+            "endDate": "Present",
+            "isCurrent": true,
+            "responsibilities": [
+              "Across the platform, own backend service design and architecture for resilient microservices.",
+              "Design and implement Python and Go services deployed on AWS with Kubernetes orchestration.",
+              "Improve CI/CD pipelines using Docker, GitLab CI, and automated testing to speed delivery.",
+              "Manage PostgreSQL and Redis performance tuning and scaling across production environments.",
+              "As the lead for an 8-person team, coordinate sprint planning and cross-service roadmaps."
+            ]
+          },
+          {
+            "jobTitle": "Data Engineer",
+            "company": "Consulting Ltd",
+            "startDate": "2019-01",
+            "endDate": "2021-05",
+            "isCurrent": false,
+            "responsibilities": [
+              "Across ETL systems, maintained data pipelines ingesting multiple financial data sources daily.",
+              "Built Python extraction jobs and SQL transformations to populate PostgreSQL warehouses for analytics.",
+              "Reduced data latency by redesigning Kafka ingestion and improving batch schedules.",
+              "Created Docker containers and Kubernetes manifests to standardize development and staging deployments.",
+              "As a senior among 4 engineers, documented ETL patterns and enforced coding standards."
+            ]
+          }
+        ],
+        "education": [
+          {
+            "degree": "MSc Data Science",
+            "institution": "UCL",
+            "year": "2018",
+            "description": ""
+          },
+          {
+            "degree": "BSc Computer Science",
+            "institution": "University of Manchester",
+            "year": "2016",
+            "description": ""
+          }
+        ],
+        "skills": [
+          "Python",
+          "Go",
+          "AWS",
+          "Kubernetes",
+          "Docker",
+          "PostgreSQL",
+          "Redis",
+          "REST APIs",
+          "Microservices",
+          "CI/CD",
+          "Terraform",
+          "Agile/Scrum"
+        ]
+      }
+    }
+  ]
+}
