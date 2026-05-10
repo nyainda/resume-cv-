@@ -2,6 +2,7 @@
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
+import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
 import { auditCvQuality } from '../services/cvNumberFidelity';
 import { purifyCV } from '../services/cvPurificationPipeline';
 import type { PurifyLeak } from '../services/cvPurificationPipeline';
@@ -218,6 +219,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setProgressRetryNotice(null);
   }, []);
   const [error, setError] = useState<string | null>(null);
+  const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
   // Sidebar Section Picker — persists user's choice of which auto-generated
@@ -656,6 +658,25 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setLoadingMessage('Generating...');
     resetProgress();
   }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress]);
+
+  /**
+   * Zero-LLM fallback: assembles a clean CV directly from the user's profile
+   * data using the worker's D1 verb pools and banned-phrase cleaner.
+   * Available when all AI providers are quota-exhausted or unreachable.
+   */
+  const handleBuildWithoutAI = useCallback(async () => {
+    setError(null);
+    setIsAssembling(true);
+    try {
+      const assembled = await buildCVDeterministically(userProfile, jobDescription || undefined);
+      setCurrentCV(assembled);
+      setJustGenerated(true);
+    } catch (err) {
+      setError(friendlyError(err, 'build your CV without AI'));
+    } finally {
+      setIsAssembling(false);
+    }
+  }, [userProfile, jobDescription, setCurrentCV]);
 
   // Track active AI provider during auto-optimize so the button label can show it.
   useEffect(() => {
@@ -1110,7 +1131,44 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </div>
             )}
 
-            {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+            {error && (() => {
+              // Detect quota/rate-limit errors — offer the deterministic fallback.
+              const isQuotaError = /quota|daily|rate.?limit|overload|unavailable|all providers|exhausted/i.test(error);
+              return (
+                <div className="mt-3 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+                  <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                  {isQuotaError && (
+                    <div className="mt-2 flex items-start gap-3">
+                      <button
+                        onClick={handleBuildWithoutAI}
+                        disabled={isAssembling || isLoading}
+                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 transition-colors"
+                      >
+                        {isAssembling ? (
+                          <>
+                            <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                            </svg>
+                            Building…
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+                            </svg>
+                            Build without AI
+                          </>
+                        )}
+                      </button>
+                      <p className="text-xs text-red-500 dark:text-red-400 mt-0.5 leading-snug">
+                        Uses your real profile data — zero AI calls. Cleans weak openers, deduplicates skills, and applies strong action verbs from our verb database.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {!apiKeySet && inputMode === 'upload' && <p className="text-amber-600 text-sm mt-2">Please set your API key in settings to enable file uploads.</p>}
 
             {/* Market research hint — shown when JD is blank in academic mode */}

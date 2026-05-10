@@ -36,7 +36,7 @@ import { runQualityGate, consumePreviousViolationsBlock, CRITICAL_RULES_REMINDER
 // IMPORTANT: Bump CV_RULES_VERSION whenever generation instructions change —
 // this automatically invalidates every cached result so users always get CVs
 // built under the latest rules.
-const CV_RULES_VERSION = '2.4';
+const CV_RULES_VERSION = '2.5'; // bumped: 15-rule reminder, TITLE_FIELD_MAP, deterministic assembler
 const CV_CACHE_MAX = 12;
 const CV_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 

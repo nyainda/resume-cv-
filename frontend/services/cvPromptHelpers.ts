@@ -47,6 +47,62 @@ export type CVField =
     | 'media'
     | 'general';
 
+// ─── Title-to-field direct map ────────────────────────────────────────────────
+// Checked BEFORE the keyword scorer. Each pattern is a job-title substring
+// (case-insensitive). When a profile job title matches, that field gets a
+// bonus score — 10× when no JD, 2× when a JD is present.
+//
+// This is especially valuable for thin JDs (LinkedIn posts, short emails) where
+// the body text is sparse. We also apply this map to the FIRST LINE of a thin
+// JD (<200 chars) so "Graduate Structural Engineer" in a post body gets the
+// same signal as if it were in the profile.
+const TITLE_FIELD_MAP: Array<[RegExp, Exclude<CVField, 'general'>]> = [
+    // Irrigation / Biosystems
+    [/\b(irrigation|biosystem|agricultural engineer|agr[io]|hydrol|water resource|drip system|sprinkler|farm engineer|agronomist|agro-processing|water supply|borehole|dam|wetland)\b/i, 'irrigation'],
+    // Drought / Food security
+    [/\b(drought|early.?warning|food securi|famine|ndma|fewsnet|climate resilien|food system|resilience officer|livelihood|nutrition officer)\b/i, 'drought_management'],
+    // Civil Engineering — many title variants
+    [/\b(civil engineer|structural engineer|site engineer|geotechni|quantity surveyor|\bQS\b|road engineer|highway engineer|bridge engineer|drainage engineer|infrastructure engineer|resident engineer|clerk of works|water engineer|environmental engineer|transport engineer|graduate engineer)\b/i, 'civil_engineering'],
+    // Construction
+    [/\b(construction manager|site manager|contracts? manager|building contractor|MEP engineer|construction supervisor|foreman|site supervisor|project engineer.*construction|construction director|building manager|clerk of works)\b/i, 'construction'],
+    // Architecture
+    [/\b(architect|architectural designer|urban plann|landscape architect|interior design|BIM coordinator|revit specialist|spatial design|urban design|master plann)\b/i, 'architecture'],
+    // Manufacturing
+    [/\b(production engineer|manufacturing engineer|process engineer|plant engineer|quality engineer|\bQC engineer\b|lean engineer|factory manager|production manager|tooling engineer|manufacturing technician|industrial engineer|plant manager|assembly)\b/i, 'manufacturing'],
+    // Logistics / Supply chain
+    [/\b(logistics|supply chain|procurement officer|warehouse manager|inventory manager|fleet manager|freight|shipping|customs|distribution|fulfilment|buyer|category manager|demand planner|operations coordinator.*logistics|clearing agent)\b/i, 'logistics'],
+    // Tech / Software
+    [/\b(software engineer|software developer|backend developer|frontend developer|full.?stack developer|devops engineer|cloud engineer|site reliability|\bSRE\b|mobile developer|android developer|ios developer|firmware engineer|embedded engineer|web developer|systems engineer|platform engineer|infrastructure engineer.*tech)\b/i, 'tech'],
+    // Data / Analytics / ML
+    [/\b(data analyst|data scientist|business analyst|BI developer|BI analyst|tableau developer|power bi developer|data engineer|analytics engineer|ML engineer|machine learning engineer|data architect|research analyst|quantitative analyst|data manager|reporting analyst)\b/i, 'data_analytics'],
+    // Sales / Business development
+    [/\b(sales engineer|account manager|account executive|business development|sales rep|sales manager|commercial manager|key account manager|territory manager|\bBDR\b|\bSDR\b|inside sales|outside sales|sales consultant|sales director|pre-sales|channel manager)\b/i, 'sales'],
+    // Marketing / Brand
+    [/\b(marketing manager|brand manager|marketing executive|digital marketing|content manager|SEO specialist|growth marketer|social media manager|communications manager|PR specialist|campaign manager|marketing analyst|marketing officer|brand strategist)\b/i, 'marketing'],
+    // Finance / Accounting
+    [/\b(accountant|financial analyst|finance manager|auditor|treasury|investment analyst|credit analyst|tax consultant|financial controller|\bCFO\b|risk analyst|fund manager|portfolio manager|\bCPA\b|\bCFA\b|\bACCA\b|finance officer|budget analyst|financial advisor)\b/i, 'finance'],
+    // Legal
+    [/\b(lawyer|attorney|advocate|barrister|solicitor|legal officer|legal counsel|paralegal|compliance officer|regulatory affairs|IP specialist|corporate counsel|litigation|legal advisor|company secretary|legal associate)\b/i, 'legal'],
+    // Consulting
+    [/\b(management consultant|strategy analyst|transformation lead|change management|engagement manager|consulting manager|advisory|business consultant|strategy consultant|programme manager|program manager)\b/i, 'consulting'],
+    // Operations
+    [/\b(operations manager|operations analyst|process analyst|business operations|operations director|\bCOO\b|operational excellence|business process|operations coordinator|performance manager|continuous improvement)\b/i, 'operations'],
+    // HR / People
+    [/\b(\bHR\b|human resources|talent acquisition|recruiter|recruitment consultant|HR manager|HR business partner|\bHRBP\b|\bL&D\b|learning and development|people operations|compensation.*benefits|payroll|employer branding|HR officer|talent manager|people manager)\b/i, 'hr'],
+    // NGO / Humanitarian / Development
+    [/\b(\bNGO\b|humanitarian|community development|programme officer|project officer|field officer|community officer|\bWASH\b|development worker|relief|social worker|community worker|grassroots|non-profit|charity|beneficiar)\b/i, 'ngo'],
+    // Government / Public sector
+    [/\b(county government|public sector|ministry|parastatal|state corporation|public administration|policy analyst|policy officer|regulatory officer|county officer|civil servant|government officer)\b/i, 'government'],
+    // Healthcare / Clinical
+    [/\b(\bdoctor\b|physician|nurse|pharmacist|clinical officer|public health|epidemiologist|lab technician|radiographer|dentist|surgeon|healthcare worker|medical officer|community health|disease surveillance|health officer|clinical|medical doctor)\b/i, 'healthcare'],
+    // Education / Training
+    [/\b(teacher|lecturer|tutor|professor|curriculum developer|education officer|instructor|school principal|training officer|trainer|facilitator|pedagog|academic|teaching assistant|education coordinator)\b/i, 'education'],
+    // Hospitality / Tourism
+    [/\b(hotel manager|front office manager|housekeeping|food and beverage|F&B manager|events coordinator|concierge|restaurant manager|guest relations|hospitality manager|tourism officer|hotel supervisor|catering)\b/i, 'hospitality'],
+    // Media / Communications
+    [/\b(journalist|broadcaster|editor|photographer|videographer|content creator|media officer|communications officer|radio presenter|film producer|documentary|video editor|publishing|copywriter|media manager|PR officer)\b/i, 'media'],
+];
+
 const FIELD_KEYWORDS: Record<Exclude<CVField, 'general'>, string[]> = {
     // ── Engineering & Built Environment ────────────────────────────────────────
     irrigation:         ['irrigation', 'drip', 'water resource', 'biosystems', 'agricultural engineering', 'farm equipment', 'sprinkler', 'hydrology'],
@@ -79,43 +135,60 @@ const FIELD_KEYWORDS: Record<Exclude<CVField, 'general'>, string[]> = {
 };
 
 export function detectField(jd: string | undefined, profile?: UserProfile): CVField {
-    // Score JD and profile SEPARATELY.
-    // JD keywords get 3× weight so that a civil engineer applying with a structural-
-    // engineering JD is classified as "civil_engineering" — not "tech" or "data_analytics"
-    // because those keywords appear in the candidate's skills list (Python, Java, Git).
-    const jdCorpus = (jd || '').toLowerCase();
+    const jdRaw  = jd || '';
+    const jdCorpus = jdRaw.toLowerCase();
     const jdPresent = jdCorpus.trim().length > 50;
 
-    // When no JD is attached, job titles are the strongest signal — they name
-    // the actual role the candidate has held, while skills are noisy (a civil
-    // engineer legitimately lists Python, Git, SQL). Give titles 5× weight on
-    // no-JD paths and keep skills at 1×. When a JD IS present, titles fold
-    // back to 1× so the JD (3×) stays dominant.
-    const titleCorpus = (profile?.workExperience || [])
+    // "Thin JD" — a LinkedIn post or short email with almost no body text
+    // (< 200 chars, like "Graduate Structural Engineer — EBK-registrable, civil
+    // engineering degree required"). Extract the first non-blank line and treat
+    // it as a title signal.
+    const jdThin = jdRaw.trim().length > 0 && jdRaw.trim().length < 200;
+    const jdFirstLine = jdThin
+        ? jdRaw.trim().split(/\r?\n/).find(l => l.trim().length > 3) ?? ''
+        : '';
+
+    // Build profile corpora — job titles are kept separate because they carry
+    // the strongest semantic signal and get elevated weight when no JD is present.
+    const profileTitles = (profile?.workExperience || [])
         .map(e => (e.jobTitle || '').toLowerCase())
         .join(' ');
-    const bodyCorpus = [
+    const profileBody = [
         ...(profile?.workExperience || []).map(e =>
             `${e.company || ''} ${e.responsibilities || ''}`),
         ...(Array.isArray((profile as any)?.skills) ? (profile as any).skills : []),
     ].join(' ').toLowerCase();
 
-    const titleWeight = jdPresent ? 1 : 5;
+    // Score accumulator keyed by field.
+    const scores: Record<string, number> = {};
+    const add = (field: string, pts: number) => { scores[field] = (scores[field] ?? 0) + pts; };
 
-    let best: { field: CVField; score: number } = { field: 'general', score: 0 };
-    for (const [field, kws] of Object.entries(FIELD_KEYWORDS) as Array<[Exclude<CVField, 'general'>, string[]]>) {
-        let score = 0;
-        for (const kw of kws) {
-            // JD match: worth 3 points (dominant signal when present).
-            if (jdPresent && jdCorpus.includes(kw)) score += 3;
-            // Title match: worth 5× when no JD, 1× when JD present.
-            if (titleCorpus.includes(kw)) score += titleWeight;
-            // Skills / responsibilities: worth 1 point (tiebreaker / context).
-            if (bodyCorpus.includes(kw)) score += 1;
-        }
-        if (score > best.score) best = { field, score };
+    // ── Pass 1: TITLE_FIELD_MAP (direct substring match on job titles) ─────────
+    // When no JD: profile titles get 10× boost — they ARE the field signal.
+    // When JD thin: profile titles 8×, JD first-line 6×.
+    // When JD rich: profile titles 2× (tiebreaker only), JD keyword scoring dominates.
+    const titleBoost = !jdPresent ? 10 : jdThin ? 8 : 2;
+    for (const [rx, field] of TITLE_FIELD_MAP) {
+        if (rx.test(profileTitles)) add(field, titleBoost);
+        if (jdThin && rx.test(jdFirstLine)) add(field, 6);
+        else if (jdPresent && rx.test(jdCorpus)) add(field, 2);
     }
-    return best.score > 0 ? best.field : 'general';
+
+    // ── Pass 2: keyword scorer (FIELD_KEYWORDS) ───────────────────────────────
+    // JD body 3× · profile body (skills/responsibilities) 1×.
+    for (const [field, kws] of Object.entries(FIELD_KEYWORDS) as Array<[Exclude<CVField, 'general'>, string[]]>) {
+        for (const kw of kws) {
+            if (jdPresent && jdCorpus.includes(kw)) add(field, 3);
+            if (profileBody.includes(kw)) add(field, 1);
+        }
+    }
+
+    // Pick the highest-scoring field.
+    let best: { field: CVField; score: number } = { field: 'general', score: 0 };
+    for (const [field, score] of Object.entries(scores)) {
+        if (score > best.score) best = { field: field as CVField, score };
+    }
+    return best.field;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

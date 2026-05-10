@@ -575,15 +575,19 @@ function _saveViolationsForNextRun(violations: QualityViolation[], profileFinger
 export const CRITICAL_RULES_REMINDER = `
 === FINAL QUALITY CHECK — read this LAST, it overrides all earlier guidance ===
 1. Summary: opens with job title + seniority/impact. ZERO "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to join", "Excited to contribute". MINIMUM 60 words, 3–4 sentences.
-2. Bullets: MINIMUM 8 words per bullet — "Reviewed project documentation" is too short, expand with context and scope.
-3. Bullet rhythm: MIX lengths — short punchy bullets (8–10 words) must ALTERNATE with fuller ones (15–22 words). Do NOT write 3+ consecutive short bullets.
-4. Bullets: ZERO invented verbs — Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized.
-5. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
-6. Bullets: MIX opener categories across the document — do NOT cluster all bullets under Technical verbs (Built, Developed, Designed). Rotate through: Management (Led, Managed, Directed), Analysis (Analysed, Evaluated, Assessed), Communication (Presented, Reported, Liaised), Financial (Budgeted, Costed, Negotiated) — matching the candidate's actual role type.
-7. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
-8. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader".
-9. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number.
-10. No two bullets across the ENTIRE document start with the same verb.
-11. Skills: NO duplicate entries — each skill must appear exactly once.
+2. Summary: NO generic buzzwords — "highly motivated", "results-driven", "results-oriented", "passionate about", "detail-oriented", "team player", "hard-working", "self-starter", "go-getter". Replace with a concrete fact or achievement.
+3. Summary: NEVER paraphrase the job description — describe what the CANDIDATE has actually done, using their own experience and real achievements.
+4. Bullets: MINIMUM 8 words per bullet — "Reviewed project documentation" is too short, expand with context and scope.
+5. Bullets: NO weak openers — "Responsible for", "Was responsible for", "Helped to", "Assisted with", "Worked on", "Tasked with", "Involved in", "Participated in", "Duties included". Replace with a direct action verb: "Led", "Built", "Delivered", "Managed", etc.
+6. Bullet rhythm: MIX lengths — short punchy bullets (8–10 words) must ALTERNATE with fuller ones (15–22 words). Do NOT write 3+ consecutive short bullets.
+7. Bullets: ZERO invented verbs — Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized.
+8. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
+9. Bullets: MIX opener categories across the document — do NOT write >85% verb-led bullets. Rotate: number-led ("3 sites surveyed…"), scope-led ("Across 5 counties…"), context-led ("As the sole engineer…"), collaboration-led ("With the client team…"). Also rotate VERB FAMILIES: Management (Led, Managed, Directed), Analysis (Analysed, Evaluated, Assessed), Communication (Presented, Reported, Liaised), Technical (Designed, Built, Configured), Financial (Budgeted, Negotiated, Costed) — use the families that match the candidate's actual role.
+10. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
+11. Bullets: NO bare metric openers — do NOT start a bullet with a raw number/percentage ("40% increase in…", "KES 800,000 generated…"). Lead with the ACTION first: "Rebuilt X, achieving a 40% increase in…".
+12. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader", "game-changer", "best-in-class", "world-class".
+13. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number — at least 1–2 bullets per role must be purely qualitative (action + context, no number).
+14. No two bullets across the ENTIRE document start with the same verb.
+15. Skills: NO duplicate entries — each skill must appear exactly once.
 === END FINAL CHECK ===
 `;
