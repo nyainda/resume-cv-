@@ -487,7 +487,7 @@ const PASSIVE_VOICE_RX = /\b(was|were)\s+([a-z]{3,}ed)\b/i;
 // followed by common suffixes (%  K  M  B  x  million  billion  thousand).
 const METRIC_RX = /\b\d[\d,.]*\s*(?:%|percent|K\b|M\b|B\b|million|billion|thousand|x\b)?/i;
 
-export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
+export function auditCvQuality(cv: CvLikeForAudit, opts?: { purifierWarnings?: number }): CvQualityReport {
     const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     const issues: CvQualityIssue[] = [];
     let totalBullets = 0;
@@ -588,7 +588,13 @@ export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
     }
 
     const totalIssues = issues.length;
-    const score = Math.max(0, 100 - totalIssues * 8);
+    // Penalise structural fidelity issues (8 pts each) but cap at 64 so that
+    // a CV with 8+ issues still shows a non-zero quality signal.
+    // Purifier warnings (passed in via opts) each cost 3 pts — they are softer
+    // style issues, not structural failures, so they pull the score down but
+    // cannot push a clean-structure CV below 36.
+    const purifyPenalty = Math.min((opts?.purifierWarnings ?? 0) * 3, 36);
+    const score = Math.max(0, Math.min(100, 100 - Math.min(totalIssues * 8, 64) - purifyPenalty));
     const durationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
     return {
         score,
@@ -610,10 +616,10 @@ export function auditCvQuality(cv: CvLikeForAudit): CvQualityReport {
  * Safe to call from inside finalizeCvData — it never throws and it never
  * mutates the CV.
  */
-export function logCvQualityReport(cv: CvLikeForAudit, contextLabel = 'CV'): CvQualityReport {
+export function logCvQualityReport(cv: CvLikeForAudit, contextLabel = 'CV', opts?: { purifierWarnings?: number }): CvQualityReport {
     let report: CvQualityReport;
     try {
-        report = auditCvQuality(cv);
+        report = auditCvQuality(cv, opts);
     } catch {
         return { score: 0, totalBullets: 0, totalIssues: 0, issues: [], durationMs: 0, achievementDensity: { bulletsWithMetrics: 0, totalBullets: 0, percent: 0 } };
     }

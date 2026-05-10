@@ -1933,18 +1933,20 @@ function applyFidelityAgainstSourceCV(cvData: CVData, sourceCV: CVData): CVData 
 
 function finalizeCvData(
     cvData: CVData,
-    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean; auditLabel?: string } = {}
+    opts: { profile?: UserProfile; sourceCv?: CVData; runPurify?: boolean; auditLabel?: string; purifierWarnings?: number } = {}
 ): CVData {
-    const { profile, sourceCv, runPurify = true, auditLabel = 'finalizeCvData' } = opts;
+    const { profile, sourceCv, runPurify = true, auditLabel = 'finalizeCvData', purifierWarnings } = opts;
     let out = runPurify ? purifyCV(cvData).cv : cvData;
     if (profile) out = applySourceFidelityRules(out, profile);
     else if (sourceCv) out = applyFidelityAgainstSourceCV(out, sourceCv);
     // Cheap, deterministic post-flight quality audit. Pure regex, runs in
     // <5 ms on a typical CV, never mutates `out`. Logs a single line on
     // success and warnings only when issues are found, so it never spams
-    // the console on a clean generation.
+    // the console on a clean generation. Pass purifierWarnings so the score
+    // is penalised for style leaks that couldn't be auto-fixed — this fixes
+    // the "100/100 with 10 warnings" bug.
     try {
-        _logCvQualityReport(out as any, auditLabel);
+        _logCvQualityReport(out as any, auditLabel, { purifierWarnings });
     } catch {
         // Audit must never block generation.
     }
@@ -2307,8 +2309,8 @@ export const generateCV = async (
         const kwLines = _pinnedKeywords.map(k => `  - ${k}`).join('\n');
         gapPinBlock = `
 **⚠ ATS GAP-PIN — VERIFIED MISSING FROM CURRENT CV (highest priority)**
-An automated scan confirmed the following keywords appear in the job description but are ABSENT from the candidate's existing CV. Every term below MUST appear verbatim somewhere in the output. Find the most natural location for each (experience bullets, skills section, or summary). If a term cannot be worked naturally into a bullet given the candidate's actual experience, place it in the skills section instead. Do NOT invent achievements to shoehorn a keyword — use it only where the experience genuinely supports it.
-Missing terms that must be incorporated:
+An automated scan confirmed the following keywords appear in the job description but are ABSENT from the candidate's existing CV. Every term below MUST appear verbatim somewhere in the output. Find the most natural location for each in experience bullets or the skills section ONLY. Do NOT place gap-pin keywords in the professional summary — the summary must reflect the candidate's own value proposition, not keyword-stuffed JD terms. If a term cannot be worked naturally into a bullet given the candidate's actual experience, place it in the skills section instead. Do NOT invent achievements to shoehorn a keyword — use it only where the experience genuinely supports it.
+Missing terms that must be incorporated (experience bullets or skills ONLY, never summary):
 ${kwLines}
 `;
         console.log(`[CV Gen] Gap-pin: pinning ${_pinnedKeywords.length} missing ATS keywords: ${_pinnedKeywords.join(', ')}`);
@@ -2788,7 +2790,10 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         // the LLM sees the failures via primacy bias before reading the profile.
         // consumePreviousViolationsBlock() clears the key after reading it, so
         // this block only fires once per cycle — not on every subsequent call.
-        const prevViolationsBlock = consumePreviousViolationsBlock();
+        const _profileFp = profile?.personalInfo?.name
+            ? btoa(unescape(encodeURIComponent(`${profile.personalInfo.name}::${profile.personalInfo?.email ?? ''}`)))
+            : undefined;
+        const prevViolationsBlock = consumePreviousViolationsBlock(_profileFp);
         if (prevViolationsBlock) {
             preamble = prevViolationsBlock + preamble;
             console.info('[CV Gen] Injected previous-violations block into preamble for regenerate improvement.');
@@ -2865,7 +2870,13 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                 let gatedSummary    = sectionSummary;
                 let gatedExperience = sectionExperience;
                 try {
-                    const gateResult = await runQualityGate(sectionSummary, sectionExperience, { repair: true });
+                    const gateResult = await runQualityGate(sectionSummary, sectionExperience, {
+                        repair: true,
+                        jd: jd || undefined,
+                        profileFingerprint: profile?.personalInfo?.name
+                            ? btoa(unescape(encodeURIComponent(`${profile.personalInfo.name}::${profile.personalInfo?.email ?? ''}`)))
+                            : undefined,
+                    });
                     if (gateResult.repairedSummary)    gatedSummary    = gateResult.repairedSummary;
                     if (gateResult.repairedExperience) gatedExperience = gateResult.repairedExperience;
                 } catch (gateErr) {
@@ -4405,6 +4416,8 @@ async function runQualityPolishPasses(
     // 6. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).
     const purified = purifyCV(out);
     out = purified.cv;
+    // Accumulate purifier warning count for quality score penalty at step 9.
+    const _purifyWarnings = (purified.report.leaks ?? []).filter(l => !l.fixedBy || l.fixedBy === 'none').length;
 
     // 7. Telemetry / leak reporting hook (caller owns what to do with the report).
     if (onPurifyReport) {
@@ -4452,10 +4465,13 @@ async function runQualityPolishPasses(
     }
 
     // 9. Final source-fidelity lock (no AI, deterministic).
+    // Pass accumulated purifier warning count so logCvQualityReport can
+    // include the style-issue penalty in the quality score (fixes 100/100
+    // even when purifier flagged warnings that couldn't be auto-fixed).
     if ('profile' in finalize) {
-        out = finalizeCvData(out, { profile: finalize.profile, runPurify: false });
+        out = finalizeCvData(out, { profile: finalize.profile, runPurify: false, purifierWarnings: _purifyWarnings });
     } else {
-        out = finalizeCvData(out, { sourceCv: finalize.sourceCv, runPurify: false });
+        out = finalizeCvData(out, { sourceCv: finalize.sourceCv, runPurify: false, purifierWarnings: _purifyWarnings });
     }
 
     // 9.5. Universal AI summary repair — runs ONLY when the deterministic

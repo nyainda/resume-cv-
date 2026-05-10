@@ -46,8 +46,35 @@ export interface QualityGateResult {
     repairAttempted: boolean;
 }
 
-const LAST_RUN_ISSUES_KEY = 'cv:lastRunIssues';
-const ISSUES_MAX_AGE_MS   = 2 * 60 * 60 * 1000; // 2 hours — stale after that
+const LAST_RUN_ISSUES_KEY    = 'cv:lastRunIssues';
+const ISSUES_MAX_AGE_MS      = 2 * 60 * 60 * 1000; // 2 hours — stale after that
+const MAX_AUTO_REPAIRS       = 2; // cap repair calls to prevent latency death
+
+// Empty metric placeholder — model generated a template like "generating in sales"
+// but left the value blank. CRITICAL — ships nonsense prose to users.
+const EMPTY_METRIC_PATTERN = /\b(generating|saving|reducing|growing|increasing|cutting|achieving|driving|delivering)\s+in\s+\w/gi;
+const EMPTY_METRIC_PATTERN2 = /\bby\s+\w+ing\s+in\s+\w/gi;
+const EMPTY_METRIC_PATTERN3 = /\bgrew\s+by\s+in\s/gi;
+
+// JD dump detection — summary paraphrasing the JD instead of the candidate.
+// Returns true if 5+ consecutive JD trigrams appear in the summary.
+function detectJdDump(summary: string, jd: string): boolean {
+    if (!summary || !jd) return false;
+    const summaryWords = summary.toLowerCase().split(/\s+/);
+    const jdText = jd.toLowerCase();
+    let consecutiveMatches = 0;
+    for (let i = 0; i < summaryWords.length - 2; i++) {
+        const trigram = summaryWords.slice(i, i + 3).join(' ');
+        if (trigram.length < 8) { consecutiveMatches = 0; continue; } // skip short trigrams
+        if (jdText.includes(trigram)) {
+            consecutiveMatches++;
+            if (consecutiveMatches >= 3) return true; // 5+ consecutive JD words
+        } else {
+            consecutiveMatches = 0;
+        }
+    }
+    return false;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stage 1 — Fast regex scoring
@@ -65,7 +92,7 @@ const METRIC_IN_BULLET = /\b\d[\d,.]*\s*(%|K|M|B|x|×|\+\s*years?|hours?\/(?:wee
 
 const CHAINED_METRIC = /\b\d+\s*%[^.]{0,60}(?:resulting in|leading to|which led to|driving)\s*\d+\s*%/i;
 
-function scoreSummary(summary: string): QualityViolation[] {
+function scoreSummary(summary: string, jd?: string): QualityViolation[] {
     const v: QualityViolation[] = [];
 
     if (SEEKING_PATTERN.test(summary)) {
@@ -73,6 +100,16 @@ function scoreSummary(summary: string): QualityViolation[] {
             section:  'summary',
             type:     'seeking_opener',
             detail:   'Summary expresses what the candidate wants ("Seeking to…" / "Looking to…") instead of what they deliver. Rewrite to open with the candidate\'s value proposition.',
+            severity: 'critical',
+        });
+    }
+
+    // JD dump detection — summary paraphrasing the JD rather than the candidate.
+    if (jd && detectJdDump(summary, jd)) {
+        v.push({
+            section:  'summary',
+            type:     'jd_dump',
+            detail:   'Summary paraphrases the job description instead of describing what the candidate has actually done. Rewrite entirely using the candidate\'s own experience and achievements.',
             severity: 'critical',
         });
     }
@@ -145,6 +182,24 @@ function scoreExperience(experience: any[]): QualityViolation[] {
                 });
                 break;
             }
+            // Empty metric placeholder — the model left a template stub like
+            // "generating in sales" / "grew by in volume" with no real number.
+            if (EMPTY_METRIC_PATTERN.test(bullet) || EMPTY_METRIC_PATTERN2.test(bullet) || EMPTY_METRIC_PATTERN3.test(bullet)) {
+                v.push({
+                    section:  'experience',
+                    type:     'empty_metric_placeholder',
+                    detail:   `Role ${label}: bullet contains an empty metric placeholder ("generating in…" / "grew by in…"). Either fill the real number or rewrite as a qualitative achievement.`,
+                    severity: 'critical',
+                });
+                // reset regex lastIndex after /g use
+                EMPTY_METRIC_PATTERN.lastIndex = 0;
+                EMPTY_METRIC_PATTERN2.lastIndex = 0;
+                EMPTY_METRIC_PATTERN3.lastIndex = 0;
+                break;
+            }
+            EMPTY_METRIC_PATTERN.lastIndex = 0;
+            EMPTY_METRIC_PATTERN2.lastIndex = 0;
+            EMPTY_METRIC_PATTERN3.lastIndex = 0;
         }
 
         const openerSet = new Set<string>();
@@ -266,19 +321,21 @@ Return ONLY the corrected JSON array. Same structure, same keys. No markdown, no
  *
  * - Stage 1: instant regex scoring (always runs).
  * - Stage 2: targeted LLM repair via workerTieredLLM (only for CRITICAL
- *   violations, only when `repair: true`).
- * - Persists all violations to localStorage for the next regeneration call.
+ *   violations, only when `repair: true`). Capped at MAX_AUTO_REPAIRS calls
+ *   total to prevent latency creep on badly-structured generations.
+ * - Persists all violations to localStorage keyed by profileFingerprint so
+ *   violations from one profile never pollute another slot.
  *
  * Guaranteed non-throwing — failures fall through with null repairs.
  */
 export async function runQualityGate(
     summary: string,
     experience: any[],
-    options: { repair?: boolean } = {},
+    options: { repair?: boolean; jd?: string; profileFingerprint?: string } = {},
 ): Promise<QualityGateResult> {
     const repair = options.repair !== false; // default true
 
-    const summaryViolations    = scoreSummary(summary);
+    const summaryViolations    = scoreSummary(summary, options.jd);
     const experienceViolations = scoreExperience(experience);
     const allViolations        = [...summaryViolations, ...experienceViolations];
 
@@ -288,10 +345,12 @@ export async function runQualityGate(
     let repairedSummary:    string | null = null;
     let repairedExperience: any[] | null  = null;
     let repairAttempted = false;
+    let repairCallsUsed = 0;
 
     if (repair) {
-        if (criticalSummary.length > 0) {
+        if (criticalSummary.length > 0 && repairCallsUsed < MAX_AUTO_REPAIRS) {
             repairAttempted = true;
+            repairCallsUsed++;
             repairedSummary = await repairSummary(summary, criticalSummary);
             if (repairedSummary) {
                 console.info(`[QualityGate] ✓ Summary repaired — ${criticalSummary.length} critical violation(s) fixed.`);
@@ -300,14 +359,19 @@ export async function runQualityGate(
             }
         }
 
-        if (criticalExp.length > 0) {
+        if (criticalExp.length > 0 && repairCallsUsed < MAX_AUTO_REPAIRS) {
             repairAttempted = true;
+            repairCallsUsed++;
             repairedExperience = await repairExperience(experience, criticalExp);
             if (repairedExperience) {
                 console.info(`[QualityGate] ✓ Experience repaired — ${criticalExp.length} critical violation(s) fixed.`);
             } else {
                 console.warn('[QualityGate] Experience repair returned null — falling through to purifyCV.');
             }
+        }
+
+        if (repairCallsUsed >= MAX_AUTO_REPAIRS && (criticalSummary.length + criticalExp.length) > repairCallsUsed) {
+            console.warn(`[QualityGate] Repair budget exhausted (${MAX_AUTO_REPAIRS} calls). Remaining critical violations will be handled by purifyCV.`);
         }
     }
 
@@ -321,7 +385,7 @@ export async function runQualityGate(
     }
 
     // Persist for the next regeneration call regardless of repair outcome.
-    _saveViolationsForNextRun(allViolations);
+    _saveViolationsForNextRun(allViolations, options.profileFingerprint);
 
     return { violations: allViolations, repairedSummary, repairedExperience, repairAttempted };
 }
@@ -333,15 +397,23 @@ export async function runQualityGate(
  *
  * Returns null if there are no stored violations, or if they are stale.
  */
-export function consumePreviousViolationsBlock(): string | null {
+export function consumePreviousViolationsBlock(profileFingerprint?: string): string | null {
     try {
         const raw = localStorage.getItem(LAST_RUN_ISSUES_KEY);
         if (!raw) return null;
 
-        const data = JSON.parse(raw) as { violations: QualityViolation[]; savedAt: number };
+        const data = JSON.parse(raw) as { violations: QualityViolation[]; savedAt: number; profileFingerprint?: string | null };
 
         // Discard if stale (stale = different session or browser tab left open).
         if (Date.now() - (data.savedAt ?? 0) > ISSUES_MAX_AGE_MS) {
+            localStorage.removeItem(LAST_RUN_ISSUES_KEY);
+            return null;
+        }
+
+        // Discard if the violations are from a different profile slot.
+        // This prevents slot-A violations from appearing in slot-B's generation.
+        if (profileFingerprint && data.profileFingerprint && data.profileFingerprint !== profileFingerprint) {
+            console.debug('[QualityGate] Discarding stored violations — different profile fingerprint.');
             localStorage.removeItem(LAST_RUN_ISSUES_KEY);
             return null;
         }
@@ -368,15 +440,16 @@ The above were detected and reported by the automated quality checker after your
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function _saveViolationsForNextRun(violations: QualityViolation[]): void {
+function _saveViolationsForNextRun(violations: QualityViolation[], profileFingerprint?: string): void {
     try {
         if (violations.length === 0) {
             localStorage.removeItem(LAST_RUN_ISSUES_KEY);
             return;
         }
         localStorage.setItem(LAST_RUN_ISSUES_KEY, JSON.stringify({
-            violations: violations.slice(0, 10),
-            savedAt:    Date.now(),
+            violations:          violations.slice(0, 10),
+            savedAt:             Date.now(),
+            profileFingerprint:  profileFingerprint ?? null,
         }));
     } catch { /* storage full / private mode */ }
 }

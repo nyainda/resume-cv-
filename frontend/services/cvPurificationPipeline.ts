@@ -75,12 +75,32 @@ const SUBSTITUTIONS: Array<[RegExp, string]> = [
     // truncation, leaving an orphaned hyphen. Always safe to repair.
     [/\bhands-\s+in\b/gi,                'hands-on experience in'],
 
-    // ── Summary "seeking" constructs — banned in summaries ───────────────────
-    // CVs speak FROM the candidate's value, not ABOUT what they want.
-    // These openers flip the sentence from value-proposition to job-request tone.
+    // ── Fake verb constructions — verb used with incompatible noun ────────────
+    // "Deployed troubleshooting" / "Deployed analysis" — the model uses "deploy"
+    // as a catch-all strong verb but it cannot apply to abstract processes.
+    [/\bDeployed troubleshooting\b/gi,                                'Performed troubleshooting and maintenance on'],
+    [/\bDeployed\s+(analysis|review|audit|research)\b/gi,            'Conducted $1'],
+
+    // ── Aspirational / seeking openers — never valid in a CV ─────────────────
+    // CVs speak FROM the candidate's delivered value, not about what they want.
+    [/^Eager to\b/gim,                                               ''],
+    [/^Looking to\b/gim,                                             ''],
+    [/^Aiming to\b/gim,                                              ''],
+    [/^Hoping to\b/gim,                                              ''],
     [/\bseeking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand|utilise|utilize)\b/gi, ''],
     [/\baiming to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
     [/\blooking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
+
+    // ── Intern/junior corporate filler — absurd in junior context ────────────
+    // Phrases like "drive business growth" on an internship are meaningless noise.
+    [/\bto drive business growth\b/gi,                               ''],
+    [/\bfostering teamwork\b/gi,                                     ''],
+    [/\bdemonstrating strong analytical skills\b/gi,                 ''],
+    [/\battention to detail\b/gi,                                    ''],
+    [/\bproblem-solving abilities\b/gi,                              ''],
+    [/\bto drive project efficiency\b/gi,                            ''],
+    [/\bfostering a collaborative\b/gi,                              ''],
+    [/\bfostering collaboration\b/gi,                                ''],
 
     // ── Padding phrases that survive word-level checks ────────────────────────
     [/\binitiative delivery\b/gi,        'project delivery'],
