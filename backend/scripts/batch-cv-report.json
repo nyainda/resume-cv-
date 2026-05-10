@@ -1,67 +1,87 @@
 {
-  "runAt": "2026-05-10T17:03:50.200Z",
+  "runAt": "2026-05-10T17:52:24.997Z",
   "results": [
     {
       "fixture": "senior-swe",
       "label": "Senior Software Engineer (Tech)",
       "verdict": "FAIL",
-      "durationMs": 45373,
+      "durationMs": 58907,
       "usage": {
-        "completion_tokens": 5503,
+        "completion_tokens": 7751,
         "completion_tokens_details": {
           "accepted_prediction_tokens": 0,
           "audio_tokens": 0,
-          "reasoning_tokens": 5056,
+          "reasoning_tokens": 7296,
           "rejected_prediction_tokens": 0
         },
         "latency_checkpoint": {
-          "engine_tbt_ms": 8,
-          "engine_ttft_ms": 29,
-          "engine_ttlt_ms": 44271,
-          "pre_inference_ms": 84,
-          "service_tbt_ms": 8,
-          "service_ttft_ms": 171,
-          "service_ttlt_ms": 44409,
-          "total_duration_ms": 44332,
-          "user_visible_ttft_ms": 87
+          "engine_tbt_ms": 7,
+          "engine_ttft_ms": 54,
+          "engine_ttlt_ms": 57714,
+          "pre_inference_ms": 112,
+          "service_tbt_ms": 7,
+          "service_ttft_ms": 445,
+          "service_ttlt_ms": 58092,
+          "total_duration_ms": 57989,
+          "user_visible_ttft_ms": 333
         },
-        "prompt_tokens": 877,
+        "prompt_tokens": 1207,
         "prompt_tokens_details": {
           "audio_tokens": 0,
           "cached_tokens": 0
         },
-        "total_tokens": 6380
+        "total_tokens": 8958
       },
       "ats": {
-        "score": 55,
+        "score": 82,
         "found": [
           "python",
+          "AWS",
           "docker",
           "kubernetes",
           "terraform",
           "agile",
-          "ci/cd"
+          "scrum",
+          "ci/cd",
+          "REST"
         ],
         "missing": [
-          "AWS",
           "sql",
-          "scrum",
-          "graphql",
-          "REST"
+          "graphql"
         ]
       },
       "issues": [
         {
+          "severity": "WARN",
+          "rule": "all_verb_led",
+          "detail": "\"Senior Software Engineer @ FinTech Co\": 5/5 bullets (100%) start with a verb — add number/scope/context openers."
+        },
+        {
+          "severity": "WARN",
+          "rule": "opener_monotone",
+          "detail": "\"Senior Software Engineer @ FinTech Co\": 3+ consecutive \"verb\" openers."
+        },
+        {
+          "severity": "WARN",
+          "rule": "all_verb_led",
+          "detail": "\"Data Engineer @ Consulting Ltd\": 5/5 bullets (100%) start with a verb — add number/scope/context openers."
+        },
+        {
+          "severity": "WARN",
+          "rule": "opener_monotone",
+          "detail": "\"Data Engineer @ Consulting Ltd\": 3+ consecutive \"verb\" openers."
+        },
+        {
           "severity": "FAIL",
-          "rule": "ats_coverage_low",
-          "detail": "ATS score 55% (min 60%). Missing: AWS, sql, scrum, graphql, REST"
+          "rule": "low_achievement_density",
+          "detail": "Only 1/10 bullets (10%) contain metrics. Min 20% — add measurable outcomes."
         }
       ],
-      "passCount": 26,
+      "passCount": 31,
       "cv": {
         "name": "Alex Morgan",
         "title": "Senior Software Engineer",
-        "summary": "Delivered scalable backend platforms that cut latency and accelerated deployments for financial services and enterprise clients. Seven years of software and data engineering experience building cloud-native services with Python, Go, Kubernetes, and Terraform. Expert at microservices architecture, API design, message streaming, and observability, with consistent emphasis on secure, automated releases. Comfortable driving infrastructure changes inside Agile teams and mentoring peers on operational reliability. Proven track record delivering production services under regulatory constraints and high-volume traffic.",
+        "summary": "Delivered high-performance platform capabilities that scaled payment and data services, reducing latency and accelerating release cadence across production systems. Seven years building Python and Go microservices, deploying on AWS with Kubernetes and Terraform, and improving CI/CD pipelines and observability. Experienced in PostgreSQL, Redis and distributed messaging patterns, with pragmatic automation and monitoring focus. Comfortable working in Agile/Scrum environments to produce reliable, scalable backend services for platform teams.",
         "experience": [
           {
             "jobTitle": "Senior Software Engineer",
@@ -70,32 +90,32 @@
             "endDate": "Present",
             "isCurrent": true,
             "responsibilities": [
-              "Design and build microservices in Python and Go powering payments processing and account reconciliation pipelines.",
-              "Across the platform team I manage CI/CD pipelines, reducing deployment time through incremental pipeline improvements.",
-              "Implement resilient API gateways and integrate Redis caching to improve read latency for high-volume endpoints.",
-              "With the security team I enforce encryption standards, secrets management, and fine-grained IAM policies across services.",
-              "Automate container builds and deployments using Docker, Kubernetes operators, and Terraform for reliable releases."
+              "Build scalable Python microservices on Kubernetes, reducing API latency by 40% across payments processing.",
+              "Lead an 8-engineer effort to migrate monolith to services, improving deployment frequency by 3x.",
+              "Design REST APIs and PostgreSQL schemas ensuring consistent request validation and fault-tolerant data flows.",
+              "Improve CI/CD pipelines using Terraform and Kubernetes, enhancing rollback safety and build parallelism.",
+              "Deploy containerized services with Docker and Helm, managing autoscaling and reducing costs by 25%."
             ]
           },
           {
             "jobTitle": "Data Engineer",
             "company": "Consulting Ltd",
-            "startDate": "Apr 2019",
+            "startDate": "Jul 2019",
             "endDate": "May 2021",
             "isCurrent": false,
             "responsibilities": [
-              "Built ETL pipelines in Python to consolidate disparate financial datasets into centralized PostgreSQL warehouses.",
-              "For corporate clients I designed streaming ingestion using Kafka and batch jobs for nightly processing.",
-              "Optimized database schemas and implemented Redis caching to reduce query time across reporting endpoints.",
-              "Across four major projects I authored Terraform templates and Dockerfiles to standardize deployments.",
-              "Alongside analytics teams I packaged data models and delivered Tableau dashboards for stakeholder reporting."
+              "Built ETL pipelines in Python ingesting data from 12 enterprise sources into PostgreSQL warehouses.",
+              "Designed streaming integrations using Kafka and Redis to reduce processing latency by 55% across reports.",
+              "Led migration of legacy pipelines to Docker containers, enabling consistent deployments across multiple environments.",
+              "Reduced data processing costs by 30% through query optimization and partitioning of large transactional tables.",
+              "Automated CI/CD for data workflows with Terraform and Kubernetes, improving deployment reliability and auditability."
             ]
           }
         ],
         "education": [
           {
             "degree": "MSc Data Science",
-            "institution": "University College London",
+            "institution": "UCL",
             "year": "2018",
             "description": ""
           },
@@ -112,21 +132,21 @@
           "AWS",
           "Kubernetes",
           "Docker",
-          "Terraform",
           "PostgreSQL",
           "Redis",
           "REST APIs",
           "Microservices",
-          "CI/CD",
-          "Kafka"
+          "Terraform",
+          "Kafka",
+          "CI/CD"
         ]
       }
     }
   ],
   "tokenSummary": {
-    "totalPromptTokens": 877,
-    "totalCompletionTokens": 5503,
-    "totalTokens": 6380,
-    "estimatedCostUsd": 0.00343335
+    "totalPromptTokens": 1207,
+    "totalCompletionTokens": 7751,
+    "totalTokens": 8958,
+    "estimatedCostUsd": 0.00483165
   }
 }

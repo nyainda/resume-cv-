@@ -127,22 +127,29 @@ const CV_SYSTEM_PROMPT = `You are an expert CV writer. Generate a realistic CV i
 RULES — auto-checked, violations fail the test:
 1. Summary: 65-90 words. Open with candidate VALUE delivered, never "Seeking to" or "Looking to".
 2. Each role: exactly 5 bullets, each 12-22 words.
-3. Past roles = past tense. Current role = present tense.
+3. TENSE — CRITICAL:
+   - Past roles (endDate is a real date): every bullet MUST start with a PAST TENSE verb (Built, Designed, Led, Reduced, Shipped…).
+   - Current role (endDate = "Present"): every bullet MUST start with a BASE FORM imperative verb (Build, Design, Lead, Reduce, Ship…).
+   - NEVER use third-person singular ("Designs", "Delivers", "Maintains") — this sounds like a job description, not a CV.
 4. BANNED words (never use): spearheaded, leveraged, utilized, facilitated, synergy, team player, detail-oriented, results-driven, passionate about, highly motivated, dynamic, innovative solutions, best practices.
-5. BANNED fake verbs (never use): greenfielded, scaffolded, materialized, actioned, ideated, solutioned.
-6. NEVER use arrow "→" inside bullets.
-7. METRIC DENSITY: max 2 of 5 bullets per role may contain a number or % figure.
-8. OPENER VARIETY — CRITICAL: NEVER write 3 or more bullets in a row that start with an action verb.
-   After every 1-2 verb-led bullets, use a different opener type:
-   - Number opener: "12 engineers across..." / "40% of pipeline..."
-   - Scope opener: "Across three product lines..." / "For a 300-person org..."
-   - Context opener: "As the only backend engineer..." / "After the 2022 migration..."
-   - Collaboration opener: "With the data team..." / "Alongside design leads..."
-   Sequence example: [verb, scope, verb, number, context] ← GOOD
-   Sequence example: [verb, verb, verb, verb, verb] ← FAIL
-9. PHRASE UNIQUENESS — CRITICAL: NEVER repeat any 4-or-more word sequence more than once anywhere in the CV (summary, any bullet, any role). If you find yourself writing the same phrase, rephrase it completely.
-10. Skills: exactly 12 skills relevant to the JD, no duplicates.
-11. Use only 2 experience roles (most recent 2 from the profile).
+5. BANNED fake verbs: greenfielded, scaffolded, materialized, actioned, ideated, solutioned.
+6. NEVER use arrow "→" in bullets.
+7. NO FIRST-PERSON PRONOUNS — CRITICAL: Never write I, I'm, I've, I'd, my, me, we, our, us anywhere in the CV. CV bullets use implied subject ("Built X" not "I built X", "the team's approach" not "our approach").
+8. METRIC DENSITY: 2-3 of 5 bullets per role should contain a number or %. Not fewer than 2, not more than 3.
+9. OPENER VARIETY — CRITICAL: NEVER write 3 or more bullets in a row that start with an action verb.
+   After every 1-2 verb-led bullets, use a NON-VERB opener. Allowed non-verb openers that do NOT start with a preposition:
+   - Number: "12-engineer team adopted..." / "40% of the pipeline..."
+   - Context: "As the sole backend engineer..." / "After the 2022 replatform..."
+   - Timeframe: "Following the Q3 migration..." / "During the 2021 scale-up..."
+   - Outcome: "Recognised as top performer..." / "Promoted after delivering..."
+   BANNED openers (start with a preposition — auto-flagged): any bullet starting with:
+   by, of, to, with, at, from, for, in, on, across, over, under, above, below
+   Good sequence: [verb, number, verb, context, verb] ← PASS
+   Bad sequence:  [verb, verb, verb, verb, verb] ← FAIL (opener monotone)
+   Bad sequence:  ["Across three teams..."] ← FAIL (preposition opener)
+10. PHRASE UNIQUENESS: NEVER repeat any 4-or-more word sequence more than once in the entire CV. Rephrase completely if you catch a repeated phrase.
+11. Skills: exactly 12 skills relevant to the JD, no duplicates.
+12. Use only 2 experience roles (most recent 2 from the profile).
 
 Return ONLY valid compact JSON (no markdown, no extra text):
 {"name":"string","title":"string","summary":"string","experience":[{"jobTitle":"string","company":"string","startDate":"Mon YYYY","endDate":"Mon YYYY or Present","isCurrent":false,"responsibilities":["b1","b2","b3","b4","b5"]}],"education":[{"degree":"string","institution":"string","year":"YYYY","description":""}],"skills":["s1"]}`;
@@ -160,8 +167,15 @@ JOB DESCRIPTION TO TARGET:
 ${jdFixture.jd}
 
 Generate a complete, realistic CV tailored to this JD. Follow ALL rules in the system prompt exactly.
-Remember rule 8 (opener variety): check your bullet list — if bullets 1 and 2 both start with a verb, bullet 3 MUST use a scope/number/context opener.
-Remember rule 9 (phrase uniqueness): re-read the full CV before returning and remove any repeated 4+ word sequence.`;
+
+Self-check before returning JSON:
+□ No bullet starts with: by, of, to, with, at, from, for, in, on, across, over, under, above, below
+□ No first-person pronouns anywhere: I, I'm, I've, my, me, we, our, us
+□ Current role bullets use BASE FORM verbs (Design, Build, Lead) — NOT "Designs/Builds/Leads"
+□ Past role bullets use PAST TENSE verbs (Designed, Built, Led)
+□ No 3 consecutive verb-led bullets in any role
+□ 2-3 bullets per role contain a specific number or %
+□ No 4+ word phrase repeated anywhere in the CV`;
 
     const response = await openai.chat.completions.create({
         model: 'gpt-5-mini',
@@ -236,6 +250,12 @@ const SEEKING_PATTERN   = /\b(seeking to|looking to|aiming to|hoping to|eager to
 const FAKE_VERB_PATTERN = /\b(greenfielded?|scaffolded?|materialized?|actioned?|ideated?|solutioned?|conceptualized?|operationalized?)\b/i;
 const BANNED_OPENER_RX  = /^(spearheaded?|orchestrated?|leveraged?|utilized?|facilitated?|empowered?|championed?)\b/i;
 const BUZZWORD_RX       = /\b(highly motivated|results-driven|results-oriented|passionate about|detail-oriented|team player|self-starter|go-getter|dynamic professional)\b/i;
+
+// ── New rules matching app's cvNumberFidelity + cvVoiceFidelity ──────────────
+const STUB_FIRST_WORDS  = new Set(['by','of','to','with','at','from','for','in','on','across','over','under','above','below']);
+const FIRST_PERSON_RX   = /\b(?:I|I'm|I've|I'd|I'll|my|me|myself|we|our|ours|us|ourselves)\b/;
+const TPS_VERBS         = new Set(['generates','delivers','maintains','improves','reduces','coordinates','leads','drives','manages','builds','designs','develops','implements','provides','supports','creates','optimizes','optimises','analyzes','analyses','collaborates','trains','conducts','oversees','streamlines','executes','launches','handles','monitors','evaluates','performs','presents','writes','edits','tests','deploys','resolves','mentors','advises','achieves','reviews','tracks','reports','identifies','communicates','assists','facilitates','negotiates','forecasts','plans','organizes','organises','spearheads','champions','architects','automates']);
+function isCurrentRole(endDate) { if (!endDate) return true; const v = String(endDate).trim().toLowerCase(); if (!v) return true; return v === 'present' || v === 'current' || v === 'now' || v === 'ongoing'; }
 const CHAINED_METRIC_RX = /\b\d+\s*%[^.]{0,60}(?:resulting in|leading to|which led to|driving)\s*\d+\s*%/i;
 const EMPTY_METRIC_RX   = /\b(generating|saving|reducing|growing|increasing|cutting|achieving|driving|delivering)\s+in\s+\w/gi;
 const ARROW_RX          = /\s*→\s*/;
@@ -367,10 +387,16 @@ function checkCV(cv, jd) {
     } else passes.push('no_fake_verbs');
 
     // ── 4. Experience bullet checks ──────────────────────────────────────────
+    let totalBulletsAllRoles = 0;
+    let bulletsWithMetricsAllRoles = 0;
+
     for (const role of (cv.experience || [])) {
         const bullets = (role.responsibilities || []).filter(b => typeof b === 'string' && b.trim());
         const label = `"${role.jobTitle} @ ${role.company}"`;
         if (bullets.length === 0) continue;
+        const isCurrent = isCurrentRole(role.endDate);
+
+        totalBulletsAllRoles += bullets.length;
 
         // Arrow separators
         const arrowBullets = bullets.filter(b => ARROW_RX.test(b));
@@ -383,6 +409,41 @@ function checkCV(cv, jd) {
         if (stubs.length > 0) {
             issues.push({ severity: 'FAIL', rule: 'bullet_too_short', detail: `${label}: ${stubs.length} bullet(s) under 8 words.` });
         } else passes.push(`bullet_length:${label}`);
+
+        // Preposition opener (stub_bullet) — matches app's STUB_FIRST_WORDS
+        let foundStub = false;
+        for (const b of bullets) {
+            const firstWord = b.trim().replace(/^[\s•\-*·»"']+/, '').split(/\s+/)[0]?.toLowerCase() ?? '';
+            if (STUB_FIRST_WORDS.has(firstWord)) {
+                issues.push({ severity: 'FAIL', rule: 'preposition_opener', detail: `${label}: bullet starts with preposition "${firstWord}" — auto-flagged by app's quality checker. Rephrase to start with a verb, number, or context phrase.` });
+                foundStub = true; break;
+            }
+        }
+        if (!foundStub) passes.push(`no_preposition_opener:${label}`);
+
+        // First-person pronouns — I, my, we, our, us etc.
+        let foundFP = false;
+        for (const b of bullets) {
+            if (FIRST_PERSON_RX.test(b)) {
+                const match = b.match(FIRST_PERSON_RX);
+                issues.push({ severity: 'FAIL', rule: 'first_person_pronoun', detail: `${label}: bullet contains first-person pronoun "${match?.[0]}". CV bullets must use implied subject (no I/my/we/our).` });
+                foundFP = true; break;
+            }
+        }
+        if (!foundFP) passes.push(`no_first_person:${label}`);
+
+        // Third-person singular tense in current role (Designs, Delivers, etc.)
+        if (isCurrent) {
+            let foundTPS = false;
+            for (const b of bullets) {
+                const firstWord = b.trim().replace(/^[\s•\-*·»"']+/, '').split(/\s+/)[0]?.toLowerCase() ?? '';
+                if (TPS_VERBS.has(firstWord)) {
+                    issues.push({ severity: 'FAIL', rule: 'tense_third_person_singular', detail: `${label}: current role bullet uses third-person singular "${b.trim().split(/\s+/)[0]}" — use base form ("Design", not "Designs").` });
+                    foundTPS = true; break;
+                }
+            }
+            if (!foundTPS) passes.push(`correct_tense:${label}`);
+        }
 
         // Banned opener
         let foundBannedOpener = false;
@@ -426,8 +487,9 @@ function checkCV(cv, jd) {
         }
         if (!foundEmpty) passes.push(`no_empty_metric:${label}`);
 
-        // All-metric bullets (>55%)
+        // All-metric bullets (>55%) + accumulate global density counter
         const withMetric = bullets.filter(b => METRIC_IN_BULLET.test(b)).length;
+        bulletsWithMetricsAllRoles += withMetric;
         const metricRatio = withMetric / bullets.length;
         if (bullets.length >= 4 && metricRatio > 0.55) {
             issues.push({ severity: 'FAIL', rule: 'all_metrics', detail: `${label}: ${withMetric}/${bullets.length} bullets have metrics (max 55%). Add qualitative bullets.` });
@@ -489,6 +551,18 @@ function checkCV(cv, jd) {
             openerSet.add(first);
         }
         if (!foundDup) passes.push(`unique_openers:${label}`);
+    }
+
+    // ── 4b. Achievement density floor (< 40% of ALL bullets have metrics → WARN) ─
+    if (totalBulletsAllRoles >= 4) {
+        const densityPct = Math.round((bulletsWithMetricsAllRoles / totalBulletsAllRoles) * 100);
+        if (densityPct < 20) {
+            issues.push({ severity: 'FAIL', rule: 'low_achievement_density', detail: `Only ${bulletsWithMetricsAllRoles}/${totalBulletsAllRoles} bullets (${densityPct}%) contain metrics. Min 20% — add measurable outcomes.` });
+        } else if (densityPct < 40) {
+            issues.push({ severity: 'WARN', rule: 'low_achievement_density', detail: `Only ${bulletsWithMetricsAllRoles}/${totalBulletsAllRoles} bullets (${densityPct}%) contain metrics. Aim for 40%+ for a strong impact profile.` });
+        } else {
+            passes.push(`achievement_density_${densityPct}pct`);
+        }
     }
 
     // ── 5. Round-number saturation ───────────────────────────────────────────
