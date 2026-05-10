@@ -1,85 +1,101 @@
 {
-  "runAt": "2026-05-10T16:48:07.340Z",
+  "runAt": "2026-05-10T17:03:50.200Z",
   "results": [
     {
       "fixture": "senior-swe",
       "label": "Senior Software Engineer (Tech)",
-      "verdict": "WARN",
-      "durationMs": 36237,
+      "verdict": "FAIL",
+      "durationMs": 45373,
+      "usage": {
+        "completion_tokens": 5503,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 5056,
+          "rejected_prediction_tokens": 0
+        },
+        "latency_checkpoint": {
+          "engine_tbt_ms": 8,
+          "engine_ttft_ms": 29,
+          "engine_ttlt_ms": 44271,
+          "pre_inference_ms": 84,
+          "service_tbt_ms": 8,
+          "service_ttft_ms": 171,
+          "service_ttlt_ms": 44409,
+          "total_duration_ms": 44332,
+          "user_visible_ttft_ms": 87
+        },
+        "prompt_tokens": 877,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0
+        },
+        "total_tokens": 6380
+      },
       "ats": {
-        "score": 91,
+        "score": 55,
         "found": [
           "python",
-          "AWS",
-          "sql",
           "docker",
           "kubernetes",
           "terraform",
           "agile",
-          "scrum",
-          "ci/cd",
-          "REST"
+          "ci/cd"
         ],
         "missing": [
-          "graphql"
+          "AWS",
+          "sql",
+          "scrum",
+          "graphql",
+          "REST"
         ]
       },
       "issues": [
         {
-          "severity": "WARN",
-          "rule": "opener_monotone",
-          "detail": "\"Senior Software Engineer @ FinTech Co\": 3+ consecutive \"verb\" openers."
-        },
-        {
-          "severity": "WARN",
-          "rule": "opener_monotone",
-          "detail": "\"Data Engineer @ Consulting Ltd\": 3+ consecutive \"verb\" openers."
-        },
-        {
-          "severity": "WARN",
-          "rule": "phrase_repetition",
-          "detail": "4 repeated phrase(s): \"python and go services\" ×2, \"postgresql and redis performance\" ×2, \"and redis performance tuning\" ×2"
+          "severity": "FAIL",
+          "rule": "ats_coverage_low",
+          "detail": "ATS score 55% (min 60%). Missing: AWS, sql, scrum, graphql, REST"
         }
       ],
       "passCount": 26,
       "cv": {
         "name": "Alex Morgan",
         "title": "Senior Software Engineer",
-        "summary": "Platform-focused senior software engineer delivering scalable backend services, microservices architecture, and robust CI/CD pipelines across cloud environments. Seven years of experience designing and operating Python and Go services on AWS, with production Kubernetes and Docker deployments. Experienced in PostgreSQL and Redis performance tuning, REST API design, and infrastructure as code with Terraform. Comfortable working in Agile/Scrum teams to reduce latency, improve reliability, and accelerate feature delivery for fintech platforms.",
+        "summary": "Delivered scalable backend platforms that cut latency and accelerated deployments for financial services and enterprise clients. Seven years of software and data engineering experience building cloud-native services with Python, Go, Kubernetes, and Terraform. Expert at microservices architecture, API design, message streaming, and observability, with consistent emphasis on secure, automated releases. Comfortable driving infrastructure changes inside Agile teams and mentoring peers on operational reliability. Proven track record delivering production services under regulatory constraints and high-volume traffic.",
         "experience": [
           {
             "jobTitle": "Senior Software Engineer",
             "company": "FinTech Co",
-            "startDate": "2021-06",
+            "startDate": "Jun 2021",
             "endDate": "Present",
             "isCurrent": true,
             "responsibilities": [
-              "Across the platform, own backend service design and architecture for resilient microservices.",
-              "Design and implement Python and Go services deployed on AWS with Kubernetes orchestration.",
-              "Improve CI/CD pipelines using Docker, GitLab CI, and automated testing to speed delivery.",
-              "Manage PostgreSQL and Redis performance tuning and scaling across production environments.",
-              "As the lead for an 8-person team, coordinate sprint planning and cross-service roadmaps."
+              "Design and build microservices in Python and Go powering payments processing and account reconciliation pipelines.",
+              "Across the platform team I manage CI/CD pipelines, reducing deployment time through incremental pipeline improvements.",
+              "Implement resilient API gateways and integrate Redis caching to improve read latency for high-volume endpoints.",
+              "With the security team I enforce encryption standards, secrets management, and fine-grained IAM policies across services.",
+              "Automate container builds and deployments using Docker, Kubernetes operators, and Terraform for reliable releases."
             ]
           },
           {
             "jobTitle": "Data Engineer",
             "company": "Consulting Ltd",
-            "startDate": "2019-01",
-            "endDate": "2021-05",
+            "startDate": "Apr 2019",
+            "endDate": "May 2021",
             "isCurrent": false,
             "responsibilities": [
-              "Across ETL systems, maintained data pipelines ingesting multiple financial data sources daily.",
-              "Built Python extraction jobs and SQL transformations to populate PostgreSQL warehouses for analytics.",
-              "Reduced data latency by redesigning Kafka ingestion and improving batch schedules.",
-              "Created Docker containers and Kubernetes manifests to standardize development and staging deployments.",
-              "As a senior among 4 engineers, documented ETL patterns and enforced coding standards."
+              "Built ETL pipelines in Python to consolidate disparate financial datasets into centralized PostgreSQL warehouses.",
+              "For corporate clients I designed streaming ingestion using Kafka and batch jobs for nightly processing.",
+              "Optimized database schemas and implemented Redis caching to reduce query time across reporting endpoints.",
+              "Across four major projects I authored Terraform templates and Dockerfiles to standardize deployments.",
+              "Alongside analytics teams I packaged data models and delivered Tableau dashboards for stakeholder reporting."
             ]
           }
         ],
         "education": [
           {
             "degree": "MSc Data Science",
-            "institution": "UCL",
+            "institution": "University College London",
             "year": "2018",
             "description": ""
           },
@@ -96,15 +112,21 @@
           "AWS",
           "Kubernetes",
           "Docker",
+          "Terraform",
           "PostgreSQL",
           "Redis",
           "REST APIs",
           "Microservices",
           "CI/CD",
-          "Terraform",
-          "Agile/Scrum"
+          "Kafka"
         ]
       }
     }
-  ]
+  ],
+  "tokenSummary": {
+    "totalPromptTokens": 877,
+    "totalCompletionTokens": 5503,
+    "totalTokens": 6380,
+    "estimatedCostUsd": 0.00343335
+  }
 }

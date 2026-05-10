@@ -1,0 +1,64 @@
+{
+  "summary": "Delivered scalable backend platforms that cut latency and accelerated deployments for financial services and enterprise clients. Seven years of software and data engineering experience building cloud-native services with Python, Go, Kubernetes, and Terraform. Expert at microservices architecture, API design, message streaming, and observability, with consistent emphasis on secure, automated releases. Comfortable driving infrastructure changes inside Agile teams and mentoring peers on operational reliability. Proven track record delivering production services under regulatory constraints and high-volume traffic.",
+  "skills": [
+    "Python",
+    "Go",
+    "AWS",
+    "Kubernetes",
+    "Docker",
+    "Terraform",
+    "PostgreSQL",
+    "Redis",
+    "REST APIs",
+    "Microservices",
+    "CI/CD",
+    "Kafka"
+  ],
+  "projects": [],
+  "languages": [],
+  "references": [],
+  "experience": [
+    {
+      "jobTitle": "Senior Software Engineer",
+      "company": "FinTech Co",
+      "dates": "Jun 2021 – Present",
+      "startDate": "Jun 2021",
+      "endDate": "",
+      "responsibilities": [
+        "Design and build microservices in Python and Go powering payments processing and account reconciliation pipelines.",
+        "Across the platform team I manage CI/CD pipelines, reducing deployment time through incremental pipeline improvements.",
+        "Implement resilient API gateways and integrate Redis caching to improve read latency for high-volume endpoints.",
+        "With the security team I enforce encryption standards, secrets management, and fine-grained IAM policies across services.",
+        "Automate container builds and deployments using Docker, Kubernetes operators, and Terraform for reliable releases."
+      ]
+    },
+    {
+      "jobTitle": "Data Engineer",
+      "company": "Consulting Ltd",
+      "dates": "Apr 2019 – May 2021",
+      "startDate": "Apr 2019",
+      "endDate": "May 2021",
+      "responsibilities": [
+        "Built ETL pipelines in Python to consolidate disparate financial datasets into centralized PostgreSQL warehouses.",
+        "For corporate clients I designed streaming ingestion using Kafka and batch jobs for nightly processing.",
+        "Optimized database schemas and implemented Redis caching to reduce query time across reporting endpoints.",
+        "Across four major projects I authored Terraform templates and Dockerfiles to standardize deployments.",
+        "Alongside analytics teams I packaged data models and delivered Tableau dashboards for stakeholder reporting."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "MSc Data Science",
+      "school": "University College London",
+      "year": "2018",
+      "description": ""
+    },
+    {
+      "degree": "BSc Computer Science",
+      "school": "University of Manchester",
+      "year": "2016",
+      "description": ""
+    }
+  ]
+}

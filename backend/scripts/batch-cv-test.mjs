@@ -15,9 +15,9 @@
  */
 
 import OpenAI from 'openai';
-import { writeFileSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -124,20 +124,28 @@ const CANDIDATE_PROFILE = {
 
 const CV_SYSTEM_PROMPT = `You are an expert CV writer. Generate a realistic CV in JSON. Be concise.
 
-RULES (the CV will be auto-checked against these):
-1. Summary: 65-90 words. Start with candidate VALUE, never "Seeking to" or "Looking to".
-2. Each role: exactly 5 bullets, each 10-20 words.
-3. Past roles = past tense verbs. Current role = present tense.
-4. NEVER use: spearheaded, leveraged, utilized, facilitated, synergy, team player, detail-oriented, results-driven, passionate about, highly motivated, dynamic, innovative solutions, best practices.
-5. NEVER use fake verbs: greenfielded, scaffolded, materialized, actioned, ideated, solutioned.
+RULES — auto-checked, violations fail the test:
+1. Summary: 65-90 words. Open with candidate VALUE delivered, never "Seeking to" or "Looking to".
+2. Each role: exactly 5 bullets, each 12-22 words.
+3. Past roles = past tense. Current role = present tense.
+4. BANNED words (never use): spearheaded, leveraged, utilized, facilitated, synergy, team player, detail-oriented, results-driven, passionate about, highly motivated, dynamic, innovative solutions, best practices.
+5. BANNED fake verbs (never use): greenfielded, scaffolded, materialized, actioned, ideated, solutioned.
 6. NEVER use arrow "→" inside bullets.
-7. Max 2 out of 5 bullets per role may contain a number (max 40% metric density).
-8. VARY bullet openers: at least 1 bullet per role must NOT start with a verb (use a number, "Across X...", "As the sole...", "With the team...").
-9. Skills: exactly 12 skills relevant to the JD.
-10. Use only 2 experience roles (most recent 2 from the profile).
+7. METRIC DENSITY: max 2 of 5 bullets per role may contain a number or % figure.
+8. OPENER VARIETY — CRITICAL: NEVER write 3 or more bullets in a row that start with an action verb.
+   After every 1-2 verb-led bullets, use a different opener type:
+   - Number opener: "12 engineers across..." / "40% of pipeline..."
+   - Scope opener: "Across three product lines..." / "For a 300-person org..."
+   - Context opener: "As the only backend engineer..." / "After the 2022 migration..."
+   - Collaboration opener: "With the data team..." / "Alongside design leads..."
+   Sequence example: [verb, scope, verb, number, context] ← GOOD
+   Sequence example: [verb, verb, verb, verb, verb] ← FAIL
+9. PHRASE UNIQUENESS — CRITICAL: NEVER repeat any 4-or-more word sequence more than once anywhere in the CV (summary, any bullet, any role). If you find yourself writing the same phrase, rephrase it completely.
+10. Skills: exactly 12 skills relevant to the JD, no duplicates.
+11. Use only 2 experience roles (most recent 2 from the profile).
 
 Return ONLY valid compact JSON (no markdown, no extra text):
-{"name":"string","title":"string","summary":"string","experience":[{"jobTitle":"string","company":"string","startDate":"string","endDate":"string","isCurrent":false,"responsibilities":["b1","b2","b3","b4","b5"]}],"education":[{"degree":"string","institution":"string","year":"string","description":""}],"skills":["s1"]}`;
+{"name":"string","title":"string","summary":"string","experience":[{"jobTitle":"string","company":"string","startDate":"Mon YYYY","endDate":"Mon YYYY or Present","isCurrent":false,"responsibilities":["b1","b2","b3","b4","b5"]}],"education":[{"degree":"string","institution":"string","year":"YYYY","description":""}],"skills":["s1"]}`;
 
 async function generateCV(jdFixture, profile) {
     const userPrompt = `
@@ -151,7 +159,9 @@ Past roles: ${profile.pastRoles.map(r => `${r.title} at ${r.company} (${r.years}
 JOB DESCRIPTION TO TARGET:
 ${jdFixture.jd}
 
-Generate a complete, realistic CV tailored to this JD. Follow ALL rules in the system prompt exactly.`;
+Generate a complete, realistic CV tailored to this JD. Follow ALL rules in the system prompt exactly.
+Remember rule 8 (opener variety): check your bullet list — if bullets 1 and 2 both start with a verb, bullet 3 MUST use a scope/number/context opener.
+Remember rule 9 (phrase uniqueness): re-read the full CV before returning and remove any repeated 4+ word sequence.`;
 
     const response = await openai.chat.completions.create({
         model: 'gpt-5-mini',
@@ -163,9 +173,36 @@ Generate a complete, realistic CV tailored to this JD. Follow ALL rules in the s
     });
 
     const raw = response.choices[0]?.message?.content ?? '';
-    // Strip any accidental markdown code fences
     const json = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
-    return JSON.parse(json);
+    const cv = JSON.parse(json);
+    const usage = response.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    return { cv, usage };
+}
+
+// ─── Convert generated CV to app's CVData format ──────────────────────────────
+
+function toAppCVData(cv) {
+    return {
+        summary:    cv.summary ?? '',
+        skills:     cv.skills ?? [],
+        projects:   [],
+        languages:  [],
+        references: [],
+        experience: (cv.experience ?? []).map(role => ({
+            jobTitle:         role.jobTitle ?? '',
+            company:          role.company ?? '',
+            dates:            `${role.startDate ?? ''} – ${role.endDate ?? 'Present'}`,
+            startDate:        role.startDate ?? '',
+            endDate:          role.isCurrent ? '' : (role.endDate ?? ''),
+            responsibilities: role.responsibilities ?? [],
+        })),
+        education: (cv.education ?? []).map(edu => ({
+            degree:      edu.degree ?? '',
+            school:      edu.institution ?? '',
+            year:        edu.year ?? '',
+            description: edu.description ?? '',
+        })),
+    };
 }
 
 // ─── Quality Rules (ported from frontend — pure JS, no imports needed) ────────
@@ -544,18 +581,25 @@ async function main() {
 
     const report = { runAt: new Date().toISOString(), results: [] };
     let totalPass = 0, totalWarn = 0, totalFail = 0;
+    let totalPromptTokens = 0, totalCompletionTokens = 0;
+    let lastCVData = null;     // app CVData format of the last successful CV (for preview)
+    let lastFixtureLabel = '';
 
     for (const fixture of fixtures) {
         process.stdout.write(`  Generating CV for: ${fixture.label}... `);
         const t0 = Date.now();
-        let cv, result;
+        let cv, result, usage;
         try {
-            cv = await generateCV(fixture, CANDIDATE_PROFILE);
+            ({ cv, usage } = await generateCV(fixture, CANDIDATE_PROFILE));
             const durationMs = Date.now() - t0;
-            process.stdout.write(`done (${durationMs}ms)\n`);
+            process.stdout.write(`done (${durationMs}ms, ${usage.total_tokens} tokens)\n`);
+            totalPromptTokens     += usage.prompt_tokens;
+            totalCompletionTokens += usage.completion_tokens;
             result = checkCV(cv, fixture.jd);
             printResult(fixture, cv, result, durationMs);
-            report.results.push({ fixture: fixture.id, label: fixture.label, verdict: result.verdict, durationMs, ats: result.ats, issues: result.issues, passCount: result.passes.length, cv });
+            report.results.push({ fixture: fixture.id, label: fixture.label, verdict: result.verdict, durationMs, usage, ats: result.ats, issues: result.issues, passCount: result.passes.length, cv });
+            lastCVData = toAppCVData(cv);
+            lastFixtureLabel = fixture.label;
         } catch (err) {
             const durationMs = Date.now() - t0;
             process.stdout.write(`ERROR: ${err.message}\n`);
@@ -566,8 +610,29 @@ async function main() {
         else if (result.verdict === 'WARN') totalWarn++;
         else totalFail++;
 
-        // Small delay to avoid rate limits
         await new Promise(r => setTimeout(r, 200));
+    }
+
+    // ── Token usage & cost estimate ────────────────────────────────────────
+    // gpt-5-mini pricing (Replit AI Integrations, May 2026):
+    //   Input:  $0.15 per 1M tokens
+    //   Output: $0.60 per 1M tokens
+    const INPUT_PRICE_PER_M  = 0.15;
+    const OUTPUT_PRICE_PER_M = 0.60;
+    const inputCost  = (totalPromptTokens     / 1_000_000) * INPUT_PRICE_PER_M;
+    const outputCost = (totalCompletionTokens / 1_000_000) * OUTPUT_PRICE_PER_M;
+    const totalCost  = inputCost + outputCost;
+    const totalTokens = totalPromptTokens + totalCompletionTokens;
+
+    // ── Write CV preview for in-app viewing ───────────────────────────────
+    let previewPath = null;
+    if (lastCVData) {
+        try {
+            const publicDir = resolve(__dirname, '../../frontend/public');
+            if (!existsSync(publicDir)) mkdirSync(publicDir, { recursive: true });
+            previewPath = join(publicDir, 'test-cv-preview.json');
+            writeFileSync(previewPath, JSON.stringify(lastCVData, null, 2));
+        } catch (e) { /* non-fatal */ }
     }
 
     // ── Summary ────────────────────────────────────────────────────────────
@@ -577,7 +642,7 @@ async function main() {
     console.log(`  ✅ PASS : ${totalPass}`);
     console.log(`  ⚠️  WARN : ${totalWarn}`);
     console.log(`  ❌ FAIL : ${totalFail}`);
-    console.log(`  Total  : ${JD_FIXTURES.length}`);
+    console.log(`  Total  : ${fixtures.length}`);
 
     const avgAts = report.results.filter(r => r.ats).reduce((s, r) => s + r.ats.score, 0) / (report.results.filter(r => r.ats).length || 1);
     console.log(`\n  Average ATS Coverage : ${Math.round(avgAts)}%`);
@@ -585,10 +650,36 @@ async function main() {
     const overallVerdict = totalFail > 0 ? '❌ PIPELINE HAS FAILURES' : totalWarn > totalPass ? '⚠️  PIPELINE HAS WARNINGS' : '✅ PIPELINE PASSING';
     console.log(`\n  Overall: ${overallVerdict}`);
 
+    // ── Token & cost report ────────────────────────────────────────────────
+    console.log('\n───────────────────────────────────────────────────────────────────');
+    console.log('TOKEN USAGE & COST  (model: gpt-5-mini via Replit AI Integrations)');
+    console.log('───────────────────────────────────────────────────────────────────');
+    console.log(`  Input tokens    : ${totalPromptTokens.toLocaleString()}  × $${INPUT_PRICE_PER_M}/1M  = $${inputCost.toFixed(5)}`);
+    console.log(`  Output tokens   : ${totalCompletionTokens.toLocaleString()}  × $${OUTPUT_PRICE_PER_M}/1M  = $${outputCost.toFixed(5)}`);
+    console.log(`  Total tokens    : ${totalTokens.toLocaleString()}`);
+    console.log(`  ── Estimated cost for this run : $${totalCost.toFixed(5)} (< $${(Math.ceil(totalCost * 1000) / 1000).toFixed(3)})`);
+    console.log(`  ── Per CV avg   : ~${Math.round(totalTokens / (fixtures.length || 1)).toLocaleString()} tokens / ~$${(totalCost / (fixtures.length || 1)).toFixed(5)}`);
+    console.log(`  ── Full 8-JD run estimate: ~$${((totalCost / (fixtures.length || 1)) * 8).toFixed(4)}`);
+    console.log('\n  ℹ️  gpt-5-mini: best for speed/cost. For richer prose try gpt-4o-mini (~3× cost)');
+    console.log('     or gpt-4o (~20× cost). All are available via Replit AI Integrations.');
+
+    // ── In-app preview instructions ────────────────────────────────────────
+    if (previewPath) {
+        console.log('\n───────────────────────────────────────────────────────────────────');
+        console.log('VIEW IN APP  (last CV generated: ' + lastFixtureLabel + ')');
+        console.log('───────────────────────────────────────────────────────────────────');
+        console.log('  1. Open the app in the preview pane');
+        console.log('  2. Add  #test-cv  to the URL and press Enter, e.g.:');
+        console.log('       https://your-replit-url.replit.dev/#test-cv');
+        console.log('  3. The CV loads instantly — pick any template to see it rendered');
+        console.log('  4. Re-run the script with --jd=<id> to update to a different JD type');
+    }
+
     // ── Write JSON report ──────────────────────────────────────────────────
     const reportPath = join(__dirname, 'batch-cv-report.json');
-    writeFileSync(reportPath, JSON.stringify(report, null, 2));
-    console.log(`\n  Full report saved to: backend/scripts/batch-cv-report.json`);
+    writeFileSync(reportPath, JSON.stringify({ ...report, tokenSummary: { totalPromptTokens, totalCompletionTokens, totalTokens, estimatedCostUsd: totalCost } }, null, 2));
+    console.log('\n───────────────────────────────────────────────────────────────────');
+    console.log(`  Full report: backend/scripts/batch-cv-report.json`);
     console.log('═══════════════════════════════════════════════════════════════════\n');
 
     process.exit(totalFail > 0 ? 1 : 0);

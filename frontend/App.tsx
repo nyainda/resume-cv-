@@ -389,6 +389,54 @@ const AppInner: React.FC = () => {
         setSharedCVPayload(payload);
       }
     }
+    if (hash === '#test-cv') {
+      fetch('/test-cv-preview.json')
+        .then(r => r.ok ? r.json() : Promise.reject('not found'))
+        .then((cvData: CVData) => {
+          const slotId = 'test-cv-preview';
+          const testProfile: UserProfile = {
+            personalInfo: { name: 'Alex Morgan', email: 'alex@example.com', phone: '+44 7700 000000', location: 'London, UK', linkedin: 'linkedin.com/in/alexmorgan', website: '', github: '' },
+            summary: cvData.summary,
+            workExperience: (cvData.experience ?? []).map((exp, i) => ({
+              id: `exp-${i}`,
+              company: exp.company,
+              jobTitle: exp.jobTitle,
+              startDate: exp.startDate,
+              endDate: exp.endDate,
+              responsibilities: (exp.responsibilities ?? []).join('\n'),
+            })),
+            education: (cvData.education ?? []).map((edu, i) => ({
+              id: `edu-${i}`,
+              degree: edu.degree,
+              school: edu.school,
+              graduationYear: edu.year,
+            })),
+            skills: cvData.skills ?? [],
+            projects: [],
+            languages: [],
+          };
+          const testSlot: UserProfileSlot = {
+            id: slotId,
+            name: 'Test CV Preview',
+            color: 'amber',
+            createdAt: new Date().toISOString(),
+            profile: testProfile,
+            currentCV: cvData,
+          };
+          // Force professional template so sidebar/compact templates don't crash on minimal data
+          try { localStorage.setItem('template', 'professional'); } catch {}
+          setProfiles(prev => {
+            const exists = prev.some(p => p.id === slotId);
+            return exists ? prev.map(p => p.id === slotId ? testSlot : p) : [testSlot, ...prev];
+          });
+          setActiveProfileId(slotId);
+          setCurrentCV(cvData);
+          setShowLanding(false);
+          setIsEditingProfile(false);
+          window.history.replaceState(null, '', window.location.pathname);
+        })
+        .catch(() => {});
+    }
   }, []);
 
   // Close More menu on outside click
