@@ -45,6 +45,48 @@ const SUBSTITUTIONS: Array<[RegExp, string]> = [
     [/\bresults[- ]driven\b/gi,          'delivery-focused'],
     [/\bdetail[- ]oriented\b/gi,         'thorough'],
     [/\bgo[- ]getter\b/gi,               'self-starter'],
+
+    // ── AI-invented fake verbs (commonly hallucinated by LLMs as "professional" ──
+    // but unnatural in real human CVs). Replace with the plain equivalent.
+    [/\bgreenfielded\b/gi,               'built'],
+    [/\bgreenfiel(?:ding|s)\b/gi,        'building'],
+    // "Scaffolded" in a non-software context (project management, org design) is
+    // an AI tell. We replace with "established" which is always safe. In genuine
+    // software contexts ("scaffolded the API endpoints") it's acceptable but we
+    // still swap to avoid recruiter confusion.
+    [/\bscaffolded\b/gi,                 'established'],
+    [/\bscaffolding\b/gi,                'establishing'],
+    // "Materialized X" meaning "created/developed X" — AI-specific usage.
+    // The word is fine in scientific writing but sounds invented in CV bullets.
+    [/\bmaterialized\b/gi,               'developed'],
+    [/\bmaterialize[sd]?\b/gi,           'develop'],
+    // "Actioned" — used heavily by AI as a past tense for "actioned the request".
+    [/\bactioned\b/gi,                   'completed'],
+    [/\bactioning\b/gi,                  'completing'],
+    // "Ideated" — AI favourite that real humans never say in a CV.
+    [/\bideated\b/gi,                    'developed'],
+    [/\bideating\b/gi,                   'developing'],
+    // "Solutioned" — not a real word.
+    [/\bsolutioned\b/gi,                 'resolved'],
+    [/\bsolutioning\b/gi,                'resolving'],
+
+    // ── Broken fragment fix: "hands- in" → "hands-on experience in" ──────────
+    // Caused when the LLM writes "hands-on" but drops the "on" due to context
+    // truncation, leaving an orphaned hyphen. Always safe to repair.
+    [/\bhands-\s+in\b/gi,                'hands-on experience in'],
+
+    // ── Summary "seeking" constructs — banned in summaries ───────────────────
+    // CVs speak FROM the candidate's value, not ABOUT what they want.
+    // These openers flip the sentence from value-proposition to job-request tone.
+    [/\bseeking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand|utilise|utilize)\b/gi, ''],
+    [/\baiming to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
+    [/\blooking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
+
+    // ── Padding phrases that survive word-level checks ────────────────────────
+    [/\binitiative delivery\b/gi,        'project delivery'],
+    [/\btimely initiative\b/gi,          'timely project'],
+    [/\bensure(?:s|d)? timely delivery\b/gi, 'deliver on time'],
+    [/\bensure(?:s|d)? timely\b/gi,      'deliver on time for'],
     // POS-preserving: noun → noun. Earlier mapping to "collaborative" (an
     // adjective) produced ungrammatical output like "I am a collaborative" when
     // the preceding article wasn't stripped.
