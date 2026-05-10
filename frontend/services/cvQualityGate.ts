@@ -579,10 +579,11 @@ export const CRITICAL_RULES_REMINDER = `
 3. Bullet rhythm: MIX lengths — short punchy bullets (8–10 words) must ALTERNATE with fuller ones (15–22 words). Do NOT write 3+ consecutive short bullets.
 4. Bullets: ZERO invented verbs — Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized.
 5. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
-6. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
-7. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader".
-8. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number.
-9. No two bullets across the ENTIRE document start with the same verb.
-10. Skills: NO duplicate entries — each skill must appear exactly once.
+6. Bullets: MIX opener categories across the document — do NOT cluster all bullets under Technical verbs (Built, Developed, Designed). Rotate through: Management (Led, Managed, Directed), Analysis (Analysed, Evaluated, Assessed), Communication (Presented, Reported, Liaised), Financial (Budgeted, Costed, Negotiated) — matching the candidate's actual role type.
+7. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
+8. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader".
+9. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number.
+10. No two bullets across the ENTIRE document start with the same verb.
+11. Skills: NO duplicate entries — each skill must appear exactly once.
 === END FINAL CHECK ===
 `;

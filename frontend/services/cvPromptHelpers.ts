@@ -84,22 +84,34 @@ export function detectField(jd: string | undefined, profile?: UserProfile): CVFi
     // engineering JD is classified as "civil_engineering" — not "tech" or "data_analytics"
     // because those keywords appear in the candidate's skills list (Python, Java, Git).
     const jdCorpus = (jd || '').toLowerCase();
-    const profileCorpus = [
+    const jdPresent = jdCorpus.trim().length > 50;
+
+    // When no JD is attached, job titles are the strongest signal — they name
+    // the actual role the candidate has held, while skills are noisy (a civil
+    // engineer legitimately lists Python, Git, SQL). Give titles 5× weight on
+    // no-JD paths and keep skills at 1×. When a JD IS present, titles fold
+    // back to 1× so the JD (3×) stays dominant.
+    const titleCorpus = (profile?.workExperience || [])
+        .map(e => (e.jobTitle || '').toLowerCase())
+        .join(' ');
+    const bodyCorpus = [
         ...(profile?.workExperience || []).map(e =>
-            `${e.jobTitle || ''} ${e.company || ''} ${e.responsibilities || ''}`),
+            `${e.company || ''} ${e.responsibilities || ''}`),
         ...(Array.isArray((profile as any)?.skills) ? (profile as any).skills : []),
     ].join(' ').toLowerCase();
 
-    const jdPresent = jdCorpus.trim().length > 50;
+    const titleWeight = jdPresent ? 1 : 5;
 
     let best: { field: CVField; score: number } = { field: 'general', score: 0 };
     for (const [field, kws] of Object.entries(FIELD_KEYWORDS) as Array<[Exclude<CVField, 'general'>, string[]]>) {
         let score = 0;
         for (const kw of kws) {
             // JD match: worth 3 points (dominant signal when present).
-            if (jdCorpus.includes(kw)) score += jdPresent ? 3 : 1;
-            // Profile match: worth 1 point (tiebreaker / fallback when no JD).
-            if (profileCorpus.includes(kw)) score += 1;
+            if (jdPresent && jdCorpus.includes(kw)) score += 3;
+            // Title match: worth 5× when no JD, 1× when JD present.
+            if (titleCorpus.includes(kw)) score += titleWeight;
+            // Skills / responsibilities: worth 1 point (tiebreaker / context).
+            if (bodyCorpus.includes(kw)) score += 1;
         }
         if (score > best.score) best = { field, score };
     }

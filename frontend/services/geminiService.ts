@@ -2879,6 +2879,8 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                     const gateResult = await runQualityGate(sectionSummary, sectionExperience, {
                         repair: true,
                         jd: jd || undefined,
+                        skills:   Array.isArray(sectionSkills)   ? sectionSkills   : undefined,
+                        projects: Array.isArray(sectionProjects) ? sectionProjects : undefined,
                         profileFingerprint: profile?.personalInfo?.name
                             ? btoa(unescape(encodeURIComponent(`${profile.personalInfo.name}::${profile.personalInfo?.email ?? ''}`)))
                             : undefined,
