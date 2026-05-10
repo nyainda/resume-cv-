@@ -1351,6 +1351,31 @@ function stripOrphanMetrics(text: string): { text: string; changed: boolean } {
  * Emits a `unquantified_metric_verb` leak so the AI provider gets feedback
  * to either include a number or drop the metric verb upstream next time.
  */
+/**
+ * CONSECUTIVE PREPOSITION PAIR — catches "by through" / "of via" / "to with"
+ * patterns that appear when the AI generates a broken sentence (no metric
+ * landed between two prepositions, e.g. the model was told not to invent
+ * numbers so it left a gap). Applied as a dedicated step AFTER orphan_metric
+ * so patterns that survive stripOrphanMetrics are also caught.
+ *
+ * Examples fixed:
+ *   "Grown revenue by through technical sales"  → "Grown revenue through technical sales"
+ *   "reduced costs by via automation"           → "reduced costs via automation"
+ *   "improved throughput of through optimisation" → "improved throughput through optimisation"
+ *
+ * Run twice inside the function to handle rare chains like "by of through".
+ */
+function fixConsecutivePrepositions(text: string): { text: string; changed: boolean } {
+    if (!text) return { text: text || '', changed: false };
+    const rx =
+        /\b(?:by|of|to|from|with|over|under|above|below|about|around|approximately|roughly|nearly|almost)\s+(?=(?:through|via|using|across|within|into|toward|towards|upon|onto|along|around|over|under|above|below)\b)/gi;
+    let out = text;
+    out = out.replace(rx, '');
+    out = out.replace(rx, ''); // second pass catches chains ("by of through")
+    out = out.replace(/\s{2,}/g, ' ').trim();
+    return { text: out, changed: out !== text };
+}
+
 const METRIC_GERUNDS = [
     // "achievement" verbs
     'achieving', 'reaching', 'delivering', 'generating', 'producing',
@@ -1671,6 +1696,10 @@ function polishBullet(bullet: string): { text: string; fixes: string[] } {
     // sees the space and treats them as orphans.
     apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
+    // Belt-and-suspenders: catch any "by through" / "of via" consecutive
+    // preposition pair that survived stripOrphanMetrics (e.g. the AI
+    // generated the gap directly without a metric ever being present).
+    apply('consec_prep_fix',  fixConsecutivePrepositions);
     // Universal: strip ", <metric-gerund> …" clauses with no number.
     // Runs AFTER orphan_metric so a stripped orphan ("…, achieving.8M")
     // doesn't mask a still-dangling clause ("…, achieving water savings").
@@ -1720,6 +1749,9 @@ function polishSummary(text: string): { text: string; fixes: string[] } {
     // number_format BEFORE orphan_metric — see polishBullet for rationale.
     apply('number_format',    formatNumbers);
     apply('orphan_metric',    stripOrphanMetrics);
+    // Belt-and-suspenders: catch any "by through" / "of via" consecutive
+    // preposition pair that survived stripOrphanMetrics — same as polishBullet.
+    apply('consec_prep_fix',  fixConsecutivePrepositions);
     apply('whitespace_dashes', normaliseWhitespaceAndDashes);
     // trailing_period SKIPPED — summaries DO end with a period.
     apply('capitalise',       capitaliseFirst);

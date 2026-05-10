@@ -521,7 +521,18 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     // explicitly which gaps to bridge — making every generation tailored.
     const _gapKeywords: string[] | undefined =
       (hasJD && cvPurpose === 'job' && currentCV)
-        ? scoreAtsCoverage(currentCV, jobDescription).missing.slice(0, 12)
+        ? scoreAtsCoverage(currentCV, jobDescription).missing
+            .filter(kw => {
+              const t = kw.trim();
+              // Drop very short abbreviations like "GE" (2 chars) or "CV" (2 chars)
+              // which are too ambiguous to inject verbatim and pollute the prompt.
+              // Also always exclude the word "CV" itself — it is never a meaningful
+              // ATS gap keyword (it refers to the document, not a skill).
+              if (t.length <= 2) return false;
+              if (t.toLowerCase() === 'cv') return false;
+              return true;
+            })
+            .slice(0, 12)
         : undefined;
 
     // Helper — run one generation attempt and populate generatedData

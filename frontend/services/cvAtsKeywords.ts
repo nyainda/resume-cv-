@@ -23,6 +23,12 @@ const ACRONYM_STOPWORDS = new Set([
     'CAN', 'ITS', 'OUR', 'YOU', 'MAY', 'WILL', 'WILL', 'ALSO', 'SUCH', 'ANY',
     'WHO', 'HOW', 'NEW', 'USE', 'KEY', 'GET', 'SET', 'LET', 'PUT', 'ONE',
     'TWO', 'SIX', 'TEN', 'YES', 'NO', 'OR', 'TO', 'IN', 'OF', 'AT', 'BE',
+    // Document / generic abbreviations — these are NEVER meaningful ATS gap
+    // keywords because they refer to the CV itself or are too ambiguous to
+    // inject verbatim into bullets (e.g. "CV" = curriculum vitae, "GE" = a
+    // common two-letter abbreviation that appears in many JDs with different
+    // meanings, "TBC", "TBD", "N/A", "NA", etc.).
+    'CV', 'GE', 'TBC', 'TBD', 'NA', 'TBA', 'EG', 'IE', 'VS', 'RE',
 ]);
 
 const PHRASE_STOPWORDS = new Set([
