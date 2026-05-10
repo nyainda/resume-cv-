@@ -28,6 +28,7 @@ import {
     buildReferenceBlock,
 } from './cvExamplesClient';
 import { getHashIfCached } from './profileCacheClient';
+import { runQualityGate, consumePreviousViolationsBlock, CRITICAL_RULES_REMINDER } from './cvQualityGate';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
 // In-memory LRU-style cache so regenerating the same profile+JD combo is instant.
@@ -2774,6 +2775,25 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         const stripCvSchema = (s: string) => s.split(CV_DATA_SCHEMA).join('').trim();
         let preamble = stripCvSchema(mainPromptInstruction);
 
+        // ── Recency boost — CRITICAL RULES REMINDER ───────────────────────────
+        // Appended to the END of the preamble (right before each section's
+        // instruction) to exploit LLM recency bias. Rules placed last in the
+        // context receive more attention than those buried in the middle of a
+        // 20–40K char profile/JD prompt.
+        preamble += CRITICAL_RULES_REMINDER;
+
+        // ── Regenerate improvement — previous violation memory ─────────────────
+        // If the quality gate found critical violations in the last generation,
+        // inject a "DO NOT REPEAT" block at the very START of the preamble so
+        // the LLM sees the failures via primacy bias before reading the profile.
+        // consumePreviousViolationsBlock() clears the key after reading it, so
+        // this block only fires once per cycle — not on every subsequent call.
+        const prevViolationsBlock = consumePreviousViolationsBlock();
+        if (prevViolationsBlock) {
+            preamble = prevViolationsBlock + preamble;
+            console.info('[CV Gen] Injected previous-violations block into preamble for regenerate improvement.');
+        }
+
         // Profile cache optimisation — if the compact profile was previously
         // uploaded to D1, replace its text with {{PROFILE}} so the worker
         // fetches it server-side. This shrinks the HTTP request body significantly
@@ -2836,10 +2856,26 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             const okEducation  = Array.isArray(sectionEducation);
 
             if (okSummary && okSkills && okExperience && okEducation) {
+                // ── Quality Gate — Stage 1 (score) + Stage 2 (repair) ────────────
+                // Runs on the RAW Worker AI output before purifyCV / humanizer so
+                // that structural violations (seeking opener, all-metric roles) get
+                // a targeted LLM repair call (300–600 tokens) instead of requiring
+                // the user to hit Regenerate. Graceful: if repair fails the raw
+                // sections flow into the existing polish pipeline unchanged.
+                let gatedSummary    = sectionSummary;
+                let gatedExperience = sectionExperience;
+                try {
+                    const gateResult = await runQualityGate(sectionSummary, sectionExperience, { repair: true });
+                    if (gateResult.repairedSummary)    gatedSummary    = gateResult.repairedSummary;
+                    if (gateResult.repairedExperience) gatedExperience = gateResult.repairedExperience;
+                } catch (gateErr) {
+                    console.debug('[CV Gen] Quality gate threw (non-fatal, using raw sections):', gateErr);
+                }
+
                 cvDataFromSections = {
-                    summary:    sectionSummary,
+                    summary:    gatedSummary,
                     skills:     sectionSkills,
-                    experience: sectionExperience,
+                    experience: gatedExperience,
                     education:  sectionEducation,
                     projects:   Array.isArray(sectionProjects) && sectionProjects.length > 0 ? sectionProjects : undefined,
                 };
