@@ -115,11 +115,11 @@ function scoreSummary(summary: string, jd?: string): QualityViolation[] {
     }
 
     const words = summary.trim().split(/\s+/).filter(Boolean).length;
-    if (words < 45) {
+    if (words < 60) {
         v.push({
             section:  'summary',
             type:     'too_short',
-            detail:   `Summary is only ${words} words — minimum is 60. Expand with one concrete achievement and a forward-looking value statement.`,
+            detail:   `Summary is only ${words} words — minimum is 60. Expand with one concrete achievement and a forward-looking value statement across 3–4 sentences.`,
             severity: 'critical',
         });
     } else if (words > 115) {
@@ -143,6 +143,13 @@ function scoreSummary(summary: string, jd?: string): QualityViolation[] {
     return v;
 }
 
+// Minimum word count per bullet — anything shorter is a stub that adds no value.
+const BULLET_MIN_WORDS = 8;
+
+// Arrow separators ("→") used as sentence connectors inside a bullet. These
+// create run-on mega-sentences that don't scan as discrete achievements.
+const ARROW_SEPARATOR_PATTERN = /\s*→\s*/;
+
 function scoreExperience(experience: any[]): QualityViolation[] {
     const v: QualityViolation[] = [];
 
@@ -160,6 +167,53 @@ function scoreExperience(experience: any[]): QualityViolation[] {
                 type:     'all_metrics',
                 detail:   `Role ${label}: every bullet (${bullets.length}/${bullets.length}) has a metric. Max 55% should carry numbers — rewrite 1–2 bullets to be purely qualitative (action + context, no number).`,
                 severity: 'critical',
+            });
+        }
+
+        // Bullet too-short check — stubs like "Reviewed project documentation"
+        // (3 words) are truncated AI output, not real bullet points.
+        const stubBullets = bullets.filter(b => b.trim().split(/\s+/).filter(Boolean).length < BULLET_MIN_WORDS);
+        if (stubBullets.length > 0) {
+            v.push({
+                section:  'experience',
+                type:     'bullet_too_short',
+                detail:   `Role ${label}: ${stubBullets.length} bullet(s) under ${BULLET_MIN_WORDS} words — too thin to convey achievement. Each bullet needs an action verb, context, and scope. Stubs: ${stubBullets.map(b => `"${b.trim().slice(0, 40)}"` ).join(', ')}.`,
+                severity: 'critical',
+            });
+        }
+
+        // Rhythm check — ≥3 consecutive bullets all under 12 words signals flat
+        // machine-output with no short-long-short-long variation.
+        const SHORT_THRESHOLD = 12;
+        let consecutiveShort = 0;
+        let maxConsecutiveShort = 0;
+        for (const b of bullets) {
+            const wc = b.trim().split(/\s+/).filter(Boolean).length;
+            if (wc < SHORT_THRESHOLD) {
+                consecutiveShort++;
+                maxConsecutiveShort = Math.max(maxConsecutiveShort, consecutiveShort);
+            } else {
+                consecutiveShort = 0;
+            }
+        }
+        if (maxConsecutiveShort >= 3) {
+            v.push({
+                section:  'experience',
+                type:     'flat_bullet_rhythm',
+                detail:   `Role ${label}: ${maxConsecutiveShort} consecutive short bullets (all under ${SHORT_THRESHOLD} words). Mix bullet lengths — short punchy bullets (8–10 words) should alternate with fuller ones (15–22 words) to create natural reading rhythm.`,
+                severity: 'moderate',
+            });
+        }
+
+        // Arrow separator check — "→" used to chain sentences inside one bullet
+        // creates unreadable mega-bullets and is a clear AI output artefact.
+        const arrowBullets = bullets.filter(b => ARROW_SEPARATOR_PATTERN.test(b));
+        if (arrowBullets.length > 0) {
+            v.push({
+                section:  'experience',
+                type:     'arrow_separator',
+                detail:   `Role ${label}: ${arrowBullets.length} bullet(s) use "→" as a sentence separator. Split into separate bullets or rewrite as a single continuous achievement sentence.`,
+                severity: 'moderate',
             });
         }
 
@@ -226,6 +280,62 @@ function scoreExperience(experience: any[]): QualityViolation[] {
             }
             openerSet.add(firstWord);
         }
+    }
+
+    return v;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Skills scorer — checks for duplicate entries (case-insensitive) that signal
+// a copy-paste or AI hallucination artefact where the same skill appears twice
+// under different headings or slightly different capitalisation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function scoreSkills(skills: string[]): QualityViolation[] {
+    const v: QualityViolation[] = [];
+    if (!Array.isArray(skills) || skills.length === 0) return v;
+
+    const seen = new Map<string, string>(); // normalised → original
+    const dupes: string[] = [];
+
+    for (const skill of skills) {
+        if (typeof skill !== 'string' || !skill.trim()) continue;
+        const key = skill.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (seen.has(key)) {
+            dupes.push(skill.trim());
+        } else {
+            seen.set(key, skill.trim());
+        }
+    }
+
+    if (dupes.length > 0) {
+        v.push({
+            section:  'skills',
+            type:     'duplicate_skill',
+            detail:   `Skills list contains ${dupes.length} duplicate(s): ${dupes.map(s => `"${s}"`).join(', ')}. Remove the duplicates — each skill should appear exactly once.`,
+            severity: 'moderate',
+        });
+    }
+
+    return v;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Projects scorer — checks arrow separators inside project descriptions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function scoreProjects(projects: any[]): QualityViolation[] {
+    const v: QualityViolation[] = [];
+    if (!Array.isArray(projects)) return v;
+
+    const arrowProjects = projects.filter(p => typeof p?.description === 'string' && ARROW_SEPARATOR_PATTERN.test(p.description));
+    if (arrowProjects.length > 0) {
+        v.push({
+            section:  'projects',
+            type:     'arrow_separator',
+            detail:   `${arrowProjects.length} project description(s) use "→" as a sentence separator (${arrowProjects.map((p: any) => `"${(p.name || 'unnamed').slice(0, 30)}"`).join(', ')}). Rewrite as flowing prose sentences — do not use arrows to chain clauses.`,
+            severity: 'moderate',
+        });
     }
 
     return v;
@@ -331,13 +441,15 @@ Return ONLY the corrected JSON array. Same structure, same keys. No markdown, no
 export async function runQualityGate(
     summary: string,
     experience: any[],
-    options: { repair?: boolean; jd?: string; profileFingerprint?: string } = {},
+    options: { repair?: boolean; jd?: string; profileFingerprint?: string; skills?: string[]; projects?: any[] } = {},
 ): Promise<QualityGateResult> {
     const repair = options.repair !== false; // default true
 
     const summaryViolations    = scoreSummary(summary, options.jd);
     const experienceViolations = scoreExperience(experience);
-    const allViolations        = [...summaryViolations, ...experienceViolations];
+    const skillsViolations     = options.skills ? scoreSkills(options.skills) : [];
+    const projectsViolations   = options.projects ? scoreProjects(options.projects) : [];
+    const allViolations        = [...summaryViolations, ...experienceViolations, ...skillsViolations, ...projectsViolations];
 
     const criticalSummary = summaryViolations.filter(v => v.severity === 'critical');
     const criticalExp     = experienceViolations.filter(v => v.severity === 'critical');
@@ -462,11 +574,15 @@ function _saveViolationsForNextRun(violations: QualityViolation[], profileFinger
  */
 export const CRITICAL_RULES_REMINDER = `
 === FINAL QUALITY CHECK — read this LAST, it overrides all earlier guidance ===
-1. Summary: opens with job title + seniority/impact. ZERO "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to join", "Excited to contribute".
-2. Bullets: ZERO invented verbs — Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized.
-3. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
-4. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader".
-5. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number.
-6. No two bullets across the ENTIRE document start with the same verb.
+1. Summary: opens with job title + seniority/impact. ZERO "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to join", "Excited to contribute". MINIMUM 60 words, 3–4 sentences.
+2. Bullets: MINIMUM 8 words per bullet — "Reviewed project documentation" is too short, expand with context and scope.
+3. Bullet rhythm: MIX lengths — short punchy bullets (8–10 words) must ALTERNATE with fuller ones (15–22 words). Do NOT write 3+ consecutive short bullets.
+4. Bullets: ZERO invented verbs — Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized.
+5. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
+6. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
+7. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader".
+8. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number.
+9. No two bullets across the ENTIRE document start with the same verb.
+10. Skills: NO duplicate entries — each skill must appear exactly once.
 === END FINAL CHECK ===
 `;
