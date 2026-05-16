@@ -68,3 +68,8 @@ externalPort = 3002
 [userenv.shared]
 VITE_PDF_WORKER_URL = "https://resume-pdf-worker.dripstech.workers.dev"
 VITE_CV_ENGINE_URL = "https://cv-engine-worker.dripstech.workers.dev"
+
+[deployment]
+deploymentTarget = "static"
+build = ["npm", "run", "build"]
+publicDir = "dist"
