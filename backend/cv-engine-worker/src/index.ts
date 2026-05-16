@@ -3052,7 +3052,7 @@ async function handleProxyLLM(request: Request, env: Env, ctx: ExecutionContext)
     let text = '';
 
     if (provider === 'claude') {
-        const claudeModel = model || 'claude-haiku-4-5';
+        const claudeModel = model || 'claude-sonnet-4-5';
         const claudeBody: Record<string, unknown> = {
             model: claudeModel,
             max_tokens: maxTokens,

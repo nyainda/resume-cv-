@@ -15,6 +15,7 @@
     "test:cv": "npm run test:numbers && npm run test:cv-quality",
     "test:pdf": "node backend/scripts/test-pdf-download.mjs",
     "test:gap-pin": "node backend/scripts/test-gap-pin.mjs",
+    "test:pipeline": "node backend/scripts/test-full-pipeline.mjs",
     "test:banned": "node backend/scripts/test-banned-phrase-filter.mjs",
     "test:rhythm": "node backend/scripts/test-bullet-rhythm.mjs",
     "test:batch-cv": "node backend/scripts/batch-cv-test.mjs",

@@ -250,7 +250,7 @@ export async function testProviderConnection(
         const key = provider === 'claude' ? getClaudeApiKey() : getGeminiApiKey();
         if (!key) return { ok: false, error: `No ${provider === 'claude' ? 'Claude' : 'Gemini'} API key configured.` };
         await proxyLLMCall(provider, key, 'You are a connection test.', 'Reply with the single word OK.', { temperature: 0, maxTokens: 5 });
-        return { ok: true, model: provider === 'claude' ? 'claude-haiku-4-5' : 'gemini-2.0-flash' };
+        return { ok: true, model: provider === 'claude' ? 'claude-sonnet-4-5' : 'gemini-2.0-flash' };
     } catch (e: any) {
         return { ok: false, error: e?.message || 'Connection test failed.' };
     }

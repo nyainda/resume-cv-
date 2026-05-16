@@ -1,6 +1,6 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
-import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine } from './groqService';
+import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
@@ -742,30 +742,32 @@ The "cv" field must ALWAYS be present — even when all checks pass.
     const validatorSystem = _validatorSystem || 'You are a strict CV quality validator. Return only valid JSON.';
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
-    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
-    // Tiered route: 'cvValidate' → Llama 4 Scout 17B (PAID but ~3x cheaper output
-    // than the legacy 70b that the generic /api/cv/llm endpoint uses).
-    try {
-        const cf = await workerTieredLLM('cvValidate', validatorPrompt, {
-            system: validatorSystem,
-            temperature: 0.1,
-            json: true,
-            maxTokens: 4000,
-        });
-        if (cf) {
-            try {
-                const parsed = JSON.parse(stripFences(cf));
-                if (parsed.flags && parsed.flags.length > 0) {
-                    console.warn('[CV Validator] Flags raised (cf):', parsed.flags);
+    // Use Cloudflare Workers AI only when it is the selected provider.
+    // When user has chosen Claude or Gemini, skip directly to groqChat (which
+    // routes through their selected provider) — no wasted timeout on Worker AI.
+    if (getSelectedProvider() === 'workers-ai') {
+        try {
+            const cf = await workerTieredLLM('cvValidate', validatorPrompt, {
+                system: validatorSystem,
+                temperature: 0.1,
+                json: true,
+                maxTokens: 4000,
+            });
+            if (cf) {
+                try {
+                    const parsed = JSON.parse(stripFences(cf));
+                    if (parsed.flags && parsed.flags.length > 0) {
+                        console.warn('[CV Validator] Flags raised (cf):', parsed.flags);
+                    }
+                    console.log('[CV Validator] Pass complete via Cloudflare Workers AI (tiered: cvValidate).');
+                    return parsed.cv || cvData;
+                } catch (parseErr) {
+                    console.warn('[CV Validator] Worker JSON parse failed, falling back to selected provider:', parseErr);
                 }
-                console.log('[CV Validator] Pass complete via Cloudflare Workers AI (tiered: cvValidate).');
-                return parsed.cv || cvData;
-            } catch (parseErr) {
-                console.warn('[CV Validator] Worker JSON parse failed, falling back to Groq:', parseErr);
             }
+        } catch (cfErr) {
+            console.warn('[CV Validator] Worker call failed, falling back to selected provider:', cfErr);
         }
-    } catch (cfErr) {
-        console.warn('[CV Validator] Worker call failed, falling back to Groq:', cfErr);
     }
 
     try {
@@ -980,27 +982,27 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
         return merged;
     };
 
-    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
-    // Tiered route: 'cvAudit' → Llama 4 Scout 17B (PAID but cheap, replaces the
-    // legacy generic 70b call).
-    try {
-        const cf = await workerTieredLLM('cvAudit', auditPrompt, {
-            system: auditSystem,
-            temperature: 0.15,
-            json: true,
-            maxTokens: 4000,
-        });
-        if (cf) {
-            try {
-                const merged = mergePartial(cf);
-                console.log('[CV Humanizer] Audit pass complete via Cloudflare Workers AI (tiered: cvAudit).');
-                return merged;
-            } catch (parseErr) {
-                console.warn('[CV Humanizer] Worker JSON parse failed, falling back to Groq:', parseErr);
+    // Use Cloudflare Workers AI only when it is the selected provider.
+    if (getSelectedProvider() === 'workers-ai') {
+        try {
+            const cf = await workerTieredLLM('cvAudit', auditPrompt, {
+                system: auditSystem,
+                temperature: 0.15,
+                json: true,
+                maxTokens: 4000,
+            });
+            if (cf) {
+                try {
+                    const merged = mergePartial(cf);
+                    console.log('[CV Humanizer] Audit pass complete via Cloudflare Workers AI (tiered: cvAudit).');
+                    return merged;
+                } catch (parseErr) {
+                    console.warn('[CV Humanizer] Worker JSON parse failed, falling back to selected provider:', parseErr);
+                }
             }
+        } catch (cfErr) {
+            console.warn('[CV Humanizer] Worker call failed, falling back to selected provider:', cfErr);
         }
-    } catch (cfErr) {
-        console.warn('[CV Humanizer] Worker call failed, falling back to Groq:', cfErr);
     }
 
     try {
@@ -1857,17 +1859,18 @@ let CV_DATA_SCHEMA = ``; // populated by loadRules() — text lives in CF Worker
 // --- Humanize a block of plain text to remove AI patterns ---
 export const humanizeText = async (text: string): Promise<string> => {
     const prompt = `Rewrite the following professional text so it sounds naturally human-written. Preserve all facts, dates, names, and numbers. Only change phrasing and style.\n\nTEXT TO REWRITE:\n${text}`;
-    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
-    // Tiered route: 'humanize' → Hermes-2 Pro 7B (FREE, fast, good for plain-text rewrites).
-    try {
-        const cf = await workerTieredLLM('humanize', prompt, {
-            system: SYSTEM_INSTRUCTION_HUMANIZER,
-            temperature: 0.8,
-            maxTokens: 2500,
-        });
-        if (cf && cf.trim()) return cf;
-    } catch (cfErr) {
-        console.warn('[humanizeText] Worker call failed, falling back to Groq:', cfErr);
+    // Use Cloudflare Workers AI only when it is the selected provider.
+    if (getSelectedProvider() === 'workers-ai') {
+        try {
+            const cf = await workerTieredLLM('humanize', prompt, {
+                system: SYSTEM_INSTRUCTION_HUMANIZER,
+                temperature: 0.8,
+                maxTokens: 2500,
+            });
+            if (cf && cf.trim()) return cf;
+        } catch (cfErr) {
+            console.warn('[humanizeText] Worker call failed, falling back to selected provider:', cfErr);
+        }
     }
     return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.8, maxTokens: 2500 });
 };
@@ -1969,24 +1972,23 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         ${USER_PROFILE_SCHEMA}
     `;
 
-    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
-    // Tiered route: 'parser' → Mistral Small 3.1 24B (FREE within daily Neuron
-    // allowance, strong structured-JSON extraction).
+    // Use Cloudflare Workers AI only when it is the selected provider.
     let text: string | null = null;
-    try {
-        const cf = await workerTieredLLM('parser', prompt, {
-            system: SYSTEM_INSTRUCTION_PARSER,
-            temperature: 0.1,
-            json: true,
-            maxTokens: 4096,
-        });
-        if (cf && cf.trim()) {
-            // Sanity-check the worker output is valid JSON before committing to it.
-            try { JSON.parse(cf.trim()); text = cf; }
-            catch { console.warn('[parseProfileText] Worker JSON parse failed, falling back to Groq.'); }
+    if (getSelectedProvider() === 'workers-ai') {
+        try {
+            const cf = await workerTieredLLM('parser', prompt, {
+                system: SYSTEM_INSTRUCTION_PARSER,
+                temperature: 0.1,
+                json: true,
+                maxTokens: 4096,
+            });
+            if (cf && cf.trim()) {
+                try { JSON.parse(cf.trim()); text = cf; }
+                catch { console.warn('[parseProfileText] Worker JSON parse failed, falling back to selected provider.'); }
+            }
+        } catch (cfErr) {
+            console.warn('[parseProfileText] Worker call failed, falling back to selected provider:', cfErr);
         }
-    } catch (cfErr) {
-        console.warn('[parseProfileText] Worker call failed, falling back to Groq:', cfErr);
     }
     if (!text) {
         text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
@@ -3067,17 +3069,19 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
             const voiceFixSystem = 'You are a precise CV editor that returns only valid JSON.';
             const stripFencesVoice = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
             let raw: string | null = null;
-            try {
-                raw = await workerTieredLLM('voiceConsistency', fixPrompt, {
-                    system: voiceFixSystem,
-                    temperature: 0.4,
-                    json: true,
-                    maxTokens: 1200,
-                    timeoutMs: 30000,
-                });
-                if (raw) console.log(`[CV Engine] Voice fix via Workers AI (free tier) — ${role.jobTitle}.`);
-            } catch (cfErr) {
-                console.warn('[CV Engine] Workers AI voice fix failed, falling back to Groq:', cfErr);
+            if (getSelectedProvider() === 'workers-ai') {
+                try {
+                    raw = await workerTieredLLM('voiceConsistency', fixPrompt, {
+                        system: voiceFixSystem,
+                        temperature: 0.4,
+                        json: true,
+                        maxTokens: 1200,
+                        timeoutMs: 30000,
+                    });
+                    if (raw) console.log(`[CV Engine] Voice fix via Workers AI — ${role.jobTitle}.`);
+                } catch (cfErr) {
+                    console.warn('[CV Engine] Workers AI voice fix failed, falling back to selected provider:', cfErr);
+                }
             }
             if (!raw) raw = await groqChat(GROQ_FAST, voiceFixSystem, fixPrompt, { temperature: 0.4, json: true, maxTokens: 1200 });
             const parsed = JSON.parse(stripFencesVoice(raw ?? '{}'));
@@ -3350,18 +3354,19 @@ export const generateCoverLetter = async (profileInput: UserProfile, jobDescript
         7. **Output**: Return ONLY the plain text of the letter body (starting with "Dear Hiring Manager,"). NO markdown, NO headers, NO meta-commentary.
     `;
 
-    // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
-    // Tiered route: 'coverLetter' → Hermes-2 Pro 7B (FREE, fast, plain-text gen).
+    // Use Cloudflare Workers AI only when it is the selected provider.
     let letter: string | null = null;
-    try {
-        const cf = await workerTieredLLM('coverLetter', prompt, {
-            system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-            temperature: 0.7,
-            maxTokens: 2000,
-        });
-        if (cf && cf.trim()) letter = cf;
-    } catch (cfErr) {
-        console.warn('[generateCoverLetter] Worker call failed, falling back to Groq:', cfErr);
+    if (getSelectedProvider() === 'workers-ai') {
+        try {
+            const cf = await workerTieredLLM('coverLetter', prompt, {
+                system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+                temperature: 0.7,
+                maxTokens: 2000,
+            });
+            if (cf && cf.trim()) letter = cf;
+        } catch (cfErr) {
+            console.warn('[generateCoverLetter] Worker call failed, falling back to selected provider:', cfErr);
+        }
     }
     if (!letter) {
         letter = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
@@ -3581,23 +3586,25 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
     `;
 
     const stripFencesJd = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    // Try Workers AI free model first (jdParse task → llama-3.1-8b, free)
-    try {
-        const cfText = await workerTieredLLM('jdParse', prompt, {
-            system: SYSTEM_INSTRUCTION_PARSER,
-            temperature: 0.1,
-            json: true,
-            maxTokens: 512,
-            timeoutMs: 20000,
-        });
-        if (cfText) {
-            console.log('[JD Parse] Parsed via Workers AI (free tier).');
-            const result = JSON.parse(stripFencesJd(cfText));
-            storeJdAnalysisCache(jdHash, result);
-            return result;
+    // Use Cloudflare Workers AI only when it is the selected provider.
+    if (getSelectedProvider() === 'workers-ai') {
+        try {
+            const cfText = await workerTieredLLM('jdParse', prompt, {
+                system: SYSTEM_INSTRUCTION_PARSER,
+                temperature: 0.1,
+                json: true,
+                maxTokens: 512,
+                timeoutMs: 20000,
+            });
+            if (cfText) {
+                console.log('[JD Parse] Parsed via Workers AI.');
+                const result = JSON.parse(stripFencesJd(cfText));
+                storeJdAnalysisCache(jdHash, result);
+                return result;
+            }
+        } catch (cfErr) {
+            console.warn('[JD Parse] Workers AI failed, falling back to selected provider:', cfErr);
         }
-    } catch (cfErr) {
-        console.warn('[JD Parse] Workers AI failed, falling back to Groq:', cfErr);
     }
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 512 });
     const result = JSON.parse(stripFencesJd(text));
