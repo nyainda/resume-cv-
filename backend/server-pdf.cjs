@@ -617,10 +617,13 @@ app.post('/api/claude', async (req, res) => {
             headers,
             body:    JSON.stringify(req.body),
         });
-        const data = await upstream.json();
+        const rawText = await upstream.text();
+        console.log(`[Claude Proxy] Anthropic responded HTTP ${upstream.status}: ${rawText.slice(0, 400)}`);
+        let data;
+        try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
         res.status(upstream.status).json(data);
     } catch (err) {
-        console.error('[Claude Proxy] Error:', err.message);
+        console.error('[Claude Proxy] Network error:', err.message);
         res.status(502).json({ error: 'Claude proxy error: ' + err.message });
     }
 });
