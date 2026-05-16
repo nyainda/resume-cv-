@@ -312,17 +312,18 @@ export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'qwen';
 
 export interface ApiSettings {
   provider: AIProvider;
-  apiKey: string | null;            // Gemini key (for PDF/image parsing)
-  groqApiKey?: string | null;       // Groq key (for CV gen, cover letters, rewriting)
-  cerebrasApiKey?: string | null;   // Cerebras key (automatic fallback when Groq quota is exceeded)
-  openrouterApiKey?: string | null; // OpenRouter key (free Llama 3.3 70B & more — separate daily quota)
-  togetherApiKey?: string | null;   // Together.ai key (free Llama 3.3 70B Turbo — separate daily quota)
-  claudeApiKey?: string | null;     // Anthropic Claude key (optional AI provider)
+  aiProvider?: 'workers-ai' | 'claude' | 'gemini'; // Active AI provider (single selection)
+  apiKey: string | null;            // Gemini key (for PDF/image parsing + Gemini AI provider)
+  groqApiKey?: string | null;       // Legacy — no longer used
+  cerebrasApiKey?: string | null;   // Legacy — no longer used
+  openrouterApiKey?: string | null; // Legacy — no longer used
+  togetherApiKey?: string | null;   // Legacy — no longer used
+  claudeApiKey?: string | null;     // Anthropic Claude key (for Claude AI provider)
   tavilyApiKey?: string | null;     // For job search & company research
   brevoApiKey?: string | null;      // For sending emails via Brevo SMTP API
   msClientId?: string | null;       // Azure AD Client ID for Microsoft/OneDrive integration
   jsearchApiKey?: string | null;    // RapidAPI JSearch — live job listings
-  preferredFallback?: 'claude' | 'gemini'; // Which provider to use when Workers AI is unavailable
+  preferredFallback?: 'claude' | 'gemini'; // Legacy — superseded by aiProvider
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';

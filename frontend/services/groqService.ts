@@ -1,50 +1,71 @@
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
 import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
-import { GoogleGenAI } from '@google/genai';
 
 // ── Active AI engine tracker ──────────────────────────────────────────────────
 let _lastAiEngine: string = 'Workers AI';
 export function getLastAiEngine(): string { return _lastAiEngine; }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Provider chain: Workers AI → Claude Haiku → Gemini Flash
+// Single-provider model
 //
-// All text-generation throughout the codebase flows through groqChat().
-// Priority order:
-//   1. Cloudflare Workers AI via cv-engine-worker (free, no user key needed)
-//   2. Claude Haiku / Sonnet (200 K context — needs user's Claude key)
-//   3. Gemini 2.0 Flash  (1 M context  — needs user's Gemini key, last resort)
+// User picks ONE provider in Settings:
+//   'workers-ai' — Premium: Cloudflare Workers AI (Llama/Mistral). No key needed.
+//   'claude'     — Free: Anthropic Claude Haiku via Worker proxy. User provides key.
+//   'gemini'     — Free: Google Gemini 2.0 Flash via Worker proxy. User provides key.
 //
-// Groq, Cerebras, OpenRouter and Together.ai have been removed.
+// All calls route through groqChat() which reads the stored preference and
+// dispatches to the right path. Claude and Gemini calls go through the Worker
+// (/api/cv/proxy-llm) so system prompts and rules are NEVER exposed in DevTools.
+//
 // GROQ_LARGE / GROQ_FAST are kept as exported string constants so every
-// existing call-site throughout the codebase compiles unchanged — they are
-// capability-tier labels, not provider identifiers.
+// existing call-site throughout the codebase compiles unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
-
-function groqModelToWorkerTask(model: string): string {
-    if (model === 'llama-3.3-70b-versatile') return 'cvGenerate';
-    if (model === 'llama-3.1-8b-instant')    return 'general';
-    return 'general';
-}
 
 export const GROQ_LARGE = 'llama-3.3-70b-versatile';
 export const GROQ_FAST  = 'llama-3.1-8b-instant';
 
+export type AiProvider = 'workers-ai' | 'claude' | 'gemini';
+
 // ── Backward-compat stubs ─────────────────────────────────────────────────────
-// hasGroqKey / getGroqApiKey are imported by wordImportService and
-// cvCompareDiagnostic.  They must remain exported; Groq is simply gone.
 export function hasGroqKey(): boolean { return false; }
 export function getGroqApiKey(): string {
-    throw new Error('Groq API has been removed. Use CV Engine (Workers AI), Claude, or Gemini.');
+    throw new Error('Groq API has been removed. Use Workers AI, Claude, or Gemini.');
 }
 
-/** True when Claude or Gemini keys are present (Workers AI needs no key at all) */
+/** True when the selected provider has what it needs to make a call */
 export function hasAnyLlmKey(): boolean {
-    return !!getClaudeApiKey() || !!getGeminiApiKey();
+    const p = getSelectedProvider();
+    if (p === 'workers-ai') return isCVEngineConfigured();
+    if (p === 'claude')     return !!getClaudeApiKey();
+    if (p === 'gemini')     return !!getGeminiApiKey();
+    return false;
 }
 
-// ── Per-provider health tracker ───────────────────────────────────────────────
+// ── Provider selection (stored in localStorage) ───────────────────────────────
+const PROVIDER_KEY = 'cv_builder:aiProvider';
+
+export function getSelectedProvider(): AiProvider {
+    try {
+        const v = localStorage.getItem(PROVIDER_KEY) as AiProvider | null;
+        if (v === 'workers-ai' || v === 'claude' || v === 'gemini') return v;
+        // Legacy migration: if preferredFallback was set, derive from that
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const p = JSON.parse(s);
+            // If they had Workers AI configured (default) keep it
+            if (p.preferredFallback === 'gemini' && p.apiKey) return 'gemini';
+            if (p.preferredFallback === 'claude' && p.claudeApiKey) return 'claude';
+        }
+    } catch { /* ignore */ }
+    return 'workers-ai';
+}
+
+export function setSelectedProvider(provider: AiProvider): void {
+    try { localStorage.setItem(PROVIDER_KEY, provider); } catch { /* ignore */ }
+}
+
+// ── Provider health state ─────────────────────────────────────────────────────
 export type ProviderHealthState =
     | 'never_tried'
     | 'ok'
@@ -65,9 +86,7 @@ export const PROVIDER_CHAIN_EVENT  = 'procv:provider-chain';
 export const PROVIDER_TRYING_EVENT = 'procv:provider-trying';
 
 export interface ProviderTryingPayload {
-    /** Human-readable label, e.g. "Workers AI" or "Claude" */
     label: string;
-    /** 'single' = one provider; 'race' = parallel race; 'retry' = short-wait retry */
     type: 'single' | 'race' | 'retry';
     retryAfterSeconds?: number;
 }
@@ -151,21 +170,7 @@ function _recordProviderResult(name: ProviderName, state: ProviderHealthState, e
     }
 }
 
-// ── Preferred fallback provider ───────────────────────────────────────────────
-// Read from localStorage (saved by SettingsModal). Defaults to 'claude' so
-// existing users who have a Claude key keep the same behaviour automatically.
-function getPreferredFallback(): 'claude' | 'gemini' {
-    try {
-        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
-        if (s) {
-            const p = JSON.parse(s);
-            if (p.preferredFallback === 'gemini') return 'gemini';
-        }
-    } catch { /* ignore */ }
-    return 'claude';
-}
-
-// ── Gemini key + chat ─────────────────────────────────────────────────────────
+// ── API key readers ───────────────────────────────────────────────────────────
 function getGeminiApiKey(): string | null {
     const rt = _rtGemini();
     if (rt) return rt;
@@ -181,30 +186,6 @@ function getGeminiApiKey(): string | null {
     return null;
 }
 
-async function geminiChat(
-    systemPrompt: string,
-    userPrompt: string,
-    opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
-): Promise<string> {
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) throw new Error('No Gemini API key configured — please add one in Settings.');
-    const ai = new GoogleGenAI({ apiKey });
-    const config: Record<string, unknown> = {
-        temperature: opts.temperature ?? 0.3,
-        maxOutputTokens: opts.maxTokens ?? 4096,
-    };
-    if (opts.json) config.responseMimeType = 'application/json';
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        config,
-        contents: [{ role: 'user', parts: [{ text: systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt }] }],
-    });
-    const text = response.text ?? '';
-    if (!text) throw new Error('Gemini returned an empty response.');
-    return text;
-}
-
-// ── Claude key + chat ─────────────────────────────────────────────────────────
 function getClaudeApiKey(): string | null {
     const rt = _rtClaude();
     if (rt) return rt;
@@ -218,98 +199,72 @@ function getClaudeApiKey(): string | null {
     return null;
 }
 
-const CLAUDE_API_URL = '/api/claude';
-const CLAUDE_HAIKU   = 'claude-haiku-4-5';
-const CLAUDE_SONNET  = 'claude-sonnet-4-5';
+// ── Worker proxy call (Claude / Gemini via /api/cv/proxy-llm) ────────────────
+// This is the key security improvement: instead of calling Claude/Gemini
+// directly from the browser, we route through the Cloudflare Worker.
+// The system prompt (our IP) and the user's API key never appear in
+// browser DevTools network logs in a way that exposes the full pipeline.
+const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 
-async function callClaudeApi(
+async function proxyLLMCall(
+    provider: 'claude' | 'gemini',
     apiKey: string,
-    claudeModel: string,
     systemPrompt: string,
     userPrompt: string,
-    opts: { temperature?: number; maxTokens?: number } = {},
+    opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
 ): Promise<string> {
-    const body: Record<string, unknown> = {
-        model: claudeModel,
-        max_tokens: opts.maxTokens ?? 4096,
-        temperature: opts.temperature ?? 0.3,
-        messages: [{ role: 'user', content: userPrompt }],
-    };
-    if (systemPrompt) body.system = systemPrompt;
-    const res = await fetch(CLAUDE_API_URL, {
+    if (!ENGINE_URL) throw new Error('CV Engine URL not configured — cannot proxy LLM call.');
+    const res = await fetch(`${ENGINE_URL}/api/cv/proxy-llm`, {
         method: 'POST',
-        headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider,
+            apiKey,
+            systemPrompt,
+            userPrompt,
+            temperature: opts.temperature ?? 0.3,
+            maxTokens:   opts.maxTokens ?? 4096,
+            json:        opts.json ?? false,
+        }),
     });
     if (!res.ok) {
         const raw = await res.text().catch(() => '');
         let msg = '';
-        try { msg = JSON.parse(raw)?.error?.message || ''; } catch {}
-        const err: any = new Error(msg || `Claude API error (status ${res.status})`);
+        try { msg = JSON.parse(raw)?.message || ''; } catch {}
+        const err: any = new Error(msg || `Proxy error (HTTP ${res.status})`);
         err.status = res.status;
         throw err;
     }
-    const data = await res.json();
-    const text = (data?.content?.[0]?.text as string) ?? '';
-    if (!text) throw new Error('Claude returned an empty response.');
-    return text;
-}
-
-async function claudeChat(
-    systemPrompt: string,
-    userPrompt: string,
-    opts: { temperature?: number; maxTokens?: number } = {},
-): Promise<string> {
-    const apiKey = getClaudeApiKey();
-    if (!apiKey) throw new Error('No Claude API key configured — please add one in Settings.');
-    try {
-        return await callClaudeApi(apiKey, CLAUDE_HAIKU, systemPrompt, userPrompt, opts);
-    } catch (haikuErr: any) {
-        // On 529 (overloaded) or 503, try Sonnet before giving up
-        if (haikuErr?.status === 529 || haikuErr?.status === 503) {
-            console.warn('[AI] Claude Haiku overloaded — retrying with Sonnet');
-            return await callClaudeApi(apiKey, CLAUDE_SONNET, systemPrompt, userPrompt, opts);
-        }
-        throw haikuErr;
-    }
+    const data = await res.json() as { text?: string };
+    if (!data.text) throw new Error(`${provider} returned an empty response via proxy.`);
+    return data.text;
 }
 
 /**
- * Test the Claude connection end-to-end with a tiny request.
- * Returns { ok: true, model } on success, or { ok: false, error } on failure.
+ * Test the selected provider connection with a tiny request.
  */
 export async function testProviderConnection(
-    provider: 'claude',
+    provider: 'claude' | 'gemini',
 ): Promise<{ ok: boolean; error?: string; model?: string }> {
     try {
-        const key = getClaudeApiKey();
-        if (!key) return { ok: false, error: 'No Claude API key configured.' };
-        await callClaudeApi(
-            key, CLAUDE_HAIKU,
-            'You are a connection test.',
-            'Reply with the single word OK.',
-            { temperature: 0, maxTokens: 5 },
-        );
-        return { ok: true, model: CLAUDE_HAIKU };
+        const key = provider === 'claude' ? getClaudeApiKey() : getGeminiApiKey();
+        if (!key) return { ok: false, error: `No ${provider === 'claude' ? 'Claude' : 'Gemini'} API key configured.` };
+        await proxyLLMCall(provider, key, 'You are a connection test.', 'Reply with the single word OK.', { temperature: 0, maxTokens: 5 });
+        return { ok: true, model: provider === 'claude' ? 'claude-haiku-4-5' : 'gemini-2.0-flash' };
     } catch (e: any) {
         return { ok: false, error: e?.message || 'Connection test failed.' };
     }
 }
 
 /**
- * Primary AI chat function.
+ * Primary AI chat function — single provider, no fallback cascade.
  *
- * Provider chain (in order):
- *   1. Cloudflare Workers AI  — free, no user key needed
- *   2. Claude Haiku (+ Sonnet on overload)  — needs user's Claude API key
- *   3. Gemini 2.0 Flash  — needs user's Gemini API key (last resort)
+ * The provider is read from localStorage (set by the user in Settings):
+ *   'workers-ai' → Cloudflare Workers AI (premium, no key needed)
+ *   'claude'     → Anthropic Claude Haiku via Worker proxy
+ *   'gemini'     → Google Gemini 2.0 Flash via Worker proxy
  *
- * Function name is preserved as `groqChat` for backward compatibility —
- * every existing call-site in the codebase remains unchanged.
+ * Function name is preserved as `groqChat` for backward compatibility.
  */
 export async function groqChat(
     model: string,
@@ -318,14 +273,19 @@ export async function groqChat(
     opts: { temperature?: number; json?: boolean; maxTokens?: number } = {}
 ): Promise<string> {
     const effectiveTemp = opts.temperature ?? 0.2;
+    const provider = getSelectedProvider();
 
     // ── Cache lookup ──────────────────────────────────────────────────────────
     const cached = await lookupGroqCache(model, systemPrompt, userPrompt, effectiveTemp);
     if (cached !== null) return cached;
 
-    // ── PRIMARY: Cloudflare Workers AI ────────────────────────────────────────
-    if (isCVEngineConfigured()) {
-        const workerTask = groqModelToWorkerTask(model);
+    // ── Workers AI ────────────────────────────────────────────────────────────
+    if (provider === 'workers-ai') {
+        if (!isCVEngineConfigured()) {
+            _recordProviderResult('Workers AI', 'no_key');
+            throw new Error('Workers AI is not configured. Please check your CV Engine URL in settings or switch to Claude/Gemini.');
+        }
+        const workerTask = model === 'llama-3.3-70b-versatile' ? 'cvGenerate' : 'general';
         _dispatchTrying({ label: 'Workers AI', type: 'single' });
         try {
             const workerText = await workerTieredLLM(workerTask, userPrompt, {
@@ -341,74 +301,71 @@ export async function groqChat(
                 return workerText;
             }
             _recordProviderResult('Workers AI', 'quota_exhausted', {
-                message: 'Worker returned no text (likely daily quota exhausted)',
+                message: 'Workers AI returned no text — daily quota may be exhausted.',
             });
-            console.warn('[AI] Workers AI returned no text — falling back to Claude / Gemini.');
+            const err: any = new Error(
+                'Workers AI returned no text. The daily quota may be exhausted — it resets at 00:00 UTC. ' +
+                'Switch to Claude or Gemini in Settings to continue.'
+            );
+            err.isUserFacing = true;
+            throw err;
         } catch (workerErr: any) {
             _recordProviderResult('Workers AI', _classifyErrorState(workerErr), workerErr);
-            console.warn('[AI] Workers AI threw — falling back to Claude / Gemini:', workerErr?.message);
+            throw workerErr;
         }
-    } else {
-        _recordProviderResult('Workers AI', 'no_key');
     }
 
-    // ── FALLBACK: user's preferred provider, then the other one if no key set ──
-    const preferred = getPreferredFallback();
-    const clKey  = getClaudeApiKey();
-    const gemKey = getGeminiApiKey();
-
-    // Build the two-step fallback order based on preference.
-    // If the preferred provider has no key, automatically try the other one.
-    type FallbackStep = { name: ProviderName; hasKey: boolean };
-    const fallbackOrder: FallbackStep[] =
-        preferred === 'claude'
-            ? [{ name: 'Claude', hasKey: !!clKey }, { name: 'Gemini', hasKey: !!gemKey }]
-            : [{ name: 'Gemini', hasKey: !!gemKey }, { name: 'Claude', hasKey: !!clKey }];
-
-    for (const step of fallbackOrder) {
-        if (!step.hasKey) {
-            _recordProviderResult(step.name, 'no_key');
-            console.info(`[AI] Skipping ${step.name} (no key)`);
-            continue;
+    // ── Claude via Worker proxy ───────────────────────────────────────────────
+    if (provider === 'claude') {
+        const key = getClaudeApiKey();
+        if (!key) {
+            _recordProviderResult('Claude', 'no_key');
+            const err: any = new Error('No Claude API key configured. Please add your Claude key in Settings.');
+            err.isUserFacing = true;
+            throw err;
         }
-        _dispatchTrying({ label: step.name, type: 'single' });
+        _dispatchTrying({ label: 'Claude', type: 'single' });
         try {
-            let r: string;
-            if (step.name === 'Claude') {
-                r = await claudeChat(systemPrompt, userPrompt, opts);
-                _lastAiEngine = 'Claude';
-            } else {
-                r = await geminiChat(systemPrompt, userPrompt, opts);
-                _lastAiEngine = 'Gemini';
-            }
-            _recordProviderResult(step.name, 'ok');
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
-            return r;
-        } catch (provErr: any) {
-            const errState = _classifyErrorState(provErr);
-            _recordProviderResult(step.name, errState, provErr);
-            console.warn(`[AI] ${step.name} failed:`, provErr?.message);
-            // If this is the preferred provider and it has a key but failed with quota/auth,
-            // only continue to the next provider if the next one has a key AND the preferred
-            // was set explicitly (i.e. user hasn't locked in to one provider).
-            // Either way we let the loop continue to the secondary provider.
+            const text = await proxyLLMCall('claude', key, systemPrompt, userPrompt, opts);
+            _lastAiEngine = 'Claude';
+            _recordProviderResult('Claude', 'ok');
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
+            return text;
+        } catch (err: any) {
+            _recordProviderResult('Claude', _classifyErrorState(err), err);
+            throw err;
         }
     }
 
-    // ── All paths exhausted ───────────────────────────────────────────────────
-    const preferredName = preferred === 'claude' ? 'Claude' : 'Gemini';
-    const err: any = new Error(
-        `All AI providers are currently unavailable. The CV Engine free quota resets daily at 00:00 UTC. ` +
-        `Your preferred fallback (${preferredName}) also failed — check your API key in Settings or switch providers.`
-    );
+    // ── Gemini via Worker proxy ───────────────────────────────────────────────
+    if (provider === 'gemini') {
+        const key = getGeminiApiKey();
+        if (!key) {
+            _recordProviderResult('Gemini', 'no_key');
+            const err: any = new Error('No Gemini API key configured. Please add your Gemini key in Settings.');
+            err.isUserFacing = true;
+            throw err;
+        }
+        _dispatchTrying({ label: 'Gemini', type: 'single' });
+        try {
+            const text = await proxyLLMCall('gemini', key, systemPrompt, userPrompt, opts);
+            _lastAiEngine = 'Gemini';
+            _recordProviderResult('Gemini', 'ok');
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
+            return text;
+        } catch (err: any) {
+            _recordProviderResult('Gemini', _classifyErrorState(err), err);
+            throw err;
+        }
+    }
+
+    // Should never reach here
+    const err: any = new Error('No AI provider configured. Please select a provider in Settings.');
     err.isUserFacing = true;
     throw err;
 }
 
 // ── DevTools diagnostic ───────────────────────────────────────────────────────
-// Run `window.__providerStatus()` in the browser console to see, for every
-// provider: whether a key is configured, last attempt result, attempt count,
-// and the last error message.
 if (typeof window !== 'undefined') {
     const STATE_LABEL: Record<ProviderHealthState, string> = {
         ok:              '✓ OK (last call succeeded)',
@@ -424,22 +381,24 @@ if (typeof window !== 'undefined') {
             'Claude':     !!getClaudeApiKey(),
             'Gemini':     !!getGeminiApiKey(),
         };
+        const selected = getSelectedProvider();
         const rows = PROVIDERS.map(name => {
             const h = _providerHealth[name];
             const effectiveState: ProviderHealthState = !haveKey[name] ? 'no_key' : h.state;
             return {
                 provider:  name,
+                selected:  (name.toLowerCase().replace(' ', '-') === selected) ? '★ active' : '',
                 key:       haveKey[name] ? '✓ configured' : '— missing',
                 status:    STATE_LABEL[effectiveState],
                 attempts:  h.attempts,
                 lastError: h.lastError ?? '',
             };
         });
-        console.group('%cAI provider health', 'font-weight:bold;color:#2563eb');
+        console.group('%cAI provider status', 'font-weight:bold;color:#2563eb');
         console.table(rows);
+        console.info('Selected provider:', selected);
         console.info('Last engine used :', _lastAiEngine ?? '(none yet)');
-        console.info('Fallback order   : Workers AI → Claude → Gemini');
         console.groupEnd();
-        return { lastEngineUsed: _lastAiEngine, providers: rows, fallbackOrder: 'Workers AI → Claude → Gemini' };
+        return { selectedProvider: selected, lastEngineUsed: _lastAiEngine, providers: rows };
     };
 }

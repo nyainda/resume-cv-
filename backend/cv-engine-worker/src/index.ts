@@ -83,7 +83,7 @@ export default {
 
             if (url.pathname === '/api/cv/rules' && request.method === 'GET') return handleGetRules(request, env);
 
-            if (url.pathname === '/api/cv/proxy-llm' && request.method === 'POST') return handleProxyLLM(request, env);
+            if (url.pathname === '/api/cv/proxy-llm' && request.method === 'POST') return handleProxyLLM(request, env, ctx);
 
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
@@ -2762,4 +2762,146 @@ async function handleGetRules(request: Request, env: Env): Promise<Response> {
     const res = json(payload, request, env);
     res.headers.set('Cache-Control', 'public, max-age=3600');
     return res;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handleProxyLLM — POST /api/cv/proxy-llm
+//
+// Proxies a chat completion request to Claude or Gemini server-side so the
+// user's API key and the system prompts (IP) are never exposed in browser
+// DevTools. The key is used as a pass-through credential and is NEVER stored.
+//
+// Request body:
+//   {
+//     provider:     'claude' | 'gemini'
+//     apiKey:       string          — user's key, sent in Authorization header
+//     systemPrompt: string
+//     userPrompt:   string
+//     temperature?: number          — default 0.3
+//     maxTokens?:   number          — default 4096
+//     json?:        boolean         — request JSON response mime type (Gemini)
+//   }
+//
+// Response:
+//   { text: string }
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleProxyLLM(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: {
+        provider?: string;
+        apiKey?: string;
+        systemPrompt?: string;
+        userPrompt?: string;
+        temperature?: number;
+        maxTokens?: number;
+        json?: boolean;
+        model?: string;
+    };
+    try {
+        body = await request.json() as any;
+    } catch {
+        return json({ error: 'invalid_json' }, request, env, 400);
+    }
+
+    const { provider, apiKey, systemPrompt = '', userPrompt = '', temperature = 0.3, maxTokens = 4096, json: wantJson = false, model } = body;
+
+    if (!provider || !apiKey) {
+        return json({ error: 'missing_fields', message: 'provider and apiKey are required' }, request, env, 400);
+    }
+
+    // ── LLM cache check (same logic as tiered-llm) ────────────────────────────
+    const cacheKey = await computeProxyCacheKey(provider, model || '', systemPrompt, userPrompt, temperature);
+    try {
+        const cached = await env.CV_DB.prepare(
+            `SELECT response_text FROM llm_cache WHERE cache_key = ? AND expires_at > unixepoch() LIMIT 1`
+        ).bind(cacheKey).first<{ response_text: string }>();
+        if (cached?.response_text) {
+            ctx.waitUntil(env.CV_DB.prepare(
+                `UPDATE llm_cache SET hit_count = hit_count + 1, expires_at = unixepoch() + 2592000 WHERE cache_key = ?`
+            ).bind(cacheKey).run());
+            return json({ text: cached.response_text, cached: true }, request, env);
+        }
+    } catch { /* cache miss — proceed */ }
+
+    let text = '';
+
+    if (provider === 'claude') {
+        const claudeModel = model || 'claude-haiku-4-5';
+        const claudeBody: Record<string, unknown> = {
+            model: claudeModel,
+            max_tokens: maxTokens,
+            temperature,
+            messages: [{ role: 'user', content: userPrompt }],
+        };
+        if (systemPrompt) claudeBody.system = systemPrompt;
+
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify(claudeBody),
+        });
+        if (!res.ok) {
+            const raw = await res.text().catch(() => '');
+            let msg = '';
+            try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch {}
+            const err: any = new Error(msg || `Claude API error (HTTP ${res.status})`);
+            err.status = res.status;
+            return json({ error: 'provider_error', message: err.message, status: res.status }, request, env, res.status >= 500 ? 502 : res.status);
+        }
+        const data = await res.json() as any;
+        text = (data?.content?.[0]?.text as string) ?? '';
+        if (!text) return json({ error: 'empty_response', message: 'Claude returned no text' }, request, env, 502);
+
+    } else if (provider === 'gemini') {
+        const geminiModel = model || 'gemini-2.0-flash';
+        const geminiConfig: Record<string, unknown> = { temperature, maxOutputTokens: maxTokens };
+        if (wantJson) geminiConfig.responseMimeType = 'application/json';
+        const contents = [{ role: 'user', parts: [{ text: systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt }] }];
+        const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ generationConfig: geminiConfig, contents }),
+            }
+        );
+        if (!res.ok) {
+            const raw = await res.text().catch(() => '');
+            let msg = '';
+            try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch {}
+            return json({ error: 'provider_error', message: msg || `Gemini API error (HTTP ${res.status})`, status: res.status }, request, env, res.status >= 500 ? 502 : res.status);
+        }
+        const data = await res.json() as any;
+        text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        if (!text) return json({ error: 'empty_response', message: 'Gemini returned no text' }, request, env, 502);
+
+    } else {
+        return json({ error: 'unknown_provider', message: `Unsupported provider: ${provider}` }, request, env, 400);
+    }
+
+    // ── Store in cache fire-and-forget ────────────────────────────────────────
+    if (temperature <= 0.5 && (systemPrompt.length + userPrompt.length) <= 100000 && text.length <= 200000) {
+        ctx.waitUntil((async () => {
+            try {
+                await env.CV_DB.prepare(
+                    `INSERT OR REPLACE INTO llm_cache (cache_key, response_text, hit_count, expires_at)
+                     VALUES (?, ?, 0, unixepoch() + 2592000)`
+                ).bind(cacheKey, text).run();
+                await env.CV_DB.prepare(
+                    `DELETE FROM llm_cache WHERE expires_at <= unixepoch() AND cache_key != ?`
+                ).bind(cacheKey).run();
+            } catch { /* best-effort */ }
+        })());
+    }
+
+    return json({ text }, request, env);
+}
+
+async function computeProxyCacheKey(provider: string, model: string, system: string, user: string, temp: number): Promise<string> {
+    const raw = `proxy:${provider}:${model}:${temp}:${system}:${user}`;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
