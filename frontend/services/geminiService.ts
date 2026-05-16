@@ -872,7 +872,7 @@ The "cv" field must ALWAYS be present — even when all checks pass.
             system: validatorSystem,
             temperature: 0.1,
             json: true,
-            maxTokens: 8000,
+            maxTokens: 4000,
         });
         if (cf) {
             try {
@@ -891,7 +891,7 @@ The "cv" field must ALWAYS be present — even when all checks pass.
     }
 
     try {
-        const result = await groqChat(GROQ_LARGE, validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 8000 });
+        const result = await groqChat(GROQ_LARGE, validatorSystem, validatorPrompt, { temperature: 0.1, json: true, maxTokens: 4000 });
         const parsed = JSON.parse(stripFences(result));
         if (parsed.flags && parsed.flags.length > 0) {
             console.warn('[CV Validator] Flags raised:', parsed.flags);
@@ -1110,7 +1110,7 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
             system: auditSystem,
             temperature: 0.15,
             json: true,
-            maxTokens: 8000,
+            maxTokens: 4000,
         });
         if (cf) {
             try {
@@ -1126,7 +1126,7 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
     }
 
     try {
-        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 8000 });
+        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 4000 });
         const merged = mergePartial(result);
         console.log('[CV Humanizer] Audit pass complete.');
         return merged;
@@ -1622,7 +1622,8 @@ function compactProfile(profile: UserProfile, maxResponsibilityChars = 350): str
                 : pr.description,
             link: pr.link,
         })),
-        workExperience: (profile.workExperience || []).map(exp => ({
+        workExperience: (profile.workExperience || []).map((exp, idx) => ({
+            _role: `ROLE_${idx + 1}`,
             company: exp.company,
             jobTitle: exp.jobTitle,
             startDate: exp.startDate,
@@ -2460,14 +2461,15 @@ ${kwLines}
 
     // Build experience instruction — the user's per-role bullet count is BINDING.
     // This block overrides any general bullet-count guidance elsewhere in the prompt.
-    const experienceInstructionLines = profile.workExperience.map(exp => {
+    const experienceInstructionLines = profile.workExperience.map((exp, idx) => {
         const count = exp.pointCount ?? 5;
         const startYear = exp.startDate ? new Date(exp.startDate).getFullYear() : null;
         const endYear = exp.endDate && exp.endDate !== 'Present' ? new Date(exp.endDate).getFullYear() : new Date().getFullYear();
         const years = startYear ? Math.max(1, endYear - startYear) : null;
         const tenureNote = years ? ` (${years} year${years !== 1 ? 's' : ''} tenure)` : '';
-        return `  • ${exp.jobTitle} @ ${exp.company}${tenureNote} → EXACTLY ${count} bullet point${count === 1 ? '' : 's'} (no more, no fewer)`;
+        return `  • ROLE_${idx + 1}: ${exp.jobTitle} @ ${exp.company}${tenureNote} → EXACTLY ${count} bullet point${count === 1 ? '' : 's'} ⚠ CONTENT LOCK: bullets for ROLE_${idx + 1} may ONLY draw from ROLE_${idx + 1}'s responsibilities text.`;
     }).join('\n');
+    const roleCount = profile.workExperience.length;
     const experienceInstruction = `
 === EXACT BULLET COUNT PER ROLE (USER-CHOSEN — BINDING, OVERRIDES EVERYTHING ELSE) ===
 The user has explicitly set the number of bullets per role below. This count is non-negotiable.
@@ -2477,6 +2479,15 @@ The user has explicitly set the number of bullets per role below. This count is 
 - Apply this rule to every role listed below, in every generation mode (general, job, academic, regenerate, optimize, improve).
 
 ${experienceInstructionLines}
+
+=== ROLE ISOLATION — CRITICAL, NO EXCEPTIONS ===
+The profile contains ${roleCount} work experience role${roleCount !== 1 ? 's' : ''} labeled ROLE_1 through ROLE_${roleCount}.
+Each role's bullets MUST be generated EXCLUSIVELY from that role's own responsibilities text.
+- A fact, project name, metric, technology, or responsibility from ROLE_1 MUST NOT appear in ROLE_2, ROLE_3, or any other role's bullets.
+- A fact, project name, metric, technology, or responsibility from ROLE_${roleCount} MUST NOT appear in ROLE_1 through ROLE_${roleCount - 1}'s bullets.
+- Before writing each bullet, ask: "Does this fact appear in THIS role's responsibilities?" If not — discard it.
+- If a role's responsibilities text is thin, write broader honest bullets — NEVER borrow content from another role to pad it.
+- Cross-contaminating roles is a critical failure that will cause the output to be REJECTED.
 === END EXACT BULLET COUNT BLOCK ===
 `;
 
@@ -2829,11 +2840,11 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         const sections: ParallelSectionRequest[] = [
             { name: 'summary',    task: 'cvSummary',    instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called summary whose value is the professional summary as a single string. The summary must be 60–90 words, 3–4 sentences, following the hook → proof → promise formula. Honor every rule above (banned phrases, sentence rhythm, length). CRITICAL BANS — the summary must NEVER include: "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to join", "Excited to contribute", "seeking an opportunity", or any sentence that expresses what the candidate wants rather than what they deliver. The PROMISE sentence must state a concrete value delivered — not a job-seeking statement. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 500,  temperature, json: true },
             { name: 'skills',     task: 'cvSkills',     instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called skills whose value is an array of EXACTLY 15 string skills. Honor the position-1-5 / 6-10 / 11-13 / 14-15 ordering rule above (JD-priority order for ATS). Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 700,  temperature, json: true },
-            { name: 'experience', task: 'cvExperience', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called experience whose value is an array. Each array item is an object with these string fields: company, jobTitle, dates (e.g. "Jan 2020 – Present"), startDate (YYYY-MM-DD), endDate (YYYY-MM-DD or "Present"), and a responsibilities field that is an array of bullet-point strings. Honor the EXACT bullet count per role (binding) and verb-tense rules (current role = present tense, past roles = past tense). FIRST bullet of every role is a SCOPE ANCHOR naming team size, budget, geographic coverage, or project count — not an achievement. No two bullets across the entire document may start with the same verb. FORBIDDEN VERBS — never start any bullet with invented AI verbs: Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized — use real strong verbs (Built, Led, Delivered, Managed, Designed, Implemented, etc.). Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 5000, temperature, json: true },
-            { name: 'education',  task: 'cvEducation',  instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called education whose value is an array. Each array item is an object with these string fields: degree, school, year, description. The description should be one concise sentence covering GPA / honors / thesis / 2–3 relevant courses where applicable. Honor the GRADUATION-STATUS RULE strictly — past or current-year graduation years mean the degree is COMPLETED; never write "currently pursuing" for a past degree. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1200, temperature, json: true },
+            { name: 'experience', task: 'cvExperience', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called experience whose value is an array. Each array item is an object with these string fields: company, jobTitle, dates (e.g. "Jan 2020 – Present"), startDate (YYYY-MM-DD), endDate (YYYY-MM-DD or "Present"), and a responsibilities field that is an array of bullet-point strings. Honor the EXACT bullet count per role (binding) and verb-tense rules (current role = present tense, past roles = past tense). FIRST bullet of every role is a SCOPE ANCHOR naming team size, budget, geographic coverage, or project count — not an achievement. No two bullets across the entire document may start with the same verb. FORBIDDEN VERBS — never start any bullet with invented AI verbs: Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized — use real strong verbs (Built, Led, Delivered, Managed, Designed, Implemented, etc.). CRITICAL ROLE ISOLATION: each role in the profile is labeled ROLE_1, ROLE_2, etc. Bullets for ROLE_N must draw ONLY from ROLE_N\'s responsibilities text — never copy facts, metrics, project names, or technologies from a different role into another role\'s bullets. Cross-contamination between roles is a rejection-level failure. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 3500, temperature, json: true },
+            { name: 'education',  task: 'cvEducation',  instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called education whose value is an array. Each array item is an object with these string fields: degree, school, year, description. The description should be one concise sentence covering GPA / honors / thesis / 2–3 relevant courses where applicable. Honor the GRADUATION-STATUS RULE strictly — past or current-year graduation years mean the degree is COMPLETED; never write "currently pursuing" for a past degree. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 800, temperature, json: true },
         ];
         if (Array.isArray(profile.projects) && profile.projects.length > 0) {
-            sections.push({ name: 'projects', task: 'cvProjects', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called projects whose value is an array. Each array item is an object with these string fields: name, description, link (link may be empty if none exists). Each project description must follow the format problem/goal → solution with named technologies → measurable outcome, and must name at least one specific technology, tool, framework, or methodology. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1800, temperature, json: true });
+            sections.push({ name: 'projects', task: 'cvProjects', instruction: 'OUTPUT-ONLY OVERRIDE: Reply with a JSON object that has exactly one key called projects whose value is an array. Each array item is an object with these string fields: name, description, link (link may be empty if none exists). Each project description must follow the format problem/goal → solution with named technologies → measurable outcome, and must name at least one specific technology, tool, framework, or methodology. Do NOT include any other CVData fields. NO markdown fences, NO commentary.', maxTokens: 1200, temperature, json: true });
         }
 
         const psResult = await workerParallelSections(sections, {
