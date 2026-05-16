@@ -2,6 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, type PurifyReport } from './cvPurificationPipeline';
+import { remotePrePurify } from './cvPurifyClient';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
@@ -4353,6 +4354,14 @@ async function runQualityPolishPasses(
         const sb = isNaN(new Date(b.startDate).getTime()) ? 0 : new Date(b.startDate).getTime();
         return sb - sa;
     });
+
+    // 6a. Worker pre-purify — server-side IP rules (substitutions, tense, voice).
+    //     Runs BEFORE the local purifyCV so the Worker's rules are applied first.
+    //     Falls back silently if the Worker is unreachable.
+    try {
+        const pre = await remotePrePurify(out);
+        out = pre.cv;
+    } catch { /* non-fatal — local purifyCV handles the rest */ }
 
     // 6. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).
     const purified = purifyCV(out);

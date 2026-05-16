@@ -75,6 +75,8 @@ export default {
             if (url.pathname === '/api/cv/profile' && request.method === 'GET')  return handleProfileCacheGet(request, env, url);
             if (url.pathname === '/api/cv/profile' && request.method === 'POST') return handleProfileCachePost(request, env, ctx);
 
+            if (url.pathname === '/api/cv/purify-cv' && request.method === 'POST') return handlePurifyCv(request, env);
+
             if (url.pathname === '/api/cv/market-research' && request.method === 'GET')  return handleMarketResearchCacheGet(request, env, url);
             if (url.pathname === '/api/cv/market-research' && request.method === 'POST') return handleMarketResearchCachePost(request, env, ctx);
 
@@ -2904,4 +2906,480 @@ async function computeProxyCacheKey(provider: string, model: string, system: str
     const raw = `proxy:${provider}:${model}:${temp}:${system}:${user}`;
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/cv/purify-cv
+// Server-side IP-protected purification: runs substitutions, tense enforcement,
+// and voice fidelity rules that are NOT in the client bundle.
+// Body:  { cv: CVData }
+// Resp:  { cv: CVData, changes: string[] }
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Substitution rules (AI-isms & corporate fluff) ────────────────────────────
+const _SUBS: Array<[RegExp, string]> = [
+    [/\bleveraging\b/gi,                 'using'],
+    [/\bleveraged\b/gi,                  'used'],
+    [/\bleverage\b/gi,                   'use'],
+    [/\bspearheaded\b/gi,                'led'],
+    [/\bspearhead\b/gi,                  'lead'],
+    [/\butilized\b/gi,                   'used'],
+    [/\butilised\b/gi,                   'used'],
+    [/\butilize\b/gi,                    'use'],
+    [/\butilise\b/gi,                    'use'],
+    [/\bfacilitated\b/gi,                'enabled'],
+    [/\bfacilitate\b/gi,                 'enable'],
+    [/\bsynergy\b/gi,                    'collaboration'],
+    [/\bsynergies\b/gi,                  'collaboration'],
+    [/\binnovative solutions?\b/gi,      'practical solutions'],
+    [/\bbest practices?\b/gi,            'proven methods'],
+    [/\bknowledge sharing\b/gi,          'documentation'],
+    [/\bstaying up[- ]to[- ]date\b/gi,   'keeping current'],
+    [/\bdrive meaningful change\b/gi,    'improve outcomes'],
+    [/\bpassion for\b/gi,                'focus on'],
+    [/\bresults[- ]driven\b/gi,          'delivery-focused'],
+    [/\bdetail[- ]oriented\b/gi,         'thorough'],
+    [/\bgo[- ]getter\b/gi,               'self-starter'],
+    [/\bgreenfielded\b/gi,               'built'],
+    [/\bgreenfiel(?:ding|s)\b/gi,        'building'],
+    [/\bscaffolded\b/gi,                 'established'],
+    [/\bscaffolding\b/gi,                'establishing'],
+    [/\bmaterialized\b/gi,               'developed'],
+    [/\bmaterialize[sd]?\b/gi,           'develop'],
+    [/\bactioned\b/gi,                   'completed'],
+    [/\bactioning\b/gi,                  'completing'],
+    [/\bideated\b/gi,                    'developed'],
+    [/\bideating\b/gi,                   'developing'],
+    [/\bsolutioned\b/gi,                 'resolved'],
+    [/\bsolutioning\b/gi,                'resolving'],
+    [/\bhands-\s+in\b/gi,                'hands-on experience in'],
+    [/\bDeployed troubleshooting\b/gi,                                'Performed troubleshooting and maintenance on'],
+    [/\bDeployed\s+(analysis|review|audit|research)\b/gi,            'Conducted $1'],
+    [/^Eager to\b/gim,                                               ''],
+    [/^Looking to\b/gim,                                             ''],
+    [/^Aiming to\b/gim,                                              ''],
+    [/^Hoping to\b/gim,                                              ''],
+    [/\bseeking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand|utilise|utilize)\b/gi, ''],
+    [/\baiming to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
+    [/\blooking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
+    [/\bto drive business growth\b/gi,                               ''],
+    [/\bfostering teamwork\b/gi,                                     ''],
+    [/\bdemonstrating strong analytical skills\b/gi,                 ''],
+    [/\battention to detail\b/gi,                                    ''],
+    [/\bproblem-solving abilities\b/gi,                              ''],
+    [/\bto drive project efficiency\b/gi,                            ''],
+    [/\bfostering a collaborative\b/gi,                              ''],
+    [/\bfostering collaboration\b/gi,                                ''],
+    [/\binitiative delivery\b/gi,        'project delivery'],
+    [/\btimely initiative\b/gi,          'timely project'],
+    [/\bensure(?:s|d)? timely delivery\b/gi, 'deliver on time'],
+    [/\bensure(?:s|d)? timely\b/gi,      'deliver on time for'],
+    [/\bteam player\b/gi,                'collaborator'],
+    [/\bdynamic\s+/gi,                   ''],
+    [/\bend[- ]to[- ]end\s+/gi,          ''],
+    [/,\s*ensuring\s+[^.;:!?]+/gi,       ''],
+    [/,\s*and\s+(?:incorporating|supporting|utilizing|utilising|applying|implementing|integrating|leveraging|using)\s+[^.;:!?]+/gi, ''],
+];
+
+// ── Governance / buzzword substitutions ──────────────────────────────────────
+const _GOV: Array<[RegExp, string]> = [
+    [/\bproactively\s+/gi,                                  ''],
+    [/\bseamlessly\s+/gi,                                   ''],
+    [/\brobustly\s+/gi,                                     ''],
+    [/\bholistically\s+/gi,                                 ''],
+    [/\bstrategically\s+/gi,                                ''],
+    [/\bcutting[- ]edge\s+/gi,                              ''],
+    [/\bdata[- ]driven\s+/gi,                               ''],
+    [/\bworld[- ]class\s+/gi,                               ''],
+    [/\bstate[- ]of[- ]the[- ]art\s+/gi,                    ''],
+    [/\bvalue[- ]added\s+/gi,                               ''],
+    [/\bscalable\s+(?=solution|framework|infrastructure|pipeline|model|platform|approach)/gi, ''],
+    [/\brobust\s+(?=solution|framework|pipeline|system|architecture|approach|model)/gi,       ''],
+    [/\bbest[- ]in[- ]class\b/gi,                          'top-performing'],
+    [/\bhigh[- ]impact\b/gi,                               'impactful'],
+    [/\bground[- ]breaking\b/gi,                           'novel'],
+    [/\bholistic\b/gi,                                     'comprehensive'],
+    [/\bproactive\b/gi,                                    'forward-thinking'],
+    [/\bseamless\b/gi,                                     'smooth'],
+    [/\bgame[- ]changing\b/gi,                             'impactful'],
+    [/\bgame[- ]changer\b/gi,                              'improvement'],
+    [/\btransformative\b/gi,                               'significant'],
+    [/\bdisruptive\s+(?=technology|approach|solution|innovation)/gi, 'new '],
+    [/\bpivotal\b/gi,                                      'critical'],
+    [/\bactionable\s+insights?\b/gi,                       'findings'],
+    [/\bactionable\b/gi,                                   'practical'],
+    [/\bthought\s+leadership\b/gi,                         'domain expertise'],
+    [/\bthought\s+leaders?\b/gi,                           'domain expert'],
+    [/\bat\s+the\s+forefront\s+of\b/gi,                    'leading in'],
+    [/\bin\s+a\s+timely\s+manner\b/gi,                     'on time'],
+    [/\bstakeholder\s+engagement\b/gi,                     'stakeholder communication'],
+    [/\bcross[- ]functional\s+collaboration\b/gi,          'cross-team collaboration'],
+    [/\bkey\s+stakeholders?\b/gi,                          'stakeholders'],
+    [/\bsignificant\s+impact\b/gi,                         'measurable results'],
+    [/\bpositive\s+impact\b/gi,                            'measurable results'],
+    [/\bdriving\s+(?:business\s+)?(?:value|outcomes?|impact)\b/gi, 'delivering results'],
+    [/\bharnessed?\b/gi,                                   'used'],
+    [/\bharnessing\b/gi,                                   'using'],
+    [/\bempower(?:ed)?\b/gi,                               'enabled'],
+    [/\bempowering\b/gi,                                   'enabling'],
+    [/\bempowers\b/gi,                                     'enables'],
+    [/\bfoster(?:ed)?\s+(?:a\s+)?(?:culture|environment)\s+of\b/gi, 'built a culture of'],
+    [/\bpivot(?:ed)?\s+to\b/gi,                            'switched to'],
+    [/\bpivoting\s+to\b/gi,                                'switching to'],
+    [/\bdriving\s+alignment\b/gi,                          'aligning teams'],
+    [/\bsolving\s+complex\s+problems?\b/gi,                'resolving technical challenges'],
+    [/[,\s]*moving\s+forward[.,]?\s*/gi,                   ''],
+    [/[,\s]*going\s+forward[.,]?\s*/gi,                    ''],
+];
+
+// ── Verb tense map (present 3rd-person ↔ past) ───────────────────────────────
+const _TENSE: Array<{ present: string; past: string }> = [
+    { present: 'Manages',       past: 'Managed' },
+    { present: 'Develops',      past: 'Developed' },
+    { present: 'Designs',       past: 'Designed' },
+    { present: 'Delivers',      past: 'Delivered' },
+    { present: 'Maintains',     past: 'Maintained' },
+    { present: 'Coordinates',   past: 'Coordinated' },
+    { present: 'Supports',      past: 'Supported' },
+    { present: 'Launches',      past: 'Launched' },
+    { present: 'Implements',    past: 'Implemented' },
+    { present: 'Owns',          past: 'Owned' },
+    { present: 'Creates',       past: 'Created' },
+    { present: 'Drives',        past: 'Drove' },
+    { present: 'Improves',      past: 'Improved' },
+    { present: 'Optimises',     past: 'Optimised' },
+    { present: 'Optimizes',     past: 'Optimized' },
+    { present: 'Mentors',       past: 'Mentored' },
+    { present: 'Trains',        past: 'Trained' },
+    { present: 'Negotiates',    past: 'Negotiated' },
+    { present: 'Oversees',      past: 'Oversaw' },
+    { present: 'Reports',       past: 'Reported' },
+    { present: 'Prepares',      past: 'Prepared' },
+    { present: 'Reviews',       past: 'Reviewed' },
+    { present: 'Analyses',      past: 'Analysed' },
+    { present: 'Analyzes',      past: 'Analyzed' },
+    { present: 'Collaborates',  past: 'Collaborated' },
+    { present: 'Achieves',      past: 'Achieved' },
+    { present: 'Increases',     past: 'Increased' },
+    { present: 'Reduces',       past: 'Reduced' },
+    { present: 'Grows',         past: 'Grew' },
+    { present: 'Cuts',          past: 'Cut' },
+    { present: 'Builds',        past: 'Built' },
+    { present: 'Leads',         past: 'Led' },
+    { present: 'Runs',          past: 'Ran' },
+    { present: 'Ships',         past: 'Shipped' },
+    { present: 'Plans',         past: 'Planned' },
+    { present: 'Executes',      past: 'Executed' },
+    { present: 'Drafts',        past: 'Drafted' },
+    { present: 'Researches',    past: 'Researched' },
+    { present: 'Tests',         past: 'Tested' },
+    { present: 'Documents',     past: 'Documented' },
+    { present: 'Presents',      past: 'Presented' },
+    { present: 'Streamlines',   past: 'Streamlined' },
+    { present: 'Saves',         past: 'Saved' },
+    { present: 'Generates',     past: 'Generated' },
+    { present: 'Tracks',        past: 'Tracked' },
+    { present: 'Monitors',      past: 'Monitored' },
+    { present: 'Identifies',    past: 'Identified' },
+    { present: 'Resolves',      past: 'Resolved' },
+    { present: 'Handles',       past: 'Handled' },
+    { present: 'Processes',     past: 'Processed' },
+    { present: 'Audits',        past: 'Audited' },
+    { present: 'Establishes',   past: 'Established' },
+    { present: 'Spearheads',    past: 'Spearheaded' },
+    { present: 'Leverages',     past: 'Leveraged' },
+    { present: 'Architects',    past: 'Architected' },
+    { present: 'Refactors',     past: 'Refactored' },
+    { present: 'Migrates',      past: 'Migrated' },
+    { present: 'Automates',     past: 'Automated' },
+    { present: 'Authors',       past: 'Authored' },
+    { present: 'Publishes',     past: 'Published' },
+    { present: 'Conducts',      past: 'Conducted' },
+    { present: 'Performs',      past: 'Performed' },
+    { present: 'Calculates',    past: 'Calculated' },
+    { present: 'Compiles',      past: 'Compiled' },
+    { present: 'Communicates',  past: 'Communicated' },
+    { present: 'Configures',    past: 'Configured' },
+    { present: 'Deploys',       past: 'Deployed' },
+    { present: 'Engineers',     past: 'Engineered' },
+    { present: 'Facilitates',   past: 'Facilitated' },
+    { present: 'Forecasts',     past: 'Forecast' },
+    { present: 'Initiates',     past: 'Initiated' },
+    { present: 'Integrates',    past: 'Integrated' },
+    { present: 'Investigates',  past: 'Investigated' },
+    { present: 'Orchestrates',  past: 'Orchestrated' },
+    { present: 'Partners',      past: 'Partnered' },
+    { present: 'Pilots',        past: 'Piloted' },
+    { present: 'Produces',      past: 'Produced' },
+    { present: 'Programs',      past: 'Programmed' },
+    { present: 'Promotes',      past: 'Promoted' },
+    { present: 'Recommends',    past: 'Recommended' },
+    { present: 'Scales',        past: 'Scaled' },
+    { present: 'Schedules',     past: 'Scheduled' },
+    { present: 'Secures',       past: 'Secured' },
+    { present: 'Solves',        past: 'Solved' },
+    { present: 'Standardises',  past: 'Standardised' },
+    { present: 'Standardizes',  past: 'Standardized' },
+    { present: 'Supervises',    past: 'Supervised' },
+    { present: 'Translates',    past: 'Translated' },
+    { present: 'Updates',       past: 'Updated' },
+    { present: 'Validates',     past: 'Validated' },
+    { present: 'Writes',        past: 'Wrote' },
+    { present: 'Speaks',        past: 'Spoke' },
+    { present: 'Teaches',       past: 'Taught' },
+    { present: 'Brings',        past: 'Brought' },
+    { present: 'Sells',         past: 'Sold' },
+    { present: 'Serves',        past: 'Served' },
+    { present: 'Sets',          past: 'Set' },
+    { present: 'Holds',         past: 'Held' },
+    { present: 'Wins',          past: 'Won' },
+    { present: 'Sees',          past: 'Saw' },
+    { present: 'Makes',         past: 'Made' },
+    { present: 'Takes',         past: 'Took' },
+    { present: 'Gives',         past: 'Gave' },
+    { present: 'Hires',         past: 'Hired' },
+    { present: 'Fires',         past: 'Fired' },
+    { present: 'Closes',        past: 'Closed' },
+    { present: 'Opens',         past: 'Opened' },
+];
+
+// ── TPS → base imperative map ─────────────────────────────────────────────────
+const _TPS: Record<string, string> = {
+    generates: 'Generate', delivers: 'Deliver', maintains: 'Maintain',
+    improves: 'Improve', reduces: 'Reduce', coordinates: 'Coordinate',
+    leads: 'Lead', drives: 'Drive', manages: 'Manage', builds: 'Build',
+    designs: 'Design', develops: 'Develop', implements: 'Implement',
+    provides: 'Provide', supports: 'Support', creates: 'Create',
+    optimizes: 'Optimize', optimises: 'Optimise', analyzes: 'Analyze',
+    analyses: 'Analyse', collaborates: 'Collaborate', trains: 'Train',
+    conducts: 'Conduct', oversees: 'Oversee', streamlines: 'Streamline',
+    executes: 'Execute', launches: 'Launch', handles: 'Handle',
+    monitors: 'Monitor', evaluates: 'Evaluate', performs: 'Perform',
+    presents: 'Present', writes: 'Write', edits: 'Edit', tests: 'Test',
+    deploys: 'Deploy', resolves: 'Resolve', mentors: 'Mentor',
+    advises: 'Advise', achieves: 'Achieve', reviews: 'Review',
+    tracks: 'Track', reports: 'Report', identifies: 'Identify',
+    communicates: 'Communicate', assists: 'Assist', facilitates: 'Facilitate',
+    negotiates: 'Negotiate', forecasts: 'Forecast', plans: 'Plan',
+    organizes: 'Organize', organises: 'Organise', spearheads: 'Spearhead',
+    champions: 'Champion', architects: 'Architect', automates: 'Automate',
+};
+
+// ── Pure helper functions (no imports) ───────────────────────────────────────
+
+function _removeDupWords(input: string): string {
+    if (!input) return input || '';
+    let out = input;
+    let prev: string;
+    do {
+        prev = out;
+        out = out.replace(/\b(\w+)\s+\1\b/gi, '$1');
+        out = out.replace(/\b(\w+)\s+(?:and|or|&|,)\s+\1\b/gi, '$1');
+    } while (out !== prev);
+    return out;
+}
+
+function _applySubstitutions(text: string, rules: Array<[RegExp, string]>): { text: string; count: number } {
+    if (!text) return { text: text || '', count: 0 };
+    let out = text;
+    let count = 0;
+    for (const [pattern, replacement] of rules) {
+        const before = out;
+        out = out.replace(pattern, replacement);
+        if (out !== before) count++;
+    }
+    out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1');
+    const before2 = out;
+    out = _removeDupWords(out);
+    if (out !== before2) count++;
+    return { text: out, count };
+}
+
+function _stripFirstPerson(text: string): string {
+    if (!text) return '';
+    let out = text;
+    out = out.replace(
+        /(^|[.!?]\s+|—\s+)I(?:'ve| have|'m| am)\s+(\w+)/g,
+        (_m: string, lead: string, verb: string) => `${lead}${verb.charAt(0).toUpperCase()}${verb.slice(1)}`,
+    );
+    out = out.replace(/\bI(?:'ve| have|'m| am)\s+/g, '');
+    out = out.replace(/\bI\s+/g, '');
+    out = out.replace(/\bmy own\s+/gi, '');
+    out = out.replace(/\bmy\s+/gi, 'the ');
+    out = out.replace(/(^|[.!?]\s+|—\s+)(?:we|our|us)\s+(\w+)/gi,
+        (_m: string, lead: string, verb: string) => `${lead}${verb.charAt(0).toUpperCase()}${verb.slice(1)}`,
+    );
+    out = out.replace(/\b(?:we|our|us)\s+/gi, '');
+    out = out.replace(/\s{2,}/g, ' ').trim();
+    if (out.length > 0) out = out.charAt(0).toUpperCase() + out.slice(1);
+    return out;
+}
+
+function _normTPS(bullet: string): string {
+    if (!bullet) return bullet;
+    const m = bullet.match(/^(\s*[•\-*·»"']?\s*)(\w+)(\b)/);
+    if (!m) return bullet;
+    const [, leading, first] = m;
+    const lower = first.toLowerCase();
+    if (!_TPS[lower]) return bullet;
+    const base = _TPS[lower];
+    return leading + base + bullet.slice(leading.length + first.length);
+}
+
+function _matchCase(original: string, replacement: string): string {
+    if (original === original.toUpperCase()) return replacement.toUpperCase();
+    if (original[0] === original[0].toUpperCase()) return replacement[0].toUpperCase() + replacement.slice(1).toLowerCase();
+    return replacement.toLowerCase();
+}
+
+function _bareInfinitive(form: string): string | null {
+    const lower = form.toLowerCase();
+    if (lower.endsWith('ies') && lower.length > 3) return lower.slice(0, -3) + 'y';
+    if (/(ches|shes|sses|xes|zes|oes)$/.test(lower)) return lower.slice(0, -2);
+    if (lower.endsWith('s') && !lower.endsWith('ss')) return lower.slice(0, -1);
+    return null;
+}
+
+function _isPresent(word: string, pair: { present: string }): boolean {
+    const lower = word.toLowerCase();
+    if (lower === pair.present.toLowerCase()) return true;
+    const bare = _bareInfinitive(pair.present);
+    return bare !== null && lower === bare;
+}
+
+function _flipLead(bullet: string, target: 'present' | 'past'): { text: string; changed: boolean } {
+    if (!bullet) return { text: bullet || '', changed: false };
+    const m = bullet.match(/^(\s*[-•·*»"']?\s*)([A-Za-z]+)(\b)/);
+    if (!m) return { text: bullet, changed: false };
+    const [, prefix, firstWord, boundary] = m;
+    const lower = firstWord.toLowerCase();
+    for (const pair of _TENSE) {
+        const presLower = pair.present.toLowerCase();
+        const pastLower = pair.past.toLowerCase();
+        if (target === 'present' && lower === pastLower && lower !== presLower) {
+            return { text: prefix + _matchCase(firstWord, pair.present) + boundary + bullet.slice(m[0].length), changed: true };
+        }
+        if (target === 'past' && _isPresent(firstWord, pair) && lower !== pastLower) {
+            return { text: prefix + _matchCase(firstWord, pair.past) + boundary + bullet.slice(m[0].length), changed: true };
+        }
+    }
+    return { text: bullet, changed: false };
+}
+
+function _leadInTarget(bullet: string, target: 'present' | 'past'): boolean {
+    const m = bullet.match(/^(\s*[-•·*»"']?\s*)([A-Za-z]+)(\b)/);
+    if (!m) return false;
+    const word = m[2].toLowerCase();
+    for (const pair of _TENSE) {
+        if (target === 'present' && _isPresent(word, pair)) return true;
+        if (target === 'past' && word === pair.past.toLowerCase()) return true;
+    }
+    return false;
+}
+
+function _flipMid(bullet: string, target: 'present' | 'past'): { text: string; changed: boolean } {
+    if (!bullet) return { text: bullet || '', changed: false };
+    let out = bullet;
+    let changed = false;
+    for (const pair of _TENSE) {
+        const wrong = (target === 'present' ? pair.past : pair.present).toLowerCase();
+        const right = target === 'present' ? pair.present : pair.past;
+        const re = new RegExp(`\\b(and|,)\\s+(${wrong})\\b`, 'gi');
+        if (re.test(out)) {
+            out = out.replace(re, (_m: string, conj: string, w: string) => `${conj} ${_matchCase(w, right)}`);
+            changed = true;
+        }
+    }
+    return { text: out, changed };
+}
+
+function _isCurrent(endDate?: string): boolean {
+    const v = String(endDate ?? '').trim().toLowerCase();
+    if (!v) return true;
+    return /present|current|ongoing|now/.test(v);
+}
+
+function _purifyField(text: string): { text: string; subs: number } {
+    if (!text || typeof text !== 'string') return { text: text || '', subs: 0 };
+    let out = text;
+    let subs = 0;
+    for (const rules of [_SUBS, _GOV]) {
+        const r = _applySubstitutions(out, rules);
+        out = r.text;
+        subs += r.count;
+    }
+    return { text: out, subs };
+}
+
+async function handlePurifyCv(request: Request, env: Env): Promise<Response> {
+    let body: { cv?: any };
+    try { body = await request.json() as { cv?: any }; }
+    catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const cv = body?.cv;
+    if (!cv || typeof cv !== 'object') return json({ error: 'missing_cv' }, request, env, 400);
+
+    const changes: string[] = [];
+    let totalSubs = 0;
+    let tenseFlips = 0;
+
+    const sub = (text: string): string => {
+        const r = _purifyField(text);
+        totalSubs += r.subs;
+        return r.text;
+    };
+
+    // ── Step 1: substitution pass on all text fields ──────────────────────────
+    let out = {
+        ...cv,
+        summary:    sub(cv.summary    || ''),
+        skills:     (Array.isArray(cv.skills) ? cv.skills : []).map((s: string) => sub(String(s || ''))),
+        experience: (Array.isArray(cv.experience) ? cv.experience : []).map((e: any) => ({
+            ...e,
+            responsibilities: (Array.isArray(e.responsibilities) ? e.responsibilities : [])
+                .map((b: string) => sub(String(b || ''))),
+        })),
+        education: (Array.isArray(cv.education) ? cv.education : []).map((e: any) => ({
+            ...e, description: sub(String(e.description || '')),
+        })),
+        projects: (Array.isArray(cv.projects) ? cv.projects : []).map((p: any) => ({
+            ...p, description: sub(String(p.description || '')),
+        })),
+    };
+
+    if (totalSubs > 0) changes.push(`substitutions: ${totalSubs} fix(es)`);
+
+    // ── Step 2: first-person strip on summary + bullets ──────────────────────
+    out.summary = _stripFirstPerson(out.summary || '');
+    out.experience = (out.experience || []).map((e: any) => ({
+        ...e,
+        responsibilities: (e.responsibilities || []).map((b: string) => _stripFirstPerson(b)),
+    }));
+
+    // ── Step 3: TPS → imperative for current role bullets ───────────────────
+    out.experience = (out.experience || []).map((e: any) => {
+        const current = _isCurrent(e.endDate);
+        if (!current) return e;
+        return {
+            ...e,
+            responsibilities: (e.responsibilities || []).map((b: string) => _normTPS(b)),
+        };
+    });
+
+    // ── Step 4: tense enforcement ────────────────────────────────────────────
+    out.experience = (out.experience || []).map((e: any) => {
+        const target: 'present' | 'past' = _isCurrent(e.endDate) ? 'present' : 'past';
+        const newBullets = (e.responsibilities || []).map((b: string) => {
+            const lead = _flipLead(b, target);
+            const midSafe = _leadInTarget(lead.text, target);
+            const mid = midSafe ? _flipMid(lead.text, target) : { text: lead.text, changed: false };
+            if (lead.changed || mid.changed) tenseFlips++;
+            return mid.text;
+        });
+        return { ...e, responsibilities: newBullets };
+    });
+
+    if (tenseFlips > 0) changes.push(`tense_fixes: ${tenseFlips}`);
+
+    return json({ cv: out, changes }, request, env);
 }
