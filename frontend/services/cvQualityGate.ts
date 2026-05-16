@@ -51,8 +51,10 @@ const ISSUES_MAX_AGE_MS      = 2 * 60 * 60 * 1000; // 2 hours — stale after th
 const MAX_AUTO_REPAIRS       = 2; // cap repair calls to prevent latency death
 
 // Empty metric placeholder — model generated a template like "generating in sales"
-// but left the value blank. CRITICAL — ships nonsense prose to users.
-const EMPTY_METRIC_PATTERN = /\b(generating|saving|reducing|growing|increasing|cutting|achieving|driving|delivering)\s+in\s+\w/gi;
+// or "Generate in sales" (base/past forms) but left the value blank.
+// CRITICAL — ships nonsense prose to users.
+// Covers: gerunds (generating), base (generate/generates), past (generated).
+const EMPTY_METRIC_PATTERN = /\b(generat(?:e|es|ed|ing)|sav(?:e|es|ed|ing)|reduc(?:e|es|ed|ing)|increas(?:e|es|ed|ing)|cut(?:s|ting)?|achiev(?:e|es|ed|ing)|driv(?:e|es|n|ing)|deliver(?:s|ed|ing)|rais(?:e|es|ed|ing)|grow(?:s|n|ing)?)\s+in\s+\w/gi;
 const EMPTY_METRIC_PATTERN2 = /\bby\s+\w+ing\s+in\s+\w/gi;
 const EMPTY_METRIC_PATTERN3 = /\bgrew\s+by\s+in\s/gi;
 
@@ -342,6 +344,37 @@ function scoreProjects(projects: any[]): QualityViolation[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Stage 1b — Deterministic pre-fixes (zero-cost, applied before LLM repair)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Deterministically strip "seeking/looking/aiming to…" opener phrases from a
+ * summary. Applied BEFORE the LLM repair (zero cost) and ALSO as a fallback
+ * when the LLM repair returns null.
+ *
+ * Examples:
+ *   "Seeking a role as a senior engineer…. I bring 5 years…" →
+ *   "I bring 5 years…"
+ *
+ *   "A results-driven engineer seeking to lead high-impact projects…" →
+ *   "A results-driven engineer…"
+ */
+function deterministicSeekingStrip(summary: string): string {
+    let out = summary;
+    // Remove a leading "Seeking / Looking / Aiming… ." sentence
+    out = out.replace(
+        /^(?:Seeking|Looking|Aiming|Hoping)\s+(?:to|for|an?)\s+[^.]*\.\s*/i,
+        '',
+    );
+    // Remove embedded seeking phrases ("… seeking to …", "… looking for …", etc.)
+    out = out.replace(
+        /\s*(?:seeking to|looking to|aiming to|hoping to|eager to join|excited to contribute|seeking an opportunity|seeking a role|looking for an opportunity)[^,.]*[,.]?\s*/gi,
+        ' ',
+    );
+    return out.replace(/\s{2,}/g, ' ').trim();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Stage 2 — Targeted LLM repair (only for CRITICAL violations)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -463,7 +496,34 @@ export async function runQualityGate(
         if (criticalSummary.length > 0 && repairCallsUsed < MAX_AUTO_REPAIRS) {
             repairAttempted = true;
             repairCallsUsed++;
-            repairedSummary = await repairSummary(summary, criticalSummary);
+
+            // Stage 1b: Deterministic pre-fix — strip seeking phrases before wasting
+            // an LLM call. Zero cost, instant, and catches the most common pattern.
+            const hasSeekingViolation = criticalSummary.some(v => v.type === 'seeking_opener');
+            let summaryForRepair = summary;
+            if (hasSeekingViolation) {
+                summaryForRepair = deterministicSeekingStrip(summary);
+                if (summaryForRepair !== summary) {
+                    console.info('[QualityGate] ✓ Summary seeking phrase removed deterministically (no LLM cost).');
+                    // If seeking was the ONLY critical violation, skip the LLM repair entirely.
+                    const otherCritical = criticalSummary.filter(v => v.type !== 'seeking_opener');
+                    if (otherCritical.length === 0) {
+                        repairedSummary = summaryForRepair;
+                        repairCallsUsed--; // didn't use the LLM — restore the budget slot
+                    }
+                }
+            }
+
+            // Stage 2: LLM repair for remaining critical violations (if needed)
+            if (!repairedSummary) {
+                repairedSummary = await repairSummary(summaryForRepair, criticalSummary);
+                // Fallback: if LLM repair failed but we did strip seeking, use the stripped version
+                if (!repairedSummary && hasSeekingViolation && summaryForRepair !== summary) {
+                    repairedSummary = summaryForRepair;
+                    console.info('[QualityGate] ✓ LLM repair failed — using deterministic seeking strip as fallback.');
+                }
+            }
+
             if (repairedSummary) {
                 console.info(`[QualityGate] ✓ Summary repaired — ${criticalSummary.length} critical violation(s) fixed.`);
             } else {

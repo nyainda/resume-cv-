@@ -3063,7 +3063,8 @@ ${bullets.map((b, i) => `  ${i + 1}. ${b}`).join('\n')}
 REWRITE THESE BULLETS (return them in the fixes array, indexed from 1):
 ${fixList}
 
-Rules: keep the original meaning and any real metrics, fix the listed issues, do not add fabricated data, match the voice & rhythm targets, return only the listed indices.`;
+Rules: keep the original meaning and any real metrics, fix the listed issues, do not add fabricated data, match the voice & rhythm targets, return only the listed indices.
+- OPENER DIVERSITY (enforce while rewriting): if this role currently has ≥3 consecutive verb-led bullets or >70% verb-led bullets, vary at least 1 rewritten bullet to open with a non-verb frame — scope ("For N clients,…"), context ("As the [role],…"), collaboration ("With the [team/department],…"), timeframe ("Over the [period],…"), or a leading number ("N projects…"). Do NOT invent facts to do this — reshape the existing content.`;
 
         try {
             const voiceFixSystem = 'You are a precise CV editor that returns only valid JSON.';

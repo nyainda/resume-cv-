@@ -875,6 +875,12 @@ function normaliseWhitespaceAndDashes(text: string): { text: string; changed: bo
     let out = text;
     out = out.replace(/\s+/g, m => m.includes('\n') ? m : ' '); // collapse runs of spaces but keep newlines
     out = out.replace(/ ?-- ?/g, ' — ');                         // "--" → em dash
+    // Strip orphaned en-dash (–) left after number fidelity removes numeric ranges
+    // (e.g. "a portfolio of 10–15" becomes "a portfolio of–" after stripping).
+    // Digit–digit pairs (25–30, Q1–Q4) are intentional ranges — keep them.
+    out = out.replace(/(?<!\d)\s*–\s*(?!\d)/g, ' ');
+    // Strip en-dash still attached to a word with no following digit ("Tracked–")
+    out = out.replace(/([A-Za-z])–(?=\s|$)/g, '$1');
     out = out.replace(/\s+([.,;:!?])/g, '$1');                  // " ." → "."
     out = out.replace(/\.{3,}/g, '…');                          // "..." → ellipsis
     out = out.trim();
