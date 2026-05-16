@@ -1243,6 +1243,13 @@ export async function loadRules(): Promise<void> {
     SYSTEM_INSTRUCTION_PROFESSIONAL = rules.systemProfessional;
     SYSTEM_INSTRUCTION_PARSER   = rules.systemParser;
     SYSTEM_INSTRUCTION_HUMANIZER = rules.systemHumanizer;
+
+    // Prompt Vault — register templates so proxyLLMCall sends only the key
+    // for Claude/Gemini calls instead of the full system prompt text.
+    const { registerSystemTemplate } = await import('./groqService');
+    registerSystemTemplate(rules.systemProfessional, 'professional');
+    registerSystemTemplate(rules.systemHumanizer,    'humanizer');
+    registerSystemTemplate(rules.systemParser,       'parser');
     _validatorSystem             = rules.systemValidator;
     _auditSystem                 = rules.systemAudit;
     // Generation IP
@@ -1303,11 +1310,11 @@ function getClaudeApiKey(): string | null {
     return null;
 }
 
-const _CLAUDE_HAIKU = 'claude-haiku-4-5';
-const _CLAUDE_API   = '/api/claude';
-
 /**
- * Call Claude for text-only CV parsing / structuring tasks.
+ * Call Claude for text-only CV parsing / structuring tasks via the CF Worker
+ * proxy. Prompt Vault applies automatically: if `system` matches a registered
+ * template only the key is sent. The `apiKey` param is kept for call-site
+ * backward compatibility but routing is now fully server-side via proxy-llm.
  * Returns the raw response string.
  */
 async function claudeTextCall(
@@ -1316,32 +1323,18 @@ async function claudeTextCall(
     user: string,
     opts: { maxTokens?: number; temperature?: number } = {},
 ): Promise<string> {
-    const res = await fetch(_CLAUDE_API, {
-        method: 'POST',
-        headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            model: _CLAUDE_HAIKU,
-            max_tokens: opts.maxTokens ?? 4096,
-            temperature: opts.temperature ?? 0.1,
-            system,
-            messages: [{ role: 'user', content: user }],
-        }),
+    const { callProviderViaProxy } = await import('./groqService');
+    return callProviderViaProxy('claude', apiKey, system, user, {
+        temperature: opts.temperature ?? 0.1,
+        maxTokens:   opts.maxTokens  ?? 4096,
     });
-    if (!res.ok) {
-        const raw = await res.text().catch(() => '');
-        let msg = '';
-        try { msg = JSON.parse(raw)?.error?.message || ''; } catch {}
-        const err: any = new Error(msg || `Claude error ${res.status}`);
-        err.status = res.status;
-        throw err;
-    }
-    const data = await res.json();
-    return (data?.content?.[0]?.text as string) || '';
 }
+
+// Direct Claude API constants — used ONLY by claudeMultimodalCall (vision/PDF
+// binary uploads that the CF proxy does not support). All text-only calls use
+// callProviderViaProxy / groqChat which route through the CF Worker.
+const _CLAUDE_HAIKU = 'claude-haiku-4-5';
+const _CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
 
 /**
  * Call Claude with a file (image or PDF base64) + text prompt.

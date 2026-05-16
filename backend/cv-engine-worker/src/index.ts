@@ -2992,6 +2992,16 @@ async function handleGetRules(request: Request, env: Env): Promise<Response> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Prompt Vault — system prompts stored server-side, never sent from browser ──
+// When the browser sends { system_template: 'professional' } instead of the
+// full systemPrompt text, handleProxyLLM resolves it here. The actual prompt
+// text never travels in the browser → CF request, so it stays out of DevTools.
+const PROXY_TEMPLATES: Record<string, string> = {
+    professional: _CV_SYSTEM_PROFESSIONAL,
+    humanizer:    _CV_SYSTEM_HUMANIZER,
+    parser:       _CV_SYSTEM_PARSER,
+};
+
 // handleProxyLLM — POST /api/cv/proxy-llm
 //
 // Proxies a chat completion request to Claude or Gemini server-side so the
@@ -3017,6 +3027,7 @@ async function handleProxyLLM(request: Request, env: Env, ctx: ExecutionContext)
         provider?: string;
         apiKey?: string;
         systemPrompt?: string;
+        system_template?: string;
         userPrompt?: string;
         temperature?: number;
         maxTokens?: number;
@@ -3029,10 +3040,22 @@ async function handleProxyLLM(request: Request, env: Env, ctx: ExecutionContext)
         return json({ error: 'invalid_json' }, request, env, 400);
     }
 
-    const { provider, apiKey, systemPrompt = '', userPrompt = '', temperature = 0.3, maxTokens = 4096, json: wantJson = false, model } = body;
+    const { provider, apiKey, userPrompt = '', temperature = 0.3, maxTokens = 4096, json: wantJson = false, model } = body;
 
     if (!provider || !apiKey) {
         return json({ error: 'missing_fields', message: 'provider and apiKey are required' }, request, env, 400);
+    }
+
+    // ── Prompt Vault — resolve system_template key server-side ────────────────
+    // When the browser sends { system_template: 'professional' } instead of the
+    // full prompt text, we look it up here. The text never leaves the CF runtime.
+    let systemPrompt: string;
+    if (body.system_template) {
+        const vaulted = PROXY_TEMPLATES[body.system_template as string];
+        if (!vaulted) return json({ error: 'unknown_template', message: `Unknown system_template: ${body.system_template}` }, request, env, 400);
+        systemPrompt = vaulted;
+    } else {
+        systemPrompt = body.systemPrompt ?? '';
     }
 
     // ── LLM cache check (same logic as tiered-llm) ────────────────────────────

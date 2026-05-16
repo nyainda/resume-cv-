@@ -200,11 +200,27 @@ function getClaudeApiKey(): string | null {
 }
 
 // ── Worker proxy call (Claude / Gemini via /api/cv/proxy-llm) ────────────────
-// This is the key security improvement: instead of calling Claude/Gemini
-// directly from the browser, we route through the Cloudflare Worker.
-// The system prompt (our IP) and the user's API key never appear in
-// browser DevTools network logs in a way that exposes the full pipeline.
+// All Claude/Gemini calls are routed through the Cloudflare Worker proxy so the
+// actual API call is made server-side.
+//
+// Prompt Vault: when a system prompt is a known ProCV template (registered via
+// registerSystemTemplate), only the template KEY is sent to the CF Worker — the
+// full text is resolved server-side from PROXY_TEMPLATES in index.ts. This means
+// the proprietary quality rules and persona instructions never appear in DevTools
+// network logs, even though the call originates in the browser.
 const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
+
+// Registry: maps full system-prompt text → server-side template key.
+// Populated by geminiService.ts after loadRules() succeeds.
+const _systemTemplateRegistry = new Map<string, string>();
+
+/**
+ * Register a system prompt text with its CF Worker vault key.
+ * After this, any proxyLLMCall using that exact text will send only the key.
+ */
+export function registerSystemTemplate(text: string, key: string): void {
+    if (text) _systemTemplateRegistry.set(text, key);
+}
 
 async function proxyLLMCall(
     provider: 'claude' | 'gemini',
@@ -214,13 +230,21 @@ async function proxyLLMCall(
     opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
 ): Promise<string> {
     if (!ENGINE_URL) throw new Error('CV Engine URL not configured — cannot proxy LLM call.');
+
+    // Prompt Vault: if this system prompt matches a registered template, send
+    // only the key. The CF Worker resolves the full text from PROXY_TEMPLATES.
+    const templateKey = _systemTemplateRegistry.get(systemPrompt);
+    const promptPayload = templateKey
+        ? { system_template: templateKey }
+        : { systemPrompt };
+
     const res = await fetch(`${ENGINE_URL}/api/cv/proxy-llm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             provider,
             apiKey,
-            systemPrompt,
+            ...promptPayload,
             userPrompt,
             temperature: opts.temperature ?? 0.3,
             maxTokens:   opts.maxTokens ?? 4096,
@@ -238,6 +262,24 @@ async function proxyLLMCall(
     const data = await res.json() as { text?: string };
     if (!data.text) throw new Error(`${provider} returned an empty response via proxy.`);
     return data.text;
+}
+
+/**
+ * Call Claude or Gemini directly via the CF Worker proxy, bypassing the
+ * provider-selection logic in groqChat. Used by claudeTextCall in
+ * geminiService.ts for paths that explicitly want Claude (e.g. profile
+ * parsing with its 200 K context window) regardless of the selected provider.
+ * Prompt Vault applies automatically: if systemPrompt matches a registered
+ * template, only the key is sent.
+ */
+export async function callProviderViaProxy(
+    provider: 'claude' | 'gemini',
+    apiKey: string,
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
+): Promise<string> {
+    return proxyLLMCall(provider, apiKey, systemPrompt, userPrompt, opts);
 }
 
 /**
