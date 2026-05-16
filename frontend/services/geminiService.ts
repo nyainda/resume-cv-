@@ -4419,6 +4419,11 @@ Rules:
 4. Bullets follow "Strong Verb → Scope → Result". Only ~50–60% should carry a metric — leave some qualitative.
 5. Avoid AI clichés. Write like a confident, experienced professional.
 6. NEVER output reasoning, notes, or internal commentary into any CV field. CV fields must contain ONLY professional CV content a human would write themselves. Forbidden outputs in any field: "Years is not present", "Note:", "Based on the profile", "The candidate has/lacks", "As instructed", "Since no dates are provided", "[Internal]", or any other reasoning/assessment. If information is missing, simply write the best CV content you can from what is available — do NOT annotate the absence.
+7. TENSE: current role (endDate "Present") bullets use present tense verbs (Manage, Lead, Build). All past roles use past tense (Managed, Led, Built).
+8. SCOPE ANCHOR: the FIRST bullet of every role must state team size, budget, geographic scope, or project count — not an achievement. Example: "Oversee a portfolio of 8 irrigation projects across 3 counties, coordinating a 4-person field team."
+9. OPENER VARIETY: no more than 2 consecutive bullets in any role may begin with an action verb. At least 1 bullet per role must open with a non-verb frame — scope ("For N clients,…"), context ("As the sole engineer,…"), collaboration ("With the operations team,…"), or a number/result ("KES 450K in new contracts through…").
+10. NO EM DASH AS SEPARATOR: never write "verb X—noun Y" inside a bullet. Use a comma or semicolon instead. Em dashes are only allowed in parenthetical inserts between two em dashes ("The project—reviewed monthly—delivered…").
+11. NO DUPLICATE VERB STARTERS: no two bullets across the entire document may begin with the same verb stem (e.g., both starting "Managed").
 
 ${HUMANIZATION_CHECKLIST}
 

@@ -881,6 +881,11 @@ function normaliseWhitespaceAndDashes(text: string): { text: string; changed: bo
     out = out.replace(/(?<!\d)\s*–\s*(?!\d)/g, ' ');
     // Strip en-dash still attached to a word with no following digit ("Tracked–")
     out = out.replace(/([A-Za-z])–(?=\s|$)/g, '$1');
+    // Convert em dash used as a list separator to ", " — the LLM frequently
+    // writes "lifecycles—site assessments" or "managed X—coordinated Y" instead
+    // of a comma. Parenthetical/proper-noun em dashes have a capital or digit on
+    // at least one side (e.g. "McKinsey—Global" or "Q1—Q2") and are preserved.
+    out = out.replace(/([a-z\)])—([a-z])/g, '$1, $2');
     out = out.replace(/\s+([.,;:!?])/g, '$1');                  // " ." → "."
     out = out.replace(/\.{3,}/g, '…');                          // "..." → ellipsis
     out = out.trim();
