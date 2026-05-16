@@ -218,7 +218,7 @@ function getClaudeApiKey(): string | null {
     return null;
 }
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_API_URL = '/api/claude';
 const CLAUDE_HAIKU   = 'claude-3-5-haiku-20241022';
 const CLAUDE_SONNET  = 'claude-3-5-sonnet-20241022';
 

@@ -592,6 +592,39 @@ app.delete('/api/telemetry/banned-phrases/:id', requireDb, async (req, res) => {
     }
 });
 
+// ─── Claude API proxy ──────────────────────────────────────────────────────────
+//
+// Anthropic blocks direct browser→API calls (CORS). This proxy forwards
+// Claude requests server-side so the x-api-key header is allowed.
+
+app.post('/api/claude', async (req, res) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) return res.status(400).json({ error: 'x-api-key header required' });
+
+    const anthropicVersion = req.headers['anthropic-version'] || '2023-06-01';
+    const anthropicBeta    = req.headers['anthropic-beta'];
+
+    const headers = {
+        'x-api-key':         String(apiKey),
+        'anthropic-version': String(anthropicVersion),
+        'content-type':      'application/json',
+    };
+    if (anthropicBeta) headers['anthropic-beta'] = String(anthropicBeta);
+
+    try {
+        const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+            method:  'POST',
+            headers,
+            body:    JSON.stringify(req.body),
+        });
+        const data = await upstream.json();
+        res.status(upstream.status).json(data);
+    } catch (err) {
+        console.error('[Claude Proxy] Error:', err.message);
+        res.status(502).json({ error: 'Claude proxy error: ' + err.message });
+    }
+});
+
 // ─── Start server & pre-warm browser ──────────────────────────────────────────
 
 app.listen(PORT, '0.0.0.0', async () => {

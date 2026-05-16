@@ -1480,7 +1480,7 @@ function getClaudeApiKey(): string | null {
 }
 
 const _CLAUDE_HAIKU = 'claude-3-5-haiku-20241022';
-const _CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
+const _CLAUDE_API   = '/api/claude';
 
 /**
  * Call Claude for text-only CV parsing / structuring tasks.

@@ -39,6 +39,12 @@ export default defineConfig(() => {
           timeout: 10000,
           proxyTimeout: 10000,
         },
+        '/api/claude': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          timeout: 60000,
+          proxyTimeout: 60000,
+        },
       },
     },
     plugins: [react()],
