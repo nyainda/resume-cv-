@@ -2481,13 +2481,13 @@ The user has explicitly set the number of bullets per role below. This count is 
 ${experienceInstructionLines}
 
 === ROLE ISOLATION — CRITICAL, NO EXCEPTIONS ===
-The profile contains ${roleCount} work experience role${roleCount !== 1 ? 's' : ''} labeled ROLE_1 through ROLE_${roleCount}.
-Each role's bullets MUST be generated EXCLUSIVELY from that role's own responsibilities text.
-- A fact, project name, metric, technology, or responsibility from ROLE_1 MUST NOT appear in ROLE_2, ROLE_3, or any other role's bullets.
-- A fact, project name, metric, technology, or responsibility from ROLE_${roleCount} MUST NOT appear in ROLE_1 through ROLE_${roleCount - 1}'s bullets.
-- Before writing each bullet, ask: "Does this fact appear in THIS role's responsibilities?" If not — discard it.
-- If a role's responsibilities text is thin, write broader honest bullets — NEVER borrow content from another role to pad it.
-- Cross-contaminating roles is a critical failure that will cause the output to be REJECTED.
+The profile contains ${roleCount} work experience role${roleCount !== 1 ? 's' : ''}, each labeled ROLE_1, ROLE_2, … up to ROLE_${roleCount}.
+RULE: Bullets for any ROLE_N must draw EXCLUSIVELY from that role's own "_role": "ROLE_N" entry in the profile.
+- Every fact, metric, project name, technology, or responsibility belongs to one role only — never copy it into a different role's bullets.
+- Before writing each bullet, verify: "Is this fact in THIS role's responsibilities text?" If the answer is no, discard it.
+- If a role's responsibilities are thin, write shorter or broader honest bullets — NEVER borrow content from another role to fill space.
+- This rule applies equally to every role — ROLE_1, ROLE_2, ROLE_3, and so on, regardless of how many roles exist.
+- Mixing content between any two roles is a critical failure that will cause the output to be REJECTED.
 === END EXACT BULLET COUNT BLOCK ===
 `;
 
