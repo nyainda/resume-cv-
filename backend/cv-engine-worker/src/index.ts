@@ -2637,7 +2637,221 @@ async function handleMarketResearchCachePost(request: Request, env: Env, ctx: Ex
 // only shows raw profile/JD data going in and finished CV JSON coming out.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _CV_RULES_VERSION = '2026-05';
+const _CV_RULES_VERSION = '2026-05b';
+
+// ── Generation prompt IP — scenario blocks, pivot formula, humanization header,
+//    critical rules reminder, and CV data schema. These are the most valuable
+//    prompt-engineering assets. They live ONLY here, never in the client bundle.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _CV_SCENARIO_MODE_OVERRIDE = `MODE OVERRIDE: Boosted/Aggressive requires real experience to enhance. AUTO-DOWNGRADED TO HONEST MODE — generate only what is directly evidenced in the profile.`;
+
+const _CV_SCENARIO_A = `
+═══ SCENARIO A — NO EXPERIENCE, NO PROJECTS ═══{{MODE_OVERRIDE}}
+SUMMARY — Foundation Formula ONLY (55–70 words):
+  Line 1 IDENTITY: Degree + field + institution + year of study/graduation.
+  Line 2 CAPABILITY: What they can genuinely do — name specific tools, methods, or domains from their coursework.
+  Line 3 SIGNAL: One concrete quality indicator (GPA, award, distinction, class ranking, thesis title).
+  Line 4 READINESS: What they bring to the role from day one — grounded in real coursework or academic output.
+  BANNED IN SUMMARY: "Seeking opportunity to", "Eager to learn", "Passionate about", "No professional experience but", any implied work history.
+
+SECTIONS TO OMIT (generate nothing, not even a header):
+  - Work Experience → OMIT ENTIRELY
+  - If no qualifying academic projects exist → OMIT Projects section entirely
+
+PROJECTS SECTION (only if academic work qualifies):
+  Use academic projects, thesis, major design assignments, or competition entries with real deliverables.
+  Label format: "[Project Name] — Academic Project, [Institution], [Year]"
+  Each entry answers: What was the goal? → What tools/methods? → What was the outcome? → What was the scope?
+  DOES NOT QUALIFY: attending lectures, reading textbook chapters, following tutorials step-by-step.
+
+EDUCATION — This carries the weight experience normally would. Include ALL that are true:
+  - Degree, institution, year, grade/classification
+  - Thesis or final year project: title + 1-sentence description + outcome
+  - 2–4 relevant course names (actual course titles, not "relevant coursework")
+  - Academic achievements: Dean's list, scholarships, prizes, competition placements
+  - Extracurricular leadership roles with transferable skills
+  - GRADUATION-STATUS RULE (binding): If a degree entry has a graduation year that is in the past or the current year, the degree IS COMPLETED. Never write "currently pursuing", "presently pursuing", "currently studying", "now pursuing", or any equivalent phrase for that entry. Only use "currently pursuing" / "expected [year]" when the graduation year is explicitly in the future or the field reads "Expected", "Present", "In Progress", "Ongoing", or is blank.
+
+SKILLS — Evidence-only rule: list ONLY skills directly taught or used in documented academic work.
+  Never list a tool or technology the profile provides no evidence of using.
+═══ END SCENARIO A ═══
+`;
+
+const _CV_SCENARIO_B = `
+═══ SCENARIO B — HAS EXPERIENCE, NO PROJECTS ═══
+
+SECTIONS TO OMIT (generate nothing, not even a header):
+  - Projects → OMIT ENTIRELY. An absent section is professional. A fake section is disqualifying.
+
+SKILLS — Extract only from work experience bullets. Every skill listed must be backed by at least one bullet.
+  Do NOT list any skill with no supporting evidence in the experience section.
+
+EXPERIENCE — Must work harder since there are no projects to supplement:
+  Every transferable skill the JD requires must be evidenced inside experience bullets.
+  If the JD requires a skill not present in the experience, do NOT fabricate it — use the closest honest transferable skill and frame it accurately.
+═══ END SCENARIO B ═══
+`;
+
+const _CV_SCENARIO_C = `
+═══ SCENARIO C — NO EXPERIENCE, HAS PROJECTS ═══{{MODE_OVERRIDE}}
+SUMMARY — Projects-Led Formula ONLY (55–70 words):
+  Line 1 IDENTITY: What kind of builder/developer/creator they are + number of projects built.
+  Line 2 PROOF: Strongest single project outcome with a real metric or scale (users, GitHub stars, revenue, uptime, completion).
+  Line 3 STACK: Core technical stack evidenced across projects — name exact tools, frameworks, languages.
+  Line 4 READINESS: What they bring to a team from day one based on what they have already shipped.
+
+SECTION ORDER (mandatory — projects must lead):
+  Professional Summary → Skills → Projects → Education → Languages
+
+SECTIONS TO OMIT:
+  - Work Experience → OMIT ENTIRELY
+  - EXCEPTION: Any internship, attachment, volunteer technical work, or paid freelance work → include as experience.
+
+PROJECTS — Treat each project like a full work experience role (4–6 bullets each):
+  - Bullet 1 (scope anchor): What it does, who uses it, what scale, live URL if applicable.
+  - Bullets 2–6: XYZ/CAR achievement bullets — tools used, outcomes, growth, measurable impact.
+  - Verb tense: present tense if the project is live and maintained; past tense if completed.
+  - Do NOT write 2-sentence project summaries. These ARE the candidate's work history — treat them accordingly.
+
+SKILLS — Evidence drawn from projects only. Every skill must be demonstrated in at least one project entry.
+═══ END SCENARIO C ═══
+`;
+
+const _CV_SCENARIO_D = `
+═══ SCENARIO D — THIN EXPERIENCE (SINGLE INTERNSHIP / ATTACHMENT) ═══{{MODE_OVERRIDE}}
+SUMMARY — Emerging Professional Formula (55–70 words):
+  Line 1 ANCHOR: Degree + field + institution (the credential).
+  Line 2 EVIDENCE: What the internship/attachment concretely demonstrated — real tasks, real environment.
+  Line 3 SKILLS: Specific technical skills genuinely acquired during the role.
+  Line 4 READINESS: What the JD needs that they can genuinely deliver right now.
+
+EXPERIENCE — The single role gets FULL bullet treatment (5–6 bullets):
+  RULE: "1–2 bullets for internships" applies only when multiple roles compete for space.
+  When this is the ONLY role → treat it like a current role: 5–6 bullets, scope anchor first, then achievements.
+
+EDUCATION — Expanded (same depth as Scenario A):
+  Include thesis/final year project, relevant course names, academic achievements, extracurricular leadership.
+
+PROJECTS — Include academic projects if they exist:
+  Label: "[Project Name] — Academic Project, [Institution], [Year]"
+  Each: goal → tools/methods → outcome → scope.
+═══ END SCENARIO D ═══
+`;
+
+const _CV_PIVOT_BLOCK_TEMPLATE = `
+═══ CAREER PIVOT DETECTED — CROSS-DOMAIN APPLICATION ═══
+Candidate background domain(s): {{FROM}}
+Target role domain(s): {{TO}}
+
+This candidate is applying ACROSS fields. The CV must be honest about this — recruiters and ATS keyword-stuffers both fail when a CV pretends to be domain-native and isn't.
+
+MANDATORY HANDLING:
+1. SUMMARY — "Bridge Formula" (60–80 words):
+   Sentence 1 (HONEST IDENTITY): Current discipline + the EXACT target title from the JD framed as the transition. Example: "Agricultural engineer transitioning to software development, with 2 years building automation tools that ran on field equipment."
+   Sentence 2 (TRANSFERABLE PROOF): The single strongest piece of evidence from the candidate's background that maps to the target role — named tools, methods, or measurable outcomes that genuinely overlap.
+   Sentence 3 (DELIBERATE BRIDGE): What concrete steps they have taken to enter the new field (courses completed by name, certifications, side projects shipped, open-source contributions). NEVER vague language like "passionate about transitioning".
+   Sentence 4 (READINESS): One specific value they bring from the previous field that the new field rarely has.
+   BANNED: "passionate about", "looking to transition", "eager to learn", "no experience but", "career change", "seeking opportunity".
+
+2. EXPERIENCE BULLETS — Reframe, do NOT relabel:
+   - Each bullet must be TRUE to what the candidate actually did, but described with vocabulary the target field will recognize.
+   - Lead each role with a transferable scope anchor (team size, budget, systems used, scale of data/output).
+   - Highlight tools and methods that genuinely cross over (e.g. Python used for soil-data modeling → Python data analysis; SCADA system maintenance → systems monitoring).
+   - DO NOT claim experience in target-domain tools the candidate has not actually used. Better an honest gap than a fake skill.
+
+3. SKILLS SECTION — Two-tier ordering:
+   Tier 1 (first): Skills the candidate genuinely has that the target field uses (verified by appearing in their actual experience or documented projects/courses).
+   Tier 2 (after): Strong domain skills from their original field that demonstrate depth (these prove competence even if not directly used in the new role).
+   DO NOT pad Tier 1 with tools they have only read about. Honesty caps fake-skill detection.
+
+4. PROJECTS / CERTIFICATIONS — Make the bridge visible:
+   - Surface every project, course, or certification that demonstrates concrete movement into the target field.
+   - If none exist, do NOT invent them. The summary must then carry the bridge alone, and the experience reframing must work harder.
+
+5. SECTION ORDER — Bridge-first:
+   Summary → Skills (with Tier 1 leading) → Projects/Certifications (if they evidence the pivot) → Experience → Education.
+   Rationale: a recruiter doing a 6-second F-pattern scan must see transferable evidence before encountering a job title that screams "wrong field".
+
+6. ATS KEYWORDS — Use target-field vocabulary ONLY where the candidate's actual work supports it. Never list a target-field skill that the experience section cannot back up.
+═══ END CAREER PIVOT BLOCK ═══
+`;
+
+const _CV_HUMANIZATION_INSTRUCTION_HEADER = `
+    **CRITICAL — AUTHENTIC HUMAN WRITING (AI DETECTION IMMUNITY)**:
+    Write as if a confident, accomplished senior professional personally crafted every word in a focused 2-hour session. AI detectors (GPTZero, Originality.ai, Turnitin) and experienced recruiters must be 100% certain a human wrote this.
+
+    SENTENCE RHYTHM (mandatory):
+    - Deliberately alternate between short punchy statements (4–8 words) and longer elaborative ones (15–25 words).
+    - Three sentences of similar length in a row = failure. Break the pattern.
+    - Start at least 2 sentences per section with a number or a past-tense verb for natural variation.
+
+    BANNED PHRASES (zero tolerance — replace with specific facts):
+    "delve", "robust", "seamlessly", "synergy", "leverage" (max once in whole document), "cutting-edge", "state-of-the-art", "passionate about", "in today's fast-paced world", "it is worth noting", "navigate the landscape", "groundbreaking", "thought leader", "game-changer", "dynamic", "innovative" (show it, don't say it), "results-driven", "detail-oriented", "team player", "go-getter", "proactive", "best-in-class", "holistic", "moving the needle", "at the end of the day", "take it to the next level", "excited to", "transformative", "impactful" (prove impact with numbers instead).
+
+    SPECIFICITY (mandatory replacements):
+    - "improved efficiency" → "cut processing time from X hours to Y minutes"
+    - "led a team" → "managed a [N]-person [type] team"
+    - "increased revenue" → "grew ARR from \$X to \$Y"
+    - "streamlined processes" → "eliminated [N] manual steps, saving [X] hours/week"
+
+    VERB RULES:
+    - Every bullet in the CV uses a DIFFERENT strong action verb. Recommended verbs:
+      Engineered, Accelerated, Restructured, Negotiated, Overhauled, Forged, Propelled, Slashed, Tripled, Automated, Mentored, Secured, Delivered, Architected, Revamped, Brokered, Consolidated, Deployed, Eliminated, Galvanized, Halved, Implemented, Launched, Migrated, Pioneered, Quantified, Recruited, Scaled, Transformed, Unified, Validated, Won.
+    - Never start two bullets across the entire document with the same verb.
+    - The first word of each bullet in a job's list must start with a different letter.
+
+    FILLER ELIMINATION:
+    - Remove: "in order to", "as well as", "a variety of", "various", "etc", "numerous", "many", "several".
+    - Add metrics only when they can be honestly inferred from what the user provided. Never force a number that has no basis in the user's own context — a vivid, specific descriptive bullet is always better than a fabricated metric.
+`;
+
+const _CV_CRITICAL_RULES_REMINDER = `
+=== FINAL QUALITY CHECK — read this LAST, it overrides all earlier guidance ===
+1. Summary: opens with job title + seniority/impact. ZERO "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to join", "Excited to contribute". MINIMUM 60 words, 3–4 sentences.
+2. Summary: NO generic buzzwords — "highly motivated", "results-driven", "results-oriented", "passionate about", "detail-oriented", "team player", "hard-working", "self-starter", "go-getter". Replace with a concrete fact or achievement.
+3. Summary: NEVER paraphrase the job description — describe what the CANDIDATE has actually done, using their own experience and real achievements.
+4. Bullets: MINIMUM 8 words per bullet — "Reviewed project documentation" is too short, expand with context and scope.
+5. Bullets: NO weak openers — "Responsible for", "Was responsible for", "Helped to", "Assisted with", "Worked on", "Tasked with", "Involved in", "Participated in", "Duties included". Replace with a direct action verb: "Led", "Built", "Delivered", "Managed", etc.
+6. Bullet rhythm: MIX lengths — short punchy bullets (8–10 words) must ALTERNATE with fuller ones (15–22 words). Do NOT write 3+ consecutive short bullets.
+7. Bullets: ZERO invented verbs — Greenfielded, Scaffolded (non-software), Materialized, Actioned, Ideated, Solutioned, Conceptualized, Operationalized.
+8. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
+9. Bullets: MIX opener categories across the document — do NOT write >85% verb-led bullets. Rotate: number-led ("3 sites surveyed…"), scope-led ("Across 5 counties…"), context-led ("As the sole engineer…"), collaboration-led ("With the client team…"). Also rotate VERB FAMILIES: Management (Led, Managed, Directed), Analysis (Analysed, Evaluated, Assessed), Communication (Presented, Reported, Liaised), Technical (Designed, Built, Configured), Financial (Budgeted, Negotiated, Costed) — use the families that match the candidate's actual role.
+10. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
+11. Bullets: NO bare metric openers — do NOT start a bullet with a raw number/percentage ("40% increase in…", "KES 800,000 generated…"). Lead with the ACTION first: "Rebuilt X, achieving a 40% increase in…".
+12. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader", "game-changer", "best-in-class", "world-class".
+13. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number — at least 1–2 bullets per role must be purely qualitative (action + context, no number).
+14. No two bullets across the ENTIRE document start with the same verb.
+15. Skills: NO duplicate entries — each skill must appear exactly once.
+=== END FINAL CHECK ===
+`;
+
+const _CV_DATA_SCHEMA = `
+RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema:
+{
+  "summary": "string",
+  "skills": ["string"],
+  "experience": [
+    {
+      "company": "string",
+      "jobTitle": "string",
+      "dates": "string (e.g. Jan 2020 – Present)",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD or Present",
+      "responsibilities": ["string"]
+    }
+  ],
+  "education": [
+    { "degree": "string", "school": "string", "year": "string", "description": "string" }
+  ],
+  "projects": [
+    { "name": "string", "description": "string", "link": "string" }
+  ],
+  "languages": [
+    { "name": "string", "proficiency": "string" }
+  ]
+}
+`;
 
 const _CV_HUMANIZATION_RULES = `
 ANTI-DETECTION RULES (binding — never skip, even on regenerate/optimize/improve):
@@ -2760,6 +2974,17 @@ async function handleGetRules(request: Request, env: Env): Promise<Response> {
         systemParser:          _CV_SYSTEM_PARSER,
         systemValidator:       _CV_SYSTEM_VALIDATOR,
         systemAudit:           _CV_SYSTEM_AUDIT,
+        // Generation IP — scenario blocks, pivot formula, humanization header,
+        // critical rules reminder, and CV data schema.
+        scenarioA:                    _CV_SCENARIO_A,
+        scenarioB:                    _CV_SCENARIO_B,
+        scenarioC:                    _CV_SCENARIO_C,
+        scenarioD:                    _CV_SCENARIO_D,
+        scenarioModeOverride:         _CV_SCENARIO_MODE_OVERRIDE,
+        pivotBlockTemplate:           _CV_PIVOT_BLOCK_TEMPLATE,
+        humanizationInstructionHeader: _CV_HUMANIZATION_INSTRUCTION_HEADER,
+        criticalRulesReminder:        _CV_CRITICAL_RULES_REMINDER,
+        cvDataSchema:                 _CV_DATA_SCHEMA,
     };
     const res = json(payload, request, env);
     res.headers.set('Cache-Control', 'public, max-age=3600');

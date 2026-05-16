@@ -20,6 +20,16 @@ export interface CVRules {
     systemParser: string;
     systemValidator: string;
     systemAudit: string;
+    // Generation IP fetched from Worker (never bundled)
+    scenarioA: string;
+    scenarioB: string;
+    scenarioC: string;
+    scenarioD: string;
+    scenarioModeOverride: string;
+    pivotBlockTemplate: string;
+    humanizationInstructionHeader: string;
+    criticalRulesReminder: string;
+    cvDataSchema: string;
 }
 
 let _cache: CVRules | null = null;
@@ -83,4 +93,14 @@ const OFFLINE_FALLBACK: CVRules = {
     systemParser: 'You are an expert data parser. Convert unstructured text into accurate JSON. Output ONLY the raw JSON — no markdown, no commentary.',
     systemValidator: 'You are a strict CV quality validator. Return only valid JSON.',
     systemAudit: 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON with keys: summary and experience.',
+    // Generation IP — empty offline fallback (no IP exposed in bundle)
+    scenarioA: '',
+    scenarioB: '',
+    scenarioC: '',
+    scenarioD: '',
+    scenarioModeOverride: '',
+    pivotBlockTemplate: '',
+    humanizationInstructionHeader: '',
+    criticalRulesReminder: '',
+    cvDataSchema: 'RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching the schema provided.',
 };
