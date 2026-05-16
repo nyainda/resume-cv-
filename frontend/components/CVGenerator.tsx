@@ -4,8 +4,9 @@ import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, template
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
 import { auditCvQuality } from '../services/cvNumberFidelity';
-import { purifyCV } from '../services/cvPurificationPipeline';
+import { purifyCV, enforceTenseConsistency } from '../services/cvPurificationPipeline';
 import type { PurifyLeak } from '../services/cvPurificationPipeline';
+import { auditStyleGovernance } from '../services/cvStyleGovernance';
 import { getCachedBannedPhrases } from '../services/cvEngineClient';
 import type { BannedEntry } from '../services/cvEngineClient';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT } from '../services/groqService';
@@ -537,8 +538,54 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             .slice(0, 12)
         : undefined;
 
-    // Helper — run one generation attempt and populate generatedData
+    // Helper — run one generation attempt and populate generatedData.
+    // Smart path: when a CV already exists, audit it first and only fix what
+    // is actually broken — avoids burning tokens on a full fresh generation
+    // that might produce inconsistent sentence lengths or new content.
     const runGenerate = async (): Promise<CVData> => {
+      // ── Smart regenerate path ─────────────────────────────────────────────
+      if (currentCV) {
+        advanceStage('drafting', 'Auditing existing CV for quality issues…');
+        await new Promise(r => setTimeout(r, 200));
+
+        // Deterministic checks — zero AI cost, zero network calls
+        const { changes: tenseChanges } = enforceTenseConsistency(currentCV);
+        const { issues: styleIssues } = auditStyleGovernance(currentCV);
+        const styleWarnings = styleIssues.filter(i => i.severity === 'warn');
+
+        // Collect up to 6 most actionable violations as plain English instructions
+        const violations: string[] = [
+          ...tenseChanges.slice(0, 3),
+          ...styleWarnings.slice(0, 3).map(i => i.detail),
+        ];
+
+        const hasGapKeywords = _gapKeywords && _gapKeywords.length > 0;
+
+        if (violations.length === 0 && !hasGapKeywords) {
+          // CV is already clean — light purify pass only, no AI needed
+          advanceStage('polishing', 'CV is already high quality — applying final polish…');
+          await new Promise(r => setTimeout(r, 300));
+          const { cv: cleaned } = purifyCV(currentCV);
+          return cleaned;
+        }
+
+        // Build a focused fix instruction — only what the audit found
+        const fixParts: string[] = ['Fix ONLY these specific quality issues in the existing CV:'];
+        violations.forEach(v => fixParts.push(`• ${v}`));
+        if (hasGapKeywords) {
+          fixParts.push(`• Weave these missing JD keywords in verbatim where they fit naturally: ${_gapKeywords!.join(', ')}.`);
+        }
+        fixParts.push(
+          '\nKeep ALL content, facts, metrics, company names, dates, education, and structure exactly as-is.',
+          'Do NOT rewrite sections that are not listed above.',
+        );
+
+        const issueCount = violations.length + (hasGapKeywords ? 1 : 0);
+        advanceStage('polishing', `Fixing ${issueCount} quality issue${issueCount === 1 ? '' : 's'} in your CV…`);
+        return improveCV(currentCV, userProfile.personalInfo, fixParts.join('\n'), jobDescription || undefined);
+      }
+
+      // ── Full generation path (first generate, no existing CV) ─────────────
       if (hasJD) {
         advanceStage(
           'jd',
@@ -714,7 +761,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         'Fix only these style and consistency issues that commonly slip past generation:',
         '• TENSE: current role (endDate "Present") bullets must use bare present tense — "Manage" not "Manages" or "Managed". Past role bullets must use simple past — "Managed" not "Manage".',
         '• SCOPE ANCHOR: the very first bullet of every role must state team size, budget, geographic scope, or project count — not an achievement. Rewrite only if missing.',
-        '• OPENER VARIETY: no more than 2 consecutive verb-led bullets in any single role. If 3+ consecutive verb openers exist, rewrite one to start with scope ("For N clients,…"), context ("As the sole engineer,…"), or a number ("KES 800K in revenue through…").',
+        '• OPENER ROTATION: no opener type should appear more than twice per role. Use all 7 types — verb, number ("KES 800K in…"), scope ("For N clients,…"), context ("As the sole engineer,…"), timeframe ("In Q2 2024,…"), collaboration ("With the ops team,…"), outcome ("Top performer in…"). Fix any role where one type dominates.',
         '• VERB UNIQUENESS: no two bullets anywhere in the document may start with the same verb stem. Rename duplicates to a distinct strong verb.',
         '• NO 3RD-PERSON VERBS: never start a bullet with "Manages", "Generates", "Prepares", "Engineers", etc. Use the bare imperative form.',
       ];
