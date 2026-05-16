@@ -1479,7 +1479,7 @@ function getClaudeApiKey(): string | null {
     return null;
 }
 
-const _CLAUDE_HAIKU = 'claude-3-5-haiku-20241022';
+const _CLAUDE_HAIKU = 'claude-haiku-4-5';
 const _CLAUDE_API   = '/api/claude';
 
 /**

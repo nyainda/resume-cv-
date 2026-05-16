@@ -219,8 +219,8 @@ function getClaudeApiKey(): string | null {
 }
 
 const CLAUDE_API_URL = '/api/claude';
-const CLAUDE_HAIKU   = 'claude-3-5-haiku-20241022';
-const CLAUDE_SONNET  = 'claude-3-5-sonnet-20241022';
+const CLAUDE_HAIKU   = 'claude-haiku-4-5';
+const CLAUDE_SONNET  = 'claude-sonnet-4-5';
 
 async function callClaudeApi(
     apiKey: string,
