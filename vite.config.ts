@@ -45,6 +45,12 @@ export default defineConfig(() => {
           timeout: 60000,
           proxyTimeout: 60000,
         },
+        '/api/cv/rules': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          timeout: 8000,
+          proxyTimeout: 8000,
+        },
       },
     },
     plugins: [react()],

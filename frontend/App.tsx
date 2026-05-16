@@ -6,7 +6,7 @@ import {
 import { useStorage } from './hooks/useStorage';
 import * as KeyVault from './services/security/KeyVault';
 import { setRuntimeKeys } from './services/security/RuntimeKeys';
-import { invalidateCVCache } from './services/geminiService';
+import { invalidateCVCache, loadRules } from './services/geminiService';
 import { prewarmFontEmbedCache } from './services/getCVHtml';
 import { syncProfileToCache } from './services/profileCacheClient';
 import { auditCvQuality } from './services/cvNumberFidelity';
@@ -157,6 +157,13 @@ const AppInner: React.FC = () => {
       return { ...p, currentCV: resolved };
     }));
   }, [activeSlot, setProfiles]);
+
+  // Fetch CV pipeline rules from the CF Worker at boot so they are ready
+  // before the user clicks Generate. The rules (system prompts, humanizer,
+  // validator instructions) live server-side and are never in the JS bundle.
+  useEffect(() => {
+    loadRules().catch(() => {});
+  }, []);
 
   // Pre-warm the PDF font embed cache during browser idle time so the first
   // Download-PDF click no longer pays the ~2-5s Google Fonts fetch latency.

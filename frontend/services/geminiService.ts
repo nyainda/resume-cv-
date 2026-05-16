@@ -861,7 +861,7 @@ OUTPUT FORMAT — return JSON only, no markdown, no explanation:
 The "cv" field must ALWAYS be present — even when all checks pass.
 `;
 
-    const validatorSystem = 'You are a strict CV quality validator. Return only valid JSON.';
+    const validatorSystem = _validatorSystem || 'You are a strict CV quality validator. Return only valid JSON.';
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
     // Try Cloudflare Workers AI first (free tier, saves Groq quota), fall back to Groq.
@@ -1066,7 +1066,7 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
         );
     }
 
-    const auditSystem = 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON with keys: summary and experience.';
+    const auditSystem = _auditSystem || 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON with keys: summary and experience.';
     const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
 
     // Helper: merge the auditor's partial response (only summary + experience)
@@ -1322,117 +1322,39 @@ function applyBannedPhraseFilter(cvData: CVData): CVData {
 
 // --- System-Level Constants for AI Control ---
 
-// Compact anti-AI-detection rules — single source of truth, injected into
-// every generation path (generateCV, regenerate, optimizeCVForJob, improveCV,
-// generateCVFromGitHub, etc.) so they cannot be skipped or overridden.
-// Full rules live in /data/cv-generation-rules.md.
-const HUMANIZATION_RULES = `
-ANTI-DETECTION RULES (binding — never skip, even on regenerate/optimize/improve):
+// ─── Pipeline Rules — loaded from CF Worker at runtime (not bundled) ──────────
+// These variables are populated by loadRules() called from App.tsx at boot.
+// The actual strings live inside the compiled Cloudflare Worker (index.ts) and
+// are fetched once per session via rulesService.ts. This means DevTools will
+// never show the proprietary prompt engineering in the JS bundle or source map.
+// Until loadRules() resolves, these are empty — generation functions wait for
+// the rules to be ready before assembling any prompts.
+let HUMANIZATION_RULES = '';
+let HUMANIZATION_CHECKLIST = '';
+let SYSTEM_INSTRUCTION_PROFESSIONAL = '';
+let SYSTEM_INSTRUCTION_PARSER = '';
+let SYSTEM_INSTRUCTION_HUMANIZER = '';
+let _validatorSystem = '';
+let _auditSystem = '';
 
-- VOICE (this is the target — read carefully):
-    Write as if a confident, slightly understated senior professional is describing their own work to a peer they respect. Direct, specific, a little dry. Quietly proud, never boastful. Sounds like a person, not a press release or a LinkedIn post. The reader should feel: "this person actually did the work and knows what they're talking about."
-    DO: vary sentence length deliberately (mix 5–8 word punchy lines with 15–25 word elaborative ones); allow one slightly informal phrase per section; use first-person and contractions ("I've", "didn't", "wasn't") in the summary; let one honest opinion show through (e.g. "actually secure, not just compliant on paper").
-    DON'T: write every sentence in perfect formal grammar; repeat the same sentence shape three times in a row; sound like a legal document, marketing copy, or recruiter template.
-
-- BANNED BUZZWORDS / FILLER (zero tolerance — strip every instance, replace with a concrete fact):
-    Generic self-praise: "highly motivated", "results-driven", "results-oriented", "detail-oriented", "self-starter", "go-getter", "team player", "dynamic", "dynamic team player", "proactive", "hard-working", "hardworking", "passionate", "passionate about", "excited to", "eager to".
-    Empty action phrases: "leveraging expertise", "leveraging expertise to deliver value", "drive meaningful change", "drive meaningful change through innovative technology", "make a real impact", "make a difference", "move the needle", "take it to the next level", "at the end of the day", "in today's fast-paced world", "thought leader", "passion for participating in brainstorming sessions".
-    AI-tells (recruiter surveys 2025 flag these as the top giveaways): "delve", "utilize" (use "use"), "leverage" (max once in the whole document), "synergy", "synergistic", "robust", "seamless", "seamlessly", "cutting-edge", "state-of-the-art", "groundbreaking", "transformative", "impactful" (show impact with a number instead), "innovative" (show innovation with a fact), "best-in-class", "holistic", "navigate", "landscape", "it's worth noting", "multifaceted", "unwavering commitment", "strategic visionary", "thought leader", "at the intersection of", "empower" (used vaguely), "proven track record".
-    Bullet openers to avoid (the 2025 AI-CV signature — recruiters now flag these on sight): "Spearheaded", "Orchestrated", "Leveraged", "Utilized", "Facilitated", "Empowered", "Championed", "Responsible for", "Tasked with", "Helped with" — use varied real-work verbs instead (Built, Wrote, Fixed, Shipped, Cut, Reduced, Designed, Led, Debugged, Migrated, Rebuilt, Negotiated, Owned, Rolled out, Killed, Saved, Bought, Sold, Hired, Trained).
-
-- METRIC HONESTY (recruiter trust signal — stacked AI metrics are now a known tell):
-    Never write a chained-causal metric like "improved efficiency by 20%, resulting in a 30% increase in sales" — that pattern is the #1 signal of a fabricated AI bullet because the chain can't be verified.
-    A single specific number tied to one action is far more credible than two numbers stitched together.
-    If a number is estimated, mark it: "saved roughly 6 hours/week", "cut response time by ~40%". Estimation language reads more honest than fake precision.
-
-- SKILL HONESTY: never claim "expert" in 5+ areas; a real candidate is expert in 1–2 things, proficient in a handful, learning others. If listing skills with proficiency, distribute them realistically.
-- METRICS: only 50–60% of bullets carry a number; leave 1–2 bullets per role purely qualitative; use oddly specific numbers sometimes ("~7.5h/week", "roughly 30%"); vary metric type (time, cost, users, errors, satisfaction) — not always %.
-- KEYWORDS: target 65–75% JD match, NOT 90–100%; rephrase JD wording instead of mirroring it verbatim; no keyword used >3 times in the whole CV; skip soft-skill keywords.
-- BULLETS: vary opening verbs (Built, Wrote, Fixed, Shipped, Cut, Helped, Led, Debugged…); never start two bullets in one role with the same verb; mix formats: action+result, action+context, pure statement. The EXACT bullet count per role is set by the user — never add or remove bullets from the count given in the prompt.
-- SUMMARY: 2–3 sentences, specific to THIS person, mention one niche/unexpected angle, end forward-looking; never list every tech; never repeat content already in the experience section.
-  BAD (do NOT write like this): "Highly motivated software engineer with 2 years of experience leveraging expertise in regulatory compliance and GovTech to drive meaningful change through innovative technology..."
-  GOOD (this is the target voice): "Backend engineer with 2 years building SaaS products, mostly in Laravel and React. I've shipped features used by government agencies and spent a lot of time making sure the data layer is actually secure, not just compliant on paper. Looking to join a team where the technical bar is high."
-  Notice in the good example: concrete tech named, contraction used ("I've"), one honest opinionated phrase ("not just compliant on paper"), forward-looking close, zero buzzwords.
-- SKILLS: 10–15, grouped meaningfully; only list what they could be interviewed on; one "currently learning" item is fine.
-- GRAMMAR: ~90% perfect, not 100% — contractions OK ("didn't", "wasn't"); a recruiter reading aloud must not sound like a robot.
-
-RECRUITER SIGNALS (what HR actively looks for in the 6-second scan — eye-tracking research 2025):
-- 80% of recruiter scan time lands on five things: name, current job title + company, previous job title + company, dates, and education. Make those visually unmissable and unambiguous.
-- Include the exact JD job title verbatim somewhere near the top (summary opening line is ideal). Candidates who do this are 10.6× more likely to be interviewed.
-- Career progression must be readable in 6 seconds — scope, title seniority, or team size should visibly grow from oldest role to current role.
-- Each role should have a one-line "scope anchor" (team size / region / budget / users / clients) before the achievement bullets, so HR sees the magnitude before the detail.
-- Spell out acronyms once: "Enterprise Resource Planning (ERP)" — recruiters search either form.
-- Skills section sits immediately after the summary (2025 skills-based hiring shift), NOT at the bottom.
-- Never list 10+ "expert-level" skills — recruiters flag this as instantly fake.
-- Dates: consistent format throughout (e.g. "Jan 2022 – Present"). Inconsistent date formatting is a parsing red flag for ATS and a sloppiness signal for humans.
-`;
-
-const HUMANIZATION_CHECKLIST = `
-PRE-RETURN CHECKLIST (run silently before returning JSON; rewrite anything that fails — a recruiter must not sense AI):
-1. Summary opens with a concrete, person-specific line — not "Highly motivated…", not "Results-driven…", not "Passionate…".
-2. The exact JD job title appears once near the top (summary or first role).
-3. No phrase is repeated 3+ times anywhere in the document.
-4. 40–50% of bullets are PURELY qualitative (no number) — fix any role where every bullet has a metric.
-5. At least one metric is oddly specific (e.g. "~6h/week", "roughly 38%") — not all round 25/30/40/50%.
-6. Zero chained-causal metrics (no "did X by Y%, leading to Z%" patterns) — those read as fabricated.
-7. No sentence appears word-for-word from the JD; estimated keyword overlap sits in the 65–75% range, not higher.
-8. ZERO instances of: "Spearheaded", "Orchestrated", "Leveraged", "Utilized", "Facilitated", "Empowered" as bullet openers anywhere in the document.
-9. ZERO instances of any banned buzzword from the rules above (delve, robust, seamlessly, synergy, multifaceted, unwavering commitment, thought leader, at the intersection of, etc.).
-10. Sentence lengths visibly vary within every section — no three sentences in a row of similar length.
-11. Skills section has no more than 1–2 items that could be called "expert level".
-12. Career progression (title, scope, or team size) is visibly bigger in the current role than in the oldest role.
-13. Read the summary out loud in your head — does it sound like a person, or a LinkedIn template? If template, rewrite.
-`;
-
-const SYSTEM_INSTRUCTION_PROFESSIONAL = `
-You are the world's foremost CV strategist — a fusion of elite executive recruiter, Fortune 500 hiring manager, and award-winning resume writer with 25+ years of experience. You understand how ATS systems score resumes and how recruiters make shortlist decisions in 6–10 seconds.
-
-FOUNDATIONAL RULES (structural — apply to every CV you produce):
-
-  RULE 1 — BULLET FORMULA:
-    WITH metrics → XYZ: "Accomplished [X] as measured by [Y metric] by doing [Z]."
-      Example: "Grew SME client base by 34% over 8 months by redesigning field visit cadence."
-    WITHOUT metrics → CAR: "[Challenge/Context] → [Action taken] → [Result produced]."
-      Example: "No standardised data process across 3 counties — designed unified template that cut errors and disputes."
-    NEVER use STAR format — it is for interviews, not CVs.
-
-  RULE 2 — QUANTIFICATION MATRIX (attempt all 4 dimensions per role, use only what is honest):
-    MAGNITUDE: by how much? (%, factor, before/after)
-    SCALE: how big? (team, clients, projects, regions, users)
-    SPEED: how fast? (time saved, turnaround, SLA)
-    VALUE: what was it worth? (revenue, cost, budget, contract)
-    When a dimension is genuinely unknown — use scope language, never invent a number.
-
-  RULE 3 — CAREER ARC (growth must be visible top-to-bottom):
-    Scope, responsibility, and metric scale must visibly increase across roles.
-    Current role must carry the largest numbers and broadest scope.
-    Promotions within the same company must be made explicit.
-
-${HUMANIZATION_RULES}
-
-Output ONLY valid JSON matching the requested schema. NEVER include markdown, code fences, or prose outside the schema.
-`;
-
-const SYSTEM_INSTRUCTION_PARSER = `
-You are an expert data parser. Convert unstructured text into accurate JSON.
-Standardize dates to consistent formats. Preserve names, companies, and titles exactly.
-Never invent data unless explicitly instructed.
-When returning JSON, output ONLY the raw JSON object — no markdown fences, no commentary, no trailing text.
-`;
-
-const SYSTEM_INSTRUCTION_HUMANIZER = `
-You are a senior editor at a top career consultancy. Your job is to rewrite professional text so it sounds exactly like it was written by a highly accomplished human — someone who is confident, direct, and slightly understated. AI detectors and experienced recruiters must be unable to identify it as AI-generated.
-
-Critical rules:
-- SENTENCE RHYTHM: Deliberately alternate between short punchy statements (5–8 words) and longer elaborative ones (15–25 words). Three sentences of similar length in a row is a failure.
-- OPENING VARIETY: No two sentences in the same section may start with the same word or grammatical structure (e.g., avoid "I", "The", "By", "This" repeated consecutively).
-- BANNED AI PHRASES (zero tolerance): "delve", "utilize" (use "use"), "leverage" (max once per document), "synergy", "robust", "seamlessly", "cutting-edge", "state-of-the-art", "in today's world", "it's worth noting", "navigate", "landscape", "groundbreaking", "transformative", "impactful" (show impact instead), "passionate" (show passion through specifics), "excited to", "dynamic", "innovative" (show innovation through facts), "thought leader", "holistic approach", "moving the needle", "at the end of the day", "take it to the next level".
-- SPECIFICITY RULE: Replace every vague phrase with a concrete fact. Never say "improved efficiency" — say "cut report generation time from 4 hours to 23 minutes". Never say "led a team" — say "managed a 7-person cross-functional team".
-- For CVs specifically: every bullet must feel LIVED, not templated. It should sound like the person is telling you about their proudest moment, not reading a job description.
-- ACTION VERB FRESHNESS: Never repeat an action verb in the same job's bullet list. Across the whole document, use each verb no more than twice.
-- NUMBERS RULE: Keep all numbers, dates, company names, job titles, and achievements EXACTLY as provided — never change factual details.
-- Return ONLY the rewritten text. No preamble, no commentary, no "Here is the rewritten version:".
-`;
+/**
+ * Fetches the CV pipeline rules from the CF Worker and populates the module-
+ * level variables used by generateCV, humanizeCV, validateCV, etc.
+ * Called once at app boot from App.tsx — safe to call multiple times (noop
+ * after first successful load). Also exported so Settings modal can force a
+ * reload after a worker URL change.
+ */
+export async function loadRules(): Promise<void> {
+    const { fetchCVRules } = await import('./rulesService');
+    const rules = await fetchCVRules();
+    HUMANIZATION_RULES          = rules.humanizationRules;
+    HUMANIZATION_CHECKLIST      = rules.humanizationChecklist;
+    SYSTEM_INSTRUCTION_PROFESSIONAL = rules.systemProfessional;
+    SYSTEM_INSTRUCTION_PARSER   = rules.systemParser;
+    SYSTEM_INSTRUCTION_HUMANIZER = rules.systemHumanizer;
+    _validatorSystem             = rules.systemValidator;
+    _auditSystem                 = rules.systemAudit;
+}
 
 // --- Gemini Client (multimodal only — PDF/image parsing) ---
 function getGeminiClient(): GoogleGenAI {
