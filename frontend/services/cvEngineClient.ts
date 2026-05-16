@@ -712,7 +712,6 @@ export async function workerTieredLLM(
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     task,
-                    system: opts.system ?? '',
                     prompt,
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
@@ -789,7 +788,6 @@ export async function workerRaceLLM(
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     tasks,
-                    system: opts.system ?? '',
                     prompt,
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
@@ -885,7 +883,6 @@ export async function workerParallelSections(
     const u = new URL(ENDPOINT, ENGINE_URL);
     try {
         const bodyObj: Record<string, unknown> = {
-            system: opts.system ?? '',
             preamble: opts.preamble ?? '',
             fallbackTask: opts.fallbackTask ?? 'cvFallback',
             sections,

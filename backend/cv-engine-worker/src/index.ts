@@ -1561,7 +1561,23 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
 
     const taskKey     = typeof body?.task === 'string' ? body.task.trim() : 'general';
     const paidUpgrade = body?.paidUpgrade === true;
-    const system      = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    // System prompt is sourced exclusively from internal worker constants keyed by task.
+    // The client-sent `system` field is intentionally ignored so pipeline rules
+    // never need to travel over the network — they stay inside the compiled worker.
+    const _internalSystemMap: Record<string, string> = {
+        cvGenerate:       _CV_SYSTEM_PROFESSIONAL,
+        cvGenerateLong:   _CV_SYSTEM_PROFESSIONAL,
+        cvExperience:     _CV_SYSTEM_PROFESSIONAL,
+        cvProjects:       _CV_SYSTEM_PROFESSIONAL,
+        cvAudit:          _CV_SYSTEM_AUDIT,
+        cvValidate:       _CV_SYSTEM_VALIDATOR,
+        humanize:         _CV_SYSTEM_HUMANIZER,
+        coverLetter:      _CV_SYSTEM_PROFESSIONAL,
+        voiceConsistency: _CV_SYSTEM_HUMANIZER,
+        jdParse:          _CV_SYSTEM_PARSER,
+        parser:           _CV_SYSTEM_PARSER,
+    };
+    const system = _internalSystemMap[taskKey] ?? '';
     const prompt      = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
 
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
@@ -1781,7 +1797,9 @@ interface ParallelSectionResult {
 async function handleParallelSections(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
 
-    const system      = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
+    // System prompt is sourced from internal worker constant — never from the client.
+    // Pipeline rules stay inside the compiled worker binary; nothing sensitive travels over the network.
+    const system      = _CV_SYSTEM_PROFESSIONAL;
     const profileHash = typeof body?.profile_hash === 'string' ? body.profile_hash.trim() : '';
     const rawPreamble = typeof body?.preamble === 'string' ? body.preamble.slice(0, PARALLEL_SECTIONS_PREAMBLE_MAX) : '';
     const fallbackTask: string = typeof body?.fallbackTask === 'string' && body.fallbackTask.trim()
