@@ -188,6 +188,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
   const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
+  const forceFreshRef = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
   // Stage-based progress tracking — used by the CVGenerationProgress modal
@@ -543,8 +544,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     // is actually broken — avoids burning tokens on a full fresh generation
     // that might produce inconsistent sentence lengths or new content.
     const runGenerate = async (): Promise<CVData> => {
+      const skipSmartPath = forceFreshRef.current;
+      forceFreshRef.current = false; // consume the flag immediately
       // ── Smart regenerate path ─────────────────────────────────────────────
-      if (currentCV) {
+      if (currentCV && !skipSmartPath) {
         advanceStage('drafting', 'Auditing existing CV for quality issues…');
         await new Promise(r => setTimeout(r, 200));
 
@@ -1461,6 +1464,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               <Button variant="secondary" onClick={() => { setCvScore(null); handleGenerateCV(); }} disabled={isLoading || isEditing || !apiKeySet} size="sm">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Regenerate
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => { forceFreshRef.current = true; setCvScore(null); handleGenerateCV(); }}
+                disabled={isLoading || isEditing || !apiKeySet}
+                size="sm"
+                title="Skip the smart audit and run a full fresh generation from scratch"
+              >
+                <RefreshCw className="h-4 w-4 mr-2 text-amber-500" />
+                Force Fresh
               </Button>
               <Button variant="secondary" onClick={() => onSaveCV(currentCV, cvPurpose)} disabled={isEditing} size="sm">
                 <Save className="h-4 w-4 mr-2" />

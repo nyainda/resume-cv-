@@ -34,69 +34,75 @@ export default {
             return new Response(null, { status: 204, headers: corsHeaders(request, env) });
         }
 
-        try {
-            if (url.pathname === '/health')             return handleHealth(request, env);
-            if (url.pathname === '/api/cv/words')       return handleWords(request, env, url);
-            if (url.pathname === '/api/cv/banned')      return handleBanned(request, env);
-            if (url.pathname === '/api/cv/structures')  return handleStructures(request, env, url);
-            if (url.pathname === '/api/cv/rhythm')      return handleRhythm(request, env, url);
-            if (url.pathname === '/api/cv/clean'   && request.method === 'POST') return handleClean(request, env);
-            if (url.pathname === '/api/cv/validate'&& request.method === 'POST') return handleValidate(request, env);
-            if (url.pathname === '/api/cv/validate-voice' && request.method === 'POST') return handleValidateVoice(request, env);
-            if (url.pathname === '/api/cv/brief'   && request.method === 'POST') return handleBrief(request, env, ctx);
-            if (url.pathname === '/api/cv/sync'    && request.method === 'POST') return handleSync(request, env);
-            if (url.pathname === '/api/cv/admin/stats')                          return handleAdminStats(request, env);
-            if (url.pathname === '/api/cv/admin/bulk-add' && request.method === 'POST') return handleBulkAdd(request, env);
-            if (url.pathname === '/api/cv/admin/list')                           return handleAdminList(request, env, url);
-            if (url.pathname === '/api/cv/admin/bulk-update' && request.method === 'POST') return handleBulkUpdate(request, env);
-            if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
-            if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
-            if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
-            if (url.pathname === '/api/cv/semantic-match' && request.method === 'POST') return handleSemanticMatch(request, env);
-            if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
-            if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
-            if (url.pathname === '/api/cv/tiered-llm' && request.method === 'POST') return handleTieredLLM(request, env);
-            if (url.pathname === '/api/cv/account-tier' && request.method === 'GET') return handleAccountTier(request, env);
-            if (url.pathname === '/api/cv/race-llm'   && request.method === 'POST') return handleRaceLLM(request, env);
-            if (url.pathname === '/api/cv/parallel-sections' && request.method === 'POST') return handleParallelSections(request, env);
-            if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
-            if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
-            if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
-            if (url.pathname === '/api/cv/admin/tokens' && request.method === 'GET')  return handleTokensList(request, env);
-            if (url.pathname === '/api/cv/admin/tokens' && request.method === 'POST') return handleTokensCreate(request, env);
-            if (url.pathname === '/api/cv/admin/tokens/revoke' && request.method === 'POST') return handleTokensRevoke(request, env);
-
-            if (url.pathname === '/api/cv/llm-cache' && request.method === 'GET')  return handleLLMCacheGet(request, env, url);
-            if (url.pathname === '/api/cv/llm-cache' && request.method === 'POST') return handleLLMCachePost(request, env, ctx);
-
-            if (url.pathname === '/api/cv/examples' && request.method === 'GET')  return handleCVExamplesGet(request, env, url);
-            if (url.pathname === '/api/cv/examples' && request.method === 'POST') return handleCVExamplesPost(request, env);
-
-            if (url.pathname === '/api/cv/profile' && request.method === 'GET')  return handleProfileCacheGet(request, env, url);
-            if (url.pathname === '/api/cv/profile' && request.method === 'POST') return handleProfileCachePost(request, env, ctx);
-
-            if (url.pathname === '/api/cv/purify-cv' && request.method === 'POST') return handlePurifyCv(request, env);
-
-            if (url.pathname === '/api/cv/market-research' && request.method === 'GET')  return handleMarketResearchCacheGet(request, env, url);
-            if (url.pathname === '/api/cv/market-research' && request.method === 'POST') return handleMarketResearchCachePost(request, env, ctx);
-
-            if (url.pathname === '/api/cv/jd-analysis' && request.method === 'GET')  return handleJdAnalysisCacheGet(request, env, url);
-            if (url.pathname === '/api/cv/jd-analysis' && request.method === 'POST') return handleJdAnalysisCachePost(request, env, ctx);
-
-            if (url.pathname === '/api/cv/rules' && request.method === 'GET') return handleGetRules(request, env);
-
-            if (url.pathname === '/api/cv/proxy-llm' && request.method === 'POST') return handleProxyLLM(request, env, ctx);
-
-            return json({ error: 'not_found', path: url.pathname }, request, env, 404);
-        } catch (err: any) {
-            return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
-        }
+        // ── Nuclear CORS guarantee ────────────────────────────────────────────
+        // _dispatch is awaited so any thrown error is caught here rather than
+        // escaping as an unhandled rejection (which would produce a raw 500 with
+        // no CORS headers from Cloudflare's edge). After we have a response we
+        // also force-inject CORS headers as a belt-and-suspenders measure so
+        // even a raw `new Response(...)` inside a handler can't bypass CORS.
+        const response = await _dispatch(request, env, ctx, url).catch((err: any) =>
+            json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500)
+        );
+        const cors = corsHeaders(request, env);
+        const h = new Headers(response.headers);
+        for (const [k, v] of Object.entries(cors as Record<string, string>)) h.set(k, v);
+        return new Response(response.body, { status: response.status, statusText: response.statusText, headers: h });
     },
 
     async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
         ctx.waitUntil(runLeakPromotionCron(env));
     },
 } satisfies ExportedHandler<Env>;
+
+// ── Route dispatcher ──────────────────────────────────────────────────────────
+// Extracted from the fetch handler so that `await _dispatch(...)` in the
+// wrapper above properly catches any thrown exception and guarantees CORS.
+async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
+    if (url.pathname === '/health')             return handleHealth(request, env);
+    if (url.pathname === '/api/cv/words')       return handleWords(request, env, url);
+    if (url.pathname === '/api/cv/banned')      return handleBanned(request, env);
+    if (url.pathname === '/api/cv/structures')  return handleStructures(request, env, url);
+    if (url.pathname === '/api/cv/rhythm')      return handleRhythm(request, env, url);
+    if (url.pathname === '/api/cv/clean'   && request.method === 'POST') return handleClean(request, env);
+    if (url.pathname === '/api/cv/validate'&& request.method === 'POST') return handleValidate(request, env);
+    if (url.pathname === '/api/cv/validate-voice' && request.method === 'POST') return handleValidateVoice(request, env);
+    if (url.pathname === '/api/cv/brief'   && request.method === 'POST') return handleBrief(request, env, ctx);
+    if (url.pathname === '/api/cv/sync'    && request.method === 'POST') return handleSync(request, env);
+    if (url.pathname === '/api/cv/admin/stats')                          return handleAdminStats(request, env);
+    if (url.pathname === '/api/cv/admin/bulk-add' && request.method === 'POST') return handleBulkAdd(request, env);
+    if (url.pathname === '/api/cv/admin/list')                           return handleAdminList(request, env, url);
+    if (url.pathname === '/api/cv/admin/bulk-update' && request.method === 'POST') return handleBulkUpdate(request, env);
+    if (url.pathname === '/api/cv/admin/delete' && request.method === 'POST') return handleAdminDelete(request, env);
+    if (url.pathname === '/api/cv/admin/voice-test' && request.method === 'POST') return handleVoiceTest(request, env);
+    if (url.pathname === '/api/cv/admin/ai-audit' && request.method === 'POST') return handleAiAudit(request, env);
+    if (url.pathname === '/api/cv/semantic-match' && request.method === 'POST') return handleSemanticMatch(request, env);
+    if (url.pathname === '/api/cv/llm' && request.method === 'POST') return handleLLM(request, env);
+    if (url.pathname === '/api/cv/vision-extract' && request.method === 'POST') return handleVisionExtract(request, env);
+    if (url.pathname === '/api/cv/tiered-llm' && request.method === 'POST') return handleTieredLLM(request, env);
+    if (url.pathname === '/api/cv/account-tier' && request.method === 'GET') return handleAccountTier(request, env);
+    if (url.pathname === '/api/cv/race-llm'   && request.method === 'POST') return handleRaceLLM(request, env);
+    if (url.pathname === '/api/cv/parallel-sections' && request.method === 'POST') return handleParallelSections(request, env);
+    if (url.pathname === '/api/cv/leak-report' && request.method === 'POST') return handleLeakReport(request, env);
+    if (url.pathname === '/api/cv/admin/leak-candidates') return handleLeakCandidatesList(request, env, url);
+    if (url.pathname === '/api/cv/admin/leak-candidates/decide' && request.method === 'POST') return handleLeakCandidatesDecide(request, env);
+    if (url.pathname === '/api/cv/admin/tokens' && request.method === 'GET')  return handleTokensList(request, env);
+    if (url.pathname === '/api/cv/admin/tokens' && request.method === 'POST') return handleTokensCreate(request, env);
+    if (url.pathname === '/api/cv/admin/tokens/revoke' && request.method === 'POST') return handleTokensRevoke(request, env);
+    if (url.pathname === '/api/cv/llm-cache' && request.method === 'GET')  return handleLLMCacheGet(request, env, url);
+    if (url.pathname === '/api/cv/llm-cache' && request.method === 'POST') return handleLLMCachePost(request, env, ctx);
+    if (url.pathname === '/api/cv/examples' && request.method === 'GET')  return handleCVExamplesGet(request, env, url);
+    if (url.pathname === '/api/cv/examples' && request.method === 'POST') return handleCVExamplesPost(request, env);
+    if (url.pathname === '/api/cv/profile' && request.method === 'GET')  return handleProfileCacheGet(request, env, url);
+    if (url.pathname === '/api/cv/profile' && request.method === 'POST') return handleProfileCachePost(request, env, ctx);
+    if (url.pathname === '/api/cv/purify-cv' && request.method === 'POST') return handlePurifyCv(request, env);
+    if (url.pathname === '/api/cv/market-research' && request.method === 'GET')  return handleMarketResearchCacheGet(request, env, url);
+    if (url.pathname === '/api/cv/market-research' && request.method === 'POST') return handleMarketResearchCachePost(request, env, ctx);
+    if (url.pathname === '/api/cv/jd-analysis' && request.method === 'GET')  return handleJdAnalysisCacheGet(request, env, url);
+    if (url.pathname === '/api/cv/jd-analysis' && request.method === 'POST') return handleJdAnalysisCachePost(request, env, ctx);
+    if (url.pathname === '/api/cv/rules' && request.method === 'GET') return handleGetRules(request, env);
+    if (url.pathname === '/api/cv/proxy-llm' && request.method === 'POST') return handleProxyLLM(request, env, ctx);
+    return json({ error: 'not_found', path: url.pathname }, request, env, 404);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handlers
