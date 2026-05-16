@@ -83,6 +83,8 @@ export default {
 
             if (url.pathname === '/api/cv/rules' && request.method === 'GET') return handleGetRules(request, env);
 
+            if (url.pathname === '/api/cv/proxy-llm' && request.method === 'POST') return handleProxyLLM(request, env);
+
             return json({ error: 'not_found', path: url.pathname }, request, env, 404);
         } catch (err: any) {
             return json({ error: 'internal_error', message: String(err?.message || err) }, request, env, 500);
