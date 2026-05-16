@@ -3205,8 +3205,10 @@ const _SUBS: Array<[RegExp, string]> = [
     [/\bDeployed\s+(analysis|review|audit|research)\b/gi,            'Conducted $1'],
     [/^Eager to\b/gim,                                               ''],
     [/^Looking to\b/gim,                                             ''],
-    [/^Aiming to\b/gim,                                              ''],
+    [/^Aiming to\b/gim,                                             ''],
     [/^Hoping to\b/gim,                                              ''],
+    // Mid-sentence seeking clauses in the summary (e.g. "...and eager to apply X to Y.")
+    [/[,\s]+(?:and\s+)?eager\s+to\s+(?:apply|learn|contribute|join|grow|develop|bring|use|leverage|gain|expand|leverage|utilise|utilize)\b[^.;]*/gi, ''],
     [/\bseeking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand|utilise|utilize)\b/gi, ''],
     [/\baiming to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
     [/\blooking to (?:use|apply|leverage|bring|contribute|join|gain|grow|develop|expand)\b/gi, ''],
@@ -3392,6 +3394,8 @@ const _TENSE: Array<{ present: string; past: string }> = [
 ];
 
 // ── TPS → base imperative map ─────────────────────────────────────────────────
+// Maps 3rd-person singular present (e.g. "Generates") → bare imperative ("Generate")
+// for current-role bullets. Add any new verb here when it slips through.
 const _TPS: Record<string, string> = {
     generates: 'Generate', delivers: 'Deliver', maintains: 'Maintain',
     improves: 'Improve', reduces: 'Reduce', coordinates: 'Coordinate',
@@ -3411,6 +3415,22 @@ const _TPS: Record<string, string> = {
     negotiates: 'Negotiate', forecasts: 'Forecast', plans: 'Plan',
     organizes: 'Organize', organises: 'Organise', spearheads: 'Spearhead',
     champions: 'Champion', architects: 'Architect', automates: 'Automate',
+    // ── Common gaps — verbs frequently generated in 3rd-person form ─────────
+    prepares: 'Prepare', engineers: 'Engineer', supervises: 'Supervise',
+    operates: 'Operate', delegates: 'Delegate', acquires: 'Acquire',
+    schedules: 'Schedule', mitigates: 'Mitigate', sources: 'Source',
+    compiles: 'Compile', calculates: 'Calculate', configures: 'Configure',
+    integrates: 'Integrate', translates: 'Translate', validates: 'Validate',
+    audits: 'Audit', authors: 'Author', secures: 'Secure', scales: 'Scale',
+    pilots: 'Pilot', standardizes: 'Standardize', standardises: 'Standardise',
+    initiates: 'Initiate', formulates: 'Formulate', coordinates: 'Coordinate',
+    manages: 'Manage', owns: 'Own', grows: 'Grow', optimizes: 'Optimize',
+    refactors: 'Refactor', migrates: 'Migrate', publishes: 'Publish',
+    recommends: 'Recommend', serves: 'Serve', ensures: 'Ensure',
+    documents: 'Document', promotes: 'Promote', programs: 'Program',
+    investigates: 'Investigate', orchestrates: 'Orchestrate', partners: 'Partner',
+    produces: 'Produce', processes: 'Process', drafts: 'Draft',
+    researches: 'Research', quantifies: 'Quantify', establishes: 'Establish',
 };
 
 // ── Pure helper functions (no imports) ───────────────────────────────────────

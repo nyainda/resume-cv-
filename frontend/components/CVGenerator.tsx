@@ -697,16 +697,43 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     if (!currentCV || !cvScore) return;
     setIsOptimizing(true);
     try {
-      // Build a targeted instruction from the score feedback
-      const parts: string[] = [];
-      if (cvScore.missingKeywords.length > 0) {
-        parts.push(`Naturally weave in these missing keywords (they MUST appear verbatim in the CV): ${cvScore.missingKeywords.join(', ')}.`);
+      // Auto-Optimize is a focused STYLE & QUALITY pass — it catches things that
+      // slipped past the initial generation (tense errors, 3rd-person verbs, weak
+      // openers, missing scope anchors, duplicate verb starters). It does NOT
+      // inject keywords, rewrite education, or invent new achievements.
+      const styleImprovements = (cvScore.improvements || []).filter(imp => {
+        const lower = imp.toLowerCase();
+        return !lower.includes('keyword') &&
+               !lower.includes('education') &&
+               !lower.includes('degree') &&
+               !lower.includes('qualification') &&
+               !lower.includes('certif');
+      });
+
+      const parts: string[] = [
+        'Fix only these style and consistency issues that commonly slip past generation:',
+        '• TENSE: current role (endDate "Present") bullets must use bare present tense — "Manage" not "Manages" or "Managed". Past role bullets must use simple past — "Managed" not "Manage".',
+        '• SCOPE ANCHOR: the very first bullet of every role must state team size, budget, geographic scope, or project count — not an achievement. Rewrite only if missing.',
+        '• OPENER VARIETY: no more than 2 consecutive verb-led bullets in any single role. If 3+ consecutive verb openers exist, rewrite one to start with scope ("For N clients,…"), context ("As the sole engineer,…"), or a number ("KES 800K in revenue through…").',
+        '• VERB UNIQUENESS: no two bullets anywhere in the document may start with the same verb stem. Rename duplicates to a distinct strong verb.',
+        '• NO 3RD-PERSON VERBS: never start a bullet with "Manages", "Generates", "Prepares", "Engineers", etc. Use the bare imperative form.',
+      ];
+
+      if (styleImprovements.length > 0) {
+        parts.push(`\nAdditional style improvements from the score:\n${styleImprovements.map(s => `• ${s}`).join('\n')}`);
       }
-      if (cvScore.improvements.length > 0) {
-        parts.push(`Apply every one of these improvements exactly:\n${cvScore.improvements.map(s => `• ${s}`).join('\n')}`);
-      }
-      parts.push('Do NOT invent new employers, dates, or job titles. Keep all factual details unchanged.');
-      const instruction = parts.join('\n\n');
+
+      parts.push(
+        '\nSTRICT LIMITS — do NOT:',
+        '• Touch the education section — return it exactly as received, word for word.',
+        '• Add, remove, or reorder skills.',
+        '• Inject keywords not already present in the CV.',
+        '• Invent new achievements, metrics, or responsibilities.',
+        '• Change the professional summary.',
+        '• Change company names, job titles, dates, or any factual information.',
+      );
+
+      const instruction = parts.join('\n');
 
       const improved = await improveCV(currentCV, userProfile.personalInfo, instruction, jobDescription || undefined);
       setCurrentCV(improved);
