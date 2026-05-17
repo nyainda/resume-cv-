@@ -33,6 +33,7 @@ const LEGEND: { type: BulletIssueType; label: string }[] = [
     { type: 'pronoun',            label: 'First-person pronoun (I / my / we)' },
     { type: 'ai_language',        label: 'AI buzzword or 3rd-person verb' },
     { type: 'passive_voice',      label: 'Passive voice / responsible for' },
+    { type: 'tense_mismatch',     label: 'Wrong tense (current role past / past role present)' },
     { type: 'weak_verb',          label: 'Weak opener' },
     { type: 'ensuring_virus',     label: '"Ensuring" filler word' },
     { type: 'no_metric',          label: 'No number or metric' },

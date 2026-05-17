@@ -94,6 +94,18 @@ const ENSURING_RX         = /\bensuring\b/i;
 const BARE_METRIC_OPEN_RX = /^[\d$£€¥₦₹]/;
 const DUPLICATE_WORD_RX   = /\b(\w{4,})\s+\1\b/i;
 
+// Present-tense base verbs commonly misused in past-role bullets
+const PRESENT_VERB_SET = new Set([
+    'manage','lead','build','drive','design','develop','create','deliver',
+    'implement','deploy','run','coordinate','oversee','handle','support',
+    'analyze','analyse','plan','execute','own','define','improve','grow','scale',
+    'mentor','hire','train','present','write','review','maintain','work',
+    'ensure','prepare','identify','provide','conduct','perform','collaborate',
+    'communicate','research','produce','monitor','evaluate','report','operate',
+    'establish','generate','document','launch','test','debug','migrate',
+    'integrate','automate','optimize','architect','ship','release','publish',
+]);
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type BulletIssueType =
@@ -101,6 +113,7 @@ export type BulletIssueType =
     | 'ai_language'
     | 'third_person'
     | 'passive_voice'
+    | 'tense_mismatch'
     | 'weak_verb'
     | 'ensuring_virus'
     | 'no_metric'
@@ -119,6 +132,7 @@ export const ISSUE_META: Record<BulletIssueType, { label: string; tip: string; c
     ensuring_virus:    { label: '"Ensuring" filler',  tip: 'Remove "ensuring" — state the outcome or action directly. e.g. "…ensuring quality" → "…improving quality by 30%".', colour: 'bg-amber-50 dark:bg-amber-950/30',   border: 'border-l-amber-500',    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
     no_metric:         { label: 'No number',          tip: 'Add a specific number, %, or scale to quantify the impact.',                                                  colour: 'bg-amber-50 dark:bg-amber-950/30',   border: 'border-l-amber-400',    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
     bare_metric_opener:{ label: 'Number-first',       tip: 'Move the number into the body — start with an action verb that frames the metric. e.g. "Grew revenue 40%…" not "40% revenue growth…".', colour: 'bg-yellow-50 dark:bg-yellow-950/30', border: 'border-l-yellow-400',   badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
+    tense_mismatch:    { label: 'Wrong tense',         tip: 'Current-role bullets need present tense ("Manage…"), past-role bullets need past tense ("Managed…").',     colour: 'bg-violet-50 dark:bg-violet-950/30', border: 'border-l-violet-500',   badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' },
     duplicate_word:    { label: 'Duplicate word',     tip: 'A word is repeated twice in a row — remove the extra one.',                                                   colour: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-l-purple-400',   badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
     too_short:         { label: 'Too short',          tip: 'Expand with scope, method, or result detail (aim for 12–25 words).',                                          colour: 'bg-blue-50 dark:bg-blue-950/30',    border: 'border-l-blue-400',     badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
     too_long:          { label: 'Too long',           tip: 'Trim to under 30 words — keep only the core verb, scope, and result.',                                        colour: 'bg-blue-50 dark:bg-blue-950/30',    border: 'border-l-blue-400',     badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
@@ -186,6 +200,19 @@ export function classifyBullets(cvData: CVData): BulletAnnotation[] {
             // ── Grammar: duplicate adjacent word ──────────────────────────
             if (DUPLICATE_WORD_RX.test(text)) issues.push('duplicate_word');
 
+            // ── Tense mismatch ─────────────────────────────────────────────
+            const isCurrentRole =
+                !role.endDate ||
+                role.endDate.trim() === '' ||
+                /^(present|current|now|today)$/i.test(role.endDate.trim());
+            if (isCurrentRole) {
+                // Current role using past tense (-ed/-ied opener)
+                if (/^[A-Z][a-z]{2,}(?:ied|eed|ed)\b/.test(text)) issues.push('tense_mismatch');
+            } else {
+                // Past role using present-tense base verb opener
+                if (PRESENT_VERB_SET.has(first)) issues.push('tense_mismatch');
+            }
+
             // ── Length ─────────────────────────────────────────────────────
             if (words.length < 7)       issues.push('too_short');
             else if (words.length > 35) issues.push('too_long');
@@ -194,6 +221,7 @@ export function classifyBullets(cvData: CVData): BulletAnnotation[] {
                 issues.find(i => i === 'pronoun') ??
                 issues.find(i => i === 'ai_language' || i === 'third_person') ??
                 issues.find(i => i === 'passive_voice') ??
+                issues.find(i => i === 'tense_mismatch') ??
                 issues.find(i => i === 'weak_verb') ??
                 issues.find(i => i === 'ensuring_virus') ??
                 issues.find(i => i === 'no_metric') ??
@@ -260,6 +288,7 @@ export async function rewriteBulletOptions(
         issues.includes('ai_language')         ? 'Replace the AI/corporate buzzword with a direct, real verb. Keep the same achievement.' :
         issues.includes('third_person')        ? 'Change the verb from 3rd-person ("Manages") to bare imperative ("Manage").' :
         issues.includes('passive_voice')       ? 'Convert from passive voice to active voice — start with a strong action verb showing what you did.' :
+        issues.includes('tense_mismatch')      ? (isCurrentRole ? 'Switch from past tense to present tense (bare imperative) — e.g. "Managed" → "Manage", "Developed" → "Develop".' : 'Switch from present tense to past tense — e.g. "Manage" → "Managed", "Build" → "Built".') :
         issues.includes('weak_verb')           ? 'Replace the weak opener with a specific, strong action verb.' :
         issues.includes('ensuring_virus')      ? 'Remove "ensuring" — state the outcome or action directly using a concrete verb.' :
         issues.includes('no_metric')           ? 'Add a specific number, percentage, or scale — if no exact figure exists, use a reasonable approximation (e.g. "~12 clients", "3+ regions").' :
@@ -314,9 +343,9 @@ const BATCH_CAP = 20;
 
 const ISSUE_PRIORITY: Record<BulletIssueType, number> = {
     pronoun: 0, ai_language: 1, third_person: 2,
-    passive_voice: 3, weak_verb: 4, ensuring_virus: 5,
-    no_metric: 6, bare_metric_opener: 7, duplicate_word: 8,
-    too_short: 9, too_long: 10, good: 99,
+    passive_voice: 3, tense_mismatch: 4, weak_verb: 5, ensuring_virus: 6,
+    no_metric: 7, bare_metric_opener: 8, duplicate_word: 9,
+    too_short: 10, too_long: 11, good: 99,
 };
 
 export async function rewriteAllFlaggedBullets(
@@ -336,6 +365,7 @@ export async function rewriteAllFlaggedBullets(
         ai_language:        'Replace the corporate buzzword (e.g. "spearheaded", "leveraged") with a direct, real action verb.',
         third_person:       'Change the verb to bare imperative form — "Manages" → "Manage", "Generates" → "Generate".',
         passive_voice:      'Convert from passive voice ("was responsible for", "were tasked with") to active voice — start with an action verb.',
+        tense_mismatch:     'Fix the verb tense: current-role bullets need present tense ("Manage"), past-role bullets need past tense ("Managed").',
         weak_verb:          'Replace the weak opener with a strong, specific action verb.',
         ensuring_virus:     'Remove "ensuring" — state what was achieved or delivered directly using a concrete verb.',
         no_metric:          'Add a specific number, %, or scale. Use a reasonable estimate if no exact figure is available.',

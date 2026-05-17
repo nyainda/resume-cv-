@@ -34,6 +34,7 @@ import {
 import { getCVHtml } from './getCVHtml';
 import CVPreview from '../components/CVPreview';
 import type { CVData, PersonalInfo, TemplateName } from '../types';
+import { buildCoverLetterHtml, type CoverLetterTemplate } from './coverLetterHtmlService';
 
 export interface DownloadCVOptions {
   /** File name for the downloaded PDF (e.g. "Jane_Doe_CV.pdf"). */
@@ -210,6 +211,111 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
 export function resetDownloadHealthCache(): void {
   playwrightHealthCache = null;
   cfHealthCache = null;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Cover Letter → PDF  (Playwright → Cloudflare → jsPDF fallback)
+// ────────────────────────────────────────────────────────────────────────────
+
+function triggerPdfDownload(bytes: Uint8Array, fileName: string): void {
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export interface DownloadCoverLetterResult {
+  ok: boolean;
+  via?: 'playwright' | 'cloudflare' | 'jspdf';
+  error?: string;
+}
+
+/**
+ * Download a cover letter as a high-quality PDF.
+ * Attempts Playwright (local dev server), then the Cloudflare Worker, then
+ * falls back to the legacy jsPDF path so it always produces a file.
+ */
+export async function downloadCoverLetterViaWorker(
+  letterText: string,
+  fileName: string,
+  template: CoverLetterTemplate = 'modern',
+  personalInfo?: PersonalInfo,
+  onStatus?: (msg: string) => void,
+): Promise<DownloadCoverLetterResult> {
+  const html = buildCoverLetterHtml(letterText, template, personalInfo);
+
+  // ── Tier 1: Local Playwright ─────────────────────────────────────────────
+  try {
+    const playwrightUp = await probePlaywright();
+    if (playwrightUp) {
+      onStatus?.('Rendering cover letter…');
+      const r = await renderHtmlToPdfBytes(html, fileName);
+      if (r.ok && r.bytes) {
+        triggerPdfDownload(r.bytes, fileName);
+        return { ok: true, via: 'playwright' };
+      }
+      playwrightHealthCache = null;
+    }
+  } catch {
+    playwrightHealthCache = null;
+  }
+
+  // ── Tier 2: Cloudflare Worker ────────────────────────────────────────────
+  try {
+    const cfUp = await probeCloudflare();
+    if (cfUp) {
+      onStatus?.('Sending to cloud renderer…');
+      const r = await generateAndDownloadViaCF({ html, filename: fileName, format: 'A4', onStatus });
+      if (r.ok) return { ok: true, via: 'cloudflare' };
+      cfHealthCache = null;
+    }
+  } catch {
+    cfHealthCache = null;
+  }
+
+  // ── Tier 3: jsPDF fallback ───────────────────────────────────────────────
+  try {
+    const { downloadCoverLetterAsPDF } = await import('./pdfService');
+    downloadCoverLetterAsPDF(letterText, fileName, template as 'modern' | 'professional' | 'executive' | 'academic' | 'creative', personalInfo);
+    return { ok: true, via: 'jspdf' };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'PDF generation failed.',
+    };
+  }
+}
+
+/**
+ * Get cover letter PDF as bytes (for merging / preview). Same renderer chain
+ * as downloadCoverLetterViaWorker but returns Uint8Array instead of saving.
+ */
+export async function getCoverLetterPdfBytes(
+  letterText: string,
+  fileName: string,
+  template: CoverLetterTemplate = 'modern',
+  personalInfo?: PersonalInfo,
+): Promise<{ ok: boolean; bytes?: Uint8Array; error?: string }> {
+  const html = buildCoverLetterHtml(letterText, template, personalInfo);
+
+  if (await probePlaywright()) {
+    const r = await renderHtmlToPdfBytes(html, fileName);
+    if (r.ok) return { ok: true, bytes: r.bytes };
+    playwrightHealthCache = null;
+  }
+
+  if (await probeCloudflare()) {
+    const r = await renderHtmlToPdfBytesViaCF({ html, filename: fileName, format: 'A4' });
+    if (r.ok) return { ok: true, bytes: r.bytes };
+    cfHealthCache = null;
+  }
+
+  return { ok: false, error: 'PDF renderer unavailable.' };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
