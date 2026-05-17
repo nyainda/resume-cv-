@@ -4059,7 +4059,26 @@ Return ONLY a JSON object:
 `;
 
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 512 });
-    return JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVScore;
+    const raw = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVScore;
+
+    // Sanitize: ensure no field contains a raw JSON string (LLM sometimes wraps a
+    // value in {} or []) — strip anything that looks like a JSON object/array dump
+    const cleanStr = (v: unknown): string => {
+        if (typeof v !== 'string') return '';
+        const t = v.trim();
+        if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) return '';
+        return t;
+    };
+    const cleanArr = (arr: unknown[]): string[] =>
+        (arr || []).map(cleanStr).filter(Boolean);
+
+    return {
+        ...raw,
+        verdict: cleanStr(raw.verdict) || 'Score computed.',
+        strengths:       cleanArr(raw.strengths),
+        improvements:    cleanArr(raw.improvements),
+        missingKeywords: cleanArr(raw.missingKeywords),
+    } as CVScore;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4463,7 +4482,7 @@ ${jobDescription ? `TARGET JOB DESCRIPTION:\n${jobDescription}` : ''}
 
 Rules:
 1. Apply the instruction precisely.
-2. Keep all factual details accurate — don't change company names, job titles, dates, or invent new roles.
+2. Keep all factual details accurate — don't change company names, job titles, or invent new roles. You MAY add missing dates where a role has an empty or blank "dates" field; infer the approximate period from surrounding roles or education year.
 3. Return the COMPLETE CVData object with ALL fields, not just the modified parts.
 4. Bullets follow "Strong Verb → Scope → Result". Only ~50–60% should carry a metric — leave some qualitative.
 5. LANGUAGE: Write like a confident working professional, not an AI. Use plain, direct language. Do NOT upgrade vocabulary to formal or academic register. Do NOT use words like "spearheaded", "leveraged", "synergized", "utilized", "facilitated", "orchestrated", "catalyzed", "ideated", or any elevated corporate-speak. The final text should sound like a real person wrote it in their own voice.
@@ -4670,5 +4689,6 @@ Return ONLY the JSON. No markdown, no prose.
 `;
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.3, json: true, maxTokens: 8192 });
-    return JSON.parse(text.trim()) as EnhancedJobAnalysis;
+    const stripFencesEnhanced = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    return JSON.parse(stripFencesEnhanced(text)) as EnhancedJobAnalysis;
 };

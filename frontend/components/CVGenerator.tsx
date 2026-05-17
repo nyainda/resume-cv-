@@ -747,11 +747,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     if (!currentCV || !cvScore) return;
     setIsOptimizing(true);
     try {
-      // Auto-Optimize is a focused STYLE & QUALITY pass — it catches things that
-      // slipped past the initial generation (tense errors, 3rd-person verbs, weak
-      // openers, missing scope anchors, duplicate verb starters). It does NOT
-      // inject keywords, rewrite education, or invent new achievements.
-      const styleImprovements = (cvScore.improvements || []).filter(imp => {
+      // Auto-Optimize runs two categories of fixes:
+      //  A) STRUCTURAL — missing dates, fragmented summary, section clarity.
+      //  B) STYLE & QUALITY — tense, openers, verb uniqueness, language.
+      // Keyword injection and education rewrites are never touched.
+      const scoreImprovements = (cvScore.improvements || []).filter(imp => {
         const lower = imp.toLowerCase();
         return !lower.includes('keyword') &&
                !lower.includes('education') &&
@@ -761,20 +761,27 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       });
 
       const parts: string[] = [
-        'Fix only these style and consistency issues that commonly slip past generation:',
-        '• TENSE: current role (endDate "Present") bullets must use bare present tense — "Manage" not "Manages" or "Managed". Past role bullets must use simple past — "Managed" not "Manage".',
+        'Fix ALL of the following issues in the CV:',
+        '',
+        '=== STRUCTURAL FIXES (highest priority) ===',
+        '• MISSING DATES: Every experience role MUST have a non-empty "dates" field formatted as "Mon YYYY – Mon YYYY" or "Mon YYYY – Present". If dates are missing or blank for any role (especially intern or junior roles), infer approximate dates from context (surrounding roles, education graduation year, or "Jan YYYY – Dec YYYY" for the most likely period). Never leave dates empty.',
+        '• SUMMARY INTEGRITY: The professional summary must stand alone as clean prose. It must NOT end with a job title, company name, or role label — those belong in the experience section. If the summary bleeds into a role title, cut it off cleanly.',
+        '• SECTION CLARITY: Ensure each experience role has this clear structure: (1) jobTitle line, (2) company + dates line, (3) an optional one-sentence scope/context line if needed, then (4) bullet points. Bullets must never start with the company name or repeat the job title.',
         '• SCOPE ANCHOR: the very first bullet of every role must state team size, budget, geographic scope, or project count — not an achievement. Rewrite only if missing. Use REAL numbers from the profile.',
+        '',
+        '=== STYLE & QUALITY FIXES ===',
+        '• TENSE: current role (endDate "Present") bullets must use bare present tense — "Manage" not "Manages" or "Managed". Past role bullets must use simple past — "Managed" not "Manage".',
         '• OPENER ROTATION: no opener type should appear more than twice per role. Use all 7 types — verb, number ("[N] projects…"), scope ("For [N] clients…"), context ("As the sole engineer…"), timeframe ("Over [N] months…"), collaboration ("With the ops team…"), outcome ("Top performer in…"). Replace [N] with real profile values. Fix any role where one type dominates.',
         '• VERB UNIQUENESS: no two bullets anywhere in the document may start with the same verb stem. Rename duplicates to a distinct strong verb.',
         '• NO 3RD-PERSON VERBS: never start a bullet with "Manages", "Generates", "Prepares", "Engineers", etc. Use the bare imperative form.',
         '• REPEATED PHRASES: if any phrase of 4+ words appears in more than one bullet across the whole document, rewrite the second occurrence to use different wording — same meaning, different words.',
         '• SUMMARY ECHO: if a phrase from the professional summary also appears verbatim in a bullet, rephrase the bullet so they complement rather than repeat each other.',
         '• LANGUAGE: write in plain, direct CV language. Do NOT upgrade vocabulary to formal or academic English. Do NOT use words like "spearheaded", "leveraged", "orchestrated", "catalyzed", "utilized", or similar AI-sounding elevated language. Sound like a confident professional, not an AI assistant.',
-        '• GRAMMAR: fix broken grammar (missing subjects, fragments, tense errors) but keep the language simple and direct. A grammar fix must clarify a sentence, not make it sound more impressive.',
+        '• GRAMMAR: fix broken grammar (missing subjects, fragments, tense errors) but keep the language simple and direct.',
       ];
 
-      if (styleImprovements.length > 0) {
-        parts.push(`\nAdditional style improvements from the score:\n${styleImprovements.map(s => `• ${s}`).join('\n')}`);
+      if (scoreImprovements.length > 0) {
+        parts.push(`\nAdditional fixes flagged by the score:\n${scoreImprovements.map(s => `• ${s}`).join('\n')}`);
       }
 
       parts.push(
@@ -783,8 +790,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         '• Add, remove, or reorder skills.',
         '• Inject keywords not already present in the CV.',
         '• Invent new achievements, metrics, or responsibilities.',
-        '• Change the professional summary.',
-        '• Change company names, job titles, dates, or any factual information.',
+        '• Change company names or job titles.',
+        '• Change or remove dates that are already present — only ADD dates where missing.',
       );
 
       const instruction = parts.join('\n');
@@ -1722,8 +1729,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                     <div className="flex flex-col gap-0.5">
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {isOptimizing
-                          ? 'AI is rewriting your CV to fix every issue above…'
-                          : 'Let AI fix every issue above and push your score higher.'}
+                          ? 'AI is fixing structure, missing dates, and quality issues…'
+                          : 'Fix structure, missing dates, tense, and style issues in one click.'}
                       </p>
                       {isOptimizing && optimizingProvider && (
                         <p className="flex items-center gap-1.5 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
