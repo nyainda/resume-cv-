@@ -378,13 +378,13 @@ function detectTenseMismatch(cv: CVData): string[] {
         const isCurrent = isCurrentRole(role);
         const bullets = role.responsibilities || [];
         for (const b of bullets) {
-            // Strip "to <verb>" infinitives before tense checks. Without this,
-            // a perfectly past-tense bullet like "Led a team to deliver projects"
-            // matches PRESENT_VERB_HINTS on "deliver" and falsely flags as
-            // mixed tense, creating noise in the warnings reported to the user.
-            const cleaned = b.replace(/\bto\s+[A-Za-z]+\b/gi, '');
-            const hasPresent = PRESENT_VERB_HINTS.test(cleaned);
-            const hasPast    = PAST_VERB_HINTS.test(cleaned);
+            // Only check the LEADING VERB (first word) for tense.
+            // Checking the whole bullet causes false positives when action words
+            // like "design", "support", or "deliver" appear mid-sentence
+            // (e.g. "Supported design of…" matches PRESENT_VERB_HINTS on "design").
+            const firstWord = b.trim().split(/\s+/)[0] || '';
+            const hasPresent = PRESENT_VERB_HINTS.test(firstWord);
+            const hasPast    = PAST_VERB_HINTS.test(firstWord);
             if (hasPresent && hasPast) {
                 issues.push(`Mixed tense in "${role.jobTitle} @ ${role.company}": "${b.slice(0, 60)}…"`);
             } else if (isCurrent && hasPast && !hasPresent) {

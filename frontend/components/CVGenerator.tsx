@@ -763,10 +763,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       const parts: string[] = [
         'Fix only these style and consistency issues that commonly slip past generation:',
         '• TENSE: current role (endDate "Present") bullets must use bare present tense — "Manage" not "Manages" or "Managed". Past role bullets must use simple past — "Managed" not "Manage".',
-        '• SCOPE ANCHOR: the very first bullet of every role must state team size, budget, geographic scope, or project count — not an achievement. Rewrite only if missing.',
-        '• OPENER ROTATION: no opener type should appear more than twice per role. Use all 7 types — verb, number ("KES 800K in…"), scope ("For N clients,…"), context ("As the sole engineer,…"), timeframe ("In Q2 2024,…"), collaboration ("With the ops team,…"), outcome ("Top performer in…"). Fix any role where one type dominates.',
+        '• SCOPE ANCHOR: the very first bullet of every role must state team size, budget, geographic scope, or project count — not an achievement. Rewrite only if missing. Use REAL numbers from the profile.',
+        '• OPENER ROTATION: no opener type should appear more than twice per role. Use all 7 types — verb, number ("[N] projects…"), scope ("For [N] clients…"), context ("As the sole engineer…"), timeframe ("Over [N] months…"), collaboration ("With the ops team…"), outcome ("Top performer in…"). Replace [N] with real profile values. Fix any role where one type dominates.',
         '• VERB UNIQUENESS: no two bullets anywhere in the document may start with the same verb stem. Rename duplicates to a distinct strong verb.',
         '• NO 3RD-PERSON VERBS: never start a bullet with "Manages", "Generates", "Prepares", "Engineers", etc. Use the bare imperative form.',
+        '• REPEATED PHRASES: if any phrase of 4+ words appears in more than one bullet across the whole document, rewrite the second occurrence to use different wording — same meaning, different words.',
+        '• SUMMARY ECHO: if a phrase from the professional summary also appears verbatim in a bullet, rephrase the bullet so they complement rather than repeat each other.',
+        '• LANGUAGE: write in plain, direct CV language. Do NOT upgrade vocabulary to formal or academic English. Do NOT use words like "spearheaded", "leveraged", "orchestrated", "catalyzed", "utilized", or similar AI-sounding elevated language. Sound like a confident professional, not an AI assistant.',
+        '• GRAMMAR: fix broken grammar (missing subjects, fragments, tense errors) but keep the language simple and direct. A grammar fix must clarify a sentence, not make it sound more impressive.',
       ];
 
       if (styleImprovements.length > 0) {
