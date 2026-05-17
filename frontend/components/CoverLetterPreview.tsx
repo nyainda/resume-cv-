@@ -10,6 +10,59 @@ interface CoverLetterPreviewProps {
   personalInfo?: PersonalInfo;
 }
 
+// ─── Letter text formatter ────────────────────────────────────────────────────
+// Turns a wall-of-text into proper paragraphs when no \n\n separators exist.
+
+function formatLetterForDisplay(raw: string): string {
+  if (!raw) return raw;
+
+  // Already has paragraph breaks — respect them
+  if (/\n\n/.test(raw)) return raw;
+
+  // Normalise: collapse runs of single newlines into spaces
+  const flat = raw.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // ── 1. Pull out salutation: "Dear …,"  or  "Dear …:"
+  let salutation = '';
+  let rest = flat;
+  const salutationMatch = flat.match(/^(Dear\s[^,:]+[,:])\s*/i);
+  if (salutationMatch) {
+    salutation = salutationMatch[1];
+    rest = flat.slice(salutationMatch[0].length).trim();
+  }
+
+  // ── 2. Pull out closing + name from the end
+  // Find the last occurrence of a closing keyword and treat everything from
+  // there onwards as the sign-off block.
+  let closing = '';
+  const closingIdx = rest.search(/\b(Sincerely|Best regards|Kind regards|Warm regards|Yours faithfully|Yours sincerely|Yours truly|With regards|Regards|Respectfully|Thank you)[,.]?\s/i);
+  if (closingIdx !== -1) {
+    closing = rest.slice(closingIdx).trim();
+    rest = rest.slice(0, closingIdx).trim();
+  }
+
+  // ── 3. Split the body into sentences then group ~3 per paragraph
+  // Split on ". " or "! " or "? " followed by a capital letter
+  const sentences = rest
+    .split(/(?<=[.!?])\s+(?=[A-Z"'(])/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const SENTENCES_PER_PARA = 3;
+  const bodyParas: string[] = [];
+  for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARA) {
+    bodyParas.push(sentences.slice(i, i + SENTENCES_PER_PARA).join(' '));
+  }
+
+  // ── 4. Reassemble with double newlines
+  const parts: string[] = [];
+  if (salutation) parts.push(salutation);
+  parts.push(...bodyParas);
+  if (closing) parts.push(closing);
+
+  return parts.join('\n\n');
+}
+
 // ─── Cover Letter Rule types ─────────────────────────────────────────────────
 
 type CLSeverity = 'error' | 'warning' | 'info';
@@ -304,18 +357,20 @@ const LetterBody: React.FC<{
   isEditing: boolean;
   onBlur: (v: string) => void;
 }> = ({ text, fontClass, isEditing, onBlur }) => {
+  const formatted = formatLetterForDisplay(text);
+
   if (isEditing) return (
     <div
       contentEditable
       suppressContentEditableWarning
-      onBlur={e => onBlur(e.currentTarget.innerText)}
+      onBlur={e => onBlur(formatLetterForDisplay(e.currentTarget.innerText))}
       className={`outline-none text-sm leading-[1.78] text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap ${fontClass}`}
     >
-      {text}
+      {formatted}
     </div>
   );
 
-  const paragraphs = text.split(/\n\n+/).filter(Boolean);
+  const paragraphs = formatted.split(/\n\n+/).filter(Boolean);
   return (
     <div className={`text-sm leading-[1.78] text-zinc-700 dark:text-zinc-300 space-y-[14px] ${fontClass}`}>
       {paragraphs.map((para, i) => (
