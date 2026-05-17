@@ -187,35 +187,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [quantifyingEntry, setQuantifyingEntry] = useState<number | null>(null);
   const [detectingLocation, setDetectingLocation] = useState(false);
 
-  const handleDetectLocation = useCallback(async () => {
-    if (!navigator.geolocation) return;
-    setDetectingLocation(true);
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, maximumAge: 300000 })
-      );
-      const { latitude, longitude } = position.coords;
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`,
-        { headers: { 'Accept-Language': 'en' } }
-      );
-      const data = await res.json();
-      const addr = data.address || {};
-      const city = addr.city || addr.town || addr.village || addr.suburb || '';
-      const county = addr.county || addr.state_district || '';
-      const country = addr.country || '';
-      const parts: string[] = [];
-      if (city) parts.push(city);
-      if (county && county !== city) parts.push(county);
-      if (country) parts.push(country);
-      const location = parts.join(', ') || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
-      setValue('personalInfo.location', location);
-    } catch {
-      // silently ignore — geolocation blocked or network error
-    } finally {
-      setDetectingLocation(false);
-    }
-  }, [setValue]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const [customSections, setCustomSections] = useState<CustomSection[]>(existingProfile?.customSections || []);
@@ -246,6 +217,36 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   });
 
   const { register, control, handleSubmit, formState: { errors }, reset, getValues, setValue, watch } = methods;
+
+  const handleDetectLocation = useCallback(async () => {
+    if (!navigator.geolocation) return;
+    setDetectingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, maximumAge: 300000 })
+      );
+      const { latitude, longitude } = position.coords;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await res.json();
+      const addr = data.address || {};
+      const city = addr.city || addr.town || addr.village || addr.suburb || '';
+      const county = addr.county || addr.state_district || '';
+      const country = addr.country || '';
+      const parts: string[] = [];
+      if (city) parts.push(city);
+      if (county && county !== city) parts.push(county);
+      if (country) parts.push(country);
+      const location = parts.join(', ') || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+      setValue('personalInfo.location', location);
+    } catch {
+      // silently ignore — geolocation blocked or network error
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, [setValue]);
 
   const { fields: workFields, append: appendWork, remove: removeWork } = useFieldArray({ control, name: 'workExperience' });
   const { fields: eduFields, append: appendEdu, remove: removeEdu } = useFieldArray({ control, name: 'education' });
