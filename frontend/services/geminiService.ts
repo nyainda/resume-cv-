@@ -2247,6 +2247,29 @@ The user has explicitly set the number of bullets per role below. This count is 
 
 ${experienceInstructionLines}
 
+=== TENURE-BASED METRIC GUIDANCE (per role) ===
+The following tenure data tells you how long this candidate held each role. Use it to calibrate
+the scope and scale of honest claims — longer tenure supports broader claims; shorter tenure
+requires narrower, more specific ones. YOU MUST NOT invent specific numbers not present in the
+profile, but you MAY infer reasonable scope language from the tenure duration below.
+${((): string => {
+    const hints = (profile.workExperience || []).map((exp: any, idx: number) => {
+        const startDate = exp.startDate ? new Date(exp.startDate) : null;
+        const endDate = exp.endDate && exp.endDate !== 'Present' ? new Date(exp.endDate) : new Date();
+        const months = startDate ? Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30.4))) : null;
+        if (!months) return '';
+        const years = (months / 12).toFixed(1);
+        let guidance = '';
+        if (months >= 36) guidance = `Long tenure (${years}yrs). Appropriate to reference: repeated project cycles, client relationship depth, team growth over time, process improvements across multiple quarters.`;
+        else if (months >= 18) guidance = `Established role (${years}yrs). Appropriate to reference: end-to-end project ownership, multi-phase delivery, growing responsibilities over the period.`;
+        else if (months >= 9) guidance = `Medium tenure (${months}mo). Reference specific deliverables, named projects, and concrete outcomes from that period.`;
+        else guidance = `Short tenure / attachment (${months}mo). Focus on specific tasks and concrete outputs — avoid broad organisational claims.`;
+        return `  • ROLE_${idx + 1} (${exp.jobTitle} @ ${exp.company}): ${guidance}`;
+    }).filter(Boolean);
+    return hints.length ? hints.join('\n') : '  (No date information available — base scope claims only on explicit profile content.)';
+})()}
+=== END TENURE GUIDANCE ===
+
 === ROLE ISOLATION — CRITICAL, NO EXCEPTIONS ===
 The profile contains ${roleCount} work experience role${roleCount !== 1 ? 's' : ''}, each labeled ROLE_1, ROLE_2, … up to ROLE_${roleCount}.
 RULE: Bullets for any ROLE_N must draw EXCLUSIVELY from that role's own "_role": "ROLE_N" entry in the profile.
@@ -2278,8 +2301,9 @@ RULE: Bullets for any ROLE_N must draw EXCLUSIVELY from that role's own "_role":
                - Sentence 2 (PROOF): Single most impressive, quantified achievement. Must contain a real number or a specific named outcome.
                - Sentence 3 (RANGE): Breadth across functions, industries, or skills that makes them valuable across contexts.
                - Sentence 4 (PROMISE, optional): The type of value they consistently deliver — one concrete fact, never a cliché.
-               - BANNED IN SUMMARY: "passionate about", "detail-oriented", "results-driven", "dynamic", "innovative", "go-getter", "team player", "seeking an opportunity", "seeking to use", "seeking to apply", "seeking to bring", "looking to", "aiming to", "hoping to", "eager to join", "excited to contribute". The summary must state what the candidate DELIVERS, not what they WANT — write from the employer's perspective.
+               - BANNED IN SUMMARY: "passionate about", "detail-oriented", "results-driven", "dynamic", "innovative", "go-getter", "team player", "seeking an opportunity", "seeking to use", "seeking to apply", "seeking to bring", "looking to", "looking for", "aiming to", "hoping to", "eager to join", "excited to contribute". The summary must state what the candidate DELIVERS, not what they WANT — write from the employer's perspective.
                - NEVER use invented verbs anywhere in the CV: "Greenfielded", "Scaffolded" (non-software), "Materialized" (as in "materialized solutions"), "Actioned", "Ideated", "Solutioned". Use standard strong verbs instead.
+               - SUMMARY SOURCE RULE (non-negotiable): Every sentence in the summary must be built from the candidate's ACTUAL work experience and education listed in their profile. NEVER copy phrases, role requirements, objectives, or language from the job description into the summary. The target job title may appear once as an alignment signal — nothing else from the JD belongs in the summary.
 
             ② EXPERIENCE — Showcase Full Breadth and Growth:
                - FIRST BULLET of every role = SCOPE ANCHOR (team size, geographic reach, client count, budget, project count). Not an achievement.

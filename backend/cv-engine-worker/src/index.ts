@@ -2643,7 +2643,7 @@ async function handleMarketResearchCachePost(request: Request, env: Env, ctx: Ex
 // only shows raw profile/JD data going in and finished CV JSON coming out.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _CV_RULES_VERSION = '2026-05b';
+const _CV_RULES_VERSION = '2026-05c';
 
 // ── Generation prompt IP — scenario blocks, pivot formula, humanization header,
 //    critical rules reminder, and CV data schema. These are the most valuable
@@ -2825,12 +2825,15 @@ const _CV_CRITICAL_RULES_REMINDER = `
 8. Bullets: ZERO banned openers — Spearheaded, Orchestrated, Leveraged, Utilized, Facilitated, Empowered, Championed.
 9. Bullets: MIX opener categories across the document — do NOT write >85% verb-led bullets. Rotate: number-led ("3 sites surveyed…"), scope-led ("Across 5 counties…"), context-led ("As the sole engineer…"), collaboration-led ("With the client team…"). Also rotate VERB FAMILIES: Management (Led, Managed, Directed), Analysis (Analysed, Evaluated, Assessed), Communication (Presented, Reported, Liaised), Technical (Designed, Built, Configured), Financial (Budgeted, Negotiated, Costed) — use the families that match the candidate's actual role.
 10. Bullets: ZERO "→" arrow separators — write each bullet as a single flowing sentence, not chained clauses.
-11. Bullets: NO bare metric openers — do NOT start a bullet with a raw number/percentage ("40% increase in…", "KES 800,000 generated…"). Lead with the ACTION first: "Rebuilt X, achieving a 40% increase in…".
+11. Bullets: NO bare metric openers — do NOT start a bullet with a raw number/percentage ("[N]% increase in…", "[AMOUNT] generated…"). Lead with the ACTION first: "Rebuilt X, achieving a [N]% increase in…". ⚠ IMPORTANT: [N] and [AMOUNT] are placeholders — replace with the REAL number from the candidate's profile. NEVER copy example numbers verbatim.
 12. Buzzwords: ZERO "robust", "seamlessly", "synergy", "innovative solutions", "cutting-edge", "multifaceted", "unwavering commitment", "thought leader", "game-changer", "best-in-class", "world-class".
 13. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number — at least 1–2 bullets per role must be purely qualitative (action + context, no number).
 14. No two bullets across the ENTIRE document start with the same verb.
 15. Skills: NO duplicate entries — each skill must appear exactly once.
-16. Scope anchor: The FIRST bullet of EVERY role in the experience section must be a scope-setting statement — NOT a task or achievement. It must state at least one of: team size, number of direct reports, geographic coverage, client portfolio size, budget managed, or project count. These are NOT scope anchors: "Delivered X", "Supported design of Y", "Executed quality control on Z", "Conducted surveys", "Collaborated with teams". These ARE scope anchors: "Managed a 4-person field team across 3 counties", "Oversaw a portfolio of 14 client accounts across Nairobi and Central Kenya", "Supported a 6-engineer team on 8 concurrent road design packages". Check every role — not just the first.
+16. Scope anchor: The FIRST bullet of EVERY role in the experience section must be a scope-setting statement — NOT a task or achievement. It must state at least one of: team size, number of direct reports, geographic coverage, client portfolio size, budget managed, or project count. These are NOT scope anchors: "Delivered X", "Supported design of Y", "Executed quality control on Z", "Conducted surveys", "Collaborated with teams". These ARE scope anchors: "Managed a [N]-person field team across [N] sites", "Oversaw a portfolio of [N] client accounts across [Region]", "Supported a [N]-engineer team on [N] concurrent packages". ⚠ Replace [N] and [Region] with the REAL numbers and locations from the candidate's profile — never copy these placeholder values verbatim. Check every role — not just the first.
+17. Summary source: The summary MUST be built EXCLUSIVELY from the candidate's ACTUAL work experience, education, and skills in their profile. NEVER copy phrases, sentence structures, role requirements, or objectives from the job description into the summary. The JD's target job title may appear ONCE as an alignment signal; everything else comes from the candidate's real history. A summary that sounds like the JD is a FAILURE — it must sound like the CANDIDATE.
+18. Grammar: Check every sentence — fix subject-verb agreement, ensure dangling modifiers have a clear subject (NOT "Following degree completion, worked…" — it must be "Following degree completion, [Name] worked…" or rewrite it), consistent tense per role (present for current, past for all previous), and no sentence fragments. The final text must read at native professional English level.
+19. Example data: The rules and examples in this prompt contain PLACEHOLDER numbers and phrases (34%, 8 months, 3 counties, KES 800,000, [N], [AMOUNT], etc.). These are ABSTRACT TEMPLATES. NEVER copy any number, phrase, region name, or metric from the rule examples into the output. Every number in the CV must come exclusively from the candidate's profile.
 === END FINAL CHECK ===
 `;
 
@@ -2878,10 +2881,10 @@ ANTI-DETECTION RULES (binding — never skip, even on regenerate/optimize/improv
 - METRIC HONESTY (recruiter trust signal — stacked AI metrics are now a known tell):
     Never write a chained-causal metric like "improved efficiency by 20%, resulting in a 30% increase in sales" — that pattern is the #1 signal of a fabricated AI bullet because the chain can't be verified.
     A single specific number tied to one action is far more credible than two numbers stitched together.
-    If a number is estimated, mark it: "saved roughly 6 hours/week", "cut response time by ~40%". Estimation language reads more honest than fake precision.
+    If a number is estimated, mark it with approximation language: "saved roughly [N] hours/week", "cut [TYPE] time by ~[N]%". Estimation language reads more honest than fake precision. ⚠ NOTE: [N] is a placeholder — use the REAL number from the candidate's profile, never copy placeholder values.
 
 - SKILL HONESTY: never claim "expert" in 5+ areas; a real candidate is expert in 1–2 things, proficient in a handful, learning others. If listing skills with proficiency, distribute them realistically.
-- METRICS: only 50–60% of bullets carry a number; leave 1–2 bullets per role purely qualitative; use oddly specific numbers sometimes ("~7.5h/week", "roughly 30%"); vary metric type (time, cost, users, errors, satisfaction) — not always %.
+- METRICS: only 50–60% of bullets carry a number; leave 1–2 bullets per role purely qualitative; use oddly specific numbers sometimes (e.g. "~[N]h/week", "roughly [N]%") — replace [N] with a real number from the profile; vary metric type (time, cost, users, errors, satisfaction) — not always %.
 - KEYWORDS: target 65–75% JD match, NOT 90–100%; rephrase JD wording instead of mirroring it verbatim; no keyword used >3 times in the whole CV; skip soft-skill keywords.
 - BULLETS: vary opening verbs (Built, Wrote, Fixed, Shipped, Cut, Helped, Led, Debugged…); never start two bullets in one role with the same verb; mix formats: action+result, action+context, pure statement. The EXACT bullet count per role is set by the user — never add or remove bullets from the count given in the prompt.
 - SUMMARY: 2–3 sentences, specific to THIS person, mention one niche/unexpected angle, end forward-looking; never list every tech; never repeat content already in the experience section.
@@ -2926,9 +2929,9 @@ FOUNDATIONAL RULES (structural — apply to every CV you produce):
 
   RULE 1 — BULLET FORMULA:
     WITH metrics → XYZ: "Accomplished [X] as measured by [Y metric] by doing [Z]."
-      Example: "Grew SME client base by 34% over 8 months by redesigning field visit cadence."
+      Example: "Grew client base by [N]% over [N] months by redesigning field visit cadence." ← use REAL numbers from profile
     WITHOUT metrics → CAR: "[Challenge/Context] → [Action taken] → [Result produced]."
-      Example: "No standardised data process across 3 counties — designed unified template that cut errors and disputes."
+      Example: "No standardised data process across [N] sites — designed unified template that cut errors and disputes." ← use REAL numbers from profile
     NEVER use STAR format — it is for interviews, not CVs.
 
   RULE 2 — QUANTIFICATION MATRIX (attempt all 4 dimensions per role, use only what is honest):
