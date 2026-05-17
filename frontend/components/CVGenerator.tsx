@@ -136,6 +136,7 @@ const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }>
 // A color map for the three modes
 const modeColorMap: Record<CVGenerationMode, {
   ring: string; bg: string; text: string; badge: string; badgeBg: string; glow: string;
+  barFill: string; selectedBorder: string; headerBg: string; headerText: string;
 }> = {
   honest: {
     ring: 'ring-emerald-500',
@@ -144,6 +145,10 @@ const modeColorMap: Record<CVGenerationMode, {
     badge: 'text-emerald-800 dark:text-emerald-200',
     badgeBg: 'bg-emerald-100 dark:bg-emerald-900/40',
     glow: 'shadow-emerald-500/20',
+    barFill: 'bg-emerald-500',
+    selectedBorder: 'border-emerald-400 dark:border-emerald-600',
+    headerBg: 'bg-emerald-600',
+    headerText: 'text-emerald-100',
   },
   boosted: {
     ring: 'ring-blue-500',
@@ -152,6 +157,10 @@ const modeColorMap: Record<CVGenerationMode, {
     badge: 'text-blue-800 dark:text-blue-200',
     badgeBg: 'bg-blue-100 dark:bg-blue-900/40',
     glow: 'shadow-blue-500/20',
+    barFill: 'bg-blue-500',
+    selectedBorder: 'border-blue-400 dark:border-blue-600',
+    headerBg: 'bg-blue-600',
+    headerText: 'text-blue-100',
   },
   aggressive: {
     ring: 'ring-orange-500',
@@ -160,6 +169,10 @@ const modeColorMap: Record<CVGenerationMode, {
     badge: 'text-orange-800 dark:text-orange-200',
     badgeBg: 'bg-orange-100 dark:bg-orange-900/40',
     glow: 'shadow-orange-500/20',
+    barFill: 'bg-orange-500',
+    selectedBorder: 'border-orange-400 dark:border-orange-600',
+    headerBg: 'bg-orange-600',
+    headerText: 'text-orange-100',
   },
 };
 
@@ -1314,37 +1327,75 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         {/* === GENERATION MODE SELECTOR (Job mode only) === */}
         {cvPurpose === 'job' && (
           <div className="mt-8">
-            <div className="mb-3">
+            <div className="mb-4">
               <Label className="text-base font-semibold block">AI Generation Mode</Label>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Choose how powerfully the AI tailors your CV to this job.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-2.5">
               {cvGenerationModes.map((mode) => {
                 const isSelected = generationMode === mode.id;
                 const colors = modeColorMap[mode.id];
+                const intensity = mode.id === 'honest' ? 1 : mode.id === 'boosted' ? 2 : 3;
+                const riskLabel = mode.id === 'boosted' ? 'Low Risk' : mode.id === 'aggressive' ? 'Use with care' : null;
                 return (
                   <button
                     key={mode.id}
                     onClick={() => setGenerationMode(mode.id)}
                     className={`
-                      relative text-left p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer
+                      w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-200 cursor-pointer group
                       ${isSelected
-                        ? `${colors.ring} ${colors.bg} border-current shadow-lg ${colors.glow}`
+                        ? `${colors.selectedBorder} ${colors.bg} shadow-md ${colors.glow}`
                         : 'border-zinc-200 dark:border-neutral-700 hover:border-zinc-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/40'
                       }
                     `}
                   >
-                    {isSelected && (
-                      <div className={`absolute top-2.5 right-2.5 w-4 h-4 rounded-full ${colors.ring} border-2 flex items-center justify-center`}>
-                        <div className={`w-1.5 h-1.5 rounded-full bg-current ${colors.text}`}></div>
+                    <div className="flex items-stretch">
+                      {/* Left accent bar */}
+                      <div className={`w-1 flex-shrink-0 ${isSelected ? colors.barFill : 'bg-zinc-200 dark:bg-neutral-700'} transition-colors`} />
+
+                      <div className="flex items-center gap-4 px-4 py-3.5 flex-1 min-w-0">
+                        {/* Intensity dots */}
+                        <div className="flex flex-col gap-1 flex-shrink-0">
+                          {[3, 2, 1].map(bar => (
+                            <div
+                              key={bar}
+                              className={`w-2 h-2 rounded-full transition-colors ${
+                                bar <= intensity
+                                  ? (isSelected ? colors.barFill : 'bg-zinc-300 dark:bg-neutral-500')
+                                  : 'bg-zinc-100 dark:bg-neutral-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base leading-none">{mode.emoji}</span>
+                            <span className={`text-sm font-bold ${isSelected ? colors.text : 'text-zinc-800 dark:text-zinc-200'}`}>
+                              {mode.label}
+                            </span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isSelected ? `${colors.badgeBg} ${colors.badge}` : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400'}`}>
+                              {mode.shortDesc}
+                            </span>
+                            {riskLabel && (
+                              <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${mode.id === 'aggressive' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                ⚠ {riskLabel}
+                              </span>
+                            )}
+                            {isSelected && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${colors.badgeBg} ${colors.text} flex items-center gap-1`}>
+                                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs mt-1 leading-relaxed ${isSelected ? colors.text + ' opacity-80' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                            {mode.description}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xl">{mode.emoji}</span>
-                      <span className={`text-sm font-bold ${isSelected ? colors.text : 'text-zinc-800 dark:text-zinc-200'}`}>{mode.label}</span>
                     </div>
-                    <p className={`text-xs font-medium mb-1 ${isSelected ? colors.text : 'text-zinc-600 dark:text-zinc-400'}`}>{mode.shortDesc}</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{mode.description}</p>
                   </button>
                 );
               })}

@@ -16,6 +16,7 @@ import {
     classifyBullets, scanCVForDoctor, rewriteBulletOptions, rewriteAllFlaggedBullets,
     BulletAnnotation, BulletIssueType, CVDoctorScan, CVDiff, ISSUE_META,
 } from '../services/cvDoctorService';
+import { paraphraseText, ParaphraseTone } from '../services/geminiService';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,14 @@ const BulletRow: React.FC<{
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
-type Tab = 'scan' | 'bullets' | 'changes';
+const PARAPHRASE_TONES: { id: ParaphraseTone; label: string; desc: string; emoji: string }[] = [
+    { id: 'professional', label: 'Professional',  desc: 'Formal, polished',    emoji: '💼' },
+    { id: 'concise',      label: 'Concise',        desc: 'Shorter, punchy',     emoji: '⚡' },
+    { id: 'creative',     label: 'Creative',       desc: 'Dynamic, engaging',   emoji: '✨' },
+    { id: 'ats-friendly', label: 'ATS-Friendly',   desc: 'Keyword-optimised',   emoji: '🎯' },
+];
+
+type Tab = 'scan' | 'bullets' | 'changes' | 'paraphrase';
 
 const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBullet, onClose }) => {
     const [activeTab, setActiveTab] = useState<Tab>(diff && diff.totalChanges > 0 ? 'changes' : 'scan');
@@ -173,6 +181,34 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     const [batchError,       setBatchError]       = useState<string | null>(null);
     // Track which bullets have been batch-rewritten so they show green
     const [batchApplied,     setBatchApplied]     = useState<Set<string>>(new Set());
+
+    // Paraphraser state
+    const [paraInput,    setParaInput]    = useState('');
+    const [paraOutput,   setParaOutput]   = useState('');
+    const [paraTone,     setParaTone]     = useState<ParaphraseTone>('professional');
+    const [paraLoading,  setParaLoading]  = useState(false);
+    const [paraCopied,   setParaCopied]   = useState(false);
+
+    const handleParaphrase = useCallback(async () => {
+        if (!paraInput.trim()) return;
+        setParaLoading(true);
+        setParaOutput('');
+        try {
+            const result = await paraphraseText(paraInput, paraTone, jobDescription ?? '');
+            setParaOutput(result);
+        } catch {
+            setParaOutput('Paraphrasing failed — please try again.');
+        } finally {
+            setParaLoading(false);
+        }
+    }, [paraInput, paraTone, jobDescription]);
+
+    const copyParaOutput = async () => {
+        if (!paraOutput) return;
+        await navigator.clipboard.writeText(paraOutput);
+        setParaCopied(true);
+        setTimeout(() => setParaCopied(false), 2000);
+    };
 
     const annotations = React.useMemo(() => classifyBullets(cv), [cv]);
     const goodCount   = annotations.filter(a => a.primaryIssue === 'good').length;
@@ -216,8 +252,9 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     }, [activeTab, cv, jobDescription, scan, scanLoading]);
 
     const tabs: { id: Tab; label: string; count?: number }[] = [
-        { id: 'scan',    label: 'Smart Review' },
-        { id: 'bullets', label: 'Bullets', count: issueCount > 0 ? issueCount : undefined },
+        { id: 'scan',       label: 'Smart Review' },
+        { id: 'bullets',    label: 'Bullets', count: issueCount > 0 ? issueCount : undefined },
+        { id: 'paraphrase', label: 'Paraphraser' },
         ...(diff && diff.totalChanges > 0 ? [{ id: 'changes' as Tab, label: 'What Changed', count: diff.totalChanges }] : []),
     ];
 
@@ -452,6 +489,78 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                             {annotations.length === 0 && (
                                 <p className="text-sm text-zinc-500 text-center py-8">No bullets to review yet. Generate a CV first.</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── PARAPHRASER TAB ── */}
+                    {activeTab === 'paraphrase' && (
+                        <div className="space-y-4">
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Paste any text below — a bullet point, summary, or paragraph — and the AI will rewrite it in your chosen tone.
+                            </p>
+
+                            {/* Tone selector */}
+                            <div className="grid grid-cols-2 gap-2">
+                                {PARAPHRASE_TONES.map(t => (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setParaTone(t.id)}
+                                        className={`text-left p-2.5 rounded-xl border-2 transition-all text-xs
+                                            ${paraTone === t.id
+                                                ? 'border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/20'
+                                                : 'border-zinc-200 dark:border-neutral-700 hover:border-zinc-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/40'
+                                            }`}
+                                    >
+                                        <span className="block text-base mb-0.5">{t.emoji}</span>
+                                        <span className={`font-bold ${paraTone === t.id ? 'text-violet-700 dark:text-violet-300' : 'text-zinc-700 dark:text-zinc-300'}`}>{t.label}</span>
+                                        <span className={`block text-[10px] ${paraTone === t.id ? 'text-violet-500 dark:text-violet-400' : 'text-zinc-400 dark:text-zinc-500'}`}>{t.desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Input */}
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1.5">Your Text</label>
+                                <textarea
+                                    rows={4}
+                                    value={paraInput}
+                                    onChange={e => setParaInput(e.target.value)}
+                                    placeholder="Paste a bullet, summary line, or any text here…"
+                                    className="w-full text-xs rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2.5 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleParaphrase}
+                                disabled={!paraInput.trim() || paraLoading}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white transition-colors disabled:cursor-not-allowed shadow-sm"
+                            >
+                                {paraLoading ? (
+                                    <>
+                                        <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                        </svg>
+                                        Paraphrasing…
+                                    </>
+                                ) : '🔄 Paraphrase'}
+                            </button>
+
+                            {/* Output */}
+                            {paraOutput && (
+                                <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-400">Result</p>
+                                        <button
+                                            onClick={copyParaOutput}
+                                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-700/40 transition-colors"
+                                        >
+                                            {paraCopied ? '✓ Copied!' : '⎘ Copy'}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{paraOutput}</p>
+                                </div>
                             )}
                         </div>
                     )}

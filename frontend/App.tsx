@@ -704,18 +704,39 @@ const AppInner: React.FC = () => {
   }, [setCurrentCV]);
 
   const handleAutoTrack = useCallback((details: { roleTitle: string; company: string; savedCvName: string }) => {
-    const newApp: TrackedApplication = {
-      id: Date.now().toString(),
-      savedCvId: 'auto-generated',
-      savedCvName: details.savedCvName,
-      roleTitle: details.roleTitle,
-      company: details.company,
-      status: 'Applied',
-      dateApplied: new Date().toISOString().split('T')[0],
-      notes: `Automatically tracked after CV download on ${new Date().toLocaleDateString()}.`,
-    };
-    setTrackedApps(prev => [newApp, ...prev]);
-    toast.success('Application Tracked!', `Added "${details.roleTitle}" at ${details.company} to your tracker.`);
+    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    setTrackedApps(prev => {
+      const existingIdx = prev.findIndex(app => {
+        const sameRole    = normalise(app.roleTitle) === normalise(details.roleTitle);
+        const sameCompany = normalise(app.company)   === normalise(details.company);
+        const recent      = new Date(app.dateApplied) >= thirtyDaysAgo;
+        return sameRole && sameCompany && recent;
+      });
+
+      if (existingIdx !== -1) {
+        // Regeneration of the same job — update CV name only, don't create duplicate
+        const updated = [...prev];
+        updated[existingIdx] = { ...updated[existingIdx], savedCvName: details.savedCvName };
+        toast.success('CV Updated', `Re-generation detected — updated CV for "${details.roleTitle}" at ${details.company}.`);
+        return updated;
+      }
+
+      const newApp: TrackedApplication = {
+        id: Date.now().toString(),
+        savedCvId: 'auto-generated',
+        savedCvName: details.savedCvName,
+        roleTitle: details.roleTitle,
+        company: details.company,
+        status: 'Applied',
+        dateApplied: new Date().toISOString().split('T')[0],
+        notes: `Automatically tracked after CV generation on ${new Date().toLocaleDateString()}.`,
+      };
+      toast.success('Application Tracked!', `Added "${details.roleTitle}" at ${details.company} to your tracker.`);
+      return [newApp, ...prev];
+    });
   }, [setTrackedApps, toast]);
 
   // Wire CV Generator → Email Apply
@@ -838,9 +859,9 @@ const AppInner: React.FC = () => {
 
   const primaryNav = [
     { id: 'generator', label: 'CV Generator', icon: FileText },
-    { id: 'linkedin', label: 'LinkedIn', icon: LinkedInNavIcon },
-    { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
     { id: 'jobs', label: 'Job Board', icon: Globe },
+    { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
+    { id: 'tracker', label: 'Job Tracker', icon: Target },
   ];
 
   const moreNavGroups = [
@@ -855,7 +876,6 @@ const AppInner: React.FC = () => {
     {
       label: 'Tools',
       items: [
-        { id: 'toolkit', label: 'CV Toolkit', icon: Briefcase },
         { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
         { id: 'merger', label: 'PDF Tools', icon: MergeNavIcon },
       ],
@@ -864,7 +884,6 @@ const AppInner: React.FC = () => {
       label: 'Track',
       items: [
         { id: 'history', label: 'CV History', icon: List },
-        { id: 'tracker', label: 'Job Tracker', icon: Target },
         { id: 'analytics', label: 'Analytics', icon: AnalyticsNavIcon },
       ],
     },
