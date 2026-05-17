@@ -199,7 +199,100 @@ Return ONLY a JSON array of exactly 3 strings:
     return arr.filter((s: unknown): s is string => typeof s === 'string').slice(0, 3);
 }
 
-// ─── 4. Diff two CV snapshots ─────────────────────────────────────────────────
+// ─── 4. Batch rewrite all flagged bullets ─────────────────────────────────────
+
+export interface BatchRewriteEntry {
+    roleIndex:   number;
+    bulletIndex: number;
+    newText:     string;
+}
+
+export interface BatchRewriteResult {
+    applied:     BatchRewriteEntry[];
+    failedCount: number;
+}
+
+/**
+ * Sends up to BATCH_CAP flagged bullets in a single prompt and returns one
+ * fixed version for each.  Higher-severity issues (ai_language, third_person,
+ * weak_verb) are prioritised when the list is capped.
+ */
+const BATCH_CAP = 20;
+
+const ISSUE_PRIORITY: Record<BulletIssueType, number> = {
+    ai_language: 0, third_person: 1, weak_verb: 2,
+    no_metric: 3, too_short: 4, too_long: 5, good: 99,
+};
+
+export async function rewriteAllFlaggedBullets(
+    annotations: BulletAnnotation[],
+    cv: CVData,
+    jobDescription?: string,
+): Promise<BatchRewriteResult> {
+    const flagged = annotations
+        .filter(a => a.primaryIssue !== 'good')
+        .sort((a, b) => ISSUE_PRIORITY[a.primaryIssue] - ISSUE_PRIORITY[b.primaryIssue])
+        .slice(0, BATCH_CAP);
+
+    if (flagged.length === 0) return { applied: [], failedCount: 0 };
+
+    const ISSUE_TASK: Record<BulletIssueType, string> = {
+        ai_language:  'Replace the corporate buzzword (e.g. "spearheaded", "leveraged") with a direct, real action verb.',
+        third_person: 'Change the verb to bare imperative form — "Manages" → "Manage", "Generates" → "Generate".',
+        weak_verb:    'Replace the weak opener with a strong, specific action verb.',
+        no_metric:    'Add a specific number, %, or scale. Use a reasonable estimate if no exact figure is available.',
+        too_short:    'Expand with scope, method, or result detail. Aim for 15–25 words.',
+        too_long:     'Trim to under 28 words — keep the verb, scope, and result; cut filler.',
+        good:         'No change needed.',
+    };
+
+    const lines = flagged.map((ann, i) => {
+        const role = cv.experience[ann.roleIndex];
+        const isPresent = role?.endDate === 'Present' || !role?.endDate;
+        return `[#${i}] ROLE: ${role?.jobTitle ?? ''} at ${role?.company ?? ''} | TENSE: ${isPresent ? 'present' : 'past'} | FIX: ${ISSUE_TASK[ann.primaryIssue]} | BULLET: "${ann.text}"`;
+    });
+
+    const prompt = `You are a professional CV writer. Fix each bullet below according to the FIX instruction.
+
+${lines.join('\n')}
+${jobDescription ? `\nTARGET ROLE (for context only):\n${jobDescription.substring(0, 400)}` : ''}
+
+RULES:
+- Keep the same underlying achievement — do NOT invent new facts or metrics
+- Use the specified TENSE for each bullet
+- No bullet characters, no quotation marks in output values
+- Each output must be a single clean sentence
+
+Return ONLY a JSON array of ${flagged.length} objects, one per input bullet, in the SAME ORDER:
+[{"id": 0, "text": "fixed bullet here"}, {"id": 1, "text": "..."}, ...]`;
+
+    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+    let rawArr: { id: number; text: string }[] = [];
+    try {
+        const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.5, json: true, maxTokens: 2000 });
+        rawArr = JSON.parse(stripFences(text));
+    } catch {
+        return { applied: [], failedCount: flagged.length };
+    }
+
+    const applied: BatchRewriteEntry[] = [];
+    let failedCount = 0;
+
+    rawArr.forEach(item => {
+        if (typeof item?.id !== 'number' || typeof item?.text !== 'string' || !item.text.trim()) {
+            failedCount++;
+            return;
+        }
+        const ann = flagged[item.id];
+        if (!ann) { failedCount++; return; }
+        applied.push({ roleIndex: ann.roleIndex, bulletIndex: ann.bulletIndex, newText: item.text.trim() });
+    });
+
+    return { applied, failedCount };
+}
+
+// ─── 5. Diff two CV snapshots ─────────────────────────────────────────────────
 
 export function diffCV(before: CVData, after: CVData): CVDiff {
     const changedBullets: CVDiff['changedBullets'] = [];

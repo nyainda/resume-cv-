@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { CVData } from '../types';
 import {
-    classifyBullets, scanCVForDoctor, rewriteBulletOptions,
+    classifyBullets, scanCVForDoctor, rewriteBulletOptions, rewriteAllFlaggedBullets,
     BulletAnnotation, BulletIssueType, CVDoctorScan, CVDiff, ISSUE_META,
 } from '../services/cvDoctorService';
 
@@ -161,9 +161,39 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     const [scanError,   setScanError]   = useState<string | null>(null);
     const [diffExpanded, setDiffExpanded] = useState<Set<number>>(new Set());
 
+    // Batch rewrite state
+    const [isRewritingAll,   setIsRewritingAll]   = useState(false);
+    const [batchDoneCount,   setBatchDoneCount]   = useState<number | null>(null);
+    const [batchError,       setBatchError]       = useState<string | null>(null);
+    // Track which bullets have been batch-rewritten so they show green
+    const [batchApplied,     setBatchApplied]     = useState<Set<string>>(new Set());
+
     const annotations = React.useMemo(() => classifyBullets(cv), [cv]);
     const goodCount   = annotations.filter(a => a.primaryIssue === 'good').length;
     const issueCount  = annotations.length - goodCount;
+
+    const handleRewriteAll = useCallback(async () => {
+        setIsRewritingAll(true);
+        setBatchDoneCount(null);
+        setBatchError(null);
+        try {
+            const result = await rewriteAllFlaggedBullets(annotations, cv, jobDescription);
+            const applied = new Set<string>();
+            result.applied.forEach(entry => {
+                onApplyBullet(entry.roleIndex, entry.bulletIndex, entry.newText);
+                applied.add(`${entry.roleIndex}_${entry.bulletIndex}`);
+            });
+            setBatchApplied(applied);
+            setBatchDoneCount(result.applied.length);
+            if (result.failedCount > 0) {
+                setBatchError(`${result.failedCount} bullet${result.failedCount > 1 ? 's' : ''} could not be rewritten — apply them individually below.`);
+            }
+        } catch (err: any) {
+            setBatchError(err?.message?.substring(0, 100) ?? 'Batch rewrite failed. Try again or fix bullets individually.');
+        } finally {
+            setIsRewritingAll(false);
+        }
+    }, [annotations, cv, jobDescription, onApplyBullet]);
 
     const hasScan = useRef(false);
 
@@ -303,22 +333,69 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                     {/* ── BULLETS TAB ── */}
                     {activeTab === 'bullets' && (
-                        <div className="space-y-5">
+                        <div className="space-y-4">
+                            {/* Rewrite All Flagged banner — shown only when there are issues */}
+                            {issueCount > 0 && (
+                                <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50 to-white dark:from-violet-900/20 dark:to-neutral-900 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">
+                                                {issueCount} bullet{issueCount > 1 ? 's' : ''} flagged
+                                            </p>
+                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                                Fix all in one go — the highest-severity issues are prioritised.
+                                                {issueCount > 20 && ' Top 20 will be fixed first.'}
+                                            </p>
+                                            {batchDoneCount !== null && (
+                                                <p className="text-xs font-semibold text-green-600 dark:text-green-400 mt-1.5">
+                                                    ✓ {batchDoneCount} bullet{batchDoneCount > 1 ? 's' : ''} rewritten successfully
+                                                </p>
+                                            )}
+                                            {batchError && (
+                                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">{batchError}</p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={handleRewriteAll}
+                                            disabled={isRewritingAll}
+                                            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white transition-colors shadow-sm disabled:cursor-not-allowed"
+                                        >
+                                            {isRewritingAll ? (
+                                                <>
+                                                    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                                    </svg>
+                                                    Rewriting…
+                                                </>
+                                            ) : batchDoneCount !== null ? (
+                                                <>
+                                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                                                    Rewrite Again
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                                    Rewrite All Flagged
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Legend */}
                             <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/50 p-3">
                                 <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-2">Colour key</p>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                                    {LEGEND.map(l => {
-                                        const m = ISSUE_META[l.type];
-                                        return (
-                                            <div key={l.type} className="flex items-center gap-1.5">
-                                                <span className={`w-2 h-2 rounded-full ${l.type === 'good' ? 'bg-green-400' : l.type === 'no_metric' ? 'bg-amber-400' : l.type === 'too_short' ? 'bg-blue-400' : l.type === 'weak_verb' ? 'bg-orange-400' : 'bg-red-400'}`} />
-                                                <span className="text-[10px] text-zinc-600 dark:text-zinc-400">{l.label}</span>
-                                            </div>
-                                        );
-                                    })}
+                                    {LEGEND.map(l => (
+                                        <div key={l.type} className="flex items-center gap-1.5">
+                                            <span className={`w-2 h-2 rounded-full ${l.type === 'good' ? 'bg-green-400' : l.type === 'no_metric' ? 'bg-amber-400' : l.type === 'too_short' ? 'bg-blue-400' : l.type === 'weak_verb' ? 'bg-orange-400' : 'bg-red-400'}`} />
+                                            <span className="text-[10px] text-zinc-600 dark:text-zinc-400">{l.label}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">Click any bullet to see AI rewrite options.</p>
+                                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">Click any bullet to see rewrite options.</p>
                             </div>
 
                             {/* Bullets grouped by role */}
