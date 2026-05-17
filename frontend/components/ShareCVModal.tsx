@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
+import { createShareLink, buildShortShareUrl } from '../services/shareService';
+import { logEvent } from '../services/eventsService';
 
 interface ShareCVModalProps {
   cvData: CVData;
@@ -41,14 +43,17 @@ export function buildShareUrl(payload: SharedCVPayload): string {
 const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, template, coverLetterText, onClose }) => {
   const [copied, setCopied] = useState(false);
   const [linkGenerated, setLinkGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [isShortLink, setIsShortLink] = useState(false);
   const [activeTab, setActiveTab] = useState<'link' | 'qr'>('link');
   const [includeCoverLetter, setIncludeCoverLetter] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
-  const generateLink = useCallback(() => {
+  const generateLink = useCallback(async () => {
+    setGenerating(true);
     const payload: SharedCVPayload = {
       cvData,
       personalInfo,
@@ -56,9 +61,22 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
       sharedAt: new Date().toISOString(),
       ...(includeCoverLetter && hasCoverLetter ? { coverLetterText: coverLetterText! } : {}),
     };
-    const url = buildShareUrl(payload);
-    setShareUrl(url);
+    const compressed = encodeSharePayload(payload);
+
+    // Try to create a short D1-backed link first
+    const shortId = await createShareLink(compressed);
+    if (shortId) {
+      setShareUrl(buildShortShareUrl(shortId));
+      setIsShortLink(true);
+    } else {
+      // Fall back to long hash URL (no server needed)
+      setShareUrl(buildShareUrl(payload));
+      setIsShortLink(false);
+    }
+
+    logEvent({ event_type: 'share_created', template, mode: shortId ? 'short' : 'hash' });
     setLinkGenerated(true);
+    setGenerating(false);
   }, [cvData, personalInfo, template, includeCoverLetter, hasCoverLetter, coverLetterText]);
 
   const copyToClipboard = useCallback(async () => {
@@ -123,8 +141,8 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">Your data stays on your device.</span>{' '}
-              The CV is encoded inside the link itself — no server involved. Recipients see{' '}
+              <span className="font-semibold text-zinc-800 dark:text-zinc-200">Privacy first.</span>{' '}
+              We try to create a short link stored server-side (30-day expiry). If unavailable, the CV is encoded directly in the URL — no account needed either way. Recipients see{' '}
               <span className="font-semibold text-zinc-800 dark:text-zinc-200">only your CV</span>, not your workspace.
             </p>
           </div>
@@ -160,13 +178,26 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
           {!linkGenerated ? (
             <button
               onClick={generateLink}
-              className="w-full py-3 px-4 bg-[#1B2B4B] hover:bg-[#152238] text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+              disabled={generating}
+              className="w-full py-3 px-4 bg-[#1B2B4B] hover:bg-[#152238] disabled:bg-[#1B2B4B]/60 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-              Generate Share Link
+              {generating ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Creating link…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                  Generate Share Link
+                </>
+              )}
             </button>
           ) : (
             <div className="space-y-4">
@@ -226,9 +257,12 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                     </button>
                   </div>
 
-                  {/* URL size indicator */}
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1">
-                    <span>Link size: <span className="font-semibold">{urlKB} KB</span></span>
+                  {/* URL size / type indicator */}
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1 flex-wrap gap-1">
+                    <span className={`font-semibold px-2 py-0.5 rounded-full ${isShortLink ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-500'}`}>
+                      {isShortLink ? '✓ Short link (D1)' : 'Hash-encoded link'}
+                    </span>
+                    {!isShortLink && <span>Size: <span className="font-semibold">{urlKB} KB</span></span>}
                     <span className={`font-semibold ${qrOk ? 'text-green-500' : 'text-amber-500'}`}>
                       {qrOk ? '✓ QR-compatible' : '⚠ Too large for QR'}
                     </span>

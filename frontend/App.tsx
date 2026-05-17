@@ -19,6 +19,7 @@ import ProfileForm from './components/ProfileForm';
 import CVGenerator from './components/CVGenerator';
 import SharedCVView from './components/SharedCVView';
 import { decodeSharePayload, SharedCVPayload } from './components/ShareCVModal';
+import { fetchSharePayload } from './services/shareService';
 import SavedCVs from './components/SavedCVs';
 import CVHistory from './components/CVHistory';
 import ScholarshipEssayWriter from './components/ScholarshipEssayWriter';
@@ -389,7 +390,19 @@ const AppInner: React.FC = () => {
 
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.startsWith('#share=')) {
+    if (hash.startsWith('#s=')) {
+      // Short D1-backed share link — fetch payload from worker
+      const id = hash.slice('#s='.length);
+      if (id) {
+        fetchSharePayload(id).then(compressed => {
+          if (compressed) {
+            const payload = decodeSharePayload(compressed);
+            if (payload) setSharedCVPayload(payload);
+          }
+        });
+      }
+    } else if (hash.startsWith('#share=')) {
+      // Legacy long-hash share link
       const encoded = hash.slice('#share='.length);
       const payload = decodeSharePayload(encoded);
       if (payload) {

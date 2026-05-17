@@ -101,6 +101,14 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (url.pathname === '/api/cv/jd-analysis' && request.method === 'POST') return handleJdAnalysisCachePost(request, env, ctx);
     if (url.pathname === '/api/cv/rules' && request.method === 'GET') return handleGetRules(request, env);
     if (url.pathname === '/api/cv/proxy-llm' && request.method === 'POST') return handleProxyLLM(request, env, ctx);
+    // ── Share links ───────────────────────────────────────────────────────────
+    if (url.pathname === '/api/cv/share' && request.method === 'GET')  return handleShareGet(request, env, url);
+    if (url.pathname === '/api/cv/share' && request.method === 'POST') return handleSharePost(request, env, ctx);
+    // ── Job search cache ──────────────────────────────────────────────────────
+    if (url.pathname === '/api/cv/job-cache' && request.method === 'GET')  return handleJobCacheGet(request, env, url);
+    if (url.pathname === '/api/cv/job-cache' && request.method === 'POST') return handleJobCachePost(request, env, ctx);
+    // ── Anonymous events ──────────────────────────────────────────────────────
+    if (url.pathname === '/api/cv/event' && request.method === 'POST') return handleEventPost(request, env, ctx);
     return json({ error: 'not_found', path: url.pathname }, request, env, 404);
 }
 
@@ -3709,4 +3717,166 @@ async function handlePurifyCv(request: Request, env: Env): Promise<Response> {
     if (tenseFlips > 0) changes.push(`tense_fixes: ${tenseFlips}`);
 
     return json({ cv: out, changes }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Share links  GET /api/cv/share?id=  &  POST /api/cv/share
+// ─────────────────────────────────────────────────────────────────────────────
+
+function randomShareId(): string {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let out = '';
+    const arr = new Uint8Array(8);
+    crypto.getRandomValues(arr);
+    for (const b of arr) out += chars[b % chars.length];
+    return out;
+}
+
+async function handleShareGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const id = (url.searchParams.get('id') || '').trim();
+    if (!id || id.length < 4 || id.length > 16) {
+        return json({ error: 'missing_id' }, request, env, 400);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const row = await env.CV_DB.prepare(
+        `SELECT payload, expires_at FROM cv_shares WHERE id = ?`
+    ).bind(id).first<{ payload: string; expires_at: number }>();
+
+    if (!row) return json({ error: 'not_found' }, request, env, 404);
+    if (row.expires_at < now) {
+        // Expired — delete and return 410 Gone
+        env.CV_DB.prepare(`DELETE FROM cv_shares WHERE id = ?`).bind(id).run().catch(() => {});
+        return json({ error: 'expired' }, request, env, 410);
+    }
+
+    // Increment view count asynchronously
+    env.CV_DB.prepare(`UPDATE cv_shares SET view_count = view_count + 1 WHERE id = ?`)
+        .bind(id).run().catch(() => {});
+
+    return json({ ok: true, id, payload: row.payload }, request, env);
+}
+
+async function handleSharePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const payload = typeof body?.payload === 'string' ? body.payload.trim() : '';
+    if (!payload)                        return json({ error: 'missing_payload' }, request, env, 400);
+    if (payload.length > 65536)          return json({ error: 'payload_too_large', max: 65536 }, request, env, 413);
+
+    const ttlDays   = Math.min(Math.max(parseInt(body?.ttl_days ?? '30', 10), 1), 90);
+    const now       = Math.floor(Date.now() / 1000);
+    const expiresAt = now + ttlDays * 86400;
+
+    // Generate a unique ID (retry once on collision)
+    let id = randomShareId();
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const existing = await env.CV_DB.prepare(`SELECT id FROM cv_shares WHERE id = ?`).bind(id).first();
+        if (!existing) break;
+        id = randomShareId();
+    }
+
+    await env.CV_DB.prepare(
+        `INSERT INTO cv_shares (id, payload, created_at, expires_at, view_count)
+         VALUES (?, ?, ?, ?, 0)`
+    ).bind(id, payload, now, expiresAt).run();
+
+    // Prune expired entries in the background
+    ctx.waitUntil(
+        env.CV_DB.prepare(`DELETE FROM cv_shares WHERE expires_at < ?`)
+            .bind(now).run().catch(() => {})
+    );
+
+    return json({ ok: true, id, expires_at: expiresAt }, request, env, 201);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Job search cache  GET /api/cv/job-cache?key=  &  POST /api/cv/job-cache
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleJobCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const key = (url.searchParams.get('key') || '').trim();
+    if (!key || key.length < 16) return json({ error: 'missing_key' }, request, env, 400);
+
+    const now = Math.floor(Date.now() / 1000);
+    const row = await env.CV_DB.prepare(
+        `SELECT results_json, source, expires_at FROM job_search_cache WHERE cache_key = ?`
+    ).bind(key).first<{ results_json: string; source: string; expires_at: number }>();
+
+    if (!row || row.expires_at < now) {
+        if (row) {
+            env.CV_DB.prepare(`DELETE FROM job_search_cache WHERE cache_key = ?`).bind(key).run().catch(() => {});
+        }
+        return json({ hit: false }, request, env, 404);
+    }
+
+    // Update use_count and last_used timestamp (best-effort, background)
+    env.CV_DB.prepare(
+        `UPDATE job_search_cache SET use_count = use_count + 1 WHERE cache_key = ?`
+    ).bind(key).run().catch(() => {});
+
+    return json({ hit: true, source: row.source, results_json: row.results_json }, request, env);
+}
+
+async function handleJobCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const key         = typeof body?.key          === 'string' ? body.key.trim()          : '';
+    const resultsJson = typeof body?.results_json === 'string' ? body.results_json         : '';
+    const queryText   = typeof body?.query_text   === 'string' ? body.query_text.substring(0, 300) : '';
+    const source      = typeof body?.source       === 'string' ? body.source.substring(0, 20)      : 'tavily';
+    const ttlHours    = Math.min(Math.max(parseInt(body?.ttl_hours ?? '6', 10), 1), 48);
+
+    if (!key || key.length < 16)        return json({ error: 'invalid_key' }, request, env, 400);
+    if (!resultsJson)                   return json({ error: 'missing_results_json' }, request, env, 400);
+    if (resultsJson.length > 204800)    return json({ error: 'results_too_large', max: 204800 }, request, env, 413);
+
+    const now       = Math.floor(Date.now() / 1000);
+    const expiresAt = now + ttlHours * 3600;
+
+    await env.CV_DB.prepare(
+        `INSERT INTO job_search_cache (cache_key, query_text, results_json, source, created_at, expires_at, use_count)
+         VALUES (?, ?, ?, ?, ?, ?, 0)
+         ON CONFLICT(cache_key) DO UPDATE SET
+           results_json = excluded.results_json,
+           source       = excluded.source,
+           expires_at   = excluded.expires_at`
+    ).bind(key, queryText, resultsJson, source, now, expiresAt).run();
+
+    // Prune expired entries in the background
+    ctx.waitUntil(
+        env.CV_DB.prepare(`DELETE FROM job_search_cache WHERE expires_at < ?`)
+            .bind(now).run().catch(() => {})
+    );
+
+    return json({ ok: true, key, cached: true }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Anonymous events  POST /api/cv/event
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleEventPost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ ok: true }, request, env); } // never reject
+
+    const eventType = typeof body?.event_type === 'string' ? body.event_type.substring(0, 50).trim() : '';
+    const template  = typeof body?.template   === 'string' ? body.template.substring(0, 60).trim()   : '';
+    const mode      = typeof body?.mode       === 'string' ? body.mode.substring(0, 20).trim()       : '';
+    const metadata  = typeof body?.metadata   === 'string' ? body.metadata.substring(0, 1024)        : '{}';
+
+    if (!eventType) return json({ ok: true }, request, env); // silently accept empty
+
+    const now = Math.floor(Date.now() / 1000);
+
+    ctx.waitUntil(
+        env.CV_DB.prepare(
+            `INSERT INTO cv_events (event_type, template, mode, metadata, created_at)
+             VALUES (?, ?, ?, ?, ?)`
+        ).bind(eventType, template, mode, metadata, now).run().catch(() => {})
+    );
+
+    return json({ ok: true }, request, env);
 }
