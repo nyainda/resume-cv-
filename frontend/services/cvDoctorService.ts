@@ -86,25 +86,43 @@ const WEAK_VERB_SET = new Set([
     'had','got','responsible','tasked','engaged',
 ]);
 
+// Detection regexes for the expanded check set
+const PRONOUN_RX          = /\b(I|I've|I'd|I'm|I'll|my|we|we've|we're|we'd|our)\b/i;
+const PASSIVE_RX          = /\b(?:was|were)\s+(?:\w+ed|\w+en|built|run|done|made|led|won|kept|grown|shown|given|taken|sent|left|put|set|brought|thought|taught|caught|cut|hurt|let|hit|fit)\b/i;
+const PASSIVE_ROLE_RX     = /\b(?:responsible\s+for|tasked\s+with|in\s+charge\s+of|assigned\s+to)\b/i;
+const ENSURING_RX         = /\bensuring\b/i;
+const BARE_METRIC_OPEN_RX = /^[\d$£€¥₦₹]/;
+const DUPLICATE_WORD_RX   = /\b(\w{4,})\s+\1\b/i;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type BulletIssueType =
+    | 'pronoun'
     | 'ai_language'
     | 'third_person'
+    | 'passive_voice'
     | 'weak_verb'
+    | 'ensuring_virus'
     | 'no_metric'
+    | 'bare_metric_opener'
+    | 'duplicate_word'
     | 'too_short'
     | 'too_long'
     | 'good';
 
 export const ISSUE_META: Record<BulletIssueType, { label: string; tip: string; colour: string; border: string; badge: string }> = {
-    ai_language:  { label: 'AI buzzword',     tip: 'Replace the buzzword (e.g. "spearheaded", "leveraged") with a direct, real verb.', colour: 'bg-red-50 dark:bg-red-950/30',    border: 'border-l-red-400',    badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-    third_person: { label: '3rd-person verb',  tip: 'Change to bare imperative form — "Manages" → "Manage".', colour: 'bg-red-50 dark:bg-red-950/30',    border: 'border-l-red-400',    badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-    weak_verb:    { label: 'Weak opener',      tip: 'Replace the weak verb with a specific, strong action verb.', colour: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-l-orange-400', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
-    no_metric:    { label: 'No number',        tip: 'Add a specific number, %, or scale to quantify the impact.', colour: 'bg-amber-50 dark:bg-amber-950/30',  border: 'border-l-amber-400',  badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-    too_short:    { label: 'Too short',        tip: 'Expand with scope, method, or result detail (aim for 12–25 words).', colour: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-l-blue-400',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-    too_long:     { label: 'Too long',         tip: 'Trim to under 30 words — keep only the core verb, scope, and result.', colour: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-l-blue-400',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-    good:         { label: 'Good',             tip: 'This bullet looks strong.',  colour: 'bg-green-50 dark:bg-green-950/20', border: 'border-l-green-400',  badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+    pronoun:           { label: 'First person',      tip: 'Remove "I", "my", "we" or "our" — rewrite starting with a strong action verb.',                               colour: 'bg-red-50 dark:bg-red-950/30',      border: 'border-l-red-500',      badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
+    ai_language:       { label: 'AI buzzword',        tip: 'Replace the buzzword (e.g. "spearheaded", "leveraged") with a direct, real verb.',                            colour: 'bg-red-50 dark:bg-red-950/30',      border: 'border-l-red-400',      badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+    third_person:      { label: '3rd-person verb',    tip: 'Change to bare imperative form — "Manages" → "Manage".',                                                      colour: 'bg-red-50 dark:bg-red-950/30',      border: 'border-l-red-400',      badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+    passive_voice:     { label: 'Passive voice',      tip: 'Rewrite in active voice — start with what you did, not what was done to you. e.g. "Built…" not "Was tasked with building…".', colour: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-l-orange-500',   badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' },
+    weak_verb:         { label: 'Weak opener',        tip: 'Replace the weak verb with a specific, strong action verb.',                                                  colour: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-l-orange-400',   badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+    ensuring_virus:    { label: '"Ensuring" filler',  tip: 'Remove "ensuring" — state the outcome or action directly. e.g. "…ensuring quality" → "…improving quality by 30%".', colour: 'bg-amber-50 dark:bg-amber-950/30',   border: 'border-l-amber-500',    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+    no_metric:         { label: 'No number',          tip: 'Add a specific number, %, or scale to quantify the impact.',                                                  colour: 'bg-amber-50 dark:bg-amber-950/30',   border: 'border-l-amber-400',    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+    bare_metric_opener:{ label: 'Number-first',       tip: 'Move the number into the body — start with an action verb that frames the metric. e.g. "Grew revenue 40%…" not "40% revenue growth…".', colour: 'bg-yellow-50 dark:bg-yellow-950/30', border: 'border-l-yellow-400',   badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300' },
+    duplicate_word:    { label: 'Duplicate word',     tip: 'A word is repeated twice in a row — remove the extra one.',                                                   colour: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-l-purple-400',   badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
+    too_short:         { label: 'Too short',          tip: 'Expand with scope, method, or result detail (aim for 12–25 words).',                                          colour: 'bg-blue-50 dark:bg-blue-950/30',    border: 'border-l-blue-400',     badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+    too_long:          { label: 'Too long',           tip: 'Trim to under 30 words — keep only the core verb, scope, and result.',                                        colour: 'bg-blue-50 dark:bg-blue-950/30',    border: 'border-l-blue-400',     badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+    good:              { label: 'Good',               tip: 'This bullet looks strong.',                                                                                   colour: 'bg-green-50 dark:bg-green-950/20',  border: 'border-l-green-400',    badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
 };
 
 export interface BulletAnnotation {
@@ -140,22 +158,47 @@ export function classifyBullets(cvData: CVData): BulletAnnotation[] {
             const first = words[0]?.toLowerCase().replace(/[^a-z]/g, '') ?? '';
             const issues: BulletIssueType[] = [];
 
+            // ── Critical: first-person pronouns ───────────────────────────
+            if (PRONOUN_RX.test(text)) issues.push('pronoun');
+
+            // ── Critical: AI buzzwords / 3rd-person verb ───────────────────
             if (AI_VERB_SET.has(first) || /\b(spearheaded|leveraged|orchestrated|utilized|facilitated|synergized|catalyzed|galvanized)\b/i.test(text)) {
                 issues.push('ai_language');
             } else if (/^[A-Z][a-z]{2,}[^s]s\s/.test(text)) {
                 issues.push('third_person');
-            } else if (WEAK_VERB_SET.has(first)) {
-                issues.push('weak_verb');
             }
 
+            // ── High: passive voice ────────────────────────────────────────
+            if (PASSIVE_RX.test(text) || PASSIVE_ROLE_RX.test(text)) issues.push('passive_voice');
+
+            // ── High: weak opener ──────────────────────────────────────────
+            if (WEAK_VERB_SET.has(first)) issues.push('weak_verb');
+
+            // ── Medium: "ensuring" filler word ────────────────────────────
+            if (ENSURING_RX.test(text)) issues.push('ensuring_virus');
+
+            // ── Medium: no metric ──────────────────────────────────────────
             if (!/\d/.test(text)) issues.push('no_metric');
-            if (words.length < 7)  issues.push('too_short');
+
+            // ── Stylistic: bare metric opener ──────────────────────────────
+            if (BARE_METRIC_OPEN_RX.test(text)) issues.push('bare_metric_opener');
+
+            // ── Grammar: duplicate adjacent word ──────────────────────────
+            if (DUPLICATE_WORD_RX.test(text)) issues.push('duplicate_word');
+
+            // ── Length ─────────────────────────────────────────────────────
+            if (words.length < 7)       issues.push('too_short');
             else if (words.length > 35) issues.push('too_long');
 
             const primaryIssue: BulletIssueType =
+                issues.find(i => i === 'pronoun') ??
                 issues.find(i => i === 'ai_language' || i === 'third_person') ??
+                issues.find(i => i === 'passive_voice') ??
                 issues.find(i => i === 'weak_verb') ??
+                issues.find(i => i === 'ensuring_virus') ??
                 issues.find(i => i === 'no_metric') ??
+                issues.find(i => i === 'bare_metric_opener') ??
+                issues.find(i => i === 'duplicate_word') ??
                 issues.find(i => i === 'too_short' || i === 'too_long') ??
                 'good';
 
@@ -213,12 +256,17 @@ export async function rewriteBulletOptions(
     const tense = isCurrentRole ? 'present tense (bare imperative, e.g. "Manage", "Lead")' : 'past tense (e.g. "Managed", "Led")';
 
     const taskDesc =
-        issues.includes('ai_language')  ? 'Replace the AI/corporate buzzword with a direct, real verb. Keep the same achievement.' :
-        issues.includes('third_person') ? 'Change the verb from 3rd-person ("Manages") to bare imperative ("Manage").' :
-        issues.includes('weak_verb')    ? 'Replace the weak opener with a specific, strong action verb.' :
-        issues.includes('no_metric')    ? 'Add a specific number, percentage, or scale — if no exact figure exists, use a reasonable approximation (e.g. "~12 clients", "3+ regions").' :
-        issues.includes('too_short')    ? 'Expand with more specific detail about the scope, method, or measurable result. Aim for 15–25 words.' :
-        issues.includes('too_long')     ? 'Trim to under 28 words. Remove filler; keep the verb, scope, and result.' :
+        issues.includes('pronoun')             ? 'Remove the first-person pronoun (I, my, we, our) and rewrite starting with a strong action verb.' :
+        issues.includes('ai_language')         ? 'Replace the AI/corporate buzzword with a direct, real verb. Keep the same achievement.' :
+        issues.includes('third_person')        ? 'Change the verb from 3rd-person ("Manages") to bare imperative ("Manage").' :
+        issues.includes('passive_voice')       ? 'Convert from passive voice to active voice — start with a strong action verb showing what you did.' :
+        issues.includes('weak_verb')           ? 'Replace the weak opener with a specific, strong action verb.' :
+        issues.includes('ensuring_virus')      ? 'Remove "ensuring" — state the outcome or action directly using a concrete verb.' :
+        issues.includes('no_metric')           ? 'Add a specific number, percentage, or scale — if no exact figure exists, use a reasonable approximation (e.g. "~12 clients", "3+ regions").' :
+        issues.includes('bare_metric_opener')  ? 'Restructure so a strong action verb comes first, then use the number as supporting evidence.' :
+        issues.includes('duplicate_word')      ? 'Fix the repeated word and improve the overall clarity of the sentence.' :
+        issues.includes('too_short')           ? 'Expand with more specific detail about the scope, method, or measurable result. Aim for 15–25 words.' :
+        issues.includes('too_long')            ? 'Trim to under 28 words. Remove filler; keep the verb, scope, and result.' :
         'Improve the clarity and professional impact of this bullet.';
 
     const prompt = `You are a professional CV writer. Rewrite the bullet below in 3 different ways.
@@ -265,8 +313,10 @@ export interface BatchRewriteResult {
 const BATCH_CAP = 20;
 
 const ISSUE_PRIORITY: Record<BulletIssueType, number> = {
-    ai_language: 0, third_person: 1, weak_verb: 2,
-    no_metric: 3, too_short: 4, too_long: 5, good: 99,
+    pronoun: 0, ai_language: 1, third_person: 2,
+    passive_voice: 3, weak_verb: 4, ensuring_virus: 5,
+    no_metric: 6, bare_metric_opener: 7, duplicate_word: 8,
+    too_short: 9, too_long: 10, good: 99,
 };
 
 export async function rewriteAllFlaggedBullets(
@@ -282,13 +332,18 @@ export async function rewriteAllFlaggedBullets(
     if (flagged.length === 0) return { applied: [], failedCount: 0 };
 
     const ISSUE_TASK: Record<BulletIssueType, string> = {
-        ai_language:  'Replace the corporate buzzword (e.g. "spearheaded", "leveraged") with a direct, real action verb.',
-        third_person: 'Change the verb to bare imperative form — "Manages" → "Manage", "Generates" → "Generate".',
-        weak_verb:    'Replace the weak opener with a strong, specific action verb.',
-        no_metric:    'Add a specific number, %, or scale. Use a reasonable estimate if no exact figure is available.',
-        too_short:    'Expand with scope, method, or result detail. Aim for 15–25 words.',
-        too_long:     'Trim to under 28 words — keep the verb, scope, and result; cut filler.',
-        good:         'No change needed.',
+        pronoun:            'Remove the first-person pronoun (I, my, we, our) — rewrite starting with a strong action verb.',
+        ai_language:        'Replace the corporate buzzword (e.g. "spearheaded", "leveraged") with a direct, real action verb.',
+        third_person:       'Change the verb to bare imperative form — "Manages" → "Manage", "Generates" → "Generate".',
+        passive_voice:      'Convert from passive voice ("was responsible for", "were tasked with") to active voice — start with an action verb.',
+        weak_verb:          'Replace the weak opener with a strong, specific action verb.',
+        ensuring_virus:     'Remove "ensuring" — state what was achieved or delivered directly using a concrete verb.',
+        no_metric:          'Add a specific number, %, or scale. Use a reasonable estimate if no exact figure is available.',
+        bare_metric_opener: 'Move the number into the body of the sentence — start with an action verb that frames the metric.',
+        duplicate_word:     'Fix the repeated word and ensure the sentence reads naturally.',
+        too_short:          'Expand with scope, method, or result detail. Aim for 15–25 words.',
+        too_long:           'Trim to under 28 words — keep the verb, scope, and result; cut filler.',
+        good:               'No change needed.',
     };
 
     const lines = flagged.map((ann, i) => {

@@ -30,11 +30,16 @@ interface Props {
 // ─── Colour legend items ──────────────────────────────────────────────────────
 
 const LEGEND: { type: BulletIssueType; label: string }[] = [
-    { type: 'ai_language',  label: 'AI buzzword / 3rd-person verb' },
-    { type: 'weak_verb',    label: 'Weak opener' },
-    { type: 'no_metric',    label: 'No number / metric' },
-    { type: 'too_short',    label: 'Too short or too long' },
-    { type: 'good',         label: 'Looks good' },
+    { type: 'pronoun',            label: 'First-person pronoun (I / my / we)' },
+    { type: 'ai_language',        label: 'AI buzzword or 3rd-person verb' },
+    { type: 'passive_voice',      label: 'Passive voice / responsible for' },
+    { type: 'weak_verb',          label: 'Weak opener' },
+    { type: 'ensuring_virus',     label: '"Ensuring" filler word' },
+    { type: 'no_metric',          label: 'No number or metric' },
+    { type: 'bare_metric_opener', label: 'Starts with a number (no verb setup)' },
+    { type: 'duplicate_word',     label: 'Duplicate adjacent word' },
+    { type: 'too_short',          label: 'Too short or too long' },
+    { type: 'good',               label: 'Looks good' },
 ];
 
 // ─── Sub-component: single colour-coded bullet row ────────────────────────────
