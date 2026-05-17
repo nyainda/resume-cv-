@@ -1441,7 +1441,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* ── Action buttons row ── */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Use Template (no AI) — always available */}
           <div className="flex flex-col">
             <button
@@ -1457,7 +1458,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           </div>
 
           {/* AI Generate — full pipeline */}
-          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet} size="lg">
+          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet} size="lg" className="sm:ml-auto">
             {isLoading ? (
               <>
                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1468,17 +1469,22 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </>
             ) : <><Sparkles className="h-5 w-5 mr-2" />Build My CV</>}
           </Button>
+        </div>
 
-          {!isLoading && (
-            <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 -mt-1">
-              Tailored to your job description · ready in ~30 seconds
-            </p>
-          )}
+        {/* Hint text — below both buttons */}
+        {!isLoading && (
+          <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-2">
+            Tailored to your job description · ready in ~30 seconds
+          </p>
+        )}
 
+        {/* Badges row — gap analysis + engine indicator */}
+        {!isLoading && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
           {/* Gap badge — two states:
                1. Pre-generation: "N gap terms will be targeted" (emerald, pre-run hint)
                2. Post-generation: delta showing how many were closed vs remaining */}
-          {!isLoading && (() => {
+          {(() => {
             if (postGenGapResult) {
               const { before, closed, after } = postGenGapResult;
               const allClosed  = after === 0;
@@ -1515,7 +1521,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           })()}
 
           {/* AI engine badge — shown after successful generation */}
-          {lastEngine && !isLoading && (() => {
+          {lastEngine && (() => {
             const engineStyles: Record<string, { bg: string; text: string; dot: string; icon: string }> = {
               'Workers AI': { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', icon: '⚡' },
               'Groq':       { bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500', icon: '⚡' },
@@ -1531,7 +1537,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               </div>
             );
           })()}
-        </div>
+          </div>
+        )}
       </div>
 
       {currentCV && (

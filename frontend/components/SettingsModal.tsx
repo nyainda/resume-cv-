@@ -556,13 +556,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           </div>
 
           {/* ── JSearch Live Jobs (RapidAPI) ── */}
-          <div className="rounded-xl border-2 border-emerald-200 dark:border-emerald-700/40 p-4 space-y-3 bg-emerald-50/50 dark:bg-emerald-900/10">
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-700/40 p-4 space-y-3 bg-emerald-50/50 dark:bg-emerald-900/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-lg">🔎</span>
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">JSearch — Live Job Board</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Real-time job listings · Rich filters · 10M+ jobs</p>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">10M+ real-time listings · LinkedIn, Indeed & more · 200 searches/month free</p>
                 </div>
               </div>
               {jsearchKey ? (
@@ -570,19 +570,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               ) : (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
               )}
-            </div>
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-emerald-100 dark:border-emerald-900/40 p-3 space-y-1.5">
-              {[
-                '🆓 Free plan: 200 searches/month on RapidAPI',
-                '🌍 Filter by country, date posted, employment type',
-                '💼 10+ job categories (Tech, Finance, Healthcare, etc.)',
-                '💰 Salary data included where available',
-                '🔒 Encrypted & stored securely in your browser',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
             </div>
             <a
               href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch"
@@ -600,9 +587,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               placeholder="your-rapidapi-key"
               className="font-mono text-sm"
             />
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-              Powers: Live Job Board tab · Real-time listings from LinkedIn, Indeed, Glassdoor & 50+ sources
-            </p>
           </div>
 
           {/* ── Microsoft / OneDrive ── */}
@@ -610,26 +594,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MicrosoftIcon className="h-4 w-4" />
-                <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Microsoft / OneDrive</h3>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Microsoft / OneDrive</h3>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Import Word CVs · sync to OneDrive</p>
+                </div>
               </div>
               {msConnected ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">● Connected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
               ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400">○ Not connected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not connected</span>
               )}
-            </div>
-
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-blue-100 dark:border-blue-900/40 p-3 space-y-1.5">
-              {[
-                '📄 Import your CV directly from a Word (.docx) file',
-                '☁️ Sync CV data to your personal OneDrive',
-                '📝 Apply our templates to your Word-designed CV',
-                '🔒 All data encrypted & stored securely — no server needed',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
             </div>
 
             {msConnected && msUser ? (
@@ -694,44 +668,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
           {/* ── Brevo Email Sending ── */}
           <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 p-4 space-y-3 bg-sky-50/50 dark:bg-sky-900/10">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-sky-600 dark:text-sky-400">✉️ Brevo Email Sending</h3>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-sky-600 dark:text-sky-400">✉️ Brevo Email Sending</h3>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">AI-drafted emails with CV · 300/day free · no email client needed</p>
+              </div>
               {brevoKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">● Connected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
               ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400">○ Not connected</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not connected</span>
               )}
             </div>
-
-            <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-sky-100 dark:border-sky-900/40 p-3 space-y-1.5">
-              {[
-                '🤖 AI drafts email body from your profile',
-                '📝 Generates tailored cover letter',
-                '📨 Sends directly — no email client needed',
-                '🆓 300 emails/day free on Brevo',
-              ].map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
               Your <strong>profile email</strong> must be a verified sender in Brevo.{' '}
               <a href="https://app.brevo.com/senders" target="_blank" rel="noopener noreferrer"
                 className="text-sky-600 dark:text-sky-400 underline font-semibold">
                 Verify here →
               </a>
+              {' · '}
+              <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener noreferrer"
+                className="text-sky-600 dark:text-sky-400 underline font-semibold">
+                Get API key →
+              </a>
             </p>
-
-            <a
-              href="https://app.brevo.com/settings/keys/api"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 underline font-semibold"
-            >
-              Get your Brevo API key →
-            </a>
-
             <Input
               id="brevo-key"
               type="password"
@@ -740,10 +698,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               placeholder="xkeysib-xxxxxxxxxxxxxxxxxxxxxxxx"
               className="font-mono text-sm"
             />
-
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-              Powers: Email Apply → Send via Brevo • Auto-send with CV + cover letter in body
-            </p>
           </div>
 
           {/* ── Mobile Save/Cancel buttons ── */}

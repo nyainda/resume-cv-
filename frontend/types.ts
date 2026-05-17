@@ -314,16 +314,17 @@ export interface ApiSettings {
   provider: AIProvider;
   aiProvider?: 'workers-ai' | 'claude' | 'gemini'; // Active AI provider (single selection)
   apiKey: string | null;            // Gemini key (for PDF/image parsing + Gemini AI provider)
-  groqApiKey?: string | null;       // Legacy — no longer used
-  cerebrasApiKey?: string | null;   // Legacy — no longer used
-  openrouterApiKey?: string | null; // Legacy — no longer used
-  togetherApiKey?: string | null;   // Legacy — no longer used
   claudeApiKey?: string | null;     // Anthropic Claude key (for Claude AI provider)
   tavilyApiKey?: string | null;     // For job search & company research
   brevoApiKey?: string | null;      // For sending emails via Brevo SMTP API
   msClientId?: string | null;       // Azure AD Client ID for Microsoft/OneDrive integration
   jsearchApiKey?: string | null;    // RapidAPI JSearch — live job listings
-  preferredFallback?: 'claude' | 'gemini'; // Legacy — superseded by aiProvider
+  // Legacy fields kept for backwards-compatible localStorage reads only — not shown in UI
+  groqApiKey?: string | null;
+  cerebrasApiKey?: string | null;
+  openrouterApiKey?: string | null;
+  togetherApiKey?: string | null;
+  preferredFallback?: 'claude' | 'gemini';
 }
 
 export type PipelineStatus = 'queued' | 'generating' | 'cv-ready' | 'applied';
