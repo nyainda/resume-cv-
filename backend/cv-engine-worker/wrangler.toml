@@ -23,7 +23,7 @@ binding = "AI"
 crons = ["15 3 * * *"]
 
 [vars]
-ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app,https://834955d1-1e37-4e3f-869f-5ee38d5d7b9c-00-7yu8z6k9iyvv.spock.replit.dev,https://404d5348-5ab4-4320-abe1-1e7e2111307a-00-2msd3az7h5qjm.spock.replit.dev"
+ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app,https://834955d1-1e37-4e3f-869f-5ee38d5d7b9c-00-7yu8z6k9iyvv.spock.replit.dev,https://404d5348-5ab4-4320-abe1-1e7e2111307a-00-2msd3az7h5qjm.spock.replit.dev,https://4d759feb-f018-4b95-bbcb-af924f87dbf4-00-1gvfaw44ngte0.janeway.replit.dev"
 
 [env.dev.vars]
 ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5000,http://localhost:3000"
