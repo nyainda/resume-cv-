@@ -2794,6 +2794,7 @@ const _CV_HUMANIZATION_INSTRUCTION_HEADER = `
 
     BANNED PHRASES (zero tolerance — replace with specific facts):
     "delve", "robust", "seamlessly", "synergy", "leverage" (max once in whole document), "cutting-edge", "state-of-the-art", "passionate about", "in today's fast-paced world", "it is worth noting", "navigate the landscape", "groundbreaking", "thought leader", "game-changer", "dynamic", "innovative" (show it, don't say it), "results-driven", "detail-oriented", "team player", "go-getter", "proactive", "best-in-class", "holistic", "moving the needle", "at the end of the day", "take it to the next level", "excited to", "transformative", "impactful" (prove impact with numbers instead).
+    BANNED IN SUMMARY (zero tolerance — summary must state what the candidate DELIVERS, not what they WANT): "Looking to", "Looking for", "Seeking to", "Seeking for", "Aiming to", "Aiming for", "Hoping to", "I am looking", "In search of", "eager to join", "excited to contribute", "seeking an opportunity", "seeking to use", "seeking to apply", "seeking to bring".
 
     SPECIFICITY (mandatory replacements):
     - "improved efficiency" → "cut processing time from X hours to Y minutes"
@@ -2814,7 +2815,7 @@ const _CV_HUMANIZATION_INSTRUCTION_HEADER = `
 
 const _CV_CRITICAL_RULES_REMINDER = `
 === FINAL QUALITY CHECK — read this LAST, it overrides all earlier guidance ===
-1. Summary: opens with job title + seniority/impact. ZERO "Seeking to", "Looking to", "Aiming to", "Hoping to", "Eager to join", "Excited to contribute". MINIMUM 60 words, 3–4 sentences.
+1. Summary: opens with job title + seniority/impact. ZERO "Seeking to", "Seeking for", "Looking to", "Looking for", "Aiming to", "Aiming for", "Hoping to", "Eager to join", "Excited to contribute", "In search of", "I am looking". The summary states what the candidate DELIVERS — not what they WANT. MINIMUM 60 words, 3–4 sentences.
 2. Summary: NO generic buzzwords — "highly motivated", "results-driven", "results-oriented", "passionate about", "detail-oriented", "team player", "hard-working", "self-starter", "go-getter". Replace with a concrete fact or achievement.
 3. Summary: NEVER paraphrase the job description — describe what the CANDIDATE has actually done, using their own experience and real achievements.
 4. Bullets: MINIMUM 8 words per bullet — "Reviewed project documentation" is too short, expand with context and scope.
@@ -2829,6 +2830,7 @@ const _CV_CRITICAL_RULES_REMINDER = `
 13. Metrics: NO chained causals ("X% resulting in Y%"). MAX 55% of bullets per role may carry a number — at least 1–2 bullets per role must be purely qualitative (action + context, no number).
 14. No two bullets across the ENTIRE document start with the same verb.
 15. Skills: NO duplicate entries — each skill must appear exactly once.
+16. Scope anchor: The FIRST bullet of EVERY role in the experience section must be a scope-setting statement — NOT a task or achievement. It must state at least one of: team size, number of direct reports, geographic coverage, client portfolio size, budget managed, or project count. These are NOT scope anchors: "Delivered X", "Supported design of Y", "Executed quality control on Z", "Conducted surveys", "Collaborated with teams". These ARE scope anchors: "Managed a 4-person field team across 3 counties", "Oversaw a portfolio of 14 client accounts across Nairobi and Central Kenya", "Supported a 6-engineer team on 8 concurrent road design packages". Check every role — not just the first.
 === END FINAL CHECK ===
 `;
 
@@ -2884,8 +2886,8 @@ ANTI-DETECTION RULES (binding — never skip, even on regenerate/optimize/improv
 - BULLETS: vary opening verbs (Built, Wrote, Fixed, Shipped, Cut, Helped, Led, Debugged…); never start two bullets in one role with the same verb; mix formats: action+result, action+context, pure statement. The EXACT bullet count per role is set by the user — never add or remove bullets from the count given in the prompt.
 - SUMMARY: 2–3 sentences, specific to THIS person, mention one niche/unexpected angle, end forward-looking; never list every tech; never repeat content already in the experience section.
   BAD (do NOT write like this): "Highly motivated software engineer with 2 years of experience leveraging expertise in regulatory compliance and GovTech to drive meaningful change through innovative technology..."
-  GOOD (this is the target voice): "Backend engineer with 2 years building SaaS products, mostly in Laravel and React. I've shipped features used by government agencies and spent a lot of time making sure the data layer is actually secure, not just compliant on paper. Looking to join a team where the technical bar is high."
-  Notice in the good example: concrete tech named, contraction used ("I've"), one honest opinionated phrase ("not just compliant on paper"), forward-looking close, zero buzzwords.
+  GOOD (this is the target voice): "Backend engineer with 2 years building SaaS products, mostly in Laravel and React. I've shipped features used by government agencies and spent a lot of time making sure the data layer is actually secure, not just compliant on paper. My next step is a team where the technical bar is genuinely high."
+  Notice in the good example: concrete tech named, contraction used ("I've"), one honest opinionated phrase ("not just compliant on paper"), forward-looking close WITHOUT banned phrases ("Looking to", "Looking for", "Seeking", "Hoping"), zero buzzwords.
 - SKILLS: 10–15, grouped meaningfully; only list what they could be interviewed on; one "currently learning" item is fine.
 - GRAMMAR: ~90% perfect, not 100% — contractions OK ("didn't", "wasn't"); a recruiter reading aloud must not sound like a robot.
 
