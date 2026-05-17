@@ -2,7 +2,12 @@
  * JSearch Service — RapidAPI JSearch integration
  * Provides real live job listings with rich filters.
  * API docs: https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+ *
+ * Results are cached in Cloudflare D1 (6-hour TTL) before hitting the
+ * RapidAPI quota. Identical searches within the window are served instantly.
  */
+
+import { buildJobCacheKey, lookupJobCache, storeJobCache } from './jobSearchCacheClient';
 
 const BASE_URL = 'https://jsearch.p.rapidapi.com';
 const HOST = 'jsearch.p.rapidapi.com';
@@ -105,6 +110,25 @@ export async function searchJobs(
     params.set('job_requirements', jobRequirements);
   }
 
+  // ── D1 cache check (before burning RapidAPI quota) ──────────────────────
+  const d1Key = await buildJobCacheKey({
+    source: 'jsearch',
+    query: fullQuery,
+    datePosted: datePosted ?? 'all',
+    employmentTypes: (employmentTypes ?? []).slice().sort().join(','),
+    remoteOnly: !!remoteOnly,
+    jobRequirements: jobRequirements ?? '',
+    page: page ?? 1,
+    numPages: numPages ?? 1,
+  });
+
+  const d1Hit = await lookupJobCache<JSearchResult>(d1Key);
+  if (d1Hit.hit) {
+    console.log(`[JobCache] D1 HIT — JSearch "${fullQuery}" p${page ?? 1}`);
+    return d1Hit.data;
+  }
+
+  // ── Live API call ─────────────────────────────────────────────────────────
   const url = `${BASE_URL}/search?${params.toString()}`;
 
   const res = await fetch(url, {
@@ -129,7 +153,11 @@ export async function searchJobs(
   }
 
   const jobs: JSearchJob[] = (data.data || []).map(mapJob);
-  return { jobs, total: data.total };
+  const result: JSearchResult = { jobs, total: data.total };
+
+  storeJobCache(d1Key, result, fullQuery, 'jsearch'); // fire-and-forget to D1
+
+  return result;
 }
 
 // ── Filter option constants ────────────────────────────────────────────────────

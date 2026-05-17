@@ -2,13 +2,15 @@
 // ─── Tavily AI Search Service ─────────────────────────────────────────────────
 // Free tier: 1,000 API credits/month. Every fetch() call = 1 credit.
 // Budget strategy:
-//   • Cache search results 1 hour in localStorage (avoids re-searches)
+//   • Cache search results 6 hours in D1 (shared across sessions/devices)
+//   • Cache search results 1 hour in localStorage (fast local tier)
 //   • Background refresh at most once per hour per saved search
 //   • URL fetch = 1 credit (raw_content)
 //   • Company research = 1 credit (optional, can be skipped)
 //   • Usage counter saved in localStorage, resets each calendar month
 
 import { ScrapedJob } from '../types';
+import { buildJobCacheKey, lookupJobCache, storeJobCache } from './jobSearchCacheClient';
 
 const TAVILY_URL = 'https://api.tavily.com/search';
 const CACHE_KEY = 'tavily_cache_v2';
@@ -456,14 +458,26 @@ export const searchJobsByCategory = async (
 ): Promise<{ jobs: ScrapedJob[]; fromCache: boolean; cacheAge: number | null }> => {
 
     const { query, domains } = buildQuery(category, role, options);
-    const cacheKey = `${category}::${query}`;
-    const cached = readCache(cacheKey);
-    const age = getCacheAge(cacheKey);
+    const lsCacheKey = `${category}::${query}`;
 
+    // ── Tier 1: localStorage (instant, 1-hour TTL) ──────────────────────────
+    const cached = readCache(lsCacheKey);
+    const age = getCacheAge(lsCacheKey);
     if (cached) {
         return { jobs: cached, fromCache: true, cacheAge: age };
     }
 
+    // ── Tier 2: D1 (shared across sessions, 6-hour TTL) ─────────────────────
+    const d1Key = await buildJobCacheKey({ category, query, ...options });
+    const d1Hit = await lookupJobCache<ScrapedJob[]>(d1Key);
+    if (d1Hit.hit) {
+        console.log(`[JobCache] D1 HIT — ${category} "${role}"`);
+        writeCache(lsCacheKey, d1Hit.data); // populate local tier for subsequent calls
+        markRefreshed(lsCacheKey);
+        return { jobs: d1Hit.data, fromCache: true, cacheAge: null };
+    }
+
+    // ── Tier 3: Tavily API (burns quota) ────────────────────────────────────
     const data = await tavilyPost(apiKey, {
         query,
         search_depth: 'advanced',       // deeper search finds individual posts better
@@ -477,8 +491,9 @@ export const searchJobsByCategory = async (
         .map((r: any, i: number) => mapResult(r, i, category, options))
         .filter(Boolean) as ScrapedJob[];
 
-    writeCache(cacheKey, jobs);
-    markRefreshed(cacheKey);
+    writeCache(lsCacheKey, jobs);
+    markRefreshed(lsCacheKey);
+    storeJobCache(d1Key, jobs, query, 'tavily'); // fire-and-forget to D1
 
     return { jobs, fromCache: false, cacheAge: null };
 };
