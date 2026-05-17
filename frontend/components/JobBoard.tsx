@@ -277,6 +277,8 @@ const JobBoard: React.FC<JobBoardProps> = ({
     const [isFetchingUrl, setIsFetchingUrl] = useState(false);
     const [fromCache, setFromCache] = useState(false);
     const [cacheAge, setCacheAge] = useState<number | null>(null);
+    const [cacheSource, setCacheSource] = useState<'local' | 'd1' | null>(null);
+    const [jsCacheSource, setJsCacheSource] = useState<'local' | 'd1' | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const [fetchingId, setFetchingId] = useState<string | null>(null);
@@ -292,7 +294,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
         setIsSearching(true);
         setSearchError(null);
         try {
-            const { jobs, fromCache: fc, cacheAge: ca } = await searchJobsByCategory(
+            const { jobs, fromCache: fc, cacheAge: ca, cacheSource: cs } = await searchJobsByCategory(
                 activeTab as JobCategory,
                 role || 'scholarship fellowship',
                 tavilyApiKey,
@@ -301,6 +303,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
             setSearchResults(jobs);
             setFromCache(fc);
             setCacheAge(ca);
+            setCacheSource(cs ?? null);
             refreshBudget();
         } catch (e) {
             setSearchError(e instanceof Error ? e.message : 'Search failed. Check your Tavily API key.');
@@ -346,10 +349,11 @@ const JobBoard: React.FC<JobBoardProps> = ({
                 let pageJobs: JSearchJob[];
 
                 if (isFresh) {
-                    // Serve from cache — no API call needed
+                    // Serve from local page cache — no API call needed
                     pageJobs = cached.jobs;
+                    if (currentPage === startPage) setJsCacheSource('local');
                 } else {
-                    // Fetch from API
+                    // Fetch from D1 cache or live API
                     apiCalls++;
                     const result = await jsearchSearch(jsearchApiKey, {
                         query,
@@ -362,10 +366,11 @@ const JobBoard: React.FC<JobBoardProps> = ({
                         numPages: 1,
                     });
                     pageJobs = result.jobs;
+                    if (currentPage === startPage) setJsCacheSource(result._cacheSource ?? null);
                     totalPagesEstimate = result.total ? Math.min(Math.ceil(result.total / 10), 10) : totalPagesEstimate;
                     setJsTotalPages(totalPagesEstimate);
 
-                    // Cache this page
+                    // Cache this page locally
                     setPageCache(prev => ({
                         ...prev,
                         [pageCacheKey]: { jobs: pageJobs, fetchedAt: Date.now() },
@@ -822,11 +827,23 @@ const JobBoard: React.FC<JobBoardProps> = ({
                                     {!isJsSearching && jsResults.length > 0 && (
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between gap-4 flex-wrap">
-                                                <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                                                    <span className="font-semibold text-zinc-600 dark:text-zinc-300">{jsResults.length}</span> new listings
-                                                    {seenJobIds.length > 0 && <span> · <span className="font-semibold">{seenJobIds.length}</span> already seen &amp; skipped</span>}
-                                                    {jsAutoFetching && <span className="ml-2 text-emerald-500 animate-pulse">· fetching more…</span>}
-                                                </p>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                                                        <span className="font-semibold text-zinc-600 dark:text-zinc-300">{jsResults.length}</span> new listings
+                                                        {seenJobIds.length > 0 && <span> · <span className="font-semibold">{seenJobIds.length}</span> already seen &amp; skipped</span>}
+                                                        {jsAutoFetching && <span className="ml-2 text-emerald-500 animate-pulse">· fetching more…</span>}
+                                                    </p>
+                                                    {jsCacheSource === 'd1' && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                                                            ☁ Shared cache
+                                                        </span>
+                                                    )}
+                                                    {jsCacheSource === 'local' && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-medium">
+                                                            ⚡ Browser cache
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {seenJobIds.length > 0 && (
                                                     <button onClick={handleJSearchReset} className="text-xs text-rose-400 hover:text-rose-600 underline shrink-0">
                                                         Reset history
@@ -967,10 +984,21 @@ const JobBoard: React.FC<JobBoardProps> = ({
                             </div>
 
                             {fromCache && (
-                                <p className="text-xs text-zinc-400 mt-2 flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    Results from cache ({cacheAge ?? 0}m ago) — saves API credits.
-                                    <button onClick={handleSearch} className="text-violet-500 underline ml-1">Refresh</button>
+                                <p className="text-xs text-zinc-400 mt-2 flex items-center gap-2">
+                                    <Clock className="h-3 w-3 shrink-0" />
+                                    {cacheSource === 'd1' ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-medium">
+                                            ☁ Shared cache
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium">
+                                            ⚡ Browser cache
+                                        </span>
+                                    )}
+                                    <span>
+                                        {cacheAge != null ? `${cacheAge}m ago · ` : ''}saves API credits.
+                                    </span>
+                                    <button onClick={handleSearch} className="text-violet-500 underline">Refresh</button>
                                 </p>
                             )}
                         </div>

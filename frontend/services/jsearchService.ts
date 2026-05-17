@@ -46,6 +46,8 @@ export interface JSearchJob {
 export interface JSearchResult {
   jobs: JSearchJob[];
   total?: number;
+  /** Internal — set by the cache layer, stripped before UI use. */
+  _cacheSource?: 'local' | 'd1' | null;
 }
 
 function mapJob(raw: any): JSearchJob {
@@ -125,7 +127,7 @@ export async function searchJobs(
   const d1Hit = await lookupJobCache<JSearchResult>(d1Key);
   if (d1Hit.hit) {
     console.log(`[JobCache] D1 HIT — JSearch "${fullQuery}" p${page ?? 1}`);
-    return d1Hit.data;
+    return { ...d1Hit.data, _cacheSource: 'd1' };
   }
 
   // ── Live API call ─────────────────────────────────────────────────────────

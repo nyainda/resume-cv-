@@ -455,7 +455,7 @@ export const searchJobsByCategory = async (
     role: string,
     apiKey: string,
     options: { location?: string; visaCountry?: string; scholarshipLevel?: string } = {}
-): Promise<{ jobs: ScrapedJob[]; fromCache: boolean; cacheAge: number | null }> => {
+): Promise<{ jobs: ScrapedJob[]; fromCache: boolean; cacheAge: number | null; cacheSource: 'local' | 'd1' | null }> => {
 
     const { query, domains } = buildQuery(category, role, options);
     const lsCacheKey = `${category}::${query}`;
@@ -464,7 +464,7 @@ export const searchJobsByCategory = async (
     const cached = readCache(lsCacheKey);
     const age = getCacheAge(lsCacheKey);
     if (cached) {
-        return { jobs: cached, fromCache: true, cacheAge: age };
+        return { jobs: cached, fromCache: true, cacheAge: age, cacheSource: 'local' as const };
     }
 
     // ── Tier 2: D1 (shared across sessions, 6-hour TTL) ─────────────────────
@@ -474,7 +474,7 @@ export const searchJobsByCategory = async (
         console.log(`[JobCache] D1 HIT — ${category} "${role}"`);
         writeCache(lsCacheKey, d1Hit.data); // populate local tier for subsequent calls
         markRefreshed(lsCacheKey);
-        return { jobs: d1Hit.data, fromCache: true, cacheAge: null };
+        return { jobs: d1Hit.data, fromCache: true, cacheAge: null, cacheSource: 'd1' as const };
     }
 
     // ── Tier 3: Tavily API (burns quota) ────────────────────────────────────
@@ -495,7 +495,7 @@ export const searchJobsByCategory = async (
     markRefreshed(lsCacheKey);
     storeJobCache(d1Key, jobs, query, 'tavily'); // fire-and-forget to D1
 
-    return { jobs, fromCache: false, cacheAge: null };
+    return { jobs, fromCache: false, cacheAge: null, cacheSource: null };
 };
 
 // ─── 2. Fetch Full JD from a Job URL ──────────────────────────────────────────
