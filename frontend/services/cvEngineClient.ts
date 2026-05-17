@@ -858,7 +858,11 @@ export async function workerProxyLLM(
 ): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
     if (!prompt || !opts.apiKey) return null;
-    if (isDead(PROXY_LLM_ENDPOINT)) return null;
+    // NOTE: intentionally NOT checking isDead() here.
+    // The proxy endpoint forwards requests using the USER's API key (Claude / Gemini).
+    // It is completely independent of CF Workers AI quota.  The global cf-worker
+    // circuit opens when the daily Workers AI neuron limit is hit — that must not
+    // prevent user-key-based proxy calls from going through.
 
     const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
     try {
@@ -883,8 +887,8 @@ export async function workerProxyLLM(
         );
 
         if (!r.ok) {
-            // 4xx = upstream auth / quota error — worker is fine, don't mark dead
-            if (r.status >= 500) markDead(PROXY_LLM_ENDPOINT, `HTTP ${r.status}`);
+            // Any HTTP error here is an upstream provider error (bad key, quota, etc.)
+            // — NOT a CF worker failure.  Don't touch the global circuit.
             const body = await r.json().catch(() => ({})) as any;
             const msg  = body?.message || `proxy-llm HTTP ${r.status}`;
             const err: any = new Error(msg);
@@ -894,11 +898,10 @@ export async function workerProxyLLM(
         }
 
         const data = await r.json() as { text?: string };
-        const text = typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
-        if (text) markAlive(PROXY_LLM_ENDPOINT);
-        return text;
+        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
     } catch (e: any) {
         if (e?.status) throw e; // re-throw upstream errors (auth/quota) so caller can classify
+        // Only mark the worker dead on genuine network/timeout failures
         markDead(PROXY_LLM_ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerProxyLLM failed:', e);
         return null;
@@ -919,7 +922,8 @@ export async function workerProxyMultimodal(
 ): Promise<string | null> {
     if (!isCVEngineConfigured()) return null;
     if (!apiKey || !base64Data) return null;
-    if (isDead(PROXY_LLM_ENDPOINT)) return null;
+    // NOTE: intentionally NOT checking isDead() — same reason as workerProxyLLM.
+    // CF Workers AI quota exhaustion must not block user-key file-import calls.
 
     const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
     try {
@@ -943,7 +947,7 @@ export async function workerProxyMultimodal(
         );
 
         if (!r.ok) {
-            if (r.status >= 500) markDead(PROXY_LLM_ENDPOINT, `multimodal HTTP ${r.status}`);
+            // Upstream provider error — don't touch the global circuit.
             const body = await r.json().catch(() => ({})) as any;
             const msg  = body?.message || `proxy-multimodal HTTP ${r.status}`;
             const err: any = new Error(msg);
@@ -953,11 +957,10 @@ export async function workerProxyMultimodal(
         }
 
         const data = await r.json() as { text?: string };
-        const text = typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
-        if (text) markAlive(PROXY_LLM_ENDPOINT);
-        return text;
+        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
     } catch (e: any) {
         if (e?.status) throw e;
+        // Only mark the worker dead on actual network / timeout failures
         markDead(PROXY_LLM_ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
         if (import.meta.env.DEV) console.warn('[cvEngineClient] workerProxyMultimodal failed:', e);
         return null;
