@@ -61,15 +61,50 @@ function repairJson(raw: string): string {
 }
 
 /**
- * Parse JSON, automatically attempting a repair if the first parse fails.
- * Throws only if both attempts fail.
+ * Last-resort: extract string arrays from a named key using regex.
+ * Handles cases where JSON.parse and repairJson both fail (e.g. unescaped
+ * quotes inside array values that the LLM didn't properly escape).
  */
-function safeParseJson(raw: string): unknown {
+function extractArrayByKey(raw: string, key: string): string[] {
+    // Match "key": [ ... ] (greedy match up to closing bracket)
+    const blockRx = new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)\\](?:\\s*[,}]|$)`);
+    const block = blockRx.exec(raw);
+    if (!block) return [];
+    const content = block[1];
+    const items: string[] = [];
+    // Extract every double-quoted string, handling escaped quotes
+    const itemRx = /"((?:[^"\\]|\\.)*)"/g;
+    let m: RegExpExecArray | null;
+    while ((m = itemRx.exec(content)) !== null) {
+        const s = m[1].replace(/\\"/g, '"').trim();
+        if (s) items.push(s);
+    }
+    return items;
+}
+
+/**
+ * Parse JSON, automatically attempting a repair if the first parse fails,
+ * then a per-key regex extraction as a last resort.
+ * Never throws — returns a best-effort object.
+ */
+function safeParseJson(raw: string, fallbackKeys?: string[]): unknown {
     const stripped = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
     try {
         return JSON.parse(stripped);
     } catch {
-        return JSON.parse(repairJson(stripped));
+        try {
+            return JSON.parse(repairJson(stripped));
+        } catch {
+            // Last resort: regex-extract each expected key as a string array
+            if (fallbackKeys && fallbackKeys.length > 0) {
+                const result: Record<string, string[]> = {};
+                for (const key of fallbackKeys) {
+                    result[key] = extractArrayByKey(stripped, key);
+                }
+                return result;
+            }
+            throw new Error('JSON parse failed after all repair attempts');
+        }
     }
 }
 
@@ -261,8 +296,8 @@ Return ONLY this JSON (no markdown, no prose):
   "quickWins": ["up to 4 one-sentence improvements with IMMEDIATE impact — e.g. 'Start the Summary with a number: years of experience or client count', 'Add a scope anchor to the first bullet of every role (team size, budget, or region)'"]
 }`;
 
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1200 });
-    const parsed = safeParseJson(text) as Record<string, unknown>;
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1400 });
+    const parsed = safeParseJson(text, ['toAdd', 'toRemove', 'quickWins']) as Record<string, unknown>;
     const clean = (arr: unknown): string[] =>
         Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
     return {

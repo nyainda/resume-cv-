@@ -882,14 +882,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
   };
 
+  const [scoreError, setScoreError] = useState<string | null>(null);
+
   const handleScoreCV = useCallback(async () => {
     if (!currentCV || !jobDescription.trim() || !apiKeySet) return;
     setIsScoringCV(true);
+    setScoreError(null);
     try {
       const score = await scoreCV(currentCV, jobDescription);
       setCvScore(score);
-    } catch {
-      // silently fail — score card just won't appear
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Scoring failed — please try again.';
+      setScoreError(msg);
+      setTimeout(() => setScoreError(null), 6000);
     } finally {
       setIsScoringCV(false);
     }
@@ -1507,19 +1512,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 {isGeneratingCoverLetter ? "Generating..." : "Cover Letter"}
               </Button>
               {jobDescription.trim() && apiKeySet && (
-                <Button
-                  variant="secondary"
-                  onClick={handleScoreCV}
-                  disabled={isScoringCV || isEditing}
-                  size="sm"
-                  className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
-                >
-                  {isScoringCV ? (
-                    <><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Scoring…</>
-                  ) : (
-                    <>⚡ Score CV</>
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleScoreCV}
+                    disabled={isScoringCV || isEditing}
+                    size="sm"
+                    className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+                  >
+                    {isScoringCV ? (
+                      <><svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Scoring…</>
+                    ) : (
+                      <>⚡ Score CV</>
+                    )}
+                  </Button>
+                  {scoreError && (
+                    <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">{scoreError}</span>
                   )}
-                </Button>
+                </>
               )}
               <Button onClick={handleDownload} disabled={isEditing || !!downloadStatus} size="sm">
                 {downloadStatus ? (

@@ -222,44 +222,63 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     ];
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
+        <div className="fixed inset-0 z-50 flex flex-col sm:flex-row sm:justify-end pointer-events-none">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto"
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
                 onClick={onClose}
             />
 
-            {/* Panel */}
-            <div className="relative pointer-events-auto w-full max-w-xl h-full bg-white dark:bg-neutral-900 shadow-2xl flex flex-col overflow-hidden animate-slide-in-right">
+            {/* Panel — bottom sheet on mobile, right drawer on sm+ */}
+            <div className="relative pointer-events-auto
+                w-full sm:max-w-xl
+                h-[92dvh] sm:h-full
+                mt-auto sm:mt-0
+                bg-white dark:bg-neutral-900
+                rounded-t-2xl sm:rounded-none
+                shadow-[0_-8px_40px_rgba(0,0,0,0.18)] sm:shadow-[-8px_0_40px_rgba(0,0,0,0.12)]
+                flex flex-col overflow-hidden
+                animate-slide-in-bottom sm:animate-slide-in-right
+            ">
+                {/* Mobile drag handle */}
+                <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+                    <div className="w-10 h-1 rounded-full bg-zinc-300 dark:bg-neutral-600" />
+                </div>
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-neutral-700 bg-gradient-to-r from-violet-50 to-white dark:from-violet-900/20 dark:to-neutral-900 flex-shrink-0">
+                <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-zinc-200 dark:border-neutral-700 bg-gradient-to-r from-violet-600 to-violet-500 dark:from-violet-800 dark:to-violet-700 flex-shrink-0">
                     <div>
-                        <h2 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                            <span className="text-violet-600 dark:text-violet-400">⚕</span>
+                        <h2 className="text-base font-extrabold text-white flex items-center gap-2">
+                            <span>⚕</span>
                             CV Doctor
+                            {issueCount > 0 && (
+                                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black">
+                                    {issueCount} issue{issueCount > 1 ? 's' : ''}
+                                </span>
+                            )}
                         </h2>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            Career review · {annotations.length} bullets · {goodCount} strong · {issueCount} flagged
+                        <p className="text-xs text-violet-100 mt-0.5">
+                            {annotations.length} bullets · {goodCount} strong · {issueCount} flagged
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-lg font-bold leading-none"
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white text-sm font-bold transition-colors"
+                        aria-label="Close"
                     >
                         ✕
                     </button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-zinc-200 dark:border-neutral-700 flex-shrink-0">
+                <div className="flex border-b border-zinc-200 dark:border-neutral-700 flex-shrink-0 bg-zinc-50 dark:bg-neutral-800/50">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 py-2.5 text-xs font-bold relative transition-colors ${
+                            className={`flex-1 py-3 text-xs font-bold relative transition-colors ${
                                 activeTab === tab.id
-                                    ? 'text-violet-700 dark:text-violet-300 border-b-2 border-violet-500'
+                                    ? 'text-violet-700 dark:text-violet-300 border-b-2 border-violet-500 bg-white dark:bg-neutral-900'
                                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
                             }`}
                         >

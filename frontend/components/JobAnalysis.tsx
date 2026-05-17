@@ -62,10 +62,32 @@ const ScoreGauge: React.FC<{ score: number; grade: MatchGrade }> = ({ score, gra
     );
 };
 
+// ── Cache helpers ─────────────────────────────────────────────────────────────
+function djb2(str: string): string {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
+    return (h >>> 0).toString(36);
+}
+function analysisCacheKey(jd: string, cv: string) {
+    return `procv:jd-analysis:${djb2(jd.trim())}:${djb2(cv.trim())}`;
+}
+function loadCachedAnalysis(jd: string, cv: string): EnhancedJobAnalysis | null {
+    try {
+        const raw = localStorage.getItem(analysisCacheKey(jd, cv));
+        if (!raw) return null;
+        return JSON.parse(raw) as EnhancedJobAnalysis;
+    } catch { return null; }
+}
+function saveCachedAnalysis(jd: string, cv: string, result: EnhancedJobAnalysis) {
+    try { localStorage.setItem(analysisCacheKey(jd, cv), JSON.stringify(result)); } catch { /* quota full */ }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete, onSaveStories, currentCV, onCVUpdate }) => {
     const [analysis, setAnalysis] = useState<EnhancedJobAnalysis | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [fromCache, setFromCache] = useState(false);
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [savedStories, setSavedStories] = useState<Set<number>>(new Set());
     const [isFixingCV, setIsFixingCV] = useState(false);
@@ -79,15 +101,36 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
     const [semanticLoading, setSemanticLoading] = useState(false);
     const [semanticAvailable, setSemanticAvailable] = useState(true);
 
-    const runAnalysis = useCallback(async () => {
+    const runAnalysis = useCallback(async (forceRefresh = false) => {
         if (jobDescription.trim().length < 50 || !apiKeySet) return;
+
+        if (!forceRefresh) {
+            const cached = loadCachedAnalysis(jobDescription, cvTextContent);
+            if (cached) {
+                setAnalysis(cached);
+                setFromCache(true);
+                if (onAnalysisComplete) {
+                    onAnalysisComplete({
+                        keywords: (cached.topKeywords || []).slice(0, 10),
+                        skills: (cached.topKeywords || []).slice(10),
+                        companyName: cached.companyName,
+                        jobTitle: cached.jobTitle,
+                    });
+                }
+                return;
+            }
+        }
+
         setIsLoading(true);
         setError(null);
         setAnalysis(null);
+        setFromCache(false);
         setSavedStories(new Set());
         try {
             const enhanced = await analyzeJobEnhanced(jobDescription, cvTextContent);
             setAnalysis(enhanced);
+            setFromCache(false);
+            saveCachedAnalysis(jobDescription, cvTextContent, enhanced);
             if (onAnalysisComplete) {
                 const derived: JobAnalysisResult = {
                     keywords: (enhanced.topKeywords || []).slice(0, 10),
@@ -106,11 +149,17 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
 
     useEffect(() => {
         if (jobDescription.trim().length > 50 && apiKeySet) {
-            const timer = setTimeout(runAnalysis, 1200);
+            const cached = loadCachedAnalysis(jobDescription, cvTextContent);
+            if (cached) {
+                runAnalysis(false);
+                return;
+            }
+            const timer = setTimeout(() => runAnalysis(false), 1200);
             return () => clearTimeout(timer);
         } else {
             setAnalysis(null);
             setError(null);
+            setFromCache(false);
         }
     }, [jobDescription, apiKeySet]);
 
@@ -241,15 +290,23 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">6-block career-ops evaluation</p>
                 </div>
                 {analysis && (
-                    <button
-                        onClick={runAnalysis}
-                        disabled={isLoading}
-                        className="text-xs font-semibold text-[#1B2B4B] hover:text-[#1B2B4B] dark:text-[#C9A84C] flex items-center gap-1 disabled:opacity-50"
-                    >
-                        {isLoading ? (
-                            <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
-                        ) : '↺'} Re-analyze
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {fromCache && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/30">
+                                ✓ Cached
+                            </span>
+                        )}
+                        <button
+                            onClick={() => runAnalysis(true)}
+                            disabled={isLoading}
+                            className="text-xs font-semibold text-[#1B2B4B] hover:text-[#1B2B4B] dark:text-[#C9A84C] flex items-center gap-1 disabled:opacity-50"
+                            title={fromCache ? "Results loaded from cache — click to re-run a fresh analysis" : "Re-run analysis"}
+                        >
+                            {isLoading ? (
+                                <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                            ) : '↺'} Re-analyze
+                        </button>
+                    </div>
                 )}
             </div>
 

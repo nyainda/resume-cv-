@@ -4058,8 +4058,20 @@ Return ONLY a JSON object:
 }
 `;
 
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 512 });
-    const raw = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVScore;
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 900 });
+    const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    let raw: CVScore;
+    try {
+        raw = JSON.parse(stripped) as CVScore;
+    } catch {
+        // Attempt basic repair: close open strings, strip trailing commas, close brackets
+        const repaired = stripped
+            .replace(/,\s*"[^"]*$/, '')
+            .replace(/[,:\s]+$/, '')
+            .replace(/\}\s*$/, '') + '}';
+        try { raw = JSON.parse(repaired) as CVScore; }
+        catch { throw new Error('Could not parse score response — please try again.'); }
+    }
 
     // Sanitize: ensure no field contains a raw JSON string (LLM sometimes wraps a
     // value in {} or []) — strip anything that looks like a JSON object/array dump
