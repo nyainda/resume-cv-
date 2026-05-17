@@ -139,7 +139,7 @@ function detectCurrency(jd: string, location: string): string {
     if (/\baed\b|\bdirham\b|\buae\b|\bdubai\b|abu dhabi/.test(src)) return 'AED';
 
     // Step 2 — location keywords
-    if (/nairobi|mombasa|kisumu|\bkenya\b/.test(src)) return 'KES';
+    if (/nairobi|mombasa|kisumu|nakuru|eldoret|nyeri|thika|kikuyu|kiambu|machakos|kakamega|meru|garissa|kitale|malindi|migori|kisii|bungoma|nandi|laikipia|muranga|murang.a|embu|isiolo|voi|lamu|wajir|mandera|marsabit|samburu|turkana|baringo|kericho|bomet|narok|kajiado|makueni|taita|kwale|kilifi|tana river|\bkenya\b/.test(src)) return 'KES';
     if (/lagos|abuja|port harcourt|\bnigeria\b/.test(src)) return 'NGN';
     if (/johannesburg|cape town|durban|south africa/.test(src)) return 'ZAR';
     if (/london|manchester|birmingham|\buk\b|united kingdom/.test(src)) return 'GBP';
@@ -467,11 +467,20 @@ BULLET LENGTH & RHYTHM RULES (mix lengths PROPORTIONALLY in every role):
 - Structure (every length): [Strong Verb] + [What + How/Where/Who] + [Measurable Outcome or Observable Impact].
 
 METRIC DENSITY RULES:
-- Max 55% of bullets per role may contain a number. With 5 bullets, at most 3 may have metrics.
-- Mix metric types: percentages, headcounts, currency, time saved, volume. Never repeat the same type consecutively.
+- TARGET: At least 40% of bullets per role MUST carry a number or measurable outcome. With 5 bullets, aim for 2–3 with metrics. With 8 bullets, aim for 3–4. Falling below 30% metric density is a FAILURE.
+- Max 65% of bullets per role may contain a number — keep at least 1–2 per role purely qualitative so the CV doesn't read as mechanically perfect.
+- Mix metric types: percentages, headcounts, currency, time saved, volume, site count, project count. Never repeat the same metric type in consecutive bullets.
 - ROUND-NUMBER VARIATION (binding): Across the entire CV, NO MORE THAN 40% of numeric metrics may be multiples of 5 or 10. Real recruiters spot strings like "25%, 15%, 20%, 30%" instantly as AI output. Mix in specific numbers — 23%, 17%, 41%, 8.5h/wk, 47, 112, 1,340. If you must round, round to odd boundaries (3, 7, 11, 23) at least half the time.
 - Bullets without numbers must still be vivid: "across 4 counties", "for a national client base", "within a 6-person team".
-- NEVER write a metric just to have one. An honest descriptive bullet is better than a forced number.
+- METRIC SYNTHESIS (mandatory for engineering, operations, sales, field-based roles — use when explicit numbers are absent):
+  You MUST synthesize conservative, credible metrics from available context — duration, scope keywords, seniority, and domain norms. Mark estimates with approximation language ("~", "12+", "up to X"). A conservative estimate always beats a vague description.
+  Synthesis rules by domain:
+  • Engineering / Construction: infer project count from tenure (18mo ≈ 4–8 projects), site area from scope keywords ("multiple farms" ≈ "12+ sites"), team size from role level (junior=2–3, mid=4–6), budget from project type norms.
+  • Irrigation / Water: "multiple commercial farms" → "12+ commercial farm clients"; "site assessments" → "conducted 20+ site assessments"; "hydraulic design" → "designed systems covering 50+ hectares".
+  • Sales / Business development: infer pipeline value, client count, or growth % from tenure and seniority norms.
+  • Operations / Logistics: infer volume, cycle time reduction, or cost savings % from role scope.
+  • Civil / Infrastructure: infer km of road, number of drawings, project value range from role level and market norms.
+  THE ONLY EXCEPTION: never synthesize a monetary amount (KES, USD, etc.) unless the user's profile explicitly mentions revenue, contract value, or budget — use counts and percentages instead.
 
 GAP HANDLING RULES:
 ${gaps.length === 0
@@ -892,9 +901,11 @@ PROBLEM 2 — BANNED PHRASES (replace these with specific, direct language):
 Scan for and replace: ${liveBannedBullets}.
 Replace each with a direct action verb or a specific description of what was actually done.
 
-PROBLEM 3 — METRIC OVERLOAD (cap at 55% of bullets per role having a number):
-Count bullets per role. If more than 55% contain a number (%, count, currency, or ratio), rewrite the excess bullets to remove numbers but keep them vivid using scope language: "across 4 counties", "for a national client base", "within a small cross-functional team", etc.
-Priority: keep numbers in the bullets with the STRONGEST outcomes. Remove numbers from the weakest.
+PROBLEM 3 — METRIC DENSITY (target 40–65% of bullets per role having a number):
+Count bullets per role.
+• If MORE than 65% contain a number: rewrite the excess bullets to remove numbers but keep them vivid using scope language ("across 4 counties", "for a national client base", "within a small cross-functional team"). Keep numbers in the bullets with the STRONGEST outcomes; remove from the weakest.
+• If FEWER than 30% contain a number AND the role is in engineering, sales, operations, finance, or field-based work: add a conservative inferred metric to the weakest descriptive bullets. Use approximation language ("~", "12+", "up to X"). Never invent figures that cannot be inferred from the bullet content.
+Priority: keep numbers in the bullets with the STRONGEST outcomes.
 
 PROBLEM 4 — DUPLICATE VERB STARTERS (no two bullets across the whole document may start with the same verb):
 Scan all responsibilities across ALL roles. If two bullets start with the same verb, rewrite the second one to start with a different strong action verb.
@@ -2341,8 +2352,9 @@ RULE: Bullets for any ROLE_N must draw EXCLUSIVELY from that role's own "_role":
                - Bands: PUNCHY 8–14 words, STANDARD 15–22 words, NARRATIVE 25–40 words (two sentences).
                - A role with ≥5 bullets that uses only ONE band (e.g. all 8 bullets standard-length) = failure. Three bullets in a row of similar length = failure.
                - Hard floors and ceilings: under 8 words = stub (failure). Over 45 words = rambling (failure).
-               - Max 55% of bullets per role may contain a number. With 5 bullets, at most 3 may have metrics.
-               - Only add a metric when you can honestly infer it from what the user wrote. Never force a number.
+               - TARGET: At least 40% of bullets per role should carry a number. With 5 bullets, aim for 2–3 with metrics. With 8 bullets, 3–4.
+               - Max 65% of bullets per role may contain a number — keep 1–2 per role purely qualitative.
+               - Metric synthesis: when explicit numbers are absent, infer conservative estimates from context (tenure, scope words, role norms). Mark estimates with "~", "12+", "up to X". A conservative estimate beats a vague description every time.
 
             ${engineInstruction}
             ${humanizationInstruction}
@@ -4172,8 +4184,14 @@ async function runQualityPolishPasses(
         let sourceBullets: string[] = [];
 
         if (bulletCount.type === 'profile-pointcount') {
+            const normalize = (s: string) => (s || '').toLowerCase().trim();
             const sourceRole = (bulletCount.profile.workExperience || []).find(
-                we => we.jobTitle === role.jobTitle && we.company === role.company
+                we => normalize(we.jobTitle) === normalize(role.jobTitle) && normalize(we.company) === normalize(role.company)
+            ) ?? (bulletCount.profile.workExperience || []).find(
+                we => normalize(we.company) === normalize(role.company)
+            ) ?? (bulletCount.profile.workExperience || []).find(
+                we => normalize(role.jobTitle).includes(normalize(we.jobTitle).split(' ')[0] || '__') ||
+                      normalize(we.jobTitle).includes(normalize(role.jobTitle).split(' ')[0] || '__')
             );
             desired = sourceRole?.pointCount ?? role.responsibilities?.length ?? 5;
             sourceBullets = (sourceRole?.responsibilities || '')

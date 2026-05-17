@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import {
   UserProfile, Reference,
@@ -185,6 +185,37 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [aiError, setAiError] = useState<string | null>(null);
   const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
   const [quantifyingEntry, setQuantifyingEntry] = useState<number | null>(null);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  const handleDetectLocation = useCallback(async () => {
+    if (!navigator.geolocation) return;
+    setDetectingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, maximumAge: 300000 })
+      );
+      const { latitude, longitude } = position.coords;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await res.json();
+      const addr = data.address || {};
+      const city = addr.city || addr.town || addr.village || addr.suburb || '';
+      const county = addr.county || addr.state_district || '';
+      const country = addr.country || '';
+      const parts: string[] = [];
+      if (city) parts.push(city);
+      if (county && county !== city) parts.push(county);
+      if (country) parts.push(country);
+      const location = parts.join(', ') || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+      setValue('personalInfo.location', location);
+    } catch {
+      // silently ignore — geolocation blocked or network error
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, [setValue]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const [customSections, setCustomSections] = useState<CustomSection[]>(existingProfile?.customSections || []);
@@ -506,7 +537,23 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         </div>
         <div>
           <Label htmlFor="location" className="mb-1 block">Location</Label>
-          <Input id="location" {...register('personalInfo.location')} placeholder="City, Country" />
+          <div className="flex gap-2">
+            <Input id="location" {...register('personalInfo.location')} placeholder="City, County, Country" className="flex-1" />
+            <button
+              type="button"
+              onClick={handleDetectLocation}
+              disabled={detectingLocation}
+              title="Auto-detect your location"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:border-[#C9A84C]/60 hover:text-[#1B2B4B] dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+            >
+              {detectingLocation ? (
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" strokeOpacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+              ) : (
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><path d="M12 1v3m0 16v3M1 12h3m16 0h3" opacity="0"/></svg>
+              )}
+              {detectingLocation ? 'Detecting…' : 'Detect'}
+            </button>
+          </div>
         </div>
         <div className="md:col-span-2">
           <Label htmlFor="linkedin" className="mb-1 block">LinkedIn URL</Label>
@@ -587,7 +634,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               <div>
                 <Label className="text-xs mb-1 block">Bullet Points per Entry</Label>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {[3, 4, 5, 6, 8].map(count => {
+                  {[3, 4, 5, 6, 7, 8].map(count => {
                     const current = (watch(`workExperience.${index}.pointCount`) as number) ?? 5;
                     const selected = current === count;
                     return (
