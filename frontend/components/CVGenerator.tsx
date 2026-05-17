@@ -1695,7 +1695,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                     <button
                       onClick={() => setShowDoctorPanel(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white transition-colors shadow-sm"
-                      title="Open CV Doctor — colour-coded bullet review + AI scan"
+                      title="Open CV Doctor — bullet review, career insights & change history"
                     >
                       <span>⚕</span> CV Doctor
                     </button>
@@ -1786,7 +1786,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               <button
                 onClick={() => setShowDoctorPanel(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-100 hover:bg-violet-200 dark:bg-violet-900/40 dark:hover:bg-violet-800/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 transition-colors"
-                title="AI review: colour-coded bullet inspector + scan + diff"
+                title="Career review: bullet inspector, smart insights & what changed"
               >
                 <span>⚕</span> CV Doctor
               </button>

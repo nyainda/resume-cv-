@@ -1,12 +1,13 @@
 /**
  * CVDoctorPanel.tsx
  *
- * Full-featured AI CV review panel with three tabs:
+ * Full-featured career review panel with three tabs:
  *
- *  ① AI Scan   — one AI call → "Add these", "Remove these", "Quick Wins"
- *  ② Bullets   — instant colour-coded bullet inspector (no AI until user clicks)
- *                Click any flagged bullet → 3 AI rewrites appear → apply with one click
- *  ③ Changes   — diff view shown after Auto-Optimize (what changed, before → after)
+ *  ① Smart Review — career-consultant-style read of the CV:
+ *                   "Strengthen with", "Simplify by removing", "Quick Wins"
+ *  ② Bullets      — instant colour-coded bullet inspector; click any flagged
+ *                   bullet to get 3 rewrite options and apply with one click
+ *  ③ What Changed — diff view shown after Auto-Optimize (before → after)
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -179,7 +180,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     }, [activeTab, cv, jobDescription, scan, scanLoading]);
 
     const tabs: { id: Tab; label: string; count?: number }[] = [
-        { id: 'scan',    label: 'AI Scan' },
+        { id: 'scan',    label: 'Smart Review' },
         { id: 'bullets', label: 'Bullets', count: issueCount > 0 ? issueCount : undefined },
         ...(diff && diff.totalChanges > 0 ? [{ id: 'changes' as Tab, label: 'What Changed', count: diff.totalChanges }] : []),
     ];
@@ -203,7 +204,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                             CV Doctor
                         </h2>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            AI-powered review · {annotations.length} bullets · {goodCount} good · {issueCount} flagged
+                            Career review · {annotations.length} bullets · {goodCount} strong · {issueCount} flagged
                         </p>
                     </div>
                     <button
@@ -245,7 +246,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                             {scanLoading && (
                                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                                     <span className="inline-block w-8 h-8 rounded-full border-3 border-violet-400 border-t-transparent animate-spin" style={{ borderWidth: '3px' }} />
-                                    <p className="text-sm text-zinc-500">AI is reviewing your CV…</p>
+                                    <p className="text-sm text-zinc-500">Reviewing your CV…</p>
                                 </div>
                             )}
 
@@ -270,32 +271,30 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                             icon="⚡"
                                             colour="violet"
                                             items={scan.quickWins}
-                                            description="High-impact improvements you can make right now."
+                                            description="High-impact improvements with immediate effect."
                                         />
                                     )}
-                                    {/* To Add */}
                                     {scan.toAdd.length > 0 && (
                                         <ScanSection
-                                            title="Consider Adding"
+                                            title="Strengthen With"
                                             icon="＋"
                                             colour="green"
                                             items={scan.toAdd}
-                                            description="Things currently missing that would strengthen your CV."
+                                            description="Elements currently missing that would make this CV more compelling."
                                         />
                                     )}
-                                    {/* To Remove */}
                                     {scan.toRemove.length > 0 && (
                                         <ScanSection
-                                            title="Consider Removing"
+                                            title="Simplify By Removing"
                                             icon="✂"
                                             colour="red"
                                             items={scan.toRemove}
-                                            description="Content that weakens or clutters your CV."
+                                            description="Content that dilutes your story or takes up valuable space."
                                         />
                                     )}
 
                                     <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center pt-2">
-                                        AI suggestions — always use your own judgement before changing your CV.
+                                        Review suggestions — apply what fits your story and skip what doesn't.
                                     </p>
                                 </div>
                             )}
