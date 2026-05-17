@@ -1469,6 +1469,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             ) : <><Sparkles className="h-5 w-5 mr-2" />Build My CV</>}
           </Button>
 
+          {!isLoading && (
+            <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 -mt-1">
+              Tailored to your job description · ready in ~30 seconds
+            </p>
+          )}
+
           {/* Gap badge — two states:
                1. Pre-generation: "N gap terms will be targeted" (emerald, pre-run hint)
                2. Post-generation: delta showing how many were closed vs remaining */}
