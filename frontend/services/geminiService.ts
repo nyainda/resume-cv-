@@ -1,7 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
 import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider } from './groqService';
-import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, type PurifyReport } from './cvPurificationPipeline';
+import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
@@ -4305,6 +4305,15 @@ async function runQualityPolishPasses(
 
     // 10. Pronoun safety net.
     out = fixPronounsInCV(out);
+
+    // 10.5. Opener diversity enforcement — deterministic reshape (no AI cost).
+    // Runs AFTER pronoun pass so it never interferes with verb-tense fixes.
+    // Only restructures bullet bodies — never invents new facts.
+    try {
+        out = enforceOpenerDiversity(out);
+    } catch (e) {
+        console.debug('[Polish] Opener diversity pass skipped (non-fatal):', e);
+    }
 
     return out;
 }

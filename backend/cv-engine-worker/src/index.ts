@@ -3172,6 +3172,66 @@ async function computeProxyCacheKey(provider: string, model: string, system: str
 
 // ── Substitution rules (AI-isms & corporate fluff) ────────────────────────────
 const _SUBS: Array<[RegExp, string]> = [
+    // ── 3rd-person singular → bare imperative ─────────────────────────────────
+    // AI models (Mistral Small 3.1, Workers AI) frequently start current-role
+    // bullets with the 3rd-person singular form ("Manages a team…", "Conducts
+    // analysis…") instead of the correct bare imperative ("Manage", "Conduct").
+    // These anchored rules fire only at the start of a bullet string so they
+    // can never corrupt mid-sentence subject-verb agreement.
+    [/^Manages\b/,        'Manage'],
+    [/^Leads\b/,          'Lead'],
+    [/^Builds\b/,         'Build'],
+    [/^Conducts\b/,       'Conduct'],
+    [/^Troubleshoots\b/,  'Troubleshoot'],
+    [/^Generates\b/,      'Generate'],
+    [/^Prepares\b/,       'Prepare'],
+    [/^Designs\b/,        'Design'],
+    [/^Oversees\b/,       'Oversee'],
+    [/^Coordinates\b/,    'Coordinate'],
+    [/^Supports\b/,       'Support'],
+    [/^Maintains\b/,      'Maintain'],
+    [/^Develops\b/,       'Develop'],
+    [/^Implements\b/,     'Implement'],
+    [/^Monitors\b/,       'Monitor'],
+    [/^Reviews\b/,        'Review'],
+    [/^Reports\b/,        'Report'],
+    [/^Ensures\b/,        'Ensure'],
+    [/^Provides\b/,       'Provide'],
+    [/^Handles\b/,        'Handle'],
+    [/^Engineers\b/,      'Engineer'],
+    [/^Delivers\b/,       'Deliver'],
+    [/^Drives\b/,         'Drive'],
+    [/^Creates\b/,        'Create'],
+    [/^Operates\b/,       'Operate'],
+    [/^Works\b/,          'Work'],
+    [/^Analyzes\b/,       'Analyze'],
+    [/^Analyses\b/,       'Analyse'],
+    [/^Plans\b/,          'Plan'],
+    [/^Executes\b/,       'Execute'],
+    [/^Performs\b/,       'Perform'],
+    [/^Serves\b/,         'Serve'],
+    [/^Assists\b/,        'Assist'],
+    [/^Drafts\b/,         'Draft'],
+    [/^Produces\b/,       'Produce'],
+    [/^Processes\b/,      'Process'],
+    [/^Tracks\b/,         'Track'],
+    [/^Trains\b/,         'Train'],
+    // ── Em-dash / en-dash artifact cleanup ────────────────────────────────────
+    // Mistral Small 3.1 24B sometimes generates orphaned dashes — typically when
+    // it intended "portfolio of 12–15 accounts" but the number fidelity pass or
+    // the model itself produced "portfolio of– accounts".  Both en-dash (–
+    // U+2013) and em-dash (— U+2014) must be handled.
+    [/\bof\s*[–—]\s+(?=[a-zA-Z])/g,  'of '],    // "of– word"  → "of word"
+    [/\bfor\s*[–—]\s+(?=[a-zA-Z])/g, 'for '],   // "for– word" → "for word"
+    [/\s*[–—]\s*$/,                   ''],        // trailing orphan dash at end of bullet
+    // "hands- with" — the only rule in the old list covered "hands- in".
+    [/\bhands-\s+with\b/gi,           'hands-on experience with'],
+    // Trailing dangling conjunctions produced by the _SUBS sentence-ending
+    // rules that strip everything after ", and applying/implementing/…".
+    // Without this the bullet ends with ", and" or " and" — a sentence fragment.
+    [/,\s*and\s*$/,                   ''],
+    [/\s+and\s*$/,                    ''],
+    [/,\s*$/,                         ''],        // orphaned trailing comma after prior strip
     [/\bleveraging\b/gi,                 'using'],
     [/\bleveraged\b/gi,                  'used'],
     [/\bleverage\b/gi,                   'use'],

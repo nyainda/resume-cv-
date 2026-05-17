@@ -15,7 +15,7 @@
 
 import { CVData, UserProfile } from '../types';
 import { getCachedBannedPhrases, type BannedEntry } from './cvEngineClient';
-import { auditStyleGovernance, GOVERNANCE_SUBSTITUTIONS } from './cvStyleGovernance';
+import { auditStyleGovernance, classifyOpener, GOVERNANCE_SUBSTITUTIONS } from './cvStyleGovernance';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 1. FORBIDDEN-WORD SUBSTITUTIONS — applied to imported CV text BEFORE parsing,
@@ -881,6 +881,20 @@ function normaliseWhitespaceAndDashes(text: string): { text: string; changed: bo
     out = out.replace(/(?<!\d)\s*–\s*(?!\d)/g, ' ');
     // Strip en-dash still attached to a word with no following digit ("Tracked–")
     out = out.replace(/([A-Za-z])–(?=\s|$)/g, '$1');
+    // Same treatment for em-dash (—) — the model sometimes uses em-dashes as
+    // orphaned connectors: "portfolio of— client accounts" or "for— projects".
+    // Rule 1: "preposition— word" → "preposition word" (drop the orphan dash)
+    out = out.replace(/\b(of|for|with|in|and|or|to|from)\s*—\s+(?=[a-zA-Z])/gi, '$1 ');
+    // Rule 2: em-dash attached to a word at end of string or before whitespace
+    out = out.replace(/([A-Za-z])—(?=\s|$)/g, '$1');
+    // Rule 3: orphaned trailing em-dash after space
+    out = out.replace(/\s*—\s*$/, '');
+    // Trailing dangling conjunctions — produced when the _SUBS rules strip
+    // content after ", and applying/implementing/…" but leave the ", and" stub.
+    out = out.replace(/,\s*and\s*$/i, '');
+    out = out.replace(/\s+and\s*$/i, '');
+    // "hands- with" — incomplete "hands-on" left by model truncation
+    out = out.replace(/\bhands-\s+with\b/gi, 'hands-on experience with');
     // Convert em dash used as a list separator to ", " — the LLM frequently
     // writes "lifecycles—site assessments" or "managed X—coordinated Y" instead
     // of a comma. Parenthetical/proper-noun em dashes have a capital or digit on
@@ -2795,4 +2809,111 @@ export function purifyProfile(profile: UserProfile): UserProfile {
 export function purifyInboundCV(cv: CVData): CVData {
     if (!cv) return cv;
     return purifyCV(cv).cv;
+}
+
+// ─── Opener diversity enforcement ─────────────────────────────────────────────
+
+/**
+ * Deterministic opener-diversity enforcement pass.
+ *
+ * When a role has ≥4 bullets and >70% are verb-openers (the AI's default
+ * pattern), this function reshapes up to 2 bullets per role by extracting a
+ * phrase that already exists in the bullet body and moving it to the front —
+ * creating a timeframe, scope, or collaboration opener WITHOUT inventing
+ * any new facts.
+ *
+ * Three safe transformations (tried in priority order):
+ *   1. TIMEFRAME  — "Managed X in Q3 2024" → "In Q3 2024, managed X"
+ *   2. SCOPE      — "Led X across 3 counties" → "Across 3 counties, led X"
+ *   3. COLLAB     — "Directed X with the ops team" → "With the ops team, directed X"
+ *
+ * Up to 2 bullets per role are restructured. The function is idempotent —
+ * bullets already classified as non-verb by classifyOpener() are skipped.
+ */
+
+// Timeframe phrase at END of bullet body (most common AI pattern)
+const _OPENER_TF_TAIL = /,?\s+(in\s+(?:q[1-4]\s+\d{4}|q[1-4]|\d{4}|january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{4})?)\s*$/i;
+
+// "across N [places]" anywhere mid-sentence (after the first word)
+const _OPENER_SCOPE_MID = /\b(across\s+(?:\d+[+]?\s+(?:counties|sites|regions|countries|states|cities|districts|branches|locations|departments|schools|hospitals|projects)))\b/i;
+
+// "with [the/a/an/my] X team/department/unit" anywhere mid-sentence
+const _OPENER_COLLAB_MID = /\b((?:with|alongside)\s+(?:the|a|an|my|our)\s+[\w\s]{2,30}?(?:team|department|unit|group|division))\b/i;
+
+function _tryReshapeOpener(bullet: string): string | null {
+    // 1. Timeframe tail → front
+    const tmMatch = bullet.match(_OPENER_TF_TAIL);
+    if (tmMatch && tmMatch.index !== undefined) {
+        const extracted = tmMatch[1].trim();
+        const rest = bullet.slice(0, tmMatch.index).trim().replace(/,\s*$/, '');
+        if (rest.length > 12) {
+            const prefix = extracted.replace(/^in\s+/i, 'In ');
+            const verbLower = rest.charAt(0).toLowerCase() + rest.slice(1);
+            return `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}, ${verbLower}`;
+        }
+    }
+
+    // 2. Scope phrase mid-sentence → front
+    const scopeMatch = bullet.match(_OPENER_SCOPE_MID);
+    if (scopeMatch && scopeMatch.index !== undefined && scopeMatch.index > 3) {
+        const extracted = scopeMatch[1].trim();
+        const before = bullet.slice(0, scopeMatch.index).replace(/,?\s*$/, '').trim();
+        const after = bullet.slice(scopeMatch.index + scopeMatch[0].length).replace(/^,?\s*/, '').trim();
+        if (before.length > 5) {
+            const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
+            const scopeUp = extracted.charAt(0).toUpperCase() + extracted.slice(1);
+            const tail = after.length > 0 ? `, ${after}` : '';
+            return `${scopeUp}, ${verbLower}${tail}`;
+        }
+    }
+
+    // 3. Collaboration phrase mid-sentence → front
+    const collabMatch = bullet.match(_OPENER_COLLAB_MID);
+    if (collabMatch && collabMatch.index !== undefined && collabMatch.index > 3) {
+        const extracted = collabMatch[1].trim();
+        const before = bullet.slice(0, collabMatch.index).replace(/,?\s*$/, '').trim();
+        const after = bullet.slice(collabMatch.index + collabMatch[0].length).replace(/^,?\s*/, '').trim();
+        if (before.length > 5) {
+            const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
+            const collabUp = extracted.charAt(0).toUpperCase() + extracted.slice(1);
+            const tail = after.length > 0 ? `, ${after}` : '';
+            return `${collabUp}, ${verbLower}${tail}`;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Applies opener-diversity enforcement across all experience roles in a CV.
+ * Called as a post-generation deterministic pass inside runQualityPolishPasses.
+ */
+export function enforceOpenerDiversity(cv: CVData): CVData {
+    const experience = (cv.experience || []).map(role => {
+        const bullets = role.responsibilities || [];
+        if (bullets.length < 4) return role;
+
+        const cats = bullets.map(classifyOpener);
+        const verbCount = cats.filter(c => c === 'verb').length;
+        if (verbCount / bullets.length <= 0.70) return role; // already diverse
+
+        let fixed = 0;
+        const newBullets = bullets.map((b, i) => {
+            if (fixed >= 2) return b;
+            if (cats[i] !== 'verb') return b;
+            const rewritten = _tryReshapeOpener(b);
+            if (rewritten && rewritten !== b) {
+                fixed++;
+                return rewritten;
+            }
+            return b;
+        });
+
+        if (fixed > 0) {
+            console.info(`[OpenerDiversity] Restructured ${fixed} bullet(s) in "${role.jobTitle} @ ${role.company}"`);
+        }
+        return { ...role, responsibilities: newBullets };
+    });
+
+    return { ...cv, experience };
 }
