@@ -1466,7 +1466,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 </svg>
                 {loadingMessage}
               </>
-            ) : <><Sparkles className="h-5 w-5 mr-2" />Generate CV with AI</>}
+            ) : <><Sparkles className="h-5 w-5 mr-2" />Build My CV</>}
           </Button>
 
           {/* Gap badge — two states:
