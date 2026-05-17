@@ -33,6 +33,8 @@ import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe, Columns } from './icons';
 import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
 import DownloadProgressModal from './DownloadProgressModal';
+import CVDoctorPanel from './CVDoctorPanel';
+import { diffCV, CVDiff } from '../services/cvDoctorService';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -247,6 +249,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
+  const [showDoctorPanel, setShowDoctorPanel] = useState(false);
+  const [optimizeDiff, setOptimizeDiff] = useState<CVDiff | null>(null);
 
   // Leaks produced by the purification pipeline during the most recent generation.
   // Accumulates synonym_sub fixes so the quality panel can display them.
@@ -796,8 +800,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
       const instruction = parts.join('\n');
 
+      const beforeSnapshot = currentCV;
       const improved = await improveCV(currentCV, userProfile.personalInfo, instruction, jobDescription || undefined);
       setCurrentCV(improved);
+
+      // Compute what changed and store for the diff panel
+      const diff = diffCV(beforeSnapshot, improved);
+      if (diff.totalChanges > 0) {
+        setOptimizeDiff(diff);
+        setShowDoctorPanel(true); // open doctor panel on the Changes tab automatically
+      }
 
       // Re-score silently so the card updates
       if (jobDescription.trim()) {
@@ -1678,8 +1690,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                       <p className={`text-lg font-extrabold ${grade.text}`}>{grade.label}</p>
                     </div>
                   </div>
-                  <p className="text-sm italic text-zinc-500 dark:text-zinc-400 max-w-xs hidden sm:block">"{cvScore.verdict}"</p>
-                  <button onClick={() => setCvScore(null)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 ml-3 flex-shrink-0" title="Dismiss">✕</button>
+                  <p className="text-sm italic text-zinc-500 dark:text-zinc-400 max-w-[160px] hidden sm:block">"{cvScore.verdict}"</p>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => setShowDoctorPanel(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white transition-colors shadow-sm"
+                      title="Open CV Doctor — colour-coded bullet review + AI scan"
+                    >
+                      <span>⚕</span> CV Doctor
+                    </button>
+                    <button onClick={() => setCvScore(null)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300" title="Dismiss">✕</button>
+                  </div>
                 </div>
 
                 <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1756,11 +1777,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             );
           })()}
 
-          {/* Purpose/Mode badge on preview */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Purpose/Mode badge + CV Doctor button on preview */}
+          <div className="flex items-center justify-between gap-2 mb-4">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${purposeBadgeBg} ${purposeBadgeText}`}>
               {purposeLabel}
             </span>
+            {currentCV && (
+              <button
+                onClick={() => setShowDoctorPanel(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-100 hover:bg-violet-200 dark:bg-violet-900/40 dark:hover:bg-violet-800/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 transition-colors"
+                title="AI review: colour-coded bullet inspector + scan + diff"
+              >
+                <span>⚕</span> CV Doctor
+              </button>
+            )}
           </div>
 
           <TemplateGallery
@@ -2142,6 +2172,29 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         via={downloadVia}
         onClose={() => setDownloadStatus(null)}
       />
+
+      {/* CV Doctor slide-over panel */}
+      {showDoctorPanel && currentCV && (
+        <CVDoctorPanel
+          cv={currentCV}
+          jobDescription={jobDescription || undefined}
+          diff={optimizeDiff}
+          onApplyBullet={(roleIndex, bulletIndex, newText) => {
+            setCurrentCV(prev => {
+              if (!prev) return prev;
+              const exp = prev.experience.map((role, rIdx) => {
+                if (rIdx !== roleIndex) return role;
+                const responsibilities = role.responsibilities.map((b, bIdx) =>
+                  bIdx === bulletIndex ? newText : b
+                );
+                return { ...role, responsibilities };
+              });
+              return { ...prev, experience: exp };
+            });
+          }}
+          onClose={() => setShowDoctorPanel(false)}
+        />
+      )}
     </div>
   );
 };

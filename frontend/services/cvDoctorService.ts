@@ -1,0 +1,234 @@
+/**
+ * cvDoctorService.ts
+ *
+ * Three capabilities:
+ *  1. classifyBullets()     — Instant, zero-AI deterministic scan of every
+ *                             bullet in the CV. Labels each with the primary
+ *                             issue type and severity. Used for the colour-coded
+ *                             Bullet Inspector tab in CVDoctorPanel.
+ *
+ *  2. scanCVForDoctor()     — One fast AI call that returns three lists:
+ *                             things to ADD, things to REMOVE, quick wins.
+ *
+ *  3. rewriteBulletOptions()— On-demand AI call that returns 3 alternative
+ *                             rewrites for a single bullet. Only fires when
+ *                             the user clicks on a bullet to expand it.
+ *
+ *  4. diffCV()              — Pure function that compares two CVData snapshots
+ *                             and returns what changed (for the diff panel).
+ */
+
+import { CVData } from '../types';
+import { groqChat } from './groqService';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const FAST_MODEL  = 'llama-3.1-8b-instant';
+const SYSTEM_JSON = 'You are a professional CV consultant. Return ONLY valid JSON with no markdown fences or prose.';
+
+const AI_VERB_SET = new Set([
+    'spearheaded','leveraged','orchestrated','catalyzed','utilized','facilitated',
+    'ideated','conceptualized','operationalized','solutioned','materialized',
+    'actioned','synergized','galvanized','pioneered','revolutionized','transformed',
+    'evangelized','strategized','architected','incubated','co-created',
+]);
+
+const WEAK_VERB_SET = new Set([
+    'helped','assisted','worked','was','were','is','participated','involved',
+    'contributed','supported','provided','maintained','used','did','made',
+    'had','got','responsible','tasked','engaged',
+]);
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type BulletIssueType =
+    | 'ai_language'
+    | 'third_person'
+    | 'weak_verb'
+    | 'no_metric'
+    | 'too_short'
+    | 'too_long'
+    | 'good';
+
+export const ISSUE_META: Record<BulletIssueType, { label: string; tip: string; colour: string; border: string; badge: string }> = {
+    ai_language:  { label: 'AI buzzword',     tip: 'Replace the buzzword (e.g. "spearheaded", "leveraged") with a direct, real verb.', colour: 'bg-red-50 dark:bg-red-950/30',    border: 'border-l-red-400',    badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+    third_person: { label: '3rd-person verb',  tip: 'Change to bare imperative form — "Manages" → "Manage".', colour: 'bg-red-50 dark:bg-red-950/30',    border: 'border-l-red-400',    badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+    weak_verb:    { label: 'Weak opener',      tip: 'Replace the weak verb with a specific, strong action verb.', colour: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-l-orange-400', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
+    no_metric:    { label: 'No number',        tip: 'Add a specific number, %, or scale to quantify the impact.', colour: 'bg-amber-50 dark:bg-amber-950/30',  border: 'border-l-amber-400',  badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+    too_short:    { label: 'Too short',        tip: 'Expand with scope, method, or result detail (aim for 12–25 words).', colour: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-l-blue-400',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+    too_long:     { label: 'Too long',         tip: 'Trim to under 30 words — keep only the core verb, scope, and result.', colour: 'bg-blue-50 dark:bg-blue-950/30',   border: 'border-l-blue-400',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+    good:         { label: 'Good',             tip: 'This bullet looks strong.',  colour: 'bg-green-50 dark:bg-green-950/20', border: 'border-l-green-400',  badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+};
+
+export interface BulletAnnotation {
+    roleIndex:    number;
+    bulletIndex:  number;
+    text:         string;
+    issues:       BulletIssueType[];
+    primaryIssue: BulletIssueType;
+}
+
+export interface CVDoctorScan {
+    toAdd:      string[];
+    toRemove:   string[];
+    quickWins:  string[];
+}
+
+export interface CVDiff {
+    changedBullets: { roleIndex: number; roleName: string; bulletIndex: number; before: string; after: string }[];
+    addedDates:     { roleIndex: number; roleName: string; dates: string }[];
+    fixedSummary:   boolean;
+    totalChanges:   number;
+}
+
+// ─── 1. Deterministic bullet classifier ──────────────────────────────────────
+
+export function classifyBullets(cvData: CVData): BulletAnnotation[] {
+    const out: BulletAnnotation[] = [];
+
+    cvData.experience.forEach((role, rIdx) => {
+        (role.responsibilities || []).forEach((bullet, bIdx) => {
+            const text  = bullet.trim();
+            const words = text.split(/\s+/).filter(Boolean);
+            const first = words[0]?.toLowerCase().replace(/[^a-z]/g, '') ?? '';
+            const issues: BulletIssueType[] = [];
+
+            if (AI_VERB_SET.has(first) || /\b(spearheaded|leveraged|orchestrated|utilized|facilitated|synergized|catalyzed|galvanized)\b/i.test(text)) {
+                issues.push('ai_language');
+            } else if (/^[A-Z][a-z]{2,}[^s]s\s/.test(text)) {
+                issues.push('third_person');
+            } else if (WEAK_VERB_SET.has(first)) {
+                issues.push('weak_verb');
+            }
+
+            if (!/\d/.test(text)) issues.push('no_metric');
+            if (words.length < 7)  issues.push('too_short');
+            else if (words.length > 35) issues.push('too_long');
+
+            const primaryIssue: BulletIssueType =
+                issues.find(i => i === 'ai_language' || i === 'third_person') ??
+                issues.find(i => i === 'weak_verb') ??
+                issues.find(i => i === 'no_metric') ??
+                issues.find(i => i === 'too_short' || i === 'too_long') ??
+                'good';
+
+            out.push({ roleIndex: rIdx, bulletIndex: bIdx, text, issues, primaryIssue });
+        });
+    });
+
+    return out;
+}
+
+// ─── 2. AI scan (add / remove / quick wins) ───────────────────────────────────
+
+export async function scanCVForDoctor(cvData: CVData, jobDescription?: string): Promise<CVDoctorScan> {
+    const roles     = cvData.experience.map(e => `${e.jobTitle} at ${e.company} (${e.dates || 'no dates'})`).join('; ');
+    const skillList = (cvData.skills || []).slice(0, 20).join(', ');
+
+    const prompt = `You are a senior CV consultant doing a quick diagnostic review.
+
+CV SNAPSHOT:
+Roles: ${roles || 'none'}
+Skills: ${skillList || 'none'}
+Education: ${cvData.education?.map(e => `${e.degree} ${e.school} ${e.year}`).join('; ') || 'none'}
+Has LinkedIn: ${cvData.personalInfo?.linkedin ? 'yes' : 'no'}
+Has GitHub: ${cvData.personalInfo?.github ? 'yes' : 'no'}
+Has projects section: ${(cvData.projects || []).length > 0 ? `yes (${cvData.projects!.length})` : 'no'}
+${jobDescription ? `\nTARGET ROLE:\n${jobDescription.substring(0, 500)}` : ''}
+
+Return ONLY this JSON (no markdown, no prose):
+{
+  "toAdd": ["up to 5 specific things MISSING that would strengthen this CV — be concrete, e.g. 'Add LinkedIn URL to contact header', 'Add a Projects section showcasing 2–3 technical builds', 'Quantify the scope of the intern role at CompanyX'"],
+  "toRemove": ["up to 4 specific things that WEAKEN or CLUTTER the CV — be direct, e.g. 'Remove Microsoft Word from skills — too basic for a senior role', 'Cut the References section — wastes space, add on request'"],
+  "quickWins": ["up to 4 one-sentence improvements with IMMEDIATE impact — e.g. 'Start the Summary with a number: years of experience or client count', 'Add a scope anchor to the first bullet of every role (team size, budget, or region)'"]
+}`;
+
+    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 600 });
+    const parsed = JSON.parse(stripFences(text));
+    const clean = (arr: unknown): string[] =>
+        Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
+    return {
+        toAdd:     clean(parsed.toAdd),
+        toRemove:  clean(parsed.toRemove),
+        quickWins: clean(parsed.quickWins),
+    };
+}
+
+// ─── 3. On-demand bullet rewrites ─────────────────────────────────────────────
+
+export async function rewriteBulletOptions(
+    bullet:       string,
+    role:         { jobTitle: string; company: string; endDate?: string },
+    issues:       BulletIssueType[],
+    jobDescription?: string,
+): Promise<string[]> {
+    const isCurrentRole = role.endDate === 'Present' || !role.endDate;
+    const tense = isCurrentRole ? 'present tense (bare imperative, e.g. "Manage", "Lead")' : 'past tense (e.g. "Managed", "Led")';
+
+    const taskDesc =
+        issues.includes('ai_language')  ? 'Replace the AI/corporate buzzword with a direct, real verb. Keep the same achievement.' :
+        issues.includes('third_person') ? 'Change the verb from 3rd-person ("Manages") to bare imperative ("Manage").' :
+        issues.includes('weak_verb')    ? 'Replace the weak opener with a specific, strong action verb.' :
+        issues.includes('no_metric')    ? 'Add a specific number, percentage, or scale — if no exact figure exists, use a reasonable approximation (e.g. "~12 clients", "3+ regions").' :
+        issues.includes('too_short')    ? 'Expand with more specific detail about the scope, method, or measurable result. Aim for 15–25 words.' :
+        issues.includes('too_long')     ? 'Trim to under 28 words. Remove filler; keep the verb, scope, and result.' :
+        'Improve the clarity and professional impact of this bullet.';
+
+    const prompt = `You are a professional CV writer. Rewrite the bullet below in 3 different ways.
+
+BULLET: "${bullet}"
+ROLE: ${role.jobTitle} at ${role.company}
+TASK: ${taskDesc}
+TENSE: Use ${tense}.
+${jobDescription ? `TARGETING JOB: ${jobDescription.substring(0, 300)}` : ''}
+
+RULES:
+- Keep the same underlying fact or achievement — do NOT invent new metrics
+- Each rewrite must have a different opening structure
+- Plain, direct language — no buzzwords like "spearheaded", "leveraged", "orchestrated"
+- No bullet character, no quotation marks around the output
+
+Return ONLY a JSON array of exactly 3 strings:
+["rewrite one", "rewrite two", "rewrite three"]`;
+
+    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.65, json: true, maxTokens: 400 });
+    const arr = JSON.parse(stripFences(text));
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((s: unknown): s is string => typeof s === 'string').slice(0, 3);
+}
+
+// ─── 4. Diff two CV snapshots ─────────────────────────────────────────────────
+
+export function diffCV(before: CVData, after: CVData): CVDiff {
+    const changedBullets: CVDiff['changedBullets'] = [];
+    const addedDates:     CVDiff['addedDates']     = [];
+
+    after.experience.forEach((roleAfter, rIdx) => {
+        const roleBefore = before.experience[rIdx];
+        if (!roleBefore) return;
+
+        const roleName = `${roleAfter.jobTitle} at ${roleAfter.company}`;
+
+        if (!roleBefore.dates && roleAfter.dates) {
+            addedDates.push({ roleIndex: rIdx, roleName, dates: roleAfter.dates });
+        }
+
+        (roleAfter.responsibilities || []).forEach((bulletAfter, bIdx) => {
+            const bulletBefore = (roleBefore.responsibilities || [])[bIdx] ?? '';
+            if (bulletBefore.trim() !== bulletAfter.trim()) {
+                changedBullets.push({ roleIndex: rIdx, roleName, bulletIndex: bIdx, before: bulletBefore, after: bulletAfter });
+            }
+        });
+    });
+
+    const fixedSummary = before.summary?.trim() !== after.summary?.trim();
+
+    return {
+        changedBullets,
+        addedDates,
+        fixedSummary,
+        totalChanges: changedBullets.length + addedDates.length + (fixedSummary ? 1 : 0),
+    };
+}
