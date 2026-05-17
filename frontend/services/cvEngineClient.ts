@@ -826,6 +826,145 @@ export async function workerRaceLLM(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Worker Proxy LLM — routes Claude / Gemini calls through the CF Worker so
+// pipeline rules are injected server-side and API keys never touch external
+// services directly from the browser (fixes CORS + keeps rules private).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WorkerProxyLLMOptions {
+    provider: 'claude' | 'gemini';
+    apiKey: string;
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    json?: boolean;
+    useSearch?: boolean;
+    timeoutMs?: number;
+}
+
+const PROXY_LLM_ENDPOINT = '/api/cv/proxy-llm';
+const WORKER_PROXY_LLM_TIMEOUT_MS = 60_000;
+
+/**
+ * Send a text-generation request to the CF Worker, which will call Claude or
+ * Gemini on behalf of the user using their own API key.  The worker injects
+ * the correct system prompt internally — the client never sends it.
+ * Returns the generated text, or null if the worker is unreachable / key fails.
+ */
+export async function workerProxyLLM(
+    task: string,
+    prompt: string,
+    opts: WorkerProxyLLMOptions,
+): Promise<string | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!prompt || !opts.apiKey) return null;
+    if (isDead(PROXY_LLM_ENDPOINT)) return null;
+
+    const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task,
+                    prompt,
+                    provider:    opts.provider,
+                    apiKey:      opts.apiKey,
+                    model:       opts.model,
+                    temperature: opts.temperature ?? 0.3,
+                    maxTokens:   opts.maxTokens   ?? 4096,
+                    json:        !!opts.json,
+                    useSearch:   !!opts.useSearch,
+                }),
+            },
+            opts.timeoutMs ?? WORKER_PROXY_LLM_TIMEOUT_MS,
+        );
+
+        if (!r.ok) {
+            // 4xx = upstream auth / quota error — worker is fine, don't mark dead
+            if (r.status >= 500) markDead(PROXY_LLM_ENDPOINT, `HTTP ${r.status}`);
+            const body = await r.json().catch(() => ({})) as any;
+            const msg  = body?.message || `proxy-llm HTTP ${r.status}`;
+            const err: any = new Error(msg);
+            err.status  = r.status;
+            err.upstreamStatus = body?.status ?? r.status;
+            throw err;
+        }
+
+        const data = await r.json() as { text?: string };
+        const text = typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+        if (text) markAlive(PROXY_LLM_ENDPOINT);
+        return text;
+    } catch (e: any) {
+        if (e?.status) throw e; // re-throw upstream errors (auth/quota) so caller can classify
+        markDead(PROXY_LLM_ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerProxyLLM failed:', e);
+        return null;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multimodal proxy — routes base64 file (image or PDF) + text prompt through
+// the CF Worker to Claude, avoiding the CORS block from direct browser calls.
+// Used by claudeMultimodalCall for file-based CV/profile imports.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function workerProxyMultimodal(
+    apiKey: string,
+    base64Data: string,
+    mimeType: string,
+    textPrompt: string,
+    opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
+): Promise<string | null> {
+    if (!isCVEngineConfigured()) return null;
+    if (!apiKey || !base64Data) return null;
+    if (isDead(PROXY_LLM_ENDPOINT)) return null;
+
+    const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
+    try {
+        const r = await fetchWithTimeout(
+            u.toString(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task:        'parser',
+                    prompt:      textPrompt,
+                    provider:    'claude',
+                    apiKey,
+                    base64Data,
+                    mimeType,
+                    temperature: opts.temperature ?? 0.1,
+                    maxTokens:   opts.maxTokens   ?? 4096,
+                }),
+            },
+            opts.timeoutMs ?? 90_000,   // file parsing can take up to 90s
+        );
+
+        if (!r.ok) {
+            if (r.status >= 500) markDead(PROXY_LLM_ENDPOINT, `multimodal HTTP ${r.status}`);
+            const body = await r.json().catch(() => ({})) as any;
+            const msg  = body?.message || `proxy-multimodal HTTP ${r.status}`;
+            const err: any = new Error(msg);
+            err.status = r.status;
+            err.upstreamStatus = body?.status ?? r.status;
+            throw err;
+        }
+
+        const data = await r.json() as { text?: string };
+        const text = typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+        if (text) markAlive(PROXY_LLM_ENDPOINT);
+        return text;
+    } catch (e: any) {
+        if (e?.status) throw e;
+        markDead(PROXY_LLM_ENDPOINT, e?.name === 'AbortError' ? 'timeout' : 'network');
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerProxyMultimodal failed:', e);
+        return null;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Section-parallel CV generation — fan out N section-specific prompts to
 // per-section models inside a single Worker request. Each section runs
 // concurrently server-side; the worker picks a right-sized model per task

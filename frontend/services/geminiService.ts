@@ -1330,15 +1330,11 @@ async function claudeTextCall(
     });
 }
 
-// Direct Claude API constants — used ONLY by claudeMultimodalCall (vision/PDF
-// binary uploads that the CF proxy does not support). All text-only calls use
-// callProviderViaProxy / groqChat which route through the CF Worker.
-const _CLAUDE_HAIKU = 'claude-haiku-4-5';
-const _CLAUDE_API   = 'https://api.anthropic.com/v1/messages';
-
 /**
  * Call Claude with a file (image or PDF base64) + text prompt.
- * Images use the standard vision API; PDFs use the beta PDF header.
+ * Routes through the CF Worker proxy to avoid the CORS block that occurs
+ * when the browser calls api.anthropic.com directly.
+ * Falls back to a direct browser call only when the worker is unreachable.
  */
 async function claudeMultimodalCall(
     apiKey: string,
@@ -1347,6 +1343,18 @@ async function claudeMultimodalCall(
     textPrompt: string,
     opts: { maxTokens?: number; temperature?: number } = {},
 ): Promise<string> {
+    // ── Primary path: CF Worker proxy (no CORS issues) ────────────────────────
+    try {
+        const { callProviderViaProxyMultimodal } = await import('./groqService');
+        const result = await callProviderViaProxyMultimodal(apiKey, base64Data, mimeType, textPrompt, opts);
+        if (result && result.trim().length > 0) return result;
+    } catch (proxyErr: any) {
+        // Re-throw auth / quota errors — no point hitting Anthropic directly with a bad key
+        if (proxyErr?.status === 401 || proxyErr?.status === 403) throw proxyErr;
+        console.warn('[claudeMultimodalCall] Worker proxy failed, falling back to direct call:', proxyErr?.message);
+    }
+
+    // ── Fallback: direct browser→Claude (only when worker unreachable) ────────
     const isPdf = mimeType === 'application/pdf';
     const filePart = isPdf
         ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
@@ -1359,17 +1367,14 @@ async function claudeMultimodalCall(
     };
     if (isPdf) headers['anthropic-beta'] = 'pdfs-2024-09-25';
 
-    const res = await fetch(_CLAUDE_API, {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-            model: _CLAUDE_HAIKU,
+            model: 'claude-haiku-4-5',
             max_tokens: opts.maxTokens ?? 4096,
             temperature: opts.temperature ?? 0.1,
-            messages: [{
-                role: 'user',
-                content: [filePart, { type: 'text', text: textPrompt }],
-            }],
+            messages: [{ role: 'user', content: [filePart, { type: 'text', text: textPrompt }] }],
         }),
     });
     if (!res.ok) {

@@ -2975,6 +2975,159 @@ When returning JSON, output ONLY the raw JSON object — no markdown fences, no 
 const _CV_SYSTEM_VALIDATOR = 'You are a strict CV quality validator. Return only valid JSON.';
 const _CV_SYSTEM_AUDIT = 'You are a strict CV editor. Fix only the listed problems. Return only valid JSON with keys: summary and experience.';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/cv/proxy-llm
+// Proxies text-generation calls to Claude or Gemini using the user's own API key.
+// The system prompt is sourced exclusively from internal worker constants — the
+// client only sends a task identifier, never the system prompt itself.
+// ─────────────────────────────────────────────────────────────────────────────
+const PROXY_LLM_MAX_CHARS = 200_000;
+
+async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
+    const body = await safeJson(request);
+
+    const task        = typeof body?.task === 'string'    ? body.task.trim()    : 'general';
+    const rawPrompt   = typeof body?.prompt === 'string'  ? body.prompt         : '';
+    const provider    = body?.provider as 'claude' | 'gemini' | undefined;
+    const apiKey      = typeof body?.apiKey === 'string'  ? body.apiKey.trim()  : '';
+    const model       = typeof body?.model === 'string'   ? body.model.trim()   : '';
+    const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
+    const maxTokens   = clamp(Number(body?.maxTokens ?? 4096), 64, 8192);
+    const wantJson    = body?.json === true;
+    const useSearch   = body?.useSearch === true;
+    // Multimodal support (Claude only) — base64-encoded image or PDF
+    const base64Data  = typeof body?.base64Data === 'string' ? body.base64Data : '';
+    const mimeType    = typeof body?.mimeType   === 'string' ? body.mimeType   : '';
+
+    const prompt = rawPrompt.slice(0, PROXY_LLM_MAX_CHARS);
+
+    // For multimodal calls the prompt may be empty — it's embedded in the file
+    if (!prompt && !base64Data)   return json({ error: 'missing_prompt' },                                     request, env, 400);
+    if (!apiKey)   return json({ error: 'missing_api_key' },                                    request, env, 400);
+    if (provider !== 'claude' && provider !== 'gemini') {
+        return json({ error: 'invalid_provider', message: 'provider must be "claude" or "gemini"' }, request, env, 400);
+    }
+
+    // ── Internal system map — rules never leave the worker ────────────────────
+    const _internalSystemMap: Record<string, string> = {
+        cvGenerate:       _CV_SYSTEM_PROFESSIONAL,
+        cvGenerateLong:   _CV_SYSTEM_PROFESSIONAL,
+        cvExperience:     _CV_SYSTEM_PROFESSIONAL,
+        cvProjects:       _CV_SYSTEM_PROFESSIONAL,
+        cvAudit:          _CV_SYSTEM_AUDIT,
+        cvValidate:       _CV_SYSTEM_VALIDATOR,
+        humanize:         _CV_SYSTEM_HUMANIZER,
+        coverLetter:      _CV_SYSTEM_PROFESSIONAL,
+        voiceConsistency: _CV_SYSTEM_HUMANIZER,
+        jdParse:          _CV_SYSTEM_PARSER,
+        parser:           _CV_SYSTEM_PARSER,
+        general:          _CV_SYSTEM_PROFESSIONAL,
+        marketResearch:   'You are a specialist labour market researcher with access to live web search. Return only valid JSON — no markdown, no code fences.',
+    };
+    const system = _internalSystemMap[task] ?? _CV_SYSTEM_PROFESSIONAL;
+
+    const jsonInstruction = 'Reply with valid raw JSON only. No markdown fences, no commentary.';
+    // Search grounding is incompatible with responseMimeType=json — skip JSON instruction for search calls.
+    const effectiveSystem = (wantJson && !useSearch)
+        ? (system ? `${system}\n\n${jsonInstruction}` : jsonInstruction)
+        : system;
+
+    try {
+        // ── Claude ────────────────────────────────────────────────────────────
+        if (provider === 'claude') {
+            const claudeModel = model || 'claude-haiku-4-5';
+
+            // Build message content — multimodal (image/PDF) or plain text
+            let userContent: unknown;
+            if (base64Data && mimeType) {
+                const isPdf = mimeType === 'application/pdf';
+                const filePart = isPdf
+                    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
+                    : { type: 'image',    source: { type: 'base64', media_type: mimeType,           data: base64Data } };
+                userContent = prompt ? [filePart, { type: 'text', text: prompt }] : [filePart];
+            } else {
+                userContent = prompt;
+            }
+
+            const headers: Record<string, string> = {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            };
+            if (base64Data && mimeType === 'application/pdf') {
+                headers['anthropic-beta'] = 'pdfs-2024-09-25';
+            }
+
+            const claudeBody: Record<string, unknown> = {
+                model: claudeModel,
+                max_tokens: maxTokens,
+                temperature,
+                messages: [{ role: 'user', content: userContent }],
+            };
+            if (effectiveSystem) claudeBody.system = effectiveSystem;
+
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { ...headers, 'content-type': 'application/json' },
+                body: JSON.stringify(claudeBody),
+            });
+
+            if (!res.ok) {
+                const raw = await res.text().catch(() => '');
+                let msg = '';
+                try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch { /**/ }
+                const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
+                return json({ error: 'upstream_error', message: msg || `Claude error ${res.status}`, status: res.status }, request, env, errStatus);
+            }
+
+            const data = await res.json() as any;
+            const text = (data?.content?.[0]?.text as string) ?? '';
+            if (!text) return json({ error: 'empty_response' }, request, env, 502);
+            return json({ text, model: claudeModel, provider: 'claude' }, request, env);
+        }
+
+        // ── Gemini ────────────────────────────────────────────────────────────
+        const geminiModel = model || 'gemini-2.0-flash';
+        const geminiBody: Record<string, unknown> = {
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+                ...(wantJson && !useSearch ? { responseMimeType: 'application/json' } : {}),
+            },
+        };
+        if (effectiveSystem) {
+            geminiBody.systemInstruction = { parts: [{ text: effectiveSystem }] };
+        }
+        if (useSearch) {
+            geminiBody.tools = [{ googleSearch: {} }];
+        }
+
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+        const res = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(geminiBody),
+        });
+
+        if (!res.ok) {
+            const raw = await res.text().catch(() => '');
+            let msg = '';
+            try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch { /**/ }
+            const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
+            return json({ error: 'upstream_error', message: msg || `Gemini error ${res.status}`, status: res.status }, request, env, errStatus);
+        }
+
+        const data = await res.json() as any;
+        const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        if (!text) return json({ error: 'empty_response' }, request, env, 502);
+        return json({ text, model: geminiModel, provider: 'gemini' }, request, env);
+
+    } catch (err: any) {
+        return json({ error: 'proxy_error', message: String(err?.message || err) }, request, env, 502);
+    }
+}
+
 async function handleGetRules(request: Request, env: Env): Promise<Response> {
     const payload = {
         version:               _CV_RULES_VERSION,
@@ -3000,171 +3153,6 @@ async function handleGetRules(request: Request, env: Env): Promise<Response> {
     const res = json(payload, request, env);
     res.headers.set('Cache-Control', 'public, max-age=3600');
     return res;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ── Prompt Vault — system prompts stored server-side, never sent from browser ──
-// When the browser sends { system_template: 'professional' } instead of the
-// full systemPrompt text, handleProxyLLM resolves it here. The actual prompt
-// text never travels in the browser → CF request, so it stays out of DevTools.
-const PROXY_TEMPLATES: Record<string, string> = {
-    professional: _CV_SYSTEM_PROFESSIONAL,
-    humanizer:    _CV_SYSTEM_HUMANIZER,
-    parser:       _CV_SYSTEM_PARSER,
-};
-
-// handleProxyLLM — POST /api/cv/proxy-llm
-//
-// Proxies a chat completion request to Claude or Gemini server-side so the
-// user's API key and the system prompts (IP) are never exposed in browser
-// DevTools. The key is used as a pass-through credential and is NEVER stored.
-//
-// Request body:
-//   {
-//     provider:     'claude' | 'gemini'
-//     apiKey:       string          — user's key, sent in Authorization header
-//     systemPrompt: string
-//     userPrompt:   string
-//     temperature?: number          — default 0.3
-//     maxTokens?:   number          — default 4096
-//     json?:        boolean         — request JSON response mime type (Gemini)
-//   }
-//
-// Response:
-//   { text: string }
-// ─────────────────────────────────────────────────────────────────────────────
-async function handleProxyLLM(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    let body: {
-        provider?: string;
-        apiKey?: string;
-        systemPrompt?: string;
-        system_template?: string;
-        userPrompt?: string;
-        temperature?: number;
-        maxTokens?: number;
-        json?: boolean;
-        model?: string;
-    };
-    try {
-        body = await request.json() as any;
-    } catch {
-        return json({ error: 'invalid_json' }, request, env, 400);
-    }
-
-    const { provider, apiKey, userPrompt = '', temperature = 0.3, maxTokens = 4096, json: wantJson = false, model } = body;
-
-    if (!provider || !apiKey) {
-        return json({ error: 'missing_fields', message: 'provider and apiKey are required' }, request, env, 400);
-    }
-
-    // ── Prompt Vault — resolve system_template key server-side ────────────────
-    // When the browser sends { system_template: 'professional' } instead of the
-    // full prompt text, we look it up here. The text never leaves the CF runtime.
-    let systemPrompt: string;
-    if (body.system_template) {
-        const vaulted = PROXY_TEMPLATES[body.system_template as string];
-        if (!vaulted) return json({ error: 'unknown_template', message: `Unknown system_template: ${body.system_template}` }, request, env, 400);
-        systemPrompt = vaulted;
-    } else {
-        systemPrompt = body.systemPrompt ?? '';
-    }
-
-    // ── LLM cache check (same logic as tiered-llm) ────────────────────────────
-    const cacheKey = await computeProxyCacheKey(provider, model || '', systemPrompt, userPrompt, temperature);
-    try {
-        const cached = await env.CV_DB.prepare(
-            `SELECT response_text FROM llm_cache WHERE cache_key = ? AND expires_at > unixepoch() LIMIT 1`
-        ).bind(cacheKey).first<{ response_text: string }>();
-        if (cached?.response_text) {
-            ctx.waitUntil(env.CV_DB.prepare(
-                `UPDATE llm_cache SET hit_count = hit_count + 1, expires_at = unixepoch() + 2592000 WHERE cache_key = ?`
-            ).bind(cacheKey).run());
-            return json({ text: cached.response_text, cached: true }, request, env);
-        }
-    } catch { /* cache miss — proceed */ }
-
-    let text = '';
-
-    if (provider === 'claude') {
-        const claudeModel = model || 'claude-sonnet-4-5';
-        const claudeBody: Record<string, unknown> = {
-            model: claudeModel,
-            max_tokens: maxTokens,
-            temperature,
-            messages: [{ role: 'user', content: userPrompt }],
-        };
-        if (systemPrompt) claudeBody.system = systemPrompt;
-
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify(claudeBody),
-        });
-        if (!res.ok) {
-            const raw = await res.text().catch(() => '');
-            let msg = '';
-            try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch {}
-            const err: any = new Error(msg || `Claude API error (HTTP ${res.status})`);
-            err.status = res.status;
-            return json({ error: 'provider_error', message: err.message, status: res.status }, request, env, res.status >= 500 ? 502 : res.status);
-        }
-        const data = await res.json() as any;
-        text = (data?.content?.[0]?.text as string) ?? '';
-        if (!text) return json({ error: 'empty_response', message: 'Claude returned no text' }, request, env, 502);
-
-    } else if (provider === 'gemini') {
-        const geminiModel = model || 'gemini-2.0-flash';
-        const geminiConfig: Record<string, unknown> = { temperature, maxOutputTokens: maxTokens };
-        if (wantJson) geminiConfig.responseMimeType = 'application/json';
-        const contents = [{ role: 'user', parts: [{ text: systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt }] }];
-        const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ generationConfig: geminiConfig, contents }),
-            }
-        );
-        if (!res.ok) {
-            const raw = await res.text().catch(() => '');
-            let msg = '';
-            try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch {}
-            return json({ error: 'provider_error', message: msg || `Gemini API error (HTTP ${res.status})`, status: res.status }, request, env, res.status >= 500 ? 502 : res.status);
-        }
-        const data = await res.json() as any;
-        text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-        if (!text) return json({ error: 'empty_response', message: 'Gemini returned no text' }, request, env, 502);
-
-    } else {
-        return json({ error: 'unknown_provider', message: `Unsupported provider: ${provider}` }, request, env, 400);
-    }
-
-    // ── Store in cache fire-and-forget ────────────────────────────────────────
-    if (temperature <= 0.5 && (systemPrompt.length + userPrompt.length) <= 100000 && text.length <= 200000) {
-        ctx.waitUntil((async () => {
-            try {
-                await env.CV_DB.prepare(
-                    `INSERT OR REPLACE INTO llm_cache (cache_key, response_text, hit_count, expires_at)
-                     VALUES (?, ?, 0, unixepoch() + 2592000)`
-                ).bind(cacheKey, text).run();
-                await env.CV_DB.prepare(
-                    `DELETE FROM llm_cache WHERE expires_at <= unixepoch() AND cache_key != ?`
-                ).bind(cacheKey).run();
-            } catch { /* best-effort */ }
-        })());
-    }
-
-    return json({ text }, request, env);
-}
-
-async function computeProxyCacheKey(provider: string, model: string, system: string, user: string, temp: number): Promise<string> {
-    const raw = `proxy:${provider}:${model}:${temp}:${system}:${user}`;
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

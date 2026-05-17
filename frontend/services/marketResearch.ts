@@ -14,10 +14,10 @@
  * Never throws — always returns null on failure so CV generation can proceed.
  */
 
-import { GoogleGenAI } from '@google/genai';
 import { UserProfile } from '../types';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
 import { groqChat, GROQ_LARGE } from './groqService';
+import { workerProxyLLM } from './cvEngineClient';
 import { sha256Hex } from './profileCacheClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -372,47 +372,41 @@ async function conductMarketResearchFresh(
     industry: string,
 ): Promise<MarketResearchResult | null> {
 
-    // ── Attempt 1: Gemini + Google Search (live results) ──────────────────────
+    // ── Attempt 1: Gemini + Google Search via CF Worker proxy (live results) ───
     const geminiApiKey = getGeminiApiKey();
     if (geminiApiKey && !geminiIsBlocked()) {
         try {
-            const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-            const prompt = buildGeminiResearchPrompt(scenario, role, industry, jobDescription);
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.0-flash',
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                    tools: [{ googleSearch: {} }] as any,
-                    temperature: 0.2,
-                },
+            const mrPrompt = buildGeminiResearchPrompt(scenario, role, industry, jobDescription);
+            const rawText = await workerProxyLLM('marketResearch', mrPrompt, {
+                provider:    'gemini',
+                apiKey:      geminiApiKey,
+                useSearch:   true,
+                temperature: 0.2,
+                timeoutMs:   25_000,
             });
-
-            const result = parseResearchJson(response.text || '', role, industry, scenario);
+            const result = parseResearchJson(rawText || '', role, industry, scenario);
             if (result) {
-                console.info(`[MarketResearch] Gemini — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
+                console.info(`[MarketResearch] Gemini proxy — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
                 return result;
             }
-            console.warn('[MarketResearch] Gemini returned empty results — trying Groq fallback');
+            console.warn('[MarketResearch] Gemini proxy returned empty results — trying groqChat fallback');
         } catch (err: any) {
             const msg = (err?.message || '').toLowerCase();
-            const status = err?.status ?? err?.code;
+            const status = err?.status ?? err?.upstreamStatus ?? err?.code;
 
-            // Quota / rate limit — block Gemini for 10 min to avoid hammering the API
             const isQuota = status === 429 || msg.includes('quota') || msg.includes('rate') ||
                 msg.includes('429') || msg.includes('exceeded') || msg.includes('limit: 0');
             if (isQuota) {
                 markGeminiQuotaHit();
-                console.warn('[MarketResearch] Gemini quota/rate-limit hit — pausing Gemini for 10 min, falling back to Groq');
+                console.warn('[MarketResearch] Gemini quota/rate-limit hit — pausing Gemini, falling back to groqChat');
             } else {
-                console.warn('[MarketResearch] Gemini failed silently:', msg || err);
+                console.warn('[MarketResearch] Gemini proxy failed:', msg || err);
             }
-            // Fall through to Groq fallback
         }
     } else if (!geminiApiKey) {
-        console.info('[MarketResearch] No Gemini key — using Groq for market research');
+        console.info('[MarketResearch] No Gemini key — using groqChat for market research');
     } else {
-        console.info('[MarketResearch] Gemini quota guard active — using Groq for market research');
+        console.info('[MarketResearch] Gemini quota guard active — using groqChat for market research');
     }
 
     // ── Attempt 2: Groq / Cerebras fallback (uses training data) ─────────────

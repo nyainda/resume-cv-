@@ -1,71 +1,74 @@
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
-import { workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
+import { workerTieredLLM, workerProxyLLM, isCVEngineConfigured } from './cvEngineClient';
 
 // ── Active AI engine tracker ──────────────────────────────────────────────────
 let _lastAiEngine: string = 'Workers AI';
 export function getLastAiEngine(): string { return _lastAiEngine; }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Single-provider model
+// Provider chain: Workers AI → Claude (proxy) → Gemini (proxy)
 //
-// User picks ONE provider in Settings:
-//   'workers-ai' — Premium: Cloudflare Workers AI (Llama/Mistral). No key needed.
-//   'claude'     — Free: Anthropic Claude Haiku via Worker proxy. User provides key.
-//   'gemini'     — Free: Google Gemini 2.0 Flash via Worker proxy. User provides key.
+// All text-generation throughout the codebase flows through groqChat().
+// Priority order:
+//   1. Cloudflare Workers AI  — free, no user key needed, rules injected internally
+//   2. Claude (via CF Worker proxy) — user's key, rules injected server-side
+//   3. Gemini (via CF Worker proxy) — user's key, rules injected server-side
 //
-// All calls route through groqChat() which reads the stored preference and
-// dispatches to the right path. Claude and Gemini calls go through the Worker
-// (/api/cv/proxy-llm) so system prompts and rules are NEVER exposed in DevTools.
-//
+// Neither Claude nor Gemini are called directly from the browser any more.
 // GROQ_LARGE / GROQ_FAST are kept as exported string constants so every
-// existing call-site throughout the codebase compiles unchanged.
+// existing call-site compiles unchanged — they are capability-tier labels.
 // ─────────────────────────────────────────────────────────────────────────────
+
+function groqModelToWorkerTask(model: string): string {
+    if (model === 'llama-3.3-70b-versatile') return 'cvGenerate';
+    if (model === 'llama-3.1-8b-instant')    return 'general';
+    return 'general';
+}
 
 export const GROQ_LARGE = 'llama-3.3-70b-versatile';
 export const GROQ_FAST  = 'llama-3.1-8b-instant';
 
-export type AiProvider = 'workers-ai' | 'claude' | 'gemini';
-
 // ── Backward-compat stubs ─────────────────────────────────────────────────────
 export function hasGroqKey(): boolean { return false; }
 export function getGroqApiKey(): string {
-    throw new Error('Groq API has been removed. Use Workers AI, Claude, or Gemini.');
+    throw new Error('Groq API has been removed. Use CV Engine (Workers AI), Claude, or Gemini.');
 }
 
-/** True when the selected provider has what it needs to make a call */
+/** True when Claude or Gemini keys are present (Workers AI needs no key at all) */
 export function hasAnyLlmKey(): boolean {
-    const p = getSelectedProvider();
-    if (p === 'workers-ai') return isCVEngineConfigured();
-    if (p === 'claude')     return !!getClaudeApiKey();
-    if (p === 'gemini')     return !!getGeminiApiKey();
-    return false;
+    return !!getClaudeApiKey() || !!getGeminiApiKey();
 }
 
-// ── Provider selection (stored in localStorage) ───────────────────────────────
-const PROVIDER_KEY = 'cv_builder:aiProvider';
+// ── Selected AI provider ──────────────────────────────────────────────────────
+// Persisted in localStorage so Settings and generation code share one source.
+export type AiProvider = 'workers-ai' | 'claude' | 'gemini';
+
+const _AI_PROVIDER_KEY = 'cv_builder:aiProvider';
 
 export function getSelectedProvider(): AiProvider {
     try {
-        const v = localStorage.getItem(PROVIDER_KEY) as AiProvider | null;
-        if (v === 'workers-ai' || v === 'claude' || v === 'gemini') return v;
-        // Legacy migration: if preferredFallback was set, derive from that
-        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
-        if (s) {
-            const p = JSON.parse(s);
-            // If they had Workers AI configured (default) keep it
-            if (p.preferredFallback === 'gemini' && p.apiKey) return 'gemini';
-            if (p.preferredFallback === 'claude' && p.claudeApiKey) return 'claude';
-        }
+        const v = localStorage.getItem(_AI_PROVIDER_KEY);
+        if (v === 'claude' || v === 'gemini' || v === 'workers-ai') return v;
+        // Derive from which key is configured if never explicitly set
+        if (getClaudeApiKey()) return 'claude';
+        if (getGeminiApiKey()) return 'gemini';
     } catch { /* ignore */ }
     return 'workers-ai';
 }
 
-export function setSelectedProvider(provider: AiProvider): void {
-    try { localStorage.setItem(PROVIDER_KEY, provider); } catch { /* ignore */ }
+export function setSelectedProvider(p: AiProvider): void {
+    try { localStorage.setItem(_AI_PROVIDER_KEY, p); } catch { /* ignore */ }
 }
 
-// ── Provider health state ─────────────────────────────────────────────────────
+// ── Prompt Vault ──────────────────────────────────────────────────────────────
+// No-op stubs kept for backward compatibility.  Now that the worker injects
+// system prompts internally, templates no longer need to be registered on the
+// client side.
+export function registerSystemTemplate(_template: string, _key: string): void { /* no-op */ }
+export function getSystemTemplateKey(_template: string): string | undefined { return undefined; }
+
+// ── Per-provider health tracker ───────────────────────────────────────────────
 export type ProviderHealthState =
     | 'never_tried'
     | 'ok'
@@ -122,7 +125,7 @@ const _providerHealth: Record<ProviderName, ProviderHealth> = {
 };
 
 function _classifyErrorState(err: any): ProviderHealthState {
-    const status = err?.status;
+    const status = err?.status ?? err?.upstreamStatus;
     const msg = (err?.message || '').toLowerCase();
     if (status === 401 || status === 403 || /invalid.*key|unauthor|forbidden/.test(msg)) return 'auth_failed';
     if (status === 429 || status === 402 || /rate.?limit|quota|daily.*allocation|exhaust|neuron|too many/.test(msg)) return 'quota_exhausted';
@@ -170,8 +173,20 @@ function _recordProviderResult(name: ProviderName, state: ProviderHealthState, e
     }
 }
 
-// ── API key readers ───────────────────────────────────────────────────────────
-function getGeminiApiKey(): string | null {
+// ── Preferred fallback provider ───────────────────────────────────────────────
+function getPreferredFallback(): 'claude' | 'gemini' {
+    try {
+        const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+        if (s) {
+            const p = JSON.parse(s);
+            if (p.preferredFallback === 'gemini') return 'gemini';
+        }
+    } catch { /* ignore */ }
+    return 'claude';
+}
+
+// ── Key helpers ───────────────────────────────────────────────────────────────
+export function getGeminiApiKey(): string | null {
     const rt = _rtGemini();
     if (rt) return rt;
     try {
@@ -186,7 +201,7 @@ function getGeminiApiKey(): string | null {
     return null;
 }
 
-function getClaudeApiKey(): string | null {
+export function getClaudeApiKey(): string | null {
     const rt = _rtClaude();
     if (rt) return rt;
     try {
@@ -199,91 +214,53 @@ function getClaudeApiKey(): string | null {
     return null;
 }
 
-// ── Worker proxy call (Claude / Gemini via /api/cv/proxy-llm) ────────────────
-// All Claude/Gemini calls are routed through the Cloudflare Worker proxy so the
-// actual API call is made server-side.
-//
-// Prompt Vault: when a system prompt is a known ProCV template (registered via
-// registerSystemTemplate), only the template KEY is sent to the CF Worker — the
-// full text is resolved server-side from PROXY_TEMPLATES in index.ts. This means
-// the proprietary quality rules and persona instructions never appear in DevTools
-// network logs, even though the call originates in the browser.
-const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
-
-// Registry: maps full system-prompt text → server-side template key.
-// Populated by geminiService.ts after loadRules() succeeds.
-const _systemTemplateRegistry = new Map<string, string>();
-
 /**
- * Register a system prompt text with its CF Worker vault key.
- * After this, any proxyLLMCall using that exact text will send only the key.
- */
-export function registerSystemTemplate(text: string, key: string): void {
-    if (text) _systemTemplateRegistry.set(text, key);
-}
-
-async function proxyLLMCall(
-    provider: 'claude' | 'gemini',
-    apiKey: string,
-    systemPrompt: string,
-    userPrompt: string,
-    opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
-): Promise<string> {
-    if (!ENGINE_URL) throw new Error('CV Engine URL not configured — cannot proxy LLM call.');
-
-    // Prompt Vault: if this system prompt matches a registered template, send
-    // only the key. The CF Worker resolves the full text from PROXY_TEMPLATES.
-    const templateKey = _systemTemplateRegistry.get(systemPrompt);
-    const promptPayload = templateKey
-        ? { system_template: templateKey }
-        : { systemPrompt };
-
-    const res = await fetch(`${ENGINE_URL}/api/cv/proxy-llm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            provider,
-            apiKey,
-            ...promptPayload,
-            userPrompt,
-            temperature: opts.temperature ?? 0.3,
-            maxTokens:   opts.maxTokens ?? 4096,
-            json:        opts.json ?? false,
-        }),
-    });
-    if (!res.ok) {
-        const raw = await res.text().catch(() => '');
-        let msg = '';
-        try { msg = JSON.parse(raw)?.message || ''; } catch {}
-        const err: any = new Error(msg || `Proxy error (HTTP ${res.status})`);
-        err.status = res.status;
-        throw err;
-    }
-    const data = await res.json() as { text?: string };
-    if (!data.text) throw new Error(`${provider} returned an empty response via proxy.`);
-    return data.text;
-}
-
-/**
- * Call Claude or Gemini directly via the CF Worker proxy, bypassing the
- * provider-selection logic in groqChat. Used by claudeTextCall in
- * geminiService.ts for paths that explicitly want Claude (e.g. profile
- * parsing with its 200 K context window) regardless of the selected provider.
- * Prompt Vault applies automatically: if systemPrompt matches a registered
- * template, only the key is sent.
+ * Route a single Claude or Gemini call through the CF Worker proxy.
+ * The worker injects the correct system prompt for the given task internally.
+ * Used directly by geminiService.ts call-sites that need a one-shot proxy call
+ * without going through the full Workers-AI→proxy fallback chain.
  */
 export async function callProviderViaProxy(
     provider: 'claude' | 'gemini',
     apiKey: string,
-    systemPrompt: string,
+    _systemPrompt: string,
     userPrompt: string,
-    opts: { temperature?: number; maxTokens?: number; json?: boolean } = {},
+    opts: { temperature?: number; maxTokens?: number; json?: boolean; task?: string } = {},
 ): Promise<string> {
-    return proxyLLMCall(provider, apiKey, systemPrompt, userPrompt, opts);
+    const result = await workerProxyLLM(opts.task || 'general', userPrompt, {
+        provider,
+        apiKey,
+        temperature: opts.temperature,
+        maxTokens:   opts.maxTokens,
+        json:        opts.json,
+    });
+    if (!result) throw new Error(`${provider} proxy returned no text`);
+    return result;
 }
 
 /**
- * Test the selected provider connection with a tiny request.
+ * Route a Claude multimodal (image / PDF base64) call through the CF Worker proxy.
+ * Avoids the CORS block that occurs when the browser calls Anthropic's API directly.
+ */
+export async function callProviderViaProxyMultimodal(
+    apiKey: string,
+    base64Data: string,
+    mimeType: string,
+    textPrompt: string,
+    opts: { maxTokens?: number; temperature?: number } = {},
+): Promise<string> {
+    const { workerProxyMultimodal } = await import('./cvEngineClient');
+    const result = await workerProxyMultimodal(apiKey, base64Data, mimeType, textPrompt, {
+        temperature: opts.temperature ?? 0.1,
+        maxTokens:   opts.maxTokens   ?? 4096,
+    });
+    if (!result) throw new Error('Claude multimodal proxy returned no text');
+    return result;
+}
+
+/**
+ * Test a provider connection end-to-end via the CF Worker proxy.
+ * Returns { ok: true, model } on success, or { ok: false, error } on failure.
  */
 export async function testProviderConnection(
     provider: 'claude' | 'gemini',
@@ -291,50 +268,52 @@ export async function testProviderConnection(
     try {
         const key = provider === 'claude' ? getClaudeApiKey() : getGeminiApiKey();
         if (!key) return { ok: false, error: `No ${provider === 'claude' ? 'Claude' : 'Gemini'} API key configured.` };
-        await proxyLLMCall(provider, key, 'You are a connection test.', 'Reply with the single word OK.', { temperature: 0, maxTokens: 5 });
-        return { ok: true, model: provider === 'claude' ? 'claude-sonnet-4-5' : 'gemini-2.0-flash' };
+        const result = await workerProxyLLM('general', 'Reply with the single word OK.', {
+            provider,
+            apiKey: key,
+            temperature: 0,
+            maxTokens: 10,
+            timeoutMs: 12_000,
+        });
+        if (!result) return { ok: false, error: 'Worker proxy returned no text.' };
+        return { ok: true, model: provider === 'claude' ? 'claude-haiku-4-5' : 'gemini-2.0-flash' };
     } catch (e: any) {
         return { ok: false, error: e?.message || 'Connection test failed.' };
     }
 }
 
 /**
- * Primary AI chat function — single provider, no fallback cascade.
+ * Primary AI chat function.
  *
- * The provider is read from localStorage (set by the user in Settings):
- *   'workers-ai' → Cloudflare Workers AI (premium, no key needed)
- *   'claude'     → Anthropic Claude Haiku via Worker proxy
- *   'gemini'     → Google Gemini 2.0 Flash via Worker proxy
+ * Provider chain (in order):
+ *   1. Cloudflare Workers AI  — free, no user key needed
+ *   2. Claude via CF Worker proxy — user's Claude key, system injected server-side
+ *   3. Gemini via CF Worker proxy — user's Gemini key, system injected server-side
  *
- * Function name is preserved as `groqChat` for backward compatibility.
+ * Function name preserved as `groqChat` for backward compatibility.
+ * The optional `opts.task` tells the proxy which internal system prompt to use.
  */
 export async function groqChat(
     model: string,
     systemPrompt: string,
     userPrompt: string,
-    opts: { temperature?: number; json?: boolean; maxTokens?: number } = {}
+    opts: { temperature?: number; json?: boolean; maxTokens?: number; task?: string } = {}
 ): Promise<string> {
     const effectiveTemp = opts.temperature ?? 0.2;
-    const provider = getSelectedProvider();
 
     // ── Cache lookup ──────────────────────────────────────────────────────────
     const cached = await lookupGroqCache(model, systemPrompt, userPrompt, effectiveTemp);
     if (cached !== null) return cached;
 
-    // ── Workers AI ────────────────────────────────────────────────────────────
-    if (provider === 'workers-ai') {
-        if (!isCVEngineConfigured()) {
-            _recordProviderResult('Workers AI', 'no_key');
-            throw new Error('Workers AI is not configured. Please check your CV Engine URL in settings or switch to Claude/Gemini.');
-        }
-        const workerTask = model === 'llama-3.3-70b-versatile' ? 'cvGenerate' : 'general';
+    // ── PRIMARY: Cloudflare Workers AI ────────────────────────────────────────
+    if (isCVEngineConfigured()) {
+        const workerTask = opts.task || groqModelToWorkerTask(model);
         _dispatchTrying({ label: 'Workers AI', type: 'single' });
         try {
             const workerText = await workerTieredLLM(workerTask, userPrompt, {
-                system: systemPrompt,
                 temperature: opts.temperature,
-                json: opts.json,
-                maxTokens: opts.maxTokens,
+                json:        opts.json,
+                maxTokens:   opts.maxTokens,
             });
             if (workerText && workerText.length > 0) {
                 _lastAiEngine = 'Workers AI';
@@ -343,66 +322,63 @@ export async function groqChat(
                 return workerText;
             }
             _recordProviderResult('Workers AI', 'quota_exhausted', {
-                message: 'Workers AI returned no text — daily quota may be exhausted.',
+                message: 'Worker returned no text (likely daily quota exhausted)',
             });
-            const err: any = new Error(
-                'Workers AI returned no text. The daily quota may be exhausted — it resets at 00:00 UTC. ' +
-                'Switch to Claude or Gemini in Settings to continue.'
-            );
-            err.isUserFacing = true;
-            throw err;
+            console.warn('[AI] Workers AI returned no text — falling back to Claude / Gemini proxy.');
         } catch (workerErr: any) {
             _recordProviderResult('Workers AI', _classifyErrorState(workerErr), workerErr);
-            throw workerErr;
+            console.warn('[AI] Workers AI threw — falling back to Claude / Gemini proxy:', workerErr?.message);
         }
+    } else {
+        _recordProviderResult('Workers AI', 'no_key');
     }
 
-    // ── Claude via Worker proxy ───────────────────────────────────────────────
-    if (provider === 'claude') {
-        const key = getClaudeApiKey();
-        if (!key) {
-            _recordProviderResult('Claude', 'no_key');
-            const err: any = new Error('No Claude API key configured. Please add your Claude key in Settings.');
-            err.isUserFacing = true;
-            throw err;
+    // ── FALLBACK: Claude / Gemini via CF Worker proxy ─────────────────────────
+    const preferred = getPreferredFallback();
+    const clKey     = getClaudeApiKey();
+    const gemKey    = getGeminiApiKey();
+    const proxyTask = opts.task || groqModelToWorkerTask(model);
+
+    type FallbackStep = { name: ProviderName; hasKey: boolean };
+    const fallbackOrder: FallbackStep[] =
+        preferred === 'claude'
+            ? [{ name: 'Claude', hasKey: !!clKey }, { name: 'Gemini', hasKey: !!gemKey }]
+            : [{ name: 'Gemini', hasKey: !!gemKey }, { name: 'Claude', hasKey: !!clKey }];
+
+    for (const step of fallbackOrder) {
+        if (!step.hasKey) {
+            _recordProviderResult(step.name, 'no_key');
+            console.info(`[AI] Skipping ${step.name} (no key)`);
+            continue;
         }
-        _dispatchTrying({ label: 'Claude', type: 'single' });
+        _dispatchTrying({ label: step.name, type: 'single' });
         try {
-            const text = await proxyLLMCall('claude', key, systemPrompt, userPrompt, opts);
-            _lastAiEngine = 'Claude';
-            _recordProviderResult('Claude', 'ok');
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
-            return text;
-        } catch (err: any) {
-            _recordProviderResult('Claude', _classifyErrorState(err), err);
-            throw err;
+            const r = await workerProxyLLM(proxyTask, userPrompt, {
+                provider:    step.name === 'Claude' ? 'claude' : 'gemini',
+                apiKey:      step.name === 'Claude' ? clKey!   : gemKey!,
+                temperature: opts.temperature,
+                maxTokens:   opts.maxTokens,
+                json:        opts.json,
+                timeoutMs:   55_000,
+            });
+            if (!r) throw new Error(`${step.name} proxy returned no text`);
+            _lastAiEngine = step.name;
+            _recordProviderResult(step.name, 'ok');
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
+            return r;
+        } catch (provErr: any) {
+            const errState = _classifyErrorState(provErr);
+            _recordProviderResult(step.name, errState, provErr);
+            console.warn(`[AI] ${step.name} proxy failed:`, provErr?.message);
         }
     }
 
-    // ── Gemini via Worker proxy ───────────────────────────────────────────────
-    if (provider === 'gemini') {
-        const key = getGeminiApiKey();
-        if (!key) {
-            _recordProviderResult('Gemini', 'no_key');
-            const err: any = new Error('No Gemini API key configured. Please add your Gemini key in Settings.');
-            err.isUserFacing = true;
-            throw err;
-        }
-        _dispatchTrying({ label: 'Gemini', type: 'single' });
-        try {
-            const text = await proxyLLMCall('gemini', key, systemPrompt, userPrompt, opts);
-            _lastAiEngine = 'Gemini';
-            _recordProviderResult('Gemini', 'ok');
-            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
-            return text;
-        } catch (err: any) {
-            _recordProviderResult('Gemini', _classifyErrorState(err), err);
-            throw err;
-        }
-    }
-
-    // Should never reach here
-    const err: any = new Error('No AI provider configured. Please select a provider in Settings.');
+    // ── All paths exhausted ───────────────────────────────────────────────────
+    const preferredName = preferred === 'claude' ? 'Claude' : 'Gemini';
+    const err: any = new Error(
+        `All AI providers are currently unavailable. The CV Engine free quota resets daily at 00:00 UTC. ` +
+        `Your preferred fallback (${preferredName}) also failed — check your API key in Settings or switch providers.`
+    );
     err.isUserFacing = true;
     throw err;
 }
@@ -423,24 +399,22 @@ if (typeof window !== 'undefined') {
             'Claude':     !!getClaudeApiKey(),
             'Gemini':     !!getGeminiApiKey(),
         };
-        const selected = getSelectedProvider();
         const rows = PROVIDERS.map(name => {
             const h = _providerHealth[name];
             const effectiveState: ProviderHealthState = !haveKey[name] ? 'no_key' : h.state;
             return {
                 provider:  name,
-                selected:  (name.toLowerCase().replace(' ', '-') === selected) ? '★ active' : '',
                 key:       haveKey[name] ? '✓ configured' : '— missing',
                 status:    STATE_LABEL[effectiveState],
                 attempts:  h.attempts,
                 lastError: h.lastError ?? '',
             };
         });
-        console.group('%cAI provider status', 'font-weight:bold;color:#2563eb');
+        console.group('%cAI provider health', 'font-weight:bold;color:#2563eb');
         console.table(rows);
-        console.info('Selected provider:', selected);
         console.info('Last engine used :', _lastAiEngine ?? '(none yet)');
+        console.info('Fallback order   : Workers AI → Claude (proxy) → Gemini (proxy)');
         console.groupEnd();
-        return { selectedProvider: selected, lastEngineUsed: _lastAiEngine, providers: rows };
+        return { lastEngineUsed: _lastAiEngine, providers: rows };
     };
 }
