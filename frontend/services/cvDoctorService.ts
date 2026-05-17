@@ -26,6 +26,53 @@ import { groqChat } from './groqService';
 const FAST_MODEL  = 'llama-3.1-8b-instant';
 const SYSTEM_JSON = 'You are a professional CV consultant. Return ONLY valid JSON with no markdown fences or prose.';
 
+// ─── JSON repair utility ──────────────────────────────────────────────────────
+/**
+ * Attempts to repair truncated JSON — the most common failure when the AI hits
+ * a token limit mid-string.  Closes any open strings, strips dangling commas /
+ * colons, then closes unclosed arrays and objects so JSON.parse() can succeed
+ * on partial output.
+ */
+function repairJson(raw: string): string {
+    const stack: string[] = [];
+    let inStr = false;
+    let esc   = false;
+
+    for (let i = 0; i < raw.length; i++) {
+        const c = raw[i];
+        if (esc)        { esc = false; continue; }
+        if (c === '\\') { esc = true;  continue; }
+        if (c === '"')  { inStr = !inStr; continue; }
+        if (inStr)      { continue; }
+        if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+        else if ((c === '}' || c === ']') && stack.length) stack.pop();
+    }
+
+    let out = raw.trimEnd();
+    // Strip a trailing incomplete key (e.g. `,"toRemo` cut off mid-key)
+    out = out.replace(/,\s*"[^"]*$/, '');
+    // Strip trailing comma or colon that precedes a missing value
+    out = out.replace(/[,:\s]+$/, '');
+    // Close an unterminated string value
+    if (inStr) out += '"';
+    // Close remaining open structures (reverse order)
+    out += stack.reverse().join('');
+    return out;
+}
+
+/**
+ * Parse JSON, automatically attempting a repair if the first parse fails.
+ * Throws only if both attempts fail.
+ */
+function safeParseJson(raw: string): unknown {
+    const stripped = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    try {
+        return JSON.parse(stripped);
+    } catch {
+        return JSON.parse(repairJson(stripped));
+    }
+}
+
 const AI_VERB_SET = new Set([
     'spearheaded','leveraged','orchestrated','catalyzed','utilized','facilitated',
     'ideated','conceptualized','operationalized','solutioned','materialized',
@@ -143,9 +190,8 @@ Return ONLY this JSON (no markdown, no prose):
   "quickWins": ["up to 4 one-sentence improvements with IMMEDIATE impact — e.g. 'Start the Summary with a number: years of experience or client count', 'Add a scope anchor to the first bullet of every role (team size, budget, or region)'"]
 }`;
 
-    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 600 });
-    const parsed = JSON.parse(stripFences(text));
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1200 });
+    const parsed = safeParseJson(text) as Record<string, unknown>;
     const clean = (arr: unknown): string[] =>
         Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
     return {
@@ -192,9 +238,8 @@ RULES:
 Return ONLY a JSON array of exactly 3 strings:
 ["rewrite one", "rewrite two", "rewrite three"]`;
 
-    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.65, json: true, maxTokens: 400 });
-    const arr = JSON.parse(stripFences(text));
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.65, json: true, maxTokens: 600 });
+    const arr = safeParseJson(text);
     if (!Array.isArray(arr)) return [];
     return arr.filter((s: unknown): s is string => typeof s === 'string').slice(0, 3);
 }
@@ -266,12 +311,13 @@ RULES:
 Return ONLY a JSON array of ${flagged.length} objects, one per input bullet, in the SAME ORDER:
 [{"id": 0, "text": "fixed bullet here"}, {"id": 1, "text": "..."}, ...]`;
 
-    const stripFences = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    // ~80 tokens per bullet is a safe budget for a fixed rewrite
+    const maxTokens = Math.min(4000, Math.max(1200, flagged.length * 80));
 
     let rawArr: { id: number; text: string }[] = [];
     try {
-        const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.5, json: true, maxTokens: 2000 });
-        rawArr = JSON.parse(stripFences(text));
+        const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.5, json: true, maxTokens });
+        rawArr = safeParseJson(text) as { id: number; text: string }[];
     } catch {
         return { applied: [], failedCount: flagged.length };
     }
