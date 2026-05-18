@@ -3,8 +3,9 @@ import { TemplateName, templateDisplayNames, CVData, PersonalInfo, CustomTemplat
 import TemplateThumbnail from './TemplateThumbnail';
 import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
 import { Label } from './ui/Label';
-import { CheckCircle, Eye, FileText, Search, Wand2, Trash, Upload, Edit } from './icons';
-import { deleteCustomTemplate, renameCustomTemplate } from '../utils/customTemplateStorage';
+import { CheckCircle, Eye, FileText, Search, Wand2, Trash, Upload, Edit, RefreshCw, Loader2 } from './icons';
+import { deleteCustomTemplate, renameCustomTemplate, saveCustomTemplate } from '../utils/customTemplateStorage';
+import { analyzeAndGenerateTemplate } from '../services/templateAnalyzerService';
 
 interface TemplateGalleryProps {
   selectedTemplate: TemplateName;
@@ -108,6 +109,8 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [, forceUpdate] = useState(0);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
+  const [reanalyzeError, setReanalyzeError] = useState<Record<string, string>>({});
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,6 +128,30 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       onRenameCustom?.(id, trimmed);
     }
     setRenamingId(null);
+  };
+
+  const handleReanalyze = async (ct: CustomTemplateEntry) => {
+    if (!ct.thumbnail) {
+      setReanalyzeError(prev => ({ ...prev, [ct.id]: 'No source image stored — please delete and re-upload this template.' }));
+      return;
+    }
+    setReanalyzeError(prev => { const n = { ...prev }; delete n[ct.id]; return n; });
+    setReanalyzingId(ct.id);
+    try {
+      // Parse data URL → base64 + mimeType
+      const match = ct.thumbnail.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) throw new Error('Could not read stored image.');
+      const [, mimeType, base64] = match;
+      const result = await analyzeAndGenerateTemplate(base64, mimeType, ct.name);
+      saveCustomTemplate({ ...ct, spec: result.spec });
+      onRenameCustom?.(ct.id, ct.name); // signal parent to reload customTemplates
+      forceUpdate(n => n + 1);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setReanalyzeError(prev => ({ ...prev, [ct.id]: msg }));
+    } finally {
+      setReanalyzingId(null);
+    }
   };
 
   const allTemplates = Object.keys(templateDisplayNames) as TemplateName[];
@@ -283,7 +310,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
                           <CheckCircle className="h-3 w-3" />
                         </div>
                       )}
-                      {/* Action buttons — delete & rename */}
+                      {/* Action buttons — delete, rename, re-analyze */}
                       <div className="absolute top-1.5 left-1.5 z-10 flex gap-0.5">
                         <button
                           onClick={(e) => {
@@ -308,7 +335,28 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
                         >
                           <Edit className="h-2.5 w-2.5" />
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (reanalyzingId !== ct.id) handleReanalyze(ct);
+                          }}
+                          disabled={reanalyzingId === ct.id}
+                          className="bg-white/80 hover:bg-sky-50 text-sky-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm disabled:cursor-not-allowed"
+                          title="Re-analyze template from original image"
+                        >
+                          {reanalyzingId === ct.id
+                            ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            : <RefreshCw className="h-2.5 w-2.5" />
+                          }
+                        </button>
                       </div>
+                      {/* Loading overlay while re-analyzing */}
+                      {reanalyzingId === ct.id && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-900/80 gap-1.5">
+                          <Loader2 className="h-5 w-5 animate-spin text-[#C9A84C]" />
+                          <span className="text-[9px] font-semibold text-zinc-600 dark:text-zinc-300">Re-analyzing…</span>
+                        </div>
+                      )}
                       {/* Mini live preview */}
                       <div className="bg-white h-36 overflow-hidden flex items-start justify-center pointer-events-none">
                         <div style={{ transform: 'scale(0.25)', transformOrigin: 'top center', width: '400%', height: '400%' }}>
@@ -355,6 +403,9 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
                         <span className="w-1 h-1 rounded-full bg-amber-400" />
                         AI Cloned
                       </span>
+                      {reanalyzeError[ct.id] && (
+                        <p className="text-[8.5px] text-red-500 mt-0.5 leading-tight">{reanalyzeError[ct.id]}</p>
+                      )}
                     </div>
                   </div>
                 );
