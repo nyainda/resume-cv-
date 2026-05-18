@@ -64,6 +64,7 @@ const KIND_LABEL: Record<CvQualityIssueKind, string> = {
     passive_voice:               'Passive voice — rewrite with an action verb',
     leading_verb_repetition:     'Same opening verb used 3+ times in one role',
     tilde_number:                'Tilde before number ("~50") — AI tell, remove it',
+    missing_trailing_period:     'Bullet does not end with a full stop',
 };
 
 // ── Style governance — detect-only leak types ────────────────────────────────
@@ -388,6 +389,39 @@ export default function QualityIssuesPanel({
         setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
     }, [cv, onApplyFix]);
 
+    const periodIssues = useMemo(
+        () => report.issues.filter(i => i.kind === 'missing_trailing_period'),
+        [report.issues],
+    );
+
+    const handleFixPeriodInstant = useCallback((issue: CvQualityIssue, rowKey: string) => {
+        const original = getOriginalTextAt(cv, issue.where) || issue.snippet;
+        const trimmed = original.trimEnd();
+        const fixed = /[.!?]$/.test(trimmed) ? trimmed : trimmed.replace(/[,;]*$/, '') + '.';
+        if (fixed === original) {
+            setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
+            return;
+        }
+        const nextCv = applyFixToCv(cv, issue.where, fixed);
+        onApplyFix(nextCv);
+        setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
+    }, [cv, onApplyFix]);
+
+    const handleFixAllPeriodsInstant = useCallback(() => {
+        if (periodIssues.length === 0) return;
+        let workingCv = cv;
+        for (let idx = 0; idx < periodIssues.length; idx++) {
+            const issue = periodIssues[idx];
+            const rowKey = issueKey(issue, report.issues.indexOf(issue));
+            const original = getOriginalTextAt(workingCv, issue.where) || issue.snippet;
+            const trimmed = original.trimEnd();
+            const fixed = /[.!?]$/.test(trimmed) ? trimmed : trimmed.replace(/[,;]*$/, '') + '.';
+            workingCv = applyFixToCv(workingCv, issue.where, fixed);
+            setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
+        }
+        onApplyFix(workingCv);
+    }, [cv, periodIssues, report.issues, issueKey, onApplyFix]);
+
     const handleFixAllTildesInstant = useCallback(() => {
         if (tildeIssues.length === 0) return;
         let workingCv = cv;
@@ -476,6 +510,17 @@ export default function QualityIssuesPanel({
                                 <><Sparkles className="h-4 w-4 mr-2" />Fix all {report.totalIssues} with AI</>
                             )}
                         </Button>
+                        {periodIssues.length > 0 && (
+                            <Button
+                                size="sm"
+                                onClick={handleFixAllPeriodsInstant}
+                                disabled={bulkFixing}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Add full stops ({periodIssues.length})
+                            </Button>
+                        )}
                         {tildeIssues.length > 0 && (
                             <Button
                                 size="sm"
@@ -853,7 +898,20 @@ export default function QualityIssuesPanel({
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        {issue.kind === 'tilde_number' ? (
+                                                        {issue.kind === 'missing_trailing_period' ? (
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleFixPeriodInstant(issue, rowKey)}
+                                                                disabled={state.status === 'fixed' || bulkFixing}
+                                                                className="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                            >
+                                                                {state.status === 'fixed' ? (
+                                                                    <><CheckCircle className="h-3.5 w-3.5 mr-1" />Done</>
+                                                                ) : (
+                                                                    <><CheckCircle className="h-3.5 w-3.5 mr-1" />Add full stop</>
+                                                                )}
+                                                            </Button>
+                                                        ) : issue.kind === 'tilde_number' ? (
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => handleFixTildeInstant(issue, rowKey)}

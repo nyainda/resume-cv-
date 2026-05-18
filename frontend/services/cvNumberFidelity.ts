@@ -401,7 +401,8 @@ export type CvQualityIssueKind =
     | 'half_open_range'             // "from over 95%" with no "to" anchor
     | 'passive_voice'               // "was implemented", "were managed"
     | 'leading_verb_repetition'     // 3+ bullets in same role start with the same verb
-    | 'tilde_number';               // "~50" / "~30%" — AI tell, strip the tilde
+    | 'tilde_number'               // "~50" / "~30%" — AI tell, strip the tilde
+    | 'missing_trailing_period';   // bullet does not end with . ! ?
 
 export interface CvQualityIssue {
     kind: CvQualityIssueKind;
@@ -524,6 +525,11 @@ export function auditCvQuality(cv: CvLikeForAudit, opts?: { purifierWarnings?: n
 
             // Achievement density counter (informational, not penalised).
             if (METRIC_RX.test(trimmed)) bulletsWithMetrics++;
+
+            // Missing trailing period — bullet should end with . ! ?
+            if (!/[.!?]$/.test(trimmed)) {
+                issues.push({ kind: 'missing_trailing_period', where, snippet: trimmed.slice(0, 80) });
+            }
 
             const stripped = trimmed.replace(/^[\s•\-*·»"']+/, '');
             const firstWord = stripped.split(/\s+/)[0]?.toLowerCase();

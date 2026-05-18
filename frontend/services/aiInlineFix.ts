@@ -123,6 +123,9 @@ export const ISSUE_KIND_INSTRUCTIONS: Record<CvQualityIssueKind, string> = {
         'A tilde character appears before a number ("~50", "~30%"). Remove the ' +
         'tilde and replace it with a plain approximation word if needed — e.g. ' +
         '"~50" → "50", "~30%" → "roughly 30%". Preserve everything else exactly.',
+    missing_trailing_period:
+        'This bullet does not end with a full stop. Add a period at the end. ' +
+        'Do not change any other word, number, or punctuation in the bullet.',
 };
 
 const SYSTEM_PROMPT = `You are a precision CV editor. The user will give you ONE
