@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { CVData, PersonalInfo } from '../../types';
-import { TemplateSpec } from '../../services/templateAnalyzerService';
+import { TemplateSpec, normalizeSectionKey } from '../../services/templateAnalyzerService';
 
 interface Props {
   cvData: CVData;
@@ -196,7 +196,10 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
   const c = spec.colorScheme;
   const bodySize = spec.typography.bodyTextSize === 'small' ? '9px' : spec.typography.bodyTextSize === 'large' ? '11px' : '9.5px';
 
-  switch (sectionKey) {
+  // Normalize the key so old saved templates with non-canonical names still render.
+  const canonical = normalizeSectionKey(sectionKey) ?? sectionKey;
+
+  switch (canonical) {
     case 'summary':
       if (!cvData.summary) return null;
       return (

@@ -115,6 +115,63 @@ function stripJsonFences(text: string): string {
     .trim();
 }
 
+// Canonical section keys the renderer understands.
+const CANONICAL_SECTIONS = ['summary', 'experience', 'education', 'skills', 'projects', 'languages', 'contact'] as const;
+type CanonicalSection = typeof CANONICAL_SECTIONS[number];
+
+// Maps common AI-generated variants → canonical key.
+const SECTION_ALIASES: Record<string, CanonicalSection> = {
+  // experience
+  'work experience': 'experience', 'professional experience': 'experience',
+  'work history': 'experience', 'employment': 'experience',
+  'employment history': 'experience', 'career history': 'experience',
+  'experience section': 'experience',
+  // education
+  'academic background': 'education', 'academic history': 'education',
+  'qualifications': 'education', 'academic qualifications': 'education',
+  'educational background': 'education',
+  // skills
+  'technical skills': 'skills', 'core skills': 'skills',
+  'key skills': 'skills', 'competencies': 'skills',
+  'expertise': 'skills', 'skill set': 'skills', 'skillset': 'skills',
+  'abilities': 'skills',
+  // summary
+  'profile': 'summary', 'objective': 'summary', 'about': 'summary',
+  'about me': 'summary', 'professional summary': 'summary',
+  'career objective': 'summary', 'personal statement': 'summary',
+  'executive summary': 'summary',
+  // projects
+  'personal projects': 'projects', 'key projects': 'projects',
+  'selected projects': 'projects', 'portfolio': 'projects',
+  // languages
+  'language': 'languages', 'spoken languages': 'languages',
+  // contact
+  'contact information': 'contact', 'contact details': 'contact',
+  'personal information': 'contact', 'personal details': 'contact',
+  'contact info': 'contact',
+};
+
+export function normalizeSectionKey(key: string): CanonicalSection | null {
+  const lower = key.toLowerCase().trim();
+  if (CANONICAL_SECTIONS.includes(lower as CanonicalSection)) return lower as CanonicalSection;
+  return SECTION_ALIASES[lower] ?? null;
+}
+
+function normalizeSectionOrder(order: string[]): CanonicalSection[] {
+  const seen = new Set<CanonicalSection>();
+  const result: CanonicalSection[] = [];
+  for (const key of order) {
+    const canonical = normalizeSectionKey(key);
+    if (canonical && !seen.has(canonical)) {
+      seen.add(canonical);
+      result.push(canonical);
+    }
+  }
+  // Always guarantee at least experience + education if they were empty
+  if (result.length === 0) return ['summary', 'experience', 'education', 'skills'];
+  return result;
+}
+
 function parseSpec(raw: string): TemplateSpec {
   const cleaned = stripJsonFences(raw);
   if (!cleaned) throw new Error('AI returned an empty response. Please try again.');
@@ -122,6 +179,8 @@ function parseSpec(raw: string): TemplateSpec {
   if (!Array.isArray(spec.sectionOrder) || spec.sectionOrder.length === 0) {
     throw new Error('This image does not appear to be a CV template. Please upload a CV/resume screenshot.');
   }
+  // Normalize section keys so the renderer always gets canonical values.
+  spec.sectionOrder = normalizeSectionOrder(spec.sectionOrder);
   return spec;
 }
 
