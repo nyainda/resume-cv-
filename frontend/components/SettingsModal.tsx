@@ -90,6 +90,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setProviderTest({ status: 'testing' });
     if (p === 'claude') {
       try { setRuntimeKeys({ claudeApiKey: claudeKey.trim() }); } catch {}
+    } else {
+      try { setRuntimeKeys({ apiKey: geminiKey.trim() }); } catch {}
     }
     try {
       const result = await testProviderConnection(p);
