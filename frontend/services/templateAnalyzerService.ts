@@ -1,22 +1,26 @@
 /**
  * Template Analyzer Service
  *
- * Two-phase pipeline:
+ * Two-phase pipeline — exactly three providers, pulled from Settings:
+ *
  *   Phase 1 — Vision Analysis:
  *     (a) Worker AI Llama 3.2 Vision (free, via /api/cv/vision-extract) — tried first
- *     (b) Gemini 2.0 Flash Vision (if Gemini key is set in Settings)
+ *     (b) Gemini 2.0 Flash Vision (if Gemini key is set in Settings → AI Keys)
  *     (c) Throws a clear error if neither is configured
+ *
  *   Phase 2 — Spec Refinement:
- *     (a) Gemini 2.0 Flash (text, if key set)
- *     (b) Claude via proxy (if Claude key set)
- *     (c) Groq / Worker AI (groqChat auto-fallback chain)
- *     (d) Returns raw spec unchanged if all fail
+ *     (a) Gemini 2.0 Flash text (if Gemini key set)
+ *     (b) Claude (if Claude key set in Settings → AI Keys)
+ *     (c) Worker AI text LLM (Cloudflare — no user key needed)
+ *     (d) Returns raw spec unchanged if all three fail
+ *
+ * No Groq, Cerebras, OpenRouter, Together.ai or any other provider is used.
  */
 
 import { GoogleGenAI } from '@google/genai';
 import { getGeminiKey, getClaudeKey } from './security/RuntimeKeys';
-import { groqChat, GROQ_LARGE, callProviderViaProxy } from './groqService';
-import { workerVisionExtract, isCVEngineConfigured } from './cvEngineClient';
+import { callProviderViaProxy } from './groqService';
+import { workerVisionExtract, workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
 import type {
   TemplateSpec,
   TemplateColorScheme,
@@ -226,23 +230,25 @@ export async function refineTemplateSpec(rawSpec: TemplateSpec): Promise<Templat
     }
   }
 
-  // ── Attempt 3: Groq / Worker AI (groqChat auto-chain) ────────────────────
-  try {
-    const result = await groqChat(
-      GROQ_LARGE,
-      'You are a JSON validator and corrector. Return only valid JSON.',
-      prompt,
-      { temperature: 0.1, maxTokens: 2048 }
-    );
-    if (result) {
-      const clean = stripJsonFences(result);
-      try {
-        console.log('[TemplateAnalyzer] Phase 2 via Groq/Worker ✓');
-        return JSON.parse(clean) as TemplateSpec;
-      } catch { /* fall through */ }
+  // ── Attempt 3: Worker AI text LLM (Cloudflare — no user key needed) ───────
+  if (isCVEngineConfigured()) {
+    try {
+      const result = await workerTieredLLM(
+        'cvAudit',
+        'You are a JSON validator and corrector. Return only valid JSON.',
+        prompt,
+        { temperature: 0.1, maxTokens: 2048 }
+      );
+      if (result) {
+        const clean = stripJsonFences(result);
+        try {
+          console.log('[TemplateAnalyzer] Phase 2 via Worker AI ✓');
+          return JSON.parse(clean) as TemplateSpec;
+        } catch { /* fall through */ }
+      }
+    } catch (err) {
+      console.warn('[TemplateAnalyzer] Worker AI refinement failed, using raw spec:', err);
     }
-  } catch (err) {
-    console.warn('[TemplateAnalyzer] Groq refinement also failed, using raw spec:', err);
   }
 
   return rawSpec;
