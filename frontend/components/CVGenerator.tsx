@@ -30,7 +30,10 @@ import { profileToCV } from '../utils/profileToCV';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
-import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe, Columns } from './icons';
+import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe, Columns, Wand2 } from './icons';
+import CustomTemplateUploader from './CustomTemplateUploader';
+import { loadCustomTemplates } from '../utils/customTemplateStorage';
+import type { CustomTemplateEntry } from '../types';
 import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
 import DownloadProgressModal from './DownloadProgressModal';
 import CVDoctorPanel from './CVDoctorPanel';
@@ -239,6 +242,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
+  const [customTemplateId, setCustomTemplateId] = useState<string | null>(null);
+  const [showTemplateUploader, setShowTemplateUploader] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<CustomTemplateEntry[]>(() => loadCustomTemplates());
   // Sidebar Section Picker — persists user's choice of which auto-generated
   // sidebar fillers (Key Achievements, Selected Projects, References) are
   // visible. Only takes effect for templates listed in SIDEBAR_TEMPLATES.
@@ -1869,9 +1875,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
           <TemplateGallery
             selectedTemplate={template}
-            onSelect={setTemplate}
+            onSelect={(t) => { setTemplate(t); setCustomTemplateId(null); }}
             cvData={currentCV ?? undefined}
             personalInfo={userProfile.personalInfo}
+            customTemplates={customTemplates}
+            customTemplateId={customTemplateId ?? undefined}
+            onSelectCustom={(id) => { setCustomTemplateId(id); setTemplate('custom'); }}
+            onOpenUploader={() => setShowTemplateUploader(true)}
           />
 
           {/* ── Customisation Panel: Font + Accent Colour ── */}
@@ -2156,6 +2166,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 jobDescriptionForATS={jobDescription}
                 template={template}
                 sidebarSections={sidebarSections}
+                customTemplateId={customTemplateId ?? undefined}
               />
             </div>
           </div>
@@ -2172,6 +2183,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             personalInfo={userProfile.personalInfo}
           />
         </div>
+      )}
+
+      {showTemplateUploader && (
+        <CustomTemplateUploader
+          cvData={currentCV ?? undefined}
+          personalInfo={userProfile.personalInfo}
+          onSaved={(entry) => {
+            setCustomTemplates(loadCustomTemplates());
+            setCustomTemplateId(entry.id);
+            setTemplate('custom');
+            setShowTemplateUploader(false);
+          }}
+          onClose={() => setShowTemplateUploader(false)}
+        />
       )}
 
       {showShareModal && currentCV && (

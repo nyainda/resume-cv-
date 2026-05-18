@@ -403,7 +403,72 @@ export type TemplateName =
   | 'executive-sidebar'
   | 'compact-slate'
   | 'compact-sage'
-  | 'compact-charcoal';
+  | 'compact-charcoal'
+  | 'custom';
+
+// ── Custom Template (user-uploaded & AI-analyzed) ─────────────────────────────
+
+export interface TemplateColorScheme {
+  primary: string;
+  secondary: string;
+  background: string;
+  sidebarBackground: string | null;
+  textPrimary: string;
+  textSecondary: string;
+  headingColor: string;
+  dividerColor: string | null;
+  headerBarColor: string | null;
+}
+
+export interface TemplateTypography {
+  nameStyle: 'large' | 'extra-large' | 'bold' | 'uppercase' | 'normal';
+  nameFontWeight: '400' | '600' | '700' | '800' | '900';
+  titleStyle: string;
+  sectionHeadingStyle: 'uppercase' | 'capitalized' | 'normal';
+  sectionHeadingDecoration: 'underline' | 'border-bottom' | 'background' | 'dot' | 'none';
+  bodyTextSize: 'small' | 'normal' | 'large';
+  bulletStyle: 'dot' | 'dash' | 'square' | 'none' | 'custom';
+  fontFamily: string;
+}
+
+export interface TemplateLayout {
+  columns: 'single' | 'two-column' | 'sidebar-left' | 'sidebar-right';
+  sidebarWidthPercent: number | null;
+  pageMargins: 'tight' | 'normal' | 'generous';
+  contentDensity: 'compact' | 'balanced' | 'spacious';
+}
+
+export interface TemplateDecorativeElements {
+  hasPhoto: boolean;
+  photoShape: 'circle' | 'square' | 'rounded' | 'none';
+  hasHeaderBar: boolean;
+  hasVerticalDivider: boolean;
+  hasSectionIcons: boolean;
+  hasProgressBars: boolean;
+  hasTimeline: boolean;
+  otherDecorations: string;
+}
+
+export interface TemplateSpec {
+  layout: TemplateLayout;
+  colorScheme: TemplateColorScheme;
+  typography: TemplateTypography;
+  sectionOrder: string[];
+  decorativeElements: TemplateDecorativeElements;
+  contactInfoStyle: 'inline-row' | 'stacked' | 'sidebar' | 'icons-only';
+  skillsStyle: 'tags' | 'list' | 'progress-bars' | 'two-column' | 'inline';
+  experienceBulletIndent: 'none' | 'small' | 'standard';
+  overallStyle: string;
+  reproductionNotes: string;
+}
+
+export interface CustomTemplateEntry {
+  id: string;
+  name: string;
+  spec: TemplateSpec;
+  createdAt: string;
+  thumbnail?: string;
+}
 
 // ── Sidebar section visibility (Sidebar Section Picker) ──────────────────────
 // Controls which auto-generated sidebar fillers appear in templates that have
@@ -474,6 +539,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'compact-slate': 'Compact Slate',
   'compact-sage': 'Compact Sage',
   'compact-charcoal': 'Compact Charcoal',
+  'custom': 'My Custom',
 };
 
 // --- CV Generation Mode ---

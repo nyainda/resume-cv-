@@ -1,14 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { TemplateName, templateDisplayNames, CVData, PersonalInfo } from '../types';
+import { TemplateName, templateDisplayNames, CVData, PersonalInfo, CustomTemplateEntry } from '../types';
 import TemplateThumbnail from './TemplateThumbnail';
+import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
 import { Label } from './ui/Label';
-import { CheckCircle, Eye, FileText, Search } from './icons';
+import { CheckCircle, Eye, FileText, Search, Wand2, Trash, Upload } from './icons';
+import { deleteCustomTemplate } from '../utils/customTemplateStorage';
 
 interface TemplateGalleryProps {
   selectedTemplate: TemplateName;
   onSelect: (template: TemplateName) => void;
   cvData?: CVData;
   personalInfo?: PersonalInfo;
+  customTemplates?: CustomTemplateEntry[];
+  customTemplateId?: string;
+  onSelectCustom?: (id: string) => void;
+  onOpenUploader?: () => void;
 }
 
 const templateCategories = {
@@ -83,6 +89,7 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'compact-slate': 'medium',
   'compact-sage': 'medium',
   'compact-charcoal': 'medium',
+  'custom': 'medium',
 };
 
 const atsConfig = {
@@ -91,10 +98,14 @@ const atsConfig = {
   low:    { label: 'Design Only',  dot: 'bg-rose-400',    text: 'text-rose-600 dark:text-rose-400' },
 };
 
-const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onSelect, cvData, personalInfo }) => {
+const TemplateGallery: React.FC<TemplateGalleryProps> = ({
+  selectedTemplate, onSelect, cvData, personalInfo,
+  customTemplates = [], customTemplateId, onSelectCustom, onOpenUploader,
+}) => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [hoveredTemplate, setHoveredTemplate] = useState<TemplateName | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [, forceUpdate] = useState(0);
 
   const allTemplates = Object.keys(templateDisplayNames) as TemplateName[];
 
@@ -175,6 +186,34 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
           );
         })}
 
+        {/* My Templates pill */}
+        {customTemplates.length > 0 && (
+          <button
+            onClick={() => { setActiveCategory('My Templates'); setSearchQuery(''); }}
+            className={`
+              px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150
+              ${activeCategory === 'My Templates' && !searchQuery
+                ? 'bg-[#C9A84C] text-white shadow-md shadow-[#C9A84C]/30'
+                : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100'
+              }
+            `}
+          >
+            ✨ My Templates
+            <span className={`ml-1.5 text-[10px] ${activeCategory === 'My Templates' && !searchQuery ? 'text-white/80' : 'text-amber-500'}`}>
+              {customTemplates.length}
+            </span>
+          </button>
+        )}
+
+        {/* Upload Template button */}
+        <button
+          onClick={onOpenUploader}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700 flex items-center gap-1.5"
+        >
+          <Wand2 className="h-3 w-3" />
+          Analyze & Clone
+        </button>
+
         {/* Result count when searching */}
         {searchQuery && (
           <span className="self-center ml-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -193,7 +232,89 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
         ))}
       </div>
 
+      {/* My Templates Grid */}
+      {activeCategory === 'My Templates' && !searchQuery && (
+        <div>
+          {customTemplates.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm">No custom templates yet.</p>
+              <button onClick={onOpenUploader} className="mt-2 text-sm text-[#C9A84C] hover:underline flex items-center gap-1 mx-auto">
+                <Wand2 className="h-3.5 w-3.5" /> Analyze & Clone a template
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+              {customTemplates.map((ct) => {
+                const isSelected = customTemplateId === ct.id;
+                return (
+                  <div key={ct.id} className="cursor-pointer group relative">
+                    <div
+                      onClick={() => onSelectCustom?.(ct.id)}
+                      className={`relative rounded-xl overflow-hidden transition-all duration-200
+                        ${isSelected
+                          ? 'ring-[3px] ring-[#C9A84C] shadow-xl shadow-[#1B2B4B]/15 scale-[1.03]'
+                          : 'ring-1 ring-zinc-200 dark:ring-neutral-700 hover:ring-[#C9A84C]/50 hover:shadow-lg hover:scale-[1.01]'
+                        }
+                      `}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-1.5 right-1.5 z-10 bg-[#C9A84C] text-white rounded-full p-0.5 shadow-md">
+                          <CheckCircle className="h-3 w-3" />
+                        </div>
+                      )}
+                      <div className="absolute top-1.5 left-1.5 z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteCustomTemplate(ct.id);
+                            forceUpdate(n => n + 1);
+                          }}
+                          className="bg-white/80 hover:bg-red-50 text-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                          title="Delete template"
+                        >
+                          <Trash className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                      {/* Mini live preview */}
+                      <div className="bg-white h-36 overflow-hidden flex items-start justify-center pointer-events-none">
+                        <div style={{ transform: 'scale(0.25)', transformOrigin: 'top center', width: '400%', height: '400%' }}>
+                          <TemplateCustomGenerated
+                            cvData={cvData ?? {
+                              summary: '', skills: [], experience: [], education: [],
+                            }}
+                            personalInfo={personalInfo ?? { name: 'Preview', email: '', phone: '', location: '' }}
+                            spec={ct.spec}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-center px-1">
+                      <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-[#C9A84C]' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                        {ct.name}
+                      </p>
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-medium mt-0.5 text-amber-700 dark:text-amber-400">
+                        <span className="w-1 h-1 rounded-full bg-amber-400" />
+                        AI Cloned
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Add another button */}
+              <div
+                onClick={onOpenUploader}
+                className="cursor-pointer group flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 dark:border-neutral-600 hover:border-[#C9A84C] hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all duration-200 h-36"
+              >
+                <Upload className="h-5 w-5 text-zinc-400 group-hover:text-[#C9A84C] mb-1.5 transition-colors" />
+                <span className="text-[10px] font-semibold text-zinc-400 group-hover:text-[#C9A84C] transition-colors">Add Template</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Templates Grid */}
+      {activeCategory !== 'My Templates' && (<>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
         {filteredTemplates.map((template) => {
           const isSelected = selectedTemplate === template;
@@ -295,6 +416,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({ selectedTemplate, onS
           </button>
         </div>
       )}
+      </>)}
 
       {/* Quick Tips */}
       <div className="p-3 bg-gradient-to-r from-blue-50 to-[#F8F7F4] dark:from-blue-900/10 dark:to-[#1B2B4B]/10 border border-blue-200 dark:border-blue-800 rounded-lg">

@@ -1,5 +1,7 @@
 import React from 'react';
 import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
+import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
+import { getCustomTemplate } from '../utils/customTemplateStorage';
 import TemplateModern from './templates/TemplateModern';
 import TemplateProfessional from './templates/TemplateProfessional';
 import TemplateMinimalist from './templates/TemplateMinimalist';
@@ -47,6 +49,8 @@ interface CVPreviewProps {
   // ExecutiveSidebar, PhotoSidebar, ModernTech, CompactSlate, CompactSage,
   // CompactCharcoal). All other templates ignore this prop.
   sidebarSections?: SidebarSectionsVisibility;
+  // When template === 'custom', this ID is used to look up the stored spec
+  customTemplateId?: string;
 }
 
 // ─── Main CVPreview ──────────────────────────────────────────────────────────
@@ -60,6 +64,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     onDataChange = () => {},
     jobDescriptionForATS = '',
     sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
+    customTemplateId,
   } = props;
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
@@ -103,6 +108,11 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       case 'compact-slate':      return <TemplateCompactSlate {...sidebarTemplateProps} />;
       case 'compact-sage':       return <TemplateCompactSage {...sidebarTemplateProps} />;
       case 'compact-charcoal':   return <TemplateCompactCharcoal {...sidebarTemplateProps} />;
+      case 'custom': {
+        const entry = customTemplateId ? getCustomTemplate(customTemplateId) : undefined;
+        if (entry?.spec) return <TemplateCustomGenerated cvData={cvData} personalInfo={personalInfo} spec={entry.spec} isEditing={isEditing} />;
+        return <TemplateProfessional {...templateProps} />;
+      }
       default:                   return <TemplateProfessional {...templateProps} />;
     }
   };
