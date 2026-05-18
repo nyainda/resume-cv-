@@ -3,10 +3,9 @@
  *
  * Pre-generation market intelligence service.
  *
- * Provider priority:
- *   1. Gemini + Google Search grounding (live results, best quality)
- *   2. Groq / Cerebras  (training-data based, no live search — used when Gemini
- *      is unavailable, quota-exceeded, or not configured)
+ * Uses Gemini with Google Search grounding for live market data.
+ * If Gemini is unavailable or not configured, market research is skipped
+ * and CV generation continues without it.
  *
  * A session-level Gemini quota guard prevents hammering the API after it has
  * already returned a 429 / quota-exceeded error within the last 10 minutes.
@@ -16,7 +15,6 @@
 
 import { UserProfile } from '../types';
 import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
-import { groqChat, GROQ_LARGE } from './groqService';
 import { workerProxyLLM } from './cvEngineClient';
 import { sha256Hex } from './profileCacheClient';
 
@@ -235,30 +233,7 @@ Return ONLY a JSON object (no markdown fences):
 Return up to 12 topSkills, 15 atsKeywords, 10 expectedTools.`;
 }
 
-function buildGroqResearchPrompt(scenario: Scenario, role: string, industry: string, jd: string): string {
-    const year = new Date().getFullYear();
-    const jdContext = scenario === 'C' ? `\n\nJOB DESCRIPTION EXCERPT:\n${jd.substring(0, 800)}` : '';
-
-    return `You are a specialist labour market researcher with deep knowledge of current hiring trends.
-Based on your training knowledge, provide market intelligence for a ${role} in the ${industry} sector (${year}).${jdContext}
-
-Return ONLY a JSON object (no markdown fences, no extra text):
-{
-  "topSkills": ["skill1", ...],
-  "atsKeywords": ["keyword1", ...],
-  "expectedTools": ["tool1", ...],
-  "industryInsights": "2-3 specific, actionable sentences about what makes a ${role} CV stand out in ${year}. Name real trends, tools, and recruiter expectations."
-}
-
-Rules:
-- topSkills: up to 12 items — the most in-demand skills for this role right now
-- atsKeywords: up to 15 items — exact terms ATS systems scan for in ${industry} CVs
-- expectedTools: up to 10 items — specific software, platforms, or frameworks expected
-- industryInsights: concrete and specific — name actual tools, certifications, or behaviours
-Return ONLY the JSON object.`;
-}
-
-// ─── Parse helper (shared by both providers) ──────────────────────────────────
+// ─── Parse helper ─────────────────────────────────────────────────────────────
 
 function parseResearchJson(rawText: string, role: string, industry: string, scenario: Scenario): MarketResearchResult | null {
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -389,7 +364,7 @@ async function conductMarketResearchFresh(
                 console.info(`[MarketResearch] Gemini proxy — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
                 return result;
             }
-            console.warn('[MarketResearch] Gemini proxy returned empty results — trying groqChat fallback');
+            console.warn('[MarketResearch] Gemini proxy returned empty results — skipping market research');
         } catch (err: any) {
             const msg = (err?.message || '').toLowerCase();
             const status = err?.status ?? err?.upstreamStatus ?? err?.code;
@@ -398,34 +373,15 @@ async function conductMarketResearchFresh(
                 msg.includes('429') || msg.includes('exceeded') || msg.includes('limit: 0');
             if (isQuota) {
                 markGeminiQuotaHit();
-                console.warn('[MarketResearch] Gemini quota/rate-limit hit — pausing Gemini, falling back to groqChat');
+                console.warn('[MarketResearch] Gemini quota/rate-limit hit — skipping market research for this run');
             } else {
-                console.warn('[MarketResearch] Gemini proxy failed:', msg || err);
+                console.warn('[MarketResearch] Gemini proxy failed — skipping market research:', msg || err);
             }
         }
     } else if (!geminiApiKey) {
-        console.info('[MarketResearch] No Gemini key — using groqChat for market research');
+        console.info('[MarketResearch] No Gemini key configured — skipping market research');
     } else {
-        console.info('[MarketResearch] Gemini quota guard active — using groqChat for market research');
-    }
-
-    // ── Attempt 2: Groq / Cerebras fallback (uses training data) ─────────────
-    try {
-        const prompt = buildGroqResearchPrompt(scenario, role, industry, jobDescription);
-        const rawText = await groqChat(
-            GROQ_LARGE,
-            'You are a specialist labour market researcher. Return only valid JSON.',
-            prompt,
-            { temperature: 0.3, json: true, maxTokens: 1500 }
-        );
-
-        const result = parseResearchJson(rawText, role, industry, scenario);
-        if (result) {
-            console.info(`[MarketResearch] Groq fallback — Scenario ${scenario}: ${result.topSkills.length} skills for "${role}"`);
-            return result;
-        }
-    } catch (groqErr) {
-        console.warn('[MarketResearch] Groq fallback also failed — skipping market research:', groqErr);
+        console.info('[MarketResearch] Gemini quota guard active — skipping market research for this run');
     }
 
     return null;

@@ -32,16 +32,16 @@ function openCircuit(reason: string): void {
         logged = true;
         console.warn(`[LLM Cache] Marking failure (${reason}) — cache calls will skip until auto-probe recovers.`);
     }
-    markFailure('groq-cache', reason);
+    markFailure('cf-worker', reason);
 }
 
 function closeCircuit(): void {
     logged = false;
-    markSuccess('groq-cache');
+    markSuccess('cf-worker');
 }
 
 function circuitIsOpen(): boolean {
-    return !isHealthy('groq-cache');
+    return !isHealthy('cf-worker');
 }
 
 /** SHA-256 hex of the joined cache inputs. */

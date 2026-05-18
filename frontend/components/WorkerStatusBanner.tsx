@@ -66,7 +66,7 @@ export default function WorkerStatusBanner() {
     // even when the LLM quota is still exhausted.
     const [detail, setDetail] = useState<WorkerStatusDetail | null>(() => getLatestWorkerStatus());
 
-    // Provider fallback chain states (Groq, Cerebras, OpenRouter, …).
+    // Active provider health states (Workers AI, Claude, Gemini).
     const [chain, setChain] = useState<ProviderChainStatus>(() => getProviderChainStatus());
 
     const [dismissed, setDismissed] = useState<boolean>(() => {
@@ -177,7 +177,7 @@ export default function WorkerStatusBanner() {
                     {/* Provider fallback chain pills */}
                     {pillProviders.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 items-center">
-                            <span className="text-xs opacity-50 font-medium mr-0.5">Fallback chain:</span>
+                            <span className="text-xs opacity-50 font-medium mr-0.5">AI providers:</span>
                             {pillProviders.map((entry, i) => (
                                 <span key={entry.name} className="inline-flex items-center gap-1">
                                     <ProviderPill entry={entry} />

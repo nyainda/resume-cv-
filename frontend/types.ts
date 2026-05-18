@@ -320,10 +320,6 @@ export interface ApiSettings {
   msClientId?: string | null;       // Azure AD Client ID for Microsoft/OneDrive integration
   jsearchApiKey?: string | null;    // RapidAPI JSearch — live job listings
   // Legacy fields kept for backwards-compatible localStorage reads only — not shown in UI
-  groqApiKey?: string | null;
-  cerebrasApiKey?: string | null;
-  openrouterApiKey?: string | null;
-  togetherApiKey?: string | null;
   preferredFallback?: 'claude' | 'gemini';
 }
 

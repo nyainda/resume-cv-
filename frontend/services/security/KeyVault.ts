@@ -21,10 +21,6 @@ const ENC_PREFIX       = 'enc:v1:';
 // ── Fields on ApiSettings that should be encrypted ───────────────────────────
 const SENSITIVE_FIELDS: string[] = [
     'apiKey',
-    'groqApiKey',
-    'cerebrasApiKey',
-    'openrouterApiKey',
-    'togetherApiKey',
     'claudeApiKey',
     'tavilyApiKey',
     'brevoApiKey',

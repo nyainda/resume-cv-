@@ -1,7 +1,7 @@
 import mammoth from 'mammoth';
 import { UserProfile, WorkExperience, Education, Project, Language } from '../types';
-import { groqChat, GROQ_LARGE, GROQ_FAST } from './groqService';
-import { workerProxyLLM } from './cvEngineClient';
+import { getSelectedProvider } from './groqService';
+import { workerProxyLLM, workerTieredLLM } from './cvEngineClient';
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { cleanImportedText } from './cvPurificationPipeline';
 
@@ -95,10 +95,9 @@ function buildUserProfile(parsed: any): UserProfile {
     };
 }
 
-/** Parse CV text via CF Worker proxy → Claude (preferred: 200 K context). */
 async function parseWithClaude(text: string): Promise<UserProfile> {
     const apiKey = getClaudeKey();
-    if (!apiKey) throw new Error('No Claude API key');
+    if (!apiKey) throw new Error('No Claude API key configured. Add one in Settings → AI Keys.');
 
     const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 150_000)}`;
 
@@ -115,10 +114,9 @@ async function parseWithClaude(text: string): Promise<UserProfile> {
     return buildUserProfile(JSON.parse(cleaned));
 }
 
-/** Parse CV text via CF Worker proxy → Gemini (fallback when no Claude key). */
 async function parseWithGemini(text: string): Promise<UserProfile> {
     const apiKey = getGeminiKey();
-    if (!apiKey) throw new Error('No Gemini API key configured. Please add one in Settings.');
+    if (!apiKey) throw new Error('No Gemini API key configured. Add one in Settings → AI Keys.');
 
     const userPrompt = `Extract all structured information from the following CV/resume text and return ONLY a raw JSON object matching this schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 8_000)}`;
 
@@ -135,41 +133,37 @@ async function parseWithGemini(text: string): Promise<UserProfile> {
     return buildUserProfile(JSON.parse(cleaned));
 }
 
-/** Parse CV text via groqChat chain (Workers AI → Claude proxy → Gemini proxy). */
-async function parseWithChain(text: string): Promise<UserProfile> {
+async function parseWithWorkersAI(text: string): Promise<UserProfile> {
     const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n\nCV Text:\n${text.slice(0, 8_000)}`;
-    const raw = await groqChat(GROQ_FAST, '', userPrompt, { temperature: 0.1, task: 'parser' });
+    const raw = await workerTieredLLM('parser', userPrompt, { temperature: 0.1, json: true });
+    if (!raw) throw new Error('Workers AI returned no text for CV parse');
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
     return buildUserProfile(JSON.parse(cleaned));
 }
 
+/**
+ * Parse extracted Word/docx text into a structured UserProfile.
+ * Uses ONLY the provider selected in Settings — no automatic fallback.
+ */
 export async function parseWordTextToProfile(text: string): Promise<UserProfile> {
     const { cleaned, changes } = cleanImportedText(text);
     if (changes.length) {
         console.info(`[Import] Scrubbed ${changes.length} forbidden phrase(s) from uploaded CV:`, changes.join('; '));
     }
 
-    // ── Priority: Claude proxy (200 K ctx) → Gemini proxy → groqChat chain ───
-    const claudeKey = getClaudeKey();
-    if (claudeKey) {
-        try {
-            console.info('[Import] Parsing CV text with Claude via worker proxy.');
-            return await parseWithClaude(cleaned);
-        } catch (err) {
-            console.warn('[Import] Claude proxy parsing failed, trying Gemini:', err);
-        }
+    const provider = getSelectedProvider();
+
+    if (provider === 'claude') {
+        console.info('[Import] Parsing CV text with Claude via worker proxy.');
+        return await parseWithClaude(cleaned);
     }
 
-    const geminiKey = getGeminiKey();
-    if (geminiKey) {
-        try {
-            console.info('[Import] Parsing CV text with Gemini via worker proxy.');
-            return await parseWithGemini(cleaned);
-        } catch (err) {
-            console.warn('[Import] Gemini proxy parsing failed, trying groqChat chain:', err);
-        }
+    if (provider === 'gemini') {
+        console.info('[Import] Parsing CV text with Gemini via worker proxy.');
+        return await parseWithGemini(cleaned);
     }
 
-    console.info('[Import] Parsing CV text via groqChat chain (Workers AI → Claude proxy → Gemini proxy).');
-    return await parseWithChain(cleaned);
+    // workers-ai
+    console.info('[Import] Parsing CV text with Workers AI.');
+    return await parseWithWorkersAI(cleaned);
 }
