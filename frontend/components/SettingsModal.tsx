@@ -8,7 +8,10 @@ import { DriveDataPanel } from './DriveDataPanel';
 import { Shield, AlertCircle } from './icons';
 import { idbAppSet } from '../services/storage/AppDataPersistence';
 import { LocalStorageService } from '../services/storage/LocalStorageService';
-import { testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider } from '../services/groqService';
+import {
+    testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
+    getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
+} from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
 const LS_MS_TOKEN = 'cv_builder:ms_access_token';
@@ -42,6 +45,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
   const [msConnecting, setMsConnecting] = useState(false);
   const [msError, setMsError] = useState<string | null>(null);
+
+  // ── Session token usage (live-updating via custom event) ─────────────
+  const [tokenUsage, setTokenUsage] = useState<SessionTokenUsage>(() => getSessionTokenUsage());
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<SessionTokenUsage>;
+      if (ce?.detail) setTokenUsage({ ...ce.detail });
+    };
+    window.addEventListener(TOKEN_USAGE_EVENT, handler);
+    return () => window.removeEventListener(TOKEN_USAGE_EVENT, handler);
+  }, []);
 
   // ── Wake-AI-models state (manual re-warm of cv-engine-worker models) ──
   type WakeState = { status: 'idle' | 'waking' | 'done'; results: PrewarmResult[]; finishedAt?: number };
@@ -484,6 +499,72 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 )}
               </div>
             )}
+          </div>
+
+          {/* ── Session Token Usage & Key Security ── */}
+          <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-4 bg-white dark:bg-neutral-800/40">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-[#1B2B4B] dark:text-zinc-300 flex-shrink-0" />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-300">Security &amp; Usage</h3>
+              </div>
+            </div>
+
+            {/* Key security row */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'AES-256-GCM encrypted', icon: '🔐', tip: 'Keys are encrypted with AES-256-GCM before storage' },
+                { label: 'IndexedDB only', icon: '🗄️', tip: 'Encrypted keys stored in your browser\'s private IndexedDB' },
+                { label: 'Never in plain text', icon: '🚫', tip: 'Plaintext keys exist only in memory — never written to disk' },
+                { label: 'Proxied to AI', icon: '🛡️', tip: 'AI calls route through our server proxy — your key is never in browser network logs' },
+              ].map(({ label, icon, tip }) => (
+                <span
+                  key={label}
+                  title={tip}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800/40 dark:text-emerald-300 cursor-default"
+                >
+                  <span aria-hidden>{icon}</span> {label}
+                </span>
+              ))}
+            </div>
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-snug">
+              Your API keys are encrypted using your browser's built-in cryptography before any storage.
+              The plaintext key exists only in memory during your session and is sent exclusively to our
+              Cloudflare Worker proxy over HTTPS — never directly to third-party APIs from the browser.
+            </p>
+
+            {/* Token usage row */}
+            <div className="border-t border-zinc-100 dark:border-neutral-700 pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Session token usage <span className="font-normal text-zinc-400">(estimated)</span></p>
+                <button
+                  type="button"
+                  onClick={() => { resetSessionTokenUsage(); setTokenUsage(getSessionTokenUsage()); }}
+                  className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 underline underline-offset-2"
+                >
+                  Reset
+                </button>
+              </div>
+              {tokenUsage.callCount === 0 ? (
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 italic">No AI calls made yet this session.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'AI calls', value: tokenUsage.callCount.toLocaleString() },
+                    { label: '~Input tokens', value: tokenUsage.inputTokensEst.toLocaleString() },
+                    { label: '~Output tokens', value: tokenUsage.outputTokensEst.toLocaleString() },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-lg bg-zinc-50 dark:bg-neutral-800/60 border border-zinc-100 dark:border-neutral-700 p-2 text-center">
+                      <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{value}</p>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                ~1 token ≈ 4 characters. Resets on page reload. Includes all CV generation, analysis, and toolkit calls.
+              </p>
+            </div>
           </div>
 
           {/* ── Gemini key for PDF/image upload (when not using Gemini as AI provider) ── */}

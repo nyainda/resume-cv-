@@ -3294,40 +3294,14 @@ export const generateProfileFromTextWithGemini = async (
         ${USER_PROFILE_SCHEMA}
     `;
 
-    // ── Claude first (primary: 200 K context, no token-limit issues) ─────────
-    const claudeKey = getClaudeApiKey();
-    if (claudeKey) {
-        try {
-            const raw = await claudeTextCall(claudeKey, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 4096, temperature: 0.1 });
-            if (raw && raw.trim().length > 20) {
-                const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
-                const profileData: UserProfile = JSON.parse(cleaned);
-                profileData.projects      = profileData.projects      || [];
-                profileData.education     = profileData.education     || [];
-                profileData.workExperience = profileData.workExperience || [];
-                profileData.languages     = profileData.languages     || [];
-                console.log('[CV Import] Profile structured from text via Claude.');
-                return profileData;
-            }
-        } catch (claudeErr) {
-            console.warn('[CV Import] Claude text→profile failed, falling back to Gemini:', claudeErr);
-        }
-    }
-
-    // ── Gemini 2.5 Flash (fallback) ───────────────────────────────────────────
-    const ai = getGeminiClient();
-    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: { parts: [{ text: prompt }] },
-        config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER, temperature: 0.1 }
-    }));
-
-    const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
-    const profileData: UserProfile = JSON.parse(raw);
-    profileData.projects      = profileData.projects      || [];
-    profileData.education     = profileData.education     || [];
+    // ── Route through the selected provider only (no fallback) ───────────────
+    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 4096, temperature: 0.1 });
+    const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
+    const profileData: UserProfile = JSON.parse(cleaned);
+    profileData.projects       = profileData.projects       || [];
+    profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
-    profileData.languages     = profileData.languages     || [];
+    profileData.languages      = profileData.languages      || [];
     return profileData;
 };
 
@@ -3621,26 +3595,7 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
     `;
 
     const stripFencesJd = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    // Use Cloudflare Workers AI only when it is the selected provider.
-    if (getSelectedProvider() === 'workers-ai') {
-        try {
-            const cfText = await workerTieredLLM('jdParse', prompt, {
-                system: SYSTEM_INSTRUCTION_PARSER,
-                temperature: 0.1,
-                json: true,
-                maxTokens: 512,
-                timeoutMs: 20000,
-            });
-            if (cfText) {
-                console.log('[JD Parse] Parsed via Workers AI.');
-                const result = JSON.parse(stripFencesJd(cfText));
-                storeJdAnalysisCache(jdHash, result);
-                return result;
-            }
-        } catch (cfErr) {
-            console.warn('[JD Parse] Workers AI failed, falling back to selected provider:', cfErr);
-        }
-    }
+    // Route through the selected provider only — no internal fallback.
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 512 });
     const result = JSON.parse(stripFencesJd(text));
     storeJdAnalysisCache(jdHash, result);

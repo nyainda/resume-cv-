@@ -6,6 +6,41 @@ import { workerTieredLLM, workerProxyLLM, isCVEngineConfigured } from './cvEngin
 let _lastAiEngine: string = 'Workers AI';
 export function getLastAiEngine(): string { return _lastAiEngine; }
 
+// ── Session token usage tracker ───────────────────────────────────────────────
+// Uses character-based estimation: 1 token ≈ 4 characters (GPT-4 average).
+// Not exact — real counts vary by model and content — but good enough for
+// budget awareness. Counts reset when the page is reloaded.
+
+export interface SessionTokenUsage {
+    inputTokensEst:  number;  // estimated prompt tokens this session
+    outputTokensEst: number;  // estimated completion tokens this session
+    callCount:       number;  // total groqChat calls this session
+}
+
+export const TOKEN_USAGE_EVENT = 'procv:token-usage';
+
+const _usage: SessionTokenUsage = { inputTokensEst: 0, outputTokensEst: 0, callCount: 0 };
+
+function _trackTokens(system: string, user: string, output: string): void {
+    _usage.inputTokensEst  += Math.ceil((system.length + user.length) / 4);
+    _usage.outputTokensEst += Math.ceil(output.length / 4);
+    _usage.callCount       += 1;
+    if (typeof window !== 'undefined') {
+        try { window.dispatchEvent(new CustomEvent<SessionTokenUsage>(TOKEN_USAGE_EVENT, { detail: { ..._usage } })); } catch { /* ignore */ }
+    }
+}
+
+export function getSessionTokenUsage(): Readonly<SessionTokenUsage> { return { ..._usage }; }
+
+export function resetSessionTokenUsage(): void {
+    _usage.inputTokensEst = 0;
+    _usage.outputTokensEst = 0;
+    _usage.callCount = 0;
+    if (typeof window !== 'undefined') {
+        try { window.dispatchEvent(new CustomEvent<SessionTokenUsage>(TOKEN_USAGE_EVENT, { detail: { ..._usage } })); } catch { /* ignore */ }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Three providers — exactly what is configured in Settings.
 //
@@ -308,6 +343,7 @@ export async function groqChat(
             }
             _lastAiEngine = 'Workers AI';
             _recordProviderResult('Workers AI', 'ok');
+            _trackTokens(systemPrompt, userPrompt, text);
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
             return text;
         } catch (e: any) {
@@ -342,6 +378,7 @@ export async function groqChat(
             if (!r) throw new Error('Claude proxy returned no text');
             _lastAiEngine = 'Claude';
             _recordProviderResult('Claude', 'ok');
+            _trackTokens(systemPrompt, userPrompt, r);
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
             return r;
         } catch (e: any) {
@@ -380,6 +417,7 @@ export async function groqChat(
             if (!r) throw new Error('Gemini proxy returned no text');
             _lastAiEngine = 'Gemini';
             _recordProviderResult('Gemini', 'ok');
+            _trackTokens(systemPrompt, userPrompt, r);
             storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, r);
             return r;
         } catch (e: any) {
