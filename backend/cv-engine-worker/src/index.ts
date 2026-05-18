@@ -3862,20 +3862,21 @@ async function handleJobCachePost(request: Request, env: Env, ctx: ExecutionCont
     return json({ ok: true, key, cached: true }, request, env);
 }
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Anonymous events  POST /api/cv/event
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function handleEventPost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     let body: any;
-    try { body = await request.json(); } catch { return json({ ok: true }, request, env); } // never reject
+    try { body = await request.json(); } catch { return json({ ok: true }, request, env); }
 
     const eventType = typeof body?.event_type === 'string' ? body.event_type.substring(0, 50).trim() : '';
     const template  = typeof body?.template   === 'string' ? body.template.substring(0, 60).trim()   : '';
     const mode      = typeof body?.mode       === 'string' ? body.mode.substring(0, 20).trim()       : '';
     const metadata  = typeof body?.metadata   === 'string' ? body.metadata.substring(0, 1024)        : '{}';
 
-    if (!eventType) return json({ ok: true }, request, env); // silently accept empty
+    if (!eventType) return json({ ok: true }, request, env);
 
     const now = Math.floor(Date.now() / 1000);
 
@@ -3883,16 +3884,15 @@ async function handleEventPost(request: Request, env: Env, ctx: ExecutionContext
         env.CV_DB.prepare(
             `INSERT INTO cv_events (event_type, template, mode, metadata, created_at)
              VALUES (?, ?, ?, ?, ?)`
+        ).bind(eventType, template, mode, metadata, now).run().catch(() => {})
+    );
+
+    return json({ ok: true }, request, env);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Custom Templates  (optional D1 cloud backup)
-//
-// GET  /api/cv/custom-templates?device_id=<id>
-// POST /api/cv/custom-templates
-//   Body: { device_id, id, name, spec_json, thumbnail? }
-// DELETE /api/cv/custom-templates/:id?device_id=<id>
-// PATCH  /api/cv/custom-templates/:id
-//   Body: { device_id, name }
+// Custom Templates  GET/POST /api/cv/custom-templates
+//                   PATCH/DELETE /api/cv/custom-templates/:id
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function handleCustomTemplatesGet(request: Request, env: Env, url: URL): Promise<Response> {
@@ -3911,17 +3911,17 @@ async function handleCustomTemplatesPost(request: Request, env: Env, ctx: Execut
     let body: any;
     try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
 
-    const deviceId  = typeof body?.device_id  === 'string' ? body.device_id.trim().substring(0, 64)  : '';
-    const id        = typeof body?.id         === 'string' ? body.id.trim().substring(0, 64)         : '';
-    const name      = typeof body?.name       === 'string' ? body.name.trim().substring(0, 120)      : '';
-    const specJson  = typeof body?.spec_json  === 'string' ? body.spec_json                          : '';
-    const thumbnail = typeof body?.thumbnail  === 'string' ? body.thumbnail.substring(0, 204800)     : null;
+    const deviceId  = typeof body?.device_id === 'string' ? body.device_id.trim().substring(0, 64)  : '';
+    const id        = typeof body?.id        === 'string' ? body.id.trim().substring(0, 64)         : '';
+    const name      = typeof body?.name      === 'string' ? body.name.trim().substring(0, 120)      : '';
+    const specJson  = typeof body?.spec_json === 'string' ? body.spec_json                          : '';
+    const thumbnail = typeof body?.thumbnail === 'string' ? body.thumbnail.substring(0, 204800)     : null;
 
-    if (!deviceId)                      return json({ error: 'missing_device_id' }, request, env, 400);
-    if (!id)                            return json({ error: 'missing_id' }, request, env, 400);
-    if (!name)                          return json({ error: 'missing_name' }, request, env, 400);
-    if (!specJson)                      return json({ error: 'missing_spec_json' }, request, env, 400);
-    if (specJson.length > 204800)       return json({ error: 'spec_too_large', max: 204800 }, request, env, 413);
+    if (!deviceId)                return json({ error: 'missing_device_id' }, request, env, 400);
+    if (!id)                      return json({ error: 'missing_id' }, request, env, 400);
+    if (!name)                    return json({ error: 'missing_name' }, request, env, 400);
+    if (!specJson)                return json({ error: 'missing_spec_json' }, request, env, 400);
+    if (specJson.length > 204800) return json({ error: 'spec_too_large', max: 204800 }, request, env, 413);
 
     try { JSON.parse(specJson); } catch { return json({ error: 'spec_json_invalid' }, request, env, 400); }
 
@@ -3931,10 +3931,8 @@ async function handleCustomTemplatesPost(request: Request, env: Env, ctx: Execut
         `INSERT INTO custom_templates (id, user_id, name, spec_json, thumbnail, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
-           name       = excluded.name,
-           spec_json  = excluded.spec_json,
-           thumbnail  = excluded.thumbnail,
-           updated_at = excluded.updated_at`
+           name = excluded.name, spec_json = excluded.spec_json,
+           thumbnail = excluded.thumbnail, updated_at = excluded.updated_at`
     ).bind(id, deviceId, name, specJson, thumbnail, now, now).run();
 
     ctx.waitUntil(
