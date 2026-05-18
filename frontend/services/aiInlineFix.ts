@@ -119,6 +119,10 @@ export const ISSUE_KIND_INSTRUCTIONS: Record<CvQualityIssueKind, string> = {
         'this bullet so it opens with a different, equally strong action verb. ' +
         'Keep the original meaning, all numbers, and every specific detail — ' +
         'only swap the opening verb for a non-repeated alternative.',
+    tilde_number:
+        'A tilde character appears before a number ("~50", "~30%"). Remove the ' +
+        'tilde and replace it with a plain approximation word if needed — e.g. ' +
+        '"~50" → "50", "~30%" → "roughly 30%". Preserve everything else exactly.',
 };
 
 const SYSTEM_PROMPT = `You are a precision CV editor. The user will give you ONE

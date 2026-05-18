@@ -400,7 +400,8 @@ export type CvQualityIssueKind =
     | 'unanchored_hedged_outcome'    // "achieving average water savings"
     | 'half_open_range'             // "from over 95%" with no "to" anchor
     | 'passive_voice'               // "was implemented", "were managed"
-    | 'leading_verb_repetition';    // 3+ bullets in same role start with the same verb
+    | 'leading_verb_repetition'     // 3+ bullets in same role start with the same verb
+    | 'tilde_number';               // "~50" / "~30%" — AI tell, strip the tilde
 
 export interface CvQualityIssue {
     kind: CvQualityIssueKind;
@@ -443,6 +444,7 @@ const ORPHAN_PROBES: Array<{ kind: CvQualityIssueKind; rx: RegExp }> = [
     { kind: 'orphan_plus', rx: /(^|\s)\+\s+(?=[a-zA-Z])/ },
     { kind: 'orphan_hyphen_noun', rx: /\b(a|an|the)\s+-(?:person|people|day|days|week|weeks|month|months|year|years|strong|fold|member|members|hour|hours)\b/i },
     { kind: 'orphan_dollar', rx: /[$€£₦₹¥]\s+(?=[A-Za-z])/ },
+    { kind: 'tilde_number',            rx: /~\d/ },
     { kind: 'duplicate_adjacent_word', rx: /\b(\w+)\s+\1\b/i },
     { kind: 'mid_sentence_period', rx: /\.\s+[a-z]/ },
     // Dangling time / experience reference left after a hallucinated number

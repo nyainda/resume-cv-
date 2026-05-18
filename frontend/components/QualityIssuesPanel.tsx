@@ -62,6 +62,7 @@ const KIND_LABEL: Record<CvQualityIssueKind, string> = {
     half_open_range:             'Range "from over X" missing the "to" anchor',
     passive_voice:               'Passive voice — rewrite with an action verb',
     leading_verb_repetition:     'Same opening verb used 3+ times in one role',
+    tilde_number:                'Tilde before number ("~50") — AI tell, remove it',
 };
 
 // ── Style governance — detect-only leak types ────────────────────────────────
