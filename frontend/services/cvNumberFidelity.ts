@@ -43,6 +43,12 @@ const NUMERIC_PHRASE_SOURCE =
     `(?:-(?:${HYPHEN_NOUN_SUFFIXES})\\b)?` +  // optional "-person" / "-day"
     `\\+?`;                                   // optional trailing +
 
+// Strip tilde-before-number AI tell before any fidelity analysis.
+// "~50 units" → "50 units", "~30%" → "30%"
+export function stripTildeNumbers(text: string): string {
+    return text.replace(/~(\d)/g, '$1');
+}
+
 const YEAR_NUMERIC_RX = /^(?:19|20)\d{2}$/;
 
 const STRANDED_PREPOSITIONS = new Set([
@@ -323,7 +329,7 @@ export function repairBulletsAgainstSource(
     const used = new Set<number>();
     const out: string[] = [];
     for (let i = 0; i < generatedBullets.length; i++) {
-        const original = String(generatedBullets[i] || '');
+        const original = stripTildeNumbers(String(generatedBullets[i] || ''));
         const stripped = stripUngroundedNumbers(original, sourceNumberTokens);
         if (!isBulletDegraded(stripped, original)) {
             out.push(stripped);

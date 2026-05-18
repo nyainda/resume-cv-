@@ -250,7 +250,10 @@ async function handleClean(request: Request, env: Env): Promise<Response> {
         }
     }
 
-    // 5. Whitespace cleanup
+    // 5. Strip tilde-before-number AI tell (e.g. "~50" → "50", "~30%" → "30%")
+    cleaned = cleaned.replace(/~(\d)/g, '$1');
+
+    // 6. Whitespace cleanup
     cleaned = cleaned.replace(/[ \t]{2,}/g, ' ').replace(/ +([.,;:!?])/g, '$1');
 
     return json({ cleaned, changes, change_count: changes.length }, request, env);
@@ -2889,10 +2892,10 @@ ANTI-DETECTION RULES (binding — never skip, even on regenerate/optimize/improv
 - METRIC HONESTY (recruiter trust signal — stacked AI metrics are now a known tell):
     Never write a chained-causal metric like "improved efficiency by 20%, resulting in a 30% increase in sales" — that pattern is the #1 signal of a fabricated AI bullet because the chain can't be verified.
     A single specific number tied to one action is far more credible than two numbers stitched together.
-    If a number is estimated, mark it with approximation language: "saved roughly [N] hours/week", "cut [TYPE] time by ~[N]%". Estimation language reads more honest than fake precision. ⚠ NOTE: [N] is a placeholder — use the REAL number from the candidate's profile, never copy placeholder values.
+    If a number is estimated, use plain approximation words: "saved roughly [N] hours/week", "cut [TYPE] time by roughly [N]%". ⚠ NOTE: [N] is a placeholder — use the REAL number from the candidate's profile, never copy placeholder values. Never use the tilde character (~) before a number — write "roughly 50" not "~50".
 
 - SKILL HONESTY: never claim "expert" in 5+ areas; a real candidate is expert in 1–2 things, proficient in a handful, learning others. If listing skills with proficiency, distribute them realistically.
-- METRICS: only 50–60% of bullets carry a number; leave 1–2 bullets per role purely qualitative; use oddly specific numbers sometimes (e.g. "~[N]h/week", "roughly [N]%") — replace [N] with a real number from the profile; vary metric type (time, cost, users, errors, satisfaction) — not always %.
+- METRICS: only 50–60% of bullets carry a number; leave 1–2 bullets per role purely qualitative; use oddly specific numbers sometimes (e.g. "roughly [N]h/week", "about [N]%") — replace [N] with a real number from the profile; vary metric type (time, cost, users, errors, satisfaction) — not always %. Never use the ~ character before numbers.
 - KEYWORDS: target 65–75% JD match, NOT 90–100%; rephrase JD wording instead of mirroring it verbatim; no keyword used >3 times in the whole CV; skip soft-skill keywords.
 - BULLETS: vary opening verbs (Built, Wrote, Fixed, Shipped, Cut, Helped, Led, Debugged…); never start two bullets in one role with the same verb; mix formats: action+result, action+context, pure statement. The EXACT bullet count per role is set by the user — never add or remove bullets from the count given in the prompt.
 - SUMMARY: 2–3 sentences, specific to THIS person, mention one niche/unexpected angle, end forward-looking; never list every tech; never repeat content already in the experience section.
@@ -2919,7 +2922,7 @@ PRE-RETURN CHECKLIST (run silently before returning JSON; rewrite anything that 
 2. The exact JD job title appears once near the top (summary or first role).
 3. No phrase is repeated 3+ times anywhere in the document.
 4. 40–50% of bullets are PURELY qualitative (no number) — fix any role where every bullet has a metric.
-5. At least one metric is oddly specific (e.g. "~6h/week", "roughly 38%") — not all round 25/30/40/50%.
+5. At least one metric is oddly specific (e.g. "roughly 6h/week", "about 38%") — not all round 25/30/40/50%. Never prefix numbers with ~ (tilde).
 6. Zero chained-causal metrics (no "did X by Y%, leading to Z%" patterns) — those read as fabricated.
 7. No sentence appears word-for-word from the JD; estimated keyword overlap sits in the 65–75% range, not higher.
 8. ZERO instances of: "Spearheaded", "Orchestrated", "Leveraged", "Utilized", "Facilitated", "Empowered" as bullet openers anywhere in the document.

@@ -68,6 +68,12 @@ export function cleanImportedText(input: string): { cleaned: string; changes: st
             out = out.replace(pattern, replacement);
         }
     }
+    // Strip tilde-before-number AI tell (e.g. "~50" → "50", "~30%" → "30%")
+    if (/~\d/.test(out)) {
+        changes.push('~ before number → removed (AI tell)');
+        out = out.replace(/~(\d)/g, '$1');
+    }
+
     // Collapse double spaces and orphaned spaces created by deletions.
     out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1');
     // Final guard: substitutions can cause adjacent duplicate words. Strip them.
