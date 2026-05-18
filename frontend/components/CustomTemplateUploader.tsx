@@ -9,7 +9,9 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Image, CheckCircle, AlertCircle, Loader2, Wand2, RotateCcw, Save, Eye } from './icons';
 import { CVData, PersonalInfo, CustomTemplateEntry } from '../types';
 import { analyzeAndGenerateTemplate, TemplateSpec, getDefaultSpec } from '../services/templateAnalyzerService';
-import { getGeminiKey } from '../services/security/RuntimeKeys';
+import { getGeminiKey, getClaudeKey } from '../services/security/RuntimeKeys';
+import { getSelectedProvider } from '../services/groqService';
+import { isCVEngineConfigured } from '../services/cvEngineClient';
 import { loadCustomTemplates, saveCustomTemplate } from '../utils/customTemplateStorage';
 import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
 
@@ -53,7 +55,19 @@ export default function CustomTemplateUploader({ onClose, onSaved, cvData, perso
   const fileInputRef = useRef<HTMLInputElement>(null);
   const existingCount = loadCustomTemplates().length;
 
-  const hasGeminiKey = !!getGeminiKey();
+  const selectedProvider = getSelectedProvider();
+  const hasProviderKey = selectedProvider === 'workers-ai'
+    ? isCVEngineConfigured()
+    : selectedProvider === 'claude'
+      ? !!getClaudeKey()
+      : !!getGeminiKey();
+
+  const providerLabel = selectedProvider === 'claude' ? 'Claude' : selectedProvider === 'gemini' ? 'Gemini' : 'Workers AI';
+  const keySetupHint = selectedProvider === 'claude'
+    ? 'Add your Anthropic key in Settings → AI Keys → Claude.'
+    : selectedProvider === 'gemini'
+      ? 'Add your Google key in Settings → AI Keys → Gemini.'
+      : 'Set your CV Engine Worker URL in Settings.';
 
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -182,12 +196,11 @@ export default function CustomTemplateUploader({ onClose, onSaved, cvData, perso
             <div className="p-6 space-y-5 border-r border-zinc-100 dark:border-neutral-800">
 
               {/* API key warning */}
-              {!hasGeminiKey && (
+              {!hasProviderKey && (
                 <div className="flex gap-3 p-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
                   <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-800 dark:text-amber-200">
-                    <strong>Gemini API key required.</strong> Add your free Gemini key in Settings to use this feature.
-                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="ml-1 underline">Get a free key →</a>
+                    <strong>{providerLabel} not configured.</strong> {keySetupHint}
                   </div>
                 </div>
               )}
@@ -251,7 +264,7 @@ export default function CustomTemplateUploader({ onClose, onSaved, cvData, perso
               {imageFile && step !== 'saved' && (
                 <button
                   onClick={runAnalysis}
-                  disabled={!hasGeminiKey || step === 'analyzing' || step === 'refining'}
+                  disabled={!hasProviderKey || step === 'analyzing' || step === 'refining'}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ backgroundColor: '#C9A84C', color: '#1B2B4B' }}
                 >
