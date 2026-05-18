@@ -2,16 +2,21 @@
  * Template Analyzer Service
  *
  * Two-phase pipeline:
- *   Phase 1 — Vision Analysis: Gemini 2.0 Flash analyses an uploaded CV template
- *             image and extracts a structural/visual specification JSON.
- *   Phase 2 — Component Spec: Gemini refines the spec into a render-ready
- *             configuration that drives TemplateCustomGenerated.tsx directly
- *             (no eval, no arbitrary code execution).
+ *   Phase 1 — Vision Analysis:
+ *     (a) Worker AI Llama 3.2 Vision (free, via /api/cv/vision-extract) — tried first
+ *     (b) Gemini 2.0 Flash Vision (if Gemini key is set in Settings)
+ *     (c) Throws a clear error if neither is configured
+ *   Phase 2 — Spec Refinement:
+ *     (a) Gemini 2.0 Flash (text, if key set)
+ *     (b) Claude via proxy (if Claude key set)
+ *     (c) Groq / Worker AI (groqChat auto-fallback chain)
+ *     (d) Returns raw spec unchanged if all fail
  */
 
 import { GoogleGenAI } from '@google/genai';
-import { getGeminiKey } from './security/RuntimeKeys';
-import { groqChat, GROQ_LARGE } from './groqService';
+import { getGeminiKey, getClaudeKey } from './security/RuntimeKeys';
+import { groqChat, GROQ_LARGE, callProviderViaProxy } from './groqService';
+import { workerVisionExtract, isCVEngineConfigured } from './cvEngineClient';
 import type {
   TemplateSpec,
   TemplateColorScheme,
@@ -91,48 +96,80 @@ Rules:
 - fontFamily must be one of: serif, sans-serif, monospace
 Return only the JSON object.`;
 
+// ── JSON strip helper ─────────────────────────────────────────────────────────
+
+function stripJsonFences(text: string): string {
+  return text.trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+}
+
 // ── Phase 1 — Vision Analysis ─────────────────────────────────────────────────
 
 export async function analyzeTemplateImage(
   base64Image: string,
   mimeType: string
 ): Promise<TemplateSpec> {
-  const apiKey = getGeminiKey();
-  if (!apiKey) throw new Error('Gemini API key required for template analysis. Add it in Settings.');
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: {
-      parts: [
-        { inlineData: { data: base64Image, mimeType } },
-        { text: VISION_ANALYSIS_PROMPT },
-      ],
-    },
-  } as Parameters<typeof ai.models.generateContent>[0]);
-
-  const raw = ((response as unknown as { text?: string }).text ?? '')
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
-
-  if (!raw) throw new Error('Gemini returned empty response during vision analysis.');
-
-  let spec: TemplateSpec;
-  try {
-    spec = JSON.parse(raw) as TemplateSpec;
-  } catch {
-    throw new Error('Could not parse template spec from Gemini response. Please try a clearer image.');
+  // ── Attempt 1: Worker AI Llama Vision (free, no user key needed) ──────────
+  if (isCVEngineConfigured()) {
+    try {
+      const workerText = await workerVisionExtract(base64Image, mimeType, VISION_ANALYSIS_PROMPT, { maxTokens: 2048, timeoutMs: 30_000 });
+      if (workerText) {
+        const raw = stripJsonFences(workerText);
+        const spec = JSON.parse(raw) as TemplateSpec;
+        if (Array.isArray(spec.sectionOrder) && spec.sectionOrder.length > 0) {
+          console.log('[TemplateAnalyzer] Phase 1 via Worker AI Llama Vision ✓');
+          return spec;
+        }
+      }
+    } catch (err) {
+      console.warn('[TemplateAnalyzer] Worker AI vision failed, trying Gemini:', err);
+    }
   }
 
-  // Validate sectionOrder has at least some entries
-  if (!Array.isArray(spec.sectionOrder) || spec.sectionOrder.length === 0) {
-    throw new Error('This image does not appear to be a CV template. Please upload a CV/resume screenshot.');
+  // ── Attempt 2: Gemini 2.0 Flash Vision ───────────────────────────────────
+  const geminiKey = getGeminiKey();
+  if (geminiKey) {
+    const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image, mimeType } },
+          { text: VISION_ANALYSIS_PROMPT },
+        ],
+      },
+    } as Parameters<typeof ai.models.generateContent>[0]);
+
+    const raw = stripJsonFences(
+      ((response as unknown as { text?: string }).text ?? '')
+    );
+
+    if (!raw) throw new Error('Gemini returned empty response during vision analysis.');
+
+    let spec: TemplateSpec;
+    try {
+      spec = JSON.parse(raw) as TemplateSpec;
+    } catch {
+      throw new Error('Could not parse template spec from Gemini response. Please try a clearer image.');
+    }
+
+    if (!Array.isArray(spec.sectionOrder) || spec.sectionOrder.length === 0) {
+      throw new Error('This image does not appear to be a CV template. Please upload a CV/resume screenshot.');
+    }
+
+    console.log('[TemplateAnalyzer] Phase 1 via Gemini Vision ✓');
+    return spec;
   }
 
-  return spec;
+  // ── No provider available ─────────────────────────────────────────────────
+  throw new Error(
+    'No AI vision provider available. Please either:\n' +
+    '• Add a Gemini API key in Settings → AI Keys → Gemini\n' +
+    '• Or ensure your CV Engine Worker URL is set in Settings'
+  );
 }
 
 // ── Phase 2 — Spec Refinement ─────────────────────────────────────────────────
@@ -140,34 +177,56 @@ export async function analyzeTemplateImage(
 export async function refineTemplateSpec(rawSpec: TemplateSpec): Promise<TemplateSpec> {
   const prompt = SPEC_REFINEMENT_PROMPT(JSON.stringify(rawSpec, null, 2));
 
-  // Try Gemini first (free tier, fast)
-  const apiKey = getGeminiKey();
-  if (apiKey) {
+  // ── Attempt 1: Gemini 2.0 Flash (text) ──────────────────────────────────
+  const geminiKey = getGeminiKey();
+  if (geminiKey) {
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: prompt,
         config: { temperature: 0.1, maxOutputTokens: 2048 },
       } as Parameters<typeof ai.models.generateContent>[0]);
 
-      const raw = ((response as unknown as { text?: string }).text ?? '')
-        .trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```\s*$/i, '')
-        .trim();
+      const raw = stripJsonFences(
+        ((response as unknown as { text?: string }).text ?? '')
+      );
 
       if (raw) {
         try {
+          console.log('[TemplateAnalyzer] Phase 2 via Gemini ✓');
           return JSON.parse(raw) as TemplateSpec;
-        } catch { /* fall through to Groq */ }
+        } catch { /* fall through */ }
       }
     } catch (err) {
-      console.warn('[TemplateAnalyzer] Gemini refinement failed, using raw spec:', err);
+      console.warn('[TemplateAnalyzer] Gemini refinement failed:', err);
     }
   }
 
-  // Fall back to Groq
+  // ── Attempt 2: Claude via proxy ───────────────────────────────────────────
+  const claudeKey = getClaudeKey();
+  if (claudeKey) {
+    try {
+      const result = await callProviderViaProxy(
+        'claude',
+        claudeKey,
+        'You are a JSON validator and corrector. Return only valid JSON.',
+        prompt,
+        { temperature: 0.1, maxTokens: 2048 }
+      );
+      if (result) {
+        const clean = stripJsonFences(result);
+        try {
+          console.log('[TemplateAnalyzer] Phase 2 via Claude ✓');
+          return JSON.parse(clean) as TemplateSpec;
+        } catch { /* fall through */ }
+      }
+    } catch (err) {
+      console.warn('[TemplateAnalyzer] Claude refinement failed:', err);
+    }
+  }
+
+  // ── Attempt 3: Groq / Worker AI (groqChat auto-chain) ────────────────────
   try {
     const result = await groqChat(
       GROQ_LARGE,
@@ -176,11 +235,11 @@ export async function refineTemplateSpec(rawSpec: TemplateSpec): Promise<Templat
       { temperature: 0.1, maxTokens: 2048 }
     );
     if (result) {
-      const clean = result.trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```\s*$/i, '')
-        .trim();
-      return JSON.parse(clean) as TemplateSpec;
+      const clean = stripJsonFences(result);
+      try {
+        console.log('[TemplateAnalyzer] Phase 2 via Groq/Worker ✓');
+        return JSON.parse(clean) as TemplateSpec;
+      } catch { /* fall through */ }
     }
   } catch (err) {
     console.warn('[TemplateAnalyzer] Groq refinement also failed, using raw spec:', err);

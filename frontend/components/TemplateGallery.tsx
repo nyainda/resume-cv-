@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { TemplateName, templateDisplayNames, CVData, PersonalInfo, CustomTemplateEntry } from '../types';
 import TemplateThumbnail from './TemplateThumbnail';
 import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
 import { Label } from './ui/Label';
-import { CheckCircle, Eye, FileText, Search, Wand2, Trash, Upload } from './icons';
-import { deleteCustomTemplate } from '../utils/customTemplateStorage';
+import { CheckCircle, Eye, FileText, Search, Wand2, Trash, Upload, Edit } from './icons';
+import { deleteCustomTemplate, renameCustomTemplate } from '../utils/customTemplateStorage';
 
 interface TemplateGalleryProps {
   selectedTemplate: TemplateName;
@@ -15,6 +15,7 @@ interface TemplateGalleryProps {
   customTemplateId?: string;
   onSelectCustom?: (id: string) => void;
   onOpenUploader?: () => void;
+  onRenameCustom?: (id: string, name: string) => void;
 }
 
 const templateCategories = {
@@ -100,12 +101,31 @@ const atsConfig = {
 
 const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   selectedTemplate, onSelect, cvData, personalInfo,
-  customTemplates = [], customTemplateId, onSelectCustom, onOpenUploader,
+  customTemplates = [], customTemplateId, onSelectCustom, onOpenUploader, onRenameCustom,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [hoveredTemplate, setHoveredTemplate] = useState<TemplateName | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [, forceUpdate] = useState(0);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
+  const commitRename = (id: string) => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== customTemplates.find(t => t.id === id)?.name) {
+      renameCustomTemplate(id, trimmed);
+      onRenameCustom?.(id, trimmed);
+    }
+    setRenamingId(null);
+  };
 
   const allTemplates = Object.keys(templateDisplayNames) as TemplateName[];
 
@@ -246,6 +266,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
               {customTemplates.map((ct) => {
                 const isSelected = customTemplateId === ct.id;
+                const isRenaming = renamingId === ct.id;
                 return (
                   <div key={ct.id} className="cursor-pointer group relative">
                     <div
@@ -262,17 +283,30 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
                           <CheckCircle className="h-3 w-3" />
                         </div>
                       )}
-                      <div className="absolute top-1.5 left-1.5 z-10">
+                      {/* Action buttons — delete & rename */}
+                      <div className="absolute top-1.5 left-1.5 z-10 flex gap-0.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteCustomTemplate(ct.id);
+                            onRenameCustom?.(ct.id, ''); // signal deletion to parent
                             forceUpdate(n => n + 1);
                           }}
                           className="bg-white/80 hover:bg-red-50 text-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                           title="Delete template"
                         >
                           <Trash className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingId(ct.id);
+                            setRenameValue(ct.name);
+                          }}
+                          className="bg-white/80 hover:bg-amber-50 text-amber-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                          title="Rename template"
+                        >
+                          <Edit className="h-2.5 w-2.5" />
                         </button>
                       </div>
                       {/* Mini live preview */}
@@ -288,10 +322,35 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
                         </div>
                       </div>
                     </div>
+                    {/* Name / inline rename input */}
                     <div className="mt-2 text-center px-1">
-                      <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-[#C9A84C]' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                        {ct.name}
-                      </p>
+                      {isRenaming ? (
+                        <input
+                          ref={renameInputRef}
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onBlur={() => commitRename(ct.id)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitRename(ct.id); }
+                            if (e.key === 'Escape') setRenamingId(null);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          maxLength={50}
+                          className="w-full text-xs font-semibold text-center rounded border border-[#C9A84C] bg-amber-50 dark:bg-amber-900/20 text-zinc-900 dark:text-zinc-100 px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                        />
+                      ) : (
+                        <p
+                          className={`text-xs font-semibold leading-tight ${isSelected ? 'text-[#C9A84C]' : 'text-zinc-700 dark:text-zinc-300'}`}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingId(ct.id);
+                            setRenameValue(ct.name);
+                          }}
+                          title="Double-click to rename"
+                        >
+                          {ct.name}
+                        </p>
+                      )}
                       <span className="inline-flex items-center gap-0.5 text-[9px] font-medium mt-0.5 text-amber-700 dark:text-amber-400">
                         <span className="w-1 h-1 rounded-full bg-amber-400" />
                         AI Cloned

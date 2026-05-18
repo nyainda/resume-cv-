@@ -109,6 +109,11 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (url.pathname === '/api/cv/job-cache' && request.method === 'POST') return handleJobCachePost(request, env, ctx);
     // ── Anonymous events ──────────────────────────────────────────────────────
     if (url.pathname === '/api/cv/event' && request.method === 'POST') return handleEventPost(request, env, ctx);
+    // ── Custom templates (optional cloud sync) ────────────────────────────────
+    if (url.pathname === '/api/cv/custom-templates' && request.method === 'GET')   return handleCustomTemplatesGet(request, env, url);
+    if (url.pathname === '/api/cv/custom-templates' && request.method === 'POST')  return handleCustomTemplatesPost(request, env, ctx);
+    if (/^\/api\/cv\/custom-templates\/[^/]+$/.test(url.pathname) && request.method === 'DELETE') return handleCustomTemplatesDelete(request, env, url);
+    if (/^\/api\/cv\/custom-templates\/[^/]+$/.test(url.pathname) && request.method === 'PATCH')  return handleCustomTemplatesPatch(request, env, url);
     return json({ error: 'not_found', path: url.pathname }, request, env, 404);
 }
 
@@ -3878,8 +3883,103 @@ async function handleEventPost(request: Request, env: Env, ctx: ExecutionContext
         env.CV_DB.prepare(
             `INSERT INTO cv_events (event_type, template, mode, metadata, created_at)
              VALUES (?, ?, ?, ?, ?)`
-        ).bind(eventType, template, mode, metadata, now).run().catch(() => {})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom Templates  (optional D1 cloud backup)
+//
+// GET  /api/cv/custom-templates?device_id=<id>
+// POST /api/cv/custom-templates
+//   Body: { device_id, id, name, spec_json, thumbnail? }
+// DELETE /api/cv/custom-templates/:id?device_id=<id>
+// PATCH  /api/cv/custom-templates/:id
+//   Body: { device_id, name }
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleCustomTemplatesGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const deviceId = (url.searchParams.get('device_id') || '').trim().substring(0, 64);
+    if (!deviceId) return json({ error: 'missing_device_id' }, request, env, 400);
+
+    const rows = await env.CV_DB.prepare(
+        `SELECT id, name, spec_json, thumbnail, created_at, updated_at
+         FROM custom_templates WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50`
+    ).bind(deviceId).all();
+
+    return json({ templates: rows.results ?? [] }, request, env);
+}
+
+async function handleCustomTemplatesPost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const deviceId  = typeof body?.device_id  === 'string' ? body.device_id.trim().substring(0, 64)  : '';
+    const id        = typeof body?.id         === 'string' ? body.id.trim().substring(0, 64)         : '';
+    const name      = typeof body?.name       === 'string' ? body.name.trim().substring(0, 120)      : '';
+    const specJson  = typeof body?.spec_json  === 'string' ? body.spec_json                          : '';
+    const thumbnail = typeof body?.thumbnail  === 'string' ? body.thumbnail.substring(0, 204800)     : null;
+
+    if (!deviceId)                      return json({ error: 'missing_device_id' }, request, env, 400);
+    if (!id)                            return json({ error: 'missing_id' }, request, env, 400);
+    if (!name)                          return json({ error: 'missing_name' }, request, env, 400);
+    if (!specJson)                      return json({ error: 'missing_spec_json' }, request, env, 400);
+    if (specJson.length > 204800)       return json({ error: 'spec_too_large', max: 204800 }, request, env, 413);
+
+    try { JSON.parse(specJson); } catch { return json({ error: 'spec_json_invalid' }, request, env, 400); }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await env.CV_DB.prepare(
+        `INSERT INTO custom_templates (id, user_id, name, spec_json, thumbnail, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name       = excluded.name,
+           spec_json  = excluded.spec_json,
+           thumbnail  = excluded.thumbnail,
+           updated_at = excluded.updated_at`
+    ).bind(id, deviceId, name, specJson, thumbnail, now, now).run();
+
+    ctx.waitUntil(
+        env.CV_DB.prepare(
+            `DELETE FROM custom_templates WHERE user_id = ? AND id NOT IN
+             (SELECT id FROM custom_templates WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50)`
+        ).bind(deviceId, deviceId).run().catch(() => {})
     );
 
-    return json({ ok: true }, request, env);
+    return json({ ok: true, id }, request, env);
+}
+
+async function handleCustomTemplatesDelete(request: Request, env: Env, url: URL): Promise<Response> {
+    const id       = url.pathname.split('/').pop()?.trim() ?? '';
+    const deviceId = (url.searchParams.get('device_id') || '').trim().substring(0, 64);
+
+    if (!id || !deviceId) return json({ error: 'missing_params' }, request, env, 400);
+
+    const result = await env.CV_DB.prepare(
+        `DELETE FROM custom_templates WHERE id = ? AND user_id = ?`
+    ).bind(id, deviceId).run();
+
+    const deleted = (result.meta?.changes ?? 0) > 0;
+    return json({ ok: deleted, id }, request, env, deleted ? 200 : 404);
+}
+
+async function handleCustomTemplatesPatch(request: Request, env: Env, url: URL): Promise<Response> {
+    const id = url.pathname.split('/').pop()?.trim() ?? '';
+    if (!id) return json({ error: 'missing_id' }, request, env, 400);
+
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const deviceId = typeof body?.device_id === 'string' ? body.device_id.trim().substring(0, 64) : '';
+    const name     = typeof body?.name      === 'string' ? body.name.trim().substring(0, 120)      : '';
+
+    if (!deviceId) return json({ error: 'missing_device_id' }, request, env, 400);
+    if (!name)     return json({ error: 'missing_name' }, request, env, 400);
+
+    const now = Math.floor(Date.now() / 1000);
+
+    const result = await env.CV_DB.prepare(
+        `UPDATE custom_templates SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?`
+    ).bind(name, now, id, deviceId).run();
+
+    const updated = (result.meta?.changes ?? 0) > 0;
+    return json({ ok: updated, id, name }, request, env, updated ? 200 : 404);
 }

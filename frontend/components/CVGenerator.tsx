@@ -1882,6 +1882,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             customTemplateId={customTemplateId ?? undefined}
             onSelectCustom={(id) => { setCustomTemplateId(id); setTemplate('custom'); }}
             onOpenUploader={() => setShowTemplateUploader(true)}
+            onRenameCustom={() => setCustomTemplates(loadCustomTemplates())}
           />
 
           {/* ── Customisation Panel: Font + Accent Colour ── */}
