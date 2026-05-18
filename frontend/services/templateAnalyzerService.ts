@@ -1,25 +1,31 @@
 /**
  * Template Analyzer Service
  *
- * Two-phase pipeline — exactly three providers, pulled from Settings:
+ * Respects the provider selected in Settings → AI Provider.
+ * Whichever provider the user has chosen powers the entire pipeline —
+ * no silent fallback to a second provider they haven't subscribed to.
  *
- *   Phase 1 — Vision Analysis:
- *     (a) Worker AI Llama 3.2 Vision (free, via /api/cv/vision-extract) — tried first
- *     (b) Gemini 2.0 Flash Vision (if Gemini key is set in Settings → AI Keys)
- *     (c) Throws a clear error if neither is configured
+ *   Phase 1 — Vision Analysis (reads the uploaded image):
+ *     • Workers AI  → Cloudflare Llama 3.2 Vision (free, no key needed)
+ *     • Gemini      → Gemini 2.0 Flash Vision
+ *     • Claude      → Claude multimodal via CF Worker proxy
  *
- *   Phase 2 — Spec Refinement:
- *     (a) Gemini 2.0 Flash text (if Gemini key set)
- *     (b) Claude (if Claude key set in Settings → AI Keys)
- *     (c) Worker AI text LLM (Cloudflare — no user key needed)
- *     (d) Returns raw spec unchanged if all three fail
+ *   Phase 2 — Spec Refinement (cleans up the JSON):
+ *     • Workers AI  → Cloudflare tiered LLM
+ *     • Gemini      → Gemini 2.0 Flash text
+ *     • Claude      → Claude via CF Worker proxy
  *
- * No Groq, Cerebras, OpenRouter, Together.ai or any other provider is used.
+ * If the selected provider is not configured (missing key / worker URL),
+ * a clear error is thrown — the user is directed to Settings to fix it.
  */
 
 import { GoogleGenAI } from '@google/genai';
 import { getGeminiKey, getClaudeKey } from './security/RuntimeKeys';
-import { callProviderViaProxy } from './groqService';
+import {
+  getSelectedProvider,
+  callProviderViaProxy,
+  callProviderViaProxyMultimodal,
+} from './groqService';
 import { workerVisionExtract, workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
 import type {
   TemplateSpec,
@@ -109,34 +115,48 @@ function stripJsonFences(text: string): string {
     .trim();
 }
 
+function parseSpec(raw: string): TemplateSpec {
+  const cleaned = stripJsonFences(raw);
+  if (!cleaned) throw new Error('AI returned an empty response. Please try again.');
+  const spec = JSON.parse(cleaned) as TemplateSpec;
+  if (!Array.isArray(spec.sectionOrder) || spec.sectionOrder.length === 0) {
+    throw new Error('This image does not appear to be a CV template. Please upload a CV/resume screenshot.');
+  }
+  return spec;
+}
+
 // ── Phase 1 — Vision Analysis ─────────────────────────────────────────────────
 
 export async function analyzeTemplateImage(
   base64Image: string,
   mimeType: string
 ): Promise<TemplateSpec> {
+  const provider = getSelectedProvider();
 
-  // ── Attempt 1: Worker AI Llama Vision (free, no user key needed) ──────────
-  if (isCVEngineConfigured()) {
-    try {
-      const workerText = await workerVisionExtract(base64Image, mimeType, VISION_ANALYSIS_PROMPT, { maxTokens: 2048, timeoutMs: 30_000 });
-      if (workerText) {
-        const raw = stripJsonFences(workerText);
-        const spec = JSON.parse(raw) as TemplateSpec;
-        if (Array.isArray(spec.sectionOrder) && spec.sectionOrder.length > 0) {
-          console.log('[TemplateAnalyzer] Phase 1 via Worker AI Llama Vision ✓');
-          return spec;
-        }
-      }
-    } catch (err) {
-      console.warn('[TemplateAnalyzer] Worker AI vision failed, trying Gemini:', err);
+  // ── Workers AI ──────────────────────────────────────────────────────────────
+  if (provider === 'workers-ai') {
+    if (!isCVEngineConfigured()) {
+      throw new Error(
+        'CV Engine Worker URL is not configured.\n' +
+        'Go to Settings → CV Engine and enter your Worker URL, or switch to Gemini / Claude in Settings → AI Provider.'
+      );
     }
+    const text = await workerVisionExtract(base64Image, mimeType, VISION_ANALYSIS_PROMPT, { maxTokens: 2048, timeoutMs: 30_000 });
+    if (!text) throw new Error('Workers AI vision returned no response. Please try again.');
+    console.log('[TemplateAnalyzer] Phase 1 via Worker AI Llama Vision ✓');
+    return parseSpec(text);
   }
 
-  // ── Attempt 2: Gemini 2.0 Flash Vision ───────────────────────────────────
-  const geminiKey = getGeminiKey();
-  if (geminiKey) {
-    const ai = new GoogleGenAI({ apiKey: geminiKey });
+  // ── Gemini ──────────────────────────────────────────────────────────────────
+  if (provider === 'gemini') {
+    const key = getGeminiKey();
+    if (!key) {
+      throw new Error(
+        'No Gemini API key found.\n' +
+        'Go to Settings → AI Keys → Gemini and enter your Google API key.'
+      );
+    }
+    const ai = new GoogleGenAI({ apiKey: key });
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: {
@@ -147,108 +167,93 @@ export async function analyzeTemplateImage(
       },
     } as Parameters<typeof ai.models.generateContent>[0]);
 
-    const raw = stripJsonFences(
-      ((response as unknown as { text?: string }).text ?? '')
-    );
-
-    if (!raw) throw new Error('Gemini returned empty response during vision analysis.');
-
-    let spec: TemplateSpec;
-    try {
-      spec = JSON.parse(raw) as TemplateSpec;
-    } catch {
-      throw new Error('Could not parse template spec from Gemini response. Please try a clearer image.');
-    }
-
-    if (!Array.isArray(spec.sectionOrder) || spec.sectionOrder.length === 0) {
-      throw new Error('This image does not appear to be a CV template. Please upload a CV/resume screenshot.');
-    }
-
+    const raw = (response as unknown as { text?: string }).text ?? '';
     console.log('[TemplateAnalyzer] Phase 1 via Gemini Vision ✓');
-    return spec;
+    return parseSpec(raw);
   }
 
-  // ── No provider available ─────────────────────────────────────────────────
-  throw new Error(
-    'No AI vision provider available. Please either:\n' +
-    '• Add a Gemini API key in Settings → AI Keys → Gemini\n' +
-    '• Or ensure your CV Engine Worker URL is set in Settings'
-  );
+  // ── Claude ──────────────────────────────────────────────────────────────────
+  if (provider === 'claude') {
+    const key = getClaudeKey();
+    if (!key) {
+      throw new Error(
+        'No Claude API key found.\n' +
+        'Go to Settings → AI Keys → Claude and enter your Anthropic API key.'
+      );
+    }
+    const text = await callProviderViaProxyMultimodal(key, base64Image, mimeType, VISION_ANALYSIS_PROMPT, { maxTokens: 2048 });
+    console.log('[TemplateAnalyzer] Phase 1 via Claude Vision ✓');
+    return parseSpec(text);
+  }
+
+  throw new Error('Unknown AI provider selected. Please check Settings → AI Provider.');
 }
 
 // ── Phase 2 — Spec Refinement ─────────────────────────────────────────────────
 
 export async function refineTemplateSpec(rawSpec: TemplateSpec): Promise<TemplateSpec> {
-  const prompt = SPEC_REFINEMENT_PROMPT(JSON.stringify(rawSpec, null, 2));
+  const provider = getSelectedProvider();
+  const prompt   = SPEC_REFINEMENT_PROMPT(JSON.stringify(rawSpec, null, 2));
+  const sysPrompt = 'You are a JSON validator and corrector. Return only valid JSON.';
 
-  // ── Attempt 1: Gemini 2.0 Flash (text) ──────────────────────────────────
-  const geminiKey = getGeminiKey();
-  if (geminiKey) {
+  // ── Workers AI ──────────────────────────────────────────────────────────────
+  if (provider === 'workers-ai') {
+    if (!isCVEngineConfigured()) return rawSpec; // worker not set — skip refinement silently
     try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const result = await workerTieredLLM('cvAudit', sysPrompt, prompt, { temperature: 0.1, maxTokens: 2048 });
+      if (result) {
+        try {
+          console.log('[TemplateAnalyzer] Phase 2 via Worker AI ✓');
+          return JSON.parse(stripJsonFences(result)) as TemplateSpec;
+        } catch { /* fall through to raw */ }
+      }
+    } catch (err) {
+      console.warn('[TemplateAnalyzer] Worker AI refinement failed, using raw spec:', err);
+    }
+    return rawSpec;
+  }
+
+  // ── Gemini ──────────────────────────────────────────────────────────────────
+  if (provider === 'gemini') {
+    const key = getGeminiKey();
+    if (!key) return rawSpec;
+    try {
+      const ai = new GoogleGenAI({ apiKey: key });
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: prompt,
         config: { temperature: 0.1, maxOutputTokens: 2048 },
       } as Parameters<typeof ai.models.generateContent>[0]);
 
-      const raw = stripJsonFences(
-        ((response as unknown as { text?: string }).text ?? '')
-      );
-
+      const raw = (response as unknown as { text?: string }).text ?? '';
       if (raw) {
         try {
           console.log('[TemplateAnalyzer] Phase 2 via Gemini ✓');
-          return JSON.parse(raw) as TemplateSpec;
-        } catch { /* fall through */ }
+          return JSON.parse(stripJsonFences(raw)) as TemplateSpec;
+        } catch { /* fall through to raw */ }
       }
     } catch (err) {
-      console.warn('[TemplateAnalyzer] Gemini refinement failed:', err);
+      console.warn('[TemplateAnalyzer] Gemini refinement failed, using raw spec:', err);
     }
+    return rawSpec;
   }
 
-  // ── Attempt 2: Claude via proxy ───────────────────────────────────────────
-  const claudeKey = getClaudeKey();
-  if (claudeKey) {
+  // ── Claude ──────────────────────────────────────────────────────────────────
+  if (provider === 'claude') {
+    const key = getClaudeKey();
+    if (!key) return rawSpec;
     try {
-      const result = await callProviderViaProxy(
-        'claude',
-        claudeKey,
-        'You are a JSON validator and corrector. Return only valid JSON.',
-        prompt,
-        { temperature: 0.1, maxTokens: 2048 }
-      );
+      const result = await callProviderViaProxy('claude', key, sysPrompt, prompt, { temperature: 0.1, maxTokens: 2048 });
       if (result) {
-        const clean = stripJsonFences(result);
         try {
           console.log('[TemplateAnalyzer] Phase 2 via Claude ✓');
-          return JSON.parse(clean) as TemplateSpec;
-        } catch { /* fall through */ }
+          return JSON.parse(stripJsonFences(result)) as TemplateSpec;
+        } catch { /* fall through to raw */ }
       }
     } catch (err) {
-      console.warn('[TemplateAnalyzer] Claude refinement failed:', err);
+      console.warn('[TemplateAnalyzer] Claude refinement failed, using raw spec:', err);
     }
-  }
-
-  // ── Attempt 3: Worker AI text LLM (Cloudflare — no user key needed) ───────
-  if (isCVEngineConfigured()) {
-    try {
-      const result = await workerTieredLLM(
-        'cvAudit',
-        'You are a JSON validator and corrector. Return only valid JSON.',
-        prompt,
-        { temperature: 0.1, maxTokens: 2048 }
-      );
-      if (result) {
-        const clean = stripJsonFences(result);
-        try {
-          console.log('[TemplateAnalyzer] Phase 2 via Worker AI ✓');
-          return JSON.parse(clean) as TemplateSpec;
-        } catch { /* fall through */ }
-      }
-    } catch (err) {
-      console.warn('[TemplateAnalyzer] Worker AI refinement failed, using raw spec:', err);
-    }
+    return rawSpec;
   }
 
   return rawSpec;
