@@ -3,19 +3,23 @@
  *
  * Pre-generation market intelligence service.
  *
- * Uses Gemini with Google Search grounding for live market data.
- * If Gemini is unavailable or not configured, market research is skipped
- * and CV generation continues without it.
+ * Respects the provider selected in Settings — whichever the user has chosen
+ * powers market research.
  *
- * A session-level Gemini quota guard prevents hammering the API after it has
- * already returned a 429 / quota-exceeded error within the last 10 minutes.
+ *   • Gemini  → Gemini 2.0 Flash + Google Search grounding (live results)
+ *   • Claude  → Claude via CF Worker proxy (knowledge-based, no live search)
+ *   • Workers AI → Cloudflare tiered LLM (knowledge-based, no live search)
+ *
+ * A session-level quota guard prevents hammering the provider after it has
+ * already returned a 429 / rate-limit error within 90 seconds.
  *
  * Never throws — always returns null on failure so CV generation can proceed.
  */
 
 import { UserProfile } from '../types';
-import { getGeminiKey as _rtGemini } from './security/RuntimeKeys';
-import { workerProxyLLM } from './cvEngineClient';
+import { getGeminiKey as _rtGemini, getClaudeKey } from './security/RuntimeKeys';
+import { workerProxyLLM, workerTieredLLM, isCVEngineConfigured } from './cvEngineClient';
+import { getSelectedProvider } from './groqService';
 import { sha256Hex } from './profileCacheClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,23 +37,19 @@ export interface MarketResearchResult {
 
 type Scenario = 'A' | 'B' | 'C';
 
-// ─── Session-level Gemini quota guard ────────────────────────────────────────
-// If Gemini returns a quota/rate error, pause Gemini calls for 90 seconds so
-// every subsequent CV generation in the same session uses Groq instead of
-// hammering the already-exhausted free-tier endpoint.
-// 90 s matches Gemini's own "retry in 44–60 s" window with a comfortable buffer.
-// The previous 10-minute cooldown caused the humanizer (which runs ~2 min later)
-// to skip Gemini entirely and fall through to a slow last-resort chain.
-const GEMINI_BACKOFF_MS = 90 * 1000; // 90 seconds
-let _geminiQuotaHitAt: number | null = null;
+// ─── Session-level provider quota guard ──────────────────────────────────────
+// If the selected provider returns a 429 / rate-limit, pause market research
+// calls for 90 seconds so we don't hammer an already-exhausted endpoint.
+const PROVIDER_BACKOFF_MS = 90 * 1000; // 90 seconds
+let _providerQuotaHitAt: number | null = null;
 
-function geminiIsBlocked(): boolean {
-    if (_geminiQuotaHitAt === null) return false;
-    return Date.now() - _geminiQuotaHitAt < GEMINI_BACKOFF_MS;
+function providerIsBlocked(): boolean {
+    if (_providerQuotaHitAt === null) return false;
+    return Date.now() - _providerQuotaHitAt < PROVIDER_BACKOFF_MS;
 }
 
-function markGeminiQuotaHit(): void {
-    _geminiQuotaHitAt = Date.now();
+function markProviderQuotaHit(): void {
+    _providerQuotaHitAt = Date.now();
 }
 
 // ─── Key retrieval (mirrors geminiService.ts pattern) ────────────────────────
@@ -162,6 +162,72 @@ export function detectRoleAndIndustry(profile: UserProfile, jd: string): { role:
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 
+/**
+ * Knowledge-based prompt for Claude / Workers AI (no live Google Search).
+ * Same output schema as the Gemini prompt.
+ */
+function buildKnowledgeResearchPrompt(scenario: Scenario, role: string, industry: string, jd: string): string {
+    const year = new Date().getFullYear();
+    const isEngineering = /engineer|developer|software|devops|backend|frontend|cloud|data/.test(`${role} ${industry}`.toLowerCase());
+
+    if (scenario === 'A') {
+        return `You are a specialist labour market researcher with deep knowledge of hiring trends.
+
+Using your knowledge, identify what employers currently look for in a ${role} in the ${industry} industry (${year}):
+- The most in-demand skills for this role
+- ATS keywords that appear in job descriptions for this role
+- Tools and technologies commonly required
+- What makes a strong ${role} CV stand out${isEngineering ? '\n- Relevant certifications and technical depth expected' : ''}
+
+Return ONLY a JSON object with this exact structure (no markdown fences, no extra text):
+{
+  "topSkills": ["skill1", "skill2"],
+  "atsKeywords": ["keyword1", "keyword2"],
+  "expectedTools": ["tool1", "tool2"],
+  "industryInsights": "2-3 specific, actionable sentences about what makes a ${role} CV stand out in ${year}. Name specific trends, tools, and recruiter expectations."
+}
+Return up to 12 topSkills, 15 atsKeywords, 10 expectedTools.`;
+    }
+
+    if (scenario === 'B') {
+        return `You are a specialist labour market researcher. The user wants to apply for: "${jd.trim()}".
+
+Using your knowledge, identify what this role typically requires (${year}):
+- Core skills and competencies expected
+- ATS keywords that appear in job descriptions for this role
+- Common tools and technologies
+- What differentiates top candidates${isEngineering ? '\n- Relevant certifications and technical depth expected' : ''}
+
+Return ONLY a JSON object (no markdown fences):
+{
+  "topSkills": ["skill1", "skill2"],
+  "atsKeywords": ["keyword1", "keyword2"],
+  "expectedTools": ["tool1", "tool2"],
+  "industryInsights": "2-3 specific sentences describing what this role actually requires, hidden expectations not usually in job ads, and what differentiates top candidates in ${year}."
+}
+Return up to 12 topSkills, 15 atsKeywords, 10 expectedTools.`;
+    }
+
+    // Scenario C — Full JD
+    return `You are a specialist labour market researcher. The user has provided a full job description for a ${role} role in ${industry}.
+
+Using your knowledge, identify IMPLICIT expectations beyond what the JD explicitly states (${year}):
+- Skills and competencies that are assumed but not listed
+- ATS keywords that appear in similar job descriptions
+- Tools and technologies typical for this role
+- What separates top ${role} candidates from average ones${isEngineering ? '\n- Certifications and technical depth valued in this field' : ''}
+
+Return ONLY a JSON object (no markdown fences):
+{
+  "topSkills": ["skill1", "skill2"],
+  "atsKeywords": ["keyword1", "keyword2"],
+  "expectedTools": ["tool1", "tool2"],
+  "industryInsights": "2-3 sentences on implicit market expectations, cultural signals, and what separates top ${role} candidates from average ones. Be specific — name actual behaviours, metrics, or mindsets."
+}
+Return up to 12 topSkills, 15 atsKeywords, 10 expectedTools.`;
+}
+
+/** Gemini prompt — uses Google Search grounding for live results. */
 function buildGeminiResearchPrompt(scenario: Scenario, role: string, industry: string, jd: string): string {
     const year = new Date().getFullYear();
     const isEngineering = /engineer|developer|software|devops|backend|frontend|cloud|data/.test(`${role} ${industry}`.toLowerCase());
@@ -338,18 +404,29 @@ export async function conductMarketResearch(
     }
 }
 
-/** Internal: makes the actual Gemini / Groq AI call (no caching). */
+/** Internal: makes the actual AI call (no caching). Routes to selected provider. */
 async function conductMarketResearchFresh(
-    profile: UserProfile,
+    _profile: UserProfile,
     jobDescription: string,
     scenario: Scenario,
     role: string,
     industry: string,
 ): Promise<MarketResearchResult | null> {
 
-    // ── Attempt 1: Gemini + Google Search via CF Worker proxy (live results) ───
-    const geminiApiKey = getGeminiApiKey();
-    if (geminiApiKey && !geminiIsBlocked()) {
+    if (providerIsBlocked()) {
+        console.info('[MarketResearch] Provider quota guard active — skipping market research for this run');
+        return null;
+    }
+
+    const provider = getSelectedProvider();
+
+    // ── Gemini — live Google Search grounding (best quality) ─────────────────
+    if (provider === 'gemini') {
+        const geminiApiKey = getGeminiApiKey();
+        if (!geminiApiKey) {
+            console.info('[MarketResearch] No Gemini key configured — skipping market research');
+            return null;
+        }
         try {
             const mrPrompt = buildGeminiResearchPrompt(scenario, role, industry, jobDescription);
             const rawText = await workerProxyLLM('marketResearch', mrPrompt, {
@@ -361,29 +438,76 @@ async function conductMarketResearchFresh(
             });
             const result = parseResearchJson(rawText || '', role, industry, scenario);
             if (result) {
-                console.info(`[MarketResearch] Gemini proxy — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
+                console.info(`[MarketResearch] Gemini+Search — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
                 return result;
             }
-            console.warn('[MarketResearch] Gemini proxy returned empty results — skipping market research');
+            console.warn('[MarketResearch] Gemini returned empty results — skipping market research');
         } catch (err: any) {
             const msg = (err?.message || '').toLowerCase();
             const status = err?.status ?? err?.upstreamStatus ?? err?.code;
-
             const isQuota = status === 429 || msg.includes('quota') || msg.includes('rate') ||
                 msg.includes('429') || msg.includes('exceeded') || msg.includes('limit: 0');
-            if (isQuota) {
-                markGeminiQuotaHit();
-                console.warn('[MarketResearch] Gemini quota/rate-limit hit — skipping market research for this run');
-            } else {
-                console.warn('[MarketResearch] Gemini proxy failed — skipping market research:', msg || err);
-            }
+            if (isQuota) markProviderQuotaHit();
+            console.warn('[MarketResearch] Gemini failed:', isQuota ? 'quota/rate-limit' : (msg || err));
         }
-    } else if (!geminiApiKey) {
-        console.info('[MarketResearch] No Gemini key configured — skipping market research');
-    } else {
-        console.info('[MarketResearch] Gemini quota guard active — skipping market research for this run');
+        return null;
     }
 
+    // ── Claude — knowledge-based research (no live search) ───────────────────
+    if (provider === 'claude') {
+        const claudeKey = getClaudeKey();
+        if (!claudeKey) {
+            console.info('[MarketResearch] No Claude key configured — skipping market research');
+            return null;
+        }
+        try {
+            const mrPrompt = buildKnowledgeResearchPrompt(scenario, role, industry, jobDescription);
+            const rawText = await workerProxyLLM('marketResearch', mrPrompt, {
+                provider:    'claude',
+                apiKey:      claudeKey,
+                temperature: 0.2,
+                timeoutMs:   25_000,
+            });
+            const result = parseResearchJson(rawText || '', role, industry, scenario);
+            if (result) {
+                console.info(`[MarketResearch] Claude — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
+                return result;
+            }
+            console.warn('[MarketResearch] Claude returned empty results — skipping market research');
+        } catch (err: any) {
+            const msg = (err?.message || '').toLowerCase();
+            const status = err?.status ?? err?.upstreamStatus ?? err?.code;
+            const isQuota = status === 429 || msg.includes('quota') || msg.includes('rate') ||
+                msg.includes('429') || msg.includes('exceeded') || msg.includes('limit: 0');
+            if (isQuota) markProviderQuotaHit();
+            console.warn('[MarketResearch] Claude failed:', isQuota ? 'quota/rate-limit' : (msg || err));
+        }
+        return null;
+    }
+
+    // ── Workers AI — knowledge-based research (no live search) ───────────────
+    if (!isCVEngineConfigured()) {
+        console.info('[MarketResearch] CV Engine Worker not configured — skipping market research');
+        return null;
+    }
+    try {
+        const mrPrompt = buildKnowledgeResearchPrompt(scenario, role, industry, jobDescription);
+        const rawText = await workerTieredLLM('marketResearch', mrPrompt, {
+            temperature: 0.2,
+            maxTokens:   1500,
+        });
+        const result = parseResearchJson(rawText || '', role, industry, scenario);
+        if (result) {
+            console.info(`[MarketResearch] Workers AI — Scenario ${scenario}: ${result.topSkills.length} skills, ${result.atsKeywords.length} keywords for "${role}"`);
+            return result;
+        }
+        console.warn('[MarketResearch] Workers AI returned empty results — skipping market research');
+    } catch (err: any) {
+        const msg = (err?.message || '').toLowerCase();
+        const isQuota = msg.includes('quota') || msg.includes('rate') || msg.includes('429');
+        if (isQuota) markProviderQuotaHit();
+        console.warn('[MarketResearch] Workers AI failed:', isQuota ? 'quota/rate-limit' : (msg || err));
+    }
     return null;
 }
 
