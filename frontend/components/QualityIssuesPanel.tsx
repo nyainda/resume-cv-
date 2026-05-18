@@ -24,6 +24,7 @@ import {
     fixCvIssueWithAi, applyFixToCv, getOriginalTextAt, ISSUE_KIND_INSTRUCTIONS,
     insertKeywordIntoBullet,
 } from '../services/aiInlineFix';
+import { stripTildeNumbers } from '../services/cvNumberFidelity';
 import {
     scoreAtsCoverage, findBestBulletForKeyword,
     type AtsKeywordReport, type BulletCandidate,
@@ -370,6 +371,37 @@ export default function QualityIssuesPanel({
         setBulkFixing(false);
     }, [cv, report, onApplyFix, issueKey]);
 
+    const tildeIssues = useMemo(
+        () => report.issues.filter(i => i.kind === 'tilde_number'),
+        [report.issues],
+    );
+
+    const handleFixTildeInstant = useCallback((issue: CvQualityIssue, rowKey: string) => {
+        const original = getOriginalTextAt(cv, issue.where) || issue.snippet;
+        const fixed = stripTildeNumbers(original);
+        if (fixed === original) {
+            setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
+            return;
+        }
+        const nextCv = applyFixToCv(cv, issue.where, fixed);
+        onApplyFix(nextCv);
+        setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
+    }, [cv, onApplyFix]);
+
+    const handleFixAllTildesInstant = useCallback(() => {
+        if (tildeIssues.length === 0) return;
+        let workingCv = cv;
+        for (let idx = 0; idx < tildeIssues.length; idx++) {
+            const issue = tildeIssues[idx];
+            const rowKey = issueKey(issue, report.issues.indexOf(issue));
+            const original = getOriginalTextAt(workingCv, issue.where) || issue.snippet;
+            const fixed = stripTildeNumbers(original);
+            workingCv = applyFixToCv(workingCv, issue.where, fixed);
+            setRowState(s => ({ ...s, [rowKey]: { status: 'fixed', appliedAt: Date.now() } }));
+        }
+        onApplyFix(workingCv);
+    }, [cv, tildeIssues, report.issues, issueKey, onApplyFix]);
+
     const governanceLeaks = useMemo(() =>
         purifyLeaks.filter(l => l.fixedBy === 'none' && GOVERNANCE_LEAK_KINDS.has(l.leakType)),
     [purifyLeaks]);
@@ -444,6 +476,17 @@ export default function QualityIssuesPanel({
                                 <><Sparkles className="h-4 w-4 mr-2" />Fix all {report.totalIssues} with AI</>
                             )}
                         </Button>
+                        {tildeIssues.length > 0 && (
+                            <Button
+                                size="sm"
+                                onClick={handleFixAllTildesInstant}
+                                disabled={bulkFixing}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Fix {tildeIssues.length} tilde{tildeIssues.length === 1 ? '' : 's'} instantly
+                            </Button>
+                        )}
                         <Button
                             size="sm"
                             variant="secondary"
@@ -810,23 +853,38 @@ export default function QualityIssuesPanel({
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            onClick={() => handleFixOne(issue, rowKey)}
-                                                            disabled={state.status === 'fixing' || state.status === 'fixed' || bulkFixing}
-                                                            className="flex-shrink-0"
-                                                        >
-                                                            {state.status === 'fixing' ? (
-                                                                <><RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />Fixing</>
-                                                            ) : state.status === 'fixed' ? (
-                                                                <><CheckCircle className="h-3.5 w-3.5 mr-1" />Done</>
-                                                            ) : state.status === 'error' ? (
-                                                                <><RefreshCw className="h-3.5 w-3.5 mr-1" />Retry</>
-                                                            ) : (
-                                                                <><Sparkles className="h-3.5 w-3.5 mr-1" />Fix with AI</>
-                                                            )}
-                                                        </Button>
+                                                        {issue.kind === 'tilde_number' ? (
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleFixTildeInstant(issue, rowKey)}
+                                                                disabled={state.status === 'fixed' || bulkFixing}
+                                                                className="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                            >
+                                                                {state.status === 'fixed' ? (
+                                                                    <><CheckCircle className="h-3.5 w-3.5 mr-1" />Done</>
+                                                                ) : (
+                                                                    <><CheckCircle className="h-3.5 w-3.5 mr-1" />Fix instantly</>
+                                                                )}
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => handleFixOne(issue, rowKey)}
+                                                                disabled={state.status === 'fixing' || state.status === 'fixed' || bulkFixing}
+                                                                className="flex-shrink-0"
+                                                            >
+                                                                {state.status === 'fixing' ? (
+                                                                    <><RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />Fixing</>
+                                                                ) : state.status === 'fixed' ? (
+                                                                    <><CheckCircle className="h-3.5 w-3.5 mr-1" />Done</>
+                                                                ) : state.status === 'error' ? (
+                                                                    <><RefreshCw className="h-3.5 w-3.5 mr-1" />Retry</>
+                                                                ) : (
+                                                                    <><Sparkles className="h-3.5 w-3.5 mr-1" />Fix with AI</>
+                                                                )}
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </li>
                                             );
