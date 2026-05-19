@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import PhotoCropModal from './PhotoCropModal';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import {
   UserProfile, Reference,
@@ -186,6 +187,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
   const [quantifyingEntry, setQuantifyingEntry] = useState<number | null>(null);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -494,26 +496,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Click to upload photo</p>
             <p className="text-xs text-zinc-400">PNG, JPG, WEBP · Max 2MB</p>
             <input id="photo-upload" type="file" className="hidden" accept="image/png,image/jpeg,image/webp"
-              onChange={async (e) => {
+              onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 if (file.size > 2 * 1024 * 1024) { alert('Max 2MB'); return; }
                 const reader = new FileReader();
-                reader.onload = (ev) => {
-                  const img = new Image();
-                  img.onload = () => {
-                    const MAX = 400;
-                    let { width, height } = img;
-                    if (width > height) { if (width > MAX) { height *= MAX / width; width = MAX; } }
-                    else { if (height > MAX) { width *= MAX / height; height = MAX; } }
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width; canvas.height = height;
-                    canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
-                    setValue('personalInfo.photo', canvas.toDataURL('image/jpeg', 0.7));
-                  };
-                  img.src = ev.target?.result as string;
-                };
+                reader.onload = (ev) => { setCropSrc(ev.target?.result as string); };
                 reader.readAsDataURL(file);
+                e.target.value = '';
               }}
             />
           </label>
@@ -1183,6 +1173,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
   return (
     <>
+    {cropSrc && (
+      <PhotoCropModal
+        imageSrc={cropSrc}
+        onConfirm={(dataUrl) => { setValue('personalInfo.photo', dataUrl); setCropSrc(null); }}
+        onCancel={() => setCropSrc(null)}
+      />
+    )}
     {quantifyingEntry !== null && (
       <QuantifyPanel
         responsibilities={watch(`workExperience.${quantifyingEntry}.responsibilities`) || ''}
