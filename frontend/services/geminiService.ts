@@ -4727,6 +4727,37 @@ Return ONLY the JSON. No markdown, no prose.
 `;
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.3, json: true, maxTokens: 8192 });
-    const stripFencesEnhanced = (s: string) => s.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    return JSON.parse(stripFencesEnhanced(text)) as EnhancedJobAnalysis;
+
+    // Robust JSON extraction:
+    // 1. Strip markdown fences
+    // 2. Find the outermost { ... } block (handles models that add prose before/after)
+    // 3. Repair truncated JSON by walking backwards to the last well-formed closing brace
+    //    (the 8192-token response can be cut off mid-object when the model hits the limit)
+    const extractAndRepairJson = (raw: string): string => {
+        const stripped = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        // Find the outermost JSON object
+        const start = stripped.indexOf('{');
+        const end = stripped.lastIndexOf('}');
+        const candidate = (start !== -1 && end > start) ? stripped.slice(start, end + 1) : stripped;
+        // Try as-is first
+        try { JSON.parse(candidate); return candidate; } catch {}
+        // Walk backwards to find last well-formed close brace (handles truncation)
+        for (let i = candidate.length - 1; i >= 0; i--) {
+            if (candidate[i] === '}') {
+                const repaired = candidate.slice(0, i + 1);
+                try { JSON.parse(repaired); return repaired; } catch {}
+            }
+        }
+        return candidate;
+    };
+
+    try {
+        return JSON.parse(extractAndRepairJson(text)) as EnhancedJobAnalysis;
+    } catch (firstErr) {
+        // One automatic retry with a slightly lower temperature — intermittent
+        // failures are usually caused by the model truncating near the token limit.
+        console.warn('[Deep Job Analysis] JSON parse failed on first attempt, retrying…', firstErr);
+        const retry = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 8192 });
+        return JSON.parse(extractAndRepairJson(retry)) as EnhancedJobAnalysis;
+    }
 };

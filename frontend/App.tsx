@@ -820,17 +820,17 @@ const AppInner: React.FC = () => {
     }
   }, [activeSlot, setProfiles, setActiveProfileId, toast]);
 
-  // ── JSON profile import — saves profile, populates CV, navigates to generator
+  // ── JSON profile import — asks user whether to update or create new ──────
   const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>('');
-  const handleJsonProfileImported = useCallback((profile: UserProfile) => {
-    const cvData = profileToCV(profile);
-    if (activeSlot) {
-      // Atomically update both profile and CV in one setProfiles call so
-      // neither setter races the other with a stale activeSlot reference.
-      const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
-      setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updatedSlot : p));
+  const [pendingJsonImport, setPendingJsonImport] = useState<{ profile: UserProfile; cvData: CVData } | null>(null);
+
+  const _applyJsonImport = useCallback((profile: UserProfile, cvData: CVData, slotToUpdate: UserProfileSlot | null) => {
+    if (slotToUpdate) {
+      const updatedSlot = { ...slotToUpdate, profile, currentCV: cvData };
+      setProfiles(prev => prev.map(p => p.id === slotToUpdate.id ? updatedSlot : p));
       invalidateCVCache();
       syncProfileToCache(updatedSlot).catch(() => {});
+      toast.success('Profile Updated!', 'Your CV is ready — all templates are populated. Check your quality report below.');
     } else {
       const id = Date.now().toString();
       const slot: UserProfileSlot = {
@@ -841,16 +841,37 @@ const AppInner: React.FC = () => {
         profile,
         currentCV: cvData,
       };
-      // Append instead of replacing — never wipe existing profiles.
       setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
       setActiveProfileId(id);
       syncProfileToCache(slot).catch(() => {});
+      toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
     }
     setCurrentView('generator');
     setIsEditingProfile(false);
     setJsonImportTimestamp(new Date().toISOString());
-    toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
-  }, [activeSlot, setProfiles, setActiveProfileId, toast]);
+  }, [setProfiles, setActiveProfileId, toast]);
+
+  const handleJsonProfileImported = useCallback((profile: UserProfile) => {
+    const cvData = profileToCV(profile);
+    if (activeSlot) {
+      // Show the choice dialog — user decides to update current profile or create new.
+      setPendingJsonImport({ profile, cvData });
+    } else {
+      _applyJsonImport(profile, cvData, null);
+    }
+  }, [activeSlot, _applyJsonImport]);
+
+  const handleConfirmUpdateCurrentProfile = useCallback(() => {
+    if (!pendingJsonImport) return;
+    _applyJsonImport(pendingJsonImport.profile, pendingJsonImport.cvData, activeSlot);
+    setPendingJsonImport(null);
+  }, [pendingJsonImport, activeSlot, _applyJsonImport]);
+
+  const handleConfirmCreateNewProfile = useCallback(() => {
+    if (!pendingJsonImport) return;
+    _applyJsonImport(pendingJsonImport.profile, pendingJsonImport.cvData, null);
+    setPendingJsonImport(null);
+  }, [pendingJsonImport, _applyJsonImport]);
 
   const handleSaveMerge = useCallback((merge: SavedMerge) => {
     setSavedMerges(prev => [merge, ...prev]);
@@ -1498,6 +1519,57 @@ const AppInner: React.FC = () => {
           currentProfile={userProfile}
           onClose={() => setShowProfileManager(false)}
         />
+      )}
+
+      {/* ── JSON import choice dialog — update current profile or create new ── */}
+      {pendingJsonImport && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-zinc-100 dark:border-neutral-800">
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Import JSON Profile</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                You already have a profile called <span className="font-semibold text-zinc-700 dark:text-zinc-300">"{activeSlot?.name}"</span>. What would you like to do?
+              </p>
+            </div>
+            {/* Options */}
+            <div className="p-4 space-y-3">
+              {/* Option A — update current */}
+              <button
+                onClick={handleConfirmUpdateCurrentProfile}
+                className="w-full text-left p-4 rounded-xl border-2 border-[#1B2B4B] dark:border-[#C9A84C] bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/5 hover:bg-[#1B2B4B]/10 dark:hover:bg-[#C9A84C]/10 transition-colors group"
+              >
+                <p className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C] group-hover:underline">
+                  Replace "{activeSlot?.name}"
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Overwrites the current profile and CV data with the imported JSON. Cannot be undone.
+                </p>
+              </button>
+              {/* Option B — create new */}
+              <button
+                onClick={handleConfirmCreateNewProfile}
+                className="w-full text-left p-4 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 hover:border-violet-400 dark:hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors group"
+              >
+                <p className="font-semibold text-zinc-800 dark:text-zinc-100 group-hover:text-violet-700 dark:group-hover:text-violet-300">
+                  Create new profile — "{pendingJsonImport.profile.personalInfo.name || 'Imported Profile'}"
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Keeps your existing profile and adds this as a separate profile you can switch between.
+                </p>
+              </button>
+            </div>
+            {/* Cancel */}
+            <div className="px-4 pb-4 flex justify-end">
+              <button
+                onClick={() => setPendingJsonImport(null)}
+                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Google Drive conflict resolution modal ── */}
