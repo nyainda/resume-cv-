@@ -218,7 +218,7 @@ function parseSpec(raw: string): TemplateSpec {
     throw new Error(`Image rejected: ${reason}\n\nPlease upload a CV or resume screenshot.`);
   }
 
-  const spec = parsed as TemplateSpec;
+  const spec = parsed as unknown as TemplateSpec;
   if (!Array.isArray(spec.sectionOrder) || spec.sectionOrder.length === 0) {
     throw new Error('This image does not appear to be a CV template. Please upload a CV/resume screenshot.');
   }
@@ -319,7 +319,7 @@ export async function refineTemplateSpec(rawSpec: TemplateSpec): Promise<Templat
   if (provider === 'workers-ai') {
     if (!isCVEngineConfigured()) return rawSpec; // worker not set — skip refinement silently
     try {
-      const result = await workerTieredLLM('cvAudit', sysPrompt, prompt, { temperature: 0.1, maxTokens: 2048 });
+      const result = await workerTieredLLM('cvAudit', prompt, { temperature: 0.1, maxTokens: 2048, system: sysPrompt });
       if (result) {
         try {
           console.log('[TemplateAnalyzer] Phase 2 via Worker AI ✓');

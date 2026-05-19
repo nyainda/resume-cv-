@@ -158,6 +158,7 @@ export interface CVExperience {
   startDate: string; // For sorting
   endDate: string; // For sorting
   responsibilities: string[];
+  location?: string; // Optional office/remote location
   link?: string; // Optional GitHub/project URL for project-based roles
 }
 
@@ -171,6 +172,8 @@ export interface CVEducation {
 export interface CVProject {
   name: string;
   description: string;
+  year?: string;
+  technologies?: string[];
   link?: string;
 }
 
@@ -205,6 +208,8 @@ export interface CVData {
   languages?: CVLanguage[];
   publications?: CVPublication[];
   references?: CVReference[];
+  certifications?: Array<string | { name: string; issuer?: string; year?: string }>; // professional certs / licences
+  achievements?: string[]; // key achievements, awards, honors
   customSections?: CustomSection[]; // user-defined extra sections
   sectionOrder?: ProfileSectionKey[]; // mirrors the profile's preferred section ordering
   accentColor?: string; // custom accent color for the selected template
