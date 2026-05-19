@@ -75,8 +75,10 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
   const [step, setStep] = useState<Step>('paste');
   const [jd, setJd] = useState(initialJd);
   const [analyzing, setAnalyzing] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState<Draft>({ to: '', subject: '', body: '' });
+  const [lastAnalysis, setLastAnalysis] = useState<{ title: string; company: string; keywords: string[] } | null>(null);
 
   // Auto-compose when launched from CV Generator with a pre-filled JD
   useEffect(() => {
@@ -117,6 +119,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
         finalEmail = await generateApplicationEmail(userProfile, title, company, keywords, jdText);
       }
 
+      setLastAnalysis({ title, company, keywords });
       setDraft({
         to:      found[0] ?? '',
         subject: finalEmail.subject,
@@ -129,6 +132,27 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
       setAnalyzing(false);
     }
   }, [jd, apiKeySet, userProfile, openSettings]);
+
+  const handleRegenerate = useCallback(async () => {
+    if (!apiKeySet || !lastAnalysis) return;
+    setRegenerating(true);
+    try {
+      const fresh = await generateApplicationEmail(
+        userProfile,
+        lastAnalysis.title,
+        lastAnalysis.company,
+        lastAnalysis.keywords,
+        jd,
+      );
+      setDraft(prev => ({ ...prev, subject: fresh.subject, body: fresh.body }));
+    } catch (e) {
+      // surface error briefly without navigating away
+      setError((e as Error).message ?? 'Regeneration failed — please try again.');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setRegenerating(false);
+    }
+  }, [apiKeySet, lastAnalysis, userProfile, jd]);
 
   const mailtoHref = () => {
     const sp = new URLSearchParams({ subject: draft.subject, body: draft.body });
@@ -232,13 +256,47 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Copy each field and paste it directly into your email client.</p>
         </div>
-        <button
-          onClick={() => setStep('paste')}
-          className="flex-shrink-0 text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline underline-offset-2 transition-colors"
-        >
-          ← Start over
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Regenerate button */}
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating || !lastAnalysis}
+            title="Get a fresh AI variation of the email"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1B2B4B] dark:border-[#C9A84C] text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-[#1B2B4B]/5 dark:hover:bg-[#C9A84C]/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {regenerating ? (
+              <>
+                <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Writing…
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Regenerate
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => setStep('paste')}
+            className="text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline underline-offset-2 transition-colors"
+          >
+            ← Start over
+          </button>
+        </div>
       </div>
+
+      {/* Inline regeneration error */}
+      {error && step === 'draft' && (
+        <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {error}
+        </p>
+      )}
 
       {/* To */}
       <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
