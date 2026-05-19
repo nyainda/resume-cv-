@@ -49,6 +49,28 @@ function initials(name: string): string {
   return name.split(' ').filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase();
 }
 
+// ── Date formatter ─────────────────────────────────────────────────────────────
+// Converts ISO dates ("2024-01-15") to readable form ("Jan 2024").
+// Passes through "Present", "Current", plain years ("2024"), and already-formatted strings.
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatDate(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const s = raw.trim();
+  if (!s) return '';
+  // Already readable — "Present", "Current", "Jan 2024", "2024", etc.
+  if (/^(present|current|ongoing|now)$/i.test(s)) return s;
+  // Full ISO: 2024-01-15 or 2024-01
+  const iso = s.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (iso) {
+    const mo = parseInt(iso[2], 10) - 1;
+    return `${MONTHS[mo] ?? ''} ${iso[1]}`.trim();
+  }
+  // Already formatted or just a year — return as-is
+  return s;
+}
+
 // ── Section icons ──────────────────────────────────────────────────────────────
 // Clean stroke-based SVG icons at 12×12 viewBox
 
@@ -386,10 +408,10 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
                   <span style={{ color: hex(c.primary), fontSize: '9.5px', fontWeight: 600 }}> · {exp.company}</span>
                 </div>
                 <span style={{ color: hex(c.textSecondary), fontSize: '8.5px', whiteSpace: 'nowrap', marginLeft: '8px' }}>
-                  {exp.startDate}{exp.endDate ? ` – ${exp.endDate}` : ''}
+                  {formatDate(exp.startDate)}{exp.endDate ? ` – ${formatDate(exp.endDate)}` : ''}
                 </span>
               </div>
-              {exp.location && (
+              {exp.location && exp.location.trim().toLowerCase() !== exp.jobTitle.trim().toLowerCase() && exp.location.trim().toLowerCase() !== exp.company.trim().toLowerCase() && (
                 <div style={{ color: hex(c.textSecondary), fontSize: '8.5px', marginTop: '1px' }}>{exp.location}</div>
               )}
               <div className="mt-1 space-y-0.5">
@@ -414,7 +436,7 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
                   <span style={{ color: hex(c.textPrimary), fontSize: '10px', fontWeight: 700 }}>{edu.degree}</span>
                   <span style={{ color: hex(c.primary), fontSize: '9.5px' }}> · {edu.school}</span>
                 </div>
-                <span style={{ color: hex(c.textSecondary), fontSize: '8.5px' }}>{edu.year}</span>
+                <span style={{ color: hex(c.textSecondary), fontSize: '8.5px' }}>{formatDate(edu.year)}</span>
               </div>
               {edu.description && (
                 <p style={{ color: hex(c.textSecondary), fontSize: '9px', marginTop: '2px', lineHeight: 1.5 }}>{edu.description}</p>
@@ -679,6 +701,17 @@ function TwoColumnLayout({ cvData, personalInfo, spec, customizations }: Props) 
   const paddingMap = { tight: '12px', normal: '16px', generous: '22px' };
   const pad = paddingMap[rawSpec.layout.pageMargins] ?? '16px';
 
+  // Sidebar name: auto-scale down for long names so they don't wrap into ugly 3-line stacks.
+  // Available sidebar width ≈ sidebarPct% of 794px minus 2×pad.
+  const sidebarWidthPx = (sidebarPct / 100) * 794 - 2 * parseInt(pad, 10);
+  const nameChars = personalInfo.name.length;
+  // Estimate chars-per-line at current font size (rough: 0.62× the px value per char).
+  const basePx = parseFloat(nameSize);
+  const estimatedLineChars = sidebarWidthPx / (basePx * 0.62);
+  const sidebarNameSize = nameChars > estimatedLineChars
+    ? `${Math.max(11, Math.floor(sidebarWidthPx / (nameChars * 0.62)))}px`
+    : nameSize;
+
   // Determine sidebar sections
   const DEFAULT_SIDEBAR_KEYS = ['skills', 'languages', 'contact', 'certifications'];
   const specSidebarKeys = rawSpec.layout.sidebarSections;
@@ -717,10 +750,12 @@ function TwoColumnLayout({ cvData, personalInfo, spec, customizations }: Props) 
       {/* Name block (sidebar-left: name lives here) */}
       {isLeft && (
         <div style={{ marginBottom: '14px' }}>
-          <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: '#ffffff', lineHeight: 1.2, textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
+          <div style={{ fontSize: sidebarNameSize, fontWeight: Number(t.nameFontWeight), color: '#ffffff', lineHeight: 1.15, textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined, wordBreak: 'break-word' }}>
             {personalInfo.name}
           </div>
-          <div style={{ fontSize: '9.5px', color: 'rgba(255,255,255,0.8)', marginTop: '3px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
+          {cvData.experience?.[0]?.jobTitle && (
+            <div style={{ fontSize: '8.5px', color: 'rgba(255,255,255,0.75)', marginTop: '4px', lineHeight: 1.3 }}>{cvData.experience[0].jobTitle}</div>
+          )}
           <div className="mt-1.5 space-y-0.5">
             {[personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).map((item, i) => (
               <div key={i} style={{ color: 'rgba(255,255,255,0.7)', fontSize: '8px' }}>{item}</div>
