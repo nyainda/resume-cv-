@@ -414,6 +414,8 @@ export interface TemplateColorScheme {
   headingColor: string;
   dividerColor: string | null;
   headerBarColor: string | null;
+  /** Background colour of the shaded bar behind section headings (if decoration === 'background') */
+  sectionHeadingBgColor?: string | null;
 }
 
 export interface TemplateTypography {
@@ -422,6 +424,8 @@ export interface TemplateTypography {
   titleStyle: string;
   sectionHeadingStyle: 'uppercase' | 'capitalized' | 'normal';
   sectionHeadingDecoration: 'underline' | 'border-bottom' | 'background' | 'dot' | 'none';
+  /** Whether section heading text is rendered in italic */
+  sectionHeadingFontStyle?: 'normal' | 'italic';
   bodyTextSize: 'small' | 'normal' | 'large';
   bulletStyle: 'dot' | 'dash' | 'square' | 'none' | 'custom';
   fontFamily: string;
@@ -432,6 +436,8 @@ export interface TemplateLayout {
   sidebarWidthPercent: number | null;
   pageMargins: 'tight' | 'normal' | 'generous';
   contentDensity: 'compact' | 'balanced' | 'spacious';
+  /** Which section keys actually appear inside the sidebar column (for sidebar layouts) */
+  sidebarSections?: string[] | null;
 }
 
 export interface TemplateDecorativeElements {
@@ -440,6 +446,8 @@ export interface TemplateDecorativeElements {
   hasHeaderBar: boolean;
   hasVerticalDivider: boolean;
   hasSectionIcons: boolean;
+  /** Visual style of section icons */
+  sectionIconStyle?: 'square-filled' | 'circle-filled' | 'outline' | 'none';
   hasProgressBars: boolean;
   hasTimeline: boolean;
   otherDecorations: string;
@@ -452,7 +460,9 @@ export interface TemplateSpec {
   sectionOrder: string[];
   decorativeElements: TemplateDecorativeElements;
   contactInfoStyle: 'inline-row' | 'stacked' | 'sidebar' | 'icons-only';
-  skillsStyle: 'tags' | 'list' | 'progress-bars' | 'two-column' | 'inline';
+  skillsStyle: 'tags' | 'list' | 'progress-bars' | 'two-column' | 'three-column' | 'inline';
+  /** Per-section icon name mapping: section-key → icon type */
+  sectionIcons?: Record<string, string>;
   experienceBulletIndent: 'none' | 'small' | 'standard';
   overallStyle: string;
   reproductionNotes: string;
