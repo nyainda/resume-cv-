@@ -366,6 +366,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
                             }}
                             personalInfo={personalInfo ?? { name: 'Preview', email: '', phone: '', location: '' }}
                             spec={ct.spec}
+                            customizations={ct.customizations}
                           />
                         </div>
                       </div>

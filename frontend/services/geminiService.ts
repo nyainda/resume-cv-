@@ -1751,6 +1751,30 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
     // Preserve existing user-owned custom sections (awards/certifications if stored there).
     if (Array.isArray(profile.customSections) && profile.customSections.length > 0) {
         cvData.customSections = profile.customSections;
+
+        // Promote certifications / achievements / awards from customSections into
+        // the dedicated CVData fields so custom templates can render them properly.
+        const certSectionTypes = new Set(['certifications', 'courses', 'memberships', 'presentations', 'patents']);
+        const achieveSectionTypes = new Set(['achievements', 'awards', 'honors', 'volunteer']);
+
+        const certStrings: string[] = [];
+        const achieveStrings: string[] = [];
+
+        for (const section of profile.customSections) {
+            const t = section.type;
+            const isCert = certSectionTypes.has(t);
+            const isAchieve = achieveSectionTypes.has(t);
+            if (!isCert && !isAchieve) continue;
+            for (const item of (section.items || [])) {
+                const parts = [item.title, item.subtitle, item.year].filter(Boolean);
+                const line = parts.join(' · ');
+                if (isCert) certStrings.push(line);
+                else achieveStrings.push(line);
+            }
+        }
+
+        if (certStrings.length) cvData.certifications = certStrings;
+        if (achieveStrings.length) cvData.achievements = achieveStrings;
     }
 
     return cvData;

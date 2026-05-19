@@ -10,14 +10,32 @@
  * spec-driven sidebar section routing.
  */
 import React from 'react';
-import { CVData, PersonalInfo } from '../../types';
+import { CVData, PersonalInfo, CustomTemplateCustomizations } from '../../types';
 import { TemplateSpec, normalizeSectionKey } from '../../services/templateAnalyzerService';
 
 interface Props {
   cvData: CVData;
   personalInfo: PersonalInfo;
   spec: TemplateSpec;
+  customizations?: CustomTemplateCustomizations;
   isEditing?: boolean;
+}
+
+/** Merge live customizations into a spec so they take effect everywhere */
+function applyCustomizations(spec: TemplateSpec, c?: CustomTemplateCustomizations): TemplateSpec {
+  if (!c) return spec;
+  return {
+    ...spec,
+    colorScheme: {
+      ...spec.colorScheme,
+      ...(c.primaryColor ? { primary: c.primaryColor, headingColor: c.primaryColor, headerBarColor: spec.colorScheme.headerBarColor ? c.primaryColor : null } : {}),
+      ...(c.sidebarColor ? { sidebarBackground: c.sidebarColor } : {}),
+    },
+    typography: {
+      ...spec.typography,
+      ...(c.fontFamily ? { fontFamily: c.fontFamily } : {}),
+    },
+  };
 }
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
@@ -557,48 +575,89 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
   }
 }
 
+// ── Photo element ─────────────────────────────────────────────────────────────
+
+function PhotoEl({ src, shape, size = 70, fallback }: { src?: string | null; shape: string; size?: number; fallback: string }) {
+  const radius = shape === 'circle' ? '50%' : shape === 'rounded' ? '8px' : '0';
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt="Profile"
+        style={{ width: size, height: size, borderRadius: radius, objectFit: 'cover', display: 'block' }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: radius,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.3, fontWeight: 700, color: '#fff',
+      flexShrink: 0,
+    }}>
+      {fallback}
+    </div>
+  );
+}
+
 // ── Single-column layout ───────────────────────────────────────────────────────
 
-function SingleColumnLayout({ cvData, personalInfo, spec }: Props) {
-  const c = spec.colorScheme;
-  const t = spec.typography;
+function SingleColumnLayout({ cvData, personalInfo, spec, customizations }: Props) {
+  const rawSpec = applyCustomizations(spec, customizations);
+  const c = rawSpec.colorScheme;
+  const t = rawSpec.typography;
   const fontFamily = t.fontFamily === 'serif' ? 'Georgia, serif' : t.fontFamily === 'monospace' ? 'monospace' : 'Inter, sans-serif';
-  const paddingMap = { tight: '20px', normal: '28px', generous: '36px' };
-  const pad = paddingMap[spec.layout.pageMargins] ?? '28px';
+  // Compact by default — 'normal' maps to 22px, not 28px
+  const paddingMap = { tight: '16px', normal: '22px', generous: '30px' };
+  const pad = paddingMap[spec.layout.pageMargins] ?? '22px';
 
-  const nameSizeMap = { 'extra-large': '30px', large: '24px', bold: '22px', uppercase: '20px', normal: '20px' };
-  const nameSize = nameSizeMap[t.nameStyle] ?? '24px';
+  const nameSizeMap = { 'extra-large': '28px', large: '22px', bold: '20px', uppercase: '18px', normal: '18px' };
+  const nameSize = nameSizeMap[t.nameStyle] ?? '22px';
 
-  const hasHeader = spec.decorativeElements.hasHeaderBar;
+  const hasHeader = rawSpec.decorativeElements.hasHeaderBar;
+  const hasPhoto = rawSpec.decorativeElements.hasPhoto && !!personalInfo.photo;
+  const photoShape = rawSpec.decorativeElements.photoShape ?? 'circle';
 
   return (
     <div style={{ width: '794px', minHeight: '1123px', backgroundColor: hex(c.background), fontFamily, color: hex(c.textPrimary) }}>
       {/* Header */}
       {hasHeader ? (
-        <div style={{ backgroundColor: hex(c.headerBarColor ?? c.primary), padding: `${pad} ${pad} 16px` }}>
-          <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: '#ffffff', letterSpacing: t.nameStyle === 'uppercase' ? '0.04em' : undefined, textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
-            {personalInfo.name}
-          </div>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)', marginTop: '3px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
-          <div className="flex flex-wrap gap-x-3 mt-2">
-            {[personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).map((item, i) => (
-              <span key={i} style={{ color: 'rgba(255,255,255,0.75)', fontSize: '9px' }}>{item}</span>
-            ))}
+        <div style={{ backgroundColor: hex(c.headerBarColor ?? c.primary), padding: `${pad} ${pad} 14px`, display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {hasPhoto && (
+            <PhotoEl src={personalInfo.photo} shape={photoShape} size={56} fallback={initials(personalInfo.name)} />
+          )}
+          <div>
+            <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: '#ffffff', letterSpacing: t.nameStyle === 'uppercase' ? '0.04em' : undefined, textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
+              {personalInfo.name}
+            </div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.85)', marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
+            <div className="flex flex-wrap gap-x-3 mt-1.5">
+              {[personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).map((item, i) => (
+                <span key={i} style={{ color: 'rgba(255,255,255,0.75)', fontSize: '8.5px' }}>{item}</span>
+              ))}
+            </div>
           </div>
         </div>
       ) : (
-        <div style={{ padding: `${pad} ${pad} 12px`, borderBottom: `2px solid ${hex(c.primary)}` }}>
-          <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: hex(c.textPrimary), textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
-            {personalInfo.name}
+        <div style={{ padding: `${pad} ${pad} 10px`, borderBottom: `2px solid ${hex(c.primary)}`, display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {hasPhoto && (
+            <PhotoEl src={personalInfo.photo} shape={photoShape} size={56} fallback={initials(personalInfo.name)} />
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: hex(c.textPrimary), textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
+              {personalInfo.name}
+            </div>
+            <div style={{ fontSize: '10px', color: hex(c.primary), marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
+            <ContactRow personalInfo={personalInfo} spec={rawSpec} />
           </div>
-          <div style={{ fontSize: '11px', color: hex(c.primary), marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
-          <ContactRow personalInfo={personalInfo} spec={spec} />
         </div>
       )}
 
       {/* Body */}
-      <div style={{ padding: `16px ${pad}` }}>
-        {spec.sectionOrder.map(sec => renderSection(sec, cvData, personalInfo, spec))}
+      <div style={{ padding: `14px ${pad}` }}>
+        {rawSpec.sectionOrder.map(sec => renderSection(sec, cvData, personalInfo, rawSpec))}
       </div>
     </div>
   );
@@ -606,33 +665,32 @@ function SingleColumnLayout({ cvData, personalInfo, spec }: Props) {
 
 // ── Two-column / sidebar layout ────────────────────────────────────────────────
 
-function TwoColumnLayout({ cvData, personalInfo, spec }: Props) {
-  const c = spec.colorScheme;
-  const t = spec.typography;
+function TwoColumnLayout({ cvData, personalInfo, spec, customizations }: Props) {
+  const rawSpec = applyCustomizations(spec, customizations);
+  const c = rawSpec.colorScheme;
+  const t = rawSpec.typography;
   const fontFamily = t.fontFamily === 'serif' ? 'Georgia, serif' : t.fontFamily === 'monospace' ? 'monospace' : 'Inter, sans-serif';
-  const sidebarPct = spec.layout.sidebarWidthPercent ?? 32;
+  const sidebarPct = rawSpec.layout.sidebarWidthPercent ?? 30;
   const mainPct = 100 - sidebarPct;
-  const isLeft = spec.layout.columns === 'sidebar-left';
+  const isLeft = rawSpec.layout.columns === 'sidebar-left';
 
-  const nameSizeMap = { 'extra-large': '28px', large: '22px', bold: '20px', uppercase: '18px', normal: '18px' };
-  const nameSize = nameSizeMap[t.nameStyle] ?? '22px';
-  const paddingMap = { tight: '14px', normal: '20px', generous: '26px' };
-  const pad = paddingMap[spec.layout.pageMargins] ?? '20px';
+  const nameSizeMap = { 'extra-large': '26px', large: '20px', bold: '19px', uppercase: '17px', normal: '17px' };
+  const nameSize = nameSizeMap[t.nameStyle] ?? '20px';
+  const paddingMap = { tight: '12px', normal: '16px', generous: '22px' };
+  const pad = paddingMap[rawSpec.layout.pageMargins] ?? '16px';
 
-  // Determine which sections go in sidebar vs main:
-  // 1. Use spec.layout.sidebarSections if the AI provided it (most accurate)
-  // 2. Otherwise fall back to the common defaults
+  // Determine sidebar sections
   const DEFAULT_SIDEBAR_KEYS = ['skills', 'languages', 'contact', 'certifications'];
-  const specSidebarKeys = spec.layout.sidebarSections;
+  const specSidebarKeys = rawSpec.layout.sidebarSections;
   const sidebarSections = specSidebarKeys?.length
-    ? spec.sectionOrder.filter(s => specSidebarKeys.includes(s))
-    : spec.sectionOrder.filter(s => DEFAULT_SIDEBAR_KEYS.includes(s));
+    ? rawSpec.sectionOrder.filter(s => specSidebarKeys.includes(s))
+    : rawSpec.sectionOrder.filter(s => DEFAULT_SIDEBAR_KEYS.includes(s));
   const sidebarSet = new Set(sidebarSections);
-  const mainSections = spec.sectionOrder.filter(s => !sidebarSet.has(s));
+  const mainSections = rawSpec.sectionOrder.filter(s => !sidebarSet.has(s));
 
-  // Sidebar uses inverted colors (white text on colored background)
+  // Sidebar spec — white text on colored background
   const sidebarSpec: TemplateSpec = {
-    ...spec,
+    ...rawSpec,
     colorScheme: {
       ...c,
       headingColor: '#ffffff',
@@ -644,33 +702,28 @@ function TwoColumnLayout({ cvData, personalInfo, spec }: Props) {
     },
   };
 
+  const hasPhoto = rawSpec.decorativeElements.hasPhoto;
+  const photoShape = rawSpec.decorativeElements.photoShape ?? 'circle';
+
   const sidebar = (
-    <div style={{ width: `${sidebarPct}%`, flexShrink: 0, backgroundColor: hex(c.sidebarBackground ?? c.primary), padding: `${pad}`, color: '#fff' }}>
-      {/* Photo placeholder */}
-      {spec.decorativeElements.hasPhoto && (
-        <div className="flex justify-center mb-4">
-          <div style={{
-            width: '70px', height: '70px',
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            borderRadius: spec.decorativeElements.photoShape === 'circle' ? '50%' : spec.decorativeElements.photoShape === 'rounded' ? '8px' : '0',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '20px', fontWeight: 700, color: '#fff',
-          }}>
-            {initials(personalInfo.name)}
-          </div>
+    <div style={{ width: `${sidebarPct}%`, flexShrink: 0, backgroundColor: hex(c.sidebarBackground ?? c.primary), padding: pad, color: '#fff', display: 'flex', flexDirection: 'column' }}>
+      {/* Photo — real image if provided, initials placeholder otherwise */}
+      {hasPhoto && (
+        <div className="flex justify-center mb-3">
+          <PhotoEl src={personalInfo.photo} shape={photoShape} size={64} fallback={initials(personalInfo.name)} />
         </div>
       )}
 
-      {/* Name in sidebar (for sidebar-left layouts) */}
+      {/* Name block (sidebar-left: name lives here) */}
       {isLeft && (
-        <div style={{ marginBottom: '16px' }}>
+        <div style={{ marginBottom: '14px' }}>
           <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: '#ffffff', lineHeight: 1.2, textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
             {personalInfo.name}
           </div>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.8)', marginTop: '4px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
-          <div className="mt-2 space-y-0.5">
+          <div style={{ fontSize: '9.5px', color: 'rgba(255,255,255,0.8)', marginTop: '3px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
+          <div className="mt-1.5 space-y-0.5">
             {[personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).map((item, i) => (
-              <div key={i} style={{ color: 'rgba(255,255,255,0.75)', fontSize: '8.5px' }}>{item}</div>
+              <div key={i} style={{ color: 'rgba(255,255,255,0.7)', fontSize: '8px' }}>{item}</div>
             ))}
           </div>
         </div>
@@ -684,18 +737,18 @@ function TwoColumnLayout({ cvData, personalInfo, spec }: Props) {
   );
 
   const main = (
-    <div style={{ width: `${mainPct}%`, padding: `${pad}` }}>
-      {/* Name in main area (for sidebar-right layouts) */}
+    <div style={{ width: `${mainPct}%`, padding: pad }}>
+      {/* Name block (sidebar-right: name lives in main column) */}
       {!isLeft && (
-        <div style={{ marginBottom: '12px', paddingBottom: '10px', borderBottom: `2px solid ${hex(c.primary)}` }}>
+        <div style={{ marginBottom: '10px', paddingBottom: '8px', borderBottom: `2px solid ${hex(c.primary)}` }}>
           <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: hex(c.textPrimary), textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
             {personalInfo.name}
           </div>
-          <div style={{ fontSize: '11px', color: hex(c.primary), marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
-          <ContactRow personalInfo={personalInfo} spec={spec} />
+          <div style={{ fontSize: '10px', color: hex(c.primary), marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
+          <ContactRow personalInfo={personalInfo} spec={rawSpec} />
         </div>
       )}
-      {mainSections.map(sec => renderSection(sec, cvData, personalInfo, spec))}
+      {mainSections.map(sec => renderSection(sec, cvData, personalInfo, rawSpec))}
     </div>
   );
 

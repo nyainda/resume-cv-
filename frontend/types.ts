@@ -473,12 +473,19 @@ export interface TemplateSpec {
   reproductionNotes: string;
 }
 
+export interface CustomTemplateCustomizations {
+  primaryColor?: string;       // overrides spec.colorScheme.primary
+  sidebarColor?: string;       // overrides spec.colorScheme.sidebarBackground
+  fontFamily?: 'sans-serif' | 'serif' | 'monospace';
+}
+
 export interface CustomTemplateEntry {
   id: string;
   name: string;
   spec: TemplateSpec;
   createdAt: string;
   thumbnail?: string;
+  customizations?: CustomTemplateCustomizations;
 }
 
 // ── Sidebar section visibility (Sidebar Section Picker) ──────────────────────

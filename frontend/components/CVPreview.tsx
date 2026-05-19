@@ -110,7 +110,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       case 'compact-charcoal':   return <TemplateCompactCharcoal {...sidebarTemplateProps} />;
       case 'custom': {
         const entry = customTemplateId ? getCustomTemplate(customTemplateId) : undefined;
-        if (entry?.spec) return <TemplateCustomGenerated cvData={cvData} personalInfo={personalInfo} spec={entry.spec} isEditing={isEditing} />;
+        if (entry?.spec) return <TemplateCustomGenerated cvData={cvData} personalInfo={personalInfo} spec={entry.spec} customizations={entry.customizations} isEditing={isEditing} />;
         return <TemplateProfessional {...templateProps} />;
       }
       default:                   return <TemplateProfessional {...templateProps} />;
