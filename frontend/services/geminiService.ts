@@ -1851,39 +1851,68 @@ function buildSectionOrderInstruction(profile: UserProfile): string {
 
 // --- UserProfile JSON schema description for Groq prompts ---
 const USER_PROFILE_SCHEMA = `
-RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema:
+RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) matching this schema exactly:
 {
   "personalInfo": {
     "name": "string",
     "email": "string",
     "phone": "string",
     "location": "string",
-    "linkedin": "string",
-    "website": "string",
-    "github": "string"
+    "linkedin": "string (full URL if present)",
+    "website": "string (portfolio / personal site URL)",
+    "github": "string (GitHub URL if present)"
   },
-  "summary": "string",
+  "summary": "string (professional summary or objective — copy verbatim if present, otherwise empty string)",
   "workExperience": [
     {
-      "id": "string (unique)",
+      "id": "string (unique, e.g. 'exp1')",
       "company": "string",
       "jobTitle": "string",
       "startDate": "YYYY-MM-DD",
       "endDate": "YYYY-MM-DD or Present",
-      "responsibilities": "string (bullet points separated by \\n)"
+      "responsibilities": "string — every bullet point separated by \\n. Preserve ALL bullet points in full. Do NOT summarise or truncate."
     }
   ],
   "education": [
-    { "id": "string", "degree": "string", "school": "string", "graduationYear": "string" }
+    {
+      "id": "string",
+      "degree": "string (full degree name and field of study)",
+      "school": "string",
+      "graduationYear": "string (YYYY or expected YYYY)"
+    }
   ],
-  "skills": ["string"],
+  "skills": ["string — include every technical skill, tool, language, framework, and soft skill listed"],
   "projects": [
-    { "id": "string", "name": "string", "description": "string", "link": "string" }
+    { "id": "string", "name": "string", "description": "string (full description, do not truncate)", "link": "string" }
   ],
   "languages": [
-    { "id": "string", "name": "string", "proficiency": "string" }
+    { "id": "string", "name": "string (language name)", "proficiency": "string (e.g. Native, Fluent, Intermediate, Basic, or CEFR level)" }
+  ],
+  "customSections": [
+    {
+      "id": "string (unique, e.g. 'cs1')",
+      "type": "certifications | awards | publications | volunteer | presentations | patents | courses | memberships | achievements | custom",
+      "label": "string (exact section heading from the document, e.g. 'Certifications', 'Awards & Honours', 'Publications', 'Volunteer Experience')",
+      "items": [
+        {
+          "id": "string (unique)",
+          "title": "string (certification name / award name / publication title / role title)",
+          "subtitle": "string (issuing body / journal / organisation — optional)",
+          "year": "string (year or year range — optional)",
+          "description": "string (any additional detail — optional)"
+        }
+      ]
+    }
   ]
 }
+
+EXTRACTION RULES — follow these precisely:
+1. Extract EVERY section visible in the document, including but not limited to: certifications, licences, awards, honours, publications, patents, volunteer work, community service, professional memberships, conference presentations, courses, training programmes, hobbies, and interests.
+2. Put each extra section into the customSections array with the correct type.
+3. Preserve ALL bullet points in responsibilities — do NOT summarise or drop any bullet.
+4. Preserve ALL skills listed — do NOT drop any.
+5. Do NOT invent data — only extract what is visibly present in the document.
+6. If a section is absent, omit it from the output (do not include empty arrays or null values).
 `;
 
 // --- CVData JSON schema description for Groq prompts ---
@@ -3232,16 +3261,18 @@ export const generateProfileFromFileWithGemini = async (
     ` : '';
 
     const prompt = `
-        You are looking at a resume, CV, or professional profile document. Your job is to read it thoroughly and convert ALL information into the structured JSON schema below.
+        You are a professional CV data extractor. You are looking at a resume, CV, or professional profile document.
+        Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
 
-        ### INSTRUCTIONS
-        1. Extract every piece of information visible in the document — work experience, education, skills, projects, personal info, languages.
-        2. Standardize all dates to 'YYYY-MM-DD'. Use the first day of the month/year if only month/year is given. Current roles must have endDate = 'Present'.
-        3. Generate a unique simple string 'id' for every array item.
-        4. Keep responsibilities text as-is, using \\n for bullet separators.
-        5. Do NOT invent data — only extract what is present.
+        ### CRITICAL EXTRACTION RULES
+        1. Extract ALL sections: work experience, education, skills, projects, personal info, languages, AND any extras such as certifications, licences, awards, honours, publications, patents, volunteer work, memberships, presentations, courses, training, hobbies, interests. Map extras to customSections.
+        2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet point.
+        3. Preserve EVERY skill listed — do NOT drop any.
+        4. Standardize all dates to 'YYYY-MM-DD'. First day of month/year if only month/year given. Current roles → endDate = 'Present'.
+        5. Generate a unique simple string 'id' for every array item (e.g. 'exp1', 'edu1', 'cs1').
+        6. Do NOT invent data that is not visibly present in the document.
         ${githubInstruction}
-        6. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
 
         ${USER_PROFILE_SCHEMA}
     `;
@@ -3250,14 +3281,15 @@ export const generateProfileFromFileWithGemini = async (
     const claudeKey = getClaudeApiKey();
     if (claudeKey) {
         try {
-            const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 4096, temperature: 0.1 });
+            const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 8192, temperature: 0.1 });
             if (raw && raw.trim().length > 20) {
                 const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
                 const profileData: UserProfile = JSON.parse(cleaned);
-                profileData.projects      = profileData.projects      || [];
-                profileData.education     = profileData.education     || [];
+                profileData.projects       = profileData.projects       || [];
+                profileData.education      = profileData.education      || [];
                 profileData.workExperience = profileData.workExperience || [];
-                profileData.languages     = profileData.languages     || [];
+                profileData.languages      = profileData.languages      || [];
+                profileData.customSections = profileData.customSections || [];
                 console.log('[CV Import] Profile structured from file via Claude.');
                 return profileData;
             }
@@ -3277,10 +3309,11 @@ export const generateProfileFromFileWithGemini = async (
 
     const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
     const profileData: UserProfile = JSON.parse(raw);
-    profileData.projects      = profileData.projects      || [];
-    profileData.education     = profileData.education     || [];
+    profileData.projects       = profileData.projects       || [];
+    profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
-    profileData.languages     = profileData.languages     || [];
+    profileData.languages      = profileData.languages      || [];
+    profileData.customSections = profileData.customSections || [];
     return profileData;
 };
 
@@ -3301,31 +3334,34 @@ export const generateProfileFromTextWithGemini = async (
     ` : '';
 
     const prompt = `
-        Your goal is to convert the following resume/career text into a structured JSON profile.
+        You are a professional CV data extractor. Your goal is to convert the following resume/career text into a complete structured JSON profile — extracting EVERY piece of information present.
 
-        ### SOURCE DATA
-        RAW TEXT:
+        ### SOURCE TEXT
         ${rawText || 'No raw text provided. Rely entirely on GitHub analysis.'}
 
         ${githubInstruction}
 
-        ### INSTRUCTIONS
-        1. Standardize all dates to 'YYYY-MM-DD'. Current roles: endDate = 'Present'.
-        2. Generate a unique simple string 'id' for every array item.
-        3. Keep responsibilities text as-is, using \\n for bullet separators.
-        4. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+        ### CRITICAL EXTRACTION RULES
+        1. Extract ALL sections: work experience, education, skills, projects, personal info, languages, AND any extras (certifications, licences, awards, honours, publications, patents, volunteer work, memberships, presentations, courses, training, hobbies, interests). Map extras to customSections.
+        2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet.
+        3. Preserve EVERY skill listed — do NOT drop any.
+        4. Standardize all dates to 'YYYY-MM-DD'. Current roles: endDate = 'Present'.
+        5. Generate a unique simple string 'id' for every array item.
+        6. Do NOT invent data not present in the text.
+        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
 
         ${USER_PROFILE_SCHEMA}
     `;
 
-    // ── Route through the selected provider only (no fallback) ───────────────
-    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 4096, temperature: 0.1 });
+    // ── Route through the selected provider (Groq large model for completeness) ─
+    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 8192, temperature: 0.1 });
     const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
     const profileData: UserProfile = JSON.parse(cleaned);
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
     profileData.languages      = profileData.languages      || [];
+    profileData.customSections = profileData.customSections || [];
     return profileData;
 };
 
