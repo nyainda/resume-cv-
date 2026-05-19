@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { analyzeJobDescriptionForKeywords } from '../services/geminiService';
+import { analyzeJobDescriptionForKeywords, generateApplicationEmail } from '../services/geminiService';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
@@ -94,37 +94,33 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
     setError('');
     setAnalyzing(true);
     try {
-      const found   = extractEmails(jdText);
-      const analysis = await analyzeJobDescriptionForKeywords(jdText);
-      const title   = analysis.jobTitle   ?? '';
+      const found    = extractEmails(jdText);
+      // Run JD keyword analysis and AI email composition in parallel
+      const [analysis, emailDraft] = await Promise.all([
+        analyzeJobDescriptionForKeywords(jdText),
+        generateApplicationEmail(
+          userProfile,
+          '',        // jobTitle filled in below after analysis
+          '',        // companyName filled in below
+          [],        // keywords filled in below
+          jdText,
+        ).catch(() => null), // non-fatal if email AI fails
+      ]);
+      const title   = analysis.jobTitle    ?? '';
       const company = analysis.companyName ?? '';
+      const keywords = [...(analysis.keywords ?? []), ...(analysis.skills ?? [])];
 
-      const name      = userProfile.personalInfo.name  || 'Applicant';
-      const emailAddr = userProfile.personalInfo.email || '';
-      const phone     = userProfile.personalInfo.phone || '';
-      const skills3   = userProfile.skills.slice(0, 3).join(', ');
-
-      const body = [
-        'Dear Hiring Manager,',
-        '',
-        `I am writing to express my strong interest in the ${title || 'open position'}${company ? ` at ${company}` : ''}. With my background in ${skills3 || 'relevant fields'}, I am confident I would bring immediate value to your team.`,
-        '',
-        userProfile.summary || 'I have a proven track record of delivering results in fast-paced environments.',
-        '',
-        'Please find my CV attached for your consideration. I would welcome the opportunity to discuss how my experience aligns with your requirements.',
-        '',
-        'Thank you for your time and consideration. I look forward to hearing from you.',
-        '',
-        'Best regards,',
-        name,
-        ...(emailAddr ? [emailAddr] : []),
-        ...(phone     ? [phone]     : []),
-      ].join('\n');
+      // If the parallel email call had empty title/company, re-run with real values
+      // (only if the first call failed or returned a generic placeholder)
+      let finalEmail = emailDraft;
+      if (!finalEmail) {
+        finalEmail = await generateApplicationEmail(userProfile, title, company, keywords, jdText);
+      }
 
       setDraft({
         to:      found[0] ?? '',
-        subject: `Application for ${title || 'the position'}${company ? ` at ${company}` : ''}`,
-        body,
+        subject: finalEmail.subject,
+        body:    finalEmail.body,
       });
       setStep('draft');
     } catch (e) {
