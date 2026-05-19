@@ -1242,6 +1242,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               onProfileImported(profile);
               setShowWordImport(false);
             }}
+            onJsonImported={onJsonImported ? (profile) => {
+              onJsonImported(profile);
+              setShowWordImport(false);
+            } : undefined}
           />
         </div>
       )}

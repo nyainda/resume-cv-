@@ -794,10 +794,14 @@ const AppInner: React.FC = () => {
 
   // Wire Word Import → Profile update
   const handleWordProfileImported = useCallback((profile: UserProfile) => {
+    const cvData = profileToCV(profile);
     if (activeSlot) {
-      setUserProfile(profile);
-      toast.success('Profile Imported from Word!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
-      syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
+      // Atomically update profile + CV in a single setProfiles call.
+      const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
+      setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updatedSlot : p));
+      invalidateCVCache();
+      syncProfileToCache(updatedSlot).catch(() => {});
+      toast.success('Profile Imported!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
     } else {
       const id = Date.now().toString();
       const slot: UserProfileSlot = {
@@ -806,22 +810,27 @@ const AppInner: React.FC = () => {
         color: 'violet',
         createdAt: new Date().toISOString(),
         profile,
+        currentCV: cvData,
       };
-      setProfiles([slot]);
+      // Append instead of replacing — never wipe existing profiles.
+      setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
       setActiveProfileId(id);
       toast.success('Profile Imported!', 'Your Word CV has been imported. Edit your profile or go to the Generator.');
       syncProfileToCache(slot).catch(() => {});
     }
-  }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId, toast]);
+  }, [activeSlot, setProfiles, setActiveProfileId, toast]);
 
   // ── JSON profile import — saves profile, populates CV, navigates to generator
   const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>('');
   const handleJsonProfileImported = useCallback((profile: UserProfile) => {
     const cvData = profileToCV(profile);
     if (activeSlot) {
-      setUserProfile(profile);
-      setCurrentCV(cvData);
-      syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
+      // Atomically update both profile and CV in one setProfiles call so
+      // neither setter races the other with a stale activeSlot reference.
+      const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
+      setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updatedSlot : p));
+      invalidateCVCache();
+      syncProfileToCache(updatedSlot).catch(() => {});
     } else {
       const id = Date.now().toString();
       const slot: UserProfileSlot = {
@@ -832,7 +841,8 @@ const AppInner: React.FC = () => {
         profile,
         currentCV: cvData,
       };
-      setProfiles([slot]);
+      // Append instead of replacing — never wipe existing profiles.
+      setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
       setActiveProfileId(id);
       syncProfileToCache(slot).catch(() => {});
     }
@@ -840,7 +850,7 @@ const AppInner: React.FC = () => {
     setIsEditingProfile(false);
     setJsonImportTimestamp(new Date().toISOString());
     toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
-  }, [activeSlot, setUserProfile, setCurrentCV, setProfiles, setActiveProfileId, toast]);
+  }, [activeSlot, setProfiles, setActiveProfileId, toast]);
 
   const handleSaveMerge = useCallback((merge: SavedMerge) => {
     setSavedMerges(prev => [merge, ...prev]);

@@ -42,6 +42,7 @@ interface WordImportPanelProps {
     apiKeySet: boolean;
     openSettings: () => void;
     onProfileImported: (profile: UserProfile) => void;
+    onJsonImported?: (profile: UserProfile) => void;
 }
 
 type ImportStep = 'idle' | 'extracting' | 'parsing' | 'preview' | 'done' | 'error';
@@ -66,7 +67,7 @@ const JsonIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
-const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, onProfileImported }) => {
+const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, onProfileImported, onJsonImported }) => {
     const [mode, setMode] = useState<PanelMode>('upload');
 
     return (
@@ -111,7 +112,7 @@ const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettin
                 <OneDriveMode apiKeySet={apiKeySet} openSettings={openSettings} onProfileImported={onProfileImported} />
             )}
             {mode === 'json' && (
-                <JsonImportMode onProfileImported={onProfileImported} />
+                <JsonImportMode onProfileImported={onProfileImported} onJsonImported={onJsonImported} />
             )}
         </div>
     );
@@ -121,6 +122,7 @@ const WordImportPanel: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettin
 
 interface JsonImportModeProps {
     onProfileImported: (profile: UserProfile) => void;
+    onJsonImported?: (profile: UserProfile) => void;
 }
 
 function validateAndNormaliseProfile(raw: unknown): UserProfile {
@@ -323,7 +325,7 @@ function validateAndNormaliseProfile(raw: unknown): UserProfile {
     return profile;
 }
 
-const JsonImportMode: React.FC<JsonImportModeProps> = ({ onProfileImported }) => {
+const JsonImportMode: React.FC<JsonImportModeProps> = ({ onProfileImported, onJsonImported }) => {
     const [text, setText] = useState('');
     const [step, setStep] = useState<'idle' | 'preview' | 'done' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -373,9 +375,13 @@ const JsonImportMode: React.FC<JsonImportModeProps> = ({ onProfileImported }) =>
 
     const handleApply = useCallback(() => {
         if (!parsedProfile) return;
-        onProfileImported(parsedProfile);
+        if (onJsonImported) {
+            onJsonImported(parsedProfile);
+        } else {
+            onProfileImported(parsedProfile);
+        }
         setStep('done');
-    }, [parsedProfile, onProfileImported]);
+    }, [parsedProfile, onProfileImported, onJsonImported]);
 
     const reset = () => {
         setText(''); setStep('idle'); setError(null); setParsedProfile(null);
