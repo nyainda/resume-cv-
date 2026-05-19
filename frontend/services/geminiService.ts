@@ -3360,41 +3360,52 @@ export const generateCoverLetter = async (profileInput: UserProfile, jobDescript
     const profile = purifyProfile(profileInput);
     const name = profile.personalInfo?.name || 'Applicant';
     const prompt = `
-        You are a top-tier professional career coach and ghostwriter. Write a compelling, human-sounding cover letter.
+You are a professional ghostwriter who writes winning cover letters for competitive roles. Your output is always polished, specific, and human — never generic or AI-sounding.
 
-        ### CONTEXT
-        Applicant Name: ${name}
-        Applicant Email: ${profile.personalInfo?.email || ''}
-        Applicant Location: ${profile.personalInfo?.location || ''}
+### APPLICANT
+Name: ${name}
 
-        USER PROFILE (for background and content):
-        ${compactProfile(profile)}
+### PROFILE (for content and achievements only)
+${compactProfile(profile)}
 
-        JOB DESCRIPTION:
-        ${jobDescription || 'General application — highlight the strongest transferable skills.'}
+### JOB DESCRIPTION
+${jobDescription || 'General application — highlight the strongest transferable skills and most recent impactful achievement.'}
 
-        ### STRICT INSTRUCTIONS
-        1. **DO NOT include any header block** (no name, address, date, or contact information at the top). The header is already shown separately by the template — start the letter DIRECTLY with the salutation.
-        2. **Salutation**: Use "Dear Hiring Manager," (unless a recruiter name is visible in the JD).
-        3. **Structure**:
-           - **Opening paragraph**: State the specific position and express genuine, specific enthusiasm (not generic).
-           - **Body (2 paragraphs)**: Each paragraph focuses on one specific relevant experience or achievement that directly addresses a core requirement from the JD. Use strong action verbs and include at least one concrete result (number, scope, or outcome).
-           - **Closing paragraph**: Reiterate interest, express readiness to contribute, and include a clear call to action.
-           - **Sign-off**: End with "Sincerely," followed by the applicant's name on the next line: ${name}
-        4. **Tone**: Confident, professional, and specific — never generic or sycophantic.
-        5. **Keywords**: Naturally weave in the most important keywords from the job description.
-        6. **Human writing**: Vary sentence length. Avoid AI clichés (no "delve", "passionate about", "excited to leverage", "in today's world").
-        7. **Output**: Return ONLY the plain text of the letter body (starting with "Dear Hiring Manager,"). NO markdown, NO headers, NO meta-commentary.
+### MANDATORY OUTPUT RULES — EVERY RULE IS NON-NEGOTIABLE
+
+1. **WORD COUNT**: Write EXACTLY 200–240 words for the ENTIRE letter body (from salutation to the applicant's name on the last line). Count every word carefully. This must fit on one A4 page — precision matters.
+
+2. **NO LETTERHEAD OR HEADERS**: Do NOT include name, address, date, or contact info. The template handles this. Start DIRECTLY with the salutation.
+
+3. **SALUTATION**: "Dear Hiring Manager," — use a specific name only if clearly stated in the JD.
+
+4. **FOUR TIGHT PARAGRAPHS**:
+   - **Opening** (~45 words): Lead with a bold hook — a specific result, a scoped claim, or a compelling value statement. Name the role and company. DO NOT open with "I", "I am writing", or any cliché.
+   - **Body 1** (~55 words): One specific achievement with a concrete metric (number, %, $ amount, team size, or measurable outcome) that directly addresses a top JD requirement.
+   - **Body 2** (~55 words): A second accomplishment or skill that demonstrates cultural or technical fit. Weave in JD keywords naturally — no forced stuffing.
+   - **Closing** (~45 words): One sentence restating fit, then a clear CTA: "I would welcome the opportunity to discuss how I can contribute to [Company/Team]." Never use "I look forward to hearing from you" as a standalone closer.
+
+5. **SIGN-OFF**: End with exactly:
+   Sincerely,
+   ${name}
+
+6. **BANNED — NEVER USE ANY OF THESE**:
+   "I am writing to apply", "I am passionate about", "excited to leverage", "team player", "self-starter", "results-driven", "detail-oriented", "dynamic professional", "proven track record", "fast learner", "go-getter", "synergize", "utilize", "delve", "please find attached", "to whom it may concern", "I look forward to hearing from you" (as a standalone sentence)
+
+7. **TONE**: Confident, direct, human. Vary sentence length. Maximum one "I" per sentence. No filler words. No sycophancy.
+
+8. **METRIC REQUIREMENT**: The letter MUST contain at least one specific number, percentage, dollar figure, or concrete measurable outcome in the body paragraphs.
+
+9. **RETURN FORMAT**: Plain text ONLY. No markdown, no bold, no bullet points, no headers, no commentary. Start with "Dear Hiring Manager," and end with the applicant's name.
     `;
 
-    // Use Cloudflare Workers AI only when it is the selected provider.
     let letter: string | null = null;
     if (getSelectedProvider() === 'workers-ai') {
         try {
             const cf = await workerTieredLLM('coverLetter', prompt, {
                 system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-                temperature: 0.7,
-                maxTokens: 2000,
+                temperature: 0.65,
+                maxTokens: 1200,
             });
             if (cf && cf.trim()) letter = cf;
         } catch (cfErr) {
@@ -3402,7 +3413,7 @@ export const generateCoverLetter = async (profileInput: UserProfile, jobDescript
         }
     }
     if (!letter) {
-        letter = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 2000 });
+        letter = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.65, maxTokens: 1200 });
     }
     return purifyText(letter);
 };

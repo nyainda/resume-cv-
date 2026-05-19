@@ -268,8 +268,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
-  const [showDoctorPanel, setShowDoctorPanel] = useState(false);
-  const [optimizeDiff, setOptimizeDiff] = useState<CVDiff | null>(null);
+  const [showDoctorPanel, setShowDoctorPanel] = useLocalStorage<boolean>('cv:doctorPanelOpen', false);
+  const [optimizeDiff, setOptimizeDiff] = useLocalStorage<CVDiff | null>('cv:doctorDiff', null);
 
   // Leaks produced by the purification pipeline during the most recent generation.
   // Accumulates synonym_sub fixes so the quality panel can display them.

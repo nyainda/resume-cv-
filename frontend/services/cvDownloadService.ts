@@ -253,7 +253,7 @@ export async function downloadCoverLetterViaWorker(
   try {
     const playwrightUp = await probePlaywright();
     if (playwrightUp) {
-      onStatus?.('Rendering cover letter…');
+      onStatus?.('Generating your PDF…');
       const r = await renderHtmlToPdfBytes(html, fileName);
       if (r.ok && r.bytes) {
         triggerPdfDownload(r.bytes, fileName);
@@ -269,7 +269,7 @@ export async function downloadCoverLetterViaWorker(
   try {
     const cfUp = await probeCloudflare();
     if (cfUp) {
-      onStatus?.('Sending to cloud renderer…');
+      onStatus?.('Rendering your PDF…');
       const r = await generateAndDownloadViaCF({ html, filename: fileName, format: 'A4', onStatus });
       if (r.ok) return { ok: true, via: 'cloudflare' };
       cfHealthCache = null;
