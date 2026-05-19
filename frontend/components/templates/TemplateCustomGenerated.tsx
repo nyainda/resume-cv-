@@ -71,6 +71,80 @@ function formatDate(raw: string | null | undefined): string {
   return s;
 }
 
+// ── Contrast helpers ───────────────────────────────────────────────────────────
+// Ensure text is readable against its background before rendering.
+
+function lum(h: string): number {
+  const n = parseInt(h.replace('#', '').padEnd(6, '0'), 16);
+  const toL = (c: number) => { const s = c / 255; return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  return 0.2126 * toL((n >> 16) & 255) + 0.7152 * toL((n >> 8) & 255) + 0.0722 * toL(n & 255);
+}
+function contrastRatio(a: string, b: string): number {
+  const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+/** Return fg if its contrast vs bg meets minRatio, otherwise return fallback */
+function contrastSafe(fg: string, bg: string, minRatio = 3.5, fallback = '#1B2B4B'): string {
+  try {
+    if (!fg?.startsWith('#') || fg.length < 7) return fallback;
+    return contrastRatio(fg, bg.startsWith('#') ? bg : '#ffffff') >= minRatio ? fg : fallback;
+  } catch { return fallback; }
+}
+
+/**
+ * Enforce readable colors in the main column (light background).
+ * Leaves the sidebar spec untouched (sidebar already uses white-on-dark overrides).
+ */
+function enforceMainContrast(spec: TemplateSpec): TemplateSpec {
+  const bg = hex(spec.colorScheme.background, '#ffffff');
+  const safeHeading = contrastSafe(hex(spec.colorScheme.headingColor), bg, 3.5,
+    contrastSafe(hex(spec.colorScheme.primary), bg, 3.5, '#1B2B4B'));
+  const safeText    = contrastSafe(hex(spec.colorScheme.textPrimary), bg, 5.0, '#1a1a1a');
+  const safeSecond  = contrastSafe(hex(spec.colorScheme.textSecondary), bg, 2.5, '#666666');
+  const safeAccent  = contrastSafe(hex(spec.colorScheme.primary), bg, 3.0,
+    contrastSafe(safeHeading, bg, 3.0, '#1B2B4B'));
+  return {
+    ...spec,
+    colorScheme: {
+      ...spec.colorScheme,
+      headingColor: safeHeading,
+      textPrimary:  safeText,
+      textSecondary: safeSecond,
+      primary: safeAccent,
+    },
+  };
+}
+
+// ── Smart sidebar section routing ──────────────────────────────────────────────
+/**
+ * Intelligently assign sections to the sidebar vs main column so the CV fits
+ * on one page. Short/list-style sections go sidebar; long/narrative sections stay main.
+ */
+function computeSmartSidebarSections(cvData: CVData, sectionOrder: string[]): string[] {
+  const sidebar = new Set<string>();
+
+  // These are always sidebar-bound when data exists
+  const ALWAYS_SIDEBAR = ['skills', 'languages', 'certifications', 'achievements', 'awards', 'contact'];
+  for (const s of ALWAYS_SIDEBAR) { if (sectionOrder.includes(s)) sidebar.add(s); }
+
+  // Education goes to sidebar when it's brief (≤2 entries, no long descriptions)
+  if (sectionOrder.includes('education')) {
+    const eduBrief = !cvData.education?.length ||
+      (cvData.education.length <= 2 &&
+       !cvData.education.some(e => (e.description?.length ?? 0) > 80));
+    if (eduBrief) sidebar.add('education');
+  }
+
+  // If sidebar is still sparse and projects are few + short, move them there too
+  if (sidebar.size <= 2 && sectionOrder.includes('projects')) {
+    const projBrief = (cvData.projects?.length ?? 0) <= 2 &&
+      !cvData.projects?.some(p => (p.description?.length ?? 0) > 100);
+    if (projBrief) sidebar.add('projects');
+  }
+
+  return sectionOrder.filter(s => sidebar.has(s));
+}
+
 // ── Section icons ──────────────────────────────────────────────────────────────
 // Clean stroke-based SVG icons at 12×12 viewBox
 
@@ -395,27 +469,32 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
         </div>
       );
 
-    case 'experience':
+    case 'experience': {
       if (!cvData.experience?.length) return null;
+      const expCount = cvData.experience.length;
+      // Smart bullet cap: more roles → fewer bullets each to stay on one page
+      const maxBullets = expCount >= 5 ? 3 : expCount >= 4 ? 3 : expCount >= 3 ? 4 : 5;
+      // Show at most 5 roles — trim oldest if there are more
+      const roles = cvData.experience.slice(0, 5);
       return (
-        <div key="experience" className="mb-3">
+        <div key="experience" className="mb-2">
           <SectionHeading label={label} sectionKey={canonical} spec={spec} />
-          {cvData.experience.map((exp, i) => (
-            <div key={i} className="mb-2.5">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span style={{ color: hex(c.textPrimary), fontSize: '10px', fontWeight: 700 }}>{exp.jobTitle}</span>
-                  <span style={{ color: hex(c.primary), fontSize: '9.5px', fontWeight: 600 }}> · {exp.company}</span>
+          {roles.map((exp, i) => (
+            <div key={i} className="mb-1.5">
+              <div className="flex justify-between items-start gap-1">
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ color: hex(c.textPrimary), fontSize: '9.5px', fontWeight: 700 }}>{exp.jobTitle}</span>
+                  <span style={{ color: hex(c.primary), fontSize: '9px', fontWeight: 600 }}> · {exp.company}</span>
                 </div>
-                <span style={{ color: hex(c.textSecondary), fontSize: '8.5px', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                <span style={{ color: hex(c.textSecondary), fontSize: '8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {formatDate(exp.startDate)}{exp.endDate ? ` – ${formatDate(exp.endDate)}` : ''}
                 </span>
               </div>
               {exp.location && exp.location.trim().toLowerCase() !== exp.jobTitle.trim().toLowerCase() && exp.location.trim().toLowerCase() !== exp.company.trim().toLowerCase() && (
-                <div style={{ color: hex(c.textSecondary), fontSize: '8.5px', marginTop: '1px' }}>{exp.location}</div>
+                <div style={{ color: hex(c.textSecondary), fontSize: '8px', marginTop: '1px' }}>{exp.location}</div>
               )}
-              <div className="mt-1 space-y-0.5">
-                {exp.responsibilities.map((r, j) => (
+              <div className="mt-0.5">
+                {exp.responsibilities.slice(0, maxBullets).map((r, j) => (
                   <BulletItem key={j} text={r.replace(/^[-•·▪]\s*/, '').trim()} spec={spec} />
                 ))}
               </div>
@@ -423,23 +502,24 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
           ))}
         </div>
       );
+    }
 
     case 'education':
       if (!cvData.education?.length) return null;
       return (
-        <div key="education" className="mb-3">
+        <div key="education" className="mb-2">
           <SectionHeading label={label} sectionKey={canonical} spec={spec} />
-          {cvData.education.map((edu, i) => (
-            <div key={i} className="mb-1.5">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span style={{ color: hex(c.textPrimary), fontSize: '10px', fontWeight: 700 }}>{edu.degree}</span>
-                  <span style={{ color: hex(c.primary), fontSize: '9.5px' }}> · {edu.school}</span>
+          {cvData.education.slice(0, 3).map((edu, i) => (
+            <div key={i} className="mb-1">
+              <div className="flex justify-between items-start gap-1">
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ color: hex(c.textPrimary), fontSize: '9.5px', fontWeight: 700 }}>{edu.degree}</span>
+                  <span style={{ color: hex(c.primary), fontSize: '9px' }}> · {edu.school}</span>
                 </div>
-                <span style={{ color: hex(c.textSecondary), fontSize: '8.5px' }}>{formatDate(edu.year)}</span>
+                <span style={{ color: hex(c.textSecondary), fontSize: '8px', whiteSpace: 'nowrap', flexShrink: 0 }}>{formatDate(edu.year)}</span>
               </div>
               {edu.description && (
-                <p style={{ color: hex(c.textSecondary), fontSize: '9px', marginTop: '2px', lineHeight: 1.5 }}>{edu.description}</p>
+                <p style={{ color: hex(c.textSecondary), fontSize: '8.5px', marginTop: '1px', lineHeight: 1.4 }}>{edu.description}</p>
               )}
             </div>
           ))}
@@ -449,7 +529,7 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
     case 'skills':
       if (!cvData.skills?.length) return null;
       return (
-        <div key="skills" className="mb-3">
+        <div key="skills" className="mb-2">
           <SectionHeading label={label} sectionKey={canonical} spec={spec} />
           <SkillsSection cvData={cvData} spec={spec} />
         </div>
@@ -458,21 +538,21 @@ function renderSection(sectionKey: string, cvData: CVData, personalInfo: Persona
     case 'projects':
       if (!cvData.projects?.length) return null;
       return (
-        <div key="projects" className="mb-3">
+        <div key="projects" className="mb-2">
           <SectionHeading label={label} sectionKey={canonical} spec={spec} />
-          {cvData.projects.map((proj, i) => (
-            <div key={i} className="mb-1.5">
-              <div className="flex justify-between items-start">
-                <span style={{ color: hex(c.textPrimary), fontSize: '10px', fontWeight: 700 }}>{proj.name}</span>
-                {proj.year && <span style={{ color: hex(c.textSecondary), fontSize: '8.5px' }}>{proj.year}</span>}
+          {cvData.projects.slice(0, 4).map((proj, i) => (
+            <div key={i} className="mb-1">
+              <div className="flex justify-between items-start gap-1">
+                <span style={{ color: hex(c.textPrimary), fontSize: '9.5px', fontWeight: 700 }}>{proj.name}</span>
+                {proj.year && <span style={{ color: hex(c.textSecondary), fontSize: '8px', flexShrink: 0 }}>{proj.year}</span>}
               </div>
               {proj.description && (
-                <p style={{ color: hex(c.textPrimary), fontSize: bodySize, lineHeight: 1.5, marginTop: '2px' }}>
+                <p style={{ color: hex(c.textPrimary), fontSize: '9px', lineHeight: 1.4, marginTop: '1px' }}>
                   {proj.description}
                 </p>
               )}
               {proj.technologies?.length ? (
-                <p style={{ color: hex(c.textSecondary), fontSize: '8.5px', marginTop: '1px' }}>
+                <p style={{ color: hex(c.textSecondary), fontSize: '8px', marginTop: '1px' }}>
                   {proj.technologies.join(', ')}
                 </p>
               ) : null}
@@ -627,23 +707,23 @@ function PhotoEl({ src, shape, size = 70, fallback }: { src?: string | null; sha
 // ── Single-column layout ───────────────────────────────────────────────────────
 
 function SingleColumnLayout({ cvData, personalInfo, spec, customizations }: Props) {
-  const rawSpec = applyCustomizations(spec, customizations);
-  const c = rawSpec.colorScheme;
-  const t = rawSpec.typography;
+  const rawSpec  = applyCustomizations(spec, customizations);
+  const safeSpec = enforceMainContrast(rawSpec);
+  const c = safeSpec.colorScheme;
+  const t = safeSpec.typography;
   const fontFamily = t.fontFamily === 'serif' ? 'Georgia, serif' : t.fontFamily === 'monospace' ? 'monospace' : 'Inter, sans-serif';
-  // Compact by default — 'normal' maps to 22px, not 28px
-  const paddingMap = { tight: '16px', normal: '22px', generous: '30px' };
-  const pad = paddingMap[spec.layout.pageMargins] ?? '22px';
+  const paddingMap = { tight: '16px', normal: '20px', generous: '26px' };
+  const pad = paddingMap[spec.layout.pageMargins] ?? '20px';
 
-  const nameSizeMap = { 'extra-large': '28px', large: '22px', bold: '20px', uppercase: '18px', normal: '18px' };
-  const nameSize = nameSizeMap[t.nameStyle] ?? '22px';
+  const nameSizeMap = { 'extra-large': '26px', large: '22px', bold: '20px', uppercase: '17px', normal: '17px' };
+  const nameSize = nameSizeMap[t.nameStyle] ?? '20px';
 
   const hasHeader = rawSpec.decorativeElements.hasHeaderBar;
-  const hasPhoto = rawSpec.decorativeElements.hasPhoto && !!personalInfo.photo;
+  const hasPhoto  = rawSpec.decorativeElements.hasPhoto && !!personalInfo.photo;
   const photoShape = rawSpec.decorativeElements.photoShape ?? 'circle';
 
   return (
-    <div style={{ width: '794px', minHeight: '1123px', backgroundColor: hex(c.background), fontFamily, color: hex(c.textPrimary) }}>
+    <div style={{ width: '794px', maxHeight: '1123px', overflow: 'hidden', backgroundColor: hex(c.background), fontFamily, color: hex(c.textPrimary) }}>
       {/* Header */}
       {hasHeader ? (
         <div style={{ backgroundColor: hex(c.headerBarColor ?? c.primary), padding: `${pad} ${pad} 14px`, display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -672,14 +752,14 @@ function SingleColumnLayout({ cvData, personalInfo, spec, customizations }: Prop
               {personalInfo.name}
             </div>
             <div style={{ fontSize: '10px', color: hex(c.primary), marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
-            <ContactRow personalInfo={personalInfo} spec={rawSpec} />
+            <ContactRow personalInfo={personalInfo} spec={safeSpec} />
           </div>
         </div>
       )}
 
       {/* Body */}
-      <div style={{ padding: `14px ${pad}` }}>
-        {rawSpec.sectionOrder.map(sec => renderSection(sec, cvData, personalInfo, rawSpec))}
+      <div style={{ padding: `10px ${pad}` }}>
+        {safeSpec.sectionOrder.map(sec => renderSection(sec, cvData, personalInfo, safeSpec))}
       </div>
     </div>
   );
@@ -712,14 +792,16 @@ function TwoColumnLayout({ cvData, personalInfo, spec, customizations }: Props) 
     ? `${Math.max(11, Math.floor(sidebarWidthPx / (nameChars * 0.62)))}px`
     : nameSize;
 
-  // Determine sidebar sections
-  const DEFAULT_SIDEBAR_KEYS = ['skills', 'languages', 'contact', 'certifications'];
+  // Smart sidebar routing: use spec's explicit list when provided, else auto-detect
   const specSidebarKeys = rawSpec.layout.sidebarSections;
   const sidebarSections = specSidebarKeys?.length
     ? rawSpec.sectionOrder.filter(s => specSidebarKeys.includes(s))
-    : rawSpec.sectionOrder.filter(s => DEFAULT_SIDEBAR_KEYS.includes(s));
+    : computeSmartSidebarSections(cvData, rawSpec.sectionOrder);
   const sidebarSet = new Set(sidebarSections);
   const mainSections = rawSpec.sectionOrder.filter(s => !sidebarSet.has(s));
+
+  // Enforce readable colors in main column (doesn't touch sidebar white-on-dark)
+  const mainSpec = enforceMainContrast(rawSpec);
 
   // Sidebar spec — white text on colored background
   const sidebarSpec: TemplateSpec = {
@@ -771,24 +853,28 @@ function TwoColumnLayout({ cvData, personalInfo, spec, customizations }: Props) 
     </div>
   );
 
+  const mc = mainSpec.colorScheme;
+
   const main = (
-    <div style={{ width: `${mainPct}%`, padding: pad }}>
+    <div style={{ width: `${mainPct}%`, padding: pad, minWidth: 0 }}>
       {/* Name block (sidebar-right: name lives in main column) */}
       {!isLeft && (
-        <div style={{ marginBottom: '10px', paddingBottom: '8px', borderBottom: `2px solid ${hex(c.primary)}` }}>
-          <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: hex(c.textPrimary), textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
+        <div style={{ marginBottom: '8px', paddingBottom: '6px', borderBottom: `2px solid ${hex(mc.primary)}` }}>
+          <div style={{ fontSize: nameSize, fontWeight: Number(t.nameFontWeight), color: hex(mc.textPrimary), textTransform: t.nameStyle === 'uppercase' ? 'uppercase' : undefined }}>
             {personalInfo.name}
           </div>
-          <div style={{ fontSize: '10px', color: hex(c.primary), marginTop: '2px' }}>{cvData.experience?.[0]?.jobTitle || ''}</div>
-          <ContactRow personalInfo={personalInfo} spec={rawSpec} />
+          {cvData.experience?.[0]?.jobTitle && (
+            <div style={{ fontSize: '9.5px', color: hex(mc.primary), marginTop: '2px' }}>{cvData.experience[0].jobTitle}</div>
+          )}
+          <ContactRow personalInfo={personalInfo} spec={mainSpec} />
         </div>
       )}
-      {mainSections.map(sec => renderSection(sec, cvData, personalInfo, rawSpec))}
+      {mainSections.map(sec => renderSection(sec, cvData, personalInfo, mainSpec))}
     </div>
   );
 
   return (
-    <div style={{ width: '794px', minHeight: '1123px', backgroundColor: hex(c.background), fontFamily, display: 'flex' }}>
+    <div style={{ width: '794px', maxHeight: '1123px', overflow: 'hidden', backgroundColor: hex(c.background), fontFamily, display: 'flex' }}>
       {isLeft ? <>{sidebar}{main}</> : <>{main}{sidebar}</>}
     </div>
   );
