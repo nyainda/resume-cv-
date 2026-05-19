@@ -5,7 +5,8 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { analyzeJobDescriptionForKeywords, generateApplicationEmail } from '../services/geminiService';
+import { analyzeJobDescriptionForKeywords, generateApplicationEmail, EMAIL_TONE_PRESETS, type EmailToneId } from '../services/geminiService';
+import { buildBrief } from '../services/cvEngineClient';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
@@ -79,6 +80,9 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
   const [error, setError] = useState('');
   const [draft, setDraft] = useState<Draft>({ to: '', subject: '', body: '' });
   const [lastAnalysis, setLastAnalysis] = useState<{ title: string; company: string; keywords: string[] } | null>(null);
+  const [selectedTone, setSelectedTone] = useState<EmailToneId>('confident');
+  const [workerVoiceTone, setWorkerVoiceTone] = useState<string | undefined>(undefined);
+  const [workerVoiceName, setWorkerVoiceName] = useState<string | undefined>(undefined);
 
   // Auto-compose when launched from CV Generator with a pre-filled JD
   useEffect(() => {
@@ -96,42 +100,48 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
     setError('');
     setAnalyzing(true);
     try {
-      const found    = extractEmails(jdText);
-      // Run JD keyword analysis and AI email composition in parallel
-      const [analysis, emailDraft] = await Promise.all([
+      const found = extractEmails(jdText);
+
+      // Run JD keyword analysis + worker brief in parallel — brief gives us the
+      // auto-detected voice tone from the CV engine (zero cost, uses KV cache)
+      const [analysis, brief] = await Promise.all([
         analyzeJobDescriptionForKeywords(jdText),
-        generateApplicationEmail(
-          userProfile,
-          '',        // jobTitle filled in below after analysis
-          '',        // companyName filled in below
-          [],        // keywords filled in below
-          jdText,
-        ).catch(() => null), // non-fatal if email AI fails
+        buildBrief({ jd: jdText, profile: userProfile }).catch(() => null),
       ]);
-      const title   = analysis.jobTitle    ?? '';
-      const company = analysis.companyName ?? '';
+
+      const title    = analysis.jobTitle    ?? '';
+      const company  = analysis.companyName ?? '';
       const keywords = [...(analysis.keywords ?? []), ...(analysis.skills ?? [])];
 
-      // If the parallel email call had empty title/company, re-run with real values
-      // (only if the first call failed or returned a generic placeholder)
-      let finalEmail = emailDraft;
-      if (!finalEmail) {
-        finalEmail = await generateApplicationEmail(userProfile, title, company, keywords, jdText);
+      // Extract voice tone from brief — used to refine the email tone
+      const detectedVoiceTone = brief?.voice?.primary?.tone ?? undefined;
+      const detectedVoiceName = brief?.voice?.primary?.name ?? undefined;
+      setWorkerVoiceTone(detectedVoiceTone);
+      setWorkerVoiceName(detectedVoiceName);
+
+      // Auto-select the closest preset tone from the detected voice
+      if (detectedVoiceName) {
+        const name = detectedVoiceName.toLowerCase();
+        if (/executive|board|director|vp|chief|strategy|consult/.test(name)) setSelectedTone('executive');
+        else if (/formal|legal|finance|audit|risk|compliance|analyst/.test(name)) setSelectedTone('professional');
+        else if (/community|open_source|collaborative|warm|people|teacher/.test(name)) setSelectedTone('warm');
+        else setSelectedTone('confident');
       }
 
+      const finalEmail = await generateApplicationEmail(
+        userProfile, title, company, keywords, jdText,
+        selectedTone, detectedVoiceTone,
+      );
+
       setLastAnalysis({ title, company, keywords });
-      setDraft({
-        to:      found[0] ?? '',
-        subject: finalEmail.subject,
-        body:    finalEmail.body,
-      });
+      setDraft({ to: found[0] ?? '', subject: finalEmail.subject, body: finalEmail.body });
       setStep('draft');
     } catch (e) {
       setError((e as Error).message ?? 'Analysis failed — please try again.');
     } finally {
       setAnalyzing(false);
     }
-  }, [jd, apiKeySet, userProfile, openSettings]);
+  }, [jd, apiKeySet, userProfile, openSettings, selectedTone]);
 
   const handleRegenerate = useCallback(async () => {
     if (!apiKeySet || !lastAnalysis) return;
@@ -143,6 +153,8 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
         lastAnalysis.company,
         lastAnalysis.keywords,
         jd,
+        selectedTone,
+        workerVoiceTone,
       );
       setDraft(prev => ({ ...prev, subject: fresh.subject, body: fresh.body }));
     } catch (e) {
@@ -152,7 +164,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
     } finally {
       setRegenerating(false);
     }
-  }, [apiKeySet, lastAnalysis, userProfile, jd]);
+  }, [apiKeySet, lastAnalysis, userProfile, jd, selectedTone, workerVoiceTone]);
 
   const mailtoHref = () => {
     const sp = new URLSearchParams({ subject: draft.subject, body: draft.body });
@@ -297,6 +309,39 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
           {error}
         </p>
       )}
+
+      {/* ── Tone selector ── */}
+      <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">Writing Tone</p>
+            {workerVoiceName && (
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                Worker auto-detected: <span className="font-semibold text-[#C9A84C]">{workerVoiceName.replace(/_/g, ' ')}</span>
+                {workerVoiceTone ? ` — ${workerVoiceTone}` : ''}
+              </p>
+            )}
+          </div>
+          <p className="text-[10px] text-zinc-400">Change tone then hit Regenerate</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {EMAIL_TONE_PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              onClick={() => setSelectedTone(preset.id)}
+              title={preset.desc}
+              className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-lg border-2 text-xs font-semibold transition-all text-left
+                ${selectedTone === preset.id
+                  ? 'border-[#1B2B4B] dark:border-[#C9A84C] bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C]'
+                  : 'border-zinc-200 dark:border-neutral-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-neutral-500 hover:bg-zinc-50 dark:hover:bg-neutral-700/40'
+                }`}
+            >
+              <span className="text-base leading-none">{preset.icon}</span>
+              <span>{preset.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* To */}
       <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">

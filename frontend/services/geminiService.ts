@@ -3646,12 +3646,48 @@ function storeJdAnalysisCache(jdHash: string, result: JobAnalysisResult): void {
 // • Reference the specific role and company
 // • Clear CTA in the closing line
 // • No banned phrases (same list as cover letter)
+// Curated tone presets for the email composer.
+// Each maps a user-facing label to a tone instruction injected into the prompt.
+export const EMAIL_TONE_PRESETS = [
+    {
+        id:    'confident',
+        label: 'Confident',
+        icon:  '⚡',
+        desc:  'Direct, bold, results-focused — mirrors a startup / delivery voice',
+        instruction: 'Write with lean, direct energy. Lead with impact. Short declarative sentences. Bias towards action verbs. Confident without arrogance.',
+    },
+    {
+        id:    'professional',
+        label: 'Professional',
+        icon:  '🎯',
+        desc:  'Measured, formal and precise — suited to finance, consulting, corporate',
+        instruction: 'Write with measured formality. Precise language, no contractions. Senior but not stiff. Every claim anchored to an outcome.',
+    },
+    {
+        id:    'warm',
+        label: 'Warm',
+        icon:  '🤝',
+        desc:  'Personable and collaborative — good for people-facing or creative roles',
+        instruction: 'Write with warmth and authenticity. Slightly conversational but still polished. Show genuine interest in the team and mission. Human, not robotic.',
+    },
+    {
+        id:    'executive',
+        label: 'Executive',
+        icon:  '🏛️',
+        desc:  'Strategic, board-facing — for senior / leadership applications',
+        instruction: 'Write at board-deck level. Strategic framing, not task-listing. Speak to vision and organisational impact. Authoritative and concise.',
+    },
+] as const;
+export type EmailToneId = typeof EMAIL_TONE_PRESETS[number]['id'];
+
 export const generateApplicationEmail = async (
     profileInput: UserProfile,
     jobTitle: string,
     companyName: string,
     keywords: string[],
     jobDescription: string,
+    toneId: EmailToneId = 'confident',
+    workerVoiceTone?: string,    // auto-detected tone string from /api/cv/brief
 ): Promise<{ subject: string; body: string }> => {
     const profile = purifyProfile(profileInput);
     const name     = profile.personalInfo?.name  || 'Applicant';
@@ -3671,6 +3707,12 @@ export const generateApplicationEmail = async (
     const roleRef    = jobTitle  || 'the advertised position';
     const companyRef = companyName && companyName !== 'Unknown' ? companyName : 'your organisation';
 
+    // Tone instruction — worker voice takes precedence if detected, else use preset
+    const preset = EMAIL_TONE_PRESETS.find(t => t.id === toneId) ?? EMAIL_TONE_PRESETS[0];
+    const toneInstruction = workerVoiceTone
+        ? `TONE (auto-detected from job description — worker voice: "${workerVoiceTone}"): ${preset.instruction}`
+        : `TONE: ${preset.instruction}`;
+
     const prompt = `You are a career coach writing a SHORT, HIGH-IMPACT job application email for ${name}.
 
 ROLE: ${roleRef} at ${companyRef}
@@ -3678,6 +3720,7 @@ APPLICANT BACKGROUND: ${recentRole || topSkills}
 KEY ACHIEVEMENTS (use ONE with a metric): ${achievements || 'Strong delivery track record'}
 TOP JD KEYWORDS (weave in naturally): ${topKeywords}
 SIGN-OFF NAME: ${name}${email ? `\n${email}` : ''}${phone ? `\n${phone}` : ''}
+${toneInstruction}
 
 MANDATORY RULES — every rule is non-negotiable:
 1. SUBJECT LINE: Return it on the very first line as exactly: Subject: <text>
@@ -3691,7 +3734,7 @@ MANDATORY RULES — every rule is non-negotiable:
    - Para 3 (~40 words): "Please find my CV attached." + a confident single-sentence CTA for a call/meeting.
 7. Sign off: "Best regards," then the applicant's name and contact info on separate lines.
 8. BANNED PHRASES — never use: "I am writing to apply", "I am writing to express", "please find attached my resume", "I look forward to hearing from you" (standalone), "passionate about", "proven track record", "team player", "self-starter", "detail-oriented", "excited to leverage", "results-driven", "synergize", "utilize".
-9. Tone: confident, direct, human. Max one "I" per sentence. No filler. No flattery.
+9. Honour the TONE instruction above — it shapes sentence length, formality, and vocabulary.
 10. Return ONLY the subject line + blank line + email body. No commentary.`;
 
     const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, maxTokens: 600 });
