@@ -9,6 +9,8 @@ import { setRuntimeKeys } from './services/security/RuntimeKeys';
 import { invalidateCVCache, loadRules } from './services/geminiService';
 import { prewarmFontEmbedCache } from './services/getCVHtml';
 import { syncProfileToCache } from './services/profileCacheClient';
+import { bootstrapTemplatesFromCloud } from './services/customTemplateCloudService';
+import { loadCustomTemplates, saveCustomTemplate } from './utils/customTemplateStorage';
 import { auditCvQuality } from './services/cvNumberFidelity';
 import { profileToCV } from './utils/profileToCV';
 import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
@@ -171,6 +173,18 @@ const AppInner: React.FC = () => {
   // Safe to call once on mount — internal memo prevents duplicate work.
   useEffect(() => {
     prewarmFontEmbedCache();
+  }, []);
+
+  // Boot-time custom template cloud sync: pull any templates stored in D1 that
+  // aren't in localStorage yet (e.g. after a browser clear). Fire-and-forget —
+  // runs 4 seconds after mount so it never races with critical startup work.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      bootstrapTemplatesFromCloud(loadCustomTemplates, (entries) => {
+        entries.forEach(e => saveCustomTemplate(e));
+      }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(t);
   }, []);
 
   // Boot-time profile cache sync — runs whenever the active slot changes.

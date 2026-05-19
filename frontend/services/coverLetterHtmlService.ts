@@ -5,32 +5,85 @@
  * Used by the Playwright PDF renderer (local dev) and Cloudflare Worker (prod).
  *
  * Five templates: modern, professional, executive, academic, creative.
- * Each is engineered for one A4 page with 200–240 word content.
+ *
+ * Font strategy:
+ *   - Google Fonts CDN is loaded first so the PDF renderer picks them up.
+ *   - Every font rule has an excellent system-font fallback, so if the CDN is
+ *     unreachable in headless Chromium the PDF still looks professional.
+ *   - `print-color-adjust: exact` is applied globally so background colours
+ *     and gradients print correctly in Chromium's PDF engine.
+ *
+ * Paragraph strategy:
+ *   - `textToHtml()` detects whether the incoming text uses double-newline or
+ *     single-newline paragraph separators and renders each block as a <p> tag.
+ *   - Within a block, single newlines (e.g. sign-off "Sincerely,\nJohn") become <br>.
  */
 
 import { PersonalInfo } from '../types';
 
 export type CoverLetterTemplate = 'modern' | 'professional' | 'executive' | 'academic' | 'creative';
 
+// Google Fonts — loaded via CDN with excellent system-font fallbacks in every
+// font-family declaration so the PDF looks great even when the CDN is offline.
 const GOOGLE_FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">`;
+
+// ─── Shared CSS added to every template ──────────────────────────────────────
+// Forces colour fidelity and resets browser/Chromium print defaults.
+const PRINT_BASE_CSS = `
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0; padding: 0;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+@page { size: A4 portrait; margin: 0; }
+`;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function esc(s: string): string {
     return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/**
+ * Convert raw letter text to properly spaced HTML paragraphs.
+ *
+ * Handles three common formats from the AI:
+ *   1. Double-newline paragraphs (ideal)   → each block → <p>
+ *   2. Single-newline blocks               → each line  → <p>
+ *   3. Mixed (sign-off "Sincerely,\nName") → inner \n   → <br>
+ */
 function textToHtml(raw: string): string {
-    return raw
-        .split(/\n{2,}/)
-        .filter(p => p.trim())
-        .map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
+    if (!raw) return '';
+
+    // Normalise line endings
+    const text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+    // Choose paragraph separator based on what the AI used
+    const hasDblNewline = /\n\n/.test(text);
+    const rawBlocks     = hasDblNewline
+        ? text.split(/\n{2,}/)
+        : text.split('\n');
+
+    return rawBlocks
+        .map(b => b.trim())
+        .filter(Boolean)
+        .map(block => {
+            // Single newlines within a block (e.g. "Sincerely,\nJohn") → <br>
+            const inner = esc(block).replace(/\n/g, '<br>');
+            return `<p>${inner}</p>`;
+        })
         .join('\n');
 }
 
 function formatDate(): string {
     return new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
+
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 export function buildCoverLetterHtml(
     letterText: string,
@@ -52,13 +105,13 @@ export function buildCoverLetterHtml(
     // ── Modern ────────────────────────────────────────────────────────────────
     if (template === 'modern') {
         return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
+<html lang="en"><head>
+<meta charset="UTF-8">
 ${GOOGLE_FONTS}
 <style>
-@page { size: A4 portrait; margin: 0; }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+${PRINT_BASE_CSS}
 body {
-    font-family: 'DM Sans', Arial, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
     width: 210mm; height: 297mm; overflow: hidden;
     background: #fff; color: #1f2937;
 }
@@ -81,9 +134,10 @@ body {
 .header-right { text-align: right; padding-top: 2pt; flex-shrink: 0; margin-left: 8mm; }
 .header-right .date   { font-size: 8.5pt; color: #9ca3af; white-space: nowrap; }
 .body { font-size: 10.5pt; line-height: 1.76; color: #1f2937; }
-.body p { margin-bottom: 9pt; }
+.body p { margin-bottom: 10pt; }
 .body p:last-child { margin-bottom: 0; }
-</style></head>
+</style>
+</head>
 <body>
 <div class="accent-top"></div>
 <div class="content">
@@ -91,7 +145,7 @@ body {
     <div class="header-left">
         ${name ? `<h1>${esc(name)}</h1>` : ''}
         ${contactLine ? `<p class="contact">${contactLine}</p>` : ''}
-        ${linksLine   ? `<p class="links">${linksLine}</p>` : ''}
+        ${linksLine   ? `<p class="links">${linksLine}</p>`   : ''}
     </div>
     <div class="header-right"><p class="date">${today}</p></div>
 </div>
@@ -105,13 +159,13 @@ ${bodyHtml}
     // ── Professional ──────────────────────────────────────────────────────────
     if (template === 'professional') {
         return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
+<html lang="en"><head>
+<meta charset="UTF-8">
 ${GOOGLE_FONTS}
 <style>
-@page { size: A4 portrait; margin: 0; }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+${PRINT_BASE_CSS}
 body {
-    font-family: 'EB Garamond', Georgia, serif;
+    font-family: 'EB Garamond', Georgia, 'Times New Roman', Times, serif;
     width: 210mm; height: 297mm; overflow: hidden;
     background: #fff;
     padding: 15mm 20mm 13mm;
@@ -135,13 +189,14 @@ body {
 .body { font-size: 11pt; line-height: 1.82; color: #1c1c1c; }
 .body p { margin-bottom: 10pt; }
 .body p:last-child { margin-bottom: 0; }
-</style></head>
+</style>
+</head>
 <body>
 <div class="header-row">
     <div class="header-left">
         ${name ? `<h1>${esc(name)}</h1>` : ''}
         ${contactLine ? `<p class="contact">${contactLine}</p>` : ''}
-        ${linksLine   ? `<p class="links">${linksLine}</p>` : ''}
+        ${linksLine   ? `<p class="links">${linksLine}</p>`   : ''}
     </div>
     <div class="header-right"><p class="date">${today}</p></div>
 </div>
@@ -155,25 +210,20 @@ ${bodyHtml}
     // ── Executive ─────────────────────────────────────────────────────────────
     if (template === 'executive') {
         return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
+<html lang="en"><head>
+<meta charset="UTF-8">
 ${GOOGLE_FONTS}
 <style>
-@page { size: A4 portrait; margin: 0; }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+${PRINT_BASE_CSS}
 body {
-    font-family: 'DM Sans', Arial, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
     width: 210mm; height: 297mm; overflow: hidden;
     background: #fff; color: #1f2937;
 }
-.header-band {
-    background: #1B2B4B;
-    padding: 10mm 17mm 9mm;
-}
-.header-inner {
-    display: flex; justify-content: space-between; align-items: flex-start;
-}
+.header-band { background: #1B2B4B; padding: 10mm 17mm 9mm; }
+.header-inner { display: flex; justify-content: space-between; align-items: flex-start; }
 .header-inner h1 {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Playfair Display', Georgia, 'Cambria', 'Times New Roman', serif;
     font-size: 20pt; font-weight: 700; color: #fff;
     letter-spacing: 0.01em; margin-bottom: 4pt; line-height: 1.15;
 }
@@ -186,14 +236,15 @@ body {
 .body { font-size: 10.5pt; line-height: 1.78; }
 .body p { margin-bottom: 10pt; }
 .body p:last-child { margin-bottom: 0; }
-</style></head>
+</style>
+</head>
 <body>
 <div class="header-band">
     <div class="header-inner">
         <div>
             ${name ? `<h1>${esc(name)}</h1>` : ''}
             ${contactLine ? `<p class="contact">${contactLine}</p>` : ''}
-            ${linksLine   ? `<p class="links">${linksLine}</p>` : ''}
+            ${linksLine   ? `<p class="links">${linksLine}</p>`   : ''}
         </div>
         <div class="header-right"><p class="date">${today}</p></div>
     </div>
@@ -210,13 +261,13 @@ ${bodyHtml}
     // ── Academic ──────────────────────────────────────────────────────────────
     if (template === 'academic') {
         return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
+<html lang="en"><head>
+<meta charset="UTF-8">
 ${GOOGLE_FONTS}
 <style>
-@page { size: A4 portrait; margin: 0; }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+${PRINT_BASE_CSS}
 body {
-    font-family: 'EB Garamond', 'Times New Roman', serif;
+    font-family: 'EB Garamond', Georgia, 'Times New Roman', Times, serif;
     width: 210mm; height: 297mm; overflow: hidden;
     background: #fff;
     padding: 15mm 20mm 13mm;
@@ -236,12 +287,13 @@ body {
 .body { font-size: 11.5pt; line-height: 1.84; margin-top: 5mm; }
 .body p { margin-bottom: 11pt; }
 .body p:last-child { margin-bottom: 0; }
-</style></head>
+</style>
+</head>
 <body>
 ${name ? `<div class="header">
     <h1>${esc(name)}</h1>
     ${contactLine ? `<p class="contact">${contactLine}</p>` : ''}
-    ${linksLine   ? `<p class="links">${linksLine}</p>` : ''}
+    ${linksLine   ? `<p class="links">${linksLine}</p>`   : ''}
 </div>` : ''}
 <div class="date-line">${today}</div>
 <div class="double-rule"><div class="r1"></div><div class="r2"></div></div>
@@ -251,15 +303,15 @@ ${bodyHtml}
 </body></html>`;
     }
 
-    // ── Creative ──────────────────────────────────────────────────────────────
+    // ── Creative (default) ────────────────────────────────────────────────────
     return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
+<html lang="en"><head>
+<meta charset="UTF-8">
 ${GOOGLE_FONTS}
 <style>
-@page { size: A4 portrait; margin: 0; }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+${PRINT_BASE_CSS}
 body {
-    font-family: 'DM Sans', Arial, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
     width: 210mm; height: 297mm; overflow: hidden;
     background: #fff;
     display: flex;
@@ -282,14 +334,15 @@ body {
 .body { font-size: 10.5pt; line-height: 1.78; }
 .body p { margin-bottom: 9pt; }
 .body p:last-child { margin-bottom: 0; }
-</style></head>
+</style>
+</head>
 <body>
 <div class="sidebar"></div>
 <div class="main">
 <div class="header">
     ${name ? `<h1>${esc(name)}</h1>` : ''}
     ${contactLine ? `<p class="contact">${contactLine}</p>` : ''}
-    ${linksLine   ? `<p class="links">${linksLine}</p>` : ''}
+    ${linksLine   ? `<p class="links">${linksLine}</p>`   : ''}
     <p class="date">${today}</p>
 </div>
 <div class="body">
