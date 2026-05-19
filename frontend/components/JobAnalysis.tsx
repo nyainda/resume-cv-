@@ -62,7 +62,20 @@ const ScoreGauge: React.FC<{ score: number; grade: MatchGrade }> = ({ score, gra
     );
 };
 
-// ── Cache helpers ─────────────────────────────────────────────────────────────
+// ── Cache + history helpers ────────────────────────────────────────────────────
+const HISTORY_KEY = 'procv:jd-analysis:history';
+const HISTORY_MAX = 15;
+
+interface AnalysisHistoryEntry {
+    key: string;
+    jobTitle: string;
+    companyName: string;
+    grade: string;
+    matchScore: number;
+    analyzedAt: string;
+    jdSnippet: string;
+}
+
 function djb2(str: string): string {
     let h = 5381;
     for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
@@ -78,10 +91,43 @@ function loadCachedAnalysis(jd: string, cv: string): EnhancedJobAnalysis | null 
         return JSON.parse(raw) as EnhancedJobAnalysis;
     } catch { return null; }
 }
+function loadCachedAnalysisByKey(key: string): EnhancedJobAnalysis | null {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        return JSON.parse(raw) as EnhancedJobAnalysis;
+    } catch { return null; }
+}
 function saveCachedAnalysis(jd: string, cv: string, result: EnhancedJobAnalysis) {
     try { localStorage.setItem(analysisCacheKey(jd, cv), JSON.stringify(result)); } catch { /* quota full */ }
 }
+function loadAnalysisHistory(): AnalysisHistoryEntry[] {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
+}
+function saveToAnalysisHistory(key: string, result: EnhancedJobAnalysis, jd: string) {
+    try {
+        const entry: AnalysisHistoryEntry = {
+            key,
+            jobTitle: result.jobTitle || 'Unknown Role',
+            companyName: result.companyName || '',
+            grade: result.grade || '?',
+            matchScore: result.matchScore ?? 0,
+            analyzedAt: new Date().toISOString(),
+            jdSnippet: jd.substring(0, 80).replace(/\s+/g, ' ').trim(),
+        };
+        const existing = loadAnalysisHistory().filter(e => e.key !== key);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify([entry, ...existing].slice(0, HISTORY_MAX)));
+    } catch { /* quota */ }
+}
 // ─────────────────────────────────────────────────────────────────────────────
+
+const GRADE_COLORS: Record<string, string> = {
+    A: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    B: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    C: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    D: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    F: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+};
 
 const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent, apiKeySet, onAnalysisComplete, onSaveStories, currentCV, onCVUpdate }) => {
     const [analysis, setAnalysis] = useState<EnhancedJobAnalysis | null>(null);
@@ -100,6 +146,8 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
     const [semanticEntries, setSemanticEntries] = useState<SemanticMatchEntry[] | null>(null);
     const [semanticLoading, setSemanticLoading] = useState(false);
     const [semanticAvailable, setSemanticAvailable] = useState(true);
+    const [historyEntries, setHistoryEntries] = useState<AnalysisHistoryEntry[]>(() => loadAnalysisHistory());
+    const [showHistory, setShowHistory] = useState(false);
 
     const runAnalysis = useCallback(async (forceRefresh = false) => {
         if (jobDescription.trim().length < 50 || !apiKeySet) return;
@@ -130,7 +178,10 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             const enhanced = await analyzeJobEnhanced(jobDescription, cvTextContent);
             setAnalysis(enhanced);
             setFromCache(false);
+            const cacheKey = analysisCacheKey(jobDescription, cvTextContent);
             saveCachedAnalysis(jobDescription, cvTextContent, enhanced);
+            saveToAnalysisHistory(cacheKey, enhanced, jobDescription);
+            setHistoryEntries(loadAnalysisHistory());
             if (onAnalysisComplete) {
                 const derived: JobAnalysisResult = {
                     keywords: (enhanced.topKeywords || []).slice(0, 10),
@@ -146,6 +197,24 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
             setIsLoading(false);
         }
     }, [jobDescription, cvTextContent, apiKeySet, onAnalysisComplete]);
+
+    const loadFromHistory = useCallback((entry: AnalysisHistoryEntry) => {
+        const cached = loadCachedAnalysisByKey(entry.key);
+        if (!cached) return;
+        setAnalysis(cached);
+        setFromCache(true);
+        setShowHistory(false);
+        setSavedStories(new Set());
+        setActiveTab('overview');
+        if (onAnalysisComplete) {
+            onAnalysisComplete({
+                keywords: (cached.topKeywords || []).slice(0, 10),
+                skills: (cached.topKeywords || []).slice(10),
+                companyName: cached.companyName,
+                jobTitle: cached.jobTitle,
+            });
+        }
+    }, [onAnalysisComplete]);
 
     useEffect(() => {
         if (jobDescription.trim().length > 50 && apiKeySet) {
@@ -309,6 +378,58 @@ const JobAnalysis: React.FC<JobAnalysisProps> = ({ jobDescription, cvTextContent
                     </div>
                 )}
             </div>
+
+            {/* ── History panel ── */}
+            {historyEntries.length > 0 && (
+                <div className="border-b border-zinc-100 dark:border-neutral-700/60">
+                    <button
+                        onClick={() => setShowHistory(h => !h)}
+                        className="w-full flex items-center justify-between px-5 py-2.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700/30 transition-colors"
+                    >
+                        <span className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Recent analyses ({historyEntries.length})
+                        </span>
+                        <svg className={`w-3.5 h-3.5 transition-transform ${showHistory ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    {showHistory && (
+                        <div className="px-4 pb-3 flex flex-col gap-1.5 max-h-56 overflow-y-auto">
+                            {historyEntries.map(entry => {
+                                const gradeColor = GRADE_COLORS[entry.grade] || 'bg-zinc-100 text-zinc-600';
+                                const date = new Date(entry.analyzedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                                const isCached = !!loadCachedAnalysisByKey(entry.key);
+                                return (
+                                    <button
+                                        key={entry.key}
+                                        onClick={() => isCached && loadFromHistory(entry)}
+                                        disabled={!isCached}
+                                        title={isCached ? 'Load this analysis' : 'Cache expired — re-run to restore'}
+                                        className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors group
+                                            ${isCached
+                                                ? 'border-zinc-200 dark:border-neutral-700 hover:border-[#1B2B4B] dark:hover:border-[#C9A84C] hover:bg-zinc-50 dark:hover:bg-neutral-700/30 cursor-pointer'
+                                                : 'border-zinc-100 dark:border-neutral-800 opacity-50 cursor-not-allowed'
+                                            }`}
+                                    >
+                                        <span className={`shrink-0 text-[11px] font-black w-6 h-6 flex items-center justify-center rounded-full ${gradeColor}`}>
+                                            {entry.grade}
+                                        </span>
+                                        <span className="flex-1 min-w-0">
+                                            <span className="block text-xs font-semibold text-zinc-800 dark:text-zinc-100 truncate">
+                                                {entry.jobTitle}{entry.companyName && entry.companyName !== 'Unknown' ? ` @ ${entry.companyName}` : ''}
+                                            </span>
+                                            <span className="block text-[10px] text-zinc-400 truncate">{entry.jdSnippet}…</span>
+                                        </span>
+                                        <span className="shrink-0 text-[10px] text-zinc-400">{date}</span>
+                                        {!isCached && (
+                                            <span className="shrink-0 text-[10px] text-zinc-400 italic">expired</span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Loading state */}
             {isLoading && (

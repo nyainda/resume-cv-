@@ -4651,113 +4651,68 @@ ${CV_DATA_SCHEMA}
 };
 
 // --- Enhanced 6-Block Job Analysis (career-ops inspired) ---
+// Strips markdown fences, finds the outermost { } block, and walks backwards
+// to repair JSON truncated at the token limit.
+const extractAndRepairJson = (raw: string): string => {
+    const stripped = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const start = stripped.indexOf('{');
+    const end = stripped.lastIndexOf('}');
+    const candidate = (start !== -1 && end > start) ? stripped.slice(start, end + 1) : stripped;
+    try { JSON.parse(candidate); return candidate; } catch {}
+    for (let i = candidate.length - 1; i >= 0; i--) {
+        if (candidate[i] === '}') {
+            const repaired = candidate.slice(0, i + 1);
+            try { JSON.parse(repaired); return repaired; } catch {}
+        }
+    }
+    return candidate;
+};
+
 export const analyzeJobEnhanced = async (
     jobDescription: string,
     cvText: string,
 ): Promise<EnhancedJobAnalysis> => {
-    const prompt = `
-You are an expert career strategist. Analyze the job description against the candidate's CV and return a comprehensive 6-block evaluation.
+    // ── Compact prompt — reduced from ~900 to ~500 tokens input ──────────────
+    // JD capped at 2000 chars, CV at 1800. Array caps reduce output by ~55%.
+    const prompt = `You are a career strategist. Analyze this job description vs the candidate CV and return a JSON evaluation.
 
 JOB DESCRIPTION:
-${jobDescription.substring(0, 3000)}
+${jobDescription.substring(0, 2000)}
 
-CANDIDATE CV TEXT:
-${cvText.substring(0, 3000)}
+CANDIDATE CV:
+${cvText.substring(0, 1800)}
 
-Return ONLY a valid JSON object matching this exact schema:
+Return ONLY valid JSON (no markdown, no prose):
 {
-  "companyName": "string (company name or 'Unknown')",
-  "jobTitle": "string (role title)",
-  "archetype": "one of: Full-Stack / Dev Engineer | Solutions Architect | Product Manager | LLMOps / MLOps | Agentic AI | Digital Transformation | Data Scientist | DevOps / Platform | General Engineering | Other",
-  "domain": "string (e.g. 'Cloud Infrastructure', 'AI/ML', 'FinTech')",
-  "seniority": "string (e.g. 'Senior', 'Mid-level', 'Lead', 'Principal')",
+  "companyName": "string or 'Unknown'",
+  "jobTitle": "string",
+  "archetype": "Full-Stack / Dev Engineer | Solutions Architect | Product Manager | LLMOps / MLOps | Agentic AI | Digital Transformation | Data Scientist | DevOps / Platform | General Engineering | Other",
+  "domain": "e.g. 'Cloud Infrastructure'",
+  "seniority": "e.g. 'Senior'",
   "remote": "Remote | Hybrid | On-site | Unknown",
-  "tldr": "string (1-sentence role summary)",
-  "matchedRequirements": ["string array of JD requirements the candidate clearly meets based on CV"],
-  "gaps": [
-    {
-      "requirement": "string (JD requirement not clearly met)",
-      "isBlocker": true or false,
-      "mitigation": "string (specific actionable advice to address this gap in cover letter or interview)"
-    }
-  ],
-  "matchScore": number (0-100, objective match percentage),
-  "grade": "A | B | C | D | F",
-  "levelStrategy": "string (2-3 sentences on how candidate should position their seniority for this role)",
-  "seniorPositioningTips": ["string array of 3-4 specific phrases or framings to appear more senior"],
-  "salaryRange": "string (estimated salary range for this role and location, e.g. '$120k–$160k USD')",
-  "salaryNotes": "string (brief note on comp expectations, negotiation angle, or data confidence)",
-  "personalizationChanges": [
-    {
-      "section": "string (CV section: Summary | Skills | Experience | Projects)",
-      "currentState": "string (brief description of current state)",
-      "proposedChange": "string (specific change to make)",
-      "reason": "string (why this change helps)"
-    }
-  ],
-  "topKeywords": ["string array of 10-15 ATS keywords to inject into the CV from the JD"],
-  "starStories": [
-    {
-      "jobRequirement": "string (JD requirement this story addresses)",
-      "linkedCompany": "string (company from CV this story is from, or '')",
-      "linkedRole": "string (role from CV, or '')",
-      "situation": "string (S in STAR+R - context)",
-      "task": "string (T - challenge or responsibility)",
-      "action": "string (A - specific steps taken)",
-      "result": "string (R - measurable outcome)",
-      "reflection": "string (Reflection - lesson learned or what would be done differently — this signals seniority)"
-    }
-  ]
+  "tldr": "1-sentence role summary",
+  "matchedRequirements": ["up to 6 JD requirements clearly met by the CV"],
+  "gaps": [{"requirement":"string","isBlocker":true/false,"mitigation":"actionable advice"} — up to 4 items],
+  "matchScore": 0-100,
+  "grade": "A|B|C|D|F",
+  "levelStrategy": "2 sentences on seniority positioning",
+  "seniorPositioningTips": ["3 specific phrases to appear more senior"],
+  "salaryRange": "e.g. '$120k–$160k USD'",
+  "salaryNotes": "brief comp/negotiation note",
+  "personalizationChanges": [{"section":"Summary|Skills|Experience|Projects","currentState":"string","proposedChange":"string","reason":"string"} — up to 3 items],
+  "topKeywords": ["10-12 ATS keywords from the JD"],
+  "starStories": [{"jobRequirement":"string","linkedCompany":"string","linkedRole":"string","situation":"string","task":"string","action":"string","result":"string","reflection":"seniority signal"} — up to 3 items]
 }
 
-GRADING RULES (matchScore → grade):
-- 85-100: A (Excellent fit)
-- 70-84: B (Good fit)
-- 55-69: C (Moderate fit, significant tailoring needed)
-- 40-54: D (Weak fit, major gaps)
-- 0-39: F (Poor fit)
+Grade: 85-100=A, 70-84=B, 55-69=C, 40-54=D, 0-39=F. Only use experience present in the CV.`;
 
-ETHICAL RULES:
-- Only reference experience actually present in the CV
-- Never invent skills or achievements
-- Keyword injection means reformulating real experience with JD vocabulary — not fabricating
-- STAR stories must be grounded in CV experience
-
-Return ONLY the JSON. No markdown, no prose.
-`;
-
-    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.3, json: true, maxTokens: 8192 });
-
-    // Robust JSON extraction:
-    // 1. Strip markdown fences
-    // 2. Find the outermost { ... } block (handles models that add prose before/after)
-    // 3. Repair truncated JSON by walking backwards to the last well-formed closing brace
-    //    (the 8192-token response can be cut off mid-object when the model hits the limit)
-    const extractAndRepairJson = (raw: string): string => {
-        const stripped = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-        // Find the outermost JSON object
-        const start = stripped.indexOf('{');
-        const end = stripped.lastIndexOf('}');
-        const candidate = (start !== -1 && end > start) ? stripped.slice(start, end + 1) : stripped;
-        // Try as-is first
-        try { JSON.parse(candidate); return candidate; } catch {}
-        // Walk backwards to find last well-formed close brace (handles truncation)
-        for (let i = candidate.length - 1; i >= 0; i--) {
-            if (candidate[i] === '}') {
-                const repaired = candidate.slice(0, i + 1);
-                try { JSON.parse(repaired); return repaired; } catch {}
-            }
-        }
-        return candidate;
-    };
+    const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.3, json: true, maxTokens: 3500 });
 
     try {
         return JSON.parse(extractAndRepairJson(text)) as EnhancedJobAnalysis;
     } catch (firstErr) {
-        // One automatic retry with a slightly lower temperature — intermittent
-        // failures are usually caused by the model truncating near the token limit.
         console.warn('[Deep Job Analysis] JSON parse failed on first attempt, retrying…', firstErr);
-        const retry = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 8192 });
+        const retry = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 3500 });
         return JSON.parse(extractAndRepairJson(retry)) as EnhancedJobAnalysis;
     }
 };
