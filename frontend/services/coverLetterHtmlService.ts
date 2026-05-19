@@ -113,10 +113,12 @@ function textToHtml(raw: string): string {
     return blocks
         .map(b => b.trim())
         .filter(Boolean)
-        .map(block => {
+        .map((block, idx, arr) => {
             // Inner newlines (e.g. "Sincerely,\nJohn") → <br>
             const inner = esc(block).replace(/\n/g, '<br>');
-            return `<p>${inner}</p>`;
+            // Inline margin so CF worker Chromium cannot override it
+            const mb = idx < arr.length - 1 ? 'margin-bottom:11pt;' : 'margin-bottom:0;';
+            return `<p style="margin:0;${mb}">${inner}</p>`;
         })
         .join('\n');
 }

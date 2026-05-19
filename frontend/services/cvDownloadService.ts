@@ -36,6 +36,48 @@ import CVPreview from '../components/CVPreview';
 import type { CVData, PersonalInfo, TemplateName } from '../types';
 import { buildCoverLetterHtml, type CoverLetterTemplate } from './coverLetterHtmlService';
 
+// ── Cover letter text normaliser ─────────────────────────────────────────────
+// Ensures the raw AI-generated letter text has proper paragraph breaks before
+// it is passed to buildCoverLetterHtml(). This mirrors the formatLetterForDisplay()
+// logic in CoverLetterPreview.tsx so on-screen and PDF output always match.
+function normaliseCoverLetterText(raw: string): string {
+  if (!raw) return raw;
+  // Already has double-newline paragraphs → nothing to do
+  if (/\n\n/.test(raw)) return raw;
+
+  // Flatten any single newlines into one string, then reconstruct paragraphs
+  const flat = raw.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // Extract salutation ("Dear Hiring Manager,")
+  let salutation = '';
+  let rest = flat;
+  const salMatch = flat.match(/^(Dear\s[^,:]+[,:])\s*/i);
+  if (salMatch) { salutation = salMatch[1]; rest = flat.slice(salMatch[0].length).trim(); }
+
+  // Extract closing ("Sincerely, / Best regards,")
+  let closing = '';
+  const closingIdx = rest.search(
+    /\b(Sincerely|Best regards|Kind regards|Warm regards|Yours faithfully|Yours sincerely|Yours truly|With regards|Regards|Respectfully|Thank you)[,.]?(\s|$)/i
+  );
+  if (closingIdx !== -1) { closing = rest.slice(closingIdx).trim(); rest = rest.slice(0, closingIdx).trim(); }
+
+  // Split body into ~3-sentence paragraphs
+  const sentences = rest
+    .split(/(?<=[.!?])\s+(?=[A-Z"'(])/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  const bodyParas: string[] = [];
+  for (let i = 0; i < sentences.length; i += 3) {
+    bodyParas.push(sentences.slice(i, i + 3).join(' '));
+  }
+
+  const parts: string[] = [];
+  if (salutation) parts.push(salutation);
+  parts.push(...bodyParas);
+  if (closing)    parts.push(closing);
+  return parts.join('\n\n');
+}
+
 export interface DownloadCVOptions {
   /** File name for the downloaded PDF (e.g. "Jane_Doe_CV.pdf"). */
   fileName: string;
@@ -247,7 +289,10 @@ export async function downloadCoverLetterViaWorker(
   personalInfo?: PersonalInfo,
   onStatus?: (msg: string) => void,
 ): Promise<DownloadCoverLetterResult> {
-  const html = buildCoverLetterHtml(letterText, template, personalInfo);
+  // Always normalise first so flat AI output gets proper paragraph breaks
+  // before HTML building — this guarantees PDF matches on-screen preview.
+  const normalisedText = normaliseCoverLetterText(letterText);
+  const html = buildCoverLetterHtml(normalisedText, template, personalInfo);
 
   // ── Tier 1: Local Playwright ─────────────────────────────────────────────
   try {
@@ -256,6 +301,7 @@ export async function downloadCoverLetterViaWorker(
       onStatus?.('Generating your PDF…');
       const r = await renderHtmlToPdfBytes(html, fileName);
       if (r.ok && r.bytes) {
+        onStatus?.('Saving your PDF…');
         triggerPdfDownload(r.bytes, fileName);
         return { ok: true, via: 'playwright' };
       }
@@ -271,7 +317,10 @@ export async function downloadCoverLetterViaWorker(
     if (cfUp) {
       onStatus?.('Rendering your PDF…');
       const r = await generateAndDownloadViaCF({ html, filename: fileName, format: 'A4', onStatus });
-      if (r.ok) return { ok: true, via: 'cloudflare' };
+      if (r.ok) {
+        onStatus?.('Saving your PDF…');
+        return { ok: true, via: 'cloudflare' };
+      }
       cfHealthCache = null;
     }
   } catch {
@@ -281,7 +330,8 @@ export async function downloadCoverLetterViaWorker(
   // ── Tier 3: jsPDF fallback ───────────────────────────────────────────────
   try {
     const { downloadCoverLetterAsPDF } = await import('./pdfService');
-    downloadCoverLetterAsPDF(letterText, fileName, template as 'modern' | 'professional' | 'executive' | 'academic' | 'creative', personalInfo);
+    onStatus?.('Saving your PDF…');
+    downloadCoverLetterAsPDF(normalisedText, fileName, template as 'modern' | 'professional' | 'executive' | 'academic' | 'creative', personalInfo);
     return { ok: true, via: 'jspdf' };
   } catch (e) {
     return {
