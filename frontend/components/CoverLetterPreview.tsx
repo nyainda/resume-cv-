@@ -654,6 +654,107 @@ const EmptyStatePlaceholder: React.FC<{
   );
 };
 
+// ─── Download progress overlay ────────────────────────────────────────────────
+
+const DOWNLOAD_STEPS = [
+  { key: 'prepare', label: 'Building layout',   detail: 'Composing HTML template…'   },
+  { key: 'render',  label: 'Rendering PDF',      detail: 'Running headless Chrome…'    },
+  { key: 'save',    label: 'Saving file',        detail: 'Writing PDF to disk…'         },
+];
+
+function statusToStep(status: string): number {
+  const s = status.toLowerCase();
+  if (s.includes('render') || s.includes('cloud') || s.includes('worker')) return 1;
+  if (s.includes('sav') || s.includes('done') || s.includes('complete'))   return 2;
+  return 0;
+}
+
+const DownloadOverlay: React.FC<{ status: string }> = ({ status }) => {
+  const step = statusToStep(status);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Generating cover letter PDF"
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+    >
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 px-8 py-9 flex flex-col items-center gap-6 w-full max-w-sm mx-4">
+
+        {/* Animated PDF icon */}
+        <div className="relative">
+          <div className="w-20 h-20 rounded-2xl bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center">
+            <svg className="w-10 h-10 text-[#1B2B4B] dark:text-[#C9A84C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 3v6h6" />
+            </svg>
+          </div>
+          {/* Pulsing ring */}
+          <span className="absolute inset-0 rounded-2xl animate-ping opacity-20 bg-[#1B2B4B] dark:bg-[#C9A84C]" />
+        </div>
+
+        {/* Title */}
+        <div className="text-center">
+          <p className="text-base font-bold text-zinc-900 dark:text-zinc-50">Creating your PDF…</p>
+          <p className="text-xs text-zinc-400 mt-1">{status || 'Preparing…'}</p>
+        </div>
+
+        {/* Step indicators */}
+        <ol className="w-full space-y-3">
+          {DOWNLOAD_STEPS.map((s, idx) => {
+            const done    = idx < step;
+            const active  = idx === step;
+            const pending = idx > step;
+            return (
+              <li key={s.key} className="flex items-center gap-3">
+                {/* Circle */}
+                <div className={`
+                  w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors duration-300
+                  ${done    ? 'bg-green-500 text-white'                                       : ''}
+                  ${active  ? 'bg-[#1B2B4B] dark:bg-[#C9A84C] text-white animate-pulse'      : ''}
+                  ${pending ? 'bg-zinc-100 dark:bg-neutral-800 text-zinc-400'                 : ''}
+                `}>
+                  {done
+                    ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    : <span>{idx + 1}</span>
+                  }
+                </div>
+                {/* Text */}
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold leading-tight ${
+                    done    ? 'text-green-600 dark:text-green-400'              : ''
+                  } ${active  ? 'text-zinc-900 dark:text-zinc-50'              : ''
+                  } ${pending ? 'text-zinc-400 dark:text-zinc-500'             : ''}`}>
+                    {s.label}
+                  </p>
+                  {active && (
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{s.detail}</p>
+                  )}
+                </div>
+                {/* Connector */}
+                {idx < DOWNLOAD_STEPS.length - 1 && (
+                  <div className={`ml-auto h-px w-6 flex-shrink-0 ${done ? 'bg-green-400' : 'bg-zinc-200 dark:bg-neutral-700'}`} />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        {/* Thin animated progress bar */}
+        <div className="w-full h-1 rounded-full bg-zinc-100 dark:bg-neutral-800 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#1B2B4B] to-[#C9A84C] transition-all duration-700 ease-out"
+            style={{ width: `${Math.round(((step + 0.5) / DOWNLOAD_STEPS.length) * 100)}%` }}
+          />
+        </div>
+
+        <p className="text-[11px] text-zinc-300 dark:text-zinc-600">This usually takes 5–15 seconds</p>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({
@@ -711,6 +812,10 @@ const CoverLetterPreview: React.FC<CoverLetterPreviewProps> = ({
 
   return (
     <div className="space-y-6">
+
+      {/* Download progress overlay — renders as a fixed modal over the whole page */}
+      {loading && <DownloadOverlay status={status} />}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-zinc-100 dark:border-neutral-800">
         <div>

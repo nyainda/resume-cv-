@@ -49,12 +49,14 @@ function esc(s: string): string {
 }
 
 /**
- * Convert raw letter text to properly spaced HTML paragraphs.
+ * Smart paragraph normaliser — mirrors the formatLetterForDisplay() logic in
+ * CoverLetterPreview.tsx so the PDF always matches the on-screen preview.
  *
- * Handles three common formats from the AI:
- *   1. Double-newline paragraphs (ideal)   → each block → <p>
- *   2. Single-newline blocks               → each line  → <p>
- *   3. Mixed (sign-off "Sincerely,\nName") → inner \n   → <br>
+ * Handles four incoming formats from the AI:
+ *   1. Double-newline paragraphs (ideal)   → split on \n\n
+ *   2. Single-newline blocks               → split on \n
+ *   3. Completely flat (no newlines)       → sentence-split heuristic
+ *   4. Mixed sign-off ("Sincerely,\nName") → inner \n → <br>
  */
 function textToHtml(raw: string): string {
     if (!raw) return '';
@@ -62,17 +64,57 @@ function textToHtml(raw: string): string {
     // Normalise line endings
     const text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
-    // Choose paragraph separator based on what the AI used
-    const hasDblNewline = /\n\n/.test(text);
-    const rawBlocks     = hasDblNewline
-        ? text.split(/\n{2,}/)
-        : text.split('\n');
+    let blocks: string[];
 
-    return rawBlocks
+    if (/\n\n/.test(text)) {
+        // ── Case 1: well-formed double-newline paragraphs ────────────────────
+        blocks = text.split(/\n{2,}/);
+    } else if (/\n/.test(text)) {
+        // ── Case 2: single-newline separated ────────────────────────────────
+        blocks = text.split('\n');
+    } else {
+        // ── Case 3: flat single-line text — reconstruct paragraphs ──────────
+        // Extract salutation ("Dear Hiring Manager,")
+        let salutation = '';
+        let rest = text;
+        const salutationMatch = text.match(/^(Dear\s[^,:]+[,:])\s*/i);
+        if (salutationMatch) {
+            salutation = salutationMatch[1];
+            rest = text.slice(salutationMatch[0].length).trim();
+        }
+
+        // Extract closing ("Sincerely,\nName")
+        let closing = '';
+        const closingIdx = rest.search(
+            /\b(Sincerely|Best regards|Kind regards|Warm regards|Yours faithfully|Yours sincerely|Yours truly|With regards|Regards|Respectfully|Thank you)[,.]?(\s|$)/i
+        );
+        if (closingIdx !== -1) {
+            closing = rest.slice(closingIdx).trim();
+            rest = rest.slice(0, closingIdx).trim();
+        }
+
+        // Split body into paragraphs of ~3 sentences
+        const sentences = rest
+            .split(/(?<=[.!?])\s+(?=[A-Z"'(])/)
+            .map(s => s.trim())
+            .filter(Boolean);
+        const SENTENCES_PER_PARA = 3;
+        const bodyParas: string[] = [];
+        for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARA) {
+            bodyParas.push(sentences.slice(i, i + SENTENCES_PER_PARA).join(' '));
+        }
+
+        blocks = [];
+        if (salutation) blocks.push(salutation);
+        blocks.push(...bodyParas);
+        if (closing) blocks.push(closing);
+    }
+
+    return blocks
         .map(b => b.trim())
         .filter(Boolean)
         .map(block => {
-            // Single newlines within a block (e.g. "Sincerely,\nJohn") → <br>
+            // Inner newlines (e.g. "Sincerely,\nJohn") → <br>
             const inner = esc(block).replace(/\n/g, '<br>');
             return `<p>${inner}</p>`;
         })
