@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import {
   Mail, Phone, MapPin, Globe, Linkedin, Github,
@@ -232,7 +231,7 @@ const TemplatePrestige: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                   <p className="text-xs font-bold mb-1.5" style={{ color: gold }} {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   {/* Bullets */}
                   <ul className="space-y-1">
-                    {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
+                    {job.responsibilities.map((resp, i) => (
                       <li key={i} className="flex gap-2 text-xs text-slate-600 leading-snug">
                         <span className="shrink-0 mt-0.5 font-black" style={{ color: gold }}>▸</span>
                         <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />

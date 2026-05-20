@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -66,7 +65,7 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                   <h3 className="text-base font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                   <p className="text-md text-slate-600 font-medium" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-sm">
-                    {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
+                    {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                   </ul>
                 </div>
               ))}

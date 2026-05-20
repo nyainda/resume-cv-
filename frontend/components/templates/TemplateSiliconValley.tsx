@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -90,7 +89,7 @@ const TemplateSiliconValley: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                                     <span className="text-sm font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                 </div>
                                 <ul className="space-y-1.5">
-                                    {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
+                                    {job.responsibilities.map((resp, i) => (
                                         <li key={i} className="flex gap-3 items-start text-sm text-slate-600">
                                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
                                             <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />

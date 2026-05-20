@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 
@@ -205,7 +204,7 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                         />
                                     </div>
                                     <ul className="mt-2 space-y-1">
-                                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, j) => (
+                                        {job.responsibilities.map((resp, j) => (
                                             <li key={j} className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
                                                 <span className="mt-0.5 font-black flex-shrink-0" style={{ color: accent }}>▸</span>
                                                 <span {...editable(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: resp }} />

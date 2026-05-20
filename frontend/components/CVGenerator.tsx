@@ -115,8 +115,6 @@ interface CVGeneratorProps {
   onSaveStories?: (stories: import('../types').STARStory[]) => void;
   /** Called when user clicks "Interview Prep" — passes the JD to pre-fill the prep tool */
   onGoToInterviewPrep?: (jd: string) => void;
-  /** Push current AI-polished CV bullets back into the user's profile so future profile edits preserve them */
-  onSyncCVToProfile?: () => void;
   /**
    * When true, the generator shows a dismissible "Import Quality Report" panel
    * with completeness score and deterministic quality checks — no AI required.
@@ -204,7 +202,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, onSyncCVToProfile, importedFromJson }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, importedFromJson }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
   const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
@@ -1632,19 +1630,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <Save className="h-4 w-4 mr-2" />
                 Save
               </Button>
-              {onSyncCVToProfile && (
-                <Button
-                  variant="secondary"
-                  onClick={onSyncCVToProfile}
-                  disabled={isEditing}
-                  size="sm"
-                  title="Save these AI-polished bullets back to your profile so they won't be overwritten if you edit your profile later"
-                  className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save to Profile
-                </Button>
-              )}
               <Button variant="secondary" onClick={handleGenerateCoverLetter} disabled={isGeneratingCoverLetter || isEditing || !apiKeySet} size="sm">
                 <FileText className="h-4 w-4 mr-2" />
                 {isGeneratingCoverLetter ? "Generating..." : "Cover Letter"}

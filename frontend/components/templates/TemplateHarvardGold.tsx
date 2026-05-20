@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -80,7 +79,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                     </div>
                                     <p className="text-base font-semibold text-slate-700 italic mb-2" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                                     <ul className="list-disc list-outside ml-5 space-y-1.5 text-slate-700">
-                                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
+                                        {job.responsibilities.map((resp, i) => (
                                             <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                         ))}
                                     </ul>

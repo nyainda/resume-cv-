@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -109,7 +108,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         {job.jobTitle}
                                     </div>
                                     <ul style={{ margin: '5px 0 0 18px', padding: 0, listStyleType: 'disc' }}>
-                                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
+                                        {job.responsibilities.map((resp, i) => (
                                             <li
                                                 key={i}
                                                 style={{ fontSize: '12px', lineHeight: '1.6', marginBottom: '2px', color: '#111' }}

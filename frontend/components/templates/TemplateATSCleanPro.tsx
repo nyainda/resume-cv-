@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { Trash } from '../icons';
@@ -111,7 +110,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                     </div>
                                     <p className="text-xs font-bold mb-2" style={{ color: '#7c3aed' }} {...editableProps(['experience', index, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
                                     <ul className="space-y-1">
-                                        {smartBullets(job.responsibilities, cvData.experience.length).map((r, i) => (
+                                        {job.responsibilities.map((r, i) => (
                                             <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
                                                 <span className="text-cyan-600 font-black mt-0.5 flex-shrink-0">•</span>
                                                 <span dangerouslySetInnerHTML={{ __html: r }} {...editableProps(['experience', index, 'responsibilities', i])} />

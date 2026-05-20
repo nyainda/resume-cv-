@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -137,7 +136,7 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                     </div>
                     <p className="text-[10px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-[10px] text-slate-700">
-                      {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
+                      {job.responsibilities.map((resp, i) => (
                         <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>

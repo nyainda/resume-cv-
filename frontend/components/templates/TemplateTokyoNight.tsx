@@ -1,4 +1,3 @@
-import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -78,7 +77,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                   </div>
                   <p className="text-xs font-bold text-fuchsia-400 mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="space-y-1 text-xs text-slate-400">
-                    {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
+                    {job.responsibilities.map((resp, i) => (
                       <li key={i} className="flex gap-2">
                         <span className="text-fuchsia-500 shrink-0">{'>'}</span>
                         <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />

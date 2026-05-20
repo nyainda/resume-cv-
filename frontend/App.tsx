@@ -517,39 +517,6 @@ const AppInner: React.FC = () => {
   }, [setRawApiSettings]);
 
   // ── Profile Manager handlers ───────────────────────────────────────────
-  // Reverse sync: push the current AI-polished CV bullets back into the profile.
-  // This ensures future profile form edits don't clobber AI-generated bullets.
-  const handleSyncCVToProfile = useCallback(() => {
-    if (!currentCV || !userProfile) return;
-
-    // Strip HTML tags from a bullet string so it's plain text suitable for the profile form
-    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim();
-
-    const updatedWorkExperience = userProfile.workExperience.map((we) => {
-      // Find the matching CV role by company + jobTitle
-      const cvRole = currentCV.experience.find(
-        (e) => e.company === we.company && e.jobTitle === we.jobTitle
-      );
-      if (!cvRole || cvRole.responsibilities.length === 0) return we;
-      // Join the AI bullets back to a plain-text string (profile format)
-      return {
-        ...we,
-        responsibilities: cvRole.responsibilities.map(stripHtml).join('\n'),
-      };
-    });
-
-    const updatedProfile: UserProfile = {
-      ...userProfile,
-      summary: currentCV.summary || userProfile.summary,
-      workExperience: updatedWorkExperience,
-    };
-
-    setUserProfile(updatedProfile);
-    if (activeSlot) {
-      syncProfileToCache({ ...activeSlot, profile: updatedProfile }).catch(() => {});
-    }
-  }, [currentCV, userProfile, activeSlot, setUserProfile]);
-
   const handleProfileSave = useCallback((profile: UserProfile) => {
     if (activeSlot) {
       setUserProfile(profile);
@@ -1412,7 +1379,6 @@ const AppInner: React.FC = () => {
                     openSettings={() => setIsSettingsOpen(true)}
                     onApplyViaEmail={handleApplyViaEmail}
                     onGoToInterviewPrep={handleGoToInterviewPrep}
-                    onSyncCVToProfile={handleSyncCVToProfile}
                     savedCVs={savedCVs}
                     toolkitSuggestions={toolkitSuggestions}
                     onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}
