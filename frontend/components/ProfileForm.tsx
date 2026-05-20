@@ -176,6 +176,18 @@ const EmptyState: React.FC<{ message: string; action?: React.ReactNode }> = ({ m
   </div>
 );
 
+// ─── Refined badge — shown when the CV has a customised version of this field ──
+const RefinedBadge = ({ show }: { show: boolean }) =>
+  show ? (
+    <span
+      title="Your CV has a customised version of this content. Editing here will update it when you save."
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 cursor-default"
+    >
+      <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.676 1 6 3.676 6 7v1H4v15h16V8h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v1H8V7c0-2.276 1.724-4 4-4zm0 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
+      ✦ Refined
+    </span>
+  ) : null;
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported, onJsonImported, currentCV }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
@@ -564,16 +576,24 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     </div>
   );
 
-  const renderSummary = () => (
+  const renderSummary = () => {
+    const summaryRefined =
+      !!currentCV?.summary &&
+      currentCV.summary.trim().length > 0 &&
+      currentCV.summary.trim() !== (existingProfile?.summary || '').trim();
+    return (
     <div className="space-y-4">
       <SectionTitle
         subtitle="A 2–4 sentence snapshot of your career, skills, and value proposition."
         action={
-          <EnhanceBtn
-            loading={isEnhancing === 'summary'}
-            disabled={!apiKeySet || !!isEnhancing}
-            onClick={() => handleEnhance('summary')}
-          />
+          <div className="flex items-center gap-2">
+            <RefinedBadge show={summaryRefined} />
+            <EnhanceBtn
+              loading={isEnhancing === 'summary'}
+              disabled={!apiKeySet || !!isEnhancing}
+              onClick={() => handleEnhance('summary')}
+            />
+          </div>
         }
       >
         Professional Summary
@@ -588,6 +608,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       <p className="text-xs text-zinc-400">Tip: Use the AI Enhance button to generate a compelling summary from your profile data.</p>
     </div>
   );
+  };
 
   const renderExperience = () => (
     <div className="space-y-4">
@@ -653,18 +674,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                     {(() => {
                       const company  = watch(`workExperience.${index}.company`);
                       const jobTitle = watch(`workExperience.${index}.jobTitle`);
-                      const isAIProtected = currentCV?.experience?.some(
+                      const isRefined = currentCV?.experience?.some(
                         e => e.company === company && e.jobTitle === jobTitle && e.responsibilities.length > 0
-                      );
-                      return isAIProtected ? (
-                        <span
-                          title="These bullets are AI-polished in your CV. Editing this text will replace them when you save."
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700"
-                        >
-                          <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.676 1 6 3.676 6 7v1H4v15h16V8h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v1H8V7c0-2.276 1.724-4 4-4zm0 9a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
-                          AI polished
-                        </span>
-                      ) : null;
+                      ) ?? false;
+                      return <RefinedBadge show={isRefined} />;
                     })()}
                   </div>
                   <div className="flex items-center gap-2">
@@ -753,9 +766,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     </div>
   );
 
-  const renderSkills = () => (
+  const renderSkills = () => {
+    const skillsRefined =
+      !!currentCV?.skills &&
+      currentCV.skills.length > 0 &&
+      JSON.stringify([...(currentCV.skills)].sort()) !==
+        JSON.stringify([...(existingProfile?.skills ?? [])].sort());
+    return (
     <div className="space-y-4">
-      <SectionTitle subtitle="Comma-separated list of your technical and soft skills.">
+      <SectionTitle
+        subtitle="Comma-separated list of your technical and soft skills."
+        action={<RefinedBadge show={skillsRefined} />}
+      >
         Skills
       </SectionTitle>
       <Controller
@@ -775,6 +797,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       <p className="text-xs text-zinc-400">Separate each skill with a comma. The AI will pick the most relevant ones for each job description.</p>
     </div>
   );
+  };
 
   const renderProjects = () => (
     <div className="space-y-4">
@@ -798,7 +821,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <Label className="text-xs">Description</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Description</Label>
+                    {(() => {
+                      const projName = watch(`projects.${index}.name`);
+                      const projDesc = watch(`projects.${index}.description`);
+                      const cvProj = currentCV?.projects?.find(p => p.name === projName);
+                      return <RefinedBadge show={!!cvProj && !!cvProj.description && cvProj.description !== projDesc} />;
+                    })()}
+                  </div>
                   <EnhanceBtn
                     loading={isEnhancing === `project.${index}`}
                     disabled={!apiKeySet || !!isEnhancing}
