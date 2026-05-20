@@ -23,7 +23,7 @@ interface TemplateGalleryProps {
 
 const templateCategories: Record<string, TemplateName[]> = {
   'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro', 'ats-clean-pro', 'london-finance', 'medical-standard'],
-  'Modern':       ['modern', 'modern-tech', 'twoColumnBlue', 'silicon-valley', 'tokyo-night'],
+  'Modern':       ['prestige', 'modern', 'modern-tech', 'twoColumnBlue', 'silicon-valley', 'tokyo-night'],
   'Creative':     ['creative', 'infographic', 'sydney-creative', 'berlin-design'],
   'Academic':     ['harvard-gold', 'scholarship-pro', 'classic'],
   'Minimal':      ['minimalist', 'compact', 'timeline', 'paris-vibe'],
@@ -61,6 +61,7 @@ const FEATURED_PICKS: FeaturedPick[] = [
   { template: 'software-engineer', badge: '💻 Best for Tech',    badgeColor: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',             bestFor: 'SWE, DevOps, data science'},
   { template: 'navy-sidebar',      badge: '🏛️ Bold & Sharp',     badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',         bestFor: 'Management & operations' },
   { template: 'compact-slate',     badge: '📄 One-Page',         badgeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300',     bestFor: 'Entry-level & internships'},
+  { template: 'prestige',          badge: '👑 Premium Design',   badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',       bestFor: 'Senior roles & executives' },
 ];
 
 // ─── ATS config ───────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'berlin-design': 'low', 'sydney-creative': 'low', 'swe-neon': 'low',
   'swe-vivid': 'low', 'photo-sidebar': 'low', 'executive-sidebar': 'low',
   'compact-slate': 'medium', 'compact-sage': 'medium', 'compact-charcoal': 'medium',
-  'custom': 'medium',
+  'prestige': 'medium', 'custom': 'medium',
 };
 
 const atsConfig = {

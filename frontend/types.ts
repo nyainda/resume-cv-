@@ -405,6 +405,7 @@ export type TemplateName =
   | 'compact-slate'
   | 'compact-sage'
   | 'compact-charcoal'
+  | 'prestige'
   | 'custom';
 
 // ── Custom Template (user-uploaded & AI-analyzed) ─────────────────────────────
@@ -557,6 +558,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'compact-slate': 'Compact Slate',
   'compact-sage': 'Compact Sage',
   'compact-charcoal': 'Compact Charcoal',
+  'prestige': 'Prestige',
   'custom': 'My Custom',
 };
 

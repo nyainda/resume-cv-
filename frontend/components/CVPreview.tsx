@@ -35,6 +35,7 @@ import TemplateExecutiveSidebar from './templates/TemplateExecutiveSidebar';
 import TemplateCompactSlate from './templates/TemplateCompactSlate';
 import TemplateCompactSage from './templates/TemplateCompactSage';
 import TemplateCompactCharcoal from './templates/TemplateCompactCharcoal';
+import TemplatePrestige from './templates/TemplatePrestige';
 
 
 interface CVPreviewProps {
@@ -108,6 +109,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       case 'compact-slate':      return <TemplateCompactSlate {...sidebarTemplateProps} />;
       case 'compact-sage':       return <TemplateCompactSage {...sidebarTemplateProps} />;
       case 'compact-charcoal':   return <TemplateCompactCharcoal {...sidebarTemplateProps} />;
+      case 'prestige':           return <TemplatePrestige {...templateProps} />;
       case 'custom': {
         const entry = customTemplateId ? getCustomTemplate(customTemplateId) : undefined;
         if (entry?.spec) return <TemplateCustomGenerated cvData={cvData} personalInfo={personalInfo} spec={entry.spec} customizations={entry.customizations} isEditing={isEditing} />;
