@@ -41,29 +41,31 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
     } : {};
 
     return (
-        <div id="cv-preview-sydney-creative" className="bg-[#fff9f2] p-0 text-slate-900 shadow-2xl border-none font-sans overflow-hidden">
-            <header className="relative bg-gradient-to-tr from-orange-400 via-pink-500 to-[#1B2B4B] p-10 text-white clip-path-header overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl animate-pulse" />
+        <div id="cv-preview-sydney-creative" className="bg-[#fff9f2] text-slate-900 shadow-2xl border-none font-sans overflow-hidden flex flex-col min-h-[280mm]">
+            {/* Header */}
+            <header className="relative bg-gradient-to-tr from-orange-400 via-pink-500 to-[#1B2B4B] p-8 text-white overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 88%, 0 100%)' }}>
                 <div className="relative z-10">
-                    <h1 className="text-5xl font-black uppercase tracking-tighter leading-none mb-3 drop-shadow-lg">
+                    <h1 className="text-4xl font-black uppercase tracking-tighter leading-none mb-2 drop-shadow-lg">
                         Hello.<br />I'm {personalInfo.name.split(' ')[0]}.
                     </h1>
-                    <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm font-bold uppercase tracking-widest bg-black/20 backdrop-blur-md px-6 py-3 rounded-full inline-flex">
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs font-bold uppercase tracking-widest bg-black/20 backdrop-blur-md px-4 py-2 rounded-full inline-flex">
                         <span>{personalInfo.email}</span>
                         <span>{personalInfo.location}</span>
+                        {personalInfo.phone && <span>{personalInfo.phone}</span>}
                         {personalInfo.website && <a href={personalInfo.website} className="underline underline-offset-4">Portfolio</a>}
                     </div>
                 </div>
             </header>
 
-            <main className="grid grid-cols-12 gap-0">
-                {/* Left Colorful Sidebar */}
-                <div className="col-span-4 bg-slate-900 text-white p-6 space-y-6">
+            {/* Body */}
+            <div className="grid grid-cols-12 gap-0 flex-1">
+                {/* Left Sidebar */}
+                <div className="col-span-4 bg-slate-900 text-white p-5 flex flex-col gap-4">
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-orange-400 mb-3">My Toolkit</h2>
-                        <div className="flex flex-wrap gap-3">
-                            {cvData.skills.slice(0, 15).map((skill, i) => (
-                                <span key={i} className="px-4 py-2 bg-slate-800 text-sm font-bold rounded-lg border-b-4 border-orange-500 hover:-translate-y-1 transition-transform">
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-400 mb-2">My Toolkit</h2>
+                        <div className="flex flex-wrap gap-1.5">
+                            {cvData.skills.slice(0, 14).map((skill, i) => (
+                                <span key={i} className="px-2 py-1 bg-slate-800 text-xs font-bold rounded border-b-2 border-orange-500">
                                     {skill}
                                 </span>
                             ))}
@@ -71,55 +73,95 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     </section>
 
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-pink-400 mb-3">Academic Base</h2>
-                        <div className="space-y-4">
-                            {cvData.education.map((edu, idx) => (
-                                <div key={idx} className="relative pl-6 border-l-2 border-pink-500/30">
-                                    <div className="absolute -left-[5px] top-0 w-2 h-2 bg-pink-500 rounded-full" />
-                                    <h3 className="text-lg font-black leading-tight" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
-                                    <p className="text-sm font-bold text-pink-400 uppercase tracking-wider mt-1">{edu.school}</p>
-                                    <p className="text-xs font-medium text-slate-500 mt-2 italic">{edu.year}</p>
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-pink-400 mb-2">Academic Base</h2>
+                        <div className="space-y-3">
+                            {cvData.education.slice(0, 2).map((edu, idx) => (
+                                <div key={idx} className="relative pl-4 border-l-2 border-pink-500/30">
+                                    <div className="absolute -left-[5px] top-0.5 w-2 h-2 bg-pink-500 rounded-full" />
+                                    <h3 className="text-xs font-black leading-tight" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
+                                    <p className="text-[10px] font-bold text-pink-400 uppercase tracking-wider mt-0.5">{edu.school}</p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5 italic">{edu.year}</p>
                                 </div>
                             ))}
                         </div>
                     </section>
+
+                    {cvData.languages && cvData.languages.length > 0 && (
+                        <section>
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-400 mb-2">Languages</h2>
+                            <div className="space-y-1.5">
+                                {cvData.languages.map((lang, i) => (
+                                    <div key={i} className="flex justify-between text-xs">
+                                        <span className="font-bold text-white">{lang.name}</span>
+                                        <span className="text-slate-400 text-[10px]">{lang.proficiency}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    {cvData.projects && cvData.projects.length > 0 && (
+                        <section>
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-300 mb-2">Selected Work</h2>
+                            <div className="space-y-3">
+                                {cvData.projects.slice(0, 3).map((proj, i) => (
+                                    <div key={i} className="border-l-2 border-orange-500/30 pl-3">
+                                        <p className="text-xs font-black text-white leading-tight">{proj.name}</p>
+                                        <p className="text-[10px] text-slate-400 leading-snug line-clamp-2 mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    {cvData.references && cvData.references.length > 0 && (
+                        <section>
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">References</h2>
+                            <div className="space-y-2">
+                                {cvData.references.slice(0, 2).map((ref, i) => (
+                                    <div key={i} className="text-[10px]">
+                                        <p className="font-bold text-white">{ref.name}</p>
+                                        <p className="text-slate-400">{ref.title}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </div>
 
                 {/* Right Main Content */}
-                <div className="col-span-8 p-8 space-y-6">
+                <div className="col-span-8 p-6 flex flex-col gap-4">
                     <section>
-                        <div className="relative">
-                            <p className="text-lg font-bold leading-tight tracking-tight text-slate-800 relative z-10" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-                        </div>
+                        <p className="text-sm font-bold leading-snug tracking-tight text-slate-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
                     </section>
 
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] mb-4 flex items-center gap-4" style={{ color: accent }}>
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] mb-3 flex items-center gap-3" style={{ color: accent }}>
                             <span>The Experience</span>
-                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
+                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: accent }} />
                             <div className="flex-1 h-px bg-slate-200" />
                         </h2>
-                        <div className="space-y-6">
+                        <div className="space-y-4">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
                                     {isEditing && (
                                         <button
                                             onClick={() => handleDeleteExperience(index)}
-                                            className="absolute -left-16 top-0 p-3 bg-pink-500 text-white rounded-2xl shadow-xl hover:rotate-12 transition-transform"
+                                            className="absolute -left-10 top-0 p-2 bg-pink-500 text-white rounded-xl shadow-lg hover:rotate-12 transition-transform"
                                         >
-                                            <Trash className="h-5 w-5" />
+                                            <Trash className="h-3 w-3" />
                                         </button>
                                     )}
-                                    <div className="grid grid-cols-12 gap-8">
+                                    <div className="grid grid-cols-12 gap-4">
                                         <div className="col-span-3">
-                                            <span className="text-sm font-black uppercase text-[#C9A84C] tracking-widest block mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
-                                            <h3 className="text-sm font-black text-slate-900 border-l-4 pl-4 py-2 bg-slate-50" style={{ borderColor: accent }} {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
+                                            <span className="text-[10px] font-black uppercase text-[#C9A84C] tracking-widest block mb-0.5" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                                            <h3 className="text-xs font-black text-slate-900 border-l-4 pl-3 py-1 bg-slate-50" style={{ borderColor: accent }} {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
                                         </div>
                                         <div className="col-span-9">
-                                            <h4 className="text-base font-black tracking-tighter text-slate-900 mb-2 italic underline decoration-orange-400 decoration-4 underline-offset-[-2px] decoration-skip-ink" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
-                                            <ul className="space-y-1.5">
-                                                {job.responsibilities.map((resp, i) => (
-                                                    <li key={i} className="text-sm font-medium text-slate-600 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                            <h4 className="text-sm font-black tracking-tighter text-slate-900 mb-1 italic underline decoration-orange-400 decoration-2 underline-offset-[-1px]" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
+                                            <ul className="space-y-1">
+                                                {job.responsibilities.slice(0, 4).map((resp, i) => (
+                                                    <li key={i} className="text-xs text-slate-600 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                                 ))}
                                             </ul>
                                         </div>
@@ -128,34 +170,32 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                             ))}
                         </div>
                     </section>
-                </div>
-            </main>
 
-            <footer className="bg-orange-400 p-5 text-center">
-                <p className="text-lg font-black uppercase tracking-tighter text-white">Let's Create Something Epic.</p>
+                    <TemplateCustomSections
+                      customSections={cvData.customSections}
+                      references={undefined}
+                      renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-[0.3em] mb-3" style={{ color: accent }}>{title}</h2>}
+                      sectionClassName="mb-4"
+                      titleClass="font-semibold text-xs"
+                      subtitleClass="text-[10px] text-slate-500"
+                      descClass="text-[10px] text-slate-600 mt-0.5"
+                      yearClass="text-[10px] text-slate-400"
+                    />
+                </div>
+            </div>
+
+            {/* Footer */}
+            <footer className="bg-orange-400 p-4 text-center">
+                <p className="text-sm font-black uppercase tracking-tighter text-white">Let's Create Something Epic.</p>
             </footer>
 
-            
-        <TemplateCustomSections
-          customSections={cvData.customSections}
-          references={cvData.references}
-          renderHeader={title => <h2 className="text-xs font-black uppercase tracking-[0.3em] mb-4" style={{ color: accent }}>{title}</h2>}
-          sectionClassName="mb-8"
-          titleClass="font-semibold text-sm"
-          subtitleClass="text-xs text-slate-500"
-          descClass="text-xs text-slate-600 mt-0.5"
-          yearClass="text-xs text-slate-400"
-        />
-{jobDescriptionForATS && (
+            {jobDescriptionForATS && (
                 <HiddenATSKeywords text={jobDescriptionForATS} />
             )}
 
             <style dangerouslySetInnerHTML={{
-                __html: `
-        .clip-path-header {
-            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
-        }
-      `}} />
+                __html: `.clip-path-header { clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%); }`
+            }} />
         </div>
     );
 };
