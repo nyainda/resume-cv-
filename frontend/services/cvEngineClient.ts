@@ -909,6 +909,95 @@ export async function workerProxyLLM(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Streaming proxy — requests Claude SSE stream via the CF Worker and yields
+// text deltas to an onChunk callback as they arrive.  Returns the full
+// accumulated string once the stream closes.
+//
+// Only works when the provider is 'claude'.  Falls back to workerProxyLLM
+// for any non-streaming-capable provider (handled by the caller).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function workerProxyStream(
+    task: string,
+    prompt: string,
+    opts: {
+        provider: 'claude' | 'gemini';
+        apiKey: string;
+        temperature?: number;
+        maxTokens?: number;
+        timeoutMs?: number;
+        onChunk: (delta: string) => void;
+    },
+): Promise<string> {
+    if (!isCVEngineConfigured() || !prompt || !opts.apiKey) {
+        throw new Error('Worker not configured or missing prompt/key.');
+    }
+    const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
+
+    const r = await fetch(u.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            task,
+            prompt,
+            provider:    opts.provider,
+            apiKey:      opts.apiKey,
+            temperature: opts.temperature ?? 0.3,
+            maxTokens:   opts.maxTokens   ?? 4096,
+            stream:      true,
+        }),
+        signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!r.ok || !r.body) {
+        const errText = await r.text().catch(() => '');
+        throw new Error(`Stream request failed (${r.status}): ${errText.slice(0, 200)}`);
+    }
+
+    // ── Parse Claude SSE stream ───────────────────────────────────────────────
+    // Claude sends: data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
+    const reader  = r.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = '';
+    let buffer      = '';
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? ''; // keep incomplete last line for next chunk
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const raw = line.slice(6).trim();
+                if (!raw || raw === '[DONE]') continue;
+                try {
+                    const evt = JSON.parse(raw) as any;
+                    if (evt?.type === 'content_block_delta' && evt?.delta?.type === 'text_delta') {
+                        const text: string = evt.delta.text ?? '';
+                        if (text) {
+                            accumulated += text;
+                            opts.onChunk(text);
+                        }
+                    }
+                } catch { /* ignore malformed SSE lines */ }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    return accumulated;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Multimodal proxy — routes base64 file (image or PDF) + text prompt through
 // the CF Worker to Claude, avoiding the CORS block from direct browser calls.
 // Used by claudeMultimodalCall for file-based CV/profile imports.

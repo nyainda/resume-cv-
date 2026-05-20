@@ -2268,12 +2268,31 @@ async function handleTokensRevoke(request: Request, env: Env): Promise<Response>
 const LLM_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const LLM_CACHE_MAX_RESPONSE_BYTES = 200_000;      // 200 KB
 
+const LLM_KV_PREFIX   = 'llm:';
+const LLM_KV_TTL_SECS = 3600; // KV hot-cache TTL: 1 hour (D1 keeps 30 days)
+
 async function handleLLMCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
     const key = (url.searchParams.get('key') ?? '').trim();
     if (!key || key.length !== 64) {
         return json({ hit: false, error: 'invalid_key' }, request, env, 400);
     }
 
+    // ── 1. KV hot-cache — sub-millisecond lookup ──────────────────────────────
+    try {
+        const kvVal = await env.CV_KV.get<{ response: string; hitCount: number }>(
+            `${LLM_KV_PREFIX}${key}`, { type: 'json' }
+        );
+        if (kvVal?.response) {
+            // Fire-and-forget: bump D1 hit counter without blocking the response.
+            const now = Math.floor(Date.now() / 1000);
+            void env.CV_DB.prepare(
+                `UPDATE llm_cache SET hit_count = hit_count + 1, last_hit_at = ? WHERE cache_key = ?`
+            ).bind(now, key).run().catch(() => {});
+            return json({ hit: true, response: kvVal.response, hitCount: kvVal.hitCount + 1, source: 'kv' }, request, env);
+        }
+    } catch { /* KV miss or error — fall through to D1 */ }
+
+    // ── 2. D1 cold-cache — persistent 30-day store ────────────────────────────
     const now = Math.floor(Date.now() / 1000);
     const expireBefore = now - LLM_CACHE_TTL_SECONDS;
 
@@ -2288,12 +2307,19 @@ async function handleLLMCacheGet(request: Request, env: Env, url: URL): Promise<
         return json({ hit: false }, request, env);
     }
 
+    // Promote to KV hot-cache so next hit is sub-millisecond.
+    void env.CV_KV.put(
+        `${LLM_KV_PREFIX}${key}`,
+        JSON.stringify({ response: row.response, hitCount: row.hit_count + 1 }),
+        { expirationTtl: LLM_KV_TTL_SECS }
+    ).catch(() => {});
+
     // Increment hit counter + refresh last_hit_at in the background — fire-and-forget.
     void env.CV_DB.prepare(
         `UPDATE llm_cache SET hit_count = hit_count + 1, last_hit_at = ? WHERE cache_key = ?`
     ).bind(now, key).run().catch(() => { /* best-effort */ });
 
-    return json({ hit: true, response: row.response, hitCount: row.hit_count + 1 }, request, env);
+    return json({ hit: true, response: row.response, hitCount: row.hit_count + 1, source: 'd1' }, request, env);
 }
 
 async function handleLLMCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -2324,6 +2350,15 @@ async function handleLLMCachePost(request: Request, env: Env, ctx: ExecutionCont
              hit_count  = hit_count + 1,
              last_hit_at = excluded.created_at`
     ).bind(key, model, temperature, response, promptSize, now).run();
+
+    // Also write to KV hot-cache so the next read is sub-millisecond.
+    ctx.waitUntil(
+        env.CV_KV.put(
+            `${LLM_KV_PREFIX}${key}`,
+            JSON.stringify({ response, hitCount: 0 }),
+            { expirationTtl: LLM_KV_TTL_SECS }
+        ).catch(() => {})
+    );
 
     // Background cleanup — evict rows older than TTL (cap to 200 rows per run).
     const expireBefore = now - LLM_CACHE_TTL_SECONDS;
@@ -3009,8 +3044,9 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
     const model       = typeof body?.model === 'string'   ? body.model.trim()   : '';
     const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
     const maxTokens   = clamp(Number(body?.maxTokens ?? 4096), 64, 8192);
-    const wantJson    = body?.json === true;
+    const wantJson    = body?.json   === true;
     const useSearch   = body?.useSearch === true;
+    const wantStream  = body?.stream === true;
     // Multimodal support (Claude only) — base64-encoded image or PDF
     const base64Data  = typeof body?.base64Data === 'string' ? body.base64Data : '';
     const mimeType    = typeof body?.mimeType   === 'string' ? body.mimeType   : '';
@@ -3051,7 +3087,12 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
     try {
         // ── Claude ────────────────────────────────────────────────────────────
         if (provider === 'claude') {
-            const claudeModel = model || 'claude-haiku-4-5';
+            // Route to Sonnet for complex creative tasks, Haiku for quick/classification tasks.
+            const SONNET_TASKS = new Set([
+                'cvGenerate', 'cvGenerateLong', 'cvExperience', 'cvProjects',
+                'humanize', 'multilingualGenerate', 'coverLetter',
+            ]);
+            const claudeModel = model || (SONNET_TASKS.has(task) ? 'claude-sonnet-4-5' : 'claude-haiku-4-5');
 
             // Build message content — multimodal (image/PDF) or plain text
             let userContent: unknown;
@@ -3081,6 +3122,7 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
                 messages: [{ role: 'user', content: userContent }],
             };
             if (effectiveSystem) claudeBody.system = effectiveSystem;
+            if (wantStream) claudeBody.stream = true;
 
             const res = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
@@ -3094,6 +3136,24 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
                 try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch { /**/ }
                 const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
                 return json({ error: 'upstream_error', message: msg || `Claude error ${res.status}`, status: res.status }, request, env, errStatus);
+            }
+
+            // ── Streaming path: pipe SSE directly to the browser ─────────────
+            if (wantStream) {
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    return new Response(errText || `Claude streaming error ${res.status}`, { status: 502 });
+                }
+                // Pipe Claude's SSE stream straight through — CORS headers are
+                // injected by the nuclear wrapper at the top of fetch().
+                return new Response(res.body, {
+                    status: 200,
+                    headers: {
+                        'Content-Type':  'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        'X-Accel-Buffering': 'no',
+                    },
+                });
             }
 
             const data = await res.json() as any;

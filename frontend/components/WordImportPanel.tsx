@@ -322,6 +322,116 @@ function validateAndNormaliseProfile(raw: unknown): UserProfile {
         sectionOrder:   Array.isArray(obj.sectionOrder)   ? obj.sectionOrder   as any : undefined,
     };
 
+    // ── Promote flat certifications / achievements / publications into customSections ──
+    // Many JSON exports have these as top-level arrays alongside workExperience.
+    // We convert them into the CustomSection format so profileToCV can map them
+    // into CVData.certifications / CVData.achievements / CVData.publications.
+    const extraSections: import('../types').CustomSection[] = [...(profile.customSections || [])];
+
+    const rawCerts: unknown[] =
+        Array.isArray(obj.certifications)   ? obj.certifications  :
+        Array.isArray(obj.licenses)         ? obj.licenses        :
+        Array.isArray(obj.licences)         ? obj.licences        : [];
+
+    const rawAwards: unknown[] = [
+        ...(Array.isArray(obj.awards)        ? obj.awards        : []),
+        ...(Array.isArray(obj.achievements)  ? obj.achievements  : []),
+        ...(Array.isArray(obj.honors)        ? obj.honors        : []),
+        ...(Array.isArray(obj.honours)       ? obj.honours       : []),
+    ];
+
+    const rawPubs: unknown[] =
+        Array.isArray(obj.publications) ? obj.publications :
+        Array.isArray(obj.papers)       ? obj.papers       : [];
+
+    const rawVolunteer: unknown[] =
+        Array.isArray(obj.volunteer)         ? obj.volunteer       :
+        Array.isArray(obj.volunteering)      ? obj.volunteering    :
+        Array.isArray(obj.volunteerWork)     ? obj.volunteerWork   : [];
+
+    if (rawCerts.length > 0) {
+        extraSections.push({
+            id:    'import_certs',
+            type:  'certifications',
+            label: 'Certifications',
+            items: rawCerts.map((c, i) => {
+                if (typeof c === 'string') return { id: `cert_${i}`, title: c };
+                const co = (c || {}) as Record<string, unknown>;
+                return {
+                    id:       `cert_${i}`,
+                    title:    pickStr(co, 'name', 'title', 'certification', 'cert', 'credential'),
+                    subtitle: pickStr(co, 'issuer', 'organization', 'organisation', 'provider', 'by', 'institute'),
+                    year:     pickStr(co, 'year', 'date', 'issued', 'issueDate', 'issue_date', 'validFrom'),
+                };
+            }).filter(item => item.title),
+        });
+    }
+
+    if (rawAwards.length > 0) {
+        extraSections.push({
+            id:    'import_awards',
+            type:  'achievements',
+            label: 'Awards & Achievements',
+            items: rawAwards.map((a, i) => {
+                if (typeof a === 'string') return { id: `award_${i}`, title: a };
+                const ao = (a || {}) as Record<string, unknown>;
+                return {
+                    id:          `award_${i}`,
+                    title:       pickStr(ao, 'title', 'name', 'award', 'achievement'),
+                    subtitle:    pickStr(ao, 'issuer', 'organization', 'organisation', 'company', 'awarder'),
+                    year:        pickStr(ao, 'year', 'date', 'received'),
+                    description: pickStr(ao, 'description', 'summary', 'detail'),
+                };
+            }).filter(item => item.title),
+        });
+    }
+
+    if (rawPubs.length > 0) {
+        extraSections.push({
+            id:    'import_pubs',
+            type:  'publications',
+            label: 'Publications',
+            items: rawPubs.map((p, i) => {
+                if (typeof p === 'string') return { id: `pub_${i}`, title: p };
+                const po = (p || {}) as Record<string, unknown>;
+                const authors = Array.isArray(po.authors) ? (po.authors as unknown[]).map(coerceStr).filter(Boolean).join(', ') : '';
+                return {
+                    id:          `pub_${i}`,
+                    title:       pickStr(po, 'name', 'title', 'paper'),
+                    subtitle:    authors || pickStr(po, 'journal', 'publisher', 'conference', 'venue', 'publication'),
+                    year:        pickStr(po, 'year', 'date', 'publishedAt', 'published_at'),
+                    link:        pickStr(po, 'link', 'url', 'doi'),
+                    description: pickStr(po, 'description', 'summary', 'abstract'),
+                };
+            }).filter(item => item.title),
+        });
+    }
+
+    if (rawVolunteer.length > 0) {
+        extraSections.push({
+            id:    'import_volunteer',
+            type:  'volunteer',
+            label: 'Volunteer Work',
+            items: rawVolunteer.map((v, i) => {
+                if (typeof v === 'string') return { id: `vol_${i}`, title: v };
+                const vo = (v || {}) as Record<string, unknown>;
+                return {
+                    id:          `vol_${i}`,
+                    title:       pickStr(vo, 'role', 'position', 'title', 'jobTitle', 'job_title'),
+                    subtitle:    pickStr(vo, 'organization', 'organisation', 'company', 'employer'),
+                    year:        pickStr(vo, 'startDate', 'start_date', 'year', 'date'),
+                    description: coerceResponsibilities(pick(vo, 'description', 'responsibilities', 'duties', 'summary')),
+                };
+            }).filter(item => item.title),
+        });
+    }
+
+    if (extraSections.length > 0) {
+        profile.customSections = extraSections;
+    }
+
+    return profile;
+
     return profile;
 }
 

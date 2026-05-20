@@ -1,6 +1,6 @@
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
-import { workerTieredLLM, workerProxyLLM, isCVEngineConfigured } from './cvEngineClient';
+import { workerTieredLLM, workerProxyLLM, workerProxyStream, isCVEngineConfigured } from './cvEngineClient';
 
 // ── Active AI engine tracker ──────────────────────────────────────────────────
 let _lastAiEngine: string = 'Workers AI';
@@ -439,6 +439,85 @@ export async function groqChat(
     const err: any = new Error('No AI provider selected. Go to Settings → AI Provider to configure one.');
     err.isUserFacing = true;
     throw err;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// groqChatStream — streaming variant of groqChat.
+//
+// When the active provider is 'claude', opens a server-sent-events stream
+// through the CF Worker proxy and calls onChunk for each text delta so the UI
+// can display tokens as they arrive.  For 'workers-ai' and 'gemini' there is
+// no streaming proxy yet — they fall back to the regular non-streaming call
+// and call onChunk once with the full response.
+//
+// Returns the complete accumulated text (same contract as groqChat).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function groqChatStream(
+    model: string,
+    systemPrompt: string,
+    userPrompt: string,
+    onChunk: (delta: string) => void,
+    opts: { temperature?: number; maxTokens?: number; task?: string } = {},
+): Promise<string> {
+    const provider    = getSelectedProvider();
+    const effectiveTemp = opts.temperature ?? 0.2;
+    const proxyTask   = opts.task || groqModelToWorkerTask(model);
+
+    // ── Cache lookup (same as groqChat) ──────────────────────────────────────
+    const cached = await lookupGroqCache(model, systemPrompt, userPrompt, effectiveTemp);
+    if (cached !== null) {
+        // Simulate streaming for cache hits so the caller's UI feels consistent.
+        const chunkSize = 20;
+        for (let i = 0; i < cached.length; i += chunkSize) {
+            onChunk(cached.slice(i, i + chunkSize));
+            await new Promise(r => setTimeout(r, 8));
+        }
+        return cached;
+    }
+
+    // ── Claude — real SSE stream ──────────────────────────────────────────────
+    if (provider === 'claude') {
+        const key = getClaudeApiKey();
+        if (!key) {
+            const err: any = new Error('No Claude API key configured. Go to Settings → AI Keys to add your Anthropic API key.');
+            err.isUserFacing = true;
+            throw err;
+        }
+        _dispatchTrying({ label: 'Claude (stream)', type: 'single' });
+        try {
+            const text = await workerProxyStream(proxyTask, userPrompt, {
+                provider:    'claude',
+                apiKey:      key,
+                temperature: opts.temperature,
+                maxTokens:   opts.maxTokens,
+                timeoutMs:   60_000,
+                onChunk,
+            });
+            if (!text) throw new Error('Claude stream returned no text');
+            _lastAiEngine = 'Claude';
+            _recordProviderResult('Claude', 'ok');
+            _trackTokens(systemPrompt, userPrompt, text);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
+            return text;
+        } catch (e: any) {
+            if (e?.isUserFacing) throw e;
+            const errState = _classifyErrorState(e);
+            _recordProviderResult('Claude', errState, e);
+            const hint = errState === 'auth_failed'
+                ? 'Your Claude API key appears to be invalid. Update it in Settings → AI Keys.'
+                : errState === 'quota_exhausted'
+                ? 'Claude rate limit hit. Wait a moment or switch to a different provider in Settings → AI Provider.'
+                : `Claude stream failed: ${e?.message || 'unknown error'}`;
+            const err: any = new Error(hint);
+            err.isUserFacing = true;
+            throw err;
+        }
+    }
+
+    // ── Workers AI / Gemini — no streaming yet, call onChunk once ────────────
+    const text = await groqChat(model, systemPrompt, userPrompt, opts);
+    onChunk(text);
+    return text;
 }
 
 // ── DevTools diagnostic ───────────────────────────────────────────────────────
