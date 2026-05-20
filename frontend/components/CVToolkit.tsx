@@ -103,6 +103,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
 
     // ── Cover Letter state ──
     const [coverLetter, setCoverLetter] = useLocalStorage<string>('toolkit_cl', '');
+    const [streamingCL, setStreamingCL] = useState('');
     const [isGeneratingCL, setIsGeneratingCL] = useState(false);
     const [clError, setClError] = useState<string | null>(null);
     const [useCompanyResearch, setUseCompanyResearch] = useState(true);
@@ -151,6 +152,8 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
         if (!jobDescription.trim()) return;
         setIsGeneratingCL(true);
         setClError(null);
+        setStreamingCL('');
+        setCoverLetter('');
         try {
             let companyInfo = '';
             if (useCompanyResearch && tavilyApiKey && selectedJob?.company) {
@@ -158,9 +161,16 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                     companyInfo = await researchCompany(selectedJob.company, selectedJob.title, tavilyApiKey);
                 } catch { /* continue without research */ }
             }
-            const letter = await generateSmartCoverLetter(userProfile, jobDescription, companyInfo);
+            const letter = await generateSmartCoverLetter(
+                userProfile,
+                jobDescription,
+                companyInfo,
+                (delta) => setStreamingCL(prev => prev + delta),
+            );
             setCoverLetter(letter);
+            setStreamingCL('');
         } catch (e) {
+            setStreamingCL('');
             setClError(e instanceof Error ? e.message : 'Cover letter generation failed.');
         } finally {
             setIsGeneratingCL(false);
@@ -448,30 +458,37 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                         </div>
                     )}
 
-                    {coverLetter && (
+                    {(streamingCL || coverLetter) && (
                         <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-6 space-y-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                                    ✉️ Your Cover Letter
+                                    {streamingCL ? (
+                                        <>
+                                            <span className="w-2 h-2 rounded-full bg-[#C9A84C] animate-pulse inline-block" />
+                                            <span className="text-[#C9A84C]">Writing…</span>
+                                        </>
+                                    ) : '✉️ Your Cover Letter'}
                                 </h3>
-                                <div className="flex gap-2">
-                                    <Button
-                                        onClick={() => navigator.clipboard.writeText(coverLetter)}
-                                        className="text-xs rounded-xl border border-zinc-200 dark:border-neutral-700 px-3 h-8"
-                                    >
-                                        📋 Copy
-                                    </Button>
-                                    <Button
-                                        onClick={handleDownloadCL}
-                                        className="text-xs bg-violet-600 hover:bg-violet-700 text-white border-0 rounded-xl px-3 h-8"
-                                    >
-                                        <Download className="h-3.5 w-3.5 mr-1" /> PDF
-                                    </Button>
-                                </div>
+                                {!streamingCL && (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={() => navigator.clipboard.writeText(coverLetter)}
+                                            className="text-xs rounded-xl border border-zinc-200 dark:border-neutral-700 px-3 h-8"
+                                        >
+                                            📋 Copy
+                                        </Button>
+                                        <Button
+                                            onClick={handleDownloadCL}
+                                            className="text-xs bg-violet-600 hover:bg-violet-700 text-white border-0 rounded-xl px-3 h-8"
+                                        >
+                                            <Download className="h-3.5 w-3.5 mr-1" /> PDF
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                             <div className="bg-zinc-50 dark:bg-neutral-900 rounded-xl p-5 max-h-[500px] overflow-y-auto">
                                 <pre className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                    {coverLetter}
+                                    {streamingCL || coverLetter}
                                 </pre>
                             </div>
                             {onGoToGenerator && (
