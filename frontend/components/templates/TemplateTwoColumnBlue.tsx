@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
+import { smartBullets, smartProjects } from '../../utils/smartBullets';
 
 interface TemplateProps {
   cvData: CVData;
@@ -200,7 +201,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                     </div>
                     <p className="text-[11px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-slate-700">
-                      {job.responsibilities.map((resp, i) => (
+                      {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                         <li key={i} className="leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
@@ -209,22 +210,26 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               </div>
             </section>
 
-            {cvData.projects && cvData.projects.length > 0 && (
-              <section>
-                <h2 className="text-[10px] font-bold uppercase tracking-wider border-b-2 border-blue-100 pb-0.5 mb-1.5" style={{ color: accent }}>Projects</h2>
-                <div className="space-y-1.5">
-                  {cvData.projects.map((proj, index) => (
-                    <div key={index}>
-                      <h3 className="text-[10px] font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-[11px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                      {proj.link && (
-                        <a href={proj.link} className="text-[10.5px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            {!sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (() => {
+              const { visible, overflow } = smartProjects(cvData.projects);
+              return (
+                <section>
+                  <h2 className="text-[10px] font-bold uppercase tracking-wider border-b-2 border-blue-100 pb-0.5 mb-1.5" style={{ color: accent }}>Projects</h2>
+                  <div className="space-y-1.5">
+                    {visible.map((proj, index) => (
+                      <div key={index}>
+                        <h3 className="text-[10px] font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                        <p className="text-[11px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                        {proj.link && (
+                          <a href={proj.link} className="text-[10.5px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
+                        )}
+                      </div>
+                    ))}
+                    {overflow > 0 && <p className="text-[10px] text-slate-400 italic">+{overflow} more project{overflow > 1 ? 's' : ''}</p>}
+                  </div>
+                </section>
+              );
+            })()}
           </main>
         </div>
       </div>

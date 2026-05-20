@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { smartBullets, smartProjects } from '../../utils/smartBullets';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
@@ -279,7 +280,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
                           {job.company}
                         </p>
                         <ul className="space-y-0.5">
-                          {job.responsibilities.map((r, j) => (
+                          {smartBullets(job.responsibilities, cvData.experience.length).map((r, j) => (
                             <li key={j} className="flex items-start gap-1 text-[11px] text-zinc-700 leading-snug">
                               <span className="flex-shrink-0 mt-1 text-zinc-400">•</span>
                               <span dangerouslySetInnerHTML={{ __html: r }}
@@ -295,21 +296,25 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
             </RightSection>
           )}
 
-          {cvData.projects && cvData.projects.length > 0 && (
-            <RightSection title="Highlights">
-              <ul className="space-y-0.5">
-                {cvData.projects.slice(0, 4).map((proj, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-700 leading-snug">
-                    <Dot />
-                    <span>
-                      <span className="font-semibold">{proj.name}</span>
-                      {proj.description && <span> — {proj.description}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </RightSection>
-          )}
+          {!sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (() => {
+            const { visible, overflow } = smartProjects(cvData.projects);
+            return (
+              <RightSection title="Highlights">
+                <ul className="space-y-0.5">
+                  {visible.map((proj, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-700 leading-snug">
+                      <Dot />
+                      <span>
+                        <span className="font-semibold">{proj.name}</span>
+                        {proj.description && <span> — {proj.description}</span>}
+                      </span>
+                    </li>
+                  ))}
+                  {overflow > 0 && <li className="text-[10px] text-zinc-400 italic pl-4">+{overflow} more project{overflow > 1 ? 's' : ''}</li>}
+                </ul>
+              </RightSection>
+            );
+          })()}
         </div>
       </div>
 

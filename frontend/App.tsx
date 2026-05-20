@@ -540,36 +540,49 @@ const AppInner: React.FC = () => {
       syncProfileToCache(slot).catch(() => {});
     }
 
-    // Immediately sync profile fields into the current CV so the preview
-    // reflects changes without requiring a full regeneration.
+    // Immediately sync ALL profile fields into the current CV so the preview
+    // reflects every edit without requiring a full AI regeneration.
     setCurrentCV(prev => {
       if (!prev) return prev;
+
+      // Convert the saved profile to properly-formatted CV data so we get
+      // correct date formatting, bullet splitting, etc. without duplicating logic.
+      const fromProfile = profileToCV(profile);
+
+      // Smart experience merge: preserve AI-polished bullets for roles that
+      // haven't changed (same position + company + title). New or renamed
+      // roles use fresh bullets from the profile so the edit is visible.
+      const mergedExperience = fromProfile.experience.map((newExp, i) => {
+        const prevExp = prev.experience[i];
+        if (
+          prevExp &&
+          prevExp.company === newExp.company &&
+          prevExp.jobTitle === newExp.jobTitle &&
+          prevExp.responsibilities.length > 0
+        ) {
+          // Same role — keep AI bullets, just refresh the date range
+          return {
+            ...prevExp,
+            dates:     newExp.dates,
+            startDate: newExp.startDate,
+            endDate:   newExp.endDate,
+          };
+        }
+        // Role was added, removed, or renamed — use profile bullets
+        return newExp;
+      });
+
       return {
         ...prev,
-        // Keep AI-generated text but refresh optional/user-controlled data
+        // Core profile fields — always sync so form edits appear immediately
+        summary:    profile.summary || prev.summary,
+        experience: mergedExperience.length > 0 ? mergedExperience : prev.experience,
+        education:  fromProfile.education.length > 0 ? fromProfile.education : prev.education,
+        // User-controlled data — prefer profile when non-empty
         skills: profile.skills.length > 0 ? profile.skills : prev.skills,
-        projects: profile.projects && profile.projects.length > 0
-          ? profile.projects
-              .filter(p => p.name.trim())
-              .map(p => ({ name: p.name, description: p.description, link: p.link }))
-          : prev.projects,
-        languages: profile.languages && profile.languages.length > 0
-          ? profile.languages
-              .filter(l => l.name.trim())
-              .map(l => ({ name: l.name, proficiency: l.proficiency }))
-          : prev.languages,
-        references: profile.references && profile.references.length > 0
-          ? profile.references
-              .filter(r => r.name.trim())
-              .map(r => ({
-                name: r.name,
-                title: r.title,
-                company: r.company,
-                email: r.email,
-                phone: r.phone,
-                relationship: r.relationship,
-              }))
-          : prev.references,
+        projects:   fromProfile.projects  && fromProfile.projects.length  > 0 ? fromProfile.projects  : prev.projects,
+        languages:  fromProfile.languages && fromProfile.languages.length > 0 ? fromProfile.languages : prev.languages,
+        references: fromProfile.references && fromProfile.references.length > 0 ? fromProfile.references : prev.references,
         customSections: (profile.customSections || []).filter(
           s => s.items.some(i => i.title.trim().length > 0)
         ),

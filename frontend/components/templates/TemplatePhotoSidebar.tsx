@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { smartBullets, smartProjects } from '../../utils/smartBullets';
 
 interface TemplateProps {
   cvData: CVData;
@@ -276,7 +277,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                       </div>
                       <p className="text-[11px] font-semibold text-zinc-600 mb-0.5" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                       <ul className="list-disc list-outside ml-3 space-y-0.5">
-                        {job.responsibilities.map((resp, i) => (
+                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                           <li key={i} className="text-[11px] text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                         ))}
                       </ul>
@@ -287,18 +288,22 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </RightSection>
           )}
 
-          {cvData.projects && cvData.projects.length > 0 && (
-            <RightSection title="Highlights">
-              <ul className="space-y-0.5 list-disc list-outside ml-3.5">
-                {cvData.projects.map((proj, index) => (
-                  <li key={index} className="text-[11px] text-zinc-700 leading-snug">
-                    <span className="font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}:</span>{' '}
-                    <span dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                  </li>
-                ))}
-              </ul>
-            </RightSection>
-          )}
+          {!sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (() => {
+            const { visible, overflow } = smartProjects(cvData.projects);
+            return (
+              <RightSection title="Highlights">
+                <ul className="space-y-0.5 list-disc list-outside ml-3.5">
+                  {visible.map((proj, index) => (
+                    <li key={index} className="text-[11px] text-zinc-700 leading-snug">
+                      <span className="font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}:</span>{' '}
+                      <span dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                    </li>
+                  ))}
+                  {overflow > 0 && <li className="text-[10px] text-zinc-400 italic list-none">+{overflow} more project{overflow > 1 ? 's' : ''}</li>}
+                </ul>
+              </RightSection>
+            );
+          })()}
 
           {memberships.length > 0 && (
             <RightSection title="Memberships">
