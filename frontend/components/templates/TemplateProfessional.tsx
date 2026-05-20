@@ -59,7 +59,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
         return (
           <section key="workExperience">
             <h2 className="text-sm font-bold uppercase tracking-widest pb-2 mb-4" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>Experience</h2>
-            <div className="space-y-8">
+            <div className="space-y-4">
               {cvData.experience.map((job, index) => (
                 <div key={index} className="relative group" data-pdf-keep="true">
                   {isEditing && (
@@ -76,7 +76,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                     <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                   </div>
                   <p className="text-base font-bold text-slate-700" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                  <ul className="list-disc list-outside ml-5 mt-2 space-y-2 text-base text-slate-700">
+                  <ul className="list-disc list-outside ml-5 mt-1 space-y-0.5 text-sm text-slate-700">
                     {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                   </ul>
                 </div>
@@ -172,9 +172,9 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   };
 
   return (
-    <div id="cv-preview-professional" className="bg-white p-12 text-zinc-900 shadow-lg border font-serif">
-      <header className="text-center border-b-2 border-zinc-200 pb-6 mb-8" data-pdf-keep="true">
-        <h1 className="text-4xl font-extrabold tracking-tight text-zinc-900">{personalInfo.name}</h1>
+    <div id="cv-preview-professional" className="bg-white p-8 text-zinc-900 shadow-lg border font-serif">
+      <header className="text-center border-b-2 border-zinc-200 pb-4 mb-5" data-pdf-keep="true">
+        <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">{personalInfo.name}</h1>
         <div className="flex justify-center items-center gap-x-4 gap-y-1 text-sm text-slate-600 mt-3 flex-wrap">
           <span>{personalInfo.email}</span>
           <span>|</span>
@@ -187,7 +187,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
         </div>
       </header>
 
-      <main className="space-y-12">
+      <main className="space-y-5">
         {orderedSections.map(key => renderSection(key))}
         {cvData.publications && cvData.publications.length > 0 && (
           <section>

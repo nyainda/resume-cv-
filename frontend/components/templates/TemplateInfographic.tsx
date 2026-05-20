@@ -103,7 +103,7 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
         </div>
 
         {/* Main Content */}
-        <div className="col-span-8 p-10 text-slate-800">
+        <div className="col-span-8 p-7 text-slate-800">
             <main>
                  <section className="mb-6">
                     <p className="text-base leading-relaxed bg-blue-50 border-l-4 border-blue-500 p-4" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
@@ -118,7 +118,7 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                 <p className="text-sm font-medium text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                             </div>
                             <p className="text-md font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                            <ul className="list-disc list-outside ml-5 mt-2 space-y-1 text-base">
+                            <ul className="list-disc list-outside ml-5 mt-1 space-y-0.5 text-sm">
                             {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                             </ul>
                         </div>

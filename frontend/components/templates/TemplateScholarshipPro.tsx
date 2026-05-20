@@ -48,10 +48,10 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
     );
 
     return (
-        <div id="cv-preview-scholarship-pro" className="bg-white p-12 sm:p-20 text-slate-800 shadow-xl border border-slate-100 font-sans leading-relaxed" style={{ fontFamily: "'Inter', sans-serif" }}>
-            <header className="grid grid-cols-12 gap-8 mb-16 items-center">
+        <div id="cv-preview-scholarship-pro" className="bg-white p-8 text-slate-800 shadow-xl border border-slate-100 font-sans leading-relaxed" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <header className="grid grid-cols-12 gap-8 mb-5 items-center">
                 <div className="col-span-8">
-                    <h1 className="text-5xl font-black text-slate-900 tracking-tight leading-none mb-4 uppercase">
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2 uppercase">
                         {personalInfo.name}
                     </h1>
                     <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm font-bold uppercase tracking-widest" style={{ color: accent }}>
@@ -68,9 +68,9 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                 </div>
             </header>
 
-            <main className="grid grid-cols-12 gap-12">
+            <main className="grid grid-cols-12 gap-6">
                 <div className="col-span-12">
-                    <section className="bg-teal-50/50 p-8 rounded-3xl border border-teal-100/50 mb-12">
+                    <section className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100/50 mb-5">
                         <div className="flex gap-4 items-start">
                             <span className="text-4xl">🎓</span>
                             <div>
@@ -81,7 +81,7 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     </section>
                 </div>
 
-                <div className="col-span-8 space-y-12">
+                <div className="col-span-8 space-y-5">
                     <section>
                         <SectionHeading>Academic Formation</SectionHeading>
                         <div className="space-y-6">
@@ -132,7 +132,7 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     </section>
                 </div>
 
-                <div className="col-span-4 space-y-12">
+                <div className="col-span-4 space-y-5">
                     <section>
                         <SectionHeading>Technical Arsenal</SectionHeading>
                         <div className="grid grid-cols-1 gap-4">

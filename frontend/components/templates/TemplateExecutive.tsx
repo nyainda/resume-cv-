@@ -180,7 +180,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
   };
 
   return (
-    <div id="cv-preview-executive" className="bg-white p-14 text-gray-900 shadow-lg border font-serif" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+    <div id="cv-preview-executive" className="bg-white p-8 text-gray-900 shadow-lg border font-serif" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
       <header className="text-center mb-6 pb-5 border-b-2" style={{ borderColor: accent }} data-pdf-keep="true">
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 uppercase mb-2" style={{ letterSpacing: '0.08em' }}>
           {personalInfo.name}

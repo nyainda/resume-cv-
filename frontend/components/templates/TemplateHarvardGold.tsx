@@ -41,7 +41,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     } : {};
 
     const SectionHeader = ({ title }: { title: string }) => (
-        <div className="mb-4 mt-6 border-b-2 pb-1" style={{ borderColor: accent + '30' }}>
+        <div className="mb-3 mt-4 border-b-2 pb-1" style={{ borderColor: accent + '30' }}>
             <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: accent }}>{title}</h2>
         </div>
     );
@@ -61,7 +61,7 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                 return (
                     <section key="workExperience">
                         <SectionHeader title="Experience" />
-                        <div className="space-y-6">
+                        <div className="space-y-3">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
                                     {isEditing && (
@@ -174,9 +174,9 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     };
 
     return (
-        <div id="cv-preview-harvard-gold" className="bg-white p-12 sm:p-16 text-slate-800 shadow-lg border font-serif leading-relaxed" style={{ fontFamily: "'Crimson Text', 'Georgia', serif" }}>
-            <header className="text-center mb-10">
-                <h1 className="text-4xl font-bold tracking-tight text-slate-900 uppercase mb-3 decoration-amber-600/30 underline underline-offset-8">
+        <div id="cv-preview-harvard-gold" className="bg-white p-8 text-slate-800 shadow-lg border font-serif leading-relaxed" style={{ fontFamily: "'Crimson Text', 'Georgia', serif" }}>
+            <header className="text-center mb-5">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 uppercase mb-2 decoration-amber-600/30 underline underline-offset-8">
                     {personalInfo.name}
                 </h1>
                 <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 text-sm text-slate-600">

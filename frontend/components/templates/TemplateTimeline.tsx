@@ -34,7 +34,7 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
   } : {};
 
   const SectionShell: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
-    <section className={`mb-8 ${className ?? ''}`}>
+    <section className={`mb-4 ${className ?? ''}`}>
       <h2 className="text-lg font-bold uppercase tracking-wider border-b-2 border-slate-200 pb-2 mb-4" style={{ color: accent }}>{title}</h2>
       {children}
     </section>
@@ -57,14 +57,14 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
       case 'workExperience':
         return (
           <SectionShell key="workExperience" title="Experience">
-            <div className="relative border-l-2 border-slate-200 pl-8 space-y-10">
+            <div className="relative border-l-2 border-slate-200 pl-8 space-y-5">
               {cvData.experience.map((job, index) => (
                 <div key={index} className="relative">
                   <div className="absolute -left-[38px] top-1 h-3 w-3 rounded-full border-2 border-white" style={{ backgroundColor: accent }}></div>
                   <p className="text-sm font-semibold text-slate-500 mb-1" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
-                  <h3 className="text-xl font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                  <h3 className="text-base font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                   <p className="text-md text-slate-600 font-medium" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                  <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-base">
+                  <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5 text-sm">
                     {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                   </ul>
                 </div>
@@ -148,9 +148,9 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
   };
 
   return (
-    <div id="cv-preview-timeline" className="bg-white p-10 text-slate-800 shadow-lg border font-['Inter']">
-      <header className="text-center mb-10">
-        <h1 className="text-5xl font-extrabold tracking-tight">{personalInfo.name}</h1>
+    <div id="cv-preview-timeline" className="bg-white p-7 text-slate-800 shadow-lg border font-['Inter']">
+      <header className="text-center mb-5">
+        <h1 className="text-3xl font-extrabold tracking-tight">{personalInfo.name}</h1>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-md text-slate-500 mt-4">
           <span>{personalInfo.email}</span>
           <span>&bull;</span>

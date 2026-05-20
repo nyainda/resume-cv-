@@ -34,7 +34,7 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
   } : {};
 
   const SectionShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section className="mb-8">
+    <section className="mb-4">
       <div className="flex items-center mb-4">
         <h2 className="text-sm font-bold uppercase tracking-[0.2em] mr-4" style={{ color: accent }}>{title}</h2>
         <div className="flex-grow h-px bg-slate-200"></div>
@@ -60,15 +60,15 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
       case 'workExperience':
         return (
           <SectionShell key="workExperience" title="Experience">
-            <div className="space-y-6">
+            <div className="space-y-3">
               {cvData.experience.map((job, index) => (
                 <div key={index}>
                   <div className="flex justify-between items-baseline">
-                    <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                    <h3 className="text-base font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                     <p className="text-sm font-medium text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                   </div>
                   <p className="text-md text-slate-600 font-semibold" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                  <ul className="list-none mt-2 space-y-1 text-base">
+                  <ul className="list-none mt-1 space-y-0.5 text-sm">
                     {job.responsibilities.map((resp, i) => <li key={i} className="flex items-start"><span className="mr-2 text-slate-400">&rsaquo;</span><span className="flex-1" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} /></li>)}
                   </ul>
                 </div>
@@ -154,9 +154,9 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
   };
 
   return (
-    <div id="cv-preview-elegant" className="bg-white p-10 text-slate-800 shadow-lg border font-serif">
-      <header className="text-center mb-10">
-        <h1 className="text-5xl font-bold tracking-tight">{personalInfo.name}</h1>
+    <div id="cv-preview-elegant" className="bg-white p-7 text-slate-800 shadow-lg border font-serif">
+      <header className="text-center mb-5">
+        <h1 className="text-3xl font-bold tracking-tight">{personalInfo.name}</h1>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-slate-600 mt-4">
           <span>{personalInfo.email}</span>
           <span>&bull;</span>

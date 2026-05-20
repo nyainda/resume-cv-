@@ -42,10 +42,10 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
 
     return (
         <div id="cv-preview-sydney-creative" className="bg-[#fff9f2] p-0 text-slate-900 shadow-2xl border-none font-sans overflow-hidden">
-            <header className="relative bg-gradient-to-tr from-orange-400 via-pink-500 to-[#1B2B4B] p-20 text-white clip-path-header overflow-hidden">
+            <header className="relative bg-gradient-to-tr from-orange-400 via-pink-500 to-[#1B2B4B] p-10 text-white clip-path-header overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl animate-pulse" />
                 <div className="relative z-10">
-                    <h1 className="text-7xl font-black uppercase tracking-tighter leading-none mb-6 drop-shadow-lg">
+                    <h1 className="text-5xl font-black uppercase tracking-tighter leading-none mb-3 drop-shadow-lg">
                         Hello.<br />I'm {personalInfo.name.split(' ')[0]}.
                     </h1>
                     <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm font-bold uppercase tracking-widest bg-black/20 backdrop-blur-md px-6 py-3 rounded-full inline-flex">
@@ -58,9 +58,9 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
 
             <main className="grid grid-cols-12 gap-0">
                 {/* Left Colorful Sidebar */}
-                <div className="col-span-4 bg-slate-900 text-white p-12 space-y-16">
+                <div className="col-span-4 bg-slate-900 text-white p-6 space-y-6">
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-orange-400 mb-8">My Toolkit</h2>
+                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-orange-400 mb-3">My Toolkit</h2>
                         <div className="flex flex-wrap gap-3">
                             {cvData.skills.slice(0, 15).map((skill, i) => (
                                 <span key={i} className="px-4 py-2 bg-slate-800 text-sm font-bold rounded-lg border-b-4 border-orange-500 hover:-translate-y-1 transition-transform">
@@ -71,8 +71,8 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     </section>
 
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-pink-400 mb-8">Academic Base</h2>
-                        <div className="space-y-10">
+                        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-pink-400 mb-3">Academic Base</h2>
+                        <div className="space-y-4">
                             {cvData.education.map((edu, idx) => (
                                 <div key={idx} className="relative pl-6 border-l-2 border-pink-500/30">
                                     <div className="absolute -left-[5px] top-0 w-2 h-2 bg-pink-500 rounded-full" />
@@ -86,21 +86,20 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                 </div>
 
                 {/* Right Main Content */}
-                <div className="col-span-8 p-20 space-y-20">
+                <div className="col-span-8 p-8 space-y-6">
                     <section>
                         <div className="relative">
-                            <span className="text-[120px] font-black text-orange-500/5 absolute -top-20 -left-10 select-none">STORY</span>
-                            <p className="text-3xl font-bold leading-tight tracking-tight text-slate-800 relative z-10" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+                            <p className="text-lg font-bold leading-tight tracking-tight text-slate-800 relative z-10" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
                         </div>
                     </section>
 
                     <section>
-                        <h2 className="text-xs font-black uppercase tracking-[0.3em] mb-12 flex items-center gap-4" style={{ color: accent }}>
+                        <h2 className="text-xs font-black uppercase tracking-[0.3em] mb-4 flex items-center gap-4" style={{ color: accent }}>
                             <span>The Experience</span>
                             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
                             <div className="flex-1 h-px bg-slate-200" />
                         </h2>
-                        <div className="space-y-20">
+                        <div className="space-y-6">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
                                     {isEditing && (
@@ -117,10 +116,10 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                                             <h3 className="text-sm font-black text-slate-900 border-l-4 pl-4 py-2 bg-slate-50" style={{ borderColor: accent }} {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
                                         </div>
                                         <div className="col-span-9">
-                                            <h4 className="text-3xl font-black tracking-tighter text-slate-900 mb-6 italic underline decoration-orange-400 decoration-8 underline-offset-[-2px] decoration-skip-ink" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
-                                            <ul className="space-y-4">
+                                            <h4 className="text-base font-black tracking-tighter text-slate-900 mb-2 italic underline decoration-orange-400 decoration-4 underline-offset-[-2px] decoration-skip-ink" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
+                                            <ul className="space-y-1.5">
                                                 {job.responsibilities.map((resp, i) => (
-                                                    <li key={i} className="text-lg font-medium text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                                                    <li key={i} className="text-sm font-medium text-slate-600 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                                 ))}
                                             </ul>
                                         </div>
@@ -132,8 +131,8 @@ const TemplateSydneyCreative: React.FC<TemplateProps> = ({ cvData, personalInfo,
                 </div>
             </main>
 
-            <footer className="bg-orange-400 p-12 text-center">
-                <p className="text-3xl font-black uppercase tracking-tighter text-white">Let's Create Something Epic.</p>
+            <footer className="bg-orange-400 p-5 text-center">
+                <p className="text-lg font-black uppercase tracking-tighter text-white">Let's Create Something Epic.</p>
             </footer>
 
             

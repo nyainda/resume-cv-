@@ -41,11 +41,11 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
     } : {};
 
     return (
-        <div id="cv-preview-paris-vibe" className="bg-[#fafafa] p-16 text-zinc-800 shadow-xl border border-zinc-100 font-serif leading-relaxed" style={{ fontFamily: "'Playfair Display', 'Times New Roman', serif" }}>
-            <header className="mb-20">
-                <div className="flex justify-between items-end border-b border-zinc-200 pb-12">
+        <div id="cv-preview-paris-vibe" className="bg-[#fafafa] p-8 text-zinc-800 shadow-xl border border-zinc-100 font-serif leading-relaxed" style={{ fontFamily: "'Playfair Display', 'Times New Roman', serif" }}>
+            <header className="mb-5">
+                <div className="flex justify-between items-end border-b border-zinc-200 pb-4">
                     <div>
-                        <h1 className="text-6xl font-black tracking-tighter text-zinc-900 leading-none">
+                        <h1 className="text-3xl font-black tracking-tighter text-zinc-900 leading-none">
                             {personalInfo.name.split(' ')[0]}<br />
                             <span className="text-zinc-300 italic font-light">{personalInfo.name.split(' ').slice(1).join(' ')}</span>
                         </h1>
@@ -58,8 +58,8 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                 </div>
             </header>
 
-            <main className="grid grid-cols-12 gap-16">
-                <aside className="col-span-4 space-y-12">
+            <main className="grid grid-cols-12 gap-8">
+                <aside className="col-span-4 space-y-5">
                     <section>
                         <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] mb-6 flex items-center gap-2" style={{ color: accent }}>
                             <span>01</span>
@@ -95,17 +95,17 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                     )}
                 </aside>
 
-                <div className="col-span-8 space-y-20">
+                <div className="col-span-8 space-y-6">
                     <section>
                         <div className="flex gap-8 items-start">
                             <span className="text-4xl text-rose-100 font-black leading-none italic select-none">“</span>
-                            <p className="text-xl font-light italic leading-relaxed text-zinc-500 first-letter:text-5xl first-letter:font-black first-letter:text-rose-400 first-letter:mr-3 first-letter:float-left" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+                            <p className="text-sm font-light italic leading-relaxed text-zinc-500 first-letter:text-5xl first-letter:font-black first-letter:text-rose-400 first-letter:mr-3 first-letter:float-left" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
                         </div>
                     </section>
 
                     <section>
-                        <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-900 mb-10 border-b border-zinc-900 pb-2 inline-block">Professional Path</h2>
-                        <div className="space-y-16">
+                        <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-900 mb-4 border-b border-zinc-900 pb-2 inline-block">Professional Path</h2>
+                        <div className="space-y-6">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
                                     {isEditing && (
@@ -118,7 +118,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                                     )}
                                     <div className="mb-4">
                                         <div className="flex justify-between items-end mb-1">
-                                            <h3 className="text-2xl font-bold tracking-tight text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                                            <h3 className="text-base font-bold tracking-tight text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                                             <span className="text-[10px] uppercase font-bold text-rose-300 tracking-[0.2em]" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                         </div>
                                         <p className="text-sm italic font-light text-zinc-400 tracking-wider" {...editableProps(['experience', index, 'company'])}>{job.company}</p>

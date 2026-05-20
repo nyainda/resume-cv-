@@ -48,9 +48,9 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     );
 
     return (
-        <div id="cv-preview-tokyo-night" className="bg-[#1a1b26] p-12 text-slate-300 shadow-2xl border border-slate-800 font-mono" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
-            <header className="mb-12 border-l-4 border-fuchsia-500 pl-6">
-                <h1 className="text-5xl font-black tracking-tighter text-white mb-2 uppercase italic">
+        <div id="cv-preview-tokyo-night" className="bg-[#1a1b26] p-7 text-slate-300 shadow-2xl border border-slate-800 font-mono" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
+            <header className="mb-5 border-l-4 border-fuchsia-500 pl-6">
+                <h1 className="text-3xl font-black tracking-tighter text-white mb-2 uppercase italic">
                     {personalInfo.name}
                 </h1>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-cyan-400/80">
@@ -61,8 +61,8 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 </div>
             </header>
 
-            <main className="grid grid-cols-12 gap-12">
-                <div className="col-span-8 space-y-12">
+            <main className="grid grid-cols-12 gap-6">
+                <div className="col-span-8 space-y-5">
                     <section>
                         <SectionHeader title="System Summary" />
                         <p className="text-base leading-relaxed text-slate-400 border-l border-slate-700 pl-4 py-1" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
@@ -70,7 +70,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
 
                     <section>
                         <SectionHeader title="Deployment History" />
-                        <div className="space-y-10">
+                        <div className="space-y-5">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group pl-4 border-l border-fuchsia-500/30 hover:border-fuchsia-500 transition-colors">
                                     {isEditing && (
@@ -100,7 +100,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                     </section>
                 </div>
 
-                <div className="col-span-4 space-y-12">
+                <div className="col-span-4 space-y-5">
                     <section>
                         <SectionHeader title="Stack" />
                         <div className="flex flex-wrap gap-2">
@@ -114,7 +114,7 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
 
                     <section>
                         <SectionHeader title="Base Info" />
-                        <div className="space-y-6">
+                        <div className="space-y-3">
                             {cvData.education.map((edu, index) => (
                                 <div key={index} className="border-l border-slate-800 pl-4 py-1">
                                     <h3 className="text-xs font-black text-white uppercase" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>

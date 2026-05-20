@@ -45,8 +45,8 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
     <div id="cv-preview-modern" className="bg-white text-zinc-800 shadow-lg border">
       <div className="grid grid-cols-12">
         {/* Left Sidebar */}
-        <div className="col-span-4 text-white p-8" style={{ backgroundColor: accent }}>
-          <div className="text-center mb-8">
+        <div className="col-span-4 text-white p-5" style={{ backgroundColor: accent }}>
+          <div className="text-center mb-4">
             {personalInfo.photo && (
               <div className="flex justify-center mb-4">
                 <img
@@ -56,9 +56,9 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
                 />
               </div>
             )}
-            <h1 className="text-4xl font-bold tracking-tight">{personalInfo.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{personalInfo.name}</h1>
           </div>
-          <div className="space-y-8">
+          <div className="space-y-5">
             <section>
               <h2 className="text-sm font-bold uppercase tracking-widest text-slate-300 border-b border-slate-500 pb-1 mb-3">Contact</h2>
               <ul className="space-y-2 text-sm break-words">
@@ -101,8 +101,8 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
         </div>
 
         {/* Main Content */}
-        <div className="col-span-8 p-8">
-          <main className="space-y-10">
+        <div className="col-span-8 p-6">
+          <main className="space-y-5">
             <section>
               <h2 className="text-xs font-black uppercase tracking-[0.15em] text-zinc-500 border-b-2 border-zinc-100 pb-2 mb-5">Professional Summary</h2>
               <p className="text-sm leading-relaxed text-zinc-700 font-medium" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />

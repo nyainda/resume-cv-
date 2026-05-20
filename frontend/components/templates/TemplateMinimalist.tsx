@@ -59,7 +59,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 return (
                     <section key="workExperience">
                         <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Experience</h2>
-                        <div className="space-y-8">
+                        <div className="space-y-4">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
                                     {isEditing && (
@@ -182,8 +182,8 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     };
 
     return (
-        <div id="cv-preview-minimalist" className="bg-white p-10 text-slate-900 shadow-lg border font-sans">
-            <header className="mb-10">
+        <div id="cv-preview-minimalist" className="bg-white p-7 text-slate-900 shadow-lg border font-sans">
+            <header className="mb-5">
                 {personalInfo.photo && (
                   <div className="flex justify-end mb-4">
                     <img
@@ -193,7 +193,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                     />
                   </div>
                 )}
-                <h1 className="text-5xl font-light tracking-tight text-slate-900 mb-2">{personalInfo.name}</h1>
+                <h1 className="text-3xl font-light tracking-tight text-slate-900 mb-2">{personalInfo.name}</h1>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
                     <span>{personalInfo.email}</span>
                     <span>{personalInfo.phone}</span>
@@ -206,7 +206,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 </div>
             </header>
 
-            <main className="space-y-10">
+            <main className="space-y-5">
                 {orderedSections.map(key => renderSection(key))}
                 {cvData.publications && cvData.publications.length > 0 && (
                     <section>

@@ -79,15 +79,15 @@ const TemplateTechnical: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'workExperience':
         return (
           <SectionShell key="workExperience" title="Experience">
-            <div className="space-y-6">
+            <div className="space-y-3">
               {cvData.experience.map((job, index) => (
                 <div key={index}>
                   <div className="flex justify-between items-baseline">
-                    <h3 className="text-lg font-semibold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                    <h3 className="text-base font-semibold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                     <p className="text-sm font-mono text-slate-500" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                   </div>
                   <p className="text-md font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                  <ul className="list-disc list-outside ml-5 mt-2 space-y-1 text-base">
+                  <ul className="list-disc list-outside ml-5 mt-1 space-y-0.5 text-sm">
                     {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                   </ul>
                 </div>
@@ -153,9 +153,9 @@ const TemplateTechnical: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
   };
 
   return (
-    <div id="cv-preview-technical" className="bg-white p-10 text-slate-800 shadow-lg border font-['Inter']">
-      <header className="mb-8">
-        <h1 className="text-4xl font-bold tracking-tight">{personalInfo.name}</h1>
+    <div id="cv-preview-technical" className="bg-white p-7 text-slate-800 shadow-lg border font-['Inter']">
+      <header className="mb-4">
+        <h1 className="text-3xl font-bold tracking-tight">{personalInfo.name}</h1>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 mt-2 font-mono">
           <span>{personalInfo.email}</span>
           <span>//</span>

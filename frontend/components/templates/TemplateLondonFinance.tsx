@@ -41,7 +41,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
     } : {};
 
     const SectionHeader = ({ title }: { title: string }) => (
-        <div className="border-b mb-3 mt-8" style={{ borderColor: accent }}>
+        <div className="border-b mb-2 mt-4" style={{ borderColor: accent }}>
             <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: accent }}>{title}</h2>
         </div>
     );
@@ -163,8 +163,8 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
     };
 
     return (
-        <div id="cv-preview-london-finance" className="bg-white p-12 sm:p-16 text-[#1c1c1c] shadow-xl border border-zinc-200 font-serif leading-tight" style={{ fontFamily: "'Times New Roman', serif" }}>
-            <header className="text-center mb-8 border-b-2 pb-8" style={{ borderColor: accent }}>
+        <div id="cv-preview-london-finance" className="bg-white p-8 text-[#1c1c1c] shadow-xl border border-zinc-200 font-serif leading-tight" style={{ fontFamily: "'Times New Roman', serif" }}>
+            <header className="text-center mb-4 border-b-2 pb-4" style={{ borderColor: accent }}>
                 <h1 className="text-4xl font-bold tracking-tight mb-2 uppercase">{personalInfo.name}</h1>
                 <div className="flex justify-center gap-x-3 text-[12px] font-medium uppercase tracking-wider text-slate-600">
                     <span>{personalInfo.location}</span>

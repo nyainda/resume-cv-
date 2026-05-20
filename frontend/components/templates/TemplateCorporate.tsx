@@ -52,7 +52,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
         return (
           <section key="workExperience">
             <h2 className="text-lg font-semibold tracking-wide mb-3" style={{ color: accent }}>WORK EXPERIENCE</h2>
-            <div className="space-y-6">
+            <div className="space-y-3">
               {cvData.experience.map((job, index) => (
                 <div key={index} data-pdf-keep="true">
                   <div className="flex justify-between items-baseline">
@@ -60,7 +60,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                     <p className="text-sm font-normal text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                   </div>
                   <p className="text-md font-semibold italic text-slate-600 mb-2" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</p>
-                  <ul className="list-disc list-outside ml-5 space-y-2 text-base text-slate-700">
+                  <ul className="list-disc list-outside ml-5 space-y-0.5 text-sm text-slate-700">
                     {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                   </ul>
                 </div>
@@ -154,9 +154,9 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
   };
 
   return (
-    <div id="cv-preview-corporate" className="bg-white p-12 text-slate-900 shadow-lg border font-serif">
-      <header className="text-center mb-8" data-pdf-keep="true">
-        <h1 className="text-4xl font-bold tracking-tight text-slate-800">{personalInfo.name}</h1>
+    <div id="cv-preview-corporate" className="bg-white p-8 text-slate-900 shadow-lg border font-serif">
+      <header className="text-center mb-4" data-pdf-keep="true">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-800">{personalInfo.name}</h1>
         <div className="text-sm text-slate-600 mt-3">
           {personalInfo.location} &bull; {personalInfo.phone} &bull; {personalInfo.email}
         </div>
@@ -169,7 +169,7 @@ const TemplateCorporate: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
 
       <hr className="border-t-2 mb-8" style={{ borderColor: accent }} />
 
-      <main className="space-y-10">
+      <main className="space-y-5">
         {orderedSections.map(key => renderSection(key))}
       
         <TemplateCustomSections

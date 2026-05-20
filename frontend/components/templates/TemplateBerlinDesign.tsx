@@ -41,17 +41,16 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   } : {};
 
   const SectionHeading = ({ children, num }: { children: React.ReactNode, num: string }) => (
-    <div className="mb-12 relative">
-      <span className="text-[120px] font-black text-zinc-100 absolute -top-20 -left-10 select-none -z-0 leading-none">{num}</span>
-      <h2 className="text-4xl font-black uppercase tracking-tighter text-zinc-900 border-b-8 inline-block relative z-10" style={{ borderColor: accent }}>{children}</h2>
+    <div className="mb-5 relative">
+      <h2 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 border-b-8 inline-block relative z-10" style={{ borderColor: accent }}>{children}</h2>
     </div>
   );
 
   return (
-    <div id="cv-preview-berlin-design" className="bg-white p-12 sm:p-20 text-zinc-900 shadow-2xl border-4 border-zinc-900 font-sans overflow-hidden">
-      <header className="mb-32 grid grid-cols-12 gap-8 items-start">
+    <div id="cv-preview-berlin-design" className="bg-white p-8 text-zinc-900 shadow-2xl border-4 border-zinc-900 font-sans overflow-hidden">
+      <header className="mb-10 grid grid-cols-12 gap-8 items-start">
         <div className="col-span-8">
-            <h1 className="text-8xl font-black uppercase tracking-tighter leading-[0.85] break-words">
+            <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85] break-words">
                 {personalInfo.name.split(' ').map((n, i) => (
                     <span key={i} className={i % 2 === 1 ? 'text-zinc-300' : 'text-zinc-900'}>{n}<br /></span>
                 ))}
@@ -72,17 +71,17 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
         </div>
       </header>
 
-      <main className="space-y-40">
+      <main className="space-y-12">
         <section>
           <SectionHeading num="01">Profile</SectionHeading>
           <div className="max-w-3xl ml-auto border-r-8 pr-12 text-right" style={{ borderColor: accent }}>
-            <p className="text-3xl font-black tracking-tight leading-tight uppercase" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+            <p className="text-lg font-black tracking-tight leading-tight uppercase" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
           </div>
         </section>
 
         <section>
           <SectionHeading num="02">Work</SectionHeading>
-          <div className="space-y-32">
+          <div className="space-y-10">
             {cvData.experience.map((job, index) => (
               <div key={index} className="relative group grid grid-cols-12 gap-8">
                 {isEditing && (
@@ -95,11 +94,11 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                 )}
                 <div className="col-span-4">
                     <p className="text-sm font-black bg-zinc-900 text-white inline-block px-2 py-1 mb-2">[{job.dates}]</p>
-                    <h3 className="text-4xl font-black uppercase tracking-tighter leading-none" {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter leading-none" {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
                 </div>
                 <div className="col-span-8 flex flex-col justify-end">
-                    <h4 className="text-xl font-bold italic text-zinc-400 mb-6" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
-                    <ul className="space-y-6 text-xl font-medium tracking-tight">
+                    <h4 className="text-base font-bold italic text-zinc-400 mb-2" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
+                    <ul className="space-y-2 text-sm font-medium tracking-tight">
                         {job.responsibilities.map((resp, i) => (
                             <li key={i} className="border-b-2 border-zinc-100 pb-4 last:border-0 hover:bg-yellow-50 transition-colors cursor-default" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                         ))}
@@ -110,12 +109,12 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           </div>
         </section>
 
-        <div className="grid grid-cols-12 gap-12">
+        <div className="grid grid-cols-12 gap-6">
             <section className="col-span-7">
                 <SectionHeading num="03">Skills</SectionHeading>
                 <div className="flex flex-wrap gap-x-8 gap-y-4">
                     {cvData.skills.slice(0, 15).map((s, i) => (
-                        <span key={i} className="text-4xl font-black uppercase italic tracking-tighter text-zinc-200 hover:text-zinc-900 transition-colors cursor-default">
+                        <span key={i} className="text-xl font-black uppercase italic tracking-tighter text-zinc-300 hover:text-zinc-900 transition-colors cursor-default">
                             {s}<span style={{ color: accent }}>.</span>
                         </span>
                     ))}
@@ -123,10 +122,10 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             </section>
             <section className="col-span-5">
                 <SectionHeading num="04">Edu</SectionHeading>
-                <div className="space-y-12">
+                <div className="space-y-5">
                     {cvData.education.map((edu, idx) => (
                         <div key={idx} className="border-l-4 border-zinc-900 pl-6">
-                            <h3 className="text-2xl font-black uppercase tracking-tighter leading-none mb-2" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
+                            <h3 className="text-base font-black uppercase tracking-tighter leading-none mb-1" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
                             <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{edu.school} / {edu.year}</p>
                         </div>
                     ))}
@@ -135,8 +134,8 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
         </div>
       </main>
 
-      <footer className="mt-40 pt-12 border-t-8 border-zinc-900 flex justify-between items-end">
-         <div className="text-8xl font-black text-zinc-100 uppercase italic select-none">Berlin</div>
+      <footer className="mt-10 pt-6 border-t-8 border-zinc-900 flex justify-between items-end">
+         <div className="text-5xl font-black text-zinc-100 uppercase italic select-none">Berlin</div>
          <div className="text-right space-y-1 text-[10px] font-black uppercase tracking-widest">
             <p>Designed for Impact</p>
             <p>Built with Antigravity</p>

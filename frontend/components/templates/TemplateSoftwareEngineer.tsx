@@ -142,8 +142,8 @@ const TemplateSoftwareEngineer: React.FC<TemplateProps> = ({ cvData, personalInf
   };
 
   return (
-    <div id="cv-preview-software-engineer" className="bg-white p-10 text-slate-800 shadow-lg border font-sans">
-      <header className="text-center mb-8">
+    <div id="cv-preview-software-engineer" className="bg-white p-7 text-slate-800 shadow-lg border font-sans">
+      <header className="text-center mb-4">
         <h1 className="text-4xl font-extrabold tracking-tight">{personalInfo.name}</h1>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-slate-500 mt-2">
           <span>{personalInfo.location}</span>

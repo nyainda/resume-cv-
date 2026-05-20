@@ -43,23 +43,23 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
     switch (key) {
       case 'summary':
         return (
-          <section key="summary" className="mb-8">
+          <section key="summary" className="mb-4">
             <SectionHeader title="Summary" />
             <p className="text-base leading-relaxed text-center" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
           </section>
         );
       case 'workExperience':
         return (
-          <section key="workExperience" className="mb-8">
+          <section key="workExperience" className="mb-4">
             <SectionHeader title="Experience" />
-            <div className="space-y-8">
+            <div className="space-y-4">
               {cvData.experience.map((job, index) => (
                 <div key={index} data-pdf-keep="true">
                   <div className="flex justify-between items-baseline mb-1">
                     <h3 className="text-lg font-bold" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}, <span className="font-semibold text-slate-700" {...editableProps(['experience', index, 'company'])}>{job.company}</span></h3>
                     <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                   </div>
-                  <ul className="list-disc list-outside ml-5 mt-2 space-y-2 text-base text-slate-700">
+                  <ul className="list-disc list-outside ml-5 mt-1 space-y-0.5 text-sm text-slate-700">
                     {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
                   </ul>
                 </div>
@@ -69,7 +69,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         );
       case 'education':
         return cvData.education.length > 0 ? (
-          <section key="education" className="mb-8">
+          <section key="education" className="mb-4">
             <SectionHeader title="Education" />
             {cvData.education.map((edu, index) => (
               <div key={index} className="text-center mb-4" data-pdf-keep="true">
@@ -82,7 +82,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         ) : null;
       case 'skills':
         return cvData.skills.length > 0 ? (
-          <section key="skills" className="mb-8">
+          <section key="skills" className="mb-4">
             <SectionHeader title="Skills" />
             {(() => {
               const sk = cvData.skills.slice(0, 15);
@@ -103,9 +103,9 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         ) : null;
       case 'projects':
         return cvData.projects && cvData.projects.length > 0 ? (
-          <section key="projects" className="mb-8">
+          <section key="projects" className="mb-4">
             <SectionHeader title="Projects" />
-            <div className="space-y-6">
+            <div className="space-y-3">
               {cvData.projects.map((proj, index) => (
                 <div key={index} data-pdf-keep="true">
                   <h3 className="text-lg font-bold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
@@ -118,7 +118,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         ) : null;
       case 'languages':
         return cvData.languages && cvData.languages.length > 0 ? (
-          <section key="languages" className="mb-8">
+          <section key="languages" className="mb-4">
             <SectionHeader title="Languages" />
             <p className="text-base text-center">
               {cvData.languages.map((l, i) => <span key={i}>{l.name} ({l.proficiency}){i < (cvData.languages?.length ?? 0) - 1 && ' • '}</span>)}
@@ -127,7 +127,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         ) : null;
       case 'references':
         return cvData.references && cvData.references.length > 0 ? (
-          <section key="references" className="mb-8">
+          <section key="references" className="mb-4">
             <SectionHeader title="References" />
             <div className="grid grid-cols-2 gap-6">
               {cvData.references.map((ref, index) => (
@@ -146,8 +146,8 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
   };
 
   return (
-    <div id="cv-preview-classic" className="bg-white p-12 text-slate-900 shadow-lg border font-serif">
-      <header className="text-center pb-6 mb-6">
+    <div id="cv-preview-classic" className="bg-white p-8 text-slate-900 shadow-lg border font-serif">
+      <header className="text-center pb-4 mb-4">
         {personalInfo.photo && (
           <div className="flex justify-center mb-4">
             <img
@@ -157,7 +157,7 @@ const TemplateClassic: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
             />
           </div>
         )}
-        <h1 className="text-5xl font-bold tracking-tight">{personalInfo.name}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{personalInfo.name}</h1>
         <hr className="my-4 border-t-2 w-16 mx-auto" style={{ borderColor: accent }} />
         <div className="flex justify-center items-center gap-x-4 text-sm text-slate-600 flex-wrap">
           <span>{personalInfo.email}</span>

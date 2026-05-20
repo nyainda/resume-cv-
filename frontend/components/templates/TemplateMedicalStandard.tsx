@@ -49,8 +49,8 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
     );
 
     return (
-        <div id="cv-preview-medical-standard" className="bg-[#f0f4f8] p-12 sm:p-20 text-slate-800 shadow-xl font-sans leading-relaxed" style={{ fontFamily: "'Inter', sans-serif", borderTop: `12px solid ${accent}` }}>
-            <header className="bg-white p-12 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center mb-12">
+        <div id="cv-preview-medical-standard" className="bg-[#f0f4f8] p-8 text-slate-800 shadow-xl font-sans leading-relaxed" style={{ fontFamily: "'Inter', sans-serif", borderTop: `8px solid ${accent}` }}>
+            <header className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center mb-5">
                 <div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 mb-2 uppercase">
                         {personalInfo.name}
@@ -69,18 +69,18 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                 </div>
             </header>
 
-            <main className="grid grid-cols-12 gap-12">
+            <main className="grid grid-cols-12 gap-5">
                 <div className="col-span-12 lg:col-span-8">
-                    <section className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm mb-12">
+                    <section className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm mb-5">
                         <h2 className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: accent }}>Clinical Summary</h2>
                         <p className="text-base leading-relaxed text-slate-600" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
                     </section>
 
                     <section>
                         <SectionHeading>Clinical Experience</SectionHeading>
-                        <div className="space-y-8">
+                        <div className="space-y-3">
                             {cvData.experience.map((job, index) => (
-                                <div key={index} className="relative group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                                <div key={index} className="relative group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                                     {isEditing && (
                                         <button
                                             onClick={() => handleDeleteExperience(index)}
@@ -110,8 +110,8 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                     </section>
                 </div>
 
-                <aside className="col-span-12 lg:col-span-4 space-y-12">
-                    <section className="text-white p-8 rounded-3xl shadow-xl" style={{ backgroundColor: accent }}>
+                <aside className="col-span-12 lg:col-span-4 space-y-5">
+                    <section className="text-white p-4 rounded-2xl shadow-xl" style={{ backgroundColor: accent }}>
                         <h2 className="text-xs font-black uppercase tracking-widest mb-6 flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
                             <span>Clinical Skills</span>
                             <div className="h-px flex-1 opacity-30" style={{ backgroundColor: 'white' }} />
@@ -126,9 +126,9 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                         </div>
                     </section>
 
-                    <section className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                        <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6">Medical Education</h2>
-                        <div className="space-y-8">
+                    <section className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Medical Education</h2>
+                        <div className="space-y-3">
                             {cvData.education.map((edu, idx) => (
                                 <div key={idx} className="relative pl-6" style={{ borderLeft: `2px solid ${accent}33` }}>
                                     <h3 className="text-base font-black text-slate-800" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
@@ -140,7 +140,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                     </section>
 
                     {cvData.languages && cvData.languages.length > 0 && (
-                        <section className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                        <section className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                             <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6">Patient Communication</h2>
                             <div className="space-y-4">
                                 {cvData.languages.map((lang, idx) => (
