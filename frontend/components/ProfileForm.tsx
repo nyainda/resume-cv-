@@ -135,7 +135,8 @@ const EntryCard: React.FC<{
   label?: string;
   isOpen: boolean;
   onToggle: () => void;
-}> = ({ index, onDelete, children, label, isOpen, onToggle }) => (
+  refined?: boolean;
+}> = ({ index, onDelete, children, label, isOpen, onToggle, refined }) => (
   <div className="relative border border-zinc-200 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-800/60 overflow-hidden">
     <div
       className="flex items-center gap-2 px-4 py-2.5 bg-zinc-50 dark:bg-neutral-800 cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-neutral-700/60 transition-colors"
@@ -145,6 +146,11 @@ const EntryCard: React.FC<{
       <span className={`text-xs font-medium truncate flex-1 ${label ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-400 italic'}`}>
         {label || 'New Entry'}
       </span>
+      {refined && (
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 shrink-0">
+          ✦ Refined
+        </span>
+      )}
       <svg
         className={`h-4 w-4 text-zinc-400 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`}
         viewBox="0 0 20 20" fill="currentColor"
@@ -624,6 +630,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             onDelete={() => { removeWork(index); setOpenWork(prev => prev >= index ? Math.max(0, prev - 1) : prev); }}
             isOpen={openWork === index}
             onToggle={() => setOpenWork(prev => prev === index ? -1 : index)}
+            refined={currentCV?.experience?.some(
+              e => e.company === watch(`workExperience.${index}.company`) &&
+                   e.jobTitle === watch(`workExperience.${index}.jobTitle`) &&
+                   e.responsibilities.length > 0
+            )}
           >
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
