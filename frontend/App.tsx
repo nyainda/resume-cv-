@@ -517,6 +517,25 @@ const AppInner: React.FC = () => {
   }, [setRawApiSettings]);
 
   // ── Profile Manager handlers ───────────────────────────────────────────
+
+  // Restore: reset the current CV's experience bullets back to raw profile text.
+  // Useful when the user wants to start a fresh AI generation from scratch.
+  const handleRestoreProfileBullets = useCallback(() => {
+    if (!currentCV || !userProfile) return;
+    const fromProfile = profileToCV(userProfile);
+    setCurrentCV(prev => {
+      if (!prev) return prev;
+      const restored = prev.experience.map((cvExp) => {
+        const profileExp = fromProfile.experience.find(
+          e => e.company === cvExp.company && e.jobTitle === cvExp.jobTitle
+        );
+        if (!profileExp) return cvExp;
+        return { ...cvExp, responsibilities: profileExp.responsibilities };
+      });
+      return { ...prev, experience: restored, summary: userProfile.summary || prev.summary };
+    });
+  }, [currentCV, userProfile, setCurrentCV]);
+
   const handleProfileSave = useCallback((profile: UserProfile) => {
     if (activeSlot) {
       setUserProfile(profile);
@@ -1379,6 +1398,7 @@ const AppInner: React.FC = () => {
                     openSettings={() => setIsSettingsOpen(true)}
                     onApplyViaEmail={handleApplyViaEmail}
                     onGoToInterviewPrep={handleGoToInterviewPrep}
+                    onRestoreProfileBullets={handleRestoreProfileBullets}
                     savedCVs={savedCVs}
                     toolkitSuggestions={toolkitSuggestions}
                     onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}

@@ -115,6 +115,8 @@ interface CVGeneratorProps {
   onSaveStories?: (stories: import('../types').STARStory[]) => void;
   /** Called when user clicks "Interview Prep" — passes the JD to pre-fill the prep tool */
   onGoToInterviewPrep?: (jd: string) => void;
+  /** Reset the current CV's experience bullets back to the raw profile text (undo AI generation) */
+  onRestoreProfileBullets?: () => void;
   /**
    * When true, the generator shows a dismissible "Import Quality Report" panel
    * with completeness score and deterministic quality checks — no AI required.
@@ -202,7 +204,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, importedFromJson }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson }) => {
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
   const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
@@ -1616,6 +1618,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Regenerate
               </Button>
+              {onRestoreProfileBullets && (
+                <Button
+                  variant="secondary"
+                  onClick={onRestoreProfileBullets}
+                  disabled={isLoading || isEditing}
+                  size="sm"
+                  title="Reset all bullets and summary back to your raw profile text — useful before starting a fresh AI generation for a new job"
+                  className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reset to Profile
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => { forceFreshRef.current = true; setCvScore(null); handleGenerateCV(); }}
