@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
@@ -80,7 +81,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                         <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap flex-shrink-0" {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
                                     </div>
                                     <ul className="space-y-0.5 mt-1.5">
-                                        {job.responsibilities.map((r, j) => (
+                                        {smartBullets(job.responsibilities, cvData.experience.length).map((r, j) => (
                                             <li key={j} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
                                                 <span className="text-gray-400 flex-shrink-0 mt-0.5 font-bold">—</span>
                                                 <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: r }} />

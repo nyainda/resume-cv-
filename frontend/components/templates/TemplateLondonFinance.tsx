@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -81,7 +82,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                                         <span className="text-[11px] font-normal not-italic">{personalInfo.location}</span>
                                     </div>
                                     <ul className="list-disc list-outside ml-6 space-y-1 text-[12px] text-justify">
-                                        {job.responsibilities.map((resp, i) => (
+                                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                                             <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                         ))}
                                     </ul>

@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -97,7 +98,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                                         <span className="text-xs font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full whitespace-nowrap" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                     </div>
                                     <ul className="grid grid-cols-1 gap-4">
-                                        {job.responsibilities.map((resp, i) => (
+                                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                                             <li key={i} className="flex gap-4 items-start text-sm text-slate-600">
                                                 <div className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ backgroundColor: accent + '66' }} />
                                                 <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />

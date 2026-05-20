@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
@@ -188,7 +189,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                         <span className="text-[10.5px] font-mono px-2 py-0.5 rounded" style={{ color: '#8b949e', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
                                     </div>
                                     <ul className="space-y-0.5">
-                                        {job.responsibilities.map((r, j) => (
+                                        {smartBullets(job.responsibilities, cvData.experience.length).map((r, j) => (
                                             <li key={j} className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: '#8b949e' }}>
                                                 <span className="flex-shrink-0 font-black mt-0.5" style={{ color: accent }}>›</span>
                                                 <span {...ed(['experience', i, 'responsibilities', j])} dangerouslySetInnerHTML={{ __html: r }} />

@@ -9,6 +9,7 @@
  * 3-column skills, certifications, achievements, awards, additional-info,
  * spec-driven sidebar section routing.
  */
+import { smartBullets } from '../../utils/smartBullets';
 import React from 'react';
 import { CVData, PersonalInfo, CustomTemplateCustomizations } from '../../types';
 import { TemplateSpec, normalizeSectionKey } from '../../services/templateAnalyzerService';

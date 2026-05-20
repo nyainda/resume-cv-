@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -136,7 +137,7 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                   </div>
                   <p className="text-xs italic font-light text-zinc-400 tracking-wider mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="space-y-1 text-xs text-zinc-600 font-light border-l border-zinc-100 pl-5">
-                    {job.responsibilities.map((resp, i) => (
+                    {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                       <li key={i} className="relative before:content-[''] before:absolute before:-left-5 before:top-2.5 before:w-3 before:h-px before:bg-rose-200"
                         dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                     ))}

@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
@@ -69,7 +70,7 @@ const TemplateElegant: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                   </div>
                   <p className="text-md text-slate-600 font-semibold" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                   <ul className="list-none mt-1 space-y-0.5 text-sm">
-                    {job.responsibilities.map((resp, i) => <li key={i} className="flex items-start"><span className="mr-2 text-slate-400">&rsaquo;</span><span className="flex-1" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} /></li>)}
+                    {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => <li key={i} className="flex items-start"><span className="mr-2 text-slate-400">&rsaquo;</span><span className="flex-1" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} /></li>)}
                   </ul>
                 </div>
               ))}

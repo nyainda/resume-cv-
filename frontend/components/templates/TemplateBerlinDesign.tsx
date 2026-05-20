@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -99,7 +100,7 @@ const TemplateBerlinDesign: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                 <div className="col-span-8 flex flex-col justify-end">
                     <h4 className="text-base font-bold italic text-zinc-400 mb-2" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
                     <ul className="space-y-2 text-sm font-medium tracking-tight">
-                        {job.responsibilities.map((resp, i) => (
+                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                             <li key={i} className="border-b-2 border-zinc-100 pb-4 last:border-0 hover:bg-yellow-50 transition-colors cursor-default" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                         ))}
                     </ul>

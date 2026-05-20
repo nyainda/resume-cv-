@@ -1,3 +1,4 @@
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -119,7 +120,7 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                                         <p className="text-sm font-bold text-slate-500 tracking-widest uppercase" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                                     </div>
                                     <ul className="space-y-3">
-                                        {job.responsibilities.map((resp, i) => (
+                                        {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                                             <li key={i} className="flex gap-4 text-base text-slate-700">
                                                 <span className="text-teal-400 mt-1.5 select-none">✦</span>
                                                 <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />

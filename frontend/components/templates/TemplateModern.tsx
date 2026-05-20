@@ -1,4 +1,5 @@
 
+import { smartBullets } from '../../utils/smartBullets';
 import React, { useCallback } from 'react';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
@@ -133,7 +134,7 @@ const TemplateModern: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditi
                     </div>
                     <p className="text-xs font-medium text-slate-600 mb-1" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-4 space-y-0.5 text-xs text-slate-700">
-                      {job.responsibilities.map((resp, i) => (
+                      {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                         <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
