@@ -1621,7 +1621,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               {onRestoreProfileBullets && (
                 <Button
                   variant="secondary"
-                  onClick={onRestoreProfileBullets}
+                  onClick={() => {
+                    if (window.confirm('Reset all experience bullets and summary back to your raw profile text?\n\nThis will remove any AI-polished content. You can regenerate afterwards.')) {
+                      onRestoreProfileBullets();
+                    }
+                  }}
                   disabled={isLoading || isEditing}
                   size="sm"
                   title="Reset all bullets and summary back to your raw profile text — useful before starting a fresh AI generation for a new job"

@@ -569,16 +569,17 @@ const AppInner: React.FC = () => {
       const fromProfile = profileToCV(profile);
 
       // Smart experience merge: preserve AI-polished bullets for roles that
-      // haven't changed (same position + company + title). New or renamed
-      // roles use fresh bullets from the profile so the edit is visible.
-      const mergedExperience = fromProfile.experience.map((newExp, i) => {
-        const prevExp = prev.experience[i];
-        if (
-          prevExp &&
-          prevExp.company === newExp.company &&
-          prevExp.jobTitle === newExp.jobTitle &&
-          prevExp.responsibilities.length > 0
-        ) {
+      // haven't changed (matched by company + jobTitle, NOT by index so that
+      // adding, removing or reordering roles in the profile form never clobbers
+      // AI bullets for untouched roles).
+      const mergedExperience = fromProfile.experience.map((newExp) => {
+        const prevExp = prev.experience.find(
+          e =>
+            e.company   === newExp.company &&
+            e.jobTitle  === newExp.jobTitle &&
+            e.responsibilities.length > 0
+        );
+        if (prevExp) {
           // Same role — keep AI bullets, just refresh the date range
           return {
             ...prevExp,
@@ -587,7 +588,7 @@ const AppInner: React.FC = () => {
             endDate:   newExp.endDate,
           };
         }
-        // Role was added, removed, or renamed — use profile bullets
+        // New role, renamed role, or role with no existing bullets — use profile text
         return newExp;
       });
 
