@@ -446,6 +446,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [targetLanguage, setTargetLanguage] = useLocalStorage<string>('cv:targetLanguage', 'English');
 
   const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
+  const [streamingLetter, setStreamingLetter] = useState('');
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
 
@@ -860,10 +861,18 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
     setIsGeneratingCoverLetter(true);
     setCoverLetterError(null);
+    setStreamingLetter('');
+    setCoverLetter(null);
     try {
-      const letter = await generateCoverLetter(userProfile, jobDescription);
+      const letter = await generateCoverLetter(
+        userProfile,
+        jobDescription,
+        (delta) => setStreamingLetter(prev => prev + delta),
+      );
       setCoverLetter(letter);
+      setStreamingLetter('');
     } catch (err) {
+      setStreamingLetter('');
       setCoverLetterError(friendlyError(err, 'generate your cover letter'));
     } finally {
       setIsGeneratingCoverLetter(false);
@@ -2265,14 +2274,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       )}
 
       {coverLetterError && <p className="text-red-500 text-sm mt-2 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">{coverLetterError}</p>}
-      {coverLetter && (
+      {(streamingLetter || coverLetter) && (
         <div className="bg-white dark:bg-neutral-800/50 p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
-          <CoverLetterPreview
-            letterText={coverLetter}
-            onTextChange={setCoverLetter}
-            fileName={`${userProfile.personalInfo.name.replace(/\s+/g, '_')}_Cover_Letter.pdf`}
-            personalInfo={userProfile.personalInfo}
-          />
+          {streamingLetter ? (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-2 h-2 rounded-full bg-[#C9A84C] animate-pulse inline-block" />
+                <span className="text-xs font-semibold text-[#C9A84C]">Writing your cover letter…</span>
+              </div>
+              <pre className="whitespace-pre-wrap text-sm text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed">{streamingLetter}</pre>
+            </div>
+          ) : (
+            <CoverLetterPreview
+              letterText={coverLetter ?? ''}
+              onTextChange={setCoverLetter}
+              fileName={`${userProfile.personalInfo.name.replace(/\s+/g, '_')}_Cover_Letter.pdf`}
+              personalInfo={userProfile.personalInfo}
+            />
+          )}
         </div>
       )}
 

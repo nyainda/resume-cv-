@@ -1,6 +1,6 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
-import { groqChat, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider } from './groqService';
+import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
@@ -3392,7 +3392,11 @@ export const extractTextFromImage = async (base64Image: string, mimeType: string
     return response.text || "";
 };
 
-export const generateCoverLetter = async (profileInput: UserProfile, jobDescription: string): Promise<string> => {
+export const generateCoverLetter = async (
+    profileInput: UserProfile,
+    jobDescription: string,
+    onChunk?: (delta: string) => void,
+): Promise<string> => {
     const profile = purifyProfile(profileInput);
     const name = profile.personalInfo?.name || 'Applicant';
     const prompt = `
@@ -3449,7 +3453,9 @@ ${jobDescription || 'General application — highlight the strongest transferabl
         }
     }
     if (!letter) {
-        letter = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.65, maxTokens: 1200 });
+        letter = onChunk
+            ? await groqChatStream(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, onChunk, { temperature: 0.65, maxTokens: 1200 })
+            : await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.65, maxTokens: 1200 });
     }
     return purifyText(letter);
 };
@@ -3687,7 +3693,8 @@ export const generateApplicationEmail = async (
     keywords: string[],
     jobDescription: string,
     toneId: EmailToneId = 'confident',
-    workerVoiceTone?: string,    // auto-detected tone string from /api/cv/brief
+    workerVoiceTone?: string,             // auto-detected tone string from /api/cv/brief
+    onChunk?: (delta: string) => void,    // optional streaming callback
 ): Promise<{ subject: string; body: string }> => {
     const profile = purifyProfile(profileInput);
     const name     = profile.personalInfo?.name  || 'Applicant';
@@ -3737,7 +3744,9 @@ MANDATORY RULES — every rule is non-negotiable:
 9. Honour the TONE instruction above — it shapes sentence length, formality, and vocabulary.
 10. Return ONLY the subject line + blank line + email body. No commentary.`;
 
-    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, maxTokens: 600 });
+    const raw = onChunk
+        ? await groqChatStream(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, onChunk, { temperature: 0.6, maxTokens: 600 })
+        : await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, maxTokens: 600 });
     const text = purifyText(raw);
 
     // Parse subject from first line
@@ -4075,7 +4084,8 @@ STRICT INSTRUCTIONS:
 export const generateSmartCoverLetter = async (
     profile: UserProfile,
     jobDescription: string,
-    companyResearch: string = ''
+    companyResearch: string = '',
+    onChunk?: (delta: string) => void,
 ): Promise<string> => {
     const companySection = companyResearch
         ? `\n### COMPANY RESEARCH (use this to show you know the company)\n${companyResearch}\n`
@@ -4106,7 +4116,9 @@ export const generateSmartCoverLetter = async (
         Return ONLY the cover letter text. No commentary.
     `;
 
-    return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
+    return onChunk
+        ? groqChatStream(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, onChunk, { temperature: 0.7 })
+        : groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: 0.7 });
 };
 
 // ─── Paraphrase: Rewrite text in different tones ──────────────────────────────

@@ -998,6 +998,91 @@ export async function workerProxyStream(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Workers AI Streaming — calls /api/cv/tiered-llm with stream:true.
+// The worker normalises CF AI SSE to Claude-compatible format so this function
+// uses the same parser as workerProxyStream above.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function workerTieredLLMStream(
+    task: string,
+    prompt: string,
+    opts: {
+        temperature?: number;
+        maxTokens?: number;
+        json?: boolean;
+        timeoutMs?: number;
+        onChunk: (delta: string) => void;
+    },
+): Promise<string> {
+    if (!isCVEngineConfigured() || !prompt) {
+        throw new Error('Workers AI not configured or missing prompt.');
+    }
+    if (isDead('/api/cv/tiered-llm')) {
+        throw new Error('Workers AI is currently unavailable.');
+    }
+
+    const u = new URL('/api/cv/tiered-llm', ENGINE_URL);
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
+
+    const r = await fetch(u.toString(), {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            task,
+            prompt,
+            temperature: opts.temperature ?? 0.3,
+            maxTokens:   opts.maxTokens   ?? 4096,
+            json:        !!opts.json,
+            stream:      true,
+        }),
+        signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!r.ok || !r.body) {
+        markDead('/api/cv/tiered-llm', `HTTP ${r.status}`);
+        const errText = await r.text().catch(() => '');
+        throw new Error(`Workers AI stream failed (${r.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const reader  = r.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = '';
+    let buffer      = '';
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const raw = line.slice(6).trim();
+                if (!raw || raw === '[DONE]') continue;
+                try {
+                    const evt = JSON.parse(raw) as any;
+                    if (evt?.type === 'content_block_delta' && evt?.delta?.type === 'text_delta') {
+                        const text: string = evt.delta.text ?? '';
+                        if (text) {
+                            accumulated += text;
+                            opts.onChunk(text);
+                        }
+                    }
+                } catch { /* ignore malformed SSE */ }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    markAlive('/api/cv/tiered-llm');
+    return accumulated;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Multimodal proxy — routes base64 file (image or PDF) + text prompt through
 // the CF Worker to Claude, avoiding the CORS block from direct browser calls.
 // Used by claudeMultimodalCall for file-based CV/profile imports.

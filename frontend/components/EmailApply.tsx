@@ -79,6 +79,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState<Draft>({ to: '', subject: '', body: '' });
+  const [streamingBody, setStreamingBody] = useState<string | null>(null);
   const [lastAnalysis, setLastAnalysis] = useState<{ title: string; company: string; keywords: string[] } | null>(null);
   const [selectedTone, setSelectedTone] = useState<EmailToneId>('confident');
   const [workerVoiceTone, setWorkerVoiceTone] = useState<string | undefined>(undefined);
@@ -128,15 +129,22 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
         else setSelectedTone('confident');
       }
 
+      // Switch to draft early — body streams in as the AI writes it
+      setLastAnalysis({ title, company, keywords });
+      setDraft({ to: found[0] ?? '', subject: '…', body: '' });
+      setStreamingBody('');
+      setStep('draft');
+
       const finalEmail = await generateApplicationEmail(
         userProfile, title, company, keywords, jdText,
         selectedTone, detectedVoiceTone,
+        (delta) => setStreamingBody(prev => (prev ?? '') + delta),
       );
 
-      setLastAnalysis({ title, company, keywords });
       setDraft({ to: found[0] ?? '', subject: finalEmail.subject, body: finalEmail.body });
-      setStep('draft');
+      setStreamingBody(null);
     } catch (e) {
+      setStreamingBody(null);
       setError((e as Error).message ?? 'Analysis failed — please try again.');
     } finally {
       setAnalyzing(false);
@@ -146,6 +154,7 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
   const handleRegenerate = useCallback(async () => {
     if (!apiKeySet || !lastAnalysis) return;
     setRegenerating(true);
+    setStreamingBody('');
     try {
       const fresh = await generateApplicationEmail(
         userProfile,
@@ -155,10 +164,12 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
         jd,
         selectedTone,
         workerVoiceTone,
+        (delta) => setStreamingBody(prev => (prev ?? '') + delta),
       );
       setDraft(prev => ({ ...prev, subject: fresh.subject, body: fresh.body }));
+      setStreamingBody(null);
     } catch (e) {
-      // surface error briefly without navigating away
+      setStreamingBody(null);
       setError((e as Error).message ?? 'Regeneration failed — please try again.');
       setTimeout(() => setError(''), 5000);
     } finally {
@@ -380,14 +391,22 @@ export const EmailApply: React.FC<EmailApplyProps> = ({
       <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 dark:bg-neutral-700/50 border-b border-zinc-200 dark:border-neutral-700">
           <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Email Body</span>
-          <CopyBtn text={draft.body} label="Copy" />
+          {streamingBody !== null ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-[#C9A84C]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] animate-pulse inline-block" />
+              Writing…
+            </span>
+          ) : (
+            <CopyBtn text={draft.body} label="Copy" />
+          )}
         </div>
         <div className="px-4 py-3">
           <textarea
             rows={12}
-            value={draft.body}
-            onChange={e => setDraft(p => ({ ...p, body: e.target.value }))}
-            className="w-full text-sm text-zinc-800 dark:text-zinc-200 bg-transparent border-none outline-none resize-none leading-relaxed"
+            value={streamingBody !== null ? streamingBody : draft.body}
+            onChange={e => { if (streamingBody === null) setDraft(p => ({ ...p, body: e.target.value })); }}
+            readOnly={streamingBody !== null}
+            className={`w-full text-sm text-zinc-800 dark:text-zinc-200 bg-transparent border-none outline-none resize-none leading-relaxed${streamingBody !== null ? ' cursor-default' : ''}`}
           />
         </div>
       </div>

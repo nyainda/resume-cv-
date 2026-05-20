@@ -1615,6 +1615,7 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
     const free        = upgradedModel ? false : baseFree;
 
     const wantsJson  = body?.json === true;
+    const wantStream = body?.stream === true;
     const temperature = clamp(Number(body?.temperature ?? 0.3), 0, 1);
     const maxTokens   = clamp(
         Number(body?.maxTokens ?? TIERED_LLM_DEFAULT_MAX_TOKENS),
@@ -1623,8 +1624,6 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
     );
 
     // Build message list — inject JSON instruction into system prompt when requested.
-    // We avoid response_format entirely because different model revisions on
-    // Workers AI use different format variants (json_object vs json_schema).
     const jsonInstruction = 'Reply with valid raw JSON only. No markdown fences, no commentary.';
     const effectiveSystem = wantsJson
         ? (system ? system + '\n\n' + jsonInstruction : jsonInstruction)
@@ -1634,6 +1633,63 @@ async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
     if (effectiveSystem) messages.push({ role: 'system', content: effectiveSystem });
     messages.push({ role: 'user', content: prompt });
 
+    // ── Streaming path — normalize CF AI SSE → Claude-compatible SSE ─────────
+    // Workers AI returns: data: {"response":"chunk"}  OR  data: {"choices":[{"delta":{"content":"chunk"}}]}
+    // We normalize to:    data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"chunk"}}
+    // so the frontend uses one parser for all three providers.
+    if (wantStream) {
+        try {
+            const payload: Record<string, unknown> = { messages, temperature, max_tokens: maxTokens, stream: true };
+            const stream = await env.AI.run(model as any, payload as any) as ReadableStream<Uint8Array>;
+            const { readable, writable } = new TransformStream();
+            const writer  = writable.getWriter();
+            const encoder = new TextEncoder();
+            const decoder = new TextDecoder();
+
+            void (async () => {
+                let buf = '';
+                try {
+                    const reader = stream.getReader();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buf += decoder.decode(value, { stream: true });
+                        const lines = buf.split('\n');
+                        buf = lines.pop() ?? '';
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            const raw = line.slice(6).trim();
+                            if (!raw || raw === '[DONE]') continue;
+                            try {
+                                const evt = JSON.parse(raw) as any;
+                                const text: string =
+                                    evt?.response ??
+                                    evt?.choices?.[0]?.delta?.content ??
+                                    evt?.choices?.[0]?.message?.content ?? '';
+                                if (text) {
+                                    const norm = JSON.stringify({
+                                        type:  'content_block_delta',
+                                        delta: { type: 'text_delta', text },
+                                    });
+                                    await writer.write(encoder.encode(`data: ${norm}\n\n`));
+                                }
+                            } catch { /* ignore malformed SSE */ }
+                        }
+                    }
+                } finally {
+                    await writer.close().catch(() => {});
+                }
+            })();
+
+            return new Response(readable, {
+                headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' },
+            });
+        } catch (e: any) {
+            return json({ error: 'stream_failed', message: String(e?.message || e), model, task: taskKey }, request, env, 502);
+        }
+    }
+
+    // ── Standard (non-streaming) path ─────────────────────────────────────────
     try {
         const payload: Record<string, unknown> = { messages, temperature, max_tokens: maxTokens };
         // 70b fp8-fast model supports json_object response_format; 8b and others use prompt-only.
@@ -3110,9 +3166,14 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
                 'x-api-key': apiKey,
                 'anthropic-version': '2023-06-01',
                 'content-type': 'application/json',
+                // Prompt caching (beta): marks system prompts for 5-min server-side cache.
+                // System prompts are identical per task → cache hit rate ~100%.
+                // Cached tokens cost 0.1× the normal price; ~90% reduction per call.
+                'anthropic-beta': 'prompt-caching-2024-07-31',
             };
             if (base64Data && mimeType === 'application/pdf') {
-                headers['anthropic-beta'] = 'pdfs-2024-09-25';
+                // Combine both betas with comma separator
+                headers['anthropic-beta'] = 'pdfs-2024-09-25,prompt-caching-2024-07-31';
             }
 
             const claudeBody: Record<string, unknown> = {
@@ -3121,7 +3182,14 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
                 temperature,
                 messages: [{ role: 'user', content: userContent }],
             };
-            if (effectiveSystem) claudeBody.system = effectiveSystem;
+            // Use array format for system so we can attach cache_control.
+            // The system prompt constant is the same across all calls for the same task
+            // so it caches on the first call and costs ~0 tokens on every subsequent call.
+            if (effectiveSystem) {
+                claudeBody.system = [
+                    { type: 'text', text: effectiveSystem, cache_control: { type: 'ephemeral' } },
+                ];
+            }
             if (wantStream) claudeBody.stream = true;
 
             const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -3177,6 +3245,64 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
         }
         if (useSearch) {
             geminiBody.tools = [{ googleSearch: {} }];
+        }
+
+        // ── Gemini streaming path ─────────────────────────────────────────────
+        // Uses :streamGenerateContent?alt=sse endpoint; normalizes to Claude-compatible
+        // SSE format so the frontend uses one parser across all three providers.
+        // Search-grounded calls can't stream (search needs a complete response), so
+        // we only stream when useSearch is false.
+        if (wantStream && !useSearch) {
+            const streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+            const sRes = await fetch(streamUrl, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(geminiBody),
+            });
+            if (!sRes.ok || !sRes.body) {
+                const errText = await sRes.text().catch(() => '');
+                return json({ error: 'gemini_stream_failed', status: sRes.status, message: errText.slice(0, 200) }, request, env, 502);
+            }
+            const { readable, writable } = new TransformStream();
+            const writer  = writable.getWriter();
+            const encoder = new TextEncoder();
+            const decoder = new TextDecoder();
+
+            void (async () => {
+                let buf = '';
+                try {
+                    const reader = sRes.body!.getReader();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buf += decoder.decode(value, { stream: true });
+                        const lines = buf.split('\n');
+                        buf = lines.pop() ?? '';
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            const raw = line.slice(6).trim();
+                            if (!raw || raw === '[DONE]') continue;
+                            try {
+                                const evt = JSON.parse(raw) as any;
+                                const text: string = evt?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+                                if (text) {
+                                    const norm = JSON.stringify({
+                                        type:  'content_block_delta',
+                                        delta: { type: 'text_delta', text },
+                                    });
+                                    await writer.write(encoder.encode(`data: ${norm}\n\n`));
+                                }
+                            } catch { /* ignore */ }
+                        }
+                    }
+                } finally {
+                    await writer.close().catch(() => {});
+                }
+            })();
+
+            return new Response(readable, {
+                headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' },
+            });
         }
 
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;

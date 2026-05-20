@@ -1,6 +1,6 @@
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { lookupGroqCache, storeGroqCache } from './groqCacheClient';
-import { workerTieredLLM, workerProxyLLM, workerProxyStream, isCVEngineConfigured } from './cvEngineClient';
+import { workerTieredLLM, workerProxyLLM, workerProxyStream, workerTieredLLMStream, isCVEngineConfigured } from './cvEngineClient';
 
 // ── Active AI engine tracker ──────────────────────────────────────────────────
 let _lastAiEngine: string = 'Workers AI';
@@ -514,7 +514,74 @@ export async function groqChatStream(
         }
     }
 
-    // ── Workers AI / Gemini — no streaming yet, call onChunk once ────────────
+    // ── Workers AI — real SSE streaming through /api/cv/tiered-llm ──────────
+    if (provider === 'workers-ai') {
+        if (!isCVEngineConfigured()) {
+            const err: any = new Error('Workers AI is not configured. Check your CV Engine URL in Settings → AI Keys.');
+            err.isUserFacing = true;
+            throw err;
+        }
+        _dispatchTrying({ label: 'Workers AI (stream)', type: 'single' });
+        try {
+            const text = await workerTieredLLMStream(proxyTask, userPrompt, {
+                temperature: opts.temperature,
+                maxTokens:   opts.maxTokens,
+                timeoutMs:   60_000,
+                onChunk,
+            });
+            if (!text) throw new Error('Workers AI stream returned no text');
+            _lastAiEngine = 'Workers AI';
+            _recordProviderResult('Workers AI', 'ok');
+            _trackTokens(systemPrompt, userPrompt, text);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
+            return text;
+        } catch (e: any) {
+            if (e?.isUserFacing) throw e;
+            _recordProviderResult('Workers AI', _classifyErrorState(e), e);
+            // Fall through to groqChat fallback
+        }
+    }
+
+    // ── Gemini — real SSE streaming through /api/cv/proxy-llm ───────────────
+    if (provider === 'gemini') {
+        const key = getGeminiApiKey();
+        if (!key) {
+            const err: any = new Error('No Gemini API key configured. Go to Settings → AI Keys.');
+            err.isUserFacing = true;
+            throw err;
+        }
+        _dispatchTrying({ label: 'Gemini (stream)', type: 'single' });
+        try {
+            const text = await workerProxyStream(proxyTask, userPrompt, {
+                provider:    'gemini',
+                apiKey:      key,
+                temperature: opts.temperature,
+                maxTokens:   opts.maxTokens,
+                timeoutMs:   60_000,
+                onChunk,
+            });
+            if (!text) throw new Error('Gemini stream returned no text');
+            _lastAiEngine = 'Gemini';
+            _recordProviderResult('Gemini', 'ok');
+            _trackTokens(systemPrompt, userPrompt, text);
+            storeGroqCache(model, systemPrompt, userPrompt, effectiveTemp, text);
+            return text;
+        } catch (e: any) {
+            if (e?.isUserFacing) throw e;
+            const errState = _classifyErrorState(e);
+            _recordProviderResult('Gemini', errState, e);
+            const hint = errState === 'auth_failed'
+                ? 'Your Gemini API key appears to be invalid. Update it in Settings → AI Keys.'
+                : errState === 'quota_exhausted'
+                ? 'Gemini rate limit hit. Wait a moment or switch providers in Settings → AI Provider.'
+                : `Gemini stream failed: ${e?.message || 'unknown error'}`;
+            const err: any = new Error(hint);
+            err.isUserFacing = true;
+            throw err;
+        }
+    }
+
+    // ── Fallback — groqChat (handles Groq + provider chain) ─────────────────
     const text = await groqChat(model, systemPrompt, userPrompt, opts);
     onChunk(text);
     return text;
