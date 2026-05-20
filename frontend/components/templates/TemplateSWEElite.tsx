@@ -73,7 +73,7 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
 
                 {/* Contact */}
                 <div className="space-y-2">
-                    <h2 className="text-[9px] font-black uppercase tracking-[0.15em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Contact</h2>
+                    <h2 className="text-[11px] font-black uppercase tracking-[0.12em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Contact</h2>
                     {[
                         { label: personalInfo.email, icon: '✉' },
                         { label: personalInfo.phone, icon: '📱' },
@@ -89,7 +89,7 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 {/* Links */}
                 {(personalInfo.github || personalInfo.linkedin || personalInfo.website) && (
                     <div className="space-y-2">
-                        <h2 className="text-[9px] font-black uppercase tracking-[0.15em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Links</h2>
+                        <h2 className="text-[11px] font-black uppercase tracking-[0.12em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Links</h2>
                         {personalInfo.github && (
                             <div className="flex items-center gap-1.5">
                                 <svg className="w-2.5 h-2.5 flex-shrink-0" style={{ color: accent }} viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" /></svg>
@@ -114,13 +114,13 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 {/* Skills by category */}
                 {skillCategories.length > 0 && (
                     <div className="space-y-4">
-                        <h2 className="text-[9px] font-black uppercase tracking-[0.15em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Tech Stack</h2>
+                        <h2 className="text-[11px] font-black uppercase tracking-[0.12em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Tech Stack</h2>
                         {skillCategories.map(([cat, skills]) => (
                             <div key={cat}>
-                                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{cat}</p>
+                                <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{cat}</p>
                                 <div className="flex flex-wrap gap-1">
                                     {skills.slice(0, 8).map(skill => (
-                                        <span key={skill} className="text-[8px] px-1.5 py-0.5 rounded font-mono font-semibold leading-tight" style={{ color: accent, backgroundColor: accent + '1a', border: `1px solid ${accent}4d` }}>
+                                        <span key={skill} className="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold leading-tight" style={{ color: accent, backgroundColor: accent + '1a', border: `1px solid ${accent}4d` }}>
                                             {skill}
                                         </span>
                                     ))}
@@ -133,12 +133,12 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 {/* Education on sidebar */}
                 {cvData.education.length > 0 && (
                     <div className="space-y-2">
-                        <h2 className="text-[9px] font-black uppercase tracking-[0.15em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Education</h2>
+                        <h2 className="text-[11px] font-black uppercase tracking-[0.12em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Education</h2>
                         {cvData.education.slice(0, 2).map((edu, i) => (
                             <div key={i}>
                                 <p className="text-[10px] font-bold text-white leading-tight" {...editable(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
-                                <p className="text-[9px] text-slate-400 mt-0.5" {...editable(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[9px]" style={{ color: accent + 'cc' }}>{edu.year}</p>
+                                <p className="text-[10.5px] text-slate-400 mt-0.5" {...editable(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
+                                <p className="text-[10.5px]" style={{ color: accent + 'cc' }}>{edu.year}</p>
                             </div>
                         ))}
                     </div>
@@ -147,11 +147,11 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                 {/* Languages */}
                 {cvData.languages && cvData.languages.length > 0 && (
                     <div className="space-y-2">
-                        <h2 className="text-[9px] font-black uppercase tracking-[0.15em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Languages</h2>
+                        <h2 className="text-[11px] font-black uppercase tracking-[0.12em] border-b pb-1.5" style={{ color: accent, borderColor: accent + '4d' }}>Languages</h2>
                         {cvData.languages.map((lang, i) => (
                             <div key={i} className="flex justify-between items-center">
                                 <span className="text-[10px] text-slate-300">{lang.name}</span>
-                                <span className="text-[9px] font-semibold" style={{ color: accent + 'cc' }}>{lang.proficiency}</span>
+                                <span className="text-[10.5px] font-semibold" style={{ color: accent + 'cc' }}>{lang.proficiency}</span>
                             </div>
                         ))}
                     </div>
@@ -235,7 +235,7 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                         />
                                         {proj.link && (
                                             <a href={proj.link} target="_blank" rel="noopener noreferrer"
-                                                className="text-[9px] font-bold hover:underline flex-shrink-0 flex items-center gap-0.5" style={{ color: accent }}>
+                                                className="text-[10.5px] font-bold hover:underline flex-shrink-0 flex items-center gap-0.5" style={{ color: accent }}>
                                                 <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" /></svg>
                                                 GitHub
                                             </a>

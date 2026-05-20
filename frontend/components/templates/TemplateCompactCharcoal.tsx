@@ -68,14 +68,14 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
           <div className="mb-4 pb-3 border-b" style={{ borderColor: '#3a3a3a' }}>
             <h1 className="text-base font-black tracking-tight leading-tight uppercase text-white" style={{ letterSpacing: '0.02em' }}>{personalInfo.name}</h1>
             {cvData.experience.length > 0 && (
-              <p className="text-[9px] mt-1 uppercase tracking-[0.18em] font-semibold" style={{ color: accent }}>{cvData.experience[0].jobTitle}</p>
+              <p className="text-[10.5px] mt-1 uppercase tracking-[0.18em] font-semibold" style={{ color: accent }}>{cvData.experience[0].jobTitle}</p>
             )}
           </div>
 
           <div className="space-y-3 flex-1">
             <section>
-              <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Contact</h2>
-              <ul className="space-y-0.5 text-[9.5px] break-words text-zinc-300">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Contact</h2>
+              <ul className="space-y-0.5 text-[11px] break-words text-zinc-300">
                 {personalInfo.email && <li>{personalInfo.email}</li>}
                 {personalInfo.phone && <li>{personalInfo.phone}</li>}
                 {personalInfo.location && <li>{personalInfo.location}</li>}
@@ -86,10 +86,10 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {cvData.skills.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Skills</h2>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Skills</h2>
                 <div className="flex flex-wrap gap-1">
                   {cvData.skills.slice(0, 14).map((skill, i) => (
-                    <span key={i} className="text-[9px] px-1.5 py-0.5 border" style={{ borderColor: '#3a3a3a', color: '#e5e5e5' }} {...editableProps(['skills', i])}>{skill}</span>
+                    <span key={i} className="text-[10.5px] px-1.5 py-0.5 border" style={{ borderColor: '#3a3a3a', color: '#e5e5e5' }} {...editableProps(['skills', i])}>{skill}</span>
                   ))}
                 </div>
               </section>
@@ -97,12 +97,12 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {cvData.education.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Education</h2>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Education</h2>
                 <div className="space-y-1.5">
                   {cvData.education.slice(0, 2).map((edu, index) => (
-                    <div key={index} className="text-[9.5px]">
+                    <div key={index} className="text-[11px]">
                       <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
-                      <p className="text-[9px] text-zinc-400" {...editableProps(['education', index, 'school'])}>{edu.school} · {edu.year}</p>
+                      <p className="text-[10.5px] text-zinc-400" {...editableProps(['education', index, 'school'])}>{edu.school} · {edu.year}</p>
                     </div>
                   ))}
                 </div>
@@ -111,8 +111,8 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {cvData.languages && cvData.languages.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Languages</h2>
-                <ul className="space-y-0.5 text-[9.5px] text-zinc-300">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Languages</h2>
+                <ul className="space-y-0.5 text-[11px] text-zinc-300">
                   {cvData.languages.map((lang, i) => (
                     <li key={i}>{lang.name} <span className="text-zinc-500">— {lang.proficiency}</span></li>
                   ))}
@@ -122,10 +122,10 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Impact</h2>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Impact</h2>
                 <ul className="space-y-1">
                   {keyAchievements.map((line, i) => (
-                    <li key={i} className="text-[9.5px] text-zinc-300 leading-snug flex items-start gap-1.5">
+                    <li key={i} className="text-[11px] text-zinc-300 leading-snug flex items-start gap-1.5">
                       <span className="flex-shrink-0 font-black" style={{ color: accent }}>+</span>
                       <span>{line}</span>
                     </li>
@@ -136,10 +136,10 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Featured</h2>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Featured</h2>
                 <ul className="space-y-0.5">
                   {cvData.projects.slice(0, 3).map((p, i) => (
-                    <li key={i} className="text-[9.5px] text-zinc-300 leading-snug uppercase tracking-wider font-semibold">{p.name}</li>
+                    <li key={i} className="text-[11px] text-zinc-300 leading-snug uppercase tracking-wider font-semibold">{p.name}</li>
                   ))}
                 </ul>
               </section>
@@ -147,8 +147,8 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-black uppercase tracking-[0.25em] pb-0.5 mb-1.5" style={{ color: accent }}>Refs</h2>
-                <p className="text-[9px] text-zinc-400 leading-snug">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Refs</h2>
+                <p className="text-[10.5px] text-zinc-400 leading-snug">
                   {cvData.references.length} reference{cvData.references.length === 1 ? '' : 's'} on request
                 </p>
               </section>
@@ -159,7 +159,7 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
           <div className="mt-auto pt-4">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2" style={{ backgroundColor: accent }} />
-              <p className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-500">{new Date().getFullYear()}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">{new Date().getFullYear()}</p>
             </div>
           </div>
         </div>
@@ -169,22 +169,22 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
           <main className="space-y-3.5">
             {cvData.summary && (
               <section>
-                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>Summary</h2>
-                <p className="text-[10px] leading-relaxed text-zinc-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+                <h2 className="text-[11.5px] font-black uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>Summary</h2>
+                <p className="text-[11.5px] leading-relaxed text-zinc-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
               </section>
             )}
 
             <section>
-              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>Experience</h2>
+              <h2 className="text-[11.5px] font-black uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>Experience</h2>
               <div className="space-y-2.5">
                 {cvData.experience.map((job, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
                       <h3 className="text-[10.5px] font-bold text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0" style={{ color: accent }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                      <p className="text-[10.5px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0" style={{ color: accent }} {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                     </div>
-                    <p className="text-[9.5px] font-medium text-zinc-600 uppercase tracking-wider" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                    <ul className="mt-0.5 space-y-0.5 text-[9.5px] text-zinc-700">
+                    <p className="text-[11px] font-medium text-zinc-600 uppercase tracking-wider" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <ul className="mt-0.5 space-y-0.5 text-[11px] text-zinc-700">
                       {job.responsibilities.map((resp, i) => (
                         <li key={i} className="leading-snug flex items-start gap-1.5">
                           <span className="flex-shrink-0 mt-1 w-1 h-1" style={{ backgroundColor: accent }} />
@@ -199,12 +199,12 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
 
             {cvData.projects && cvData.projects.length > 0 && (
               <section>
-                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>Projects</h2>
+                <h2 className="text-[11.5px] font-black uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>Projects</h2>
                 <div className="space-y-1.5">
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
-                      <h3 className="text-[10px] font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-[9.5px] text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      <h3 className="text-[12px] font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                      <p className="text-[11px] text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                     </div>
                   ))}
                 </div>
@@ -217,12 +217,12 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
       <TemplateCustomSections
         customSections={cvData.customSections}
         references={cvData.references}
-        renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>{title}</h2>}
+        renderHeader={title => <h2 className="text-[11.5px] font-black uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b-2" style={{ color: charcoalBg, borderColor: charcoalBg }}>{title}</h2>}
         sectionClassName="mb-4 px-5"
         titleClass="font-bold text-[10.5px]"
-        subtitleClass="text-[9.5px] text-zinc-500"
-        descClass="text-[9.5px] text-zinc-600 mt-0.5"
-        yearClass="text-[9px] text-zinc-400"
+        subtitleClass="text-[11px] text-zinc-500"
+        descClass="text-[11px] text-zinc-600 mt-0.5"
+        yearClass="text-[10.5px] text-zinc-400"
       />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />

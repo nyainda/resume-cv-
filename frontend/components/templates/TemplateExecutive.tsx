@@ -41,7 +41,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
   } : {};
 
   const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-    <h2 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>{title}</h2>
+    <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>{title}</h2>
   );
 
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
@@ -51,14 +51,14 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'summary':
         return (
           <section key="summary">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>Executive Summary</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>Executive Summary</h2>
             <p className="text-sm leading-relaxed text-gray-800 text-justify" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
           </section>
         );
       case 'workExperience':
         return (
           <section key="workExperience">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Professional Experience</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Professional Experience</h2>
             <div className="space-y-5">
               {cvData.experience.map((job, index) => (
                 <div key={index} className="relative group" data-pdf-keep="true">
@@ -89,7 +89,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'education':
         return cvData.education.length > 0 ? (
           <section key="education">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Education</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Education</h2>
             <div className="space-y-3">
               {cvData.education.map((edu, index) => (
                 <div key={index} data-pdf-keep="true">
@@ -109,7 +109,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'skills':
         return cvData.skills && cvData.skills.length > 0 ? (
           <section key="skills">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>Core Competencies</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>Core Competencies</h2>
             {(() => {
               const cols = 3;
               const perCol = Math.ceil(cvData.skills.length / cols);
@@ -134,7 +134,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'projects':
         return cvData.projects && cvData.projects.length > 0 ? (
           <section key="projects">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Notable Projects</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Notable Projects</h2>
             <div className="space-y-3">
               {cvData.projects.map((proj, index) => (
                 <div key={index} data-pdf-keep="true">
@@ -151,7 +151,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'languages':
         return cvData.languages && cvData.languages.length > 0 ? (
           <section key="languages">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>Languages</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-2 pb-1 border-b border-gray-300" style={{ color: accent }}>Languages</h2>
             <p className="text-sm text-gray-800">
               {cvData.languages.map((l, i) => (
                 <span key={i}>{l.name} <span className="italic text-gray-600">({l.proficiency})</span>{i < (cvData.languages?.length ?? 0) - 1 && <span className="text-gray-400 mx-1.5">•</span>}</span>
@@ -162,7 +162,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
       case 'references':
         return cvData.references && cvData.references.length > 0 ? (
           <section key="references">
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>References</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>References</h2>
             <div className="grid grid-cols-2 gap-4">
               {cvData.references.map((ref, index) => (
                 <div key={index} className="text-sm text-gray-700">
@@ -199,7 +199,7 @@ const TemplateExecutive: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
         {orderedSections.map(key => renderSection(key))}
         {cvData.publications && cvData.publications.length > 0 && (
           <section>
-            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Publications</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.1em] mb-3 pb-1 border-b border-gray-300" style={{ color: accent }}>Publications</h2>
             <div className="space-y-2">
               {cvData.publications.map((pub, index) => (
                 <div key={index} data-pdf-keep="true">

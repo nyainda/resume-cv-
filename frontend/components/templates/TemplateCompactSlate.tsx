@@ -75,8 +75,8 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
           <div className="space-y-3 flex-1">
             <section>
-              <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">Contact</h2>
-              <ul className="space-y-0.5 text-[9.5px] break-words text-slate-300">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Contact</h2>
+              <ul className="space-y-0.5 text-[11px] break-words text-slate-300">
                 {personalInfo.email && <li>{personalInfo.email}</li>}
                 {personalInfo.phone && <li>{personalInfo.phone}</li>}
                 {personalInfo.location && <li>{personalInfo.location}</li>}
@@ -87,8 +87,8 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
             {cvData.skills.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">Skills</h2>
-                <ul className="space-y-0.5 text-[9.5px] text-slate-300">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Skills</h2>
+                <ul className="space-y-0.5 text-[11px] text-slate-300">
                   {cvData.skills.slice(0, 12).map((skill, i) => (
                     <li key={i} className="leading-snug" {...editableProps(['skills', i])}>{skill}</li>
                   ))}
@@ -98,13 +98,13 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
             {cvData.education.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">Education</h2>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Education</h2>
                 <div className="space-y-1.5">
                   {cvData.education.slice(0, 2).map((edu, index) => (
-                    <div key={index} className="text-[9.5px]">
+                    <div key={index} className="text-[11px]">
                       <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
-                      <p className="text-slate-400 text-[9px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                      <p className="text-slate-500 text-[9px]" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                      <p className="text-slate-400 text-[12px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                      <p className="text-slate-500 text-[12px]" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
                     </div>
                   ))}
                 </div>
@@ -113,8 +113,8 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
             {cvData.languages && cvData.languages.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">Languages</h2>
-                <ul className="space-y-0.5 text-[9.5px] text-slate-300">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Languages</h2>
+                <ul className="space-y-0.5 text-[11px] text-slate-300">
                   {cvData.languages.map((lang, i) => (
                     <li key={i}>{lang.name} <span className="text-slate-500">— {lang.proficiency}</span></li>
                   ))}
@@ -126,10 +126,10 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
                 Picker toolbar in the editor. Default-on. */}
             {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">Key Achievements</h2>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Key Achievements</h2>
                 <ul className="space-y-1">
                   {keyAchievements.map((line, i) => (
-                    <li key={i} className="text-[9px] text-slate-300 leading-snug flex items-start gap-1">
+                    <li key={i} className="text-[10.5px] text-slate-300 leading-snug flex items-start gap-1">
                       <span className="text-slate-500 flex-shrink-0">▪</span>
                       <span>{line}</span>
                     </li>
@@ -140,10 +140,10 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
             {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">Projects</h2>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Projects</h2>
                 <ul className="space-y-0.5">
                   {cvData.projects.slice(0, 3).map((p, i) => (
-                    <li key={i} className="text-[9.5px] text-slate-300 leading-snug">{p.name}</li>
+                    <li key={i} className="text-[11px] text-slate-300 leading-snug">{p.name}</li>
                   ))}
                 </ul>
               </section>
@@ -151,8 +151,8 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
             {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-400 pb-0.5 mb-1.5 border-b border-slate-700">References</h2>
-                <p className="text-[9px] text-slate-400 italic leading-snug">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">References</h2>
+                <p className="text-[12px] text-slate-400 italic leading-snug">
                   {cvData.references.length} available on request
                 </p>
               </section>
@@ -162,7 +162,7 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
           {/* Slim bottom anchor — single thin rule + tracked-out style label. */}
           <div className="mt-auto pt-4">
             <div className="h-px bg-slate-700 mb-1.5" />
-            <p className="text-[8px] text-slate-500 tracking-[0.2em] uppercase text-center">Curriculum Vitae</p>
+            <p className="text-[10px] text-slate-500 tracking-[0.15em] uppercase text-center">Curriculum Vitae</p>
           </div>
         </div>
 
@@ -171,22 +171,22 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
           <main className="space-y-3.5">
             {cvData.summary && (
               <section>
-                <h2 className="text-[10px] font-bold uppercase tracking-wider pb-0.5 mb-1 border-b border-slate-200" style={{ color: accent }}>Summary</h2>
-                <p className="text-[10px] leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+                <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1 border-b border-slate-200" style={{ color: accent }}>Summary</h2>
+                <p className="text-[11.5px] leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
               </section>
             )}
 
             <section>
-              <h2 className="text-[10px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-slate-200" style={{ color: accent }}>Experience</h2>
+              <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-slate-200" style={{ color: accent }}>Experience</h2>
               <div className="space-y-2.5">
                 {cvData.experience.map((job, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
-                      <h3 className="text-[10.5px] font-bold text-slate-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                      <p className="text-[9px] text-slate-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                      <h3 className="text-[12px] font-bold text-slate-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                      <p className="text-[12px] text-slate-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                     </div>
-                    <p className="text-[9.5px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                    <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[9.5px] text-slate-700">
+                    <p className="text-[11px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-slate-700">
                       {job.responsibilities.map((resp, i) => (
                         <li key={i} className="leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
@@ -198,12 +198,12 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
             {cvData.projects && cvData.projects.length > 0 && (
               <section>
-                <h2 className="text-[10px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-slate-200" style={{ color: accent }}>Projects</h2>
+                <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-slate-200" style={{ color: accent }}>Projects</h2>
                 <div className="space-y-1.5">
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
-                      <h3 className="text-[10px] font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-[9.5px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      <h3 className="text-[12px] font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
+                      <p className="text-[11px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                     </div>
                   ))}
                 </div>
@@ -216,12 +216,12 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
       <TemplateCustomSections
         customSections={cvData.customSections}
         references={cvData.references}
-        renderHeader={title => <h2 className="text-[10px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-slate-200" style={{ color: accent }}>{title}</h2>}
+        renderHeader={title => <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-slate-200" style={{ color: accent }}>{title}</h2>}
         sectionClassName="mb-4 px-5"
-        titleClass="font-semibold text-[10.5px]"
-        subtitleClass="text-[9.5px] text-slate-500"
-        descClass="text-[9.5px] text-slate-600 mt-0.5"
-        yearClass="text-[9px] text-slate-400"
+        titleClass="font-semibold text-[12px]"
+        subtitleClass="text-[11px] text-slate-500"
+        descClass="text-[11px] text-slate-600 mt-0.5"
+        yearClass="text-[12px] text-slate-400"
       />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />

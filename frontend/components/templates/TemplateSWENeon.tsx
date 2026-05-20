@@ -81,12 +81,12 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
 
                 {/* Contact */}
                 <div>
-                    <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Contact</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Contact</p>
                     <div className="space-y-1.5">
                         {[{ v: personalInfo.email, i: '✉' }, { v: personalInfo.phone, i: '📱' }, { v: personalInfo.location, i: '📍' }].map(x => x.v && (
                             <div key={x.v} className="flex items-start gap-1.5">
-                                <span className="text-[9px] flex-shrink-0 mt-0.5">{x.i}</span>
-                                <span className="text-[9px] break-all leading-tight" style={{ color: '#8b949e' }}>{x.v}</span>
+                                <span className="text-[11px] flex-shrink-0 mt-0.5">{x.i}</span>
+                                <span className="text-[11px] break-all leading-tight" style={{ color: '#8b949e' }}>{x.v}</span>
                             </div>
                         ))}
                     </div>
@@ -95,19 +95,19 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                 {/* Links */}
                 {(personalInfo.github || personalInfo.linkedin || personalInfo.website) && (
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Links</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Links</p>
                         <div className="space-y-1.5">
                             {personalInfo.github && (
                                 <div className="flex items-center gap-1.5">
                                     <span style={{ color: accent }}><GitHubIcon /></span>
-                                    <span className="text-[9px] truncate" style={{ color: '#8b949e' }}>{personalInfo.github.replace('https://github.com/', '')}</span>
+                                    <span className="text-[11px] truncate" style={{ color: '#8b949e' }}>{personalInfo.github.replace('https://github.com/', '')}</span>
                                 </div>
                             )}
                             {personalInfo.linkedin && (
-                                <span className="text-[9px]" style={{ color: '#8b949e' }}>{personalInfo.linkedin.replace(/https?:\/\/(www\.)?linkedin\.com\/in\//, '')}</span>
+                                <span className="text-[11px]" style={{ color: '#8b949e' }}>{personalInfo.linkedin.replace(/https?:\/\/(www\.)?linkedin\.com\/in\//, '')}</span>
                             )}
                             {personalInfo.website && (
-                                <span className="text-[9px]" style={{ color: '#8b949e' }}>{personalInfo.website.replace(/https?:\/\//, '')}</span>
+                                <span className="text-[11px]" style={{ color: '#8b949e' }}>{personalInfo.website.replace(/https?:\/\//, '')}</span>
                             )}
                         </div>
                     </div>
@@ -116,14 +116,14 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                 {/* Tech Stack */}
                 {cats.length > 0 && (
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Tech Stack</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Tech Stack</p>
                         <div className="space-y-3">
                             {cats.map(([cat, skills]) => (
                                 <div key={cat}>
-                                    <p className="text-[7px] font-bold uppercase tracking-wider mb-1" style={{ color: '#484f58' }}>{cat}</p>
+                                    <p className="text-[10.5px] font-bold uppercase tracking-wider mb-1" style={{ color: '#484f58' }}>{cat}</p>
                                     <div className="flex flex-wrap gap-0.5">
                                         {skills.slice(0, 7).map(s => (
-                                            <span key={s} className="text-[8px] px-1.5 py-0.5 rounded font-mono font-bold" style={{ background: accent + '14', border: '1px solid rgba(6,182,212,0.25)', color: accent }}>{s}</span>
+                                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold" style={{ background: accent + '14', border: '1px solid rgba(6,182,212,0.25)', color: accent }}>{s}</span>
                                         ))}
                                     </div>
                                 </div>
@@ -135,12 +135,12 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                 {/* Education */}
                 {cvData.education.length > 0 && (
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Education</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.15em] mb-2 pb-1 border-b" style={{ color: accent, borderColor: accent + '33' }}>Education</p>
                         {cvData.education.slice(0, 2).map((edu, i) => (
                             <div key={i} className="mb-2">
                                 <p className="text-[10px] font-bold leading-tight" style={{ color: '#e6edf3' }} {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
-                                <p className="text-[9px] mt-0.5" style={{ color: '#8b949e' }} {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[9px]" style={{ color: accent }}>{edu.year}</p>
+                                <p className="text-[10.5px] mt-0.5" style={{ color: '#8b949e' }} {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
+                                <p className="text-[10.5px]" style={{ color: accent }}>{edu.year}</p>
                             </div>
                         ))}
                     </div>
@@ -155,7 +155,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                     <section>
                         <div className="flex items-center gap-2 mb-2">
                             <span className="font-black text-sm" style={{ color: accent }}>▶</span>
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: '#484f58' }}>About</span>
+                            <span className="text-[10.5px] font-black uppercase tracking-[0.15em]" style={{ color: '#484f58' }}>About</span>
                             <div className="flex-1 h-px" style={{ background: accent + '26' }} />
                         </div>
                         <p className="text-xs leading-relaxed" style={{ color: '#c9d1d9' }} {...ed(['summary'])} dangerouslySetInnerHTML={{ __html: cvData.summary }} />
@@ -167,7 +167,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                     <section>
                         <div className="flex items-center gap-2 mb-3">
                             <span className="font-black text-sm" style={{ color: accent }}>▶</span>
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: '#484f58' }}>Experience</span>
+                            <span className="text-[10.5px] font-black uppercase tracking-[0.15em]" style={{ color: '#484f58' }}>Experience</span>
                             <div className="flex-1 h-px" style={{ background: accent + '26' }} />
                         </div>
                         <div className="space-y-5">
@@ -178,14 +178,14 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <h3 className="font-bold text-xs" style={{ color: '#e6edf3' }} {...ed(['experience', i, 'jobTitle'])} dangerouslySetInnerHTML={{ __html: job.jobTitle }} />
                                                 {job.link && (
-                                                    <a href={job.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] font-semibold" style={{ color: accent }}>
+                                                    <a href={job.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-semibold" style={{ color: accent }}>
                                                         <GitHubIcon /><span>View</span>
                                                     </a>
                                                 )}
                                             </div>
                                             <p className="text-[10px] font-semibold mt-0.5" style={{ color: accent }} {...ed(['experience', i, 'company'])} dangerouslySetInnerHTML={{ __html: job.company }} />
                                         </div>
-                                        <span className="text-[9px] font-mono px-2 py-0.5 rounded" style={{ color: '#8b949e', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
+                                        <span className="text-[10.5px] font-mono px-2 py-0.5 rounded" style={{ color: '#8b949e', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} {...ed(['experience', i, 'dates'])} dangerouslySetInnerHTML={{ __html: job.dates }} />
                                     </div>
                                     <ul className="space-y-0.5">
                                         {job.responsibilities.map((r, j) => (
@@ -206,7 +206,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                     <section>
                         <div className="flex items-center gap-2 mb-3">
                             <span className="font-black text-sm" style={{ color: accent }}>▶</span>
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: '#484f58' }}>Projects</span>
+                            <span className="text-[10.5px] font-black uppercase tracking-[0.15em]" style={{ color: '#484f58' }}>Projects</span>
                             <div className="flex-1 h-px" style={{ background: accent + '26' }} />
                         </div>
                         <div className="grid grid-cols-1 gap-2">
@@ -216,7 +216,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                         <h3 className="font-bold text-xs font-mono" style={{ color: accent }} {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             {proj.link && (
-                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color: accent }}>
+                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-bold" style={{ color: accent }}>
                                                     <GitHubIcon /><span>GitHub</span>
                                                 </a>
                                             )}
@@ -234,7 +234,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                     <section>
                         <div className="flex items-center gap-2 mb-2">
                             <span className="font-black text-sm" style={{ color: accent }}>▶</span>
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: '#484f58' }}>Languages</span>
+                            <span className="text-[10.5px] font-black uppercase tracking-[0.15em]" style={{ color: '#484f58' }}>Languages</span>
                             <div className="flex-1 h-px" style={{ background: accent + '26' }} />
                         </div>
                         <div className="flex flex-wrap gap-2">

@@ -46,7 +46,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     ].filter(Boolean) as string[];
 
     const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-      <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}22` }}>{title}</h2>
+      <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}22` }}>{title}</h2>
     );
 
     const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
@@ -56,7 +56,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'summary':
                 return cvData.summary ? (
                     <section key="summary" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             Professional Summary
                         </h2>
                         <p className="text-sm text-slate-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
@@ -65,7 +65,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'skills':
                 return cvData.skills.length > 0 ? (
                     <section key="skills" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             Core Competencies
                         </h2>
                         <div className="flex flex-wrap gap-2">
@@ -89,7 +89,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'workExperience':
                 return cvData.experience.length > 0 ? (
                     <section key="workExperience" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-3" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-3" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             Work Experience
                         </h2>
                         <div className="space-y-5">
@@ -125,7 +125,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'projects':
                 return cvData.projects && cvData.projects.length > 0 ? (
                     <section key="projects" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-3" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-3" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             Projects
                         </h2>
                         <div className="space-y-3">
@@ -141,7 +141,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'education':
                 return cvData.education.length > 0 ? (
                     <section key="education" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-3" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-3" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             Education
                         </h2>
                         <div className="space-y-3">
@@ -161,7 +161,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'languages':
                 return cvData.languages && cvData.languages.length > 0 ? (
                     <section key="languages" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             Languages
                         </h2>
                         <p className="text-xs text-slate-700">
@@ -172,7 +172,7 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
             case 'references':
                 return cvData.references && cvData.references.length > 0 ? (
                     <section key="references" className="mb-5">
-                        <h2 className="text-[10px] font-black uppercase tracking-widest pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
+                        <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-1 mb-2" style={{ color: accent, borderBottom: `1.5px solid ${accent}` }}>
                             References
                         </h2>
                         <div className="grid grid-cols-2 gap-4">

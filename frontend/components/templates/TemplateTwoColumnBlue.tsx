@@ -74,15 +74,15 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
             )}
             <h1 className="text-base font-bold tracking-tight leading-tight">{personalInfo.name}</h1>
             {cvData.experience.length > 0 && (
-              <p className="text-[9.5px] text-blue-300 mt-0.5 leading-snug">{cvData.experience[0].jobTitle}</p>
+              <p className="text-[11px] text-blue-300 mt-0.5 leading-snug">{cvData.experience[0].jobTitle}</p>
             )}
           </div>
 
           <div className="flex-1 flex flex-col">
             <div className="space-y-3">
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Contact</h2>
-                <ul className="space-y-0.5 text-[9.5px] break-words">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Contact</h2>
+                <ul className="space-y-0.5 text-[11px] break-words">
                   {personalInfo.email && <li className="text-blue-100">{personalInfo.email}</li>}
                   {personalInfo.phone && <li className="text-blue-100">{personalInfo.phone}</li>}
                   {personalInfo.location && <li className="text-blue-100">{personalInfo.location}</li>}
@@ -93,8 +93,8 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               </section>
 
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Skills</h2>
-                <ul className="space-y-0.5 text-[9.5px]">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Skills</h2>
+                <ul className="space-y-0.5 text-[11px]">
                   {cvData.skills.slice(0, 12).map((skill, i) => (
                     <li key={i} className="flex items-start gap-1 text-blue-100 leading-snug">
                       <span className="mt-1.5 w-1 h-1 rounded-full bg-blue-300 flex-shrink-0 inline-block"></span>
@@ -106,8 +106,8 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
               {cvData.languages && cvData.languages.length > 0 && (
                 <section>
-                  <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Languages</h2>
-                  <ul className="text-[9.5px] space-y-0.5">
+                  <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Languages</h2>
+                  <ul className="text-[11px] space-y-0.5">
                     {cvData.languages.map((lang, i) => (
                       <li key={i}>
                         <span className="font-semibold text-white" {...editableProps(['languages', i, 'name'])}>{lang.name}</span>
@@ -120,13 +120,13 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               )}
 
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Education</h2>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Education</h2>
                 <div className="space-y-1.5">
                   {cvData.education.slice(0, 2).map((edu, index) => (
-                    <div key={index} className="text-[9.5px]">
+                    <div key={index} className="text-[11px]">
                       <p className="font-bold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
-                      <p className="text-blue-200 text-[9px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
-                      <p className="text-blue-300 text-[9px]" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                      <p className="text-blue-200 text-[10.5px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+                      <p className="text-blue-300 text-[10.5px]" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
                     </div>
                   ))}
                 </div>
@@ -134,12 +134,12 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
               {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
                 <section>
-                  <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Key Achievements</h2>
-                  <ul className="space-y-1 text-[9.5px]">
+                  <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Key Achievements</h2>
+                  <ul className="space-y-1 text-[11px]">
                     {keyAchievements.map((line, i) => (
                       <li key={i} className="flex items-start gap-1.5 text-blue-100 leading-snug">
                         <span className="mt-1 w-1 h-1 rounded-full bg-blue-300 flex-shrink-0 inline-block"></span>
-                        <span className="text-[9px]">{line}</span>
+                        <span className="text-[10.5px]">{line}</span>
                       </li>
                     ))}
                   </ul>
@@ -148,12 +148,12 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
               {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
                 <section>
-                  <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Selected Projects</h2>
-                  <ul className="space-y-0.5 text-[9.5px]">
+                  <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Selected Projects</h2>
+                  <ul className="space-y-0.5 text-[11px]">
                     {cvData.projects.slice(0, 3).map((proj, i) => (
                       <li key={i} className="flex items-start gap-1.5 text-blue-100 leading-snug">
                         <span className="mt-1 w-1 h-1 rounded-full bg-blue-300 flex-shrink-0 inline-block"></span>
-                        <span className="text-[9px] font-semibold">{proj.name}</span>
+                        <span className="text-[10.5px] font-semibold">{proj.name}</span>
                       </li>
                     ))}
                   </ul>
@@ -162,8 +162,8 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
               {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
                 <section>
-                  <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">References</h2>
-                  <p className="text-[9px] text-blue-100 italic leading-snug">
+                  <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">References</h2>
+                  <p className="text-[10.5px] text-blue-100 italic leading-snug">
                     {cvData.references.length} available on request.
                   </p>
                 </section>
@@ -172,7 +172,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
             <div className="mt-auto pt-4">
               <div className="h-px bg-blue-400/40 mb-1.5" />
-              <p className="text-[8px] text-blue-300/70 uppercase tracking-[0.2em] text-center">
+              <p className="text-[10px] text-blue-300/70 uppercase tracking-[0.15em] text-center">
                 Updated {updatedLabel}
               </p>
             </div>
@@ -196,10 +196,10 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
                       <h3 className="text-[10.5px] font-bold text-slate-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                      <p className="text-[9px] font-medium text-slate-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                      <p className="text-[10.5px] font-medium text-slate-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                     </div>
-                    <p className="text-[9.5px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                    <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[9.5px] text-slate-700">
+                    <p className="text-[11px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-slate-700">
                       {job.responsibilities.map((resp, i) => (
                         <li key={i} className="leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
@@ -216,9 +216,9 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
                       <h3 className="text-[10px] font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-[9.5px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      <p className="text-[11px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                       {proj.link && (
-                        <a href={proj.link} className="text-[9px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
+                        <a href={proj.link} className="text-[10.5px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
                       )}
                     </div>
                   ))}
@@ -235,9 +235,9 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
         renderHeader={title => <h2 className="text-[10px] font-bold uppercase tracking-wider border-b-2 border-blue-100 pb-0.5 mb-1.5" style={{ color: accent }}>{title}</h2>}
         sectionClassName="mb-4 px-5"
         titleClass="font-semibold text-[10.5px]"
-        subtitleClass="text-[9.5px] text-blue-600 opacity-80"
-        descClass="text-[9.5px] text-slate-600 mt-0.5"
-        yearClass="text-[9px] text-slate-400"
+        subtitleClass="text-[11px] text-blue-600 opacity-80"
+        descClass="text-[11px] text-slate-600 mt-0.5"
+        yearClass="text-[10.5px] text-slate-400"
       />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />

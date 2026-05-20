@@ -41,7 +41,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     } : {};
 
     const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-      <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">{title}</h2>
+      <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">{title}</h2>
     );
 
     const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
@@ -51,14 +51,14 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             case 'summary':
                 return (
                     <section key="summary">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Profile</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Profile</h2>
                         <p className="text-base leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
                     </section>
                 );
             case 'workExperience':
                 return (
                     <section key="workExperience">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Experience</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Experience</h2>
                         <div className="space-y-8">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
@@ -89,7 +89,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             case 'education':
                 return cvData.education && cvData.education.length > 0 ? (
                     <section key="education">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Education</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Education</h2>
                         <div className="space-y-4">
                             {cvData.education.map((edu, index) => (
                                 <div key={index}>
@@ -109,7 +109,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             case 'skills':
                 return cvData.skills.length > 0 ? (
                     <section key="skills">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Skills</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Skills</h2>
                         {(() => {
                             const sk = cvData.skills.slice(0, 15);
                             const perCol = Math.ceil(sk.length / 3);
@@ -130,7 +130,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             case 'projects':
                 return cvData.projects && cvData.projects.length > 0 ? (
                     <section key="projects">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Projects</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Projects</h2>
                         <div className="space-y-6">
                             {cvData.projects.map((proj, index) => (
                                 <div key={index}>
@@ -147,7 +147,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             case 'languages':
                 return cvData.languages && cvData.languages.length > 0 ? (
                     <section key="languages">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Languages</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Languages</h2>
                         <div className="flex flex-wrap gap-4">
                             {cvData.languages.map((lang, index) => (
                                 <div key={index} className="text-sm">
@@ -162,7 +162,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             case 'references':
                 return cvData.references && cvData.references.length > 0 ? (
                     <section key="references">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">References</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">References</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             {cvData.references.map((ref, index) => (
                                 <div key={index} className="text-sm text-slate-700">
@@ -210,7 +210,7 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 {orderedSections.map(key => renderSection(key))}
                 {cvData.publications && cvData.publications.length > 0 && (
                     <section>
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Publications</h2>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-600 mb-4">Publications</h2>
                         <div className="space-y-6">
                             {cvData.publications.map((pub, index) => (
                                 <div key={index}>

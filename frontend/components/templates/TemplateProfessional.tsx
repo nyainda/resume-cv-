@@ -41,7 +41,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   } : {};
 
   const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-    <h2 className="text-xs font-black uppercase tracking-[0.15em] pb-2 mb-4" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>{title}</h2>
+    <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-2 mb-4" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>{title}</h2>
   );
 
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
@@ -51,7 +51,7 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
       case 'summary':
         return (
           <section key="summary">
-            <h2 className="text-xs font-black uppercase tracking-[0.15em] pb-2 mb-5" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>Professional Summary</h2>
+            <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-2 mb-5" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>Professional Summary</h2>
             <p className="text-sm leading-relaxed text-zinc-700 font-medium" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
           </section>
         );

@@ -72,15 +72,15 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                                             <Trash className="h-4 w-4" />
                                         </button>
                                     )}
-                                    <div className="flex justify-between items-baseline font-bold uppercase text-[12px]">
+                                    <div className="flex justify-between items-baseline font-bold uppercase text-[13px]">
                                         <h3 {...editableProps(['experience', index, 'company'])}>{job.company}</h3>
                                         <span {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                                     </div>
-                                    <div className="flex justify-between items-baseline italic text-[11px] mb-2">
+                                    <div className="flex justify-between items-baseline italic text-[12px] mb-2">
                                         <h4 {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h4>
-                                        <span className="text-[10px] font-normal not-italic">{personalInfo.location}</span>
+                                        <span className="text-[11px] font-normal not-italic">{personalInfo.location}</span>
                                     </div>
-                                    <ul className="list-disc list-outside ml-6 space-y-1 text-[11px] text-justify">
+                                    <ul className="list-disc list-outside ml-6 space-y-1 text-[12px] text-justify">
                                         {job.responsibilities.map((resp, i) => (
                                             <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                         ))}
@@ -97,12 +97,12 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                         <div className="space-y-4">
                             {cvData.education.map((edu, index) => (
                                 <div key={index} className="relative">
-                                    <div className="flex justify-between items-baseline font-bold uppercase text-[12px]">
+                                    <div className="flex justify-between items-baseline font-bold uppercase text-[13px]">
                                         <h3 {...editableProps(['education', index, 'school'])}>{edu.school}</h3>
                                         <span {...editableProps(['education', index, 'year'])}>{edu.year}</span>
                                     </div>
-                                    <p className="text-[11px] italic" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
-                                    {edu.description && <p className="text-[10px] mt-1 text-slate-600" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />}
+                                    <p className="text-[12px] italic" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
+                                    {edu.description && <p className="text-[11px] mt-1 text-slate-600" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />}
                                 </div>
                             ))}
                         </div>
@@ -112,7 +112,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 return cvData.skills.length > 0 ? (
                     <section key="skills">
                         <SectionHeader title="Technical Skills" />
-                        <div className="grid grid-cols-1 gap-2 text-[11px]">
+                        <div className="grid grid-cols-1 gap-2 text-[12px]">
                             <div className="flex gap-4">
                                 <span className="flex-1">{cvData.skills.slice(0, 15).join(', ')}</span>
                             </div>
@@ -123,7 +123,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 return cvData.projects && cvData.projects.length > 0 ? (
                     <section key="projects">
                         <SectionHeader title="Notable Projects" />
-                        <div className="grid grid-cols-1 gap-2 text-[11px]">
+                        <div className="grid grid-cols-1 gap-2 text-[12px]">
                             {cvData.projects.map((p, i) => (
                                 <div key={i} className="flex gap-4">
                                     <span className="font-bold uppercase min-w-[120px]">{p.name}:</span>
@@ -137,7 +137,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 return cvData.languages && cvData.languages.length > 0 ? (
                     <section key="languages">
                         <SectionHeader title="Languages" />
-                        <div className="text-[11px]">
+                        <div className="text-[12px]">
                             {cvData.languages.map(l => `${l.name} (${l.proficiency})`).join(', ')}
                         </div>
                     </section>
@@ -146,7 +146,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 return cvData.references && cvData.references.length > 0 ? (
                     <section key="references">
                         <SectionHeader title="References" />
-                        <div className="grid grid-cols-2 gap-4 text-[11px]">
+                        <div className="grid grid-cols-2 gap-4 text-[12px]">
                             {cvData.references.map((ref, index) => (
                                 <div key={index}>
                                     <p className="font-bold">{ref.name}</p>
@@ -166,7 +166,7 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
         <div id="cv-preview-london-finance" className="bg-white p-12 sm:p-16 text-[#1c1c1c] shadow-xl border border-zinc-200 font-serif leading-tight" style={{ fontFamily: "'Times New Roman', serif" }}>
             <header className="text-center mb-8 border-b-2 pb-8" style={{ borderColor: accent }}>
                 <h1 className="text-4xl font-bold tracking-tight mb-2 uppercase">{personalInfo.name}</h1>
-                <div className="flex justify-center gap-x-3 text-[11px] font-medium uppercase tracking-wider text-slate-600">
+                <div className="flex justify-center gap-x-3 text-[12px] font-medium uppercase tracking-wider text-slate-600">
                     <span>{personalInfo.location}</span>
                     <span>•</span>
                     <span>{personalInfo.phone}</span>

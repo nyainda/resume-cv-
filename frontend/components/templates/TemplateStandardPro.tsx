@@ -44,10 +44,10 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
     const SectionHeader = ({ title }: { title: string }) => (
         <div style={{ marginBottom: '10px', marginTop: '18px' }}>
             <h2 style={{
-                fontSize: '12px',
+                fontSize: '13px',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                letterSpacing: '0.12em',
+                letterSpacing: '0.1em',
                 margin: '0 0 4px',
                 color: accent,
             }}>{title}</h2>
@@ -74,7 +74,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                     <section key="summary">
                         <SectionHeader title="Professional Summary" />
                         <p
-                            style={{ fontSize: '11.5px', lineHeight: '1.65', margin: 0, fontStyle: 'italic', color: '#222' }}
+                            style={{ fontSize: '13px', lineHeight: '1.65', margin: 0, fontStyle: 'italic', color: '#222' }}
                             dangerouslySetInnerHTML={{ __html: cvData.summary }}
                             {...editableProps(['summary'])}
                         />
@@ -100,18 +100,18 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }} {...editableProps(['experience', index, 'company'])}>
                                             {job.company}
                                         </span>
-                                        <span style={{ fontSize: '11px', fontStyle: 'italic', color: '#555', whiteSpace: 'nowrap', marginLeft: '12px' }} {...editableProps(['experience', index, 'dates'])}>
+                                        <span style={{ fontSize: '12px', fontStyle: 'italic', color: '#444', whiteSpace: 'nowrap', marginLeft: '12px' }} {...editableProps(['experience', index, 'dates'])}>
                                             {job.dates}
                                         </span>
                                     </div>
-                                    <div style={{ fontSize: '11.5px', fontStyle: 'italic', color: '#333', marginTop: '2px', marginLeft: '2px' }} {...editableProps(['experience', index, 'jobTitle'])}>
+                                    <div style={{ fontSize: '12.5px', fontStyle: 'italic', color: '#333', marginTop: '2px', marginLeft: '2px' }} {...editableProps(['experience', index, 'jobTitle'])}>
                                         {job.jobTitle}
                                     </div>
                                     <ul style={{ margin: '5px 0 0 18px', padding: 0, listStyleType: 'disc' }}>
                                         {job.responsibilities.map((resp, i) => (
                                             <li
                                                 key={i}
-                                                style={{ fontSize: '11px', lineHeight: '1.6', marginBottom: '2px', color: '#111' }}
+                                                style={{ fontSize: '12px', lineHeight: '1.6', marginBottom: '2px', color: '#111' }}
                                                 dangerouslySetInnerHTML={{ __html: resp }}
                                                 {...editableProps(['experience', index, 'responsibilities', i])}
                                             />
@@ -133,15 +133,15 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }} {...editableProps(['education', index, 'school'])}>
                                             {edu.school}
                                         </span>
-                                        <span style={{ fontSize: '11px', color: '#555', whiteSpace: 'nowrap', marginLeft: '12px' }} {...editableProps(['education', index, 'year'])}>
+                                        <span style={{ fontSize: '12px', color: '#444', whiteSpace: 'nowrap', marginLeft: '12px' }} {...editableProps(['education', index, 'year'])}>
                                             {edu.year}
                                         </span>
                                     </div>
-                                    <div style={{ fontSize: '11.5px', fontStyle: 'italic', color: '#333', marginTop: '2px', marginLeft: '2px' }} {...editableProps(['education', index, 'degree'])}>
+                                    <div style={{ fontSize: '12.5px', fontStyle: 'italic', color: '#333', marginTop: '2px', marginLeft: '2px' }} {...editableProps(['education', index, 'degree'])}>
                                         {edu.degree}
                                     </div>
                                     {edu.description && (
-                                        <div style={{ fontSize: '10.5px', color: '#555', marginTop: '2px', marginLeft: '2px' }} dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />
+                                        <div style={{ fontSize: '12px', color: '#555', marginTop: '2px', marginLeft: '2px' }} dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />
                                     )}
                                 </div>
                             ))}
@@ -165,7 +165,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                     {columns.map((col, ci) => (
                                         <ul key={ci} style={{ margin: 0, padding: '0 0 0 16px', listStyleType: 'disc' }}>
                                             {col.map((skill, si) => (
-                                                <li key={si} style={{ fontSize: '11px', lineHeight: '1.75', color: '#111', marginBottom: '1px' }}>
+                                                <li key={si} style={{ fontSize: '12px', lineHeight: '1.75', color: '#111', marginBottom: '1px' }}>
                                                     {skill}
                                                 </li>
                                             ))}
@@ -193,7 +193,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                             </a>
                                         )}
                                     </div>
-                                    <p style={{ fontSize: '11px', margin: '3px 0 0 2px', lineHeight: '1.55', color: '#222' }} dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                                    <p style={{ fontSize: '12px', margin: '3px 0 0 2px', lineHeight: '1.55', color: '#222' }} dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                                 </div>
                             ))}
                         </div>
@@ -203,7 +203,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                 return cvData.languages && cvData.languages.length > 0 ? (
                     <section key="languages">
                         <SectionHeader title="Languages" />
-                        <p style={{ fontSize: '11px', margin: 0, color: '#111' }}>
+                        <p style={{ fontSize: '12px', margin: 0, color: '#111' }}>
                             {cvData.languages.map((l, i) => (
                                 <span key={i}>{l.name} <span style={{ fontStyle: 'italic', color: '#555' }}>({l.proficiency})</span>{i < (cvData.languages?.length ?? 0) - 1 && '   •   '}</span>
                             ))}
@@ -216,7 +216,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                         <SectionHeader title="References" />
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                             {cvData.references.map((ref, index) => (
-                                <div key={index} style={{ fontSize: '11px', color: '#111' }}>
+                                <div key={index} style={{ fontSize: '12px', color: '#111' }}>
                                     <p style={{ fontWeight: 700 }}>{ref.name}</p>
                                     <p style={{ color: '#555' }}>{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
                                     {ref.email && <p>{ref.email}</p>}
@@ -246,7 +246,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                 <h1 style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0, lineHeight: 1.1 }}>
                     {personalInfo.name}
                 </h1>
-                <div style={{ marginTop: '7px', fontSize: '11px', color: '#333', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: '0 6px', lineHeight: '1.6' }}>
+                <div style={{ marginTop: '7px', fontSize: '12px', color: '#333', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: '0 6px', lineHeight: '1.6' }}>
                     {contactParts.map((part, i) => (
                         <React.Fragment key={i}>
                             {i > 0 && <span style={{ color: '#888' }}>|</span>}
@@ -266,7 +266,7 @@ const TemplateStandardPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                         <SectionHeader title="Publications" />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {cvData.publications.map((pub, index) => (
-                                <p key={index} style={{ fontSize: '11px', margin: 0, lineHeight: '1.55', color: '#111' }}>
+                                <p key={index} style={{ fontSize: '12px', margin: 0, lineHeight: '1.55', color: '#111' }}>
                                     <span style={{ fontWeight: 700 }} {...editableProps(['publications', index, 'title'])}>{pub.title}</span>.{' '}
                                     <span style={{ fontStyle: 'italic' }} {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</span>.{' '}
                                     <span style={{ color: '#444' }} {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>,{' '}

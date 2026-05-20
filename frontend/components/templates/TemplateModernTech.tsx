@@ -59,13 +59,13 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
           <div className="mb-3">
             <h1 className="text-base font-bold tracking-tight leading-tight">{personalInfo.name}</h1>
             {cvData.experience.length > 0 && (
-              <p className="text-[9.5px] text-gray-400 mt-0.5 leading-snug">{cvData.experience[0].jobTitle}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{cvData.experience[0].jobTitle}</p>
             )}
           </div>
           <div className="space-y-3 flex-1">
             <section>
-              <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Contact</h2>
-              <ul className="space-y-0.5 text-[9.5px] break-words">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Contact</h2>
+              <ul className="space-y-0.5 text-[11px] break-words">
                 {personalInfo.email && <li className="text-gray-300">{personalInfo.email}</li>}
                 {personalInfo.phone && <li className="text-gray-300">{personalInfo.phone}</li>}
                 {personalInfo.location && <li className="text-gray-300">{personalInfo.location}</li>}
@@ -74,7 +74,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
               </ul>
             </section>
             <section>
-              <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Skills</h2>
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Skills</h2>
               <div className="flex flex-wrap gap-0.5">
                 {cvData.skills.slice(0, 14).map((skill, i) => (
                   <span key={i} className="bg-gray-700 text-gray-200 text-[8.5px] font-medium px-1 py-0.5 rounded">{skill}</span>
@@ -83,8 +83,8 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             </section>
             {cvData.languages && cvData.languages.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Languages</h2>
-                <ul className="space-y-0.5 text-[9.5px]">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Languages</h2>
+                <ul className="space-y-0.5 text-[11px]">
                   {cvData.languages.map((lang, i) => (
                     <li key={i} className="text-gray-300 leading-snug">{lang.name} <span className="text-gray-500">— {lang.proficiency}</span></li>
                   ))}
@@ -92,12 +92,12 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
               </section>
             )}
             <section>
-              <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Education</h2>
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Education</h2>
               <div className="space-y-1.5">
                 {cvData.education.slice(0, 2).map((edu, index) => (
-                  <div key={index} className="text-[9.5px]">
+                  <div key={index} className="text-[11px]">
                     <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
-                    <p className="text-gray-400 text-[9px]" {...editableProps(['education', index, 'school'])}>{edu.school}, {edu.year}</p>
+                    <p className="text-gray-400 text-[10.5px]" {...editableProps(['education', index, 'school'])}>{edu.school}, {edu.year}</p>
                   </div>
                 ))}
               </div>
@@ -106,12 +106,12 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             {/* IMPACT — terminal-output styling. */}
             {sidebarSections.keyAchievements && keyAchievements.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'/*'}</span> Impact <span className="text-gray-500">{'*/'}</span>
                 </h2>
                 <ul className="space-y-1">
                   {keyAchievements.map((line, i) => (
-                    <li key={i} className="text-[9px] text-gray-300 leading-snug flex items-start gap-1" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                    <li key={i} className="text-[10.5px] text-gray-300 leading-snug flex items-start gap-1" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                       <span className="text-green-400 flex-shrink-0">›</span>
                       <span>{line}</span>
                     </li>
@@ -123,12 +123,12 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             {/* REPOS — project titles as ~/kebab-case paths. */}
             {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'/*'}</span> Repos <span className="text-gray-500">{'*/'}</span>
                 </h2>
                 <ul className="space-y-0.5">
                   {cvData.projects.slice(0, 3).map((p, i) => (
-                    <li key={i} className="text-[9px] text-gray-300 leading-snug" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                    <li key={i} className="text-[10.5px] text-gray-300 leading-snug" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                       <span className="text-blue-400">~/</span>{p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
                     </li>
                   ))}
@@ -138,10 +138,10 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
 
             {sidebarSections.references && cvData.references && cvData.references.length > 0 && (
               <section>
-                <h2 className="text-[8px] font-bold uppercase tracking-[0.18em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'/*'}</span> Refs <span className="text-gray-500">{'*/'}</span>
                 </h2>
-                <p className="text-[9px] text-gray-300 leading-snug" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
+                <p className="text-[10.5px] text-gray-300 leading-snug" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                   <span className="text-gray-500">{'//'}</span> {cvData.references.length} available on request
                 </p>
               </section>
@@ -174,10 +174,10 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
                       <h3 className="text-[10.5px] font-bold text-gray-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                      <p className="text-[9px] font-mono text-gray-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                      <p className="text-[10.5px] font-mono text-gray-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                     </div>
-                    <p className="text-[9.5px] font-medium text-gray-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                    <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[9.5px] text-gray-700">
+                    <p className="text-[11px] font-medium text-gray-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-gray-700">
                       {job.responsibilities.map((resp, i) => (
                         <li key={i} className="leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
@@ -194,9 +194,9 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
                       <h3 className="text-[10px] font-semibold text-gray-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-[9.5px] text-gray-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      <p className="text-[11px] text-gray-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
                       {proj.link && (
-                        <a href={proj.link} className="text-[9px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
+                        <a href={proj.link} className="text-[10.5px] text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
                       )}
                     </div>
                   ))}
@@ -213,9 +213,9 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
         renderHeader={title => <h2 className="text-[10px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-gray-200" style={{ color: accent }}>{title}</h2>}
         sectionClassName="mb-4 px-5"
         titleClass="font-semibold text-[10.5px]"
-        subtitleClass="text-[9.5px] text-gray-500"
-        descClass="text-[9.5px] text-gray-600 mt-0.5"
-        yearClass="text-[9px] text-gray-400"
+        subtitleClass="text-[11px] text-gray-500"
+        descClass="text-[11px] text-gray-600 mt-0.5"
+        yearClass="text-[10.5px] text-gray-400"
       />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />

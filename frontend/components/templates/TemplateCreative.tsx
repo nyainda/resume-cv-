@@ -65,7 +65,7 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
 
           <div className="space-y-4">
             <section>
-              <h2 className="text-[9px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Contact</h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Contact</h2>
               <ul className="space-y-1 text-xs break-words">
                 {personalInfo.email && <li>{personalInfo.email}</li>}
                 {personalInfo.phone && <li>{personalInfo.phone}</li>}
@@ -77,17 +77,17 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             </section>
 
             <section>
-              <h2 className="text-[9px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Skills</h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Skills</h2>
               <div className="flex flex-wrap gap-1">
                 {cvData.skills.slice(0, 18).map((skill, i) => (
-                  <span key={i} className="text-[9px] font-medium px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: '#0d9488' }}>{skill}</span>
+                  <span key={i} className="text-[11px] font-medium px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: '#0d9488' }}>{skill}</span>
                 ))}
               </div>
             </section>
 
             {cvData.languages && cvData.languages.length > 0 && (
               <section>
-                <h2 className="text-[9px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Languages</h2>
+                <h2 className="text-[11px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Languages</h2>
                 <ul className="space-y-0.5 text-xs">
                   {cvData.languages.map((lang, index) => (
                     <li key={index}>
@@ -101,7 +101,7 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
             )}
 
             <section>
-              <h2 className="text-[9px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Education</h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-teal-200 border-b border-teal-600 pb-1 mb-2">Education</h2>
               <div className="space-y-2">
                 {cvData.education.map((edu, index) => (
                   <div key={index} className="text-xs">

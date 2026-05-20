@@ -70,7 +70,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                             <div className="flex items-center gap-2">
                                                 <h3 className="font-bold text-gray-900 text-sm" {...ed(['experience', i, 'jobTitle'])} dangerouslySetInnerHTML={{ __html: job.jobTitle }} />
                                                 {(job as any).link && (
-                                                    <a href={(job as any).link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] font-mono font-bold text-gray-500 hover:text-gray-900">
+                                                    <a href={(job as any).link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] font-mono font-bold text-gray-500 hover:text-gray-900">
                                                         <GitHubIcon /><span>repo</span>
                                                     </a>
                                                 )}
@@ -104,7 +104,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <h3 className="font-bold text-gray-900 text-xs font-mono" {...ed(['projects', i, 'name'])} dangerouslySetInnerHTML={{ __html: proj.name }} />
                                             {proj.link && (
-                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[9px] text-gray-500 font-mono font-semibold hover:text-gray-900">
+                                                <a href={proj.link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10.5px] text-gray-500 font-mono font-semibold hover:text-gray-900">
                                                     <GitHubIcon /><span>github</span>
                                                 </a>
                                             )}
@@ -124,7 +124,7 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                             <div key={i} className="mb-1.5">
                                 <p className="font-bold text-gray-900 text-xs" {...ed(['education', i, 'degree'])} dangerouslySetInnerHTML={{ __html: edu.degree }} />
                                 <p className="text-[10px] text-gray-500" {...ed(['education', i, 'school'])} dangerouslySetInnerHTML={{ __html: edu.school }} />
-                                <p className="text-[9px] text-gray-400">{edu.year}</p>
+                                <p className="text-[10.5px] text-gray-400">{edu.year}</p>
                             </div>
                         ))}
                     </section>
