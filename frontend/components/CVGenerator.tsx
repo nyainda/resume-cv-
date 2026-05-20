@@ -1703,13 +1703,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   )}
                 </Button>
               )}
-              {currentCV && savedCVs.length > 0 && (
+              {currentCV && (
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => setShowCompareModal(true)}
                   disabled={isEditing}
-                  title="Compare this CV against a saved version to see which covers more ATS keywords"
+                  title="Generate two CV modes side-by-side and pick the best one"
                   className="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
                 >
                   <Columns className="h-4 w-4 mr-2" />
@@ -2412,6 +2412,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
             setCurrentCV(cv);
             setLastEngine(null);
           }}
+          userProfile={userProfile}
+          template={template}
+          cvPurpose={cvPurpose}
+          sidebarSections={sidebarSections}
         />
       )}
 
