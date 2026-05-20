@@ -2081,6 +2081,12 @@ export const generateCV = async (
      * Capped at 12 terms inside the function regardless of what is passed.
      */
     targetKeywords?: string[],
+    /**
+     * Optional streaming callback fired immediately when the raw Worker sections
+     * arrive — before the quality polish pipeline. Lets the UI show the CV
+     * progressively while polishing runs in the background.
+     */
+    onSectionsDraft?: (cv: Partial<CVData>) => void,
 ): Promise<CVData> => {
 
     // ── HOT FIRE (inbound) ── Scrub banned phrases out of the source profile
@@ -2737,6 +2743,23 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             const okSkills     = Array.isArray(sectionSkills)     && sectionSkills.length > 0;
             const okExperience = Array.isArray(sectionExperience);
             const okEducation  = Array.isArray(sectionEducation);
+
+            // ── STREAMING DRAFT ── Fire the callback immediately so the UI can
+            // show sections appearing while the quality gate + polishing run in
+            // the background. Raw data only — not yet polished.
+            if (okSummary && okSkills && okExperience && okEducation && onSectionsDraft) {
+                try {
+                    onSectionsDraft({
+                        summary:    sectionSummary,
+                        skills:     Array.isArray(sectionSkills)    ? sectionSkills    : [],
+                        experience: Array.isArray(sectionExperience) ? sectionExperience : [],
+                        education:  Array.isArray(sectionEducation)  ? sectionEducation  : [],
+                        projects:   Array.isArray(sectionProjects) && sectionProjects.length > 0 ? sectionProjects : undefined,
+                    });
+                } catch (cbErr) {
+                    console.debug('[CV Gen] onSectionsDraft callback threw (non-fatal):', cbErr);
+                }
+            }
 
             if (okSummary && okSkills && okExperience && okEducation) {
                 // ── Quality Gate — Stage 1 (score) + Stage 2 (repair) ────────────

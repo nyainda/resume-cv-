@@ -238,6 +238,34 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setProgressActiveIds([]);
     setProgressRetryNotice(null);
   }, []);
+
+  // ── Progressive streaming draft ─────────────────────────────────────────────
+  // Sections appear here as soon as the Worker responds (before quality polish).
+  // Cleared when the final polished CV is committed via setCurrentCV.
+  const [draftCV, setDraftCV] = useState<Partial<CVData> | null>(null);
+
+  const revealDraftProgressively = useCallback(async (raw: Partial<CVData>) => {
+    // Seed with summary + empty arrays so the CV skeleton appears immediately
+    setDraftCV({ summary: raw.summary ?? '', skills: [], experience: [], education: [] });
+    await new Promise(r => setTimeout(r, 280));
+    // Skills
+    setDraftCV(prev => prev ? { ...prev, skills: raw.skills ?? [] } : prev);
+    await new Promise(r => setTimeout(r, 320));
+    // Education
+    setDraftCV(prev => prev ? { ...prev, education: raw.education ?? [] } : prev);
+    // Experience roles one by one (most content-rich section — feels like streaming)
+    const roles = raw.experience ?? [];
+    for (let i = 0; i < roles.length; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      const slice = roles.slice(0, i + 1);
+      setDraftCV(prev => prev ? { ...prev, experience: slice } : prev);
+    }
+    // Projects last
+    if (raw.projects && raw.projects.length > 0) {
+      await new Promise(r => setTimeout(r, 300));
+      setDraftCV(prev => prev ? { ...prev, projects: raw.projects } : prev);
+    }
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -507,6 +535,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       return;
     }
     setIsLoading(true);
+    setDraftCV(null);
     setError(null);
     setIsEditing(false);
     setCoverLetter(null);
@@ -632,6 +661,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           }
         },
         _gapKeywords,
+        // Progressive draft callback — fires when raw Worker sections arrive,
+        // before quality polishing. Reveals content in the background preview.
+        (raw) => { revealDraftProgressively(raw); },
       );
       advanceStage('polishing', 'Polishing every line — capitals, punctuation, numbers…');
       await new Promise(r => setTimeout(r, 300));
@@ -691,6 +723,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
     if (generatedData) {
       setCurrentCV(generatedData);
+      setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
       setJustGenerated(true);
       // Instant zero-cost re-score: compare the newly generated CV against the
@@ -1047,6 +1080,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         activeStageIds={progressActiveIds}
         statusMessage={loadingMessage}
         retryNotice={progressRetryNotice}
+        hasDraft={!!draftCV}
       />
       {/* ── CV Toolkit Suggestions Banner ── */}
       {toolkitSuggestions && (
@@ -1556,8 +1590,18 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         )}
       </div>
 
-      {currentCV && (
+      {(currentCV || (isLoading && draftCV)) && (
         <div className="bg-white dark:bg-neutral-800/50 p-4 sm:p-8 rounded-xl shadow-sm border border-zinc-200 dark:border-neutral-800">
+          {/* Streaming draft banner — visible while polishing runs in background */}
+          {isLoading && draftCV && !currentCV && (
+            <div className="mb-4 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 animate-in fade-in duration-500">
+              <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-violet-500 animate-ping" />
+              <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-violet-500 -ml-3.5" />
+              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">
+                Drafting in progress — polishing in background. Final version will appear automatically.
+              </span>
+            </div>
+          )}
           <div className="flex flex-wrap items-start justify-between mb-6 gap-6">
             <div>
               <h2 className="text-2xl font-bold">CV Preview</h2>
@@ -2259,9 +2303,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 selector prefers, and what we pass explicitly via cvCaptureRef. */}
             <div ref={cvCaptureRef} data-cv-preview-active="true">
               <CVPreview
-                cvData={currentCV}
+                cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : currentCV}
                 personalInfo={userProfile.personalInfo}
-                isEditing={isEditing}
+                isEditing={isEditing && !!currentCV}
                 onDataChange={setCurrentCV}
                 jobDescriptionForATS={jobDescription}
                 template={template}
