@@ -568,28 +568,54 @@ const AppInner: React.FC = () => {
       // correct date formatting, bullet splitting, etc. without duplicating logic.
       const fromProfile = profileToCV(profile);
 
-      // Smart experience merge: preserve AI-polished bullets for roles that
-      // haven't changed (matched by company + jobTitle, NOT by index so that
-      // adding, removing or reordering roles in the profile form never clobbers
-      // AI bullets for untouched roles).
+      // Convert the OLD (pre-save) profile so we can detect which bullets the
+      // user actually changed in the form vs which were already there.
+      const oldFromProfile = profileToCV(userProfile);
+
+      // Smart experience merge:
+      // • Matched by company + jobTitle (not index) — add/remove/reorder is safe.
+      // • If the user edited the responsibilities text in the profile form the
+      //   new profile bullets win (their explicit edit must be respected).
+      // • If the responsibilities text is unchanged the AI-polished CV bullets
+      //   are preserved and only dates are refreshed.
       const mergedExperience = fromProfile.experience.map((newExp) => {
-        const prevExp = prev.experience.find(
+        const prevCVExp = prev.experience.find(
           e =>
-            e.company   === newExp.company &&
-            e.jobTitle  === newExp.jobTitle &&
+            e.company  === newExp.company &&
+            e.jobTitle === newExp.jobTitle &&
             e.responsibilities.length > 0
         );
-        if (prevExp) {
-          // Same role — keep AI bullets, just refresh the date range
+        if (!prevCVExp) {
+          // New or renamed role — use fresh profile bullets
+          return newExp;
+        }
+
+        // Check whether the user changed the bullet text in the profile form
+        const oldExp = oldFromProfile.experience.find(
+          e => e.company === newExp.company && e.jobTitle === newExp.jobTitle
+        );
+        const bulletsChangedInForm =
+          JSON.stringify(oldExp?.responsibilities ?? []) !==
+          JSON.stringify(newExp.responsibilities);
+
+        if (bulletsChangedInForm) {
+          // User explicitly edited bullets in the profile form — honour their edit
           return {
-            ...prevExp,
+            ...prevCVExp,
+            responsibilities: newExp.responsibilities,
             dates:     newExp.dates,
             startDate: newExp.startDate,
             endDate:   newExp.endDate,
           };
         }
-        // New role, renamed role, or role with no existing bullets — use profile text
-        return newExp;
+
+        // Bullets unchanged in form — keep AI-polished version, refresh dates only
+        return {
+          ...prevCVExp,
+          dates:     newExp.dates,
+          startDate: newExp.startDate,
+          endDate:   newExp.endDate,
+        };
       });
 
       return {
@@ -1381,6 +1407,7 @@ const AppInner: React.FC = () => {
                 existingProfile={userProfile}
                 onSave={handleProfileSave}
                 onCancel={() => profileExists && setIsEditingProfile(false)}
+                currentCV={currentCV}
                 apiKeySet={apiKeySet}
                 openSettings={() => setIsSettingsOpen(true)}
                 onProfileImported={handleWordProfileImported}
