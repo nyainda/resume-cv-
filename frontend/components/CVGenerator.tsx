@@ -245,26 +245,36 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   // Sections appear here as soon as the Worker responds (before quality polish).
   // Cleared when the final polished CV is committed via setCurrentCV.
   const [draftCV, setDraftCV] = useState<Partial<CVData> | null>(null);
+  // Used to cancel stale progressive-reveal animations when a second generation
+  // fires before the first one finishes painting the draft CV section-by-section.
+  const revealGenIdRef = useRef(0);
 
   const revealDraftProgressively = useCallback(async (raw: Partial<CVData>) => {
+    const myGenId = ++revealGenIdRef.current;
+    const isStale = () => revealGenIdRef.current !== myGenId;
+
     // Seed with summary + empty arrays so the CV skeleton appears immediately
     setDraftCV({ summary: raw.summary ?? '', skills: [], experience: [], education: [] });
     await new Promise(r => setTimeout(r, 280));
+    if (isStale()) return;
     // Skills
     setDraftCV(prev => prev ? { ...prev, skills: raw.skills ?? [] } : prev);
     await new Promise(r => setTimeout(r, 320));
+    if (isStale()) return;
     // Education
     setDraftCV(prev => prev ? { ...prev, education: raw.education ?? [] } : prev);
     // Experience roles one by one (most content-rich section — feels like streaming)
     const roles = raw.experience ?? [];
     for (let i = 0; i < roles.length; i++) {
       await new Promise(r => setTimeout(r, 400));
+      if (isStale()) return;
       const slice = roles.slice(0, i + 1);
       setDraftCV(prev => prev ? { ...prev, experience: slice } : prev);
     }
     // Projects last
     if (raw.projects && raw.projects.length > 0) {
       await new Promise(r => setTimeout(r, 300));
+      if (isStale()) return;
       setDraftCV(prev => prev ? { ...prev, projects: raw.projects } : prev);
     }
   }, []);

@@ -183,14 +183,19 @@ Self-check before returning JSON:
             { role: 'system', content: CV_SYSTEM_PROMPT },
             { role: 'user',   content: userPrompt },
         ],
-        max_completion_tokens: 8000,
+        max_completion_tokens: 4000,   // ↓ from 8000 — CV JSON needs ~600-900 tokens max
+        reasoning_effort: 'low',       // gpt-5-mini is a reasoning model; 'low' is enough for structured JSON
     });
 
     const raw = response.choices[0]?.message?.content ?? '';
     const json = raw.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
     const cv = JSON.parse(json);
     const usage = response.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-    return { cv, usage };
+    // gpt-5-mini is a reasoning model — completion_tokens includes hidden chain-of-thought.
+    // Separate them so the report shows actual CV JSON tokens vs reasoning overhead.
+    const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens ?? 0;
+    const actualOutputTokens = usage.completion_tokens - reasoningTokens;
+    return { cv, usage: { ...usage, reasoning_tokens: reasoningTokens, actual_output_tokens: actualOutputTokens } };
 }
 
 // ─── Convert generated CV to app's CVData format ──────────────────────────────
@@ -655,7 +660,7 @@ async function main() {
 
     const report = { runAt: new Date().toISOString(), results: [] };
     let totalPass = 0, totalWarn = 0, totalFail = 0;
-    let totalPromptTokens = 0, totalCompletionTokens = 0;
+    let totalPromptTokens = 0, totalCompletionTokens = 0, totalReasoningTokens = 0, totalActualOutputTokens = 0;
     let lastCVData = null;     // app CVData format of the last successful CV (for preview)
     let lastFixtureLabel = '';
 
@@ -666,9 +671,12 @@ async function main() {
         try {
             ({ cv, usage } = await generateCV(fixture, CANDIDATE_PROFILE));
             const durationMs = Date.now() - t0;
-            process.stdout.write(`done (${durationMs}ms, ${usage.total_tokens} tokens)\n`);
-            totalPromptTokens     += usage.prompt_tokens;
-            totalCompletionTokens += usage.completion_tokens;
+            const reasoningNote = usage.reasoning_tokens > 0 ? ` · ${usage.reasoning_tokens} reasoning + ${usage.actual_output_tokens} actual output` : '';
+            process.stdout.write(`done (${durationMs}ms, ${usage.total_tokens} tokens${reasoningNote})\n`);
+            totalPromptTokens        += usage.prompt_tokens;
+            totalCompletionTokens    += usage.completion_tokens;
+            totalReasoningTokens     += usage.reasoning_tokens   ?? 0;
+            totalActualOutputTokens  += usage.actual_output_tokens ?? 0;
             result = checkCV(cv, fixture.jd);
             printResult(fixture, cv, result, durationMs);
             report.results.push({ fixture: fixture.id, label: fixture.label, verdict: result.verdict, durationMs, usage, ats: result.ats, issues: result.issues, passCount: result.passes.length, cv });
@@ -728,9 +736,19 @@ async function main() {
     console.log('\n───────────────────────────────────────────────────────────────────');
     console.log('TOKEN USAGE & COST  (model: gpt-5-mini via Replit AI Integrations)');
     console.log('───────────────────────────────────────────────────────────────────');
-    console.log(`  Input tokens    : ${totalPromptTokens.toLocaleString()}  × $${INPUT_PRICE_PER_M}/1M  = $${inputCost.toFixed(5)}`);
-    console.log(`  Output tokens   : ${totalCompletionTokens.toLocaleString()}  × $${OUTPUT_PRICE_PER_M}/1M  = $${outputCost.toFixed(5)}`);
-    console.log(`  Total tokens    : ${totalTokens.toLocaleString()}`);
+    console.log(`  Input tokens        : ${totalPromptTokens.toLocaleString()}  × $${INPUT_PRICE_PER_M}/1M  = $${inputCost.toFixed(5)}`);
+    if (totalReasoningTokens > 0) {
+        // gpt-5-mini is a reasoning model — completion_tokens includes hidden chain-of-thought.
+        // Both are billed at the output rate but we separate them so you can see the overhead.
+        console.log(`  Output tokens (total): ${totalCompletionTokens.toLocaleString()}  × $${OUTPUT_PRICE_PER_M}/1M  = $${outputCost.toFixed(5)}`);
+        console.log(`    ├─ Reasoning (hidden CoT) : ${totalReasoningTokens.toLocaleString()} tokens  — gpt-5-mini thinks before writing`);
+        console.log(`    └─ Actual CV JSON output  : ${totalActualOutputTokens.toLocaleString()} tokens  — the real content`);
+        const pct = Math.round((totalReasoningTokens / totalCompletionTokens) * 100);
+        console.log(`    ℹ️  ${pct}% of output was reasoning overhead (set reasoning_effort:'low' to minimise this)`);
+    } else {
+        console.log(`  Output tokens       : ${totalCompletionTokens.toLocaleString()}  × $${OUTPUT_PRICE_PER_M}/1M  = $${outputCost.toFixed(5)}`);
+    }
+    console.log(`  Total tokens        : ${totalTokens.toLocaleString()}`);
     console.log(`  ── Estimated cost for this run : $${totalCost.toFixed(5)} (< $${(Math.ceil(totalCost * 1000) / 1000).toFixed(3)})`);
     console.log(`  ── Per CV avg   : ~${Math.round(totalTokens / (fixtures.length || 1)).toLocaleString()} tokens / ~$${(totalCost / (fixtures.length || 1)).toFixed(5)}`);
     console.log(`  ── Full 8-JD run estimate: ~$${((totalCost / (fixtures.length || 1)) * 8).toFixed(4)}`);

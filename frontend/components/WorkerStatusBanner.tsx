@@ -165,7 +165,7 @@ export default function WorkerStatusBanner() {
                                     : 'AI worker issue'}
                             </span>
                             <span className="mx-1.5 opacity-40">·</span>
-                            <span className="opacity-80">{detail!.message}</span>
+                            <span className="opacity-80">{detail?.message ?? ''}</span>
                             {isQuota && resetMins > 0 && (
                                 <span className="ml-1.5 opacity-60 text-xs">
                                     (resets in {formatReset(resetMins)})

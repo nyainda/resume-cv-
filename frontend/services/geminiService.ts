@@ -2741,7 +2741,10 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
 
             const okSummary    = typeof sectionSummary === 'string' && sectionSummary.trim().length > 0;
             const okSkills     = Array.isArray(sectionSkills)     && sectionSkills.length > 0;
-            const okExperience = Array.isArray(sectionExperience);
+            // Require at least 1 experience role when the profile has experience entries.
+            // An empty [] is valid only for profiles that genuinely have no experience (e.g. fresh graduates).
+            const minExpected  = (profile?.experience?.length ?? 0) > 0 ? 1 : 0;
+            const okExperience = Array.isArray(sectionExperience) && sectionExperience.length >= minExpected;
             const okEducation  = Array.isArray(sectionEducation);
 
             // ── STREAMING DRAFT ── Fire the callback immediately so the UI can

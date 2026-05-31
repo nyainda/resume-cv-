@@ -19,6 +19,61 @@ runWorkerStatusDiagnostic();
 // auto-recover without a page reload.
 startAutoProbe();
 
+// ── Top-level Error Boundary ────────────────────────────────────────────────
+// Catches any runtime crash in the React tree and shows a friendly recovery
+// screen instead of a blank white page. Class component required by React API.
+interface EBState { hasError: boolean; message: string }
+class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+  static getDerivedStateFromError(err: unknown): EBState {
+    const message = err instanceof Error ? err.message : String(err);
+    return { hasError: true, message };
+  }
+  componentDidCatch(err: unknown, info: React.ErrorInfo) {
+    console.error('[AppErrorBoundary] Uncaught error in React tree:', err, info.componentStack);
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', padding: '2rem',
+      }}>
+        <div style={{ maxWidth: 480, textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1B2B4B', marginBottom: 8 }}>
+            Something went wrong
+          </h1>
+          <p style={{ color: '#555', marginBottom: 24, lineHeight: 1.6 }}>
+            ProCV hit an unexpected error. Your saved CVs are safe — they're stored in your browser.
+          </p>
+          <p style={{
+            background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+            padding: '10px 16px', fontSize: 13, color: '#666',
+            fontFamily: 'monospace', marginBottom: 24, wordBreak: 'break-all',
+          }}>
+            {this.state.message || 'Unknown error'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: '#1B2B4B', color: '#fff', border: 'none',
+              borderRadius: 8, padding: '10px 24px', fontSize: 15,
+              fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Reload app
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
@@ -28,7 +83,9 @@ restoreLocalStorageFromIDB().finally(() => {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <App />
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
     </React.StrictMode>
   );
 
