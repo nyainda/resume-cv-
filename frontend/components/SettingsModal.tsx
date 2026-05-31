@@ -357,7 +357,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                   label: 'Claude (Anthropic)',
                   badge: 'Free — your key',
                   badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-                  desc: 'Claude Haiku via secure server proxy. Fast, 200K context. Your key is never exposed in the browser.',
+                  desc: 'Claude Haiku via secure server proxy. Fast, 200K context. Prompt caching active — repeated generations cost 90% less and run faster.',
                   keyNeeded: true,
                   keyValue: claudeKey,
                   keyPlaceholder: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx',
@@ -439,6 +439,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                         <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
                           Your key is proxied through our secure server — it is never exposed in browser DevTools.
                         </p>
+                        {opt.id === 'claude' && !!claudeKey.trim() && (
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                              ⚡ Prompt caching active
+                            </span>
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">— system prompt cached between runs, 90% cheaper on repeats</span>
+                          </div>
+                        )}
                       </div>
                     )}
 

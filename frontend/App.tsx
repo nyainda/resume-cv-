@@ -497,22 +497,24 @@ const AppInner: React.FC = () => {
 
   // ── API settings save: encrypt before persisting ──────────────────────
   const handleApiSettingsSave = useCallback(async (plaintext: ApiSettings) => {
+    // Update in-memory state immediately so the UI (Job Board, etc.) sees
+    // the new keys right away — don't make the user wait for async encryption.
+    setApiSettings(plaintext);
+    setRuntimeKeys({
+      apiKey:        plaintext.apiKey              ?? null,
+      claudeApiKey:  (plaintext as any).claudeApiKey  ?? null,
+      tavilyApiKey:  (plaintext as any).tavilyApiKey  ?? null,
+      brevoApiKey:   (plaintext as any).brevoApiKey   ?? null,
+      jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
+    });
+    // Then encrypt and persist to storage in the background.
     try {
       await KeyVault.init();
       const encrypted = await KeyVault.encryptApiSettings(plaintext as Record<string, unknown>);
       setRawApiSettings(encrypted as unknown as ApiSettings);
-      setApiSettings(plaintext);
-      setRuntimeKeys({
-        apiKey:        plaintext.apiKey              ?? null,
-        claudeApiKey:  (plaintext as any).claudeApiKey  ?? null,
-        tavilyApiKey:  (plaintext as any).tavilyApiKey  ?? null,
-        brevoApiKey:   (plaintext as any).brevoApiKey   ?? null,
-        jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
-      });
     } catch {
       // Fallback: save without encryption rather than silently fail
       setRawApiSettings(plaintext);
-      setApiSettings(plaintext);
     }
   }, [setRawApiSettings]);
 
