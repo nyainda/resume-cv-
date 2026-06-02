@@ -371,11 +371,19 @@ export async function groqChat(
                 provider:    'claude',
                 apiKey:      key,
                 temperature: opts.temperature,
-                maxTokens:   opts.maxTokens,
+                maxTokens:   opts.maxTokens ?? 8192,
                 json:        opts.json,
-                timeoutMs:   55_000,
+                timeoutMs:   90_000,
             });
-            if (!r) throw new Error('Claude proxy returned no text');
+            if (!r) {
+                const err: any = new Error(
+                    isCVEngineConfigured()
+                        ? 'Claude did not return a response. The request may have timed out or your CV is very large — please try again, or reduce the number of roles.'
+                        : 'Claude proxy requires a configured CV Engine URL. Go to Settings → AI Provider.'
+                );
+                err.isUserFacing = true;
+                throw err;
+            }
             _lastAiEngine = 'Claude';
             _recordProviderResult('Claude', 'ok');
             _trackTokens(systemPrompt, userPrompt, r);
@@ -410,7 +418,7 @@ export async function groqChat(
                 provider:    'gemini',
                 apiKey:      key,
                 temperature: opts.temperature,
-                maxTokens:   opts.maxTokens,
+                maxTokens:   opts.maxTokens ?? 8192,
                 json:        opts.json,
                 timeoutMs:   55_000,
             });

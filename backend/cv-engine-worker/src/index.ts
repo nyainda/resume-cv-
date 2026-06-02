@@ -3226,8 +3226,14 @@ async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
 
             const data = await res.json() as any;
             const text = (data?.content?.[0]?.text as string) ?? '';
-            if (!text) return json({ error: 'empty_response' }, request, env, 502);
-            return json({ text, model: claudeModel, provider: 'claude' }, request, env);
+            const stopReason = data?.stop_reason as string | undefined;
+            if (!text) {
+                const msg = stopReason === 'max_tokens'
+                    ? 'Claude response was cut off (max_tokens reached). Try reducing the length of your CV or request fewer roles.'
+                    : 'Claude returned an empty response — content may have been filtered or the model did not produce output.';
+                return json({ error: 'empty_response', message: msg }, request, env, 502);
+            }
+            return json({ text, model: claudeModel, provider: 'claude', stop_reason: stopReason }, request, env);
         }
 
         // ── Gemini ────────────────────────────────────────────────────────────

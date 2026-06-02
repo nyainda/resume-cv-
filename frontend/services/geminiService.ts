@@ -1000,7 +1000,7 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
                 system: auditSystem,
                 temperature: 0.15,
                 json: true,
-                maxTokens: 4000,
+                maxTokens: 8192,
             });
             if (cf) {
                 try {
@@ -1017,7 +1017,7 @@ Return ONLY a JSON object with exactly two keys: "summary" (string) and "experie
     }
 
     try {
-        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 4000 });
+        const result = await groqChat(GROQ_LARGE, auditSystem, auditPrompt, { temperature: 0.15, json: true, maxTokens: 8192, task: 'humanize' });
         const merged = mergePartial(result);
         console.log('[CV Humanizer] Audit pass complete.');
         return merged;
@@ -3197,7 +3197,7 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
                     console.warn('[CV Engine] Workers AI voice fix failed, falling back to selected provider:', cfErr);
                 }
             }
-            if (!raw) raw = await groqChat(GROQ_FAST, voiceFixSystem, fixPrompt, { temperature: 0.4, json: true, maxTokens: 1200 });
+            if (!raw) raw = await groqChat(GROQ_FAST, voiceFixSystem, fixPrompt, { temperature: 0.4, json: true, maxTokens: 1200, task: 'voiceConsistency' });
             const parsed = JSON.parse(stripFencesVoice(raw ?? '{}'));
             const fixes: Array<{ index: number; bullet: string }> = Array.isArray(parsed?.fixes) ? parsed.fixes : [];
             let fixed = 0;
