@@ -16,6 +16,7 @@
 import { CVData, UserProfile } from '../types';
 import { getCachedBannedPhrases, type BannedEntry } from './cvEngineClient';
 import { auditStyleGovernance, classifyOpener, GOVERNANCE_SUBSTITUTIONS } from './cvStyleGovernance';
+import { auditSeniorityCoherence } from './cvSeniorityCoherence';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 1. FORBIDDEN-WORD SUBSTITUTIONS — applied to imported CV text BEFORE parsing,
@@ -2002,7 +2003,14 @@ export interface PurifyLeak {
         | 'context_missing'
         // The same outcome MEANING (improvement/growth/reduction/…) expressed
         // by 3+ bullets in one role using different words.
-        | 'meaning_cluster_repetition';
+        | 'meaning_cluster_repetition'
+        // ── Seniority coherence (detect-only, from cvSeniorityCoherence.ts) ──
+        // A bullet in an intern/junior/mid role contains ownership, strategy,
+        // or executive-access language that the role tier can't realistically carry.
+        | 'seniority_overreach'
+        // A bullet in a senior/lead/executive role uses purely assistive
+        // "helped/supported/shadowed" language — understates actual seniority.
+        | 'seniority_underreach';
     phrase: string;
     occurrences?: number;
     fieldLocation?: string;
@@ -2736,6 +2744,30 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         }
     } catch {
         // Style governance must never block the rest of the pipeline.
+    }
+
+    // Detect-only: SENIORITY COHERENCE. Cross-role believability check.
+    //   • OVERREACH: intern/junior/mid bullets that claim ownership, strategy,
+    //     C-suite access, or headcount that the role tier can't carry.
+    //   • UNDERREACH: senior/lead bullets using purely assistive language
+    //     ("helped the team", "shadowed") that understates actual seniority.
+    //   Covers ALL entry types: employment, internships, attachments, trainee
+    //   programmes, co-op, apprenticeships, volunteer, and freelance roles.
+    try {
+        const scReport = auditSeniorityCoherence(working);
+        if (scReport.totalIssues > 0) {
+            for (const iss of scReport.issues) {
+                leaks.push({
+                    leakType: iss.kind,
+                    phrase: `${iss.flaggedPhrase} — ${iss.detail}`,
+                    fieldLocation: iss.fieldLocation,
+                    fixedBy: 'none',
+                    contextSnippet: iss.where,
+                });
+            }
+        }
+    } catch {
+        // Seniority coherence must never block the rest of the pipeline.
     }
 
     return {
