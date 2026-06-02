@@ -2,6 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Sparkles, RefreshCw } from './icons';
 import { PROVIDER_TRYING_EVENT, PROVIDER_CHAIN_EVENT } from '../services/groqService';
 import type { ProviderTryingPayload, ProviderChainStatus } from '../services/groqService';
+import { POLISH_STAGE_EVENT } from '../services/geminiService';
+import type { PolishStageId, PolishStagePayload } from '../services/geminiService';
+
+const POLISH_SUB_STAGES: { id: PolishStageId; label: string }[] = [
+  { id: 'humanizing', label: 'Humanising tone & fixing weak bullets' },
+  { id: 'purifying',  label: 'Enforcing tense & phrase rules' },
+  { id: 'voice',      label: 'Checking voice consistency' },
+  { id: 'finalizing', label: 'Finalising & locking output' },
+];
 
 export type GenerationStageId =
   | 'profile'
@@ -68,6 +77,7 @@ const CVGenerationProgress: React.FC<Props> = ({
   const [providerAttempts, setProviderAttempts] = useState<ProviderAttempt[]>([]);
   const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
   const [minimised, setMinimised]           = useState(false);
+  const [polishSubStage, setPolishSubStage] = useState<PolishStageId | null>(null);
 
   // Reset & start elapsed counter whenever modal opens.
   useEffect(() => {
@@ -76,6 +86,7 @@ const CVGenerationProgress: React.FC<Props> = ({
     setProviderAttempts([]);
     setRetryCountdown(null);
     setMinimised(false);
+    setPolishSubStage(null);
     const startedAt = Date.now();
     const tick = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 250);
     return () => clearInterval(tick);
@@ -136,6 +147,17 @@ const CVGenerationProgress: React.FC<Props> = ({
     const timer = setTimeout(() => setRetryCountdown(c => (c !== null && c > 0 ? c - 1 : null)), 1000);
     return () => clearTimeout(timer);
   }, [retryCountdown]);
+
+  // Polish sub-stage events — update which sub-step is active inside 'polishing'.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPolish = (e: Event) => {
+      const { stage } = (e as CustomEvent<PolishStagePayload>).detail;
+      setPolishSubStage(stage);
+    };
+    window.addEventListener(POLISH_STAGE_EVENT, onPolish);
+    return () => window.removeEventListener(POLISH_STAGE_EVENT, onPolish);
+  }, [isOpen]);
 
   const visibleStages = useMemo(
     () => ALL_STAGES.filter(s => activeStageIds.includes(s.id)),
@@ -219,24 +241,53 @@ const CVGenerationProgress: React.FC<Props> = ({
             {visibleStages.map(stage => {
               const isDone   = completedStages.includes(stage.id);
               const isActive = currentStage === stage.id && !isDone;
+              const showSubs = stage.id === 'polishing' && isActive && polishSubStage !== null;
               return (
-                <li key={stage.id} className="flex items-center gap-2 text-xs">
-                  <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-                    {isDone ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    ) : isActive ? (
-                      <RefreshCw className="w-3 h-3 text-violet-500 animate-spin" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />
-                    )}
-                  </span>
-                  <span className={
-                    isDone   ? 'text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-300 decoration-1' :
-                    isActive ? 'text-zinc-900 dark:text-zinc-100 font-medium' :
-                               'text-zinc-400 dark:text-zinc-500'
-                  }>
-                    {stage.label}
-                  </span>
+                <li key={stage.id}>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                      {isDone ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      ) : isActive ? (
+                        <RefreshCw className="w-3 h-3 text-violet-500 animate-spin" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                      )}
+                    </span>
+                    <span className={
+                      isDone   ? 'text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-300 decoration-1' :
+                      isActive ? 'text-zinc-900 dark:text-zinc-100 font-medium' :
+                                 'text-zinc-400 dark:text-zinc-500'
+                    }>
+                      {stage.label}
+                    </span>
+                  </div>
+                  {/* Polish sub-stages — shown only while polishing is active */}
+                  {showSubs && (
+                    <ul className="mt-1 ml-6 space-y-0.5">
+                      {POLISH_SUB_STAGES.map(sub => {
+                        const ORDER = POLISH_SUB_STAGES.map(s => s.id);
+                        const cur   = ORDER.indexOf(polishSubStage ?? '');
+                        const mine  = ORDER.indexOf(sub.id);
+                        const subDone    = mine < cur;
+                        const subActive  = mine === cur;
+                        return (
+                          <li key={sub.id} className={`flex items-center gap-1.5 text-[10px] transition-colors ${
+                            subDone   ? 'text-emerald-500 dark:text-emerald-400' :
+                            subActive ? 'text-violet-600 dark:text-violet-400 font-medium' :
+                                        'text-zinc-400 dark:text-zinc-600'
+                          }`}>
+                            <span className="flex-shrink-0">
+                              {subDone   ? '✓' :
+                               subActive ? <RefreshCw className="w-2 h-2 animate-spin inline" /> :
+                                           '·'}
+                            </span>
+                            {sub.label}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </li>
               );
             })}

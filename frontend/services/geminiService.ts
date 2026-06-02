@@ -18,6 +18,17 @@ import {
     auditCvQuality as _auditCvQuality,
 } from './cvNumberFidelity';
 import { repairCvSummaryWithAi as _repairCvSummaryWithAi } from './aiInlineFix';
+
+// ── Polish sub-stage progress event ──────────────────────────────────────────
+// Fired inside runQualityPolishPasses so CVGenerationProgress can show
+// per-substep detail while the 'polishing' stage is active.
+export const POLISH_STAGE_EVENT = 'procv:polish-stage';
+export type PolishStageId = 'humanizing' | 'purifying' | 'voice' | 'finalizing';
+export interface PolishStagePayload { stage: PolishStageId }
+function _dispatchPolishStage(stage: PolishStageId) {
+    try { window.dispatchEvent(new CustomEvent<PolishStagePayload>(POLISH_STAGE_EVENT, { detail: { stage } })); }
+    catch { /* non-browser env — ignore */ }
+}
 import {
     stripFirstPersonPronouns as _stripFirstPersonPronouns,
     normalizePresentTenseToImperative as _normalizePresentTenseToImperative,
@@ -4367,6 +4378,7 @@ async function runQualityPolishPasses(
     //    purifyCV pass still runs at step 6 after the LLM rewrite.
     if (runHumanizer) {
         try {
+            _dispatchPolishStage('humanizing');
             const preAudit: CVData = JSON.parse(JSON.stringify(out));
             let scanLeaks: ReadonlyArray<{ leakType: string; phrase?: string; fieldLocation?: string; contextSnippet?: string }> = [];
             try {
@@ -4464,6 +4476,7 @@ async function runQualityPolishPasses(
     // 6a. Worker pre-purify — server-side IP rules (substitutions, tense, voice).
     //     Runs BEFORE the local purifyCV so the Worker's rules are applied first.
     //     Falls back silently if the Worker is unreachable.
+    _dispatchPolishStage('purifying');
     try {
         const pre = await remotePrePurify(out);
         out = pre.cv;
@@ -4495,6 +4508,7 @@ async function runQualityPolishPasses(
     //    is available; mutates `out` in place, with corrupt-metric revert).
     if (engineBrief && out.experience?.length) {
         try {
+            _dispatchPolishStage('voice');
             const preVoiceCV: CVData = JSON.parse(JSON.stringify(out));
             await enforceVoiceConsistency(out, engineBrief);
             const voiceRevert = revertCorruptedMetrics(out, preVoiceCV);
@@ -4524,6 +4538,7 @@ async function runQualityPolishPasses(
     // Pass accumulated purifier warning count so logCvQualityReport can
     // include the style-issue penalty in the quality score (fixes 100/100
     // even when purifier flagged warnings that couldn't be auto-fixed).
+    _dispatchPolishStage('finalizing');
     if ('profile' in finalize) {
         out = finalizeCvData(out, { profile: finalize.profile, runPurify: false, purifierWarnings: _purifyWarnings });
     } else {
