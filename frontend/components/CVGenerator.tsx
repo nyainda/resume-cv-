@@ -307,6 +307,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
+  const [optimizeStage, setOptimizeStage] = useState<'analysing' | 'improving' | 'polishing' | 'scoring' | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
   const [showDoctorPanel, setShowDoctorPanel] = useLocalStorage<boolean>('cv:doctorPanelOpen', false);
   const [optimizeDiff, setOptimizeDiff] = useLocalStorage<CVDiff | null>('cv:doctorDiff', null);
@@ -815,6 +816,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const handleAutoOptimize = useCallback(async () => {
     if (!currentCV || !cvScore) return;
     setIsOptimizing(true);
+    setOptimizeStage('analysing');
     try {
       // Auto-Optimize runs two categories of fixes:
       //  A) STRUCTURAL — missing dates, fragmented summary, section clarity.
@@ -866,7 +868,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       const instruction = parts.join('\n');
 
       const beforeSnapshot = currentCV;
-      const improved = await improveCV(currentCV, userProfile.personalInfo, instruction, jobDescription || undefined);
+      const improved = await improveCV(
+        currentCV,
+        userProfile.personalInfo,
+        instruction,
+        jobDescription || undefined,
+        undefined,
+        (stage) => setOptimizeStage(stage),
+      );
       setCurrentCV(improved);
 
       // Compute what changed and store for the diff panel
@@ -879,6 +888,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       // Re-score silently so the card updates
       if (jobDescription.trim()) {
         try {
+          setOptimizeStage('scoring');
           const newScore = await scoreCV(improved, jobDescription);
           setCvScore(newScore);
         } catch { /* silent — old score stays */ }
@@ -892,6 +902,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       setCvScore(prev => prev ? { ...prev, verdict: `Optimization failed — ${err?.message?.substring(0, 80) ?? 'try again'}` } : prev);
     } finally {
       setIsOptimizing(false);
+      setOptimizeStage(null);
     }
   }, [currentCV, cvScore, userProfile, jobDescription, setCurrentCV]);
 
@@ -1909,26 +1920,54 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 {/* Auto-Optimize footer */}
                 {cvScore.overall < 95 && (
                   <div className="px-5 py-3 border-t border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-900/10 flex items-center justify-between gap-3">
-                    <div className="flex flex-col gap-0.5">
+                    {isOptimizing ? (
+                      /* ── progress panel ── */
+                      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                        {(
+                          [
+                            { id: 'analysing', label: 'Reading your current CV' },
+                            { id: 'improving', label: 'Applying structural & quality fixes' },
+                            { id: 'polishing', label: 'Running quality checks' },
+                            ...(jobDescription.trim() ? [{ id: 'scoring', label: 'Re-scoring against job description' }] : []),
+                          ] as { id: typeof optimizeStage; label: string }[]
+                        ).map(({ id, label }) => {
+                          const ORDER = ['analysing', 'improving', 'polishing', 'scoring'];
+                          const cur = ORDER.indexOf(optimizeStage ?? '');
+                          const mine = ORDER.indexOf(id ?? '');
+                          const isDone = mine < cur;
+                          const isCurrent = mine === cur;
+                          return (
+                            <div key={id} className={`flex items-center gap-2 text-[11px] transition-colors ${isDone ? 'text-emerald-600 dark:text-emerald-400' : isCurrent ? 'text-violet-600 dark:text-violet-400 font-medium' : 'text-zinc-400 dark:text-zinc-600'}`}>
+                              {isDone ? (
+                                <svg className="h-3 w-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                              ) : isCurrent ? (
+                                <svg className="h-3 w-3 flex-shrink-0 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                              ) : (
+                                <span className="h-3 w-3 flex-shrink-0 flex items-center justify-center"><span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" /></span>
+                              )}
+                              <span>{label}</span>
+                              {isCurrent && optimizingProvider && (
+                                <span className="ml-auto flex items-center gap-1 text-[10px] text-violet-500 dark:text-violet-400">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-violet-500 animate-pulse" />
+                                  {optimizingProvider}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {isOptimizing
-                          ? 'AI is fixing structure, missing dates, and quality issues…'
-                          : 'Fix structure, missing dates, tense, and style issues in one click.'}
+                        Fix structure, missing dates, tense, and style issues in one click.
                       </p>
-                      {isOptimizing && optimizingProvider && (
-                        <p className="flex items-center gap-1.5 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
-                          {optimizingProvider}
-                        </p>
-                      )}
-                    </div>
+                    )}
                     <button
                       onClick={handleAutoOptimize}
                       disabled={isOptimizing}
                       className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] hover:bg-[#243860] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                     >
                       {isOptimizing ? (
-                        <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Optimizing…</>
+                        <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Working…</>
                       ) : (
                         <><svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Auto-Optimize CV</>
                       )}

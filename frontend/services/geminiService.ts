@@ -4654,7 +4654,9 @@ export const improveCV = async (
     instruction: string,
     jobDescription?: string,
     onLeakSummary?: (s: LeakSummaryPayload) => void,
+    onProgress?: (stage: 'analysing' | 'improving' | 'polishing') => void,
 ): Promise<CVData> => {
+    onProgress?.('analysing');
     // ── HOT FIRE (inbound) ── scrub before serializing into the prompt
     const cvData = purifyInboundCV(cvDataInput);
     const cvJson = JSON.stringify(cvData, null, 2);
@@ -4692,16 +4694,19 @@ ${HUMANIZATION_CHECKLIST}
 ${CV_DATA_SCHEMA}
 `;
 
+    onProgress?.('improving');
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.4, json: true });
     const parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()) as CVData;
 
-    // Run the SAME quality polish chain that generateCV runs, so Auto Optimize
-    // produces output at parity with a fresh Generate (humanizer + bullet count
-    // preservation + banned-phrase filter + purify + finalize + pronoun fix).
-    // onPurifyReport logs a structured leak summary to the dev console so any
-    // instruction-leak preambles, banned phrases, or tense issues are visible.
+    onProgress?.('polishing');
+    // Run the quality polish chain (deterministic passes only — no humanizer).
+    // The main groqChat prompt above already applies every humanizer fix
+    // (banned phrases, tense, verb starters, rhythm, scope anchors, etc.)
+    // so running the humanizer again is redundant and adds 20-40 s of latency.
+    // The fast deterministic passes (purifyCV, bullet count, finalize, pronoun fix)
+    // still run to catch anything slipping through.
     return runQualityPolishPasses(parsed, {
-        runHumanizer: true,
+        runHumanizer: false,
         bulletCount: { type: 'preserve-cv', sourceCv: cvDataInput },
         finalize: { sourceCv: cvDataInput },
         onPurifyReport: (report) => logLeakSummary(report, 'Auto Optimize'),
