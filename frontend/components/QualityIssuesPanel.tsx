@@ -91,6 +91,139 @@ const DETECT_ONLY_LEAK_KINDS = new Set([
     'low_quantification',
 ]);
 
+// ── Seniority coherence — detect-only leak types ──────────────────────────────
+
+const SENIORITY_LEAK_KINDS = new Set(['seniority_overreach', 'seniority_underreach']);
+
+const SENIORITY_LEAK_META: Record<string, StyleLeakMeta> = {
+    seniority_overreach: {
+        label: 'Ownership claim too strong for this role',
+        severity: 'warn',
+        guidance: 'This bullet uses language (e.g. "led the team", "owned the strategy", "spearheaded") that wouldn\'t be realistic for the inferred seniority of this role. Reword to reflect actual scope — "contributed to", "supported the lead engineer", or "implemented under direction of". Recruiter ATS systems and human reviewers both flag this.',
+    },
+    seniority_underreach: {
+        label: 'Language too junior for this role level',
+        severity: 'info',
+        guidance: 'This bullet uses assistive language ("helped", "assisted", "supported") as the primary ownership claim for a senior or lead role. Restate with what YOU owned or delivered — "Designed and shipped X", "Led the migration of Y", "Reduced Z by 30%".',
+    },
+};
+
+// ── Dimensional Score Card ────────────────────────────────────────────────────
+
+interface DimScore { label: string; score: number; max: number; color: string; detail: string }
+
+function computeDimensions(
+    report: CvQualityReport,
+    purifyLeaks: PurifyLeak[],
+): DimScore[] {
+    // ── Dim 1: Structure — orphan symbols, stub bullets, passive voice, etc. ──
+    const STRUCTURE_KINDS = new Set([
+        'orphan_currency_comma', 'orphan_currency_word', 'orphan_percent',
+        'orphan_plus', 'orphan_dollar', 'orphan_hyphen_noun', 'orphan_decimal_stub',
+        'stub_bullet', 'empty_bullet', 'duplicate_adjacent_word', 'mid_sentence_period',
+        'tilde_number', 'missing_trailing_period', 'dangling_time_ref',
+        'chained_preposition', 'unanchored_with_participle', 'unanchored_hedged_outcome',
+        'half_open_range', 'passive_voice', 'leading_verb_repetition',
+    ]);
+    const structureIssues = report.issues.filter(i => STRUCTURE_KINDS.has(i.kind)).length;
+    const structureScore = Math.max(0, 25 - Math.min(structureIssues * 3, 25));
+    const structureDetail = structureIssues === 0
+        ? 'No structural issues'
+        : `${structureIssues} issue${structureIssues === 1 ? '' : 's'} (orphan symbols, passive voice, stubs)`;
+
+    // ── Dim 2: Metrics & Evidence — quantification density + orphan metrics ──
+    const { percent } = report.achievementDensity;
+    let metricsBase = percent >= 60 ? 25 : percent >= 40 ? 20 : percent >= 25 ? 14 : percent >= 10 ? 8 : 3;
+    const lowQ  = purifyLeaks.filter(l => l.leakType === 'low_quantification').length;
+    const lowQR = purifyLeaks.filter(l => l.leakType === 'low_quantification_role').length;
+    const roundN = purifyLeaks.filter(l => l.leakType === 'round_number').length;
+    metricsBase = Math.max(0, metricsBase - lowQ * 4 - lowQR * 2 - roundN * 2);
+    const metricsDetail = `${percent}% of bullets have metrics`
+        + (lowQ || lowQR ? `, ${lowQ + lowQR} role(s) unquantified` : '')
+        + (roundN ? `, ${roundN} round-number flag` : '');
+
+    // ── Dim 3: Voice & Style — governance + rhythm + voice issues ─────────────
+    const governanceCount = purifyLeaks.filter(l => l.fixedBy === 'none' && GOVERNANCE_LEAK_KINDS.has(l.leakType)).length;
+    const rhythmCount     = purifyLeaks.filter(l => l.fixedBy === 'none' && DETECT_ONLY_LEAK_KINDS.has(l.leakType)).length;
+    const VOICE_KINDS     = new Set(['first_person_pronoun', 'tense_third_person_singular']);
+    const voiceCount      = report.issues.filter(i => VOICE_KINDS.has(i.kind)).length;
+    const styleScore      = Math.max(0, 25 - governanceCount * 3 - rhythmCount * 2 - voiceCount * 3);
+    const styleTotal      = governanceCount + rhythmCount + voiceCount;
+    const styleDetail     = styleTotal === 0
+        ? 'No style or voice issues'
+        : `${styleTotal} flag${styleTotal === 1 ? '' : 's'} (${[
+              governanceCount ? `${governanceCount} style` : '',
+              rhythmCount     ? `${rhythmCount} rhythm` : '',
+              voiceCount      ? `${voiceCount} voice` : '',
+          ].filter(Boolean).join(', ')})`;
+
+    // ── Dim 4: Career Believability — seniority coherence ────────────────────
+    const overreach  = purifyLeaks.filter(l => l.leakType === 'seniority_overreach').length;
+    const underreach = purifyLeaks.filter(l => l.leakType === 'seniority_underreach').length;
+    const believeScore  = Math.max(0, 25 - overreach * 6 - underreach * 3);
+    const believeDetail = (overreach + underreach) === 0
+        ? 'All bullets match inferred career tier'
+        : `${overreach ? `${overreach} overreach` : ''}${overreach && underreach ? ', ' : ''}${underreach ? `${underreach} underreach` : ''} flag${(overreach + underreach) === 1 ? '' : 's'}`;
+
+    const dimColor = (s: number, max: number) => {
+        const pct = s / max;
+        return pct >= 0.8 ? 'bg-emerald-500' : pct >= 0.5 ? 'bg-amber-400' : 'bg-rose-400';
+    };
+
+    return [
+        { label: 'Structure',            score: structureScore, max: 25, color: dimColor(structureScore, 25), detail: structureDetail },
+        { label: 'Metrics & Evidence',   score: metricsBase,    max: 25, color: dimColor(metricsBase, 25),    detail: metricsDetail },
+        { label: 'Voice & Style',        score: styleScore,     max: 25, color: dimColor(styleScore, 25),     detail: styleDetail },
+        { label: 'Career Believability', score: believeScore,   max: 25, color: dimColor(believeScore, 25),   detail: believeDetail },
+    ];
+}
+
+function DimensionalScoreCard({ report, purifyLeaks }: { report: CvQualityReport; purifyLeaks: PurifyLeak[] }) {
+    const dims = useMemo(() => computeDimensions(report, purifyLeaks), [report, purifyLeaks]);
+    const total = dims.reduce((s, d) => s + d.score, 0);
+    const totalColor = total >= 80 ? 'text-emerald-600 dark:text-emerald-400'
+        : total >= 60 ? 'text-amber-500 dark:text-amber-400'
+        : 'text-rose-500 dark:text-rose-400';
+    const totalBg = total >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30'
+        : total >= 60 ? 'bg-amber-100 dark:bg-amber-900/30'
+        : 'bg-rose-100 dark:bg-rose-900/30';
+    return (
+        <div className="mb-5 rounded-lg border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/40 px-4 py-3">
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wide">
+                    Dimensional breakdown
+                </span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded ${totalColor} ${totalBg}`}>
+                    {total}/100
+                </span>
+            </div>
+            <div className="space-y-2.5">
+                {dims.map(d => (
+                    <div key={d.label}>
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">{d.label}</span>
+                            <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 tabular-nums">
+                                {d.score}/{d.max}
+                            </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-zinc-200 dark:bg-neutral-700 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ${d.color}`}
+                                style={{ width: `${Math.max(2, (d.score / d.max) * 100)}%` }}
+                            />
+                        </div>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">{d.detail}</p>
+                    </div>
+                ))}
+            </div>
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 border-t border-zinc-200 dark:border-neutral-700 pt-2">
+                Computed deterministically from {report.totalBullets} bullet{report.totalBullets === 1 ? '' : 's'} — no AI required.
+                Each dimension is scored independently so you know exactly what to fix.
+            </p>
+        </div>
+    );
+}
+
 interface StyleLeakMeta {
     label: string;
     severity: 'warn' | 'info';
@@ -444,6 +577,10 @@ export default function QualityIssuesPanel({
         purifyLeaks.filter(l => l.fixedBy === 'none' && DETECT_ONLY_LEAK_KINDS.has(l.leakType)),
     [purifyLeaks]);
 
+    const seniorityLeaks = useMemo(() =>
+        purifyLeaks.filter(l => l.fixedBy === 'none' && SENIORITY_LEAK_KINDS.has(l.leakType)),
+    [purifyLeaks]);
+
     if (!open) return null;
 
     const allClean = report.totalIssues === 0;
@@ -715,6 +852,82 @@ export default function QualityIssuesPanel({
 
                     {/* Achievement density bar — always shown when there are bullets */}
                     <AchievementDensityBar density={report.achievementDensity} />
+
+                    {/* Dimensional score card — 4 independently-scored dimensions */}
+                    {report.totalBullets > 0 && (
+                        <DimensionalScoreCard report={report} purifyLeaks={purifyLeaks} />
+                    )}
+
+                    {/* Career Believability — seniority coherence flags */}
+                    {seniorityLeaks.length > 0 && (
+                        <section className="mb-5">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-2 flex items-center gap-1.5">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                Career believability ({seniorityLeaks.length})
+                            </h3>
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2.5 leading-relaxed">
+                                Detected by analysing role titles, date ranges, and career progression —
+                                no AI required. Flags bullets whose ownership or language claims don't
+                                match the inferred seniority of that specific role.
+                            </p>
+                            <ul className="space-y-2">
+                                {seniorityLeaks.map((leak, i) => {
+                                    const meta = SENIORITY_LEAK_META[leak.leakType];
+                                    if (!meta) return null;
+                                    const isOverreach = leak.leakType === 'seniority_overreach';
+                                    return (
+                                        <li
+                                            key={`sen-${i}`}
+                                            className={`border rounded-lg px-3 py-2.5 flex items-start gap-2.5 ${
+                                                isOverreach
+                                                    ? 'border-rose-200 dark:border-rose-800/60 bg-rose-50/50 dark:bg-rose-900/10'
+                                                    : 'border-amber-200 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-900/10'
+                                            }`}
+                                        >
+                                            <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${
+                                                isOverreach ? 'text-rose-500' : 'text-amber-400'
+                                            }`} />
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                                                    {meta.label}
+                                                </div>
+                                                {/* Show the specific phrase that triggered the flag */}
+                                                {leak.phrase && (() => {
+                                                    const parts = leak.phrase.split(' — ');
+                                                    const flaggedWord = parts[0];
+                                                    return (
+                                                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                            <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
+                                                                isOverreach
+                                                                    ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                                                                    : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                                            }`}>
+                                                                "{flaggedWord}"
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {/* Role + bullet location */}
+                                                {leak.contextSnippet && (
+                                                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 italic">
+                                                        {leak.contextSnippet}
+                                                    </div>
+                                                )}
+                                                {leak.fieldLocation && (
+                                                    <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                                        {formatLocation(leak.fieldLocation)}
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
+                                                    {meta.guidance}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </section>
+                    )}
 
                     {/* Style Intelligence — governance pattern issues (detect-only, no AI fix) */}
                     {governanceLeaks.length > 0 && (
