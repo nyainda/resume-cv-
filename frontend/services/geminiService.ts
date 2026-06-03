@@ -39,6 +39,7 @@ import {
     storeCVExample,
     buildReferenceBlock,
     type NarrativeAngle,
+    computeExampleQualityScore,
 } from './cvExamplesClient';
 import { getHashIfCached } from './profileCacheClient';
 

@@ -2524,6 +2524,7 @@ async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promis
         experience_structure: string;
         narrative_angle: string | null;
         voice_name: string | null;
+        quality_score: number | null;
         updated_at: number;
     };
 
@@ -2539,16 +2540,16 @@ async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promis
     let row: ExampleRow | null = null;
 
     if (excludeAngle && VALID_ANGLES.includes(excludeAngle)) {
-        // First try: example with a confirmed different angle
+        // First try: diverse example (different angle) — prefer highest quality score
         row = await env.CV_DB.prepare(
             `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
                     summary_words, skills_count, experience_structure,
-                    narrative_angle, voice_name, updated_at
+                    narrative_angle, voice_name, quality_score, updated_at
              FROM cv_examples
              WHERE fingerprint = ?
                AND narrative_angle IS NOT NULL
                AND narrative_angle != ?
-             ORDER BY updated_at DESC
+             ORDER BY COALESCE(quality_score, 70) DESC, updated_at DESC
              LIMIT 1`
         ).bind(fingerprint, excludeAngle).first<ExampleRow>();
 
@@ -2557,22 +2558,22 @@ async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promis
             row = await env.CV_DB.prepare(
                 `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
                         summary_words, skills_count, experience_structure,
-                        narrative_angle, voice_name, updated_at
+                        narrative_angle, voice_name, quality_score, updated_at
                  FROM cv_examples
                  WHERE fingerprint = ?
-                 ORDER BY updated_at DESC
+                 ORDER BY COALESCE(quality_score, 70) DESC, updated_at DESC
                  LIMIT 1`
             ).bind(fingerprint).first<ExampleRow>();
         }
     } else {
-        // No diversity request — standard lookup
+        // No diversity request — prefer highest quality score
         row = await env.CV_DB.prepare(
             `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
                     summary_words, skills_count, experience_structure,
-                    narrative_angle, voice_name, updated_at
+                    narrative_angle, voice_name, quality_score, updated_at
              FROM cv_examples
              WHERE fingerprint = ?
-             ORDER BY updated_at DESC
+             ORDER BY COALESCE(quality_score, 70) DESC, updated_at DESC
              LIMIT 1`
         ).bind(fingerprint).first<ExampleRow>();
     }
@@ -2594,6 +2595,7 @@ async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promis
             experienceStructure,
             narrativeAngle:    row.narrative_angle ?? undefined,
             voiceName:         row.voice_name      ?? undefined,
+            qualityScore:      row.quality_score   ?? 70,
             updatedAt:         row.updated_at,
         },
     }, request, env);
@@ -2620,6 +2622,10 @@ async function handleCVExamplesPost(request: Request, env: Env): Promise<Respons
         ? body.voiceName.trim().substring(0, 60)
         : null;
 
+    // Quality score (added in migration 018) — 0-100, default 70 for legacy rows
+    const rawQuality   = typeof body?.qualityScore === 'number' ? body.qualityScore : 70;
+    const qualityScore = Math.max(0, Math.min(100, Math.round(rawQuality)));
+
     if (!fingerprint || fingerprint.length !== 64) return json({ error: 'invalid_fingerprint' }, request, env, 400);
     if (!primaryTitle) return json({ error: 'missing_primary_title' }, request, env, 400);
 
@@ -2631,31 +2637,40 @@ async function handleCVExamplesPost(request: Request, env: Env): Promise<Respons
 
     const now = Math.floor(Date.now() / 1000);
 
-    // INSERT stores the full row including angle + voice.
-    // ON CONFLICT updates everything — including angle/voice — so the most recent
-    // generation's metadata is always reflected (prevents the table from getting
-    // stuck with only pre-017 rows that have NULL angle forever).
+    // INSERT stores the full row including angle, voice, and quality score.
+    //
+    // ON CONFLICT strategy:
+    //   • quality_score   — always takes the MAX (never downgrade the best seen)
+    //   • primary_title, narrative_angle, voice_name — always update to latest metadata
+    //   • summary_words, skills_count, experience_structure — only overwrite when
+    //     new score is >= existing score, so the structural blueprint reflects the
+    //     highest-quality generation for this fingerprint rather than just the newest.
     await env.CV_DB.prepare(
         `INSERT INTO cv_examples
              (fingerprint, primary_title, seniority, generation_mode, purpose,
               summary_words, skills_count, experience_structure,
-              narrative_angle, voice_name,
+              narrative_angle, voice_name, quality_score,
               created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(fingerprint) DO UPDATE SET
              primary_title        = excluded.primary_title,
-             summary_words        = excluded.summary_words,
-             skills_count         = excluded.skills_count,
-             experience_structure = excluded.experience_structure,
              narrative_angle      = excluded.narrative_angle,
              voice_name           = excluded.voice_name,
-             updated_at           = excluded.updated_at`
+             quality_score        = MAX(excluded.quality_score, COALESCE(quality_score, 70)),
+             summary_words        = CASE WHEN excluded.quality_score >= COALESCE(quality_score, 70)
+                                         THEN excluded.summary_words ELSE summary_words END,
+             skills_count         = CASE WHEN excluded.quality_score >= COALESCE(quality_score, 70)
+                                         THEN excluded.skills_count  ELSE skills_count  END,
+             experience_structure = CASE WHEN excluded.quality_score >= COALESCE(quality_score, 70)
+                                         THEN excluded.experience_structure ELSE experience_structure END,
+             updated_at           = CASE WHEN excluded.quality_score >= COALESCE(quality_score, 70)
+                                         THEN excluded.updated_at ELSE updated_at END`
     ).bind(fingerprint, primaryTitle, seniority, generationMode, purpose,
            summaryWords, skillsCount, experienceJson,
-           narrativeAngle, voiceName,
+           narrativeAngle, voiceName, qualityScore,
            now, now).run();
 
-    return json({ ok: true }, request, env);
+    return json({ ok: true, qualityScore }, request, env);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

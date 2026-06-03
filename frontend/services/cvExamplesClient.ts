@@ -41,6 +41,12 @@ export interface CVExampleStructure {
     narrativeAngle?: NarrativeAngle;
     /** Voice profile name used — for pool diversity tracking. */
     voiceName?: string;
+    /**
+     * Structural quality score 0-100. Higher = cleaner first-pass output.
+     * Computed from verb variety, rhythm balance, summary/skills counts.
+     * The worker keeps the HIGHEST-quality structural blueprint per fingerprint.
+     */
+    qualityScore?: number;
     updatedAt: number;
 }
 
@@ -122,10 +128,68 @@ export async function fetchCVExample(
  * same angle) and select examples that used a DIFFERENT angle than the current
  * generation — enforcing variance rather than consistency.
  *
- * The backend schema migration to add these columns is in:
- *   backend/cv-engine-worker/migrations/011_cv_examples_variance.sql
+ * The backend schema migrations for these columns are in:
+ *   backend/cv-engine-worker/migrations/017_cv_examples_variance.sql (narrative_angle, voice_name)
+ *   backend/cv-engine-worker/migrations/018_cv_examples_quality.sql  (quality_score)
  * Until deployed the worker simply ignores the extra fields gracefully.
  */
+/**
+ * Compute a structural quality score (0-100) from the final generated CV.
+ * Higher score = cleaner, more varied output from the quality pipeline.
+ * Used to ensure the cv_examples pool stores the BEST-quality blueprint
+ * seen for each role fingerprint, not just the most recent one.
+ *
+ * Components:
+ *   Baseline 70 — generation completed + full pipeline ran
+ *   +5  summary word count in 50-100 word sweet spot
+ *   +5  skills count in 8-16 item range
+ *   +10 verb variety ≥70% (unique bullet openers / total bullets)
+ *   +5  avg bullets per role in 3-7 range
+ *   Penalties for sparse/overlong content
+ */
+export function computeExampleQualityScore(cvData: {
+    summary?: string;
+    skills?: string[];
+    experience?: Array<{ responsibilities?: string[] | string }>;
+}): number {
+    let score = 70;
+
+    const summaryWords = (cvData.summary || '').split(/\s+/).filter(Boolean).length;
+    if (summaryWords >= 50 && summaryWords <= 100) score += 5;
+    else if (summaryWords < 25 || summaryWords > 160) score -= 10;
+
+    const skillsCount = (cvData.skills || []).length;
+    if (skillsCount >= 8 && skillsCount <= 16) score += 5;
+    else if (skillsCount < 4) score -= 10;
+
+    const allBullets = (cvData.experience || []).flatMap(exp =>
+        Array.isArray(exp.responsibilities)
+            ? exp.responsibilities.filter((b): b is string => typeof b === 'string')
+            : typeof exp.responsibilities === 'string' ? [exp.responsibilities] : []
+    );
+
+    if (allBullets.length > 0) {
+        const openers = allBullets
+            .map(b => b.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z]/g, ''))
+            .filter(Boolean);
+        const variety = openers.length > 0 ? new Set(openers).size / openers.length : 0;
+        if (variety >= 0.7) score += 10;
+        else if (variety < 0.4) score -= 15;
+    }
+
+    const roles = (cvData.experience || []).filter(e =>
+        Array.isArray(e.responsibilities) ? e.responsibilities.length > 0
+        : typeof e.responsibilities === 'string' && e.responsibilities.trim().length > 0
+    );
+    if (roles.length > 0) {
+        const avgBullets = allBullets.length / roles.length;
+        if (avgBullets >= 3 && avgBullets <= 7) score += 5;
+        else if (avgBullets < 2) score -= 10;
+    }
+
+    return Math.max(0, Math.min(100, score));
+}
+
 export function storeCVExample(
     fingerprint: string,
     primaryTitle: string,
@@ -155,6 +219,8 @@ export function storeCVExample(
         return bullets.map(b => b.split(/\s+/).filter(Boolean).length);
     });
 
+    const qualityScore = computeExampleQualityScore(cvData);
+
     void fetch(`${ENGINE_URL}/api/cv/examples`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,9 +233,11 @@ export function storeCVExample(
             summaryWords,
             skillsCount,
             experienceStructure,
-            // Pool diversity metadata — ignored gracefully by older worker versions
+            // Pool diversity metadata
             narrativeAngle: narrativeAngle ?? null,
             voiceName: voiceName ?? null,
+            // Quality score — worker keeps the MAX across all generations for this fingerprint
+            qualityScore,
         }),
         signal: AbortSignal.timeout(5000),
     }).catch(() => { /* best-effort */ });
