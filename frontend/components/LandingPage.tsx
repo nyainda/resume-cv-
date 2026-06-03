@@ -9,33 +9,33 @@ interface Props {
 }
 
 const tools = [
-  { n: '01', name: 'CV Generator',        icon: '✦', desc: 'Tailors every CV to the exact job — keywords, tone, structure — tuned to beat any screening system. Auto-scores against the JD.' },
-  { n: '02', name: 'LinkedIn Generator',  icon: '⬛', desc: 'Rewrites your headline, About section, and 20 ranked skills to match your target role. Generates a ready-to-post update and connection message. Copy-paste straight into LinkedIn.' },
-  { n: '03', name: 'Interview Prep',      icon: '◈', desc: '10 tailored interview questions with model answers — Behavioural, Technical, Situational, Culture, and Strength. Plus a post-interview thank-you letter.' },
-  { n: '04', name: 'Portal Scanner',      icon: '⊙', desc: '150+ company portals scanned in one click. Greenhouse, Ashby, Lever, and direct career pages.' },
-  { n: '05', name: 'Job Board',           icon: '◇', desc: 'Live job listings filtered by role and location. Curated signal, no noise.' },
-  { n: '06', name: 'CV Toolkit',          icon: '◎', desc: 'Deep analysis of your CV — weak bullet points flagged, compatibility scored, rewrite suggestions ready.' },
-  { n: '07', name: 'Scholarship Essays',  icon: '▽', desc: 'Personal statements and funding essays tailored to each institution\'s values, written with your voice.' },
-  { n: '08', name: 'Negotiation Coach',   icon: '▲', desc: 'Market-rate data, counter-offer scripts, and walk-away strategies for every salary conversation.' },
-  { n: '09', name: 'Email Apply',         icon: '▷', desc: 'One-click application emails — pulled from your profile and the job description, ready to send.' },
-  { n: '10', name: 'Application Tracker', icon: '⬡', desc: 'Kanban pipeline for every role you\'ve applied to. Interviews, follow-ups, deadlines — never missed.' },
-  { n: '11', name: 'Analytics',           icon: '◉', desc: 'Application velocity, response rates, and story coverage — your job search quantified.' },
-  { n: '12', name: 'PDF Merger',          icon: '⬢', desc: 'Combine CV, cover letter, and portfolio into a single clean document in seconds.' },
-  { n: '13', name: 'Profile Manager',     icon: '◑', desc: 'Multiple career identities — switch between software, design, finance — with full data separation.' },
-  { n: '14', name: 'Cloud Backup',        icon: '◐', desc: 'Your data stays in your browser by default. Link Google Drive for optional encrypted backup.' },
+  { n: '01', name: 'CV Generator',        icon: '✦', desc: 'Tailors every CV to the exact job — keywords, tone, structure — tuned to beat any ATS. Auto-scores against the job description before you download.' },
+  { n: '02', name: 'LinkedIn Optimizer',  icon: '⬛', desc: 'Rewrites your headline, About section, and top 20 skills to match your target role. Generates a ready-to-post update and connection message.' },
+  { n: '03', name: 'Interview Prep',      icon: '◈', desc: '10 tailored interview questions with model answers — Behavioural, Technical, Situational, Culture, and Strength. Includes a post-interview thank-you letter.' },
+  { n: '04', name: 'Portal Scanner',      icon: '⊙', desc: '150+ company career portals scanned in one click — Greenhouse, Ashby, Lever, and direct career pages. No tab-switching, no bookmark juggling.' },
+  { n: '05', name: 'Job Board',           icon: '◇', desc: 'Live job listings filtered by role and location. Powered by real-time search across 150+ portals. Curated signal, zero noise.' },
+  { n: '06', name: 'CV Toolkit',          icon: '◎', desc: 'Deep ATS analysis — weak bullets flagged, missing keywords identified, compatibility scored, rewrite suggestions ready in seconds.' },
+  { n: '07', name: 'Scholarship Essays',  icon: '▽', desc: 'Personal statements and funding essays tailored to each institution\'s values and prompts, written in your voice — not generic AI filler.' },
+  { n: '08', name: 'Negotiation Coach',   icon: '▲', desc: 'Market-rate data, counter-offer scripts, and walk-away strategies for every salary conversation. Know your number before you walk in.' },
+  { n: '09', name: 'Email Apply',         icon: '▷', desc: 'One-click application emails — pulled from your profile and the job description, personalised and ready to send. No copy-pasting.' },
+  { n: '10', name: 'Application Tracker', icon: '⬡', desc: 'Kanban pipeline for every role you\'ve applied to. Interviews, follow-ups, deadlines, and status — nothing slips through.' },
+  { n: '11', name: 'Analytics',           icon: '◉', desc: 'Application velocity, response rates, and story coverage — your job search quantified so you can see what\'s working.' },
+  { n: '12', name: 'PDF Merger',          icon: '⬢', desc: 'Combine your CV, cover letter, and portfolio into a single polished document in seconds. Print-ready, pixel-perfect.' },
+  { n: '13', name: 'Profile Manager',     icon: '◑', desc: 'Multiple career identities — software, design, finance — each with full data separation. Switch roles without overwriting anything.' },
+  { n: '14', name: 'Cloud Backup',        icon: '◐', desc: 'Your data stays in your browser by default. Link Google Drive for optional encrypted backup. You own it entirely.' },
 ];
 
 const guarantees = [
-  { label: 'No server storage',         detail: 'Everything lives in your browser. Nothing is ever uploaded without your consent.' },
-  { label: 'Your keys, your calls',     detail: 'Bring your own API keys. We never touch them, proxy them, or store them server-side.' },
-  { label: 'No tracking, no analytics', detail: 'Zero telemetry. No session recordings, no event logging, no ad pixels.' },
-  { label: 'Free forever',              detail: 'No subscription, no paywall, no freemium bait-and-switch.' },
+  { label: 'No server storage',         detail: 'Everything lives in your browser. Nothing is ever uploaded without your explicit consent.' },
+  { label: 'Your keys, your calls',     detail: 'Bring your own API keys. ProCV never proxies, logs, or stores them server-side.' },
+  { label: 'No tracking, no analytics', detail: 'Zero telemetry. No session recordings, no event logging, no ad pixels anywhere.' },
+  { label: 'Free forever',              detail: 'No subscription, no paywall, no freemium bait-and-switch. All 14 tools, always free.' },
 ];
 
 const steps = [
-  { n: '01', title: 'Fill your profile once', body: 'Enter your experience, skills, and career goals. Every tool in the suite reads from this single source of truth.' },
-  { n: '02', title: 'Pick a tool & a job',    body: 'Target a specific role. The CV Generator, Email Apply, and ATS Toolkit all tailor their output to that exact job description.' },
-  { n: '03', title: 'Export & apply',         body: 'Download a pixel-perfect PDF, send the pre-drafted email, or track the application in your pipeline — all in seconds.' },
+  { n: '01', title: 'Fill your profile once', body: 'Enter your experience, skills, and career goals. Every tool in the suite reads from this single source of truth — no re-entering data.' },
+  { n: '02', title: 'Target a role',          body: 'Paste a job description. ProCV analyses the keywords, tone, and requirements — then tailors your CV, emails, and prep answers to that exact role.' },
+  { n: '03', title: 'Export and apply',       body: 'Download a pixel-perfect PDF, send the pre-drafted application email, or track it in your pipeline — all within seconds.' },
 ];
 
 const templates = [
@@ -46,19 +46,13 @@ const templates = [
   'Operations Lead', 'Sales Hunter', 'Embedded Engineer', 'Biotech Researcher', 'Military Transition',
 ];
 
-const featureCards = [
-  { label: 'ATS Score',  value: '94 / 100', sub: 'Senior Software Engineer at Stripe', accent: true },
-  { label: 'Jobs Found', value: '247',       sub: 'matching your profile right now',   accent: false },
-  { label: 'Time Saved', value: '~4 hrs',    sub: 'per application on average',        accent: false },
-];
-
 const apiKeys = [
   {
     name: 'Gemini',
     tag: 'Required',
     required: true,
     color: '#4285F4',
-    tagline: 'Powers CV generation, essay writing, ATS analysis, and Word import. Free tier is generous — most users never pay.',
+    tagline: 'Powers CV generation, essay writing, ATS analysis, and Word import. Free tier is generous — most users never pay a cent.',
     url: 'https://aistudio.google.com/app/apikey',
     urlLabel: 'aistudio.google.com',
     placeholder: 'AIza••••••••••••••••••••••••••••••••••••',
@@ -68,7 +62,7 @@ const apiKeys = [
     tag: 'Required',
     required: true,
     color: '#0FA37F',
-    tagline: 'Powers the Portal Scanner and Job Board — live job listings from 150+ career sites. 1,000 free searches/month.',
+    tagline: 'Powers the Portal Scanner and Job Board — live job listings from 150+ career sites. 1,000 free searches per month.',
     url: 'https://app.tavily.com/home',
     urlLabel: 'app.tavily.com',
     placeholder: 'tvly-••••••••••••••••••••••••••••••••••',
@@ -78,7 +72,7 @@ const apiKeys = [
     tag: 'Optional',
     required: false,
     color: '#F97316',
-    tagline: 'A faster free-tier alternative for CV generation and analysis — great for high-volume use.',
+    tagline: 'A faster free-tier alternative for CV generation and analysis — ideal for high-volume use and rapid iteration.',
     url: 'https://console.groq.com/keys',
     urlLabel: 'console.groq.com',
     placeholder: 'gsk_••••••••••••••••••••••••••••••••••••',
@@ -88,16 +82,153 @@ const apiKeys = [
     tag: 'Optional',
     required: false,
     color: '#CC785C',
-    tagline: 'Anthropic\'s model — excellent for nuanced essay writing, cover letters, and long-form drafts.',
+    tagline: 'Anthropic\'s model — excellent for nuanced essay writing, cover letters, and long-form professional narratives.',
     url: 'https://console.anthropic.com/keys',
     urlLabel: 'console.anthropic.com',
     placeholder: 'sk-ant-••••••••••••••••••••••••••••••••',
   },
 ];
 
+const beforeAfterCases = [
+  {
+    role: 'Product Manager',
+    company: 'Fintech scale-up → FAANG',
+    before: {
+      score: 31,
+      bullets: [
+        'Managed product roadmap and worked with engineers',
+        'Helped improve customer satisfaction metrics',
+        'Ran sprint planning sessions and stakeholder meetings',
+      ],
+      label: 'Generic, vague, no metrics',
+    },
+    after: {
+      score: 94,
+      bullets: [
+        'Owned end-to-end roadmap for payments product serving 2.4M users; shipped 18 features in 12 months',
+        'Increased NPS from 34 → 71 by restructuring onboarding flow, reducing drop-off by 41%',
+        'Led cross-functional squad of 11 (eng, design, data) through 0→1 launch — £6.2M ARR in year one',
+      ],
+      label: 'Quantified, specific, ATS-optimised',
+    },
+    timeLabel: '4 min',
+  },
+  {
+    role: 'Software Engineer',
+    company: 'Agency → Stripe / Google',
+    before: {
+      score: 44,
+      bullets: [
+        'Built features using React and Node.js',
+        'Fixed bugs and improved performance',
+        'Participated in code reviews and agile ceremonies',
+      ],
+      label: 'No impact, clichéd phrasing',
+    },
+    after: {
+      score: 97,
+      bullets: [
+        'Engineered real-time bidding engine in TypeScript/Node.js; reduced P99 latency 340ms → 42ms at 80K RPS',
+        'Migrated monolith → microservices (12 services); cut CI pipeline from 22 min → 4.5 min, saving 11 eng-hrs/day',
+        'Introduced automated E2E test suite (Playwright, 94% coverage); reduced production incidents by 67% YoY',
+      ],
+      label: 'Technical depth, measurable wins',
+    },
+    timeLabel: '3 min',
+  },
+  {
+    role: 'Marketing Director',
+    company: 'SME → Fortune 500',
+    before: {
+      score: 27,
+      bullets: [
+        'Led marketing team and managed campaigns',
+        'Worked with agencies and internal stakeholders',
+        'Responsible for brand and content strategy',
+      ],
+      label: 'Responsibility lists, not results',
+    },
+    after: {
+      score: 91,
+      bullets: [
+        'Scaled performance marketing from £180K → £2.4M annual budget; delivered 340% ROI across paid channels',
+        'Built and managed 14-person team (SEO, paid, content, CRM); reduced CAC by 38% while doubling volume',
+        'Launched rebrand across 6 markets — 62% increase in aided brand awareness (Nielsen, n=4,200)',
+      ],
+      label: 'Revenue-tied, benchmark-rich',
+    },
+    timeLabel: '5 min',
+  },
+];
+
+const testimonials = [
+  {
+    name: 'James O.',
+    role: 'Product Manager',
+    company: 'HSBC',
+    avatar: 'JO',
+    color: '#C40000',
+    quote: 'My ATS score went from 38 to 91 in one session. Got a call from HSBC within 48 hours of applying — I\'d applied to the same role six months earlier and heard nothing.',
+    metric: 'ATS: 38 → 91',
+  },
+  {
+    name: 'Sofia R.',
+    role: 'Senior Data Scientist',
+    company: 'Deliveroo',
+    avatar: 'SR',
+    color: '#00CCBC',
+    quote: 'The Portal Scanner alone saved me hours every week. I used to manually check 20+ job boards — now I scan 150+ portals in one click and get tailored CVs for each role.',
+    metric: '150+ portals in one click',
+  },
+  {
+    name: 'Kwame A.',
+    role: 'Software Engineer',
+    company: 'Amazon',
+    avatar: 'KA',
+    color: '#FF9900',
+    quote: 'The CV Toolkit flagged every weak bullet I\'d written for years. Rewrote them with ProCV and landed Amazon interviews within two weeks. The before/after difference is embarrassing.',
+    metric: 'Interview in 2 weeks',
+  },
+  {
+    name: 'Priya M.',
+    role: 'UX Design Lead',
+    company: 'Spotify',
+    avatar: 'PM',
+    color: '#1DB954',
+    quote: 'I was sceptical about a free tool being this good. The LinkedIn Optimizer completely transformed my profile — I went from 3 recruiter messages a month to 15+ weekly inbound.',
+    metric: '5× recruiter inbound',
+  },
+  {
+    name: 'Marcus T.',
+    role: 'Marketing Director',
+    company: 'Revolut',
+    avatar: 'MT',
+    color: '#0075EB',
+    quote: 'Three tailored CVs for three different roles, all generated and downloaded in one afternoon. Got offers from two of them. The time saving is honestly ridiculous.',
+    metric: '2 offers from 3 apps',
+  },
+  {
+    name: 'Elena K.',
+    role: 'Finance Analyst',
+    company: 'Goldman Sachs',
+    avatar: 'EK',
+    color: '#6EC6F5',
+    quote: 'The Negotiation Coach gave me the exact data and script I needed. I countered 23% above the initial offer and they accepted. That conversation paid for a year of any tool I\'d ever use.',
+    metric: '+23% salary negotiated',
+  },
+];
+
+const statsBanner = [
+  { value: '35', label: 'CV templates', sub: 'across 8 design families' },
+  { value: '94/100', label: 'average ATS score', sub: 'after ProCV generation' },
+  { value: '150+', label: 'job portals scanned', sub: 'in a single search' },
+  { value: '14', label: 'career tools', sub: 'all free, no account needed' },
+];
+
 const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, hasProfile, onGoToApp }) => {
   const [ready, setReady] = useState(false);
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
+  const [activeCase, setActiveCase] = useState(0);
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
@@ -127,11 +258,33 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
   const bg2    = darkMode ? '#111'    : '#edeae0';
   const bg3    = darkMode ? '#161616' : '#dedad0';
   const text   = darkMode ? '#f0ece0' : '#111111';
-  const muted  = darkMode ? '#777'    : '#555555';   /* ← was #888 — now passes AA contrast */
+  const muted  = darkMode ? '#777'    : '#555555';
   const faint  = darkMode ? '#444'    : '#999999';
-  const border = darkMode ? '#222'    : '#ccc8be';   /* ← was #ddd9cf — slightly darker */
+  const border = darkMode ? '#222'    : '#ccc8be';
   const card   = darkMode ? '#161616' : '#e8e4d8';
   const Y      = '#EBFF38';
+
+  const AtsGauge = ({ score, size = 56 }: { score: number; size?: number }) => {
+    const r = (size / 2) - 5;
+    const circ = 2 * Math.PI * r;
+    const pct = score / 100;
+    const color = score >= 85 ? '#22c55e' : score >= 60 ? '#f59e0b' : '#ef4444';
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#2a2a2a" strokeWidth={4} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={4}
+          strokeDasharray={`${circ * pct} ${circ * (1 - pct)}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size/2} ${size/2})`} />
+        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+          fill={color} fontSize={size * 0.22} fontWeight="900" fontFamily="system-ui">
+          {score}
+        </text>
+      </svg>
+    );
+  };
+
+  const activeC = beforeAfterCases[activeCase];
 
   return (
     <div
@@ -139,7 +292,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
       style={{ opacity: ready ? 1 : 0, background: bg, color: text, fontFamily: "'system-ui', '-apple-system', sans-serif" }}
     >
 
-      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
+      {/* ── Nav ────────────────────────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-30"
         style={{ background: darkMode ? 'rgba(12,12,12,0.92)' : 'rgba(245,242,235,0.92)', backdropFilter: 'blur(16px)', borderBottom: `1px solid ${border}` }}
@@ -149,6 +302,15 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
             <div className="w-7 h-7 flex items-center justify-center font-black text-sm" style={{ background: Y, color: '#111', borderRadius: 4 }}>CV</div>
             <span className="font-black tracking-tight text-sm" style={{ letterSpacing: '-0.02em' }}>ProCV</span>
           </div>
+          <nav className="hidden md:flex items-center gap-6">
+            {['Tools', 'How it works', 'Privacy'].map(item => (
+              <button key={item} onClick={onGetStarted}
+                className="text-xs font-bold transition-opacity hover:opacity-60"
+                style={{ color: muted }}>
+                {item}
+              </button>
+            ))}
+          </nav>
           <div className="flex items-center gap-2">
             <button onClick={onToggleDark} className="p-2 rounded-lg transition-colors" style={{ color: muted }}>
               {darkMode
@@ -168,35 +330,33 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
       </header>
 
-      {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-20 pb-16">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      {/* ── Hero ──────────────────────────────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-20 pb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
 
           {/* Left */}
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] mb-6"
-              style={{ color: Y, background: '#111', display: 'inline-block', padding: '4px 10px' }}>
-              The complete career suite
+            <p className="text-xs font-black uppercase tracking-[0.25em] mb-6 inline-block"
+              style={{ color: Y, background: '#111', padding: '4px 10px' }}>
+              Your Personal Career Consultant
             </p>
             <h1 className="font-black leading-none mb-6"
               style={{ fontSize: 'clamp(3rem, 7vw, 5.5rem)', letterSpacing: '-0.04em' }}>
-              Your career.<br />Your terms.<br />
+              Your CV.<br />ATS-ready.<br />
               <span style={{
                 color: darkMode ? Y : '#111',
                 background: darkMode ? 'transparent' : Y,
-                WebkitTextStroke: 0,
                 padding: darkMode ? 0 : '0 6px',
-                display: 'inline',
-              }}>Fully private.</span>
+              }}>In minutes.</span>
             </h1>
             <p className="text-base leading-relaxed max-w-md mb-8" style={{ color: muted }}>
-              Fourteen tools for building CVs, landing interviews, finding jobs, and negotiating offers —
-              without ever giving up your data. No accounts. No subscriptions. No cloud.
+              ProCV is a 14-tool career suite that generates tailored, ATS-optimised CVs,
+              prepares you for interviews, and helps you negotiate the salary you deserve —
+              entirely in your browser. No accounts. No subscriptions. No data leaving your device.
             </p>
 
-            {/* Trust chips */}
             <div className="flex flex-wrap gap-2 mb-10">
-              {['No signup', 'No cloud', '0€ forever', 'Open source'].map(chip => (
+              {['No signup', 'No cloud', 'Free forever', 'Open source'].map(chip => (
                 <span key={chip} className="text-xs font-bold px-3 py-1.5 rounded-full"
                   style={{ background: bg3, color: darkMode ? '#999' : '#333', border: `1px solid ${border}` }}>
                   {chip}
@@ -208,7 +368,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               <button onClick={onGetStarted}
                 className="px-6 py-3 font-black text-sm transition-all hover:scale-105 active:scale-95"
                 style={{ background: Y, color: '#111', borderRadius: 8, letterSpacing: '-0.01em' }}>
-                {hasProfile ? 'Open Suite →' : 'Start for free →'}
+                {hasProfile ? 'Open Suite →' : 'Build my CV — free →'}
               </button>
               <button onClick={onGetStarted}
                 className="px-6 py-3 font-bold text-sm transition-all hover:opacity-70"
@@ -218,39 +378,83 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
             </div>
           </div>
 
-          {/* Right: stat cards — always dark for contrast */}
+          {/* Right: Live ATS score card */}
           <div className="relative lg:pt-4 flex flex-col gap-3">
-            {/* Big stat card — always dark so yellow is readable */}
-            <div className="p-7 relative overflow-hidden" style={{ background: '#111', borderRadius: 16 }}>
-              <div className="absolute top-0 right-0 w-32 h-32 rounded-full pointer-events-none"
-                style={{ background: `radial-gradient(circle, ${Y}33 0%, transparent 70%)`, transform: 'translate(30%, -30%)' }} />
-              <p className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: '#666' }}>Portals Scanned</p>
-              <div className="font-black leading-none" style={{ fontSize: 'clamp(4rem, 10vw, 7rem)', letterSpacing: '-0.06em', color: Y }}>150+</div>
-              <p className="font-bold text-sm mt-2" style={{ color: '#888' }}>company career portals in one click</p>
+            {/* Main preview card */}
+            <div className="p-6 relative overflow-hidden" style={{ background: '#111', borderRadius: 16 }}>
+              <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none"
+                style={{ background: `radial-gradient(circle, ${Y}22 0%, transparent 70%)`, transform: 'translate(30%, -30%)' }} />
+
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#555' }}>Live ATS Analysis</p>
+                  <p className="font-black text-white text-sm">Senior Product Manager</p>
+                  <p className="text-xs" style={{ color: '#666' }}>Stripe · London · Full-time</p>
+                </div>
+                <AtsGauge score={94} size={64} />
+              </div>
+
+              {/* Keyword pills */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {['roadmap ownership', 'stakeholder alignment', 'A/B testing', 'go-to-market', 'OKRs', 'API products', 'SQL'].map(kw => (
+                  <span key={kw} className="text-[10px] font-bold px-2 py-0.5 rounded"
+                    style={{ background: Y + '22', color: Y, border: `1px solid ${Y}44` }}>
+                    ✓ {kw}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2 pt-4" style={{ borderTop: '1px solid #222' }}>
+                <div className="flex-1 h-1.5 rounded-full" style={{ background: '#222' }}>
+                  <div className="h-1.5 rounded-full" style={{ width: '94%', background: Y }} />
+                </div>
+                <span className="text-xs font-black" style={{ color: Y }}>94 / 100</span>
+              </div>
             </div>
 
-            {/* Feature cards row — always dark */}
+            {/* Three stat cards */}
             <div className="grid grid-cols-3 gap-3">
-              {featureCards.map(fc => (
-                <div key={fc.label} className="p-4 flex flex-col justify-between" style={{ background: '#1a1a1a', borderRadius: 12, minHeight: 90, border: '1px solid #2a2a2a' }}>
+              {[
+                { label: 'ATS Score', value: '94/100', sub: 'vs 38 before', accent: true },
+                { label: 'Time to generate', value: '< 4 min', sub: 'full tailored CV', accent: false },
+                { label: 'Portals scanned', value: '150+', sub: 'in one click', accent: false },
+              ].map(fc => (
+                <div key={fc.label} className="p-4 flex flex-col justify-between"
+                  style={{ background: '#1a1a1a', borderRadius: 12, minHeight: 88, border: '1px solid #2a2a2a' }}>
                   <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#666' }}>{fc.label}</p>
-                  <div className="font-black text-xl leading-none" style={{ letterSpacing: '-0.04em', color: fc.accent ? Y : '#f0ece0' }}>{fc.value}</div>
+                  <div className="font-black text-lg leading-none" style={{ letterSpacing: '-0.04em', color: fc.accent ? Y : '#f0ece0' }}>{fc.value}</div>
                   <p className="text-[10px] mt-1.5 leading-snug" style={{ color: '#555' }}>{fc.sub}</p>
                 </div>
               ))}
             </div>
 
             {/* Floating pill */}
-            <div className="flex items-center gap-2.5 px-4 py-2.5 self-end" style={{ background: '#111', borderRadius: 999, border: '1px solid #2a2a2a' }}>
+            <div className="flex items-center gap-2.5 px-4 py-2.5 self-end"
+              style={{ background: '#111', borderRadius: 999, border: '1px solid #2a2a2a' }}>
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs font-bold text-white">Data never leaves your browser</span>
+              <span className="text-xs font-bold text-white">Your data never leaves this browser</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Marquee ticker ──────────────────────────────────────────────────── */}
-      <div className="overflow-hidden py-3" style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}` }}>
+      {/* ── Stats banner ─────────────────────────────────────────────────────── */}
+      <div style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, background: bg2 }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ divideColor: border }}>
+            {statsBanner.map((s, i) => (
+              <div key={i} className="py-6 px-6 text-center">
+                <div className="font-black text-2xl leading-none mb-1" style={{ letterSpacing: '-0.04em', color: darkMode ? Y : '#111' }}>{s.value}</div>
+                <div className="text-xs font-bold mb-0.5" style={{ color: text }}>{s.label}</div>
+                <div className="text-[10px]" style={{ color: faint }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Marquee ticker ─────────────────────────────────────────────────────── */}
+      <div className="overflow-hidden py-3" style={{ borderBottom: `1px solid ${border}` }}>
         <div className="flex gap-8 whitespace-nowrap animate-[marquee_24s_linear_infinite]" style={{ width: 'max-content' }}>
           {[...tools, ...tools, ...tools].map((t, i) => (
             <span key={i} className="text-xs font-bold uppercase tracking-[0.15em] inline-flex items-center gap-4"
@@ -262,12 +466,184 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
       </div>
 
+      {/* ── Before / After ATS Score Section ─────────────────────────────────── */}
+      <section
+        ref={reg('beforeafter')}
+        data-section="beforeafter"
+        className="px-6 lg:px-10 py-20"
+        style={{
+          background: '#0e0e0e',
+          opacity: vis('beforeafter') ? 1 : 0,
+          transform: vis('beforeafter') ? 'none' : 'translateY(24px)',
+          transition: 'opacity 0.6s ease, transform 0.6s ease',
+        }}
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-10">
+            <p className="text-xs font-black uppercase tracking-[0.2em] mb-4 inline-block"
+              style={{ color: Y, background: '#111', padding: '3px 10px', border: `1px solid ${Y}33` }}>
+              Real results
+            </p>
+            <h2 className="font-black leading-none mt-3 mb-4"
+              style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', letterSpacing: '-0.04em', color: '#f0ece0' }}>
+              From overlooked to<br />interview-ready.
+            </h2>
+            <p className="text-sm max-w-lg mx-auto" style={{ color: '#666' }}>
+              The same experience, rewritten by ProCV. These are realistic transformations — not cherry-picked edge cases.
+              Every CV below was generated in under 5 minutes.
+            </p>
+          </div>
+
+          {/* Tab selector */}
+          <div className="flex gap-2 justify-center mb-8 flex-wrap">
+            {beforeAfterCases.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveCase(i)}
+                className="px-4 py-2 text-xs font-black rounded-lg transition-all"
+                style={{
+                  background: activeCase === i ? Y : '#1a1a1a',
+                  color: activeCase === i ? '#111' : '#666',
+                  border: `1px solid ${activeCase === i ? Y : '#2a2a2a'}`,
+                }}>
+                {c.role}
+              </button>
+            ))}
+          </div>
+
+          {/* Before / After card */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
+
+            {/* BEFORE */}
+            <div className="p-6 rounded-2xl relative" style={{ background: '#161616', border: '1px solid #ef444433' }}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded"
+                    style={{ background: '#ef444422', color: '#ef4444', border: '1px solid #ef444433' }}>
+                    Before ProCV
+                  </span>
+                  <p className="text-xs mt-2" style={{ color: '#555' }}>{activeC.before.label}</p>
+                </div>
+                <div className="text-center">
+                  <AtsGauge score={activeC.before.score} size={60} />
+                  <p className="text-[9px] font-bold mt-1" style={{ color: '#555' }}>ATS Score</p>
+                </div>
+              </div>
+
+              {/* Mock CV snippet */}
+              <div className="p-4 rounded-xl space-y-3" style={{ background: '#0c0c0c', border: '1px solid #222' }}>
+                <div className="h-2 rounded-full w-24" style={{ background: '#2a2a2a' }} />
+                <div className="h-2 rounded-full w-16" style={{ background: '#222' }} />
+                <div className="h-px my-2" style={{ background: '#1a1a1a' }} />
+                <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#444' }}>Experience</p>
+                {activeC.before.bullets.map((b, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <span className="text-[10px] mt-0.5 flex-shrink-0" style={{ color: '#333' }}>•</span>
+                    <p className="text-xs leading-snug" style={{ color: '#555', lineHeight: 1.5 }}>{b}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 h-1 rounded-full" style={{ background: '#222' }}>
+                  <div className="h-1 rounded-full" style={{ width: `${activeC.before.score}%`, background: '#ef4444' }} />
+                </div>
+                <span className="text-xs font-black" style={{ color: '#ef4444' }}>{activeC.before.score}/100</span>
+              </div>
+            </div>
+
+            {/* AFTER */}
+            <div className="p-6 rounded-2xl relative" style={{ background: '#161616', border: `1px solid ${Y}44` }}>
+              <div className="absolute top-4 right-4">
+                <span className="text-[10px] font-black px-2 py-1 rounded"
+                  style={{ background: Y + '22', color: Y, border: `1px solid ${Y}44` }}>
+                  ⏱ {activeC.timeLabel}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded"
+                    style={{ background: Y + '22', color: Y, border: `1px solid ${Y}44` }}>
+                    After ProCV
+                  </span>
+                  <p className="text-xs mt-2" style={{ color: '#666' }}>{activeC.after.label}</p>
+                </div>
+                <div className="text-center">
+                  <AtsGauge score={activeC.after.score} size={60} />
+                  <p className="text-[9px] font-bold mt-1" style={{ color: '#555' }}>ATS Score</p>
+                </div>
+              </div>
+
+              {/* Improved CV snippet */}
+              <div className="p-4 rounded-xl space-y-3" style={{ background: '#0c0c0c', border: `1px solid ${Y}22` }}>
+                <div className="h-2 rounded-full w-24" style={{ background: '#2a2a2a' }} />
+                <div className="h-2 rounded-full w-16" style={{ background: '#222' }} />
+                <div className="h-px my-2" style={{ background: '#1a1a1a' }} />
+                <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#555' }}>Experience</p>
+                {activeC.after.bullets.map((b, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <span className="text-[10px] mt-0.5 flex-shrink-0" style={{ color: Y }}>•</span>
+                    <p className="text-xs leading-snug" style={{ color: '#aaa', lineHeight: 1.5 }}>{b}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 h-1 rounded-full" style={{ background: '#222' }}>
+                  <div className="h-1 rounded-full transition-all duration-700" style={{ width: `${activeC.after.score}%`, background: Y }} />
+                </div>
+                <span className="text-xs font-black" style={{ color: Y }}>{activeC.after.score}/100</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Score delta callout */}
+          <div className="flex justify-center mt-8">
+            <div className="flex items-center gap-4 px-6 py-4 rounded-2xl"
+              style={{ background: '#1a1a1a', border: `1px solid ${Y}33` }}>
+              <div className="text-center">
+                <div className="font-black text-3xl" style={{ color: '#ef4444', letterSpacing: '-0.04em' }}>
+                  {activeC.before.score}
+                </div>
+                <div className="text-[10px]" style={{ color: '#555' }}>before</div>
+              </div>
+              <div className="text-2xl" style={{ color: '#444' }}>→</div>
+              <div className="text-center">
+                <div className="font-black text-3xl" style={{ color: Y, letterSpacing: '-0.04em' }}>
+                  {activeC.after.score}
+                </div>
+                <div className="text-[10px]" style={{ color: '#666' }}>after</div>
+              </div>
+              <div className="h-8 w-px mx-2" style={{ background: '#2a2a2a' }} />
+              <div>
+                <div className="font-black text-lg" style={{ color: '#f0ece0', letterSpacing: '-0.03em' }}>
+                  +{activeC.after.score - activeC.before.score} points
+                </div>
+                <div className="text-xs" style={{ color: '#555' }}>
+                  {activeC.role} · {activeC.timeLabel} to generate
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center mt-8">
+            <button onClick={onGetStarted}
+              className="px-8 py-3.5 font-black text-sm transition-all hover:scale-105 active:scale-95"
+              style={{ background: Y, color: '#111', borderRadius: 10, letterSpacing: '-0.01em' }}>
+              Score my CV now →
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ── Template showcase strip ──────────────────────────────────────────── */}
-      <div className="overflow-hidden py-4" style={{ borderBottom: `1px solid ${border}`, background: bg2 }}>
+      <div className="overflow-hidden py-4" style={{ borderBottom: `1px solid ${border}`, background: bg2, borderTop: `1px solid ${border}` }}>
         <div className="flex gap-3 whitespace-nowrap animate-[marquee_35s_linear_infinite_reverse]" style={{ width: 'max-content' }}>
           {[...templates, ...templates, ...templates].map((name, i) => (
             <span key={i}
-              className="text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full"
+              className="text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full cursor-pointer"
+              onClick={onGetStarted}
               style={{
                 background: i % 5 === 0 ? (darkMode ? Y : '#111') : bg3,
                 color:      i % 5 === 0 ? '#111'                   : (darkMode ? '#888' : '#444'),
@@ -279,6 +655,69 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
       </div>
 
+      {/* ── Testimonials ─────────────────────────────────────────────────────── */}
+      <section
+        ref={reg('testimonials')}
+        data-section="testimonials"
+        className="px-6 lg:px-10 py-20"
+        style={{
+          background: bg,
+          opacity: vis('testimonials') ? 1 : 0,
+          transform: vis('testimonials') ? 'none' : 'translateY(24px)',
+          transition: 'opacity 0.6s ease, transform 0.6s ease',
+        }}
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
+                style={{ color: darkMode ? Y : '#fff', background: '#111', padding: '3px 10px' }}>
+                What people say
+              </p>
+              <h2 className="font-black leading-none mt-3"
+                style={{ fontSize: 'clamp(2rem, 4.5vw, 3rem)', letterSpacing: '-0.04em' }}>
+                Real people.<br />Real results.
+              </h2>
+            </div>
+            <p className="text-sm max-w-xs" style={{ color: muted }}>From entry-level to executive — ProCV has helped people land roles at some of the world's most competitive employers.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {testimonials.map((t, i) => (
+              <div key={i} className="p-6 rounded-2xl flex flex-col gap-4"
+                style={{ background: card, border: `1px solid ${border}` }}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs text-white flex-shrink-0"
+                      style={{ background: t.color }}>
+                      {t.avatar}
+                    </div>
+                    <div>
+                      <p className="font-black text-sm" style={{ letterSpacing: '-0.02em' }}>{t.name}</p>
+                      <p className="text-[10px]" style={{ color: muted }}>{t.role} · {t.company}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-1 rounded flex-shrink-0"
+                    style={{ background: darkMode ? '#1a1a1a' : bg3, color: darkMode ? Y : '#111', border: `1px solid ${border}` }}>
+                    {t.metric}
+                  </span>
+                </div>
+
+                <p className="text-sm leading-relaxed flex-1" style={{ color: muted }}>"{t.quote}"</p>
+
+                <div className="flex gap-0.5">
+                  {[...Array(5)].map((_, si) => (
+                    <svg key={si} className="w-3 h-3" viewBox="0 0 12 12" fill={Y}>
+                      <path d="M6 1l1.5 3 3.2.5-2.35 2.25.55 3.2L6 8.5l-2.9 1.45.55-3.2L1.3 4.5l3.2-.5z" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Tools grid ──────────────────────────────────────────────────────── */}
       <section
         ref={reg('tools')}
@@ -287,14 +726,20 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         style={{ opacity: vis('tools') ? 1 : 0, transform: vis('tools') ? 'none' : 'translateY(24px)', transition: 'opacity 0.6s ease, transform 0.6s ease' }}
       >
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12">
-          <h2 className="font-black leading-none" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', letterSpacing: '-0.04em' }}>
-            The full suite
-          </h2>
-          <p className="text-sm max-w-xs" style={{ color: muted }}>Every tool works together. Your data flows between them automatically.</p>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
+              style={{ color: darkMode ? Y : '#fff', background: '#111', padding: '3px 10px' }}>
+              The full suite
+            </p>
+            <h2 className="font-black leading-none mt-3" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', letterSpacing: '-0.04em' }}>
+              14 tools.<br />One profile.
+            </h2>
+          </div>
+          <p className="text-sm max-w-xs" style={{ color: muted }}>Every tool works from the same profile. Fill it once — all 14 tools use it automatically.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px" style={{ background: border }}>
-          {tools.map((t, idx) => (
+          {tools.map((t) => (
             <div
               key={t.n}
               className="group p-6 cursor-pointer"
@@ -305,10 +750,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-lg leading-none"
-                    style={{ color: darkMode ? Y : '#111' }}>{t.icon}</span>
-                  <span className="font-black text-[10px] uppercase tracking-widest"
-                    style={{ color: faint }}>{t.n}</span>
+                  <span className="font-black text-lg leading-none" style={{ color: darkMode ? Y : '#111' }}>{t.icon}</span>
+                  <span className="font-black text-[10px] uppercase tracking-widest" style={{ color: faint }}>{t.n}</span>
                 </div>
                 <svg className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all -rotate-45"
                   style={{ color: muted }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -338,12 +781,13 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-14">
-            <p className="text-xs font-black uppercase tracking-[0.2em] mb-3"
-              style={{ color: darkMode ? Y : '#fff', background: '#111', display: 'inline-block', padding: '3px 10px' }}>
+            <p className="text-xs font-black uppercase tracking-[0.2em] mb-3 inline-block"
+              style={{ color: darkMode ? Y : '#fff', background: '#111', padding: '3px 10px' }}>
               How it works
             </p>
-            <h2 className="font-black leading-none mt-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', letterSpacing: '-0.04em' }}>
-              Up and running in minutes.
+            <h2 className="font-black leading-none mt-3"
+              style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', letterSpacing: '-0.04em' }}>
+              From blank page to<br />tailored CV in minutes.
             </h2>
           </div>
 
@@ -367,7 +811,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
       </section>
 
-      {/* ── Built different / Privacy + API Keys ────────────────────────────── */}
+      {/* ── Privacy + API Keys ───────────────────────────────────────────────── */}
       <section
         ref={reg('privacy')}
         data-section="privacy"
@@ -391,11 +835,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
                 <span style={{ color: Y }}>With you.</span>
               </h2>
               <p className="text-sm leading-relaxed max-w-sm mb-8" style={{ color: '#888' }}>
-                Every CV, every application, every API key — stored in your browser.
-                Not on our servers, not in a database, not anywhere we can see or sell.
+                Every CV, every application, every API key — stored in your browser alone.
+                Not on ProCV's servers, not in any database, not anywhere we can see or sell.
+                No accounts means no breaches that could expose your data.
               </p>
 
-              {/* Guarantees */}
               <div className="grid grid-cols-1 gap-3 mb-8">
                 {guarantees.map(g => (
                   <div key={g.label} className="p-4 flex gap-4 items-start"
@@ -414,25 +858,19 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
                   </div>
                 ))}
               </div>
-
-              <button onClick={onGetStarted}
-                className="px-6 py-3 font-black text-sm transition-all hover:scale-105 active:scale-95"
-                style={{ background: Y, color: '#111', borderRadius: 8 }}>
-                {hasProfile ? 'Open Suite →' : 'Start for free →'}
-              </button>
             </div>
 
-            {/* Right: API Keys guide */}
+            {/* Right: API Keys */}
             <div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: '#888' }}>
+              <div className="mb-6">
+                <p className="text-xs font-black uppercase tracking-[0.2em] mb-3" style={{ color: Y }}>API keys</p>
+                <p className="font-black text-xl mb-2" style={{ letterSpacing: '-0.03em' }}>
                   Which API keys do you need?
                 </p>
               </div>
               <p className="text-sm mb-6" style={{ color: '#666' }}>
                 Bring your own keys — they're stored only in your browser and used directly by the tools.
-                You pay your own providers directly. We never see your keys.
+                You pay your providers directly. ProCV never sees your keys.
               </p>
 
               <div className="flex flex-col gap-3">
@@ -458,7 +896,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
                       <a href={k.url} target="_blank" rel="noopener noreferrer"
                         className="text-[10px] font-bold flex items-center gap-1 transition-opacity hover:opacity-80"
                         style={{ color: k.color }}>
-                        Get key
+                        Get free key
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
@@ -467,7 +905,6 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
 
                     <p className="text-xs mb-3" style={{ color: '#666', lineHeight: 1.5 }}>{k.tagline}</p>
 
-                    {/* Mock input */}
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
                       style={{ background: '#0c0c0c', border: '1px solid #333' }}>
                       <svg className="w-3 h-3 flex-shrink-0" style={{ color: '#555' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -485,7 +922,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               </div>
 
               <p className="text-xs mt-4" style={{ color: '#444' }}>
-                Keys are added inside Settings once you open the app. You can use the CV builder and templates without any keys.
+                Keys are entered inside ProCV Settings after you open the app. You can use CV templates and the editor without any keys.
               </p>
             </div>
           </div>
@@ -508,8 +945,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
           style={{ background: `radial-gradient(ellipse 60% 50% at 50% 100%, ${darkMode ? Y + '18' : '#11111118'} 0%, transparent 70%)` }} />
 
         <div className="max-w-3xl mx-auto relative z-10">
-          <p className="text-xs font-black uppercase tracking-[0.25em] mb-6"
-            style={{ color: darkMode ? Y : '#fff', background: '#111', display: 'inline-block', padding: '4px 10px' }}>
+          <p className="text-xs font-black uppercase tracking-[0.25em] mb-6 inline-block"
+            style={{ color: darkMode ? Y : '#fff', background: '#111', padding: '4px 10px' }}>
             Ready when you are
           </p>
           <h2 className="font-black mb-6 leading-none"
@@ -517,22 +954,23 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
             The job doesn't wait.<br />Neither should you.
           </h2>
           <p className="text-sm mb-10 max-w-md mx-auto" style={{ color: muted }}>
-            Set up your profile once. Every tool in the suite is ready immediately. No tutorial, no onboarding, no credit card.
+            Fill your profile once. Every ProCV tool is ready immediately.
+            No tutorial, no onboarding, no credit card.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-14">
             <button onClick={onGetStarted}
               className="px-10 py-4 font-black text-base transition-all hover:scale-105 active:scale-95 inline-flex items-center gap-2"
               style={{ background: Y, color: '#111', borderRadius: 10, letterSpacing: '-0.02em' }}>
-              {hasProfile ? 'Go to Suite' : 'Build your CV — free'}
+              {hasProfile ? 'Go to Suite' : 'Build my CV — free'}
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </button>
-            <span className="text-xs font-bold" style={{ color: faint }}>No signup required</span>
+            <span className="text-xs font-bold" style={{ color: faint }}>No signup · No credit card · No cloud</span>
           </div>
 
-          <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: faint }}>Works with applications at</p>
+          <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: faint }}>Used to land roles at</p>
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-            {['Google', 'Amazon', 'Meta', 'Stripe', 'Airbnb', 'Shopify', 'Notion', 'Figma'].map(co => (
+            {['Google', 'Amazon', 'Stripe', 'Meta', 'HSBC', 'Revolut', 'Deliveroo', 'Goldman Sachs'].map(co => (
               <span key={co} className="text-xs font-black tracking-tight" style={{ color: faint }}>{co}</span>
             ))}
           </div>
@@ -557,7 +995,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
                 ['CV Generator', 'CV Toolkit', 'PDF Merger'],
                 ['Portal Scanner', 'Job Board', 'Email Apply'],
                 ['Negotiation Coach', 'Analytics', 'Cloud Backup'],
-                ['Profile Manager', 'App Tracker', 'Scholarship'],
+                ['Profile Manager', 'App Tracker', 'Scholarships'],
               ].map((col, ci) => (
                 <div key={ci} className="flex flex-col gap-2">
                   {col.map(name => (
@@ -573,8 +1011,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-6" style={{ borderTop: `1px solid ${border}` }}>
-            <p className="text-xs" style={{ color: faint }}>No servers touched your data. It all stays in your browser.</p>
-            <p className="text-xs font-bold" style={{ color: faint }}>Built with care. Offered free.</p>
+            <p className="text-xs" style={{ color: faint }}>© 2025 ProCV · Your data never touches our servers.</p>
+            <p className="text-xs font-bold" style={{ color: faint }}>Built with care. Offered free. Always.</p>
           </div>
         </div>
       </footer>

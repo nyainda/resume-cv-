@@ -1,7 +1,7 @@
 {
   "name": "ProCV — Your Personal Career Consultant",
   "short_name": "ProCV",
-  "description": "Professional CV and cover letter builder with smart career tools",
+  "description": "ProCV — Your Personal Career Consultant. ATS-optimised CVs, interview prep, job search, and salary negotiation. 14 tools. No account. Free forever.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F8F7F4",
