@@ -2443,17 +2443,14 @@ async function handleLLMCachePost(request: Request, env: Env, ctx: ExecutionCont
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promise<Response> {
-    const fingerprint = (url.searchParams.get('fingerprint') ?? '').trim();
+    const fingerprint   = (url.searchParams.get('fingerprint')    ?? '').trim();
+    const excludeAngle  = (url.searchParams.get('exclude_angle')  ?? '').trim();
+
     if (!fingerprint || fingerprint.length !== 64) {
         return json({ example: null, error: 'invalid_fingerprint' }, request, env, 400);
     }
 
-    const row = await env.CV_DB.prepare(
-        `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
-                summary_words, skills_count, experience_structure, created_at, updated_at
-         FROM cv_examples
-         WHERE fingerprint = ?`
-    ).bind(fingerprint).first<{
+    type ExampleRow = {
         fingerprint: string;
         primary_title: string;
         seniority: string;
@@ -2462,9 +2459,60 @@ async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promis
         summary_words: number;
         skills_count: number;
         experience_structure: string;
-        created_at: number;
+        narrative_angle: string | null;
+        voice_name: string | null;
         updated_at: number;
-    }>();
+    };
+
+    const VALID_ANGLES = ['impact', 'process', 'people', 'growth'];
+
+    // ── Pool diversity: prefer an example with a DIFFERENT narrative angle ───────
+    // When the caller tells us which angle they're generating with, we look for
+    // a structurally similar example that was produced with a DIFFERENT angle.
+    // This prevents the cv_examples feedback loop from forcing every generation
+    // to converge on the same story angle.
+    //
+    // Fall back gracefully to any example if no diverse one exists yet.
+    let row: ExampleRow | null = null;
+
+    if (excludeAngle && VALID_ANGLES.includes(excludeAngle)) {
+        // First try: example with a confirmed different angle
+        row = await env.CV_DB.prepare(
+            `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
+                    summary_words, skills_count, experience_structure,
+                    narrative_angle, voice_name, updated_at
+             FROM cv_examples
+             WHERE fingerprint = ?
+               AND narrative_angle IS NOT NULL
+               AND narrative_angle != ?
+             ORDER BY updated_at DESC
+             LIMIT 1`
+        ).bind(fingerprint, excludeAngle).first<ExampleRow>();
+
+        // Second try: fall back to any example (angle may be null for pre-017 rows)
+        if (!row) {
+            row = await env.CV_DB.prepare(
+                `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
+                        summary_words, skills_count, experience_structure,
+                        narrative_angle, voice_name, updated_at
+                 FROM cv_examples
+                 WHERE fingerprint = ?
+                 ORDER BY updated_at DESC
+                 LIMIT 1`
+            ).bind(fingerprint).first<ExampleRow>();
+        }
+    } else {
+        // No diversity request — standard lookup
+        row = await env.CV_DB.prepare(
+            `SELECT fingerprint, primary_title, seniority, generation_mode, purpose,
+                    summary_words, skills_count, experience_structure,
+                    narrative_angle, voice_name, updated_at
+             FROM cv_examples
+             WHERE fingerprint = ?
+             ORDER BY updated_at DESC
+             LIMIT 1`
+        ).bind(fingerprint).first<ExampleRow>();
+    }
 
     if (!row) return json({ example: null }, request, env);
 
@@ -2473,15 +2521,17 @@ async function handleCVExamplesGet(request: Request, env: Env, url: URL): Promis
 
     return json({
         example: {
-            fingerprint: row.fingerprint,
-            primaryTitle: row.primary_title,
-            seniority: row.seniority,
-            generationMode: row.generation_mode,
-            purpose: row.purpose,
-            summaryWords: row.summary_words,
-            skillsCount: row.skills_count,
+            fingerprint:       row.fingerprint,
+            primaryTitle:      row.primary_title,
+            seniority:         row.seniority,
+            generationMode:    row.generation_mode,
+            purpose:           row.purpose,
+            summaryWords:      row.summary_words,
+            skillsCount:       row.skills_count,
             experienceStructure,
-            updatedAt: row.updated_at,
+            narrativeAngle:    row.narrative_angle ?? undefined,
+            voiceName:         row.voice_name      ?? undefined,
+            updatedAt:         row.updated_at,
         },
     }, request, env);
 }
@@ -2499,6 +2549,14 @@ async function handleCVExamplesPost(request: Request, env: Env): Promise<Respons
     const skillsCount      = typeof body?.skillsCount      === 'number' ? Math.round(body.skillsCount)  : 0;
     const experienceStructure: number[][] = Array.isArray(body?.experienceStructure) ? body.experienceStructure : [];
 
+    // Pool diversity metadata (added in migration 017)
+    const VALID_ANGLES = ['impact', 'process', 'people', 'growth'] as const;
+    const rawAngle     = typeof body?.narrativeAngle === 'string' ? body.narrativeAngle.trim() : '';
+    const narrativeAngle: string | null = VALID_ANGLES.includes(rawAngle as any) ? rawAngle : null;
+    const voiceName: string | null = typeof body?.voiceName === 'string' && body.voiceName.trim()
+        ? body.voiceName.trim().substring(0, 60)
+        : null;
+
     if (!fingerprint || fingerprint.length !== 64) return json({ error: 'invalid_fingerprint' }, request, env, 400);
     if (!primaryTitle) return json({ error: 'missing_primary_title' }, request, env, 400);
 
@@ -2509,19 +2567,30 @@ async function handleCVExamplesPost(request: Request, env: Env): Promise<Respons
     );
 
     const now = Math.floor(Date.now() / 1000);
+
+    // INSERT stores the full row including angle + voice.
+    // ON CONFLICT updates everything — including angle/voice — so the most recent
+    // generation's metadata is always reflected (prevents the table from getting
+    // stuck with only pre-017 rows that have NULL angle forever).
     await env.CV_DB.prepare(
         `INSERT INTO cv_examples
              (fingerprint, primary_title, seniority, generation_mode, purpose,
-              summary_words, skills_count, experience_structure, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              summary_words, skills_count, experience_structure,
+              narrative_angle, voice_name,
+              created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(fingerprint) DO UPDATE SET
              primary_title        = excluded.primary_title,
              summary_words        = excluded.summary_words,
              skills_count         = excluded.skills_count,
              experience_structure = excluded.experience_structure,
+             narrative_angle      = excluded.narrative_angle,
+             voice_name           = excluded.voice_name,
              updated_at           = excluded.updated_at`
     ).bind(fingerprint, primaryTitle, seniority, generationMode, purpose,
-           summaryWords, skillsCount, experienceJson, now, now).run();
+           summaryWords, skillsCount, experienceJson,
+           narrativeAngle, voiceName,
+           now, now).run();
 
     return json({ ok: true }, request, env);
 }

@@ -2204,10 +2204,12 @@ export const generateCV = async (
     const seniority = totalYears < 3 ? 'junior' : totalYears < 7 ? 'mid' : totalYears < 12 ? 'senior' : 'exec';
 
     // Start reference-example lookup in the background (parallel with brief + keywords).
+    // Pool diversity: pass the CURRENT angle so the worker returns an example that
+    // used a DIFFERENT angle — preventing the feedback loop from converging on one framing.
     // A fingerprint miss returns null quickly; a hit adds ~150 tokens that guide structure.
     const cvExamplePromise: Promise<{ fingerprint: string; example: Awaited<ReturnType<typeof fetchCVExample>> }> =
         computeExampleFingerprint(primaryTitle, totalYears, purpose, generationMode)
-            .then(async fp => ({ fingerprint: fp, example: await fetchCVExample(fp) }))
+            .then(async fp => ({ fingerprint: fp, example: await fetchCVExample(fp, _narrativeAngle) }))
             .catch(() => ({ fingerprint: '', example: null }));
 
     // Run keyword extraction and CV-engine brief in parallel — both are best-effort.

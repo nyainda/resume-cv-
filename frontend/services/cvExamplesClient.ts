@@ -82,14 +82,26 @@ export async function computeExampleFingerprint(
 
 /**
  * Fetch the structural example for a fingerprint.
+ *
+ * Pool diversity: when `currentAngle` is provided, the worker will try to
+ * return an example that used a DIFFERENT narrative angle — preventing the
+ * cv_examples feedback loop from pulling all generations toward the same story
+ * framing. Falls back transparently to any stored example if no diverse one exists.
+ *
  * Returns null on miss, network error, or missing ENGINE_URL.
  * Uses a short timeout so it never delays generation.
  */
-export async function fetchCVExample(fingerprint: string): Promise<CVExampleStructure | null> {
+export async function fetchCVExample(
+    fingerprint: string,
+    currentAngle?: NarrativeAngle,
+): Promise<CVExampleStructure | null> {
     if (!ENGINE_URL) return null;
     try {
-        const res = await fetch(`${ENGINE_URL}/api/cv/examples?fingerprint=${fingerprint}`, {
-            signal: AbortSignal.timeout(1500),
+        const params = new URLSearchParams({ fingerprint });
+        if (currentAngle) params.set('exclude_angle', currentAngle);
+
+        const res = await fetch(`${ENGINE_URL}/api/cv/examples?${params}`, {
+            signal: AbortSignal.timeout(2000),
         });
         if (!res.ok) return null;
         const data = await res.json() as { example: CVExampleStructure | null };
