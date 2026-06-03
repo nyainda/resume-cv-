@@ -319,6 +319,106 @@ const TemplateModernTech = () => (
   </div>
 );
 
+/** Compact Sage — sage-green sidebar, serif headings, academic-friendly */
+const TemplateCompactSage = () => (
+  <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7, display: 'flex' }}>
+    <div style={{ width: 110, background: '#365314', color: '#fff', padding: '14px 9px', display: 'flex', flexDirection: 'column', gap: 9, flexShrink: 0 }}>
+      <div style={{ width: 38, height: 38, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.35)', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, fontFamily: 'Georgia,serif', color: '#d9f99d' }}>SC</div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 7.5, fontWeight: 900, fontFamily: 'Georgia,serif', color: '#ecfccb' }}>Sarah Chen</div>
+        <div style={{ fontSize: 5.5, color: '#a3e635', marginTop: 2, fontStyle: 'italic' }}>Senior PM</div>
+      </div>
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 2, marginBottom: 4 }}>Contact</div>
+        {['sarah.chen@email.com', 'London, UK', '+44 7700 900 123', 'github.com/sarahchen'].map((c, i) => (
+          <div key={i} style={{ fontSize: 5.5, color: 'rgba(255,255,255,0.82)', marginBottom: 2.5, lineHeight: 1.3 }}>{c}</div>
+        ))}
+      </div>
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 2, marginBottom: 4 }}>Skills</div>
+        {['Product Strategy', 'OKR Frameworks', 'A/B Testing', 'SQL & Analytics', 'Figma', 'Payments & Fintech', 'Stakeholder Mgmt', 'Go-to-Market', 'Agile / Scrum', 'Data Storytelling', 'API Products', 'User Research'].map((s, i) => (
+          <div key={i} style={{ fontSize: 5, color: 'rgba(255,255,255,0.8)', marginBottom: 2.5, display: 'flex', gap: 3, alignItems: 'center' }}>
+            <span style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: '#a3e635', flexShrink: 0 }} />{s}
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 'auto', textAlign: 'center' }}>
+        <div style={{ fontSize: 4.5, fontFamily: 'Georgia,serif', letterSpacing: '0.3em', color: 'rgba(163,230,53,0.4)', textTransform: 'uppercase' }}>Est. 2019</div>
+      </div>
+    </div>
+    <div style={{ flex: 1, padding: '12px 13px', overflow: 'hidden' }}>
+      <div style={{ borderBottom: '1.5px solid #365314', paddingBottom: 6, marginBottom: 7 }}>
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '-0.01em', color: '#1a2e05', fontFamily: 'Georgia,serif' }}>Sarah Chen</div>
+        <div style={{ fontSize: 6.5, color: '#4d7c0f', marginTop: 2, fontStyle: 'italic' }}>Senior Product Manager · Fintech & Payments</div>
+      </div>
+      <div style={{ fontSize: 6, lineHeight: 1.55, color: '#374151', marginBottom: 7 }}>Product leader with 6+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Track record of raising ATS scores 2–3× through precise keyword alignment and metric-dense writing.</div>
+      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#365314', borderBottom: '1px solid #365314', paddingBottom: 2, marginBottom: 5 }}>Experience</div>
+      {[
+        { co: 'Stripe', title: 'Senior Product Manager', dates: '2022–Present', bullets: ['Owned Checkout EU (2.4M merchants); shipped 18 features → £12.6M ARR in 18mo', 'Reduced cart abandonment 34% via 22-variant A/B programme — +£2.1M revenue', 'Redesigned onboarding from 180 interviews — NPS 42 → 78, shipped in 11 weeks'] },
+        { co: 'Monzo', title: 'Product Manager', dates: '2019–2022', bullets: ['Launched Business Lite — 40K SME accounts in 6 months at £0 paid spend', 'Built OKR framework for 8 squads; delivery variance 63% → 12%'] },
+      ].map((job, ji) => (
+        <div key={ji} style={{ marginBottom: 7 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <div style={{ fontWeight: 800, fontSize: 7 }}>{job.co} · <span style={{ fontWeight: 600 }}>{job.title}</span></div>
+            <div style={{ fontSize: 6, color: '#6b7280' }}>{job.dates}</div>
+          </div>
+          {job.bullets.map((b, bi) => (
+            <div key={bi} style={{ display: 'flex', gap: 3, marginBottom: 2, marginTop: bi === 0 ? 3 : 0 }}>
+              <span style={{ color: '#4d7c0f', flexShrink: 0, fontWeight: 900 }}>▸</span>
+              <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#365314', borderBottom: '1px solid #365314', paddingBottom: 2, marginBottom: 4 }}>Education</div>
+      <div style={{ fontWeight: 800, fontSize: 7 }}>UCL — BSc Computer Science <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 6 }}>First Class Honours · 2016–2019</span></div>
+    </div>
+  </div>
+);
+
+/** Academic Teal — single-column, left border accent, clean serif headings */
+const TemplateAcademicTeal = () => (
+  <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7 }}>
+    <div style={{ borderLeft: '4px solid #0891b2', background: '#f0f9ff', padding: '14px 16px 12px' }}>
+      <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: '-0.01em', color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>Sarah Chen</div>
+      <div style={{ fontSize: 7, color: '#0891b2', marginTop: 2, fontStyle: 'italic' }}>Senior Product Manager · Fintech & Payments</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 5, fontSize: 6, color: '#64748b' }}>
+        <span>sarah.chen@email.com</span><span>·</span><span>London, UK</span><span>·</span><span>+44 7700 900 123</span><span>·</span><span>linkedin.com/in/sarahchen</span>
+      </div>
+    </div>
+    <div style={{ padding: '10px 16px' }}>
+      <div style={{ fontSize: 6.5, lineHeight: 1.6, color: '#374151', marginBottom: 8, borderLeft: '2px solid #bae6fd', paddingLeft: 7 }}>Product leader with 6+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Consistently raises ATS scores 2–3× through precise keyword alignment and metric-dense bullets.</div>
+      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 2, marginBottom: 6 }}>Professional Experience</div>
+      {[
+        { co: 'Stripe', title: 'Senior Product Manager', dates: '2022 – Present', loc: 'London, UK', bullets: ['Owned end-to-end roadmap for Checkout EU, serving 2.4M merchants — 18 features → £12.6M ARR', 'Reduced cart abandonment 34% via 22-variant A/B programme, adding £2.1M annual revenue', 'Grew NPS 42 → 78 via personalised onboarding redesign (n=180 interviews, 3 cohort studies)'] },
+        { co: 'Monzo', title: 'Product Manager', dates: '2019 – 2022', loc: 'London, UK', bullets: ['Launched Monzo Business Lite — 40K SME accounts in 6 months at £0 paid acquisition spend', 'Defined OKR framework across 8 squads — delivery variance from 63% to 12%'] },
+      ].map((job, ji) => (
+        <div key={ji} style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <div style={{ fontWeight: 800, fontSize: 7.5, color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>{job.co} — {job.title}</div>
+            <div style={{ fontSize: 6, color: '#64748b', flexShrink: 0, marginLeft: 4 }}>{job.dates}</div>
+          </div>
+          <div style={{ fontSize: 6, color: '#0891b2', marginBottom: 3, fontStyle: 'italic' }}>{job.loc}</div>
+          {job.bullets.map((b, bi) => (
+            <div key={bi} style={{ display: 'flex', gap: 4, marginBottom: 2 }}>
+              <span style={{ color: '#0891b2', fontWeight: 900, flexShrink: 0 }}>–</span>
+              <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 2, marginBottom: 5 }}>Skills</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 8 }}>
+        {['Product Strategy', 'OKRs', 'A/B Testing', 'SQL & Analytics', 'Figma', 'Payments & Fintech', 'Stakeholder Mgmt', 'Go-to-Market', 'API Design', 'User Research', 'Agile / Scrum'].map(s => (
+          <span key={s} style={{ fontSize: 5.5, padding: '2px 5px', background: '#e0f2fe', border: '0.5px solid #bae6fd', borderRadius: 2, color: '#0369a1' }}>{s}</span>
+        ))}
+      </div>
+      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 2, marginBottom: 4 }}>Education</div>
+      <div style={{ fontWeight: 800, fontSize: 7, color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>UCL — BSc Computer Science · First Class Honours <span style={{ fontWeight: 400, color: '#64748b', fontSize: 6 }}>2016–2019</span></div>
+    </div>
+  </div>
+);
+
 /* ─── Scaled wrapper so each template fits as a card ───────────────────── */
 const TemplateCard = ({ children, scale, rotate = 0, shadow = true }: { children: React.ReactNode; scale: number; rotate?: number; shadow?: boolean }) => (
   <div style={{ position: 'relative', width: 380 * scale, height: 520 * scale, flexShrink: 0, overflow: 'hidden' }}>
@@ -728,60 +828,67 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
       </section>
 
       {/* ── Templates — real CV content ───────────────────────────────── */}
-      <section style={{ background: elevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '56px 24px', overflowX: 'hidden' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto 32px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
+      <section
+        ref={reg('tpl')} data-s="tpl"
+        style={{ background: elevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '56px 24px', overflowX: 'hidden' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto 36px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8 }}>35 templates</p>
-            <h2 style={{ fontSize: 'clamp(1.6rem,3.5vw,2.2rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Every template.<br />Pixel-perfect PDF.</h2>
+            <h2 style={{ fontSize: 'clamp(1.6rem,3.5vw,2.2rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0, color: text }}>Every template.<br />Pixel-perfect PDF.</h2>
           </div>
           <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>Browse templates →</button>
         </div>
-        {/* 4 full-size template cards — readable real content */}
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,200px),1fr))', gap: 24, alignItems: 'start' }}>
-          {[
-            {
-              label: 'Standard Pro',
-              tag: 'Classic',
-              comp: <TemplateStandardPro />,
-              accentColor: '#1B2B4B',
-              desc: 'Dark navy header, clean body. Finance, consulting, law.',
-            },
-            {
-              label: 'Navy Sidebar',
-              tag: 'Prestigious',
-              comp: <TemplateNavySidebar />,
-              accentColor: '#1a2f5a',
-              desc: 'Two-column with monogram crest. Signals seniority.',
-            },
-            {
-              label: 'Executive',
-              tag: 'Luxury',
-              comp: <TemplateExecutive />,
-              accentColor: '#c8a84b',
-              desc: 'Brown & gold. C-suite and senior leadership.',
-            },
-            {
-              label: 'Modern Tech',
-              tag: 'Developer',
-              comp: <TemplateModernTech />,
-              accentColor: '#4ade80',
-              desc: 'Terminal aesthetic with code-style headers. SWE, data, product.',
-            },
-          ].map(({ label, tag, comp, accentColor, desc }, i) => (
+
+        {/* 6 full-size template cards with live ATS badges */}
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,185px),1fr))', gap: 24, alignItems: 'start' }}>
+          {([
+            { label: 'Standard Pro',    tag: 'Classic',    comp: <TemplateStandardPro />,   accentColor: '#1B2B4B', atsScore: 94, atsRole: 'Stripe · PM',     desc: 'Dark navy header. Finance, consulting, law.' },
+            { label: 'Navy Sidebar',    tag: 'Prestigious', comp: <TemplateNavySidebar />,   accentColor: '#1a2f5a', atsScore: 91, atsRole: 'HSBC · Director',  desc: 'Monogram crest. Signals seniority at a glance.' },
+            { label: 'Executive',       tag: 'Luxury',     comp: <TemplateExecutive />,      accentColor: '#c8a84b', atsScore: 88, atsRole: 'Goldman · VP',     desc: 'Brown & gold. C-suite and board-level roles.' },
+            { label: 'Modern Tech',     tag: 'Developer',  comp: <TemplateModernTech />,     accentColor: '#4ade80', atsScore: 97, atsRole: 'Amazon · SWE',     desc: 'Terminal aesthetic. SWE, data, and product roles.' },
+            { label: 'Compact Sage',    tag: 'Creative',   comp: <TemplateCompactSage />,    accentColor: '#4d7c0f', atsScore: 93, atsRole: 'Spotify · Design', desc: 'Sage green sidebar. Creative, marketing, and design.' },
+            { label: 'Academic Teal',   tag: 'Clean',      comp: <TemplateAcademicTeal />,   accentColor: '#0891b2', atsScore: 96, atsRole: 'UCL · Research',   desc: 'Teal accent. Academic, analyst, and research roles.' },
+          ] as const).map(({ label, tag, comp, accentColor, atsScore, atsRole, desc }, i) => (
             <div key={i} onClick={onGetStarted}
-              style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 14, transition: 'transform 0.2s' }}
+              style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12,
+                opacity: v('tpl') ? 1 : 0, transform: v('tpl') ? 'translateY(0)' : 'translateY(24px)',
+                transition: `opacity 0.45s ease ${i * 0.07}s, transform 0.45s ease ${i * 0.07}s`,
+              }}
               onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = 'none')}>
-              <div style={{ borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 36px rgba(0,0,0,0.18)', border: `2.5px solid transparent`, transition: 'border-color 0.2s' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = accentColor)}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}>
-                <TemplateCardFluid shadow={false}>{comp}</TemplateCardFluid>
+              onMouseLeave={e => (e.currentTarget.style.transform = v('tpl') ? 'translateY(0)' : 'translateY(24px)')}>
+
+              {/* Card with ATS badge overlay */}
+              <div style={{ position: 'relative' }}>
+                <div style={{ borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 36px rgba(0,0,0,0.18)', border: `2.5px solid transparent`, transition: 'border-color 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = accentColor)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}>
+                  <TemplateCardFluid shadow={false}>{comp}</TemplateCardFluid>
+                </div>
+
+                {/* Animated ATS badge */}
+                <div style={{
+                  position: 'absolute', bottom: 10, right: 10,
+                  background: 'rgba(255,255,255,0.96)', borderRadius: 8,
+                  padding: '5px 8px 5px 5px', display: 'flex', alignItems: 'center', gap: 5,
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+                  transform: v('tpl') ? 'scale(1)' : 'scale(0.6)',
+                  opacity: v('tpl') ? 1 : 0,
+                  transition: `transform 0.5s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.07 + 0.35}s, opacity 0.4s ease ${i * 0.07 + 0.35}s`,
+                }}>
+                  <AtsGauge score={atsScore} size={30} />
+                  <div>
+                    <div style={{ fontSize: 8, fontWeight: 900, color: atsScore >= 90 ? '#16a34a' : '#d97706', lineHeight: 1.2 }}>ATS {atsScore}</div>
+                    <div style={{ fontSize: 6.5, color: '#6b7280', lineHeight: 1.2 }}>{atsRole}</div>
+                  </div>
+                </div>
               </div>
+
+              {/* Label */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: accentColor, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 900 }}>{label}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 99, background: elevated, border: `1px solid ${border}`, color: faint, flexShrink: 0 }}>{tag}</span>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: text }}>{label}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 99, background: surface, border: `1px solid ${border}`, color: faint, flexShrink: 0 }}>{tag}</span>
                 </div>
                 <p style={{ fontSize: 11, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
               </div>
@@ -790,11 +897,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
 
         {/* Custom template callout */}
-        <div style={{ maxWidth: 1200, margin: '28px auto 0', padding: '18px 24px', borderRadius: 12, background: darkMode ? '#1a1a1a' : surface, border: `1.5px dashed ${border}`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ maxWidth: 1200, margin: '32px auto 0', padding: '18px 24px', borderRadius: 12, background: surface, border: `1.5px dashed ${border}`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: Y, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>✦</div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 2 }}>Upload your own template</div>
+              <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 2, color: text }}>Upload your own template</div>
               <div style={{ fontSize: 12, color: muted }}>Got a custom HTML/CSS design? Upload it and ProCV generates into it automatically — your brand, your layout.</div>
             </div>
           </div>
