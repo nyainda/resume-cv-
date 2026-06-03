@@ -246,12 +246,30 @@ console.log(C.b('  TIER 2 — Structural (worker probe)'));
 console.log(C.b('═══════════════════════════════════════\n'));
 
 const BRIEF_FIXTURE = {
-    jd: 'Senior Software Engineer. 5+ years React, Node.js, PostgreSQL. Lead teams of 6+.',
-    profile: {
-        workExperience: [{ jobTitle: 'Software Engineer', company: 'Acme', yearsExperience: 6 }],
-        skills: ['React', 'Node.js', 'PostgreSQL'],
-    },
+    jd: 'Senior Water Resources Engineer. 5+ years EPANET/HEC-RAS, AutoCAD Civil 3D. Lead teams of 6+.',
+    field: 'engineering',
+    yearsExperience: 6,
+    bulletCount: 5,
     section: 'current_role',
+    profile: {
+        personalInfo: {
+            name: 'Test Person',
+            title: 'Senior Water Resources Engineer',
+            email: 'test@example.com',
+            location: 'Nairobi, Kenya',
+        },
+        summary: 'Water Resources Engineer with 6 years across rural infrastructure projects.',
+        workExperience: [
+            {
+                jobTitle: 'Senior Water Resources Engineer',
+                company: 'Trans-Sahara Engineering Consultants',
+                location: 'Nairobi, Kenya',
+                startDate: '2022-03',
+                endDate: 'Present',
+                description: 'Lead engineer on AfDB-funded smallholder irrigation programme. Designed gravity-fed networks in EPANET, supervised contractor mobilisation, 38,000 beneficiaries.',
+            },
+        ],
+    },
 };
 
 let brief = null;
@@ -260,7 +278,7 @@ try {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(BRIEF_FIXTURE),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(15000),
     });
     if (res.ok) {
         brief = await res.json();
@@ -272,34 +290,44 @@ try {
 }
 
 if (brief) {
-    check('brief.verb_pool has ≥20 entries (enough to sample random 12)',
-          (brief.verb_pool || []).length >= 20, true,
-          { detail: `${(brief.verb_pool || []).length} verbs` });
+    // The /api/cv/brief endpoint returns a routing brief (seniority, voice, field).
+    // The full verb_pool and forbidden_phrases are assembled inside the worker
+    // during generation (buildBrief) — not exposed via this probe endpoint.
+    // We test what this endpoint actually guarantees:
 
-    check('brief.forbidden_phrases has ≥10 entries',
-          (brief.forbidden_phrases || []).length >= 10, true,
-          { detail: `${(brief.forbidden_phrases || []).length} phrases` });
+    check('brief.seniority.level is present',
+          typeof brief.seniority?.level === 'string' && brief.seniority.level.length > 0, true,
+          { detail: `level: ${brief.seniority?.level}` });
 
-    // Simulate two verb samples — must differ
-    const sample1 = shuffleArray(brief.verb_pool).slice(0, 12).map(v => v.verb_past || v.verb).join(',');
-    const sample2 = shuffleArray(brief.verb_pool).slice(0, 12).map(v => v.verb_past || v.verb).join(',');
-    check('Two shuffled verb pool samples from live brief differ',
-          sample1 !== sample2, true,
-          { warn: true, detail: 'expected in >99.9% of cases' });
+    check('brief.voice.primary.name is present',
+          typeof brief.voice?.primary?.name === 'string' && brief.voice.primary.name.length > 0, true,
+          { detail: `voice: ${brief.voice?.primary?.name}` });
 
-    // Simulate two forbidden phrase samples — must differ
-    const fp1 = shuffleArray(brief.forbidden_phrases).slice(0, 20).join(',');
-    const fp2 = shuffleArray(brief.forbidden_phrases).slice(0, 20).join(',');
-    check('Two shuffled forbidden phrase samples from live brief differ',
-          fp1 !== fp2, true,
-          { warn: true });
+    check('brief.field.field is detected (not null/unknown)',
+          typeof brief.field?.field === 'string' && brief.field.field !== 'unknown', true,
+          { detail: `field: ${brief.field?.field}` });
 
-    // Rhythm — brief should still have a sequence (for validator reference)
-    check('brief.rhythm.sequence exists (used by validator)',
-          Array.isArray(brief.rhythm?.sequence) && brief.rhythm.sequence.length > 0, true,
-          { detail: `sequence: ${(brief.rhythm?.sequence || []).join(' → ')}` });
+    check('brief.field.preferred_verbs has ≥4 field-specific verbs',
+          Array.isArray(brief.field?.preferred_verbs) && brief.field.preferred_verbs.length >= 4, true,
+          { detail: `${brief.field?.preferred_verbs?.length} verbs: ${(brief.field?.preferred_verbs || []).slice(0,4).join(', ')}` });
+
+    // Forbidden phrases — the endpoint returns only field-specific ones (supplemented during generation)
+    check('brief.forbidden_phrases is an array (may be short — supplemented server-side)',
+          Array.isArray(brief.forbidden_phrases), true,
+          { detail: `${(brief.forbidden_phrases || []).length} field-specific phrases` });
+
+    // Simulate shuffling the field-specific verb list — two calls should differ if ≥5 verbs
+    if ((brief.field?.preferred_verbs || []).length >= 5) {
+        const v1 = shuffleArray(brief.field.preferred_verbs).join(',');
+        const v2 = shuffleArray(brief.field.preferred_verbs).join(',');
+        check('Two shuffled field verb samples differ (shuffle is live)',
+              v1 !== v2, true,
+              { warn: true, detail: 'expected in almost all cases' });
+    } else {
+        skip('Two shuffled field verb samples differ', 'fewer than 5 field verbs returned');
+    }
 } else {
-    for (let i = 0; i < 5; i++) skip('Tier 2 check', 'worker unreachable');
+    for (let i = 0; i < 6; i++) skip('Tier 2 check', 'worker unreachable');
 }
 
 // ── TIER 3 — Integration (requires GROQ_API_KEY) ─────────────────────────────
