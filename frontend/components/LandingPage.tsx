@@ -572,7 +572,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
   useEffect(() => {
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) setVis(p => new Set([...p, e.target.getAttribute('data-s') || ''])); });
-    }, { threshold: 0.06 });
+    }, { threshold: 0 });
     Object.values(refs.current).forEach(el => el && io.observe(el));
     return () => io.disconnect();
   }, [ready]);
@@ -851,11 +851,10 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
           ] as const).map(({ label, tag, comp, accentColor, atsScore, atsRole, desc }, i) => (
             <div key={i} onClick={onGetStarted}
               style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12,
-                opacity: v('tpl') ? 1 : 0, transform: v('tpl') ? 'translateY(0)' : 'translateY(24px)',
-                transition: `opacity 0.45s ease ${i * 0.07}s, transform 0.45s ease ${i * 0.07}s`,
+                transition: 'transform 0.2s ease',
               }}
               onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = v('tpl') ? 'translateY(0)' : 'translateY(24px)')}>
+              onMouseLeave={e => (e.currentTarget.style.transform = 'none')}>
 
               {/* Card with ATS badge overlay */}
               <div style={{ position: 'relative' }}>
