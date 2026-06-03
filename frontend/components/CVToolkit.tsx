@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { UserProfile, ScrapedJob, CVData } from '../types';
 import {
     checkCVAgainstJob, CVCheckResult,
     generateSmartCoverLetter,
     paraphraseText, ParaphraseTone,
 } from '../services/geminiService';
+import { scoreHRDetection, type HRDetectionResult, type HRSignalSeverity } from '../services/hrDetectorSimulation';
 import { researchCompany } from '../services/tavilyService';
 import { downloadCoverLetterAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -24,6 +25,8 @@ interface CVToolkitProps {
     tavilyApiKey: string | null | undefined;
     openSettings: () => void;
     selectedJob?: ScrapedJob | null;
+    /** The user's current generated CV — used by the HR Detector tab */
+    currentCV?: CVData | null;
     /** Navigate to CV Generator, optionally with extra instructions */
     onGoToGenerator?: (extraInstructions?: string) => void;
     /** Called when user imports a profile from Word */
@@ -32,7 +35,7 @@ interface CVToolkitProps {
     onGitHubCVGenerated?: (cv: CVData) => void;
 }
 
-type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import' | 'github-import';
+type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import' | 'github-import' | 'hr-detector';
 
 const TONE_OPTIONS: { id: ParaphraseTone; label: string; emoji: string; desc: string }[] = [
     { id: 'professional', label: 'Professional', emoji: '👔', desc: 'Polished, executive tone' },
@@ -90,10 +93,16 @@ const WordDocIcon: React.FC<{ className?: string }> = ({ className }) => (
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 const CVToolkit: React.FC<CVToolkitProps> = ({
-    userProfile, apiKeySet, tavilyApiKey, openSettings, selectedJob,
+    userProfile, apiKeySet, tavilyApiKey, openSettings, selectedJob, currentCV,
     onGoToGenerator, onProfileImported, onGitHubCVGenerated,
 }) => {
     const [activeTab, setActiveTab] = useLocalStorage<ToolTab>('toolkit_tab', 'checker');
+
+    // ── HR Detector — pure-JS, zero LLM tokens, recomputes when CV changes ──
+    const hrResult: HRDetectionResult | null = useMemo(() => {
+        if (!currentCV) return null;
+        try { return scoreHRDetection(currentCV); } catch { return null; }
+    }, [currentCV]);
     const [jobDescription, setJobDescription] = useLocalStorage<string>('toolkit_jd', selectedJob?.jobDescription || '');
 
     // ── Checker state ──
@@ -201,6 +210,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     // ─── TABS ──
     const tabs = [
         { id: 'checker' as ToolTab, label: 'CV Checker', emoji: '🔍' },
+        { id: 'hr-detector' as ToolTab, label: 'HR Eye Test', emoji: '👁' },
         { id: 'cover-letter' as ToolTab, label: 'Cover Letter', emoji: '✉️' },
         { id: 'paraphrase' as ToolTab, label: 'Paraphraser', emoji: '🔄' },
         { id: 'word-import' as ToolTab, label: 'Word Import', emoji: '📄' },
@@ -589,6 +599,132 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                             </button>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* ══ HR EYE TEST ══ */}
+            {activeTab === 'hr-detector' && (
+                <div className="space-y-4">
+                    {!currentCV ? (
+                        <div className="flex flex-col items-center justify-center py-14 text-center gap-3 text-zinc-400 dark:text-zinc-500">
+                            <svg className="h-12 w-12 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <p className="text-sm font-semibold">No CV generated yet</p>
+                            <p className="text-xs max-w-xs">Generate a CV first, then come back here to see how it looks through a recruiter's eyes.</p>
+                            {onGoToGenerator && (
+                                <button onClick={() => onGoToGenerator()} className="mt-2 text-xs font-bold px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors">
+                                    Go to Generator
+                                </button>
+                            )}
+                        </div>
+                    ) : hrResult ? (() => {
+                        const scoreColor = hrResult.verdictColor === 'emerald' ? '#10b981'
+                            : hrResult.verdictColor === 'teal' ? '#14b8a6'
+                            : hrResult.verdictColor === 'amber' ? '#f59e0b' : '#ef4444';
+                        const badgeCls = hrResult.verdictColor === 'emerald'
+                            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : hrResult.verdictColor === 'teal'
+                            ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800'
+                            : hrResult.verdictColor === 'amber'
+                            ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                            : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+                        const severityIcon = (s: HRSignalSeverity) =>
+                            s === 'pass'   ? <span className="text-emerald-500 font-bold text-xs">✓</span>
+                            : s === 'low'  ? <span className="text-amber-400 font-bold text-xs">!</span>
+                            : s === 'medium' ? <span className="text-amber-600 font-bold text-xs">!!</span>
+                            : <span className="text-rose-600 font-bold text-xs">✗</span>;
+                        return (
+                            <>
+                                {/* Score header */}
+                                <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-5 flex items-center gap-5">
+                                    <div className="relative flex-shrink-0">
+                                        <ScoreRing score={hrResult.humanScore} label="Human score" size={100} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Recruiter Eye Test</h3>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${badgeCls}`}>
+                                                {hrResult.verdict}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-zinc-500 mt-1 leading-snug">
+                                            {hrResult.humanScore >= 85
+                                                ? 'Your CV reads as naturally written. Strong signal variety and clean opener rotation.'
+                                                : hrResult.humanScore >= 70
+                                                ? 'Mostly human-sounding. A few patterns a trained recruiter might notice — see signals below.'
+                                                : hrResult.humanScore >= 50
+                                                ? 'Several AI-pattern signals detected. Fix the highlighted issues before sending.'
+                                                : 'High AI-pattern risk. A screening recruiter would likely flag this CV. Address the red signals first.'}
+                                        </p>
+                                        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1.5">
+                                            Zero AI calls — pure structural analysis only.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Signal breakdown */}
+                                <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 divide-y divide-zinc-100 dark:divide-neutral-700">
+                                    {hrResult.signals.map(sig => (
+                                        <div key={sig.id} className="p-4 flex items-start gap-3">
+                                            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center mt-0.5">
+                                                {severityIcon(sig.severity)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{sig.label}</span>
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                                        sig.severity === 'pass'   ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                                        : sig.severity === 'low'  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                                        : sig.severity === 'medium' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                                                        : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'
+                                                    }`}>
+                                                        {sig.severity === 'pass' ? 'PASS' : `${sig.riskPts}/${sig.maxPts} pts`}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug">{sig.detail}</p>
+                                                {sig.severity !== 'pass' && sig.fix && (
+                                                    <p className="text-xs text-violet-600 dark:text-violet-400 mt-1 leading-snug">
+                                                        <span className="font-semibold">Fix: </span>{sig.fix}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            {/* Mini progress bar */}
+                                            <div className="w-16 flex-shrink-0 mt-1.5">
+                                                <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-neutral-700 overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all"
+                                                        style={{
+                                                            width: `${Math.round((sig.riskPts / sig.maxPts) * 100)}%`,
+                                                            backgroundColor: sig.severity === 'pass' ? '#10b981' : sig.severity === 'low' ? '#f59e0b' : sig.severity === 'medium' ? '#f97316' : '#ef4444',
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Regenerate CTA when score is poor */}
+                                {hrResult.humanScore < 70 && onGoToGenerator && (
+                                    <div className="bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800 rounded-2xl p-4 flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-sm font-bold text-violet-900 dark:text-violet-100">Regenerate to fix these signals?</p>
+                                            <p className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">The next generation run picks a fresh narrative angle and applies all quality rules automatically.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => onGoToGenerator()}
+                                            className="flex-shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                                        >
+                                            Regenerate CV
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })() : (
+                        <p className="text-sm text-zinc-400 text-center py-8">Unable to analyse CV.</p>
+                    )}
                 </div>
             )}
 

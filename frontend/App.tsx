@@ -1482,6 +1482,7 @@ const AppInner: React.FC = () => {
                       onGoToGenerator={handleGoToGenerator}
                       onProfileImported={handleWordProfileImported}
                       onGitHubCVGenerated={handleGitHubCVGenerated}
+                      currentCV={currentCV}
                     />
                   </div>
                 )}

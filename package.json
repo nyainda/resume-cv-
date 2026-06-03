@@ -18,6 +18,7 @@
     "test:pipeline": "node backend/scripts/test-full-pipeline.mjs",
     "test:banned": "node backend/scripts/test-banned-phrase-filter.mjs",
     "test:rhythm": "node backend/scripts/test-bullet-rhythm.mjs",
+    "test:variance": "node backend/scripts/test-cv-variance.mjs",
     "test:batch-cv": "node backend/scripts/batch-cv-test.mjs",
     "test:batch-cv:fast": "node backend/scripts/batch-cv-test.mjs --fast",
     "deploy:worker": "cd backend/cv-engine-worker && bash deploy.sh"

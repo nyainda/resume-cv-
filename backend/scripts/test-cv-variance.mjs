@@ -93,6 +93,23 @@ function selectNarrativeAngle() {
 }
 
 /**
+ * Local JS mirror of selectFreshAngle() from geminiService.ts.
+ * Accepts a historyOverride so tests never touch localStorage.
+ * Algorithm: pick angle with lowest recency score (0 = never used).
+ * Among ties, pick randomly.
+ */
+function selectFreshAngle(historyOverride = []) {
+    const scored = NARRATIVE_ANGLES.map(angle => {
+        const lastIdx = historyOverride.lastIndexOf(angle); // -1 if never used
+        return { angle, recency: lastIdx === -1 ? 0 : lastIdx + 1 };
+    });
+    scored.sort((a, b) => a.recency - b.recency);
+    const minRecency = scored[0].recency;
+    const candidates = scored.filter(s => s.recency === minRecency);
+    return candidates[Math.floor(Math.random() * candidates.length)].angle;
+}
+
+/**
  * Jaccard similarity between two strings (word-level token sets).
  * Returns 0.0 (completely different) … 1.0 (identical).
  */
@@ -185,6 +202,62 @@ console.log(C.b('═════════════════════
               counts[angle] >= 10, true,
               { detail: `${counts[angle]} times` });
     }
+}
+
+// T1-6b: selectFreshAngle with history injection ──────────────────────────────
+// Tests that the history-aware picker avoids recently-used angles.
+{
+    console.log('\n  selectFreshAngle — history-aware angle rotation');
+
+    // When history = ['impact','impact','impact'], next should NOT be impact
+    const biasedHistory = ['impact', 'impact', 'impact'];
+    const notImpact = Array.from({ length: 200 }, () => selectFreshAngle(biasedHistory));
+    check('selectFreshAngle never picks the just-used angle when it dominates history',
+          notImpact.some(a => a !== 'impact'), true,
+          { detail: `picked: ${[...new Set(notImpact)].join(', ')}` });
+    check('selectFreshAngle never picks "impact" when it is the most recent angle and others are cold',
+          notImpact.every(a => a !== 'impact'), true,
+          { detail: 'all 200 picks should be from the 3 unused angles' });
+
+    // With rotation history ['impact','process','people','growth'], impact is the
+    // LEAST-recently-used (at index 0 = oldest). Algorithm must pick it deterministically.
+    const oneRotation = ['impact', 'process', 'people', 'growth'];
+    const afterOneRotation = Array.from({ length: 50 }, () => selectFreshAngle(oneRotation));
+    check('selectFreshAngle picks the least-recently-used angle (impact at index 0) after one full rotation',
+          afterOneRotation.every(a => a === 'impact'), true,
+          { detail: `picks: ${[...new Set(afterOneRotation)].join(', ')}` });
+
+    // Two full rotations → growth is the oldest so far unseen
+    // After ['impact','process','people','growth','impact','process','people'], next should be growth
+    const twoRotationsMinusOne = ['impact', 'process', 'people', 'growth', 'impact', 'process', 'people'];
+    const nextAfterTwoMinus = Array.from({ length: 50 }, () => selectFreshAngle(twoRotationsMinusOne));
+    check('selectFreshAngle picks "growth" (least recent) in a 2-rotation minus-1 history',
+          nextAfterTwoMinus.every(a => a === 'growth'), true,
+          { detail: `picks: ${[...new Set(nextAfterTwoMinus)].join(', ')}` });
+
+    // With empty history → behaves like random across all 4
+    const emptyCounts = { impact: 0, process: 0, people: 0, growth: 0 };
+    for (let i = 0; i < 400; i++) emptyCounts[selectFreshAngle([])]++;
+    for (const angle of NARRATIVE_ANGLES) {
+        check(`selectFreshAngle(empty history): "${angle}" selected ≥10 times in 400 runs`,
+              emptyCounts[angle] >= 10, true,
+              { detail: `${emptyCounts[angle]} times` });
+    }
+
+    // After using 3 angles, the 4th cold angle should be picked exclusively
+    const threeUsed = ['impact', 'process', 'people'];  // growth not in history
+    const fourthCold = Array.from({ length: 100 }, () => selectFreshAngle(threeUsed));
+    check('selectFreshAngle picks the single cold angle exclusively when 3 are warm',
+          fourthCold.every(a => a === 'growth'), true,
+          { detail: `picked: ${[...new Set(fourthCold)].join(', ')}` });
+
+    // History pruning simulation — last 8 entries, most recent is last
+    // History: 8 entries all impact → picks from the other 3 only
+    const fullHistory = Array(8).fill('impact');
+    const afterFull = Array.from({ length: 100 }, () => selectFreshAngle(fullHistory));
+    check('selectFreshAngle never picks "impact" when it fills all 8 history slots',
+          afterFull.every(a => a !== 'impact'), true,
+          { detail: `found: ${[...new Set(afterFull)].join(', ')}` });
 }
 
 // T1-7: Jaccard similarity — known cases

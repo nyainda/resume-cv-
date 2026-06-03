@@ -92,9 +92,53 @@ const NARRATIVE_ANGLES: Record<NarrativeAngle, {
     },
 };
 
-function selectNarrativeAngle(): NarrativeAngle {
-    const angles: NarrativeAngle[] = ['impact', 'process', 'people', 'growth'];
-    return angles[Math.floor(Math.random() * angles.length)];
+// ─── Narrative angle history (localStorage, zero tokens) ─────────────────────
+// Tracks which angles have been used recently so each new generation picks
+// the LEAST-recently-used angle. All 4 angles rotate evenly across sessions.
+const _ANGLE_HISTORY_KEY = 'cv:angleHistory';
+const _ALL_ANGLES: NarrativeAngle[] = ['impact', 'process', 'people', 'growth'];
+
+function _readAngleHistory(): NarrativeAngle[] {
+    try {
+        const raw = localStorage.getItem(_ANGLE_HISTORY_KEY);
+        const arr: unknown = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(arr)) return [];
+        return (arr as unknown[]).filter((a): a is NarrativeAngle =>
+            typeof a === 'string' && (_ALL_ANGLES as string[]).includes(a)
+        );
+    } catch { return []; }
+}
+
+/** Call after a successful generation to record the angle that was used. */
+export function recordAngleUsed(angle: NarrativeAngle): void {
+    try {
+        const history = _readAngleHistory();
+        // Keep last 8 entries (2 full rotations), move used angle to the end.
+        const updated = [...history.filter(a => a !== angle), angle].slice(-8);
+        localStorage.setItem(_ANGLE_HISTORY_KEY, JSON.stringify(updated));
+    } catch { /* localStorage unavailable — silent */ }
+}
+
+/**
+ * Picks the narrative angle least recently used by this user.
+ * An optional `historyOverride` is accepted so unit tests can inject history
+ * without touching localStorage.
+ *
+ * Algorithm:
+ *   - Each angle gets a "recency score" = its position in history (higher = newer).
+ *   - Angles not yet in history score 0 (freshest possible — pick these first).
+ *   - Among ties, pick randomly so the first-time experience is still varied.
+ */
+export function selectFreshAngle(historyOverride?: NarrativeAngle[]): NarrativeAngle {
+    const history = historyOverride ?? _readAngleHistory();
+    const scored = _ALL_ANGLES.map(angle => {
+        const lastIdx = history.lastIndexOf(angle); // -1 if never used
+        return { angle, recency: lastIdx === -1 ? 0 : lastIdx + 1 };
+    });
+    scored.sort((a, b) => a.recency - b.recency);
+    const minRecency = scored[0].recency;
+    const candidates = scored.filter(s => s.recency === minRecency);
+    return candidates[Math.floor(Math.random() * candidates.length)].angle;
 }
 
 function buildNarrativeAngleBlock(angle: NarrativeAngle): string {
@@ -2192,7 +2236,7 @@ export const generateCV = async (
     // Academic CVs always use 'impact' — most effective for scholarship/fellowship applications.
     const _narrativeAngle: NarrativeAngle = purpose === 'academic'
         ? 'impact'
-        : selectNarrativeAngle();
+        : selectFreshAngle();
     console.log(`[CV Gen] Narrative angle: ${_narrativeAngle}`);
 
     // Compute total years of experience for the engine brief
@@ -3154,6 +3198,10 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         );
         console.log(`[CV Examples] Stored structural blueprint (fingerprint=${exampleFingerprint.substring(0, 8)}… angle=${_narrativeAngle})`);
     }
+
+    // ── Record angle used so next generation picks a different one ────────────
+    if (purpose !== 'academic') recordAngleUsed(_narrativeAngle);
+    console.log(`[CV Gen] Angle "${_narrativeAngle}" recorded — next run will prefer a different angle.`);
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
