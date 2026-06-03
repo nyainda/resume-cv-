@@ -38,8 +38,71 @@ import {
     fetchCVExample,
     storeCVExample,
     buildReferenceBlock,
+    type NarrativeAngle,
 } from './cvExamplesClient';
 import { getHashIfCached } from './profileCacheClient';
+
+// ── Variance helpers ──────────────────────────────────────────────────────────
+// These inject controlled randomness at the prompt level so each generation
+// feels like a different person wrote it, while facts stay identical.
+
+/** Fisher-Yates shuffle — always returns a NEW array, never mutates. */
+function shuffleArray<T>(arr: readonly T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// ── Narrative Angle System ────────────────────────────────────────────────────
+// Each generation randomly picks one of four angles.
+// The angle changes FRAMING only — facts, metrics, companies are always fixed.
+const NARRATIVE_ANGLES: Record<NarrativeAngle, {
+    name: string;
+    description: string;
+    summaryFocus: string;
+    bulletBias: string;
+}> = {
+    impact: {
+        name: 'Impact',
+        description: 'Lead with quantified outcomes and business results. Every role is told through what changed because of this person.',
+        summaryFocus: 'open with the strongest measurable result delivered, then prove it with a second achievement',
+        bulletBias: 'lead with the outcome when strong data exists ("Cut X by Y%, saving Z") rather than always opening with an action verb',
+    },
+    process: {
+        name: 'Process',
+        description: 'Lead with systems, methods, and how work was done. Emphasise the HOW over the WHAT.',
+        summaryFocus: 'open with the signature working method or the system/framework this person is known for building or improving',
+        bulletBias: 'show the mechanism ("By redesigning X, achieved Y") — the method is the story; use scope-openers and context-openers frequently',
+    },
+    people: {
+        name: 'People',
+        description: 'Lead with collaboration, influence, and team impact. Emphasise who was worked with and who was developed.',
+        summaryFocus: 'open with the leadership or collaboration style and the team/stakeholder scale operated at',
+        bulletBias: 'anchor bullets in team size, stakeholder scope, or mentorship outcomes where genuine data exists',
+    },
+    growth: {
+        name: 'Growth',
+        description: 'Lead with progression, expanding scope, and learning trajectory. Show momentum over time.',
+        summaryFocus: 'open with the arc — the expanding responsibility earned and the trajectory demonstrated',
+        bulletBias: 'show before/after scope within roles where the progression is real; use timeframe-openers ("Over X months,…") to show pace',
+    },
+};
+
+function selectNarrativeAngle(): NarrativeAngle {
+    const angles: NarrativeAngle[] = ['impact', 'process', 'people', 'growth'];
+    return angles[Math.floor(Math.random() * angles.length)];
+}
+
+function buildNarrativeAngleBlock(angle: NarrativeAngle): string {
+    const a = NARRATIVE_ANGLES[angle];
+    return `**NARRATIVE ANGLE — ${a.name.toUpperCase()}**: ${a.description}
+- Summary focus: ${a.summaryFocus}.
+- Bullet framing bias: ${a.bulletBias}.
+- CRITICAL: this angle affects framing and emphasis ONLY. Facts, metrics, company names, dates must never change.`;
+}
 import { runQualityGate, consumePreviousViolationsBlock } from './cvQualityGate';
 
 // ─── CV Generation Cache ──────────────────────────────────────────────────────
@@ -2123,6 +2186,14 @@ export const generateCV = async (
         return cached;
     }
 
+    // ── Narrative angle — selected once per generation, never cached ──────────
+    // Different angle each run so the same profile produces different-feeling CVs.
+    // Academic CVs always use 'impact' — most effective for scholarship/fellowship applications.
+    const _narrativeAngle: NarrativeAngle = purpose === 'academic'
+        ? 'impact'
+        : selectNarrativeAngle();
+    console.log(`[CV Gen] Narrative angle: ${_narrativeAngle}`);
+
     // Compute total years of experience for the engine brief
     const totalYears = (profile.workExperience || []).reduce((sum, exp) => {
         const sy = exp.startDate ? new Date(exp.startDate).getFullYear() : null;
@@ -2209,20 +2280,35 @@ ${kwLines}
     // Build the engine-driven instruction block (only when the brief is available).
     let engineInstruction = '';
     if (engineBrief) {
-        const verbList = engineBrief.verb_pool.slice(0, 24).map(v => v.verb_past || v.verb).join(', ');
-        const forbidden = engineBrief.forbidden_phrases.slice(0, 30).join(', ');
+        // ── Priority 1: Verb pool — random 12 of the full pool per generation ──
+        // Sending the same 24 every time creates recognisable verb fingerprints after
+        // 50+ CVs. A shuffled 12 produces different verb energy each run.
+        const verbList = shuffleArray(engineBrief.verb_pool)
+            .slice(0, 12)
+            .map(v => v.verb_past || v.verb)
+            .join(', ');
+
+        // ── Priority 3: Forbidden phrases — rotate 20 most relevant ──────────
+        // Sending all 30 identical phrases every generation narrows the output
+        // space the same way every time. Shuffling ensures different 20 each run.
+        const forbidden = shuffleArray(engineBrief.forbidden_phrases).slice(0, 20).join(', ');
+
         const sen = engineBrief.seniority;
         const voice = engineBrief.voice.primary;
         const field = engineBrief.field;
-        const rhythm = engineBrief.rhythm;
+
+        // ── Priority 6: Verbosity jitter ±0.2 so output feel varies slightly ─
+        const verbosityJitter = (Math.random() * 0.4 - 0.2);
+        const verbosityEffective = Math.min(5, Math.max(1, (voice?.verbosity_level ?? 3) + verbosityJitter));
+
         engineInstruction = `
         **CV ENGINE BRIEF (deterministic, overrides general guidance below)**
         - Seniority: ${sen?.level || 'unknown'} → bullet style "${sen?.bullet_style || 'balanced'}", metric density "${sen?.metric_density || 'medium'}", summary tone "${sen?.summary_tone || 'professional'}".
         - Field: ${field?.field || 'general'} → language style "${field?.language_style || 'neutral'}". Prefer metric types: ${(field?.metric_types || []).join(', ') || 'general business metrics'}. Avoid these verbs entirely: ${(field?.avoided_verbs || []).join(', ') || 'none'}.
-        - Voice: primary "${voice?.name || 'neutral'}" (${voice?.tone || ''}), verbosity ${voice?.verbosity_level ?? 3}/5, opener frequency ${voice?.opener_frequency ?? 0.2}, metric preference "${voice?.metric_preference || 'medium'}".
-        - Rhythm pattern "${rhythm?.pattern_name || 'classic'}": follow this bullet-length sequence in order — ${(rhythm?.sequence || []).join(' → ') || 'short, long, short, medium, long, personality'}.
-        - APPROVED VERB POOL (use these for bullet starts; never repeat one across the document): ${verbList}.
+        - Voice: primary "${voice?.name || 'neutral'}" (${voice?.tone || ''}), verbosity ${verbosityEffective.toFixed(1)}/5, opener frequency ${voice?.opener_frequency ?? 0.2}, metric preference "${voice?.metric_preference || 'medium'}".
+        - APPROVED VERB POOL for this generation (use these for bullet starts; never repeat one): ${verbList}.
         - ABSOLUTELY FORBIDDEN PHRASES (zero tolerance): ${forbidden}.
+        - ${buildNarrativeAngleBlock(_narrativeAngle)}
         `;
     }
 
@@ -3060,8 +3146,10 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
             generationMode,
             purpose,
             cvData,
+            _narrativeAngle,
+            engineBrief?.voice?.primary?.name,
         );
-        console.log(`[CV Examples] Stored structural blueprint (fingerprint=${exampleFingerprint.substring(0, 8)}…)`);
+        console.log(`[CV Examples] Stored structural blueprint (fingerprint=${exampleFingerprint.substring(0, 8)}… angle=${_narrativeAngle})`);
     }
 
     // ── Store result in cache ──
@@ -3108,16 +3196,20 @@ function filterTastefulVerbs(verbs: string[]): string[] {
 
 async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<void> {
     const roles = cvData.experience || [];
-    // Take a wider slice (40) before filtering so we still have ≥24 verbs
-    // even when several obscure ones get stripped.
-    const rawVerbs = brief.verb_pool.slice(0, 40).map(v => v.verb_past || v.verb);
-    const tastefulVerbs = filterTastefulVerbs(rawVerbs).slice(0, 24);
+    // ── Priority 1: Verb pool — shuffle + take 16 for enforcement ────────────
+    // Voice enforcement needs slightly more verbs than generation (16 vs 12)
+    // because it fixes EXISTING bullets that already used some verbs, so we
+    // need headroom for non-repeating replacements across multiple roles.
+    // Still shuffled so the enforcement verb set differs from the generation set.
+    const rawVerbs = shuffleArray(brief.verb_pool.slice(0, 40)).map(v => v.verb_past || v.verb);
+    const tastefulVerbs = filterTastefulVerbs(rawVerbs).slice(0, 16);
     const verbList = tastefulVerbs.join(', ');
     const droppedVerbs = rawVerbs.filter(v => !tastefulVerbs.includes(v));
     if (droppedVerbs.length > 0) {
         console.log(`[CV Engine] Voice enforcement: filtered ${droppedVerbs.length} obscure verb(s) from pool:`, droppedVerbs);
     }
-    const forbidden = brief.forbidden_phrases.slice(0, 30).join(', ');
+    // ── Priority 3: Rotate forbidden phrases — different 20 per enforcement run
+    const forbidden = shuffleArray(brief.forbidden_phrases).slice(0, 20).join(', ');
     const avoidedVerbs = (brief.field?.avoided_verbs || []).join(', ') || 'none';
     const voice = brief.voice.primary;
     const rhythm = brief.rhythm;
@@ -3159,9 +3251,18 @@ async function enforceVoiceConsistency(cvData: CVData, brief: CVBrief): Promise<
                 issue.issue === 'avoided_verb_for_field' ? `verb "${(issue as any).verb}" is wrong for this field — replace it` :
                 issue.issue === 'verb_outside_pool' ? `verb "${(issue as any).verb}" is not in the approved pool — pick from the pool` :
                 issue.issue === 'repeated_verb' ? `verb "${(issue as any).verb}" is repeated — pick a different approved verb` :
-                issue.issue === 'rhythm_drift' ? `rewrite to ${(issue as any).expected} length (was ${(issue as any).actual})` :
+                // ── Priority 2: rhythm_drift is now advisory only ──────────
+                // We switched to constraint-mode rhythm (≥1 punchy + ≥1 narrative,
+                // no 3 same in a row) so individual bullet length mismatches against
+                // the old fixed sequence are expected and valid. The purification
+                // pipeline's bullet_band_imbalance check still catches gross
+                // imbalance (all same length). Skip per-bullet rewrites here.
+                issue.issue === 'rhythm_drift' ? null :
                 issue.issue;
-            (issuesByBullet[key] = issuesByBullet[key] || []).push(note);
+            // Skip null notes (rhythm_drift is advisory-only now)
+            if (note !== null) {
+                (issuesByBullet[key] = issuesByBullet[key] || []).push(note);
+            }
         }
         for (const [idxStr, notes] of Object.entries(overusedByBullet)) {
             const idx = Number(idxStr);
@@ -3176,7 +3277,7 @@ ROLE: ${role.jobTitle} @ ${role.company}
 
 VOICE BRIEF:
 - Voice: ${voice?.name || 'neutral'} (${voice?.tone || ''}), verbosity ${voice?.verbosity_level ?? 3}/5, metric preference ${voice?.metric_preference || 'medium'}.
-- Rhythm: ${(rhythm?.sequence || []).join(' → ')}.
+- Rhythm constraints: each role must have ≥1 punchy bullet (≤14 words) and ≥1 narrative bullet (≥25 words); avoid 3+ consecutive bullets of the same length class. The exact sequence is your choice — vary it.
 - APPROVED VERB POOL (must start each fixed bullet with one of these, never repeating across the role): ${verbList}.
 - FIELD-AVOIDED VERBS (never use): ${avoidedVerbs}.
 - FORBIDDEN PHRASES (zero tolerance): ${forbidden}.

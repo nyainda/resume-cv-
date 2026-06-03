@@ -8,17 +8,24 @@
  *   - Summary word count
  *   - Skills count
  *   - Per-role bullet word counts (the rhythm pattern)
+ *   - Narrative angle used (for pool diversity tracking)
+ *   - Voice name used (for pool diversity tracking)
  *
  * This is injected into the generation prompt as a REFERENCE STRUCTURE block
- * so the LLM can mirror a proven pattern instead of inventing from scratch.
- * Expected token saving: ~30-50% on the main generation call on a cache hit,
- * because the LLM produces better-structured output on the first pass and
- * needs fewer validator/polish corrections.
+ * so the LLM can target proven structural measurements instead of inventing from
+ * scratch. The angle + voice fields are stored so future fetches can detect when
+ * the example pool is skewed and deliberately pick a structurally similar example
+ * that used a DIFFERENT angle — preventing the feedback-loop monotony described
+ * in the variance architecture notes.
  *
  * All calls are best-effort and use short timeouts so they never block generation.
  */
 
 const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
+
+// ── Narrative Angle type ───────────────────────────────────────────────────────
+// Defined here so it can be imported by geminiService without a circular dep.
+export type NarrativeAngle = 'impact' | 'process' | 'people' | 'growth';
 
 export interface CVExampleStructure {
     fingerprint: string;
@@ -30,6 +37,10 @@ export interface CVExampleStructure {
     skillsCount: number;
     /** Outer array = roles (most-recent first). Inner array = word count per bullet. */
     experienceStructure: number[][];
+    /** Narrative angle used when this example was generated — for pool diversity tracking. */
+    narrativeAngle?: NarrativeAngle;
+    /** Voice profile name used — for pool diversity tracking. */
+    voiceName?: string;
     updatedAt: number;
 }
 
@@ -93,6 +104,15 @@ export async function fetchCVExample(fingerprint: string): Promise<CVExampleStru
 /**
  * Store a structural blueprint after a successful generation + full pipeline run.
  * Fire-and-forget — never throws, never blocks.
+ *
+ * narrativeAngle and voiceName are stored as pool diversity metadata so the D1
+ * table can eventually be queried to detect skew (too many examples with the
+ * same angle) and select examples that used a DIFFERENT angle than the current
+ * generation — enforcing variance rather than consistency.
+ *
+ * The backend schema migration to add these columns is in:
+ *   backend/cv-engine-worker/migrations/011_cv_examples_variance.sql
+ * Until deployed the worker simply ignores the extra fields gracefully.
  */
 export function storeCVExample(
     fingerprint: string,
@@ -105,6 +125,8 @@ export function storeCVExample(
         skills?: string[];
         experience?: Array<{ responsibilities?: string[] | string }>;
     },
+    narrativeAngle?: NarrativeAngle,
+    voiceName?: string,
 ): void {
     if (!ENGINE_URL) return;
 
@@ -133,6 +155,9 @@ export function storeCVExample(
             summaryWords,
             skillsCount,
             experienceStructure,
+            // Pool diversity metadata — ignored gracefully by older worker versions
+            narrativeAngle: narrativeAngle ?? null,
+            voiceName: voiceName ?? null,
         }),
         signal: AbortSignal.timeout(5000),
     }).catch(() => { /* best-effort */ });
@@ -142,8 +167,12 @@ export function storeCVExample(
 
 /**
  * Build a compact (~120-200 token) structural reference block to prepend to the
- * main generation prompt. The LLM uses it to mirror bullet rhythm, section sizes,
- * and summary length — without copying any personal content.
+ * main generation prompt. The LLM uses it to TARGET structural measurements
+ * (bullet counts, word counts, band distribution) — not to copy content.
+ *
+ * Language is deliberately measurement-only: "target" and "aim for", never
+ * "mirror" or "match" — because the LLM must treat these as calibration targets,
+ * not as creative templates to echo.
  */
 export function buildReferenceBlock(
     example: CVExampleStructure,
@@ -161,14 +190,19 @@ export function buildReferenceBlock(
         return `  Role ${i + 1}: ${totalBullets} bullets, avg ${avgWords} words [punchy×${bandCounts.punchy} / standard×${bandCounts.standard} / narrative×${bandCounts.narrative}]`;
     }).filter(Boolean).join('\n');
 
+    const angleNote = example.narrativeAngle
+        ? `\n  • Prior angle: ${example.narrativeAngle} — your angle may differ; these are SIZE targets only.`
+        : '';
+
     return `\
-===== STRUCTURAL REFERENCE (proven pattern for this role type — do NOT copy content) =====
-A previous high-quality CV for a ${example.seniority} ${example.primaryTitle} (${example.generationMode} mode) used this structure:
-  • Summary: ~${example.summaryWords} words
+===== STRUCTURAL REFERENCE (size targets only — do NOT copy content, phrasing, or angle) =====
+A proven CV for a ${example.seniority} ${example.primaryTitle} (${example.generationMode} mode) used these measurements:
+  • Summary: ~${example.summaryWords} words${angleNote}
   • Skills: ${example.skillsCount} items
-  • Bullet rhythm (mirror this variation, not the wording):
+  • Bullet band distribution per role (target these proportions, NOT this sequence):
 ${rhythmLines}
-Apply ONLY the structural patterns above. All content must come from this user's real profile.
+These are CALIBRATION TARGETS. All content, tone, angle and phrasing must come entirely from
+the candidate's real profile and JD. Never echo example phrasing.
 ===== END STRUCTURAL REFERENCE =====
 `;
 }
