@@ -321,16 +321,50 @@ const TemplateModernTech = () => (
 
 /* ─── Scaled wrapper so each template fits as a card ───────────────────── */
 const TemplateCard = ({ children, scale, rotate = 0, shadow = true }: { children: React.ReactNode; scale: number; rotate?: number; shadow?: boolean }) => (
-  <div style={{ position: 'relative', width: 380 * scale, height: 520 * scale, flexShrink: 0 }}>
+  <div style={{ position: 'relative', width: 380 * scale, height: 520 * scale, flexShrink: 0, overflow: 'hidden' }}>
     <div style={{
       transformOrigin: 'top left', transform: `scale(${scale}) rotate(${rotate}deg)`,
       borderRadius: 8 / scale, overflow: 'hidden',
       boxShadow: shadow ? '0 12px 40px rgba(0,0,0,0.22)' : '0 4px 16px rgba(0,0,0,0.12)',
+      width: 380, height: 520,
     }}>
       {children}
     </div>
   </div>
 );
+
+/* ─── Fluid version — fills its column width, scales template to fit ────── */
+const TemplateCardFluid = ({ children, shadow = true }: { children: React.ReactNode; shadow?: boolean }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.62);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect?.width;
+      if (w && w > 0) setScale(w / 380);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: 520 * scale, overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
+      <div style={{
+        transformOrigin: 'top left',
+        transform: `scale(${scale})`,
+        borderRadius: 8 / scale,
+        overflow: 'hidden',
+        boxShadow: shadow ? '0 12px 40px rgba(0,0,0,0.22)' : '0 4px 16px rgba(0,0,0,0.12)',
+        width: 380,
+        height: 520,
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 /* ─── ATS Gauge ─────────────────────────────────────────────────────────── */
 const AtsGauge = ({ score, size = 52 }: { score: number; size?: number }) => {
@@ -694,7 +728,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
       </section>
 
       {/* ── Templates — real CV content ───────────────────────────────── */}
-      <section style={{ background: elevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '56px 24px', overflow: 'hidden' }}>
+      <section style={{ background: elevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '56px 24px', overflowX: 'hidden' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto 32px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8 }}>35 templates</p>
@@ -703,7 +737,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
           <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>Browse templates →</button>
         </div>
         {/* 4 full-size template cards — readable real content */}
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 28, alignItems: 'start' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,200px),1fr))', gap: 24, alignItems: 'start' }}>
           {[
             {
               label: 'Standard Pro',
@@ -741,7 +775,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               <div style={{ borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 36px rgba(0,0,0,0.18)', border: `2.5px solid transparent`, transition: 'border-color 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = accentColor)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}>
-                <TemplateCard scale={0.62} shadow={false}>{comp}</TemplateCard>
+                <TemplateCardFluid shadow={false}>{comp}</TemplateCardFluid>
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
