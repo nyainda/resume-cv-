@@ -210,7 +210,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     // ─── TABS ──
     const tabs = [
         { id: 'checker' as ToolTab, label: 'CV Checker', emoji: '🔍' },
-        { id: 'hr-detector' as ToolTab, label: 'HR Eye Test', emoji: '👁' },
+        { id: 'hr-detector' as ToolTab, label: 'Quality Audit', emoji: '🔬' },
         { id: 'cover-letter' as ToolTab, label: 'Cover Letter', emoji: '✉️' },
         { id: 'paraphrase' as ToolTab, label: 'Paraphraser', emoji: '🔄' },
         { id: 'word-import' as ToolTab, label: 'Word Import', emoji: '📄' },
@@ -611,7 +611,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                             </svg>
                             <p className="text-sm font-semibold">No CV generated yet</p>
-                            <p className="text-xs max-w-xs">Generate a CV first, then come back here to see how it looks through a recruiter's eyes.</p>
+                            <p className="text-xs max-w-xs">Generate a CV first, then come back here to check whether the quality rules actually held in the output.</p>
                             {onGoToGenerator && (
                                 <button onClick={() => onGoToGenerator()} className="mt-2 text-xs font-bold px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors">
                                     Go to Generator
@@ -643,22 +643,22 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Recruiter Eye Test</h3>
+                                            <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Output Quality Audit</h3>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${badgeCls}`}>
                                                 {hrResult.verdict}
                                             </span>
                                         </div>
                                         <p className="text-xs text-zinc-500 mt-1 leading-snug">
                                             {hrResult.humanScore >= 85
-                                                ? 'Your CV reads as naturally written. Strong signal variety and clean opener rotation.'
+                                                ? 'Quality rules held cleanly. Good opener variety, no banned phrases, no pronoun leaks.'
                                                 : hrResult.humanScore >= 70
-                                                ? 'Mostly human-sounding. A few patterns a trained recruiter might notice — see signals below.'
+                                                ? 'Most rules held. A few patterns that quality gates may have missed — see signals below.'
                                                 : hrResult.humanScore >= 50
-                                                ? 'Several AI-pattern signals detected. Fix the highlighted issues before sending.'
-                                                : 'High AI-pattern risk. A screening recruiter would likely flag this CV. Address the red signals first.'}
+                                                ? 'Several quality rules leaked through the pipeline. Worth a regeneration pass.'
+                                                : 'Multiple quality rules failed in this output. Regenerate to let the pipeline retry.'}
                                         </p>
                                         <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1.5">
-                                            Zero AI calls — pure structural analysis only.
+                                            Checks whether the generation pipeline's own rules held — no AI calls needed.
                                         </p>
                                     </div>
                                 </div>
