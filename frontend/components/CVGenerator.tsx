@@ -225,6 +225,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [postGenGapResult, setPostGenGapResult] = useState<{
     before: number; closed: number; after: number;
   } | null>(null);
+
+  // CV Diversity Score — instant zero-cost freshness metric.
+  // Compares the new CV's summary words + bullet openers against the previous
+  // generation's snapshot (localStorage). 100 = completely different, 0 = identical.
+  // null = first ever generation (no prior snapshot to compare).
+  const [cvDiversityScore, setCvDiversityScore] = useState<number | null>(null);
   const advanceStage = useCallback((next: GenerationStageId, message: string) => {
     setProgressStage(prev => {
       if (prev && prev !== next) {
@@ -556,6 +562,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     setCvScore(null);
     setPurifyLeaks([]);
     setPostGenGapResult(null);
+    setCvDiversityScore(null);
 
     // Compute which stages are actually relevant for THIS run so the modal
     // only shows steps that will execute (no greyed-out "Scoring" when there
@@ -752,6 +759,30 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           after:  afterCount,
         });
       }
+      // Instant zero-cost diversity score: Jaccard similarity vs previous generation.
+      // Measures word-level freshness so users can see the variance system is working.
+      // No API, no LLM — pure localStorage set arithmetic.
+      setCvDiversityScore((() => {
+        try {
+          const SNAP_KEY = 'cv:last_snapshot';
+          const summaryWords = (generatedData.summary || '').toLowerCase().split(/\W+/).filter(Boolean).slice(0, 60);
+          const bulletOpeners = (generatedData.experience || []).flatMap(exp => {
+            const bullets = Array.isArray(exp.responsibilities) ? exp.responsibilities : [];
+            return bullets.map((b: string) => b.trim().split(/\s+/)[0]?.toLowerCase()).filter(Boolean);
+          });
+          const currentSet = new Set([...summaryWords, ...bulletOpeners]);
+          let score: number | null = null;
+          const storedRaw = localStorage.getItem(SNAP_KEY);
+          if (storedRaw) {
+            const prevSet = new Set(JSON.parse(storedRaw) as string[]);
+            const intersection = [...currentSet].filter(t => prevSet.has(t)).length;
+            const union = new Set([...currentSet, ...prevSet]).size;
+            score = Math.round((1 - (union === 0 ? 0 : intersection / union)) * 100);
+          }
+          localStorage.setItem(SNAP_KEY, JSON.stringify([...currentSet]));
+          return score;
+        } catch { return null; }
+      })());
     }
 
     // Phase 3 — Auto-score against JD (job mode only, silent fail)
@@ -1606,6 +1637,22 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
                 {s.icon} Generated via {lastEngine}
+              </div>
+            );
+          })()}
+
+          {/* CV Diversity Score — how different this generation is from the previous one */}
+          {cvDiversityScore !== null && (() => {
+            const fresh = cvDiversityScore;
+            const [bg, text, dot, tip] =
+              fresh >= 70 ? ['bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800', 'text-emerald-700 dark:text-emerald-300', 'bg-emerald-500', 'This CV is very different from your last generation — the variance system is working well.']
+            : fresh >= 40 ? ['bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800',   'text-amber-700 dark:text-amber-300',   'bg-amber-500',   'Moderate freshness vs last generation. Try a different job description or generation mode for more variety.']
+            :               ['bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800',      'text-rose-700 dark:text-rose-300',     'bg-rose-500',    'This CV is very similar to your last generation. Try changing the job description or generation mode.'];
+            return (
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${bg} ${text}`}
+                   title={tip}>
+                <span className={`w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0`} />
+                ↺ {fresh}% fresh vs last CV
               </div>
             );
           })()}

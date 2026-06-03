@@ -51,6 +51,7 @@ export default {
 
     async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
         ctx.waitUntil(runLeakPromotionCron(env));
+        ctx.waitUntil(runDbCleanupCron(env));
     },
 } satisfies ExportedHandler<Env>;
 
@@ -2163,6 +2164,68 @@ async function handleLeakCandidatesDecide(request: Request, env: Env): Promise<R
     }
     if (promoted > 0) await rebuildBannedKv(env);
     return json({ ok: true, decision, promoted, skipped, kv_synced: promoted > 0 }, request, env);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DB Cleanup Cron — runs nightly alongside leak-promotion
+// Keeps the D1 database lean on the free tier by evicting stale rows from
+// tables that have no per-write self-cleanup or whose TTL is enforced lazily.
+//
+// Target tables and rules:
+//   cv_events          — keep last 90 days only (pure analytics, no TTL)
+//   job_search_cache   — delete all expired rows (has expires_at index)
+//   profile_cache      — evict entries unused for 90 days with low use_count
+//   cv_leak_candidates — delete old promoted/decided rows (acted on, no longer needed)
+//
+// Tables already self-cleaning on write (no cron needed):
+//   llm_cache          — 30-day TTL, cleanup fires on every POST
+//   market_research_cache / jd_analysis_cache — TTL enforced on read
+//   cv_shares          — expired rows deleted on each new share POST
+// ─────────────────────────────────────────────────────────────────────────────
+async function runDbCleanupCron(env: Env): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const summary: Record<string, number> = {};
+
+    try {
+        // 1. cv_events — plain analytics rows, no TTL. Keep 90 days.
+        //    On CF free plan this is the highest-growth table (one row per generation event).
+        const eventsRes = await env.CV_DB.prepare(
+            `DELETE FROM cv_events WHERE created_at < ?`
+        ).bind(now - 90 * 86400).run();
+        summary.cv_events = eventsRes.meta?.changes ?? 0;
+    } catch (e) { summary.cv_events_err = 1; console.error('[cron] cv_events cleanup error', e); }
+
+    try {
+        // 2. job_search_cache — has expires_at but is only cleaned when the
+        //    same search key is requested again. Expired rows accumulate silently.
+        const jobRes = await env.CV_DB.prepare(
+            `DELETE FROM job_search_cache WHERE expires_at < ?`
+        ).bind(now).run();
+        summary.job_search_cache = jobRes.meta?.changes ?? 0;
+    } catch (e) { summary.job_search_cache_err = 1; console.error('[cron] job_search_cache cleanup error', e); }
+
+    try {
+        // 3. profile_cache — per-slot cleanup fires on write, but abandoned slots
+        //    (user cleared their data, or old browser sessions) never get cleaned.
+        //    Evict: last_used_at > 90 days ago AND use_count < 5 (not a hot profile).
+        const profileRes = await env.CV_DB.prepare(
+            `DELETE FROM profile_cache WHERE last_used_at < ? AND use_count < 5`
+        ).bind(now - 90 * 86400).run();
+        summary.profile_cache = profileRes.meta?.changes ?? 0;
+    } catch (e) { summary.profile_cache_err = 1; console.error('[cron] profile_cache cleanup error', e); }
+
+    try {
+        // 4. cv_leak_candidates — old promoted/decided rows stay forever after cron acts on them.
+        //    Safe to delete: they've already been incorporated into the banned-phrase KV list.
+        const leakRes = await env.CV_DB.prepare(
+            `DELETE FROM cv_leak_candidates
+             WHERE status != 'pending'
+               AND decided_at < datetime('now', '-180 days')`
+        ).run();
+        summary.cv_leak_candidates = leakRes.meta?.changes ?? 0;
+    } catch (e) { summary.cv_leak_candidates_err = 1; console.error('[cron] cv_leak_candidates cleanup error', e); }
+
+    console.log(`[cron] db-cleanup: ${JSON.stringify(summary)}`);
 }
 
 async function runLeakPromotionCron(env: Env): Promise<void> {
