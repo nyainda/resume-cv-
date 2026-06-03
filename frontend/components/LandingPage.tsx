@@ -702,57 +702,125 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
           </div>
           <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>Browse templates →</button>
         </div>
-        {/* 3 full-size template cards — readable real content */}
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 32, alignItems: 'start' }}>
+        {/* 4 full-size template cards — readable real content */}
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 28, alignItems: 'start' }}>
           {[
             {
               label: 'Standard Pro',
-              tag: 'Classic · Professional',
+              tag: 'Classic',
               comp: <TemplateStandardPro />,
               accentColor: '#1B2B4B',
-              desc: 'Dark navy header, clean typography. Best for traditional industries — finance, consulting, law.',
+              desc: 'Dark navy header, clean body. Finance, consulting, law.',
             },
             {
               label: 'Navy Sidebar',
-              tag: 'Sidebar · Prestigious',
+              tag: 'Prestigious',
               comp: <TemplateNavySidebar />,
               accentColor: '#1a2f5a',
-              desc: 'Two-column layout with sidebar highlights and monogram crest. Signals seniority and polish.',
+              desc: 'Two-column with monogram crest. Signals seniority.',
             },
             {
               label: 'Executive',
-              tag: 'Luxury · High-level',
+              tag: 'Luxury',
               comp: <TemplateExecutive />,
               accentColor: '#c8a84b',
-              desc: 'Deep brown and gold. For C-suite, senior leadership, and premium industry applications.',
+              desc: 'Brown & gold. C-suite and senior leadership.',
+            },
+            {
+              label: 'Modern Tech',
+              tag: 'Developer',
+              comp: <TemplateModernTech />,
+              accentColor: '#4ade80',
+              desc: 'Terminal aesthetic with code-style headers. SWE, data, product.',
             },
           ].map(({ label, tag, comp, accentColor, desc }, i) => (
             <div key={i} onClick={onGetStarted}
-              style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 16, transition: 'transform 0.2s' }}
+              style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 14, transition: 'transform 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px)')}
               onMouseLeave={e => (e.currentTarget.style.transform = 'none')}>
-              {/* Full-size card — scale 0.65 → 247×338px, actually readable */}
-              <div style={{ borderRadius: 12, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.18)', border: `3px solid transparent`, transition: 'border-color 0.2s' }}
+              <div style={{ borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 36px rgba(0,0,0,0.18)', border: `2.5px solid transparent`, transition: 'border-color 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = accentColor)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}>
-                <TemplateCard scale={0.65} shadow={false}>{comp}</TemplateCard>
+                <TemplateCard scale={0.62} shadow={false}>{comp}</TemplateCard>
               </div>
-              {/* Label */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 3, background: accentColor }} />
-                  <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: '-0.01em' }}>{label}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: elevated, border: `1px solid ${border}`, color: faint }}>{tag}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: accentColor, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 900 }}>{label}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 99, background: elevated, border: `1px solid ${border}`, color: faint, flexShrink: 0 }}>{tag}</span>
                 </div>
-                <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
+                <p style={{ fontSize: 11, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
               </div>
             </div>
           ))}
         </div>
-        <div style={{ maxWidth: 1200, margin: '24px auto 0', textAlign: 'center' }}>
-          <button onClick={onGetStarted} style={{ fontSize: 13, fontWeight: 700, padding: '10px 24px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
+
+        {/* Custom template callout */}
+        <div style={{ maxWidth: 1200, margin: '28px auto 0', padding: '18px 24px', borderRadius: 12, background: darkMode ? '#1a1a1a' : surface, border: `1.5px dashed ${border}`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: Y, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>✦</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 2 }}>Upload your own template</div>
+              <div style={{ fontSize: 12, color: muted }}>Got a custom HTML/CSS design? Upload it and ProCV generates into it automatically — your brand, your layout.</div>
+            </div>
+          </div>
+          <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: Y, border: 'none', cursor: 'pointer', color: '#111', flexShrink: 0 }}>
+            Use my template →
+          </button>
+        </div>
+
+        <div style={{ maxWidth: 1200, margin: '16px auto 0', textAlign: 'center' }}>
+          <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 22px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
             Browse all 35 templates →
           </button>
+        </div>
+      </section>
+
+      {/* ── Power Features strip ──────────────────────────────────────── */}
+      <section
+        ref={reg('pf')} data-s="pf"
+        style={{
+          borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`,
+          padding: '0',
+          opacity: v('pf') ? 1 : 0, transform: v('pf') ? 'none' : 'translateY(16px)',
+          transition: 'opacity 0.5s, transform 0.5s',
+        }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', background: border, gap: 1 }}>
+          {[
+            {
+              icon: '◈',
+              color: '#6366f1',
+              title: 'Multiple profiles',
+              body: 'Keep separate profiles for different career paths — SWE, PM, freelance. Switch instantly without re-entering a thing.',
+            },
+            {
+              icon: '⊙',
+              color: '#0ea5e9',
+              title: 'Custom templates',
+              body: 'Upload your own HTML/CSS design and ProCV writes directly into it. Your layout, your brand, zero compromise.',
+            },
+            {
+              icon: '◐',
+              color: '#22c55e',
+              title: 'Full CV history',
+              body: 'Every CV you generate is saved with its ATS score. Compare any two versions side by side and track your score over time.',
+            },
+            {
+              icon: '✦',
+              color: '#f59e0b',
+              title: 'Job application tracker',
+              body: 'Log every role you apply to — status, notes, salary, recruiter contact. Never lose track of an application again.',
+            },
+          ].map((f, i) => (
+            <div key={i} onClick={onGetStarted}
+              style={{ background: bg, padding: '28px 24px', cursor: 'pointer', transition: 'background 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = elevated)}
+              onMouseLeave={e => (e.currentTarget.style.background = bg)}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: f.color + '22', border: `1px solid ${f.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: f.color, marginBottom: 14 }}>{f.icon}</div>
+              <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 6 }}>{f.title}</div>
+              <div style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>{f.body}</div>
+            </div>
+          ))}
         </div>
       </section>
 
