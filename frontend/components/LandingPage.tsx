@@ -15,406 +15,436 @@ const Y = '#EBFF38';
    Each is a 380×520 div scaled down via transform to fit in the fan
 ───────────────────────────────────────────────────────────────────────── */
 
-/** Standard Professional — dark navy header, clean body */
+/** Standard Professional — dark navy header, clean body, full sections */
 const TemplateStandardPro = () => (
   <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7 }}>
-    {/* Header */}
-    <div style={{ background: '#1B2B4B', padding: '18px 20px 14px', color: '#fff' }}>
-      <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sarah Chen</div>
-      <div style={{ fontSize: 8, color: '#94a8c4', marginTop: 3, letterSpacing: '0.08em' }}>Senior Product Manager</div>
-      <div style={{ display: 'flex', gap: 14, marginTop: 7, fontSize: 6.5, color: '#7fa4c8' }}>
-        <span>sarah.chen@email.com</span>
-        <span>·</span>
-        <span>London, UK</span>
-        <span>·</span>
-        <span>linkedin.com/in/sarahchen</span>
+    <div style={{ background: '#1B2B4B', padding: '12px 16px 10px', color: '#fff' }}>
+      <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Sarah Chen</div>
+      <div style={{ fontSize: 7.5, color: '#94a8c4', marginTop: 2, letterSpacing: '0.06em' }}>Senior Product Manager · Fintech &amp; Payments</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4, fontSize: 5.5, color: '#7fa4c8' }}>
+        <span>sarah.chen@email.com</span><span>·</span><span>+44 7700 900 123</span><span>·</span><span>London, UK</span><span>·</span><span>linkedin.com/in/sarahchen</span><span>·</span><span>github.com/sarahchen</span>
       </div>
     </div>
-    {/* Body */}
-    <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Summary */}
+    <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div>
-        <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1B2B4B', borderBottom: '1.5px solid #1B2B4B', paddingBottom: 2, marginBottom: 5 }}>Professional Summary</div>
-        <div style={{ fontSize: 6.5, lineHeight: 1.55, color: '#374151' }}>Product leader with 6+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Consistently raises ATS scores 2-3× through precise keyword alignment and metric-dense bullets.</div>
+        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#1B2B4B', borderBottom: '1px solid #1B2B4B', paddingBottom: 1.5, marginBottom: 3 }}>Professional Summary</div>
+        <div style={{ fontSize: 5.5, lineHeight: 1.55, color: '#374151' }}>Product leader with 7+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Proven track record building high-performing cross-functional squads, shipping metric-dense roadmaps, and consistently raising ATS scores 2–3× through precise keyword alignment.</div>
       </div>
-      {/* Experience */}
       <div>
-        <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1B2B4B', borderBottom: '1.5px solid #1B2B4B', paddingBottom: 2, marginBottom: 6 }}>Experience</div>
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div style={{ fontWeight: 800, fontSize: 7, color: '#111' }}>Stripe — Senior Product Manager</div>
-            <div style={{ fontSize: 6.5, color: '#6b7280' }}>2022 – Present</div>
-          </div>
-          <div style={{ fontSize: 6.5, color: '#6b7280', marginBottom: 4 }}>London, UK</div>
-          {['Owned end-to-end roadmap for Stripe Checkout (EU), serving 2.4M merchants; shipped 18 features in 12 months driving £12.6M ARR.', 'Reduced cart-abandonment 34% by A/B-testing 22 UX variants — directly adding £2.1M annual revenue.', 'Grew NPS 42 → 78 through a personalised onboarding redesign (n=180 user interviews, 3 cohort studies).'].map((b, i) => (
-            <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2.5 }}>
-              <span style={{ color: '#1B2B4B', fontWeight: 900, flexShrink: 0 }}>·</span>
-              <span style={{ fontSize: 6.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#1B2B4B', borderBottom: '1px solid #1B2B4B', paddingBottom: 1.5, marginBottom: 4 }}>Professional Experience</div>
+        {[
+          { co: 'Stripe', role: 'Senior Product Manager', dates: '2022–Present', loc: 'London, UK', bullets: ['Owned Checkout EU roadmap (2.4M merchants); shipped 18 features → £12.6M ARR in 18 months', 'Cut cart abandonment 34% via 22-variant A/B programme — incremental £2.1M annual revenue', 'Grew NPS 42 → 78 via personalised onboarding redesign (n=180 interviews, 3 cohort studies)', 'Led cross-functional squad of 12 (eng, design, data) with zero missed quarterly milestones'] },
+          { co: 'Monzo', role: 'Product Manager', dates: '2019–2022', loc: 'London, UK', bullets: ['Launched Monzo Business Lite — 40K SME accounts in 6 months at £0 paid acquisition spend', 'Built OKR framework across 8 squads; delivery variance from 63% → 12%', 'Reduced support ticket volume 22% via self-serve tooling shipped in 6 weeks'] },
+          { co: 'Deliveroo', role: 'Associate Product Manager', dates: '2016–2019', loc: 'London, UK', bullets: ['Shipped restaurant dashboard adopted by 12K partners within 3 months of launch', 'Cut order error rate 18% through menu validation pipeline and structured data tooling'] },
+        ].map((job, ji) => (
+          <div key={ji} style={{ marginBottom: ji < 2 ? 5 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div style={{ fontWeight: 800, fontSize: 6.5, color: '#111' }}>{job.co} — <span style={{ fontWeight: 600 }}>{job.role}</span></div>
+              <div style={{ fontSize: 5.5, color: '#6b7280', flexShrink: 0, marginLeft: 4 }}>{job.dates}</div>
             </div>
-          ))}
-        </div>
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div style={{ fontWeight: 800, fontSize: 7, color: '#111' }}>Monzo — Product Manager</div>
-            <div style={{ fontSize: 6.5, color: '#6b7280' }}>2019 – 2022</div>
+            <div style={{ fontSize: 5, color: '#9ca3af', marginBottom: 2 }}>{job.loc}</div>
+            {job.bullets.map((b, i) => (
+              <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 1.5 }}>
+                <span style={{ color: '#1B2B4B', fontWeight: 900, flexShrink: 0, fontSize: 8, lineHeight: '1' }}>·</span>
+                <span style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+              </div>
+            ))}
           </div>
-          <div style={{ fontSize: 6.5, color: '#6b7280', marginBottom: 4 }}>London, UK</div>
-          {['Launched Monzo Business Lite, acquiring 40K SME customers in 6 months (£0 paid spend).', 'Defined OKR framework adopted across 8 product squads — reduced delivery variance 51%.'].map((b, i) => (
-            <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2.5 }}>
-              <span style={{ color: '#1B2B4B', fontWeight: 900, flexShrink: 0 }}>·</span>
-              <span style={{ fontSize: 6.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
-            </div>
+        ))}
+      </div>
+      <div>
+        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#1B2B4B', borderBottom: '1px solid #1B2B4B', paddingBottom: 1.5, marginBottom: 3 }}>Core Skills</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          {['Product Strategy', 'Roadmapping', 'OKRs', 'A/B Testing', 'SQL', 'Python', 'Figma', 'Amplitude', 'Stakeholder Mgmt', 'Agile / Scrum', 'Go-to-Market', 'API Products', 'Payments & Fintech', 'Jira', 'Data Analytics', 'User Research'].map(s => (
+            <span key={s} style={{ fontSize: 5, padding: '1.5px 4px', background: '#EEF2FF', border: '0.5px solid #C7D2FE', borderRadius: 2, color: '#3730a3' }}>{s}</span>
           ))}
         </div>
       </div>
-      {/* Skills */}
       <div>
-        <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1B2B4B', borderBottom: '1.5px solid #1B2B4B', paddingBottom: 2, marginBottom: 5 }}>Skills</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {['Product Strategy', 'Roadmapping', 'OKRs', 'A/B Testing', 'SQL', 'Figma', 'Stakeholder Mgmt', 'Agile / Scrum', 'Data Analytics', 'Go-to-Market', 'API Products', 'Payments'].map(s => (
-            <span key={s} style={{ fontSize: 6, padding: '2px 5px', background: '#EEF2FF', border: '0.5px solid #C7D2FE', borderRadius: 2, color: '#3730a3' }}>{s}</span>
+        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#1B2B4B', borderBottom: '1px solid #1B2B4B', paddingBottom: 1.5, marginBottom: 3 }}>Education &amp; Certifications</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 6 }}>UCL — BSc Computer Science, First Class Honours</div>
+            <div style={{ fontSize: 5, color: '#6b7280' }}>Dissertation: ML-based fraud detection · Dean's List 2018, 2019</div>
+          </div>
+          <div style={{ fontSize: 5.5, color: '#6b7280', flexShrink: 0, marginLeft: 6 }}>2016–2019</div>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2.5 }}>
+          {['Certified Scrum PO (CSPO)', 'AWS Cloud Practitioner', 'Google Analytics Certified', 'Pragmatic Marketing PMC-III'].map(c => (
+            <span key={c} style={{ fontSize: 5, padding: '1.5px 4px', background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: 2, color: '#15803d' }}>{c}</span>
           ))}
         </div>
       </div>
-      {/* Education */}
-      <div>
-        <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1B2B4B', borderBottom: '1.5px solid #1B2B4B', paddingBottom: 2, marginBottom: 4 }}>Education</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div><div style={{ fontWeight: 800, fontSize: 7 }}>UCL — BSc Computer Science</div><div style={{ fontSize: 6.5, color: '#6b7280' }}>First Class Honours · Dissertation: ML-based fraud detection</div></div>
-          <div style={{ fontSize: 6.5, color: '#6b7280' }}>2016 – 2019</div>
-        </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#1B2B4B', flexShrink: 0 }}>Languages:</div>
+        {[['English', 'Native'], ['Mandarin', 'Fluent'], ['French', 'Conversational']].map(([lang, level]) => (
+          <span key={lang} style={{ fontSize: 5.5, color: '#374151' }}>{lang} <span style={{ color: '#9ca3af' }}>({level})</span></span>
+        ))}
       </div>
     </div>
   </div>
 );
 
-/** Navy Sidebar — dark navy left panel, monogram crest, serif accents */
+/** Navy Sidebar — dark navy left panel, monogram crest, full sections */
 const TemplateNavySidebar = () => (
   <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7, display: 'flex' }}>
-    {/* Sidebar */}
-    <div style={{ width: 114, background: '#1a2f5a', color: '#fff', padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
-      {/* Photo */}
-      <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#3a5a8a', border: '1.5px solid #7fa8d8', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#7fa8d8' }}>SC</div>
+    <div style={{ width: 112, background: '#1a2f5a', color: '#fff', padding: '12px 9px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#3a5a8a', border: '1.5px solid #7fa8d8', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#7fa8d8' }}>SC</div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sarah Chen</div>
-        <div style={{ fontSize: 6, color: '#7fa8d8', marginTop: 2 }}>Senior PM</div>
+        <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sarah Chen</div>
+        <div style={{ fontSize: 5.5, color: '#7fa8d8', marginTop: 2 }}>Senior PM · Fintech</div>
       </div>
-      {/* Contact */}
       <div>
-        <div style={{ fontSize: 6.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#7fa8d8', borderBottom: '0.5px solid #7fa8d8', paddingBottom: 2, marginBottom: 4 }}>Contact</div>
-        {['sarah.chen@email.com', '+44 7700 900 123', 'London, UK', 'linkedin.com/in/sc'].map((c, i) => (
-          <div key={i} style={{ fontSize: 6, color: '#b8cfe8', marginBottom: 2.5 }}>{c}</div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7fa8d8', borderBottom: '0.5px solid #3a5a8a', paddingBottom: 1.5, marginBottom: 3 }}>Contact</div>
+        {['sarah.chen@email.com', '+44 7700 900 123', 'London, UK', 'linkedin.com/in/sarahchen', 'github.com/sarahchen'].map((c, i) => (
+          <div key={i} style={{ fontSize: 5.5, color: '#b8cfe8', marginBottom: 2 }}>{c}</div>
         ))}
       </div>
-      {/* Skills */}
       <div>
-        <div style={{ fontSize: 6.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#7fa8d8', borderBottom: '0.5px solid #7fa8d8', paddingBottom: 2, marginBottom: 4 }}>Skills</div>
-        {['Product Strategy', 'A/B Testing', 'SQL & Analytics', 'Figma / Prototyping', 'OKR Frameworks', 'Agile / Scrum', 'Stakeholder Mgmt', 'Go-to-Market', 'API & Payments', 'Data Storytelling'].map((s, i) => (
-          <div key={i} style={{ fontSize: 5.5, color: '#b8cfe8', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#7fa8d8', flexShrink: 0 }} />{s}
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7fa8d8', borderBottom: '0.5px solid #3a5a8a', paddingBottom: 1.5, marginBottom: 3 }}>Skills</div>
+        {['Product Strategy', 'A/B Testing', 'SQL & Analytics', 'Figma / Prototyping', 'OKR Frameworks', 'Agile / Scrum', 'Stakeholder Mgmt', 'Go-to-Market', 'API & Payments', 'Data Storytelling', 'Python', 'Jira / Amplitude'].map((s, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#b8cfe8', marginBottom: 1.5, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: '#7fa8d8', flexShrink: 0 }} />{s}
           </div>
         ))}
       </div>
-      {/* Career highlights */}
       <div>
-        <div style={{ fontSize: 6.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#7fa8d8', borderBottom: '0.5px solid #7fa8d8', paddingBottom: 2, marginBottom: 4 }}>Highlights</div>
-        {['£12.6M ARR', '2.4M merchants', 'NPS: 42 → 78', '40K SME launch'].map((h, i) => (
-          <div key={i} style={{ fontSize: 6, borderLeft: '1.5px solid #7fa8d8', paddingLeft: 4, marginBottom: 4, color: '#d4e4f4', lineHeight: 1.4 }}>{h}</div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7fa8d8', borderBottom: '0.5px solid #3a5a8a', paddingBottom: 1.5, marginBottom: 3 }}>Key Wins</div>
+        {['£12.6M ARR in 18mo', '2.4M merchants served', 'NPS uplift 42 → 78', '40K SME launch at £0', '-34% cart abandonment', '8 squads aligned on OKRs'].map((h, i) => (
+          <div key={i} style={{ fontSize: 5, borderLeft: '1.5px solid #7fa8d8', paddingLeft: 3, marginBottom: 3, color: '#d4e4f4', lineHeight: 1.4 }}>{h}</div>
         ))}
       </div>
-      {/* Crest */}
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7fa8d8', borderBottom: '0.5px solid #3a5a8a', paddingBottom: 1.5, marginBottom: 3 }}>Languages</div>
+        {[['English', 'Native'], ['Mandarin', 'Fluent'], ['French', 'Conv.']].map(([l, v]) => (
+          <div key={l} style={{ fontSize: 5, color: '#b8cfe8', marginBottom: 2 }}>{l} <span style={{ color: '#7fa8d8' }}>— {v}</span></div>
+        ))}
+      </div>
       <div style={{ marginTop: 'auto', textAlign: 'center' }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #3a5a8a', margin: '0 auto 3px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontFamily: 'Georgia,serif', fontWeight: 900, color: '#7fa8d8' }}>SC</div>
-        <div style={{ fontSize: 5, color: '#3a5a8a', fontFamily: 'Georgia,serif', letterSpacing: '0.2em' }}>MMXXV</div>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid #3a5a8a', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontFamily: 'Georgia,serif', fontWeight: 900, color: '#7fa8d8' }}>SC</div>
+        <div style={{ fontSize: 4.5, color: '#3a5a8a', fontFamily: 'Georgia,serif', letterSpacing: '0.2em' }}>MMXXV</div>
       </div>
     </div>
-    {/* Main */}
-    <div style={{ flex: 1, padding: '14px 14px', overflow: 'hidden' }}>
-      <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#18181b', lineHeight: 1 }}>Sarah Chen</div>
-      <div style={{ fontSize: 7, color: '#7fa8d8', marginBottom: 10, marginTop: 2 }}>Senior Product Manager · 6 Years Experience</div>
-      {/* Experience */}
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1a2f5a', borderBottom: '1px solid #1a2f5a', paddingBottom: 2, marginBottom: 6 }}>Experience</div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontWeight: 800, fontSize: 7, color: '#111' }}>Stripe · Senior PM <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 6 }}>2022–Present</span></div>
-        {['Owned Checkout EU roadmap (2.4M merchants); shipped 18 features → £12.6M ARR', 'A/B-tested 22 UX variants — cut abandonment 34%, adding £2.1M revenue', 'Redesigned onboarding from 180 interviews → NPS 42 → 78'].map((b, i) => (
-          <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 2, marginTop: i === 0 ? 3 : 0 }}>
-            <span style={{ color: '#7fa8d8', fontWeight: 900, flexShrink: 0, fontSize: 7 }}>·</span>
-            <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
-          </div>
+    <div style={{ flex: 1, padding: '12px 12px', overflow: 'hidden' }}>
+      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#18181b', lineHeight: 1 }}>Sarah Chen</div>
+      <div style={{ fontSize: 6, color: '#7fa8d8', marginBottom: 8, marginTop: 2 }}>Senior Product Manager · 7 Years in Fintech &amp; Payments</div>
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#1a2f5a', borderBottom: '1px solid #1a2f5a', paddingBottom: 1.5, marginBottom: 4 }}>Experience</div>
+      {[
+        { co: 'Stripe', role: 'Senior Product Manager', dates: '2022–Present', bullets: ['Owned Checkout EU (2.4M merchants); 18 features → £12.6M ARR', 'Cut abandonment 34% via 22-variant A/B programme (+£2.1M)', 'Grew NPS 42 → 78 via onboarding redesign (n=180 interviews)', 'Led 12-person cross-functional squad, zero missed milestones'] },
+        { co: 'Monzo', role: 'Product Manager', dates: '2019–2022', bullets: ['Launched Business Lite — 40K SMEs in 6mo, £0 paid spend', 'OKR framework across 8 squads; variance 63% → 12%', 'Reduced support tickets 22% via self-serve tooling'] },
+        { co: 'Deliveroo', role: 'Associate PM', dates: '2016–2019', bullets: ['Restaurant dashboard adopted by 12K partners in 3mo', 'Cut order error rate 18% via menu validation pipeline'] },
+      ].map((job, ji) => (
+        <div key={ji} style={{ marginBottom: ji < 2 ? 5 : 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 6, color: '#111' }}>{job.co} · <span style={{ fontWeight: 600 }}>{job.role}</span> <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: 5.5 }}>{job.dates}</span></div>
+          {job.bullets.map((b, i) => (
+            <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 1.5, marginTop: i === 0 ? 2 : 0 }}>
+              <span style={{ color: '#7fa8d8', fontWeight: 900, flexShrink: 0, fontSize: 7 }}>·</span>
+              <span style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#1a2f5a', borderBottom: '1px solid #1a2f5a', paddingBottom: 1.5, marginBottom: 3, marginTop: 5 }}>Education &amp; Certifications</div>
+      <div style={{ fontWeight: 800, fontSize: 6 }}>UCL — BSc Computer Science <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 5.5 }}>First Class Honours · 2016–2019</span></div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 3 }}>
+        {['CSPO', 'AWS CPP', 'Google Analytics', 'PMC-III'].map(c => (
+          <span key={c} style={{ fontSize: 5, padding: '1px 4px', background: '#eff6ff', border: '0.5px solid #bfdbfe', borderRadius: 2, color: '#1d4ed8' }}>{c}</span>
         ))}
       </div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ fontWeight: 800, fontSize: 7, color: '#111' }}>Monzo · PM <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 6 }}>2019–2022</span></div>
-        {['Launched Monzo Business Lite — 40K SME accounts in 6 months, £0 paid spend', 'Built OKR framework across 8 squads, reducing delivery variance 51%'].map((b, i) => (
-          <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 2, marginTop: i === 0 ? 3 : 0 }}>
-            <span style={{ color: '#7fa8d8', fontWeight: 900, flexShrink: 0, fontSize: 7 }}>·</span>
-            <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
-          </div>
-        ))}
-      </div>
-      {/* Education */}
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1a2f5a', borderBottom: '1px solid #1a2f5a', paddingBottom: 2, marginBottom: 5 }}>Education</div>
-      <div style={{ fontWeight: 800, fontSize: 7 }}>UCL — BSc Computer Science <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 6 }}>2016–2019 · First Class</span></div>
     </div>
   </div>
 );
 
-/** Executive Sidebar — deep brown/gold, luxury feel */
+/** Executive Sidebar — deep brown/gold, luxury feel, full sections */
 const TemplateExecutive = () => (
   <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7, display: 'flex' }}>
-    {/* Sidebar */}
-    <div style={{ width: 122, background: '#2e2510', color: '#fff', padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
-      {/* Photo */}
-      <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#4a3820', border: '1.5px solid #c8a84b', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#c8a84b' }}>SC</div>
+    <div style={{ width: 118, background: '#2e2510', color: '#fff', padding: '12px 9px', display: 'flex', flexDirection: 'column', gap: 7, flexShrink: 0 }}>
+      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#4a3820', border: '1.5px solid #c8a84b', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#c8a84b' }}>SC</div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: '0.04em', color: '#f5e6c8' }}>Sarah Chen</div>
-        <div style={{ fontSize: 6, color: '#c8a84b', marginTop: 2, fontStyle: 'italic', fontFamily: 'Georgia,serif' }}>Senior Product Manager</div>
+        <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: '0.04em', color: '#f5e6c8' }}>Sarah Chen</div>
+        <div style={{ fontSize: 5.5, color: '#c8a84b', marginTop: 2, fontStyle: 'italic', fontFamily: 'Georgia,serif' }}>Sr. Product Manager</div>
       </div>
-      {/* Contact */}
       <div>
-        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 2, marginBottom: 4 }}>Contact</div>
-        {['sarah.chen@email.com', 'London, UK', '+44 7700 900 123'].map((c, i) => (
-          <div key={i} style={{ fontSize: 5.5, color: '#d4c4a0', marginBottom: 3 }}>{c}</div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 1.5, marginBottom: 3 }}>Contact</div>
+        {['sarah.chen@email.com', 'London, UK', '+44 7700 900 123', 'linkedin.com/in/sarahchen'].map((c, i) => (
+          <div key={i} style={{ fontSize: 5.5, color: '#d4c4a0', marginBottom: 2 }}>{c}</div>
         ))}
       </div>
-      {/* Skills */}
       <div>
-        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 2, marginBottom: 4 }}>Expertise</div>
-        {['Product Strategy', 'P&L Ownership', 'Go-to-Market', 'OKR Frameworks', 'Stakeholder Mgmt', 'Payments & Fintech', 'A/B Testing', 'SQL & Analytics'].map((s, i) => (
-          <div key={i} style={{ fontSize: 5.5, color: '#d4c4a0', marginBottom: 2.5, display: 'flex', gap: 3, alignItems: 'center' }}>
-            <span style={{ color: '#c8a84b', fontSize: 7 }}>—</span>{s}
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 1.5, marginBottom: 3 }}>Expertise</div>
+        {['Product Strategy', 'P&L Ownership', 'Go-to-Market', 'OKR Frameworks', 'Board Reporting', 'Stakeholder Mgmt', 'Payments & Fintech', 'A/B Testing', 'SQL & Analytics', 'User Research', 'Agile / Scrum'].map((s, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#d4c4a0', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'center' }}>
+            <span style={{ color: '#c8a84b', fontSize: 6, lineHeight: 1 }}>—</span>{s}
           </div>
         ))}
       </div>
-      {/* Notable Achievements */}
       <div>
-        <div style={{ fontSize: 6, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 2, marginBottom: 4 }}>Notable</div>
-        {['£12.6M ARR in 18 mo', '40K SMEs at £0 CAC', 'NPS uplift +36 pts', 'ATS: 31 → 94'].map((a, i) => (
-          <div key={i} style={{ fontSize: 5.5, color: '#d4c4a0', marginBottom: 3, fontStyle: 'italic', fontFamily: 'Georgia,serif', lineHeight: 1.4 }}>— {a}</div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 1.5, marginBottom: 3 }}>Career Wins</div>
+        {['£12.6M ARR in 18 mo', '40K SMEs, £0 CAC', 'NPS +36 pts (42→78)', 'ATS 31 → 94', '-34% cart abandon', '12 engineers led'].map((a, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#d4c4a0', marginBottom: 2, fontStyle: 'italic', fontFamily: 'Georgia,serif', lineHeight: 1.4 }}>— {a}</div>
         ))}
       </div>
-      {/* Crest */}
-      <div style={{ marginTop: 'auto', borderTop: '0.5px solid #4a3820', paddingTop: 8 }}>
-        <div style={{ borderTop: '0.5px solid rgba(200,168,75,0.4)', paddingTop: 4, textAlign: 'center' }}>
-          <div style={{ fontSize: 5, fontFamily: 'Georgia,serif', letterSpacing: '0.3em', color: 'rgba(200,168,75,0.7)', textTransform: 'uppercase' }}>Est. 2019</div>
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#c8a84b', borderBottom: '0.5px solid #4a3820', paddingBottom: 1.5, marginBottom: 3 }}>Languages</div>
+        {['English — Native', 'Mandarin — Fluent', 'French — Conv.'].map((l, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#d4c4a0', marginBottom: 2 }}>{l}</div>
+        ))}
+      </div>
+      <div style={{ marginTop: 'auto' }}>
+        <div style={{ borderTop: '0.5px solid rgba(200,168,75,0.3)', paddingTop: 5, textAlign: 'center' }}>
+          <div style={{ fontSize: 4.5, fontFamily: 'Georgia,serif', letterSpacing: '0.3em', color: 'rgba(200,168,75,0.6)', textTransform: 'uppercase' }}>Est. 2016</div>
         </div>
       </div>
     </div>
-    {/* Main */}
-    <div style={{ flex: 1, padding: '14px 14px' }}>
-      <div style={{ borderBottom: '2px solid #c8a84b', paddingBottom: 8, marginBottom: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.04em', color: '#18181b' }}>SARAH CHEN</div>
-        <div style={{ fontSize: 7, color: '#6b7280', marginTop: 2, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Senior Product Manager · Fintech & Payments</div>
+    <div style={{ flex: 1, padding: '12px 12px', overflow: 'hidden' }}>
+      <div style={{ borderBottom: '2px solid #c8a84b', paddingBottom: 6, marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '0.04em', color: '#18181b' }}>SARAH CHEN</div>
+        <div style={{ fontSize: 6, color: '#6b7280', marginTop: 2, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Senior Product Manager · Fintech &amp; Payments</div>
       </div>
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#2e2510', borderBottom: '1px solid #c8a84b', paddingBottom: 2, marginBottom: 6 }}>Career History</div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontWeight: 800, fontSize: 7 }}>Stripe — Senior Product Manager</div>
-          <div style={{ fontSize: 6, color: '#6b7280' }}>2022–Present</div>
-        </div>
-        {['Owned Checkout EU roadmap across 2.4M merchants; delivered 18 features generating £12.6M ARR in 18 months', 'Reduced cart abandonment 34% via 22-variant UX testing programme — incremental £2.1M revenue uplift', 'Improved NPS 42 → 78 after 180-interview onboarding redesign (3-cohort validation, shipped in 11 weeks)'].map((b, i) => (
-          <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2.5, marginTop: i === 0 ? 4 : 0 }}>
-            <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#c8a84b', flexShrink: 0, marginTop: 3 }} />
-            <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+      <div style={{ fontSize: 5.5, lineHeight: 1.55, color: '#4b5563', marginBottom: 7, fontStyle: 'italic', fontFamily: 'Georgia,serif' }}>Product leader with 7+ years scaling platforms to £10M+ ARR. Specialist in payments, fintech, and B2B SaaS. Track record of building high-output squads, aligning leadership on vision, and delivering metric-dense roadmaps on schedule.</div>
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#2e2510', borderBottom: '1px solid #c8a84b', paddingBottom: 1.5, marginBottom: 4 }}>Career History</div>
+      {[
+        { co: 'Stripe', role: 'Senior Product Manager', dates: '2022–Present', bullets: ['Owned Checkout EU (2.4M merchants); 18 features → £12.6M ARR in 18 months', 'Reduced abandonment 34% via 22-variant A/B programme (+£2.1M uplift)', 'Grew NPS 42 → 78 via onboarding redesign (n=180 interviews, 3-cohort study)', 'Managed 12-person cross-functional squad — zero missed quarterly targets'] },
+        { co: 'Monzo', role: 'Product Manager', dates: '2019–2022', bullets: ['Launched Business Lite — 40K SME accounts in 6 months at £0 paid spend', 'OKR framework for 8 squads; delivery variance 63% → 12%', 'Self-serve tooling cut support ticket volume by 22% in 6 weeks'] },
+        { co: 'Deliveroo', role: 'Associate PM', dates: '2016–2019', bullets: ['Restaurant dashboard adopted by 12K partners in 3 months post-launch', 'Cut order error rate 18% via menu validation &amp; structured data pipeline'] },
+      ].map((job, ji) => (
+        <div key={ji} style={{ marginBottom: ji < 2 ? 5 : 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <div style={{ fontWeight: 800, fontSize: 6 }}>{job.co} — <span style={{ fontWeight: 600 }}>{job.role}</span></div>
+            <div style={{ fontSize: 5.5, color: '#6b7280', flexShrink: 0, marginLeft: 4 }}>{job.dates}</div>
           </div>
+          {job.bullets.map((b, i) => (
+            <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 1.5, marginTop: i === 0 ? 3 : 0 }}>
+              <span style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: '#c8a84b', flexShrink: 0, marginTop: 3 }} />
+              <span style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151' }} dangerouslySetInnerHTML={{ __html: b }} />
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#2e2510', borderBottom: '1px solid #c8a84b', paddingBottom: 1.5, marginBottom: 3, marginTop: 5 }}>Education &amp; Certifications</div>
+      <div style={{ fontWeight: 800, fontSize: 6 }}>UCL — BSc Computer Science, First Class Honours <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 5.5 }}>2016–2019</span></div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 3 }}>
+        {['CSPO', 'AWS Cloud Practitioner', 'Google Analytics Certified', 'PMC-III'].map(c => (
+          <span key={c} style={{ fontSize: 5, padding: '1px 4px', background: '#fefce8', border: '0.5px solid #fde68a', borderRadius: 2, color: '#92400e' }}>{c}</span>
         ))}
       </div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontWeight: 800, fontSize: 7 }}>Monzo — Product Manager</div>
-          <div style={{ fontSize: 6, color: '#6b7280' }}>2019–2022</div>
-        </div>
-        {['Launched Monzo Business Lite, acquiring 40K SME accounts in 6 months at £0 paid spend', 'Defined OKR framework adopted by 8 squads — cut delivery variance from 63% to 12%'].map((b, i) => (
-          <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2.5, marginTop: i === 0 ? 4 : 0 }}>
-            <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#c8a84b', flexShrink: 0, marginTop: 3 }} />
-            <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#2e2510', borderBottom: '1px solid #c8a84b', paddingBottom: 2, marginBottom: 5 }}>Education</div>
-      <div style={{ fontWeight: 800, fontSize: 7 }}>UCL · BSc Computer Science — First Class Honours <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 6 }}>2016–2019</span></div>
     </div>
   </div>
 );
 
-/** Modern Tech — terminal aesthetic, dark charcoal sidebar */
+/** Modern Tech — terminal aesthetic, dark charcoal sidebar, full sections */
 const TemplateModernTech = () => (
   <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7, display: 'flex' }}>
-    {/* Sidebar */}
-    <div style={{ width: 114, background: '#1f2937', color: '#fff', padding: '14px 9px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+    <div style={{ width: 112, background: '#1f2937', color: '#fff', padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 7, flexShrink: 0 }}>
       <div>
-        <div style={{ fontSize: 8, fontWeight: 900, color: '#f9fafb' }}>Sarah Chen</div>
-        <div style={{ fontSize: 5.5, color: '#60a5fa', fontFamily: 'monospace', marginTop: 2 }}>~/senior-pm</div>
-      </div>
-      {/* Skills as chips */}
-      <div>
-        <div style={{ fontSize: 5.5, color: '#9ca3af', fontFamily: 'monospace', marginBottom: 4 }}>/* Skills */</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-          {['SQL', 'Figma', 'A/B Tests', 'OKRs', 'Python', 'Jira', 'APIs', 'Roadmap', 'Agile', 'Payments'].map((s, i) => (
-            <span key={i} style={{ fontSize: 5, padding: '1.5px 4px', background: '#374151', color: '#d1d5db', borderRadius: 2 }}>{s}</span>
+        <div style={{ fontSize: 7.5, fontWeight: 900, color: '#f9fafb' }}>Sarah Chen</div>
+        <div style={{ fontSize: 5, color: '#60a5fa', fontFamily: 'monospace', marginTop: 1 }}>~/senior-pm · fintech</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 4 }}>
+          {['sarah.chen@email.com', '+44 7700 900 123', 'London, UK', 'github.com/sarahchen'].map((c, i) => (
+            <div key={i} style={{ fontSize: 5, color: '#9ca3af', fontFamily: 'monospace' }}>{c}</div>
           ))}
         </div>
       </div>
-      {/* Impact */}
       <div>
-        <div style={{ fontSize: 5.5, color: '#9ca3af', fontFamily: 'monospace', marginBottom: 4 }}>/* Impact */</div>
-        {['£12.6M ARR', '2.4M merchants', 'NPS +36 pts', '40K SMEs', '-34% abandon'].map((h, i) => (
-          <div key={i} style={{ fontSize: 5.5, color: '#86efac', display: 'flex', gap: 3, marginBottom: 2.5 }}>
-            <span style={{ color: '#4ade80' }}>›</span>{h}
+        <div style={{ fontSize: 5, color: '#6b7280', fontFamily: 'monospace', marginBottom: 3 }}>{'// skills'}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          {['SQL', 'Python', 'Figma', 'A/B Tests', 'OKRs', 'Amplitude', 'Jira', 'APIs', 'Roadmap', 'Agile', 'Payments', 'Mixpanel', 'dbt', 'Looker'].map((s, i) => (
+            <span key={i} style={{ fontSize: 4.5, padding: '1.5px 4px', background: '#374151', color: '#d1d5db', borderRadius: 2 }}>{s}</span>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 5, color: '#6b7280', fontFamily: 'monospace', marginBottom: 3 }}>{'// impact'}</div>
+        {['£12.6M ARR', '2.4M merchants', 'NPS 42 → 78', '40K SMEs, £0 CAC', '-34% abandon', '-18% error rate', '8 squads aligned', '12 eng managed'].map((h, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#86efac', display: 'flex', gap: 3, marginBottom: 2 }}>
+            <span style={{ color: '#4ade80', flexShrink: 0 }}>›</span>{h}
           </div>
         ))}
       </div>
-      {/* Repos */}
       <div>
-        <div style={{ fontSize: 5.5, color: '#9ca3af', fontFamily: 'monospace', marginBottom: 4 }}>/* Repos */</div>
-        {['~/checkout-eu-v2', '~/monzo-biz-lite', '~/okr-framework'].map((r, i) => (
-          <div key={i} style={{ fontSize: 5, color: '#60a5fa', fontFamily: 'monospace', marginBottom: 2.5 }}>{r}</div>
+        <div style={{ fontSize: 5, color: '#6b7280', fontFamily: 'monospace', marginBottom: 3 }}>{'// repos'}</div>
+        {['~/checkout-eu-v2', '~/monzo-biz-lite', '~/okr-framework', '~/menu-validator', '~/ats-analyser'].map((r, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#60a5fa', fontFamily: 'monospace', marginBottom: 1.5 }}>{r}</div>
         ))}
       </div>
-      {/* Terminal footer */}
-      <div style={{ marginTop: 'auto', borderTop: '0.5px solid #374151', paddingTop: 6 }}>
-        <div style={{ fontSize: 5, fontFamily: 'monospace', color: '#4ade80' }}>$ generated</div>
-        <div style={{ fontSize: 4.5, fontFamily: 'monospace', color: '#374151', marginTop: 1 }}>--on=2025-05-14</div>
+      <div>
+        <div style={{ fontSize: 5, color: '#6b7280', fontFamily: 'monospace', marginBottom: 3 }}>{'// languages'}</div>
+        {['EN — native', 'ZH — fluent', 'FR — conv.'].map((l, i) => (
+          <div key={i} style={{ fontSize: 5, color: '#9ca3af', fontFamily: 'monospace', marginBottom: 1.5 }}>{l}</div>
+        ))}
+      </div>
+      <div style={{ marginTop: 'auto', borderTop: '0.5px solid #374151', paddingTop: 5 }}>
+        <div style={{ fontSize: 4.5, fontFamily: 'monospace', color: '#4ade80' }}>$ procv generate</div>
+        <div style={{ fontSize: 4, fontFamily: 'monospace', color: '#374151', marginTop: 1 }}>--on=2025-05-14 ✓</div>
       </div>
     </div>
-    {/* Main */}
-    <div style={{ flex: 1, padding: '14px 13px' }}>
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '-0.02em', color: '#111827' }}>Sarah Chen</div>
-        <div style={{ fontSize: 7, color: '#6b7280', fontFamily: 'monospace', marginTop: 2 }}>Senior Product Manager · Fintech</div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 5.5, color: '#60a5fa', fontFamily: 'monospace' }}>
-          <span>sarah.chen@email.com</span>
-          <span>·</span>
-          <span>London, UK</span>
-        </div>
-      </div>
-      <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1f2937', borderBottom: '1.5px solid #1f2937', paddingBottom: 2, marginBottom: 6 }}>Experience</div>
+    <div style={{ flex: 1, padding: '12px 11px', overflow: 'hidden' }}>
       <div style={{ marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontWeight: 800, fontSize: 7 }}>Stripe — Senior PM</div>
-          <div style={{ fontSize: 5.5, color: '#6b7280', fontFamily: 'monospace' }}>2022–Present</div>
-        </div>
-        {['Owned Checkout EU (2.4M merchants); shipped 18 features → £12.6M ARR in 18mo', 'Cut abandonment 34% via 22-variant A/B programme (+£2.1M revenue)', 'Redesigned onboarding (180 interviews) — NPS 42 → 78'].map((b, i) => (
-          <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 2, marginTop: i === 0 ? 3 : 0 }}>
-            <span style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: 7, flexShrink: 0 }}>›</span>
-            <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '-0.02em', color: '#111827' }}>Sarah Chen</div>
+        <div style={{ fontSize: 6, color: '#6b7280', fontFamily: 'monospace', marginTop: 1 }}>Senior Product Manager · Fintech &amp; Payments</div>
+      </div>
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#1f2937', borderBottom: '1.5px solid #1f2937', paddingBottom: 1.5, marginBottom: 4 }}>Experience</div>
+      {[
+        { co: 'Stripe', role: 'Senior PM', dates: '2022–Present', bullets: ['Owned Checkout EU (2.4M merchants); 18 features → £12.6M ARR', 'Cut abandonment 34% via 22-variant A/B programme (+£2.1M revenue)', 'Redesigned onboarding (n=180) — NPS 42 → 78 in 11 weeks', 'Led 12-person cross-functional squad, zero missed milestones'] },
+        { co: 'Monzo', role: 'Product Manager', dates: '2019–2022', bullets: ['Launched Business Lite — 40K SME accounts in 6mo at £0 CAC', 'OKR framework for 8 squads; variance 63% → 12%', 'Self-serve tooling → 22% reduction in support ticket volume'] },
+        { co: 'Deliveroo', role: 'Associate PM', dates: '2016–2019', bullets: ['Restaurant dashboard adopted by 12K partners in 3 months', 'Cut order error rate 18% via menu validation pipeline'] },
+      ].map((job, ji) => (
+        <div key={ji} style={{ marginBottom: ji < 2 ? 5 : 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <div style={{ fontWeight: 800, fontSize: 6 }}>{job.co} — <span style={{ fontWeight: 600 }}>{job.role}</span></div>
+            <div style={{ fontSize: 5, color: '#6b7280', fontFamily: 'monospace', flexShrink: 0 }}>{job.dates}</div>
           </div>
+          {job.bullets.map((b, i) => (
+            <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 1.5, marginTop: i === 0 ? 3 : 0 }}>
+              <span style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: 7, flexShrink: 0, lineHeight: '1' }}>›</span>
+              <span style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#1f2937', borderBottom: '1.5px solid #1f2937', paddingBottom: 1.5, marginBottom: 3, marginTop: 5 }}>Education &amp; Certifications</div>
+      <div style={{ fontWeight: 800, fontSize: 6 }}>UCL — BSc Computer Science, First Class <span style={{ fontWeight: 400, color: '#6b7280', fontFamily: 'monospace', fontSize: 5 }}>2016–2019</span></div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 3 }}>
+        {['CSPO', 'AWS CPP', 'Google Analytics', 'PMC-III'].map(c => (
+          <span key={c} style={{ fontSize: 5, padding: '1px 4px', background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: 2, color: '#15803d', fontFamily: 'monospace' }}>{c}</span>
         ))}
       </div>
-      <div style={{ marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ fontWeight: 800, fontSize: 7 }}>Monzo — PM</div>
-          <div style={{ fontSize: 5.5, color: '#6b7280', fontFamily: 'monospace' }}>2019–2022</div>
-        </div>
-        {['Launched Monzo Business Lite — 40K SME accounts in 6mo at £0 CAC', 'Built OKR framework for 8 squads; delivery variance 63% → 12%'].map((b, i) => (
-          <div key={i} style={{ display: 'flex', gap: 3, marginBottom: 2, marginTop: i === 0 ? 3 : 0 }}>
-            <span style={{ color: '#4ade80', fontFamily: 'monospace', fontSize: 7, flexShrink: 0 }}>›</span>
-            <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 7.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#1f2937', borderBottom: '1.5px solid #1f2937', paddingBottom: 2, marginBottom: 4 }}>Education</div>
-      <div style={{ fontWeight: 800, fontSize: 7 }}>UCL · BSc Computer Science — First Class <span style={{ fontWeight: 400, color: '#6b7280', fontFamily: 'monospace', fontSize: 5.5 }}>2016–2019</span></div>
     </div>
   </div>
 );
 
-/** Compact Sage — sage-green sidebar, serif headings, academic-friendly */
+/** Compact Sage — sage-green sidebar, serif headings, full sections */
 const TemplateCompactSage = () => (
   <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7, display: 'flex' }}>
-    <div style={{ width: 110, background: '#365314', color: '#fff', padding: '14px 9px', display: 'flex', flexDirection: 'column', gap: 9, flexShrink: 0 }}>
-      <div style={{ width: 38, height: 38, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.35)', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, fontFamily: 'Georgia,serif', color: '#d9f99d' }}>SC</div>
+    <div style={{ width: 110, background: '#365314', color: '#fff', padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 7, flexShrink: 0 }}>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.35)', margin: '0 auto 2px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, fontFamily: 'Georgia,serif', color: '#d9f99d' }}>SC</div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 7.5, fontWeight: 900, fontFamily: 'Georgia,serif', color: '#ecfccb' }}>Sarah Chen</div>
-        <div style={{ fontSize: 5.5, color: '#a3e635', marginTop: 2, fontStyle: 'italic' }}>Senior PM</div>
+        <div style={{ fontSize: 7, fontWeight: 900, fontFamily: 'Georgia,serif', color: '#ecfccb' }}>Sarah Chen</div>
+        <div style={{ fontSize: 5, color: '#a3e635', marginTop: 1, fontStyle: 'italic' }}>Senior PM · Fintech</div>
       </div>
       <div>
-        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 2, marginBottom: 4 }}>Contact</div>
-        {['sarah.chen@email.com', 'London, UK', '+44 7700 900 123', 'github.com/sarahchen'].map((c, i) => (
-          <div key={i} style={{ fontSize: 5.5, color: 'rgba(255,255,255,0.82)', marginBottom: 2.5, lineHeight: 1.3 }}>{c}</div>
+        <div style={{ fontSize: 5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 1.5, marginBottom: 3 }}>Contact</div>
+        {['sarah.chen@email.com', 'London, UK', '+44 7700 900 123', 'linkedin.com/in/sarahchen', 'github.com/sarahchen'].map((c, i) => (
+          <div key={i} style={{ fontSize: 5, color: 'rgba(255,255,255,0.82)', marginBottom: 2, lineHeight: 1.3 }}>{c}</div>
         ))}
       </div>
       <div>
-        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 2, marginBottom: 4 }}>Skills</div>
-        {['Product Strategy', 'OKR Frameworks', 'A/B Testing', 'SQL & Analytics', 'Figma', 'Payments & Fintech', 'Stakeholder Mgmt', 'Go-to-Market', 'Agile / Scrum', 'Data Storytelling', 'API Products', 'User Research'].map((s, i) => (
-          <div key={i} style={{ fontSize: 5, color: 'rgba(255,255,255,0.8)', marginBottom: 2.5, display: 'flex', gap: 3, alignItems: 'center' }}>
+        <div style={{ fontSize: 5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 1.5, marginBottom: 3 }}>Skills</div>
+        {['Product Strategy', 'OKR Frameworks', 'A/B Testing', 'SQL & Analytics', 'Python', 'Figma', 'Payments & Fintech', 'Stakeholder Mgmt', 'Go-to-Market', 'Agile / Scrum', 'Data Storytelling', 'User Research', 'API Products', 'Jira / Amplitude'].map((s, i) => (
+          <div key={i} style={{ fontSize: 4.5, color: 'rgba(255,255,255,0.8)', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'center' }}>
             <span style={{ width: 2.5, height: 2.5, borderRadius: '50%', background: '#a3e635', flexShrink: 0 }} />{s}
           </div>
         ))}
       </div>
+      <div>
+        <div style={{ fontSize: 5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#a3e635', borderBottom: '0.5px solid rgba(163,230,53,0.3)', paddingBottom: 1.5, marginBottom: 3 }}>Languages</div>
+        {['English — Native', 'Mandarin — Fluent', 'French — Conversational'].map((l, i) => (
+          <div key={i} style={{ fontSize: 5, color: 'rgba(255,255,255,0.8)', marginBottom: 2 }}>{l}</div>
+        ))}
+      </div>
       <div style={{ marginTop: 'auto', textAlign: 'center' }}>
-        <div style={{ fontSize: 4.5, fontFamily: 'Georgia,serif', letterSpacing: '0.3em', color: 'rgba(163,230,53,0.4)', textTransform: 'uppercase' }}>Est. 2019</div>
+        <div style={{ fontSize: 4, fontFamily: 'Georgia,serif', letterSpacing: '0.3em', color: 'rgba(163,230,53,0.4)', textTransform: 'uppercase' }}>Est. 2016</div>
       </div>
     </div>
-    <div style={{ flex: 1, padding: '12px 13px', overflow: 'hidden' }}>
-      <div style={{ borderBottom: '1.5px solid #365314', paddingBottom: 6, marginBottom: 7 }}>
-        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '-0.01em', color: '#1a2e05', fontFamily: 'Georgia,serif' }}>Sarah Chen</div>
-        <div style={{ fontSize: 6.5, color: '#4d7c0f', marginTop: 2, fontStyle: 'italic' }}>Senior Product Manager · Fintech & Payments</div>
+    <div style={{ flex: 1, padding: '10px 11px', overflow: 'hidden' }}>
+      <div style={{ borderBottom: '1.5px solid #365314', paddingBottom: 5, marginBottom: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '-0.01em', color: '#1a2e05', fontFamily: 'Georgia,serif' }}>Sarah Chen</div>
+        <div style={{ fontSize: 6, color: '#4d7c0f', marginTop: 1, fontStyle: 'italic' }}>Senior Product Manager · Fintech &amp; Payments · 7 yrs</div>
       </div>
-      <div style={{ fontSize: 6, lineHeight: 1.55, color: '#374151', marginBottom: 7 }}>Product leader with 6+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Track record of raising ATS scores 2–3× through precise keyword alignment and metric-dense writing.</div>
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#365314', borderBottom: '1px solid #365314', paddingBottom: 2, marginBottom: 5 }}>Experience</div>
+      <div style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151', marginBottom: 6 }}>Product leader with 7+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Proven track record of raising ATS scores 2–3× and aligning multi-team squads on metric-dense roadmaps.</div>
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#365314', borderBottom: '1px solid #365314', paddingBottom: 1.5, marginBottom: 4 }}>Professional Experience</div>
       {[
-        { co: 'Stripe', title: 'Senior Product Manager', dates: '2022–Present', bullets: ['Owned Checkout EU (2.4M merchants); shipped 18 features → £12.6M ARR in 18mo', 'Reduced cart abandonment 34% via 22-variant A/B programme — +£2.1M revenue', 'Redesigned onboarding from 180 interviews — NPS 42 → 78, shipped in 11 weeks'] },
-        { co: 'Monzo', title: 'Product Manager', dates: '2019–2022', bullets: ['Launched Business Lite — 40K SME accounts in 6 months at £0 paid spend', 'Built OKR framework for 8 squads; delivery variance 63% → 12%'] },
+        { co: 'Stripe', title: 'Senior Product Manager', dates: '2022–Present', bullets: ['Owned Checkout EU (2.4M merchants); 18 features → £12.6M ARR in 18mo', 'Cut abandonment 34% via 22-variant A/B programme — +£2.1M revenue', 'NPS 42 → 78 via personalised onboarding redesign (n=180 interviews)', 'Led 12-person cross-functional squad, zero missed quarterly milestones'] },
+        { co: 'Monzo', title: 'Product Manager', dates: '2019–2022', bullets: ['Launched Business Lite — 40K SMEs in 6mo at £0 paid spend', 'OKR framework for 8 squads; delivery variance 63% → 12%', 'Self-serve tooling reduced support tickets 22% in 6 weeks'] },
+        { co: 'Deliveroo', title: 'Associate PM', dates: '2016–2019', bullets: ['Restaurant dashboard adopted by 12K partners in 3 months', 'Cut order error rate 18% via menu validation pipeline'] },
       ].map((job, ji) => (
-        <div key={ji} style={{ marginBottom: 7 }}>
+        <div key={ji} style={{ marginBottom: ji < 2 ? 5 : 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <div style={{ fontWeight: 800, fontSize: 7 }}>{job.co} · <span style={{ fontWeight: 600 }}>{job.title}</span></div>
-            <div style={{ fontSize: 6, color: '#6b7280' }}>{job.dates}</div>
+            <div style={{ fontWeight: 800, fontSize: 6 }}>{job.co} · <span style={{ fontWeight: 600 }}>{job.title}</span></div>
+            <div style={{ fontSize: 5.5, color: '#6b7280', flexShrink: 0, marginLeft: 4 }}>{job.dates}</div>
           </div>
           {job.bullets.map((b, bi) => (
-            <div key={bi} style={{ display: 'flex', gap: 3, marginBottom: 2, marginTop: bi === 0 ? 3 : 0 }}>
-              <span style={{ color: '#4d7c0f', flexShrink: 0, fontWeight: 900 }}>▸</span>
-              <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+            <div key={bi} style={{ display: 'flex', gap: 3, marginBottom: 1.5, marginTop: bi === 0 ? 2 : 0 }}>
+              <span style={{ color: '#4d7c0f', flexShrink: 0, fontWeight: 900, fontSize: 8, lineHeight: '1' }}>▸</span>
+              <span style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
             </div>
           ))}
         </div>
       ))}
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#365314', borderBottom: '1px solid #365314', paddingBottom: 2, marginBottom: 4 }}>Education</div>
-      <div style={{ fontWeight: 800, fontSize: 7 }}>UCL — BSc Computer Science <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 6 }}>First Class Honours · 2016–2019</span></div>
+      <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#365314', borderBottom: '1px solid #365314', paddingBottom: 1.5, marginBottom: 3, marginTop: 5 }}>Education &amp; Certifications</div>
+      <div style={{ fontWeight: 800, fontSize: 6 }}>UCL — BSc Computer Science, First Class Honours <span style={{ fontWeight: 400, color: '#6b7280', fontSize: 5.5 }}>2016–2019</span></div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 3 }}>
+        {['CSPO', 'AWS Cloud Practitioner', 'Google Analytics', 'PMC-III'].map(c => (
+          <span key={c} style={{ fontSize: 5, padding: '1px 4px', background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: 2, color: '#15803d' }}>{c}</span>
+        ))}
+      </div>
     </div>
   </div>
 );
 
-/** Academic Teal — single-column, left border accent, clean serif headings */
+/** Academic Teal — single-column, left border accent, full sections */
 const TemplateAcademicTeal = () => (
   <div style={{ width: 380, height: 520, background: '#fff', fontFamily: 'Arial,sans-serif', overflow: 'hidden', fontSize: 7 }}>
-    <div style={{ borderLeft: '4px solid #0891b2', background: '#f0f9ff', padding: '14px 16px 12px' }}>
-      <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: '-0.01em', color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>Sarah Chen</div>
-      <div style={{ fontSize: 7, color: '#0891b2', marginTop: 2, fontStyle: 'italic' }}>Senior Product Manager · Fintech & Payments</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 5, fontSize: 6, color: '#64748b' }}>
-        <span>sarah.chen@email.com</span><span>·</span><span>London, UK</span><span>·</span><span>+44 7700 900 123</span><span>·</span><span>linkedin.com/in/sarahchen</span>
+    <div style={{ borderLeft: '4px solid #0891b2', background: '#f0f9ff', padding: '11px 14px 10px' }}>
+      <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.01em', color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>Sarah Chen</div>
+      <div style={{ fontSize: 6.5, color: '#0891b2', marginTop: 2, fontStyle: 'italic' }}>Senior Product Manager · Fintech &amp; Payments</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4, fontSize: 5.5, color: '#64748b' }}>
+        <span>sarah.chen@email.com</span><span>·</span><span>London, UK</span><span>·</span><span>+44 7700 900 123</span><span>·</span><span>linkedin.com/in/sarahchen</span><span>·</span><span>github.com/sarahchen</span>
       </div>
     </div>
-    <div style={{ padding: '10px 16px' }}>
-      <div style={{ fontSize: 6.5, lineHeight: 1.6, color: '#374151', marginBottom: 8, borderLeft: '2px solid #bae6fd', paddingLeft: 7 }}>Product leader with 6+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Consistently raises ATS scores 2–3× through precise keyword alignment and metric-dense bullets.</div>
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 2, marginBottom: 6 }}>Professional Experience</div>
-      {[
-        { co: 'Stripe', title: 'Senior Product Manager', dates: '2022 – Present', loc: 'London, UK', bullets: ['Owned end-to-end roadmap for Checkout EU, serving 2.4M merchants — 18 features → £12.6M ARR', 'Reduced cart abandonment 34% via 22-variant A/B programme, adding £2.1M annual revenue', 'Grew NPS 42 → 78 via personalised onboarding redesign (n=180 interviews, 3 cohort studies)'] },
-        { co: 'Monzo', title: 'Product Manager', dates: '2019 – 2022', loc: 'London, UK', bullets: ['Launched Monzo Business Lite — 40K SME accounts in 6 months at £0 paid acquisition spend', 'Defined OKR framework across 8 squads — delivery variance from 63% to 12%'] },
-      ].map((job, ji) => (
-        <div key={ji} style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <div style={{ fontWeight: 800, fontSize: 7.5, color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>{job.co} — {job.title}</div>
-            <div style={{ fontSize: 6, color: '#64748b', flexShrink: 0, marginLeft: 4 }}>{job.dates}</div>
-          </div>
-          <div style={{ fontSize: 6, color: '#0891b2', marginBottom: 3, fontStyle: 'italic' }}>{job.loc}</div>
-          {job.bullets.map((b, bi) => (
-            <div key={bi} style={{ display: 'flex', gap: 4, marginBottom: 2 }}>
-              <span style={{ color: '#0891b2', fontWeight: 900, flexShrink: 0 }}>–</span>
-              <span style={{ fontSize: 6, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+    <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 5.5, lineHeight: 1.55, color: '#374151', borderLeft: '2px solid #bae6fd', paddingLeft: 6 }}>Product leader with 7+ years driving 0→1 launches and scaling platforms to £10M+ ARR. Deep expertise in payments, fintech, and B2B SaaS. Proven track record building high-performing squads, shipping metric-dense roadmaps, and raising ATS scores 2–3× through precise keyword alignment.</div>
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 1.5, marginBottom: 4 }}>Professional Experience</div>
+        {[
+          { co: 'Stripe', title: 'Senior Product Manager', dates: '2022 – Present', loc: 'London, UK', bullets: ['Owned Checkout EU roadmap (2.4M merchants) — 18 features → £12.6M ARR in 18 months', 'Cut cart abandonment 34% via 22-variant A/B programme, adding £2.1M annual revenue', 'Grew NPS 42 → 78 via personalised onboarding redesign (n=180 interviews, 3-cohort study)', 'Led cross-functional squad of 12; zero missed quarterly milestones across 6 planning cycles'] },
+          { co: 'Monzo', title: 'Product Manager', dates: '2019 – 2022', loc: 'London, UK', bullets: ['Launched Business Lite — 40K SME accounts in 6 months at £0 paid acquisition spend', 'Defined OKR framework across 8 squads — delivery variance from 63% to 12%', 'Shipped self-serve tooling reducing support tickets by 22% in 6 weeks'] },
+          { co: 'Deliveroo', title: 'Associate Product Manager', dates: '2016 – 2019', loc: 'London, UK', bullets: ['Shipped restaurant dashboard adopted by 12K partners within 3 months of launch', 'Reduced order error rate 18% via menu validation pipeline and structured data tooling'] },
+        ].map((job, ji) => (
+          <div key={ji} style={{ marginBottom: ji < 2 ? 5 : 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div style={{ fontWeight: 800, fontSize: 6.5, color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>{job.co} — <span style={{ fontWeight: 600 }}>{job.title}</span></div>
+              <div style={{ fontSize: 5.5, color: '#64748b', flexShrink: 0, marginLeft: 4 }}>{job.dates}</div>
             </div>
-          ))}
-        </div>
-      ))}
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 2, marginBottom: 5 }}>Skills</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 8 }}>
-        {['Product Strategy', 'OKRs', 'A/B Testing', 'SQL & Analytics', 'Figma', 'Payments & Fintech', 'Stakeholder Mgmt', 'Go-to-Market', 'API Design', 'User Research', 'Agile / Scrum'].map(s => (
-          <span key={s} style={{ fontSize: 5.5, padding: '2px 5px', background: '#e0f2fe', border: '0.5px solid #bae6fd', borderRadius: 2, color: '#0369a1' }}>{s}</span>
+            <div style={{ fontSize: 5, color: '#0891b2', marginBottom: 2, fontStyle: 'italic' }}>{job.loc}</div>
+            {job.bullets.map((b, bi) => (
+              <div key={bi} style={{ display: 'flex', gap: 4, marginBottom: 1.5 }}>
+                <span style={{ color: '#0891b2', fontWeight: 900, flexShrink: 0 }}>–</span>
+                <span style={{ fontSize: 5.5, lineHeight: 1.5, color: '#374151' }}>{b}</span>
+              </div>
+            ))}
+          </div>
         ))}
       </div>
-      <div style={{ fontSize: 7, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 2, marginBottom: 4 }}>Education</div>
-      <div style={{ fontWeight: 800, fontSize: 7, color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>UCL — BSc Computer Science · First Class Honours <span style={{ fontWeight: 400, color: '#64748b', fontSize: 6 }}>2016–2019</span></div>
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 1.5, marginBottom: 3 }}>Core Skills</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2.5 }}>
+          {['Product Strategy', 'OKRs', 'A/B Testing', 'SQL & Analytics', 'Python', 'Figma', 'Payments & Fintech', 'Stakeholder Mgmt', 'Go-to-Market', 'API Design', 'User Research', 'Agile / Scrum', 'Amplitude', 'Jira'].map(s => (
+            <span key={s} style={{ fontSize: 5, padding: '1.5px 4px', background: '#e0f2fe', border: '0.5px solid #bae6fd', borderRadius: 2, color: '#0369a1' }}>{s}</span>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#0891b2', borderBottom: '1.5px solid #bae6fd', paddingBottom: 1.5, marginBottom: 3 }}>Education &amp; Certifications</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 6, color: '#0c4a6e', fontFamily: 'Georgia,serif' }}>UCL — BSc Computer Science, First Class Honours</div>
+            <div style={{ fontSize: 5, color: '#64748b' }}>Dissertation: ML-based fraud detection · Dean's List 2018 &amp; 2019</div>
+          </div>
+          <div style={{ fontSize: 5.5, color: '#64748b', flexShrink: 0, marginLeft: 6 }}>2016–2019</div>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2.5 }}>
+          {['Certified Scrum PO (CSPO)', 'AWS Cloud Practitioner', 'Google Analytics Certified', 'PMC-III'].map(c => (
+            <span key={c} style={{ fontSize: 5, padding: '1.5px 4px', background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: 2, color: '#15803d' }}>{c}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 5.5, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#0891b2', flexShrink: 0 }}>Languages:</div>
+        {[['English', 'Native'], ['Mandarin', 'Fluent'], ['French', 'Conversational']].map(([lang, level]) => (
+          <span key={lang} style={{ fontSize: 5.5, color: '#374151' }}>{lang} <span style={{ color: '#94a3b8' }}>({level})</span></span>
+        ))}
+      </div>
     </div>
   </div>
 );
