@@ -1828,7 +1828,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 size="sm"
                 className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
               >
-                <Sparkles className="h-4 w-4 mr-2" />AI Coach
+                <Sparkles className="h-4 w-4 mr-2" />CV Coach
               </Button>
               <Button
                 variant="secondary"

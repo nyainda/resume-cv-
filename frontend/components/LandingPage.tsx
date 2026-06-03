@@ -10,7 +10,7 @@ interface Props {
 
 const tools = [
   { n: '01', name: 'CV Generator',        icon: '✦', desc: 'Tailors every CV to the exact job — keywords, tone, structure — tuned to beat any screening system. Auto-scores against the JD.' },
-  { n: '02', name: 'LinkedIn Generator',  icon: '⬛', desc: 'AI-crafted headline, About section, 20 ranked skills, a ready-to-post update, and connection message. Copy-paste straight into LinkedIn.' },
+  { n: '02', name: 'LinkedIn Generator',  icon: '⬛', desc: 'Rewrites your headline, About section, and 20 ranked skills to match your target role. Generates a ready-to-post update and connection message. Copy-paste straight into LinkedIn.' },
   { n: '03', name: 'Interview Prep',      icon: '◈', desc: '10 tailored interview questions with model answers — Behavioural, Technical, Situational, Culture, and Strength. Plus a post-interview thank-you letter.' },
   { n: '04', name: 'Portal Scanner',      icon: '⊙', desc: '150+ company portals scanned in one click. Greenhouse, Ashby, Lever, and direct career pages.' },
   { n: '05', name: 'Job Board',           icon: '◇', desc: 'Live job listings filtered by role and location. Curated signal, no noise.' },
@@ -55,40 +55,40 @@ const featureCards = [
 const apiKeys = [
   {
     name: 'Gemini',
-    tag: 'AI Core',
+    tag: 'Required',
     required: true,
     color: '#4285F4',
-    tagline: 'Powers CV generation, essay writing, ATS analysis, and Word import.',
+    tagline: 'Powers CV generation, essay writing, ATS analysis, and Word import. Free tier is generous — most users never pay.',
     url: 'https://aistudio.google.com/app/apikey',
     urlLabel: 'aistudio.google.com',
     placeholder: 'AIza••••••••••••••••••••••••••••••••••••',
   },
   {
     name: 'Tavily',
-    tag: 'Job Search',
+    tag: 'Required',
     required: true,
     color: '#0FA37F',
-    tagline: 'Powers the Portal Scanner and Job Board — live job listings from 150+ career sites.',
+    tagline: 'Powers the Portal Scanner and Job Board — live job listings from 150+ career sites. 1,000 free searches/month.',
     url: 'https://app.tavily.com/home',
     urlLabel: 'app.tavily.com',
     placeholder: 'tvly-••••••••••••••••••••••••••••••••••',
   },
   {
     name: 'Groq',
-    tag: 'AI Fast (optional)',
+    tag: 'Optional',
     required: false,
     color: '#F97316',
-    tagline: 'A faster, free-tier alternative to Gemini for CV generation and analysis.',
+    tagline: 'A faster free-tier alternative for CV generation and analysis — great for high-volume use.',
     url: 'https://console.groq.com/keys',
     urlLabel: 'console.groq.com',
     placeholder: 'gsk_••••••••••••••••••••••••••••••••••••',
   },
   {
     name: 'Claude',
-    tag: 'AI Premium (optional)',
+    tag: 'Optional',
     required: false,
     color: '#CC785C',
-    tagline: 'Anthropic\'s model — excellent for nuanced essay writing and cover letters.',
+    tagline: 'Anthropic\'s model — excellent for nuanced essay writing, cover letters, and long-form drafts.',
     url: 'https://console.anthropic.com/keys',
     urlLabel: 'console.anthropic.com',
     placeholder: 'sk-ant-••••••••••••••••••••••••••••••••',
@@ -190,8 +190,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               }}>Fully private.</span>
             </h1>
             <p className="text-base leading-relaxed max-w-md mb-8" style={{ color: muted }}>
-              Fourteen AI-powered tools for building CVs, optimising your LinkedIn, acing interviews, finding jobs, and negotiating offers —
-              without ever giving up your data. No accounts. No subscriptions.
+              Fourteen tools for building CVs, landing interviews, finding jobs, and negotiating offers —
+              without ever giving up your data. No accounts. No subscriptions. No cloud.
             </p>
 
             {/* Trust chips */}
@@ -546,10 +546,10 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
             <div>
               <div className="flex items-center gap-2.5 mb-2">
-                <div className="w-6 h-6 font-black text-xs flex items-center justify-center" style={{ background: Y, color: '#111', borderRadius: 4 }}>C</div>
-                <span className="font-black text-sm" style={{ letterSpacing: '-0.02em' }}>Career Suite</span>
+                <div className="w-6 h-6 font-black text-xs flex items-center justify-center" style={{ background: Y, color: '#111', borderRadius: 4 }}>CV</div>
+                <span className="font-black text-sm" style={{ letterSpacing: '-0.02em' }}>ProCV</span>
               </div>
-              <p className="text-xs max-w-xs" style={{ color: muted }}>A private-first, AI-powered toolkit for every stage of your job search.</p>
+              <p className="text-xs max-w-xs" style={{ color: muted }}>Your personal career consultant. Fully private, forever free.</p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-10 gap-y-2">
