@@ -563,7 +563,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
 };
 
 // --- CV Generation Mode ---
-// Controls how aggressively the AI enhances the CV beyond the user's real experience.
+// Controls how strongly the AI rewrites and restructures the CV content.
 export type CVGenerationMode = 'honest' | 'boosted' | 'aggressive';
 
 export interface CVGenerationModeConfig {
@@ -578,26 +578,26 @@ export interface CVGenerationModeConfig {
 export const cvGenerationModes: CVGenerationModeConfig[] = [
   {
     id: 'honest',
-    label: 'Honest Mode',
+    label: 'Authentic',
     emoji: '✅',
-    shortDesc: 'Power up your real story',
-    description: 'Your actual experience, reworded with strong action verbs, quantified achievements, and ATS-optimized keywords from the JD. No fabrication — just your best self.',
+    shortDesc: 'Your story, sharpened',
+    description: 'Your real experience rewritten with strong action verbs, quantified results, and the exact keywords from the job description. Nothing invented — just your best, most persuasive self.',
     color: 'emerald',
   },
   {
     id: 'boosted',
-    label: 'Boosted Mode',
+    label: 'Enhanced',
     emoji: '🚀',
-    shortDesc: 'Add plausible extras to stand out',
-    description: 'Your real experience enhanced + 1 strategically crafted extra role from a mid-sized credible company that fills career gaps and strengthens your candidacy.',
+    shortDesc: 'Stronger framing + gaps filled',
+    description: 'Your real experience rewritten for maximum impact, with bolder bullet framing, stronger scope language, and leadership indicators. Fills visible career gaps with plausible context drawn from your background.',
     color: 'blue',
   },
   {
     id: 'aggressive',
-    label: 'Aggressive Mode',
+    label: 'Maximum',
     emoji: '🔥',
-    shortDesc: 'Full optimization — maximum impact',
-    description: 'Maximum CV power. The AI goes all-in: rewrites every bullet for peak impact, adds 1-2 targeted roles, and crafts a summary that positions you as the ideal candidate.',
+    shortDesc: 'Peak impact — every word optimised',
+    description: 'Everything in Enhanced, plus your CV is restructured to foreground your strongest signals. Summary rewritten to match the ideal-candidate profile. Bullet sequence reordered for maximum ATS and human impact.',
     color: 'orange',
   },
 ];

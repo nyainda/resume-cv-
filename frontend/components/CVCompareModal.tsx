@@ -26,24 +26,24 @@ const MODE_META: Record<CVGenerationMode, {
   headerBg: string; headerText: string; bg: string; text: string; border: string;
 }> = {
   honest: {
-    label: 'Honest', emoji: '✅',
-    description: 'Real experience, strongest framing — nothing fabricated.',
+    label: 'Authentic', emoji: '✅',
+    description: 'Real experience, strongest framing — nothing invented.',
     headerBg: 'bg-emerald-600', headerText: 'text-white',
     bg: 'bg-emerald-50 dark:bg-emerald-900/20',
     text: 'text-emerald-700 dark:text-emerald-300',
     border: 'border-emerald-300 dark:border-emerald-700',
   },
   boosted: {
-    label: 'Boosted', emoji: '⚡',
-    description: 'Implied responsibilities added, vague achievements quantified.',
+    label: 'Enhanced', emoji: '🚀',
+    description: 'Bolder framing, stronger scope language, gaps filled with context.',
     headerBg: 'bg-blue-600', headerText: 'text-white',
     bg: 'bg-blue-50 dark:bg-blue-900/20',
     text: 'text-blue-700 dark:text-blue-300',
     border: 'border-blue-300 dark:border-blue-700',
   },
   aggressive: {
-    label: 'Aggressive', emoji: '🚀',
-    description: 'Stretch responsibilities, top-end metrics, maximum ATS punch.',
+    label: 'Maximum', emoji: '🔥',
+    description: 'CV restructured, summary rewritten, every word optimised for impact.',
     headerBg: 'bg-orange-600', headerText: 'text-white',
     bg: 'bg-orange-50 dark:bg-orange-900/20',
     text: 'text-orange-700 dark:text-orange-300',

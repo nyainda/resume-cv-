@@ -433,7 +433,7 @@ const JobPipelineModal: React.FC<JobPipelineModalProps> = ({
 
                             {/* Mode selector */}
                             <div>
-                                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Generation Mode</h3>
+                                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Writing Style</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     {cvGenerationModes.map(mode => {
                                         const colors: Record<CVGenerationMode, { ring: string; bg: string; text: string }> = {

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Yellow background with rounded corners -->
+  <rect width="512" height="512" rx="110" ry="110" fill="#EBFF38"/>
+
+  <!-- Left bracket: vertical bar -->
+  <rect x="96" y="96" width="44" height="320" rx="18" fill="#111111"/>
+  <!-- Left bracket: top arm -->
+  <rect x="96" y="96" width="136" height="44" rx="18" fill="#111111"/>
+  <!-- Left bracket: bottom arm -->
+  <rect x="96" y="372" width="136" height="44" rx="18" fill="#111111"/>
+
+  <!-- Right bracket: vertical bar -->
+  <rect x="372" y="96" width="44" height="320" rx="18" fill="#111111"/>
+  <!-- Right bracket: top arm -->
+  <rect x="280" y="96" width="136" height="44" rx="18" fill="#111111"/>
+  <!-- Right bracket: bottom arm -->
+  <rect x="280" y="372" width="136" height="44" rx="18" fill="#111111"/>
+
+  <!-- CV text centred -->
+  <text x="256" y="308" text-anchor="middle" fill="#111111" font-size="132" font-weight="900" font-family="system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" letter-spacing="-6">CV</text>
+</svg>

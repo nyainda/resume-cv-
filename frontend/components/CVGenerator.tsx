@@ -1431,15 +1431,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         {cvPurpose === 'job' && (
           <div className="mt-8">
             <div className="mb-4">
-              <Label className="text-base font-semibold block">AI Generation Mode</Label>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Choose how powerfully the AI tailors your CV to this job.</p>
+              <Label className="text-base font-semibold block">Writing Style</Label>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Choose how your CV is written. Your facts never change.</p>
             </div>
             <div className="space-y-2.5">
               {cvGenerationModes.map((mode) => {
                 const isSelected = generationMode === mode.id;
                 const colors = modeColorMap[mode.id];
                 const intensity = mode.id === 'honest' ? 1 : mode.id === 'boosted' ? 2 : 3;
-                const riskLabel = mode.id === 'boosted' ? 'Low Risk' : mode.id === 'aggressive' ? 'Use with care' : null;
+                const riskLabel = mode.id === 'boosted' ? 'Review output' : mode.id === 'aggressive' ? 'Review carefully' : null;
                 return (
                   <button
                     key={mode.id}
@@ -1504,7 +1504,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
               })}
             </div>
 
-            {/* Warning for non-honest modes */}
+            {/* Warning for non-authentic modes */}
             {(generationMode === 'boosted' || generationMode === 'aggressive') && (
               <div className={`mt-3 p-3 rounded-lg border flex items-start gap-2.5 text-xs ${generationMode === 'aggressive'
                 ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300'
@@ -1513,8 +1513,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                 <span>
                   <strong>Heads up:</strong> {generationMode === 'aggressive'
-                    ? 'Aggressive mode adds 1-2 fabricated roles. Use with discretion — some employers verify employment history.'
-                    : 'Boosted mode adds 1 strategically crafted role. Review the CV carefully before submitting.'}
+                    ? 'Maximum mode makes bold editorial choices — structure, emphasis, and positioning will be significantly reworked. Always read the full output before submitting.'
+                    : 'Enhanced mode strengthens your existing experience with bolder framing. Review the CV before submitting to ensure all phrasing feels true to you.'}
                 </span>
               </div>
             )}
