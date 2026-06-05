@@ -9,6 +9,7 @@ import { setRuntimeKeys } from './services/security/RuntimeKeys';
 import { invalidateCVCache, loadRules } from './services/geminiService';
 import { prewarmFontEmbedCache } from './services/getCVHtml';
 import { syncProfileToCache } from './services/profileCacheClient';
+import { syncSlot, syncPrefs } from './services/userDataCloudService';
 import { bootstrapTemplatesFromCloud } from './services/customTemplateCloudService';
 import { loadCustomTemplates, saveCustomTemplate } from './utils/customTemplateStorage';
 import { auditCvQuality } from './services/cvNumberFidelity';
@@ -368,6 +369,23 @@ const AppInner: React.FC = () => {
     document.documentElement.classList.toggle('dark', !!darkMode);
   }, [darkMode]);
 
+  // Sync user preferences to CF D1 whenever they change (debounced, fire-and-forget)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      syncPrefs({
+        aiProvider:    localStorage.getItem('cv_builder:aiProvider') ?? undefined,
+        cvPurpose:     localStorage.getItem('cv:purpose') ?? undefined,
+        targetCompany: localStorage.getItem('cv:targetCompany') ?? undefined,
+        targetJobTitle:localStorage.getItem('cv:targetJobTitle') ?? undefined,
+        jdKeywords:    localStorage.getItem('cv:jdKeywords') ?? undefined,
+        sidebarSections: localStorage.getItem('cv_builder:sidebarSections') ?? undefined,
+        darkMode:      !!darkMode,
+      }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [darkMode]);
+
   // Drive save error notifications
   useEffect(() => {
     let lastErrorTime = 0;
@@ -543,8 +561,9 @@ const AppInner: React.FC = () => {
     if (activeSlot) {
       setUserProfile(profile);
       setIsEditingProfile(false);
-      // Sync updated profile to D1 cache in the background (fire-and-forget).
+      // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
       syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
+      syncSlot({ ...activeSlot, profile }).catch(() => {});
     } else {
       // First-time: auto-create a slot
       const id = Date.now().toString();
@@ -558,8 +577,9 @@ const AppInner: React.FC = () => {
       setProfiles([slot]);
       setActiveProfileId(id);
       setIsEditingProfile(false);
-      // Sync new profile to D1 cache in the background (fire-and-forget).
+      // Sync new profile to D1 cache + user_slots table (fire-and-forget).
       syncProfileToCache(slot).catch(() => {});
+      syncSlot(slot).catch(() => {});
     }
 
     // Immediately sync ALL profile fields into the current CV so the preview
@@ -863,6 +883,7 @@ const AppInner: React.FC = () => {
       setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updatedSlot : p));
       invalidateCVCache();
       syncProfileToCache(updatedSlot).catch(() => {});
+      syncSlot(updatedSlot).catch(() => {});
       toast.success('Profile Imported!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
     } else {
       const id = Date.now().toString();
@@ -879,6 +900,7 @@ const AppInner: React.FC = () => {
       setActiveProfileId(id);
       toast.success('Profile Imported!', 'Your Word CV has been imported. Edit your profile or go to the Generator.');
       syncProfileToCache(slot).catch(() => {});
+      syncSlot(slot).catch(() => {});
     }
   }, [activeSlot, setProfiles, setActiveProfileId, toast]);
 
@@ -892,6 +914,7 @@ const AppInner: React.FC = () => {
       setProfiles(prev => prev.map(p => p.id === slotToUpdate.id ? updatedSlot : p));
       invalidateCVCache();
       syncProfileToCache(updatedSlot).catch(() => {});
+      syncSlot(updatedSlot).catch(() => {});
       toast.success('Profile Updated!', 'Your CV is ready — all templates are populated. Check your quality report below.');
     } else {
       const id = Date.now().toString();
@@ -906,6 +929,7 @@ const AppInner: React.FC = () => {
       setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
       setActiveProfileId(id);
       syncProfileToCache(slot).catch(() => {});
+      syncSlot(slot).catch(() => {});
       toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
     }
     setCurrentView('generator');

@@ -115,6 +115,10 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (url.pathname === '/api/cv/custom-templates' && request.method === 'POST')  return handleCustomTemplatesPost(request, env, ctx);
     if (/^\/api\/cv\/custom-templates\/[^/]+$/.test(url.pathname) && request.method === 'DELETE') return handleCustomTemplatesDelete(request, env, url);
     if (/^\/api\/cv\/custom-templates\/[^/]+$/.test(url.pathname) && request.method === 'PATCH')  return handleCustomTemplatesPatch(request, env, url);
+    // ── User data sync (migration 019) ───────────────────────────────────────
+    if (url.pathname === '/api/cv/user-slots' && request.method === 'POST') return handleUserSlotsPost(request, env, ctx);
+    if (url.pathname === '/api/cv/user-prefs' && request.method === 'POST') return handleUserPrefsPost(request, env);
+    if (url.pathname === '/api/cv/user-data'  && request.method === 'GET')  return handleUserDataGet(request, env, url);
     return json({ error: 'not_found', path: url.pathname }, request, env, 404);
 }
 
@@ -4319,4 +4323,109 @@ async function handleCustomTemplatesPatch(request: Request, env: Env, url: URL):
 
     const updated = (result.meta?.changes ?? 0) > 0;
     return json({ ok: updated, id, name }, request, env, updated ? 200 : 404);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User data sync handlers (migration 019)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleUserSlotsPost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const deviceId   = typeof body?.device_id    === 'string' ? body.device_id.trim().substring(0, 64)    : '';
+    const slotId     = typeof body?.slot_id      === 'string' ? body.slot_id.trim().substring(0, 64)      : '';
+    const slotName   = typeof body?.slot_name    === 'string' ? body.slot_name.trim().substring(0, 120)   : '';
+    const color      = typeof body?.color        === 'string' ? body.color.trim().substring(0, 32)        : 'indigo';
+    const profileJson= typeof body?.profile_json === 'string' ? body.profile_json                          : '';
+    const currentCv  = typeof body?.current_cv   === 'string' ? body.current_cv.substring(0, 1024)       : null;
+
+    if (!deviceId)                        return json({ error: 'missing_device_id' }, request, env, 400);
+    if (!slotId)                          return json({ error: 'missing_slot_id' }, request, env, 400);
+    if (!profileJson)                     return json({ error: 'missing_profile_json' }, request, env, 400);
+    if (profileJson.length > 524288)      return json({ error: 'profile_too_large', max: 524288 }, request, env, 413);
+
+    // Validate it's at least parseable JSON
+    try { JSON.parse(profileJson); } catch { return json({ error: 'profile_json_invalid' }, request, env, 400); }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await env.CV_DB.prepare(
+        `INSERT INTO user_slots (device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(device_id, slot_id) DO UPDATE SET
+           slot_name    = excluded.slot_name,
+           color        = excluded.color,
+           profile_json = excluded.profile_json,
+           current_cv   = excluded.current_cv,
+           updated_at   = excluded.updated_at`
+    ).bind(deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
+
+    // Background: keep at most 10 slots per device (safety cap)
+    ctx.waitUntil(
+        env.CV_DB.prepare(
+            `DELETE FROM user_slots WHERE device_id = ? AND slot_id NOT IN
+             (SELECT slot_id FROM user_slots WHERE device_id = ? ORDER BY updated_at DESC LIMIT 10)`
+        ).bind(deviceId, deviceId).run().catch(() => {})
+    );
+
+    return json({ ok: true, slot_id: slotId }, request, env);
+}
+
+async function handleUserPrefsPost(request: Request, env: Env): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const deviceId      = typeof body?.device_id        === 'string' ? body.device_id.trim().substring(0, 64) : '';
+    const aiProvider    = typeof body?.ai_provider      === 'string' ? body.ai_provider.trim().substring(0, 32) : null;
+    const sidebarSecs   = typeof body?.sidebar_sections === 'string' ? body.sidebar_sections.substring(0, 512)  : null;
+    const cvPurpose     = typeof body?.cv_purpose       === 'string' ? body.cv_purpose.trim().substring(0, 64)  : null;
+    const targetCompany = typeof body?.target_company   === 'string' ? body.target_company.trim().substring(0, 120) : null;
+    const targetJobTitle= typeof body?.target_job_title === 'string' ? body.target_job_title.trim().substring(0, 120) : null;
+    const jdKeywords    = typeof body?.jd_keywords      === 'string' ? body.jd_keywords.substring(0, 2048)      : null;
+    const darkMode      = typeof body?.dark_mode        === 'number' ? (body.dark_mode ? 1 : 0) : 0;
+
+    if (!deviceId) return json({ error: 'missing_device_id' }, request, env, 400);
+
+    const now = Math.floor(Date.now() / 1000);
+
+    await env.CV_DB.prepare(
+        `INSERT INTO user_preferences
+           (device_id, ai_provider, sidebar_sections, cv_purpose, target_company, target_job_title, jd_keywords, dark_mode, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(device_id) DO UPDATE SET
+           ai_provider      = excluded.ai_provider,
+           sidebar_sections = excluded.sidebar_sections,
+           cv_purpose       = excluded.cv_purpose,
+           target_company   = excluded.target_company,
+           target_job_title = excluded.target_job_title,
+           jd_keywords      = excluded.jd_keywords,
+           dark_mode        = excluded.dark_mode,
+           updated_at       = excluded.updated_at`
+    ).bind(deviceId, aiProvider, sidebarSecs, cvPurpose, targetCompany, targetJobTitle, jdKeywords, darkMode, now).run();
+
+    return json({ ok: true }, request, env);
+}
+
+async function handleUserDataGet(request: Request, env: Env, url: URL): Promise<Response> {
+    const deviceId = (url.searchParams.get('device_id') || '').trim().substring(0, 64);
+    if (!deviceId) return json({ error: 'missing_device_id' }, request, env, 400);
+
+    const [slotsResult, prefsResult] = await Promise.all([
+        env.CV_DB.prepare(
+            `SELECT slot_id, slot_name, color, profile_json, current_cv, updated_at
+             FROM user_slots WHERE device_id = ? ORDER BY updated_at DESC LIMIT 10`
+        ).bind(deviceId).all(),
+        env.CV_DB.prepare(
+            `SELECT ai_provider, sidebar_sections, cv_purpose, target_company,
+                    target_job_title, jd_keywords, dark_mode, updated_at
+             FROM user_preferences WHERE device_id = ?`
+        ).bind(deviceId).first(),
+    ]);
+
+    return json({
+        device_id: deviceId,
+        slots: slotsResult.results ?? [],
+        prefs: prefsResult ?? null,
+    }, request, env);
 }

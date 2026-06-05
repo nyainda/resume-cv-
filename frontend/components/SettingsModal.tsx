@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Label } from './ui/Label';
-import { ApiSettings } from '../types';
+import { ApiSettings, UserProfileSlot } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield, AlertCircle } from './icons';
 import { idbAppSet } from '../services/storage/AppDataPersistence';
 import { LocalStorageService } from '../services/storage/LocalStorageService';
+import { syncAllSlots, fetchUserData, getDeviceId } from '../services/userDataCloudService';
 import {
     testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
     getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
@@ -61,6 +62,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   // ── Wake-AI-models state (manual re-warm of cv-engine-worker models) ──
   type WakeState = { status: 'idle' | 'waking' | 'done'; results: PrewarmResult[]; finishedAt?: number };
   const [wakeState, setWakeState] = useState<WakeState>({ status: 'idle', results: [] });
+
+  // ── CF D1 backup state ────────────────────────────────────────────────
+  type BackupState = 'idle' | 'syncing' | 'done' | 'error';
+  const [backupState, setBackupState] = useState<BackupState>('idle');
+  const [backupSlotCount, setBackupSlotCount] = useState(0);
+  const deviceId = getDeviceId();
+
+  const handleBackupNow = useCallback(async () => {
+    setBackupState('syncing');
+    try {
+      const raw = localStorage.getItem('cv_builder:profiles');
+      const slots: UserProfileSlot[] = raw ? JSON.parse(raw) : [];
+      const count = await syncAllSlots(slots);
+      setBackupSlotCount(count);
+      setBackupState('done');
+      setTimeout(() => setBackupState('idle'), 5000);
+    } catch {
+      setBackupState('error');
+      setTimeout(() => setBackupState('idle'), 4000);
+    }
+  }, []);
+
+  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
+  const handleCheckRestore = useCallback(async () => {
+    setRestoreStatus('checking…');
+    try {
+      const data = await fetchUserData();
+      if (!data || !data.slots.length) {
+        setRestoreStatus('No data in cloud yet — save your profile first.');
+      } else {
+        setRestoreStatus(`☁️ ${data.slots.length} slot${data.slots.length !== 1 ? 's' : ''} backed up · last synced: ${new Date(data.slots[0].updated_at * 1000).toLocaleString()}`);
+      }
+    } catch {
+      setRestoreStatus('Could not reach CF D1 — check your connection.');
+    }
+  }, []);
 
   const wakeAIModels = useCallback(async () => {
     setWakeState({ status: 'waking', results: [] });
@@ -306,6 +343,41 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 >
                   ⬇️ Export all data as backup (.json)
                 </button>
+                {/* ── CF D1 cloud backup ── */}
+                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-widest">☁️ CF D1 Cloud Backup</p>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Profiles auto-sync on save · your device ID: <code className="font-mono">{deviceId.slice(0,8)}…</code></p>
+                    </div>
+                    <button
+                      onClick={handleBackupNow}
+                      disabled={backupState === 'syncing'}
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors border ${
+                        backupState === 'done'  ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' :
+                        backupState === 'error' ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' :
+                        backupState === 'syncing' ? 'bg-zinc-100 text-zinc-500 border-zinc-200 cursor-wait' :
+                        'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-800 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20'
+                      }`}
+                    >
+                      {backupState === 'syncing' ? '⏳ Syncing…' :
+                       backupState === 'done'    ? `✓ ${backupSlotCount} slot${backupSlotCount !== 1 ? 's' : ''} backed up` :
+                       backupState === 'error'   ? '✗ Failed' :
+                       '↑ Back up now'}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCheckRestore}
+                      className="text-[11px] text-zinc-500 dark:text-zinc-400 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold underline underline-offset-2 transition-colors"
+                    >
+                      Check cloud status
+                    </button>
+                    {restoreStatus && (
+                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">{restoreStatus}</span>
+                    )}
+                  </div>
+                </div>
                 <a
                   href="#admin/storage-map"
                   className="w-full py-2 px-3 text-xs font-bold rounded-lg border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-center gap-2"
