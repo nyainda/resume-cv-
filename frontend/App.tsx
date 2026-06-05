@@ -44,6 +44,7 @@ import LinkedInGenerator from './components/LinkedInGenerator';
 import InterviewPrep from './components/InterviewPrep';
 import AdminLeaksPage from './components/AdminLeaksPage';
 import AdminCVEnginePage from './components/AdminCVEnginePage';
+import StorageMapPage from './components/StorageMapPage';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoSync } from './hooks/useAutoSync';
 import {
@@ -944,7 +945,7 @@ const AppInner: React.FC = () => {
     toast.success('Merge Deleted', 'Merge preset removed.');
   }, [setSavedMerges, toast]);
 
-  const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics' | 'admin-leaks' | 'admin-cv-engine'>('generator');
+  const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics' | 'admin-leaks' | 'admin-cv-engine' | 'storage-map'>('generator');
 
   // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
   // from the main nav so they don't clutter the user-facing UI; these are
@@ -953,6 +954,7 @@ const AppInner: React.FC = () => {
     const sync = () => {
       if (window.location.hash === '#admin/leaks') setCurrentView('admin-leaks');
       else if (window.location.hash === '#admin/cv-engine') setCurrentView('admin-cv-engine');
+      else if (window.location.hash === '#admin/storage-map') setCurrentView('storage-map');
     };
     sync();
     window.addEventListener('hashchange', sync);
@@ -1559,6 +1561,11 @@ const AppInner: React.FC = () => {
                 {currentView === 'admin-cv-engine' && (
                   <div className="bg-slate-900 rounded-2xl border border-slate-800">
                     <AdminCVEnginePage />
+                  </div>
+                )}
+                {currentView === 'storage-map' && (
+                  <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700">
+                    <StorageMapPage />
                   </div>
                 )}
               </div>

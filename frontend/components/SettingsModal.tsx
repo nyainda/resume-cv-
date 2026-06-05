@@ -306,6 +306,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 >
                   ⬇️ Export all data as backup (.json)
                 </button>
+                <a
+                  href="#admin/storage-map"
+                  className="w-full py-2 px-3 text-xs font-bold rounded-lg border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-center gap-2"
+                >
+                  🗄️ View Storage Map — all localStorage & IndexedDB keys
+                </a>
               </div>
             );
           })()}
