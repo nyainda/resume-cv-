@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   UserProfile, CVData, SavedCV, SavedCoverLetter, ApiSettings, TrackedApplication,
-  UserProfileSlot, ProfileColor, SavedMerge, STARStory,
+  UserProfileSlot, ProfileColor, STARStory,
 } from './types';
 import { useStorage } from './hooks/useStorage';
 import * as KeyVault from './services/security/KeyVault';
@@ -31,7 +31,6 @@ import Tracker from './components/Tracker';
 import JobBoard from './components/JobBoard';
 import CVToolkit from './components/CVToolkit';
 import EmailApply from './components/EmailApply';
-import PDFMerger from './components/PDFMerger';
 import PDFTools from './components/PDFTools';
 import { ProfileManager } from './components/ProfileManager';
 import NegotiationCoach from './components/NegotiationCoach';
@@ -290,8 +289,6 @@ const AppInner: React.FC = () => {
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
   const [apiSettings, setApiSettings] = useState<ApiSettings>({ provider: 'gemini', apiKey: null });
   const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
-  const [savedMerges, setSavedMerges] = useStorage<SavedMerge[]>('savedMerges', []);
-
   // Synchronously check localStorage to avoid flash-to-profile on refresh
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
     try {
@@ -959,16 +956,6 @@ const AppInner: React.FC = () => {
     setPendingJsonImport(null);
   }, [pendingJsonImport, _applyJsonImport]);
 
-  const handleSaveMerge = useCallback((merge: SavedMerge) => {
-    setSavedMerges(prev => [merge, ...prev]);
-    toast.success('Merge Saved', `"${merge.name}" saved to your merge presets.`);
-  }, [setSavedMerges, toast]);
-
-  const handleDeleteMerge = useCallback((id: string) => {
-    setSavedMerges(prev => prev.filter(m => m.id !== id));
-    toast.success('Merge Deleted', 'Merge preset removed.');
-  }, [setSavedMerges, toast]);
-
   const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics' | 'admin-leaks' | 'admin-cv-engine' | 'storage-map'>('generator');
 
   // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
@@ -1536,20 +1523,6 @@ const AppInner: React.FC = () => {
                 {currentView === 'merger' && (
                   <div className="space-y-6">
                     <PDFTools />
-                    <details className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
-                      <summary className="px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-50 dark:hover:bg-neutral-700 flex items-center gap-2">
-                        <span>📋</span> Advanced Merge (with saved CV layouts)
-                      </summary>
-                      <div className="p-4">
-                        <PDFMerger
-                          savedCVs={savedCVs}
-                          userProfile={userProfile!}
-                          savedMerges={savedMerges}
-                          onSaveMerge={handleSaveMerge}
-                          onDeleteMerge={handleDeleteMerge}
-                        />
-                      </div>
-                    </details>
                   </div>
                 )}
                 {currentView === 'negotiation' && (
