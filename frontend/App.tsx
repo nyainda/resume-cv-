@@ -1,69 +1,112 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import {
-  UserProfile, CVData, SavedCV, SavedCoverLetter, ApiSettings, TrackedApplication,
-  UserProfileSlot, ProfileColor, STARStory,
-} from './types';
-import { useStorage } from './hooks/useStorage';
-import * as KeyVault from './services/security/KeyVault';
-import { setRuntimeKeys } from './services/security/RuntimeKeys';
-import { invalidateCVCache, loadRules } from './services/geminiService';
-import { prewarmFontEmbedCache } from './services/getCVHtml';
-import { syncProfileToCache } from './services/profileCacheClient';
-import { syncSlot, syncPrefs } from './services/userDataCloudService';
-import { bootstrapTemplatesFromCloud } from './services/customTemplateCloudService';
-import { loadCustomTemplates, saveCustomTemplate } from './utils/customTemplateStorage';
-import { auditCvQuality } from './services/cvNumberFidelity';
-import { profileToCV } from './utils/profileToCV';
-import { GoogleAuthProvider, useGoogleAuth } from './auth/GoogleAuthContext';
-import { useToast } from './hooks/useToast';
-import { ToastContainer } from './components/ui/Toast';
-import WorkerStatusBanner from './components/WorkerStatusBanner';
-import ProfileForm from './components/ProfileForm';
-import CVGenerator from './components/CVGenerator';
-import SharedCVView from './components/SharedCVView';
-import { decodeSharePayload, SharedCVPayload } from './components/ShareCVModal';
-import { fetchSharePayload } from './services/shareService';
-import SavedCVs from './components/SavedCVs';
-import CVHistory from './components/CVHistory';
-import ScholarshipEssayWriter from './components/ScholarshipEssayWriter';
-import SettingsModal from './components/SettingsModal';
-import Tracker from './components/Tracker';
-import JobBoard from './components/JobBoard';
-import CVToolkit from './components/CVToolkit';
-import EmailApply from './components/EmailApply';
-import { ProfileManager } from './components/ProfileManager';
-import NegotiationCoach from './components/NegotiationCoach';
-import PortalScanner from './components/PortalScanner';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
-import LandingPage from './components/LandingPage';
-import DriveConflictModal from './components/DriveConflictModal';
-import AutoSaveIndicator from './components/AutoSaveIndicator';
-import OfflineBanner from './components/OfflineBanner';
-import LinkedInGenerator from './components/LinkedInGenerator';
-import InterviewPrep from './components/InterviewPrep';
-import AdminLeaksPage from './components/AdminLeaksPage';
-import AdminCVEnginePage from './components/AdminCVEnginePage';
-import StorageMapPage from './components/StorageMapPage';
-import { useAutoSave } from './hooks/useAutoSave';
-import { useAutoSync } from './hooks/useAutoSync';
+  UserProfile,
+  CVData,
+  SavedCV,
+  SavedCoverLetter,
+  ApiSettings,
+  TrackedApplication,
+  UserProfileSlot,
+  ProfileColor,
+  STARStory,
+} from "./types";
+import { useStorage } from "./hooks/useStorage";
+import * as KeyVault from "./services/security/KeyVault";
+import { setRuntimeKeys } from "./services/security/RuntimeKeys";
+import { invalidateCVCache, loadRules } from "./services/geminiService";
+import { prewarmFontEmbedCache } from "./services/getCVHtml";
+import { syncProfileToCache } from "./services/profileCacheClient";
+import { syncSlot, syncPrefs } from "./services/userDataCloudService";
+import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
-  Edit, User, List, Settings, FileText, Target,
-  Moon, Sun, BookOpen, Globe, Briefcase,
-} from './components/icons';
-import { isCVEngineConfigured } from './services/cvEngineClient';
+  loadCustomTemplates,
+  saveCustomTemplate,
+} from "./utils/customTemplateStorage";
+import { auditCvQuality } from "./services/cvNumberFidelity";
+import { profileToCV } from "./utils/profileToCV";
+import { GoogleAuthProvider, useGoogleAuth } from "./auth/GoogleAuthContext";
+import { useToast } from "./hooks/useToast";
+import { ToastContainer } from "./components/ui/Toast";
+import WorkerStatusBanner from "./components/WorkerStatusBanner";
+import ProfileForm from "./components/ProfileForm";
+import CVGenerator from "./components/CVGenerator";
+import SharedCVView from "./components/SharedCVView";
+import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
+import { fetchSharePayload } from "./services/shareService";
+import SavedCVs from "./components/SavedCVs";
+import CVHistory from "./components/CVHistory";
+import ScholarshipEssayWriter from "./components/ScholarshipEssayWriter";
+import SettingsModal from "./components/SettingsModal";
+import Tracker from "./components/Tracker";
+import JobBoard from "./components/JobBoard";
+import CVToolkit from "./components/CVToolkit";
+import EmailApply from "./components/EmailApply";
+import { ProfileManager } from "./components/ProfileManager";
+import NegotiationCoach from "./components/NegotiationCoach";
+import PortalScanner from "./components/PortalScanner";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import LandingPage from "./components/LandingPage";
+import DriveConflictModal from "./components/DriveConflictModal";
+import AutoSaveIndicator from "./components/AutoSaveIndicator";
+import OfflineBanner from "./components/OfflineBanner";
+import LinkedInGenerator from "./components/LinkedInGenerator";
+import InterviewPrep from "./components/InterviewPrep";
+import AdminLeaksPage from "./components/AdminLeaksPage";
+import AdminCVEnginePage from "./components/AdminCVEnginePage";
+import StorageMapPage from "./components/StorageMapPage";
+import { useAutoSave } from "./hooks/useAutoSave";
+import { useAutoSync } from "./hooks/useAutoSync";
+import {
+  Edit,
+  User,
+  List,
+  Settings,
+  FileText,
+  Target,
+  Moon,
+  Sun,
+  BookOpen,
+  Globe,
+  Briefcase,
+} from "./components/icons";
+import { isCVEngineConfigured } from "./services/cvEngineClient";
 
 // ── Mail icon (inline, no dep needed) ──────────────────────────────────────
 const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <rect x="2" y="4" width="20" height="16" rx="2" />
     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
   </svg>
 );
 
-
 const ScannerNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6" /><path d="M8 11h6" />
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.35-4.35" />
+    <path d="M11 8v6" />
+    <path d="M8 11h6" />
   </svg>
 );
 
@@ -74,7 +117,15 @@ const LinkedInNavIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const InterviewNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
     <line x1="12" x2="12" y1="19" y2="22" />
@@ -82,21 +133,48 @@ const InterviewNavIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const NegotiationNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+const NegotiationNavIcon: React.FC<{ className?: string }> = ({
+  className,
+}) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
   </svg>
 );
 
 const AnalyticsNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" />
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 3v18h18" />
+    <path d="m19 9-5 5-4-4-3 3" />
   </svg>
 );
 
 // ── UsersIcon (for profile switcher) ───────────────────────────────────────
 const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -104,12 +182,23 @@ const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const PROFILE_COLORS: ProfileColor[] = ['indigo', 'violet', 'emerald', 'amber', 'rose', 'sky'];
+const PROFILE_COLORS: ProfileColor[] = [
+  "indigo",
+  "violet",
+  "emerald",
+  "amber",
+  "rose",
+  "sky",
+];
 
 function colorBg(c: ProfileColor) {
   const map: Record<ProfileColor, string> = {
-    indigo: 'bg-[#1B2B4B]', violet: 'bg-violet-600', emerald: 'bg-emerald-500',
-    amber: 'bg-amber-500', rose: 'bg-rose-500', sky: 'bg-sky-500',
+    indigo: "bg-[#1B2B4B]",
+    violet: "bg-violet-600",
+    emerald: "bg-emerald-500",
+    amber: "bg-amber-500",
+    rose: "bg-rose-500",
+    sky: "bg-sky-500",
   };
   return map[c];
 }
@@ -121,40 +210,59 @@ const AppInner: React.FC = () => {
   useAutoSync(isAuthenticated);
 
   // ── Multi-profile storage ──────────────────────────────────────────────
-  const [profiles, setProfiles] = useStorage<UserProfileSlot[]>('profiles', []);
-  const [activeProfileId, setActiveProfileId] = useStorage<string | null>('activeProfileId', null);
+  const [profiles, setProfiles] = useStorage<UserProfileSlot[]>("profiles", []);
+  const [activeProfileId, setActiveProfileId] = useStorage<string | null>(
+    "activeProfileId",
+    null,
+  );
 
   // ── Derive active user profile from slot ──────────────────────────────
   const activeSlot = useMemo(
-    () => profiles.find(p => p.id === activeProfileId) ?? profiles[0] ?? null,
-    [profiles, activeProfileId]
+    () => profiles.find((p) => p.id === activeProfileId) ?? profiles[0] ?? null,
+    [profiles, activeProfileId],
   );
   const userProfile: UserProfile | null = activeSlot?.profile ?? null;
 
   // Wrap setUserProfile so it writes back into the active slot.
   // Also clears the CV cache so the next generation uses the updated profile.
-  const setUserProfile = useCallback((next: UserProfile | null | ((prev: UserProfile | null) => UserProfile | null)) => {
-    if (!next) return;
-    invalidateCVCache();
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== (activeSlot?.id ?? null)) return p;
-      const resolved = typeof next === 'function' ? next(p.profile) : next;
-      return { ...p, profile: resolved ?? p.profile };
-    }));
-  }, [activeSlot, setProfiles]);
+  const setUserProfile = useCallback(
+    (
+      next:
+        | UserProfile
+        | null
+        | ((prev: UserProfile | null) => UserProfile | null),
+    ) => {
+      if (!next) return;
+      invalidateCVCache();
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          const resolved = typeof next === "function" ? next(p.profile) : next;
+          return { ...p, profile: resolved ?? p.profile };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
 
   // ── currentCV is stored per-profile inside the slot ───────────────────
   // Derive the current CV directly from the active slot so switching profiles
   // automatically shows that profile's CV (or nothing for a brand-new profile).
   const currentCV: CVData | null = activeSlot?.currentCV ?? null;
 
-  const setCurrentCV = useCallback((next: CVData | null | ((prev: CVData | null) => CVData | null)) => {
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== (activeSlot?.id ?? null)) return p;
-      const resolved = typeof next === 'function' ? next(p.currentCV ?? null) : next;
-      return { ...p, currentCV: resolved };
-    }));
-  }, [activeSlot, setProfiles]);
+  const setCurrentCV = useCallback(
+    (next: CVData | null | ((prev: CVData | null) => CVData | null)) => {
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          const resolved =
+            typeof next === "function" ? next(p.currentCV ?? null) : next;
+          return { ...p, currentCV: resolved };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
 
   // Fetch CV pipeline rules from the CF Worker at boot so they are ready
   // before the user clicks Generate. The rules (system prompts, humanizer,
@@ -176,7 +284,7 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     const t = setTimeout(() => {
       bootstrapTemplatesFromCloud(loadCustomTemplates, (entries) => {
-        entries.forEach(e => saveCustomTemplate(e));
+        entries.forEach((e) => saveCustomTemplate(e));
       }).catch(() => {});
     }, 4000);
     return () => clearTimeout(t);
@@ -187,9 +295,11 @@ const AppInner: React.FC = () => {
   // since the last upload). Best-effort; a failure is silent.
   useEffect(() => {
     if (!activeSlot) return;
-    const t = setTimeout(() => { syncProfileToCache(activeSlot).catch(() => {}); }, 3000);
+    const t = setTimeout(() => {
+      syncProfileToCache(activeSlot).catch(() => {});
+    }, 3000);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlot?.id]);
 
   // One-time migration: move any existing global currentCV into the active slot
@@ -197,17 +307,23 @@ const AppInner: React.FC = () => {
     if (!activeSlot) return;
     if (activeSlot.currentCV !== undefined) return; // already migrated
     try {
-      const raw = localStorage.getItem('cv_builder:currentCV') || localStorage.getItem('currentCV');
+      const raw =
+        localStorage.getItem("cv_builder:currentCV") ||
+        localStorage.getItem("currentCV");
       if (raw) {
         const cv = JSON.parse(raw) as CVData;
-        setProfiles(prev => prev.map(p =>
-          p.id === activeSlot.id ? { ...p, currentCV: cv } : p
-        ));
-        localStorage.removeItem('cv_builder:currentCV');
-        localStorage.removeItem('currentCV');
+        setProfiles((prev) =>
+          prev.map((p) =>
+            p.id === activeSlot.id ? { ...p, currentCV: cv } : p,
+          ),
+        );
+        localStorage.removeItem("cv_builder:currentCV");
+        localStorage.removeItem("currentCV");
       }
-    } catch { /* ignore parse errors */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch {
+      /* ignore parse errors */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlot?.id]);
 
   // One-time migration: move global savedCVs/trackedApps/etc into the active slot
@@ -220,74 +336,145 @@ const AppInner: React.FC = () => {
     let trackedAppsMig: TrackedApplication[] | undefined;
     let starStoriesMig: STARStory[] | undefined;
 
-    try { const r = localStorage.getItem('cv_builder:savedCVs') || localStorage.getItem('savedCVs'); if (r) savedCVsMig = JSON.parse(r); } catch {}
-    try { const r = localStorage.getItem('cv_builder:savedCoverLetters') || localStorage.getItem('savedCoverLetters'); if (r) savedCLsMig = JSON.parse(r); } catch {}
-    try { const r = localStorage.getItem('cv_builder:trackedApps') || localStorage.getItem('trackedApps'); if (r) trackedAppsMig = JSON.parse(r); } catch {}
-    try { const r = localStorage.getItem('cv_builder:starStories') || localStorage.getItem('starStories'); if (r) starStoriesMig = JSON.parse(r); } catch {}
+    try {
+      const r =
+        localStorage.getItem("cv_builder:savedCVs") ||
+        localStorage.getItem("savedCVs");
+      if (r) savedCVsMig = JSON.parse(r);
+    } catch {}
+    try {
+      const r =
+        localStorage.getItem("cv_builder:savedCoverLetters") ||
+        localStorage.getItem("savedCoverLetters");
+      if (r) savedCLsMig = JSON.parse(r);
+    } catch {}
+    try {
+      const r =
+        localStorage.getItem("cv_builder:trackedApps") ||
+        localStorage.getItem("trackedApps");
+      if (r) trackedAppsMig = JSON.parse(r);
+    } catch {}
+    try {
+      const r =
+        localStorage.getItem("cv_builder:starStories") ||
+        localStorage.getItem("starStories");
+      if (r) starStoriesMig = JSON.parse(r);
+    } catch {}
 
-    setProfiles(prev => prev.map(p =>
-      p.id === activeSlot.id ? {
-        ...p,
-        savedCVs: savedCVsMig ?? [],
-        savedCoverLetters: savedCLsMig ?? [],
-        trackedApps: trackedAppsMig ?? [],
-        starStories: starStoriesMig ?? [],
-      } : p
-    ));
+    setProfiles((prev) =>
+      prev.map((p) =>
+        p.id === activeSlot.id
+          ? {
+              ...p,
+              savedCVs: savedCVsMig ?? [],
+              savedCoverLetters: savedCLsMig ?? [],
+              trackedApps: trackedAppsMig ?? [],
+              starStories: starStoriesMig ?? [],
+            }
+          : p,
+      ),
+    );
 
     // Clear global keys so they don't get migrated to other profiles
-    ['cv_builder:savedCVs','savedCVs','cv_builder:savedCoverLetters','savedCoverLetters',
-     'cv_builder:trackedApps','trackedApps','cv_builder:starStories','starStories']
-      .forEach(k => localStorage.removeItem(k));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      "cv_builder:savedCVs",
+      "savedCVs",
+      "cv_builder:savedCoverLetters",
+      "savedCoverLetters",
+      "cv_builder:trackedApps",
+      "trackedApps",
+      "cv_builder:starStories",
+      "starStories",
+    ].forEach((k) => localStorage.removeItem(k));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlot?.id]);
 
   // ── Per-profile isolated state (each profile has its own data) ────────
   // Derived from the active slot — switching profiles gives a clean slate.
   const savedCVs: SavedCV[] = activeSlot?.savedCVs ?? [];
-  const setSavedCVs = useCallback((next: SavedCV[] | ((prev: SavedCV[]) => SavedCV[])) => {
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== (activeSlot?.id ?? null)) return p;
-      const resolved = typeof next === 'function' ? next(p.savedCVs ?? []) : next;
-      return { ...p, savedCVs: resolved };
-    }));
-  }, [activeSlot, setProfiles]);
+  const setSavedCVs = useCallback(
+    (next: SavedCV[] | ((prev: SavedCV[]) => SavedCV[])) => {
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          const resolved =
+            typeof next === "function" ? next(p.savedCVs ?? []) : next;
+          return { ...p, savedCVs: resolved };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
 
-  const savedCoverLetters: SavedCoverLetter[] = activeSlot?.savedCoverLetters ?? [];
-  const setSavedCoverLetters = useCallback((next: SavedCoverLetter[] | ((prev: SavedCoverLetter[]) => SavedCoverLetter[])) => {
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== (activeSlot?.id ?? null)) return p;
-      const resolved = typeof next === 'function' ? next(p.savedCoverLetters ?? []) : next;
-      return { ...p, savedCoverLetters: resolved };
-    }));
-  }, [activeSlot, setProfiles]);
+  const savedCoverLetters: SavedCoverLetter[] =
+    activeSlot?.savedCoverLetters ?? [];
+  const setSavedCoverLetters = useCallback(
+    (
+      next:
+        | SavedCoverLetter[]
+        | ((prev: SavedCoverLetter[]) => SavedCoverLetter[]),
+    ) => {
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          const resolved =
+            typeof next === "function" ? next(p.savedCoverLetters ?? []) : next;
+          return { ...p, savedCoverLetters: resolved };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
 
   const trackedApps: TrackedApplication[] = activeSlot?.trackedApps ?? [];
-  const setTrackedApps = useCallback((next: TrackedApplication[] | ((prev: TrackedApplication[]) => TrackedApplication[])) => {
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== (activeSlot?.id ?? null)) return p;
-      const resolved = typeof next === 'function' ? next(p.trackedApps ?? []) : next;
-      return { ...p, trackedApps: resolved };
-    }));
-  }, [activeSlot, setProfiles]);
+  const setTrackedApps = useCallback(
+    (
+      next:
+        | TrackedApplication[]
+        | ((prev: TrackedApplication[]) => TrackedApplication[]),
+    ) => {
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          const resolved =
+            typeof next === "function" ? next(p.trackedApps ?? []) : next;
+          return { ...p, trackedApps: resolved };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
 
   const starStories: STARStory[] = activeSlot?.starStories ?? [];
-  const setStarStories = useCallback((next: STARStory[] | ((prev: STARStory[]) => STARStory[])) => {
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== (activeSlot?.id ?? null)) return p;
-      const resolved = typeof next === 'function' ? next(p.starStories ?? []) : next;
-      return { ...p, starStories: resolved };
-    }));
-  }, [activeSlot, setProfiles]);
+  const setStarStories = useCallback(
+    (next: STARStory[] | ((prev: STARStory[]) => STARStory[])) => {
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          const resolved =
+            typeof next === "function" ? next(p.starStories ?? []) : next;
+          return { ...p, starStories: resolved };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
   // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
-  const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
-  const [apiSettings, setApiSettings] = useState<ApiSettings>({ provider: 'gemini', apiKey: null });
-  const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
-
+  const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>(
+    "apiSettings",
+    { provider: "gemini", apiKey: null },
+  );
+  const [apiSettings, setApiSettings] = useState<ApiSettings>({
+    provider: "gemini",
+    apiKey: null,
+  });
+  const [darkMode, setDarkMode] = useStorage<boolean>("darkMode", false);
   // Synchronously check localStorage to avoid flash-to-profile on refresh
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
     try {
-      const raw = localStorage.getItem('cv_builder:profiles') || localStorage.getItem('profiles');
+      const raw =
+        localStorage.getItem("cv_builder:profiles") ||
+        localStorage.getItem("profiles");
       if (!raw) return true;
       const profs = JSON.parse(raw);
       return !Array.isArray(profs) || profs.length === 0;
@@ -298,7 +485,9 @@ const AppInner: React.FC = () => {
   // Show landing page when no profile has ever been created
   const [showLanding, setShowLanding] = useState<boolean>(() => {
     try {
-      const raw = localStorage.getItem('cv_builder:profiles') || localStorage.getItem('profiles');
+      const raw =
+        localStorage.getItem("cv_builder:profiles") ||
+        localStorage.getItem("profiles");
       if (!raw) return true;
       const profs = JSON.parse(raw);
       return !Array.isArray(profs) || profs.length === 0;
@@ -316,20 +505,22 @@ const AppInner: React.FC = () => {
   const toast = useToast();
 
   // Email apply pre-fill state (set by CV Generator)
-  const [emailJd, setEmailJd] = useState<string>('');
+  const [emailJd, setEmailJd] = useState<string>("");
 
   // Interview prep pre-fill state (set by CV Generator)
-  const [interviewPrepJd, setInterviewPrepJd] = useState<string>('');
+  const [interviewPrepJd, setInterviewPrepJd] = useState<string>("");
 
   // Toolkit → Generator feedback loop
-  const [toolkitSuggestions, setToolkitSuggestions] = useState<string | null>(null);
+  const [toolkitSuggestions, setToolkitSuggestions] = useState<string | null>(
+    null,
+  );
 
   // Detect mobile for ProfileManager overlay
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
   }, []);
 
   // KeyVault: init once, then decrypt rawApiSettings → apiSettings + RuntimeKeys
@@ -337,15 +528,17 @@ const AppInner: React.FC = () => {
     let cancelled = false;
     KeyVault.init().then(async () => {
       try {
-        const decrypted = await KeyVault.decryptApiSettings(rawApiSettings as Record<string, unknown>);
+        const decrypted = await KeyVault.decryptApiSettings(
+          rawApiSettings as Record<string, unknown>,
+        );
         if (!cancelled) {
           const s = decrypted as ApiSettings;
           setApiSettings(s);
           setRuntimeKeys({
-            apiKey:        s.apiKey              ?? null,
-            claudeApiKey:  (s as any).claudeApiKey  ?? null,
-            tavilyApiKey:  (s as any).tavilyApiKey  ?? null,
-            brevoApiKey:   (s as any).brevoApiKey   ?? null,
+            apiKey: s.apiKey ?? null,
+            claudeApiKey: (s as any).claudeApiKey ?? null,
+            tavilyApiKey: (s as any).tavilyApiKey ?? null,
+            brevoApiKey: (s as any).brevoApiKey ?? null,
             jsearchApiKey: (s as any).jsearchApiKey ?? null,
           });
         }
@@ -353,12 +546,14 @@ const AppInner: React.FC = () => {
         if (!cancelled) setApiSettings(rawApiSettings);
       }
     });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(rawApiSettings)]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', !!darkMode);
+    document.documentElement.classList.toggle("dark", !!darkMode);
   }, [darkMode]);
 
   // Sync user preferences to CF D1 — only for signed-in Google users (debounced, fire-and-forget)
@@ -366,17 +561,18 @@ const AppInner: React.FC = () => {
     if (!isAuthenticated) return;
     const timer = setTimeout(() => {
       syncPrefs({
-        aiProvider:    localStorage.getItem('cv_builder:aiProvider') ?? undefined,
-        cvPurpose:     localStorage.getItem('cv:purpose') ?? undefined,
-        targetCompany: localStorage.getItem('cv:targetCompany') ?? undefined,
-        targetJobTitle:localStorage.getItem('cv:targetJobTitle') ?? undefined,
-        jdKeywords:    localStorage.getItem('cv:jdKeywords') ?? undefined,
-        sidebarSections: localStorage.getItem('cv_builder:sidebarSections') ?? undefined,
-        darkMode:      !!darkMode,
+        aiProvider: localStorage.getItem("cv_builder:aiProvider") ?? undefined,
+        cvPurpose: localStorage.getItem("cv:purpose") ?? undefined,
+        targetCompany: localStorage.getItem("cv:targetCompany") ?? undefined,
+        targetJobTitle: localStorage.getItem("cv:targetJobTitle") ?? undefined,
+        jdKeywords: localStorage.getItem("cv:jdKeywords") ?? undefined,
+        sidebarSections:
+          localStorage.getItem("cv_builder:sidebarSections") ?? undefined,
+        darkMode: !!darkMode,
       }).catch(() => {});
     }, 4000);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [darkMode, isAuthenticated]);
 
   // Drive save error notifications
@@ -387,57 +583,73 @@ const AppInner: React.FC = () => {
       if (now - lastErrorTime < 15000) return; // throttle to once per 15s
       lastErrorTime = now;
       const detail = (e as CustomEvent).detail;
-      const msg = detail?.error?.message || 'Unknown error';
-      if (msg.includes('expired') || msg.includes('401')) {
-        toast.error('Cloud Sync Failed', 'Your Google session expired. Please sign in again via Cloud Sync settings.');
+      const msg = detail?.error?.message || "Unknown error";
+      if (msg.includes("expired") || msg.includes("401")) {
+        toast.error(
+          "Cloud Sync Failed",
+          "Your Google session expired. Please sign in again via Cloud Sync settings.",
+        );
       } else {
-        toast.error('Cloud Sync Failed', 'Could not save to Google Drive. Check your connection and sign-in status.');
+        toast.error(
+          "Cloud Sync Failed",
+          "Could not save to Google Drive. Check your connection and sign-in status.",
+        );
       }
     };
-    window.addEventListener('drive-save-error', handleDriveError);
-    return () => window.removeEventListener('drive-save-error', handleDriveError);
+    window.addEventListener("drive-save-error", handleDriveError);
+    return () =>
+      window.removeEventListener("drive-save-error", handleDriveError);
   }, [toast]);
 
   // ── Storage quota warning toast ──────────────────────────────────────────
   useEffect(() => {
     const handleQuota = () => {
       toast.warning(
-        'Storage Almost Full',
-        'Your browser storage is nearly full. Some temporary job search cache was removed. Consider clearing unused data or enabling Google Drive sync.',
+        "Storage Almost Full",
+        "Your browser storage is nearly full. Some temporary job search cache was removed. Consider clearing unused data or enabling Google Drive sync.",
       );
     };
-    window.addEventListener('storage-quota-warning', handleQuota);
-    return () => window.removeEventListener('storage-quota-warning', handleQuota);
+    window.addEventListener("storage-quota-warning", handleQuota);
+    return () =>
+      window.removeEventListener("storage-quota-warning", handleQuota);
   }, [toast]);
 
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.startsWith('#s=')) {
+    if (hash.startsWith("#s=")) {
       // Short D1-backed share link — fetch payload from worker
-      const id = hash.slice('#s='.length);
+      const id = hash.slice("#s=".length);
       if (id) {
-        fetchSharePayload(id).then(compressed => {
+        fetchSharePayload(id).then((compressed) => {
           if (compressed) {
             const payload = decodeSharePayload(compressed);
             if (payload) setSharedCVPayload(payload);
           }
         });
       }
-    } else if (hash.startsWith('#share=')) {
+    } else if (hash.startsWith("#share=")) {
       // Legacy long-hash share link
-      const encoded = hash.slice('#share='.length);
+      const encoded = hash.slice("#share=".length);
       const payload = decodeSharePayload(encoded);
       if (payload) {
         setSharedCVPayload(payload);
       }
     }
-    if (hash === '#test-cv') {
-      fetch('/test-cv-preview.json')
-        .then(r => r.ok ? r.json() : Promise.reject('not found'))
+    if (hash === "#test-cv") {
+      fetch("/test-cv-preview.json")
+        .then((r) => (r.ok ? r.json() : Promise.reject("not found")))
         .then((cvData: CVData) => {
-          const slotId = 'test-cv-preview';
+          const slotId = "test-cv-preview";
           const testProfile: UserProfile = {
-            personalInfo: { name: 'Alex Morgan', email: 'alex@example.com', phone: '+44 7700 000000', location: 'London, UK', linkedin: 'linkedin.com/in/alexmorgan', website: '', github: '' },
+            personalInfo: {
+              name: "Alex Morgan",
+              email: "alex@example.com",
+              phone: "+44 7700 000000",
+              location: "London, UK",
+              linkedin: "linkedin.com/in/alexmorgan",
+              website: "",
+              github: "",
+            },
             summary: cvData.summary,
             workExperience: (cvData.experience ?? []).map((exp, i) => ({
               id: `exp-${i}`,
@@ -445,7 +657,7 @@ const AppInner: React.FC = () => {
               jobTitle: exp.jobTitle,
               startDate: exp.startDate,
               endDate: exp.endDate,
-              responsibilities: (exp.responsibilities ?? []).join('\n'),
+              responsibilities: (exp.responsibilities ?? []).join("\n"),
             })),
             education: (cvData.education ?? []).map((edu, i) => ({
               id: `edu-${i}`,
@@ -459,23 +671,27 @@ const AppInner: React.FC = () => {
           };
           const testSlot: UserProfileSlot = {
             id: slotId,
-            name: 'Test CV Preview',
-            color: 'amber',
+            name: "Test CV Preview",
+            color: "amber",
             createdAt: new Date().toISOString(),
             profile: testProfile,
             currentCV: cvData,
           };
           // Force professional template so sidebar/compact templates don't crash on minimal data
-          try { localStorage.setItem('template', 'professional'); } catch {}
-          setProfiles(prev => {
-            const exists = prev.some(p => p.id === slotId);
-            return exists ? prev.map(p => p.id === slotId ? testSlot : p) : [testSlot, ...prev];
+          try {
+            localStorage.setItem("template", "professional");
+          } catch {}
+          setProfiles((prev) => {
+            const exists = prev.some((p) => p.id === slotId);
+            return exists
+              ? prev.map((p) => (p.id === slotId ? testSlot : p))
+              : [testSlot, ...prev];
           });
           setActiveProfileId(slotId);
           setCurrentCV(cvData);
           setShowLanding(false);
           setIsEditingProfile(false);
-          window.history.replaceState(null, '', window.location.pathname);
+          window.history.replaceState(null, "", window.location.pathname);
         })
         .catch(() => {});
     }
@@ -484,12 +700,15 @@ const AppInner: React.FC = () => {
   // Close More menu on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+      if (
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(e.target as Node)
+      ) {
         setShowMoreMenu(false);
       }
     };
-    if (showMoreMenu) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    if (showMoreMenu) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [showMoreMenu]);
 
   // Close profile manager dropdown on outside click — desktop only.
@@ -499,36 +718,44 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     if (isMobile) return;
     const handler = (e: MouseEvent) => {
-      if (profileManagerRef.current && !profileManagerRef.current.contains(e.target as Node)) {
+      if (
+        profileManagerRef.current &&
+        !profileManagerRef.current.contains(e.target as Node)
+      ) {
         setShowProfileManager(false);
       }
     };
-    if (showProfileManager) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    if (showProfileManager) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [showProfileManager, isMobile]);
 
   // ── API settings save: encrypt before persisting ──────────────────────
-  const handleApiSettingsSave = useCallback(async (plaintext: ApiSettings) => {
-    // Update in-memory state immediately so the UI (Job Board, etc.) sees
-    // the new keys right away — don't make the user wait for async encryption.
-    setApiSettings(plaintext);
-    setRuntimeKeys({
-      apiKey:        plaintext.apiKey              ?? null,
-      claudeApiKey:  (plaintext as any).claudeApiKey  ?? null,
-      tavilyApiKey:  (plaintext as any).tavilyApiKey  ?? null,
-      brevoApiKey:   (plaintext as any).brevoApiKey   ?? null,
-      jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
-    });
-    // Then encrypt and persist to storage in the background.
-    try {
-      await KeyVault.init();
-      const encrypted = await KeyVault.encryptApiSettings(plaintext as Record<string, unknown>);
-      setRawApiSettings(encrypted as unknown as ApiSettings);
-    } catch {
-      // Fallback: save without encryption rather than silently fail
-      setRawApiSettings(plaintext);
-    }
-  }, [setRawApiSettings]);
+  const handleApiSettingsSave = useCallback(
+    async (plaintext: ApiSettings) => {
+      // Update in-memory state immediately so the UI (Job Board, etc.) sees
+      // the new keys right away — don't make the user wait for async encryption.
+      setApiSettings(plaintext);
+      setRuntimeKeys({
+        apiKey: plaintext.apiKey ?? null,
+        claudeApiKey: (plaintext as any).claudeApiKey ?? null,
+        tavilyApiKey: (plaintext as any).tavilyApiKey ?? null,
+        brevoApiKey: (plaintext as any).brevoApiKey ?? null,
+        jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
+      });
+      // Then encrypt and persist to storage in the background.
+      try {
+        await KeyVault.init();
+        const encrypted = await KeyVault.encryptApiSettings(
+          plaintext as Record<string, unknown>,
+        );
+        setRawApiSettings(encrypted as unknown as ApiSettings);
+      } catch {
+        // Fallback: save without encryption rather than silently fail
+        setRawApiSettings(plaintext);
+      }
+    },
+    [setRawApiSettings],
+  );
 
   // ── Profile Manager handlers ───────────────────────────────────────────
 
@@ -537,167 +764,212 @@ const AppInner: React.FC = () => {
   const handleRestoreProfileBullets = useCallback(() => {
     if (!currentCV || !userProfile) return;
     const fromProfile = profileToCV(userProfile);
-    setCurrentCV(prev => {
+    setCurrentCV((prev) => {
       if (!prev) return prev;
       const restored = prev.experience.map((cvExp) => {
         const profileExp = fromProfile.experience.find(
-          e => e.company === cvExp.company && e.jobTitle === cvExp.jobTitle
+          (e) => e.company === cvExp.company && e.jobTitle === cvExp.jobTitle,
         );
         if (!profileExp) return cvExp;
         return { ...cvExp, responsibilities: profileExp.responsibilities };
       });
-      return { ...prev, experience: restored, summary: userProfile.summary || prev.summary };
+      return {
+        ...prev,
+        experience: restored,
+        summary: userProfile.summary || prev.summary,
+      };
     });
   }, [currentCV, userProfile, setCurrentCV]);
 
-  const handleProfileSave = useCallback((profile: UserProfile) => {
-    if (activeSlot) {
-      setUserProfile(profile);
-      setIsEditingProfile(false);
-      // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
-      syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
-      if (isAuthenticated) syncSlot({ ...activeSlot, profile }).catch(() => {});
-    } else {
-      // First-time: auto-create a slot
-      const id = Date.now().toString();
-      const slot: UserProfileSlot = {
-        id,
-        name: profile.personalInfo.name || 'My Profile',
-        color: 'indigo',
-        createdAt: new Date().toISOString(),
-        profile,
-      };
-      setProfiles([slot]);
-      setActiveProfileId(id);
-      setIsEditingProfile(false);
-      // Sync new profile to D1 cache + user_slots table (fire-and-forget).
-      syncProfileToCache(slot).catch(() => {});
-      syncSlot(slot).catch(() => {});
-    }
+  const handleProfileSave = useCallback(
+    (profile: UserProfile) => {
+      if (activeSlot) {
+        setUserProfile(profile);
+        setIsEditingProfile(false);
+        // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
+        syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
+        if (isAuthenticated)
+          syncSlot({ ...activeSlot, profile }).catch(() => {});
+      } else {
+        // First-time: auto-create a slot
+        const id = Date.now().toString();
+        const slot: UserProfileSlot = {
+          id,
+          name: profile.personalInfo.name || "My Profile",
+          color: "indigo",
+          createdAt: new Date().toISOString(),
+          profile,
+        };
+        setProfiles([slot]);
+        setActiveProfileId(id);
+        setIsEditingProfile(false);
+        // Sync new profile to D1 cache + user_slots table (fire-and-forget).
+        syncProfileToCache(slot).catch(() => {});
+        syncSlot(slot).catch(() => {});
+      }
 
-    // Immediately sync ALL profile fields into the current CV so the preview
-    // reflects every edit without requiring a full AI regeneration.
-    setCurrentCV(prev => {
-      if (!prev) return prev;
+      // Immediately sync ALL profile fields into the current CV so the preview
+      // reflects every edit without requiring a full AI regeneration.
+      setCurrentCV((prev) => {
+        if (!prev) return prev;
 
-      // Convert the saved profile to properly-formatted CV data so we get
-      // correct date formatting, bullet splitting, etc. without duplicating logic.
-      const fromProfile = profileToCV(profile);
+        // Convert the saved profile to properly-formatted CV data so we get
+        // correct date formatting, bullet splitting, etc. without duplicating logic.
+        const fromProfile = profileToCV(profile);
 
-      // Convert the OLD (pre-save) profile so we can detect which bullets the
-      // user actually changed in the form vs which were already there.
-      const oldFromProfile = profileToCV(userProfile);
+        // Convert the OLD (pre-save) profile so we can detect which bullets the
+        // user actually changed in the form vs which were already there.
+        const oldFromProfile = profileToCV(userProfile);
 
-      // Smart experience merge:
-      // • Matched by company + jobTitle (not index) — add/remove/reorder is safe.
-      // • If the user edited the responsibilities text in the profile form the
-      //   new profile bullets win (their explicit edit must be respected).
-      // • If the responsibilities text is unchanged the AI-polished CV bullets
-      //   are preserved and only dates are refreshed.
-      const mergedExperience = fromProfile.experience.map((newExp) => {
-        const prevCVExp = prev.experience.find(
-          e =>
-            e.company  === newExp.company &&
-            e.jobTitle === newExp.jobTitle &&
-            e.responsibilities.length > 0
-        );
-        if (!prevCVExp) {
-          // New or renamed role — use fresh profile bullets
-          return newExp;
-        }
+        // Smart experience merge:
+        // • Matched by company + jobTitle (not index) — add/remove/reorder is safe.
+        // • If the user edited the responsibilities text in the profile form the
+        //   new profile bullets win (their explicit edit must be respected).
+        // • If the responsibilities text is unchanged the AI-polished CV bullets
+        //   are preserved and only dates are refreshed.
+        const mergedExperience = fromProfile.experience.map((newExp) => {
+          const prevCVExp = prev.experience.find(
+            (e) =>
+              e.company === newExp.company &&
+              e.jobTitle === newExp.jobTitle &&
+              e.responsibilities.length > 0,
+          );
+          if (!prevCVExp) {
+            // New or renamed role — use fresh profile bullets
+            return newExp;
+          }
 
-        // Check whether the user changed the bullet text in the profile form
-        const oldExp = oldFromProfile.experience.find(
-          e => e.company === newExp.company && e.jobTitle === newExp.jobTitle
-        );
-        const bulletsChangedInForm =
-          JSON.stringify(oldExp?.responsibilities ?? []) !==
-          JSON.stringify(newExp.responsibilities);
+          // Check whether the user changed the bullet text in the profile form
+          const oldExp = oldFromProfile.experience.find(
+            (e) =>
+              e.company === newExp.company && e.jobTitle === newExp.jobTitle,
+          );
+          const bulletsChangedInForm =
+            JSON.stringify(oldExp?.responsibilities ?? []) !==
+            JSON.stringify(newExp.responsibilities);
 
-        if (bulletsChangedInForm) {
-          // User explicitly edited bullets in the profile form — honour their edit
+          if (bulletsChangedInForm) {
+            // User explicitly edited bullets in the profile form — honour their edit
+            return {
+              ...prevCVExp,
+              responsibilities: newExp.responsibilities,
+              dates: newExp.dates,
+              startDate: newExp.startDate,
+              endDate: newExp.endDate,
+            };
+          }
+
+          // Bullets unchanged in form — keep AI-polished version, refresh dates only
           return {
             ...prevCVExp,
-            responsibilities: newExp.responsibilities,
-            dates:     newExp.dates,
+            dates: newExp.dates,
             startDate: newExp.startDate,
-            endDate:   newExp.endDate,
+            endDate: newExp.endDate,
           };
-        }
+        });
 
-        // Bullets unchanged in form — keep AI-polished version, refresh dates only
         return {
-          ...prevCVExp,
-          dates:     newExp.dates,
-          startDate: newExp.startDate,
-          endDate:   newExp.endDate,
+          ...prev,
+          // Core profile fields — always sync so form edits appear immediately
+          summary: profile.summary || prev.summary,
+          experience:
+            mergedExperience.length > 0 ? mergedExperience : prev.experience,
+          education:
+            fromProfile.education.length > 0
+              ? fromProfile.education
+              : prev.education,
+          // User-controlled data — prefer profile when non-empty
+          skills: profile.skills.length > 0 ? profile.skills : prev.skills,
+          projects:
+            fromProfile.projects && fromProfile.projects.length > 0
+              ? fromProfile.projects
+              : prev.projects,
+          languages:
+            fromProfile.languages && fromProfile.languages.length > 0
+              ? fromProfile.languages
+              : prev.languages,
+          references:
+            fromProfile.references && fromProfile.references.length > 0
+              ? fromProfile.references
+              : prev.references,
+          customSections: (profile.customSections || []).filter((s) =>
+            s.items.some((i) => i.title.trim().length > 0),
+          ),
+          sectionOrder: profile.sectionOrder,
         };
       });
+    },
+    [activeSlot, setUserProfile, setProfiles, setActiveProfileId, setCurrentCV],
+  );
 
-      return {
-        ...prev,
-        // Core profile fields — always sync so form edits appear immediately
-        summary:    profile.summary || prev.summary,
-        experience: mergedExperience.length > 0 ? mergedExperience : prev.experience,
-        education:  fromProfile.education.length > 0 ? fromProfile.education : prev.education,
-        // User-controlled data — prefer profile when non-empty
-        skills: profile.skills.length > 0 ? profile.skills : prev.skills,
-        projects:   fromProfile.projects  && fromProfile.projects.length  > 0 ? fromProfile.projects  : prev.projects,
-        languages:  fromProfile.languages && fromProfile.languages.length > 0 ? fromProfile.languages : prev.languages,
-        references: fromProfile.references && fromProfile.references.length > 0 ? fromProfile.references : prev.references,
-        customSections: (profile.customSections || []).filter(
-          s => s.items.some(i => i.title.trim().length > 0)
-        ),
-        sectionOrder: profile.sectionOrder,
+  const handleCreateProfile = useCallback(
+    (name: string, color: ProfileColor, cloneFrom?: UserProfile) => {
+      const id = Date.now().toString();
+      const emptyProfile: UserProfile = {
+        personalInfo: {
+          name: "",
+          email: "",
+          phone: "",
+          location: "",
+          linkedin: "",
+          website: "",
+          github: "",
+        },
+        summary: "",
+        workExperience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        languages: [],
       };
-    });
-  }, [activeSlot, setUserProfile, setProfiles, setActiveProfileId, setCurrentCV]);
+      const slot: UserProfileSlot = {
+        id,
+        name,
+        color,
+        createdAt: new Date().toISOString(),
+        profile: cloneFrom ? { ...cloneFrom } : emptyProfile,
+      };
+      setProfiles((prev) => [...prev, slot]);
+      setActiveProfileId(id);
+      setIsEditingProfile(!cloneFrom); // jump to edit if blank
+      setShowProfileManager(false);
+      toast.success("Profile Created", `"${name}" is now your active profile.`);
+    },
+    [setProfiles, setActiveProfileId, toast],
+  );
 
-  const handleCreateProfile = useCallback((name: string, color: ProfileColor, cloneFrom?: UserProfile) => {
-    const id = Date.now().toString();
-    const emptyProfile: UserProfile = {
-      personalInfo: { name: '', email: '', phone: '', location: '', linkedin: '', website: '', github: '' },
-      summary: '',
-      workExperience: [],
-      education: [],
-      skills: [],
-      projects: [],
-      languages: [],
-    };
-    const slot: UserProfileSlot = {
-      id,
-      name,
-      color,
-      createdAt: new Date().toISOString(),
-      profile: cloneFrom ? { ...cloneFrom } : emptyProfile,
-    };
-    setProfiles(prev => [...prev, slot]);
-    setActiveProfileId(id);
-    setIsEditingProfile(!cloneFrom); // jump to edit if blank
-    setShowProfileManager(false);
-    toast.success('Profile Created', `"${name}" is now your active profile.`);
-  }, [setProfiles, setActiveProfileId, toast]);
+  const handleSwitchProfile = useCallback(
+    (slot: UserProfileSlot) => {
+      setActiveProfileId(slot.id);
+      setIsEditingProfile(false);
+      setShowProfileManager(false);
+      toast.success("Profile Switched", `Now using "${slot.name}".`);
+    },
+    [setActiveProfileId, toast],
+  );
 
-  const handleSwitchProfile = useCallback((slot: UserProfileSlot) => {
-    setActiveProfileId(slot.id);
-    setIsEditingProfile(false);
-    setShowProfileManager(false);
-    toast.success('Profile Switched', `Now using "${slot.name}".`);
-  }, [setActiveProfileId, toast]);
+  const handleDeleteProfile = useCallback(
+    (id: string) => {
+      setProfiles((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        if (activeProfileId === id && next.length > 0)
+          setActiveProfileId(next[0].id);
+        return next;
+      });
+      toast.success("Profile Deleted", "Profile removed.");
+    },
+    [setProfiles, activeProfileId, setActiveProfileId, toast],
+  );
 
-  const handleDeleteProfile = useCallback((id: string) => {
-    setProfiles(prev => {
-      const next = prev.filter(p => p.id !== id);
-      if (activeProfileId === id && next.length > 0) setActiveProfileId(next[0].id);
-      return next;
-    });
-    toast.success('Profile Deleted', 'Profile removed.');
-  }, [setProfiles, activeProfileId, setActiveProfileId, toast]);
-
-  const handleRenameProfile = useCallback((id: string, name: string, color: ProfileColor) => {
-    setProfiles(prev => prev.map(p => p.id === id ? { ...p, name, color } : p));
-    toast.success('Profile Updated', `Renamed to "${name}".`);
-  }, [setProfiles, toast]);
+  const handleRenameProfile = useCallback(
+    (id: string, name: string, color: ProfileColor) => {
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, name, color } : p)),
+      );
+      toast.success("Profile Updated", `Renamed to "${name}".`);
+    },
+    [setProfiles, toast],
+  );
 
   // ── CV handlers ─────────────────────────────────────────────────────────
   // Snapshot the deterministic quality audit at save time so the saved-CV
@@ -710,7 +982,11 @@ const AppInner: React.FC = () => {
         score: r.score,
         totalBullets: r.totalBullets,
         totalIssues: r.totalIssues,
-        issues: r.issues.map(i => ({ kind: i.kind, where: i.where, snippet: i.snippet })),
+        issues: r.issues.map((i) => ({
+          kind: i.kind,
+          where: i.where,
+          snippet: i.snippet,
+        })),
         durationMs: r.durationMs,
         auditedAt: new Date().toISOString(),
       };
@@ -719,10 +995,13 @@ const AppInner: React.FC = () => {
     }
   };
 
-  const handleSaveCV = (cvData: CVData, purpose: 'job' | 'academic' | 'general') => {
+  const handleSaveCV = (
+    cvData: CVData,
+    purpose: "job" | "academic" | "general",
+  ) => {
     const cvName = prompt(
-      'Enter a name for this CV (e.g., Software Engineer - Google):',
-      `CV for ${cvData.experience[0]?.jobTitle || 'New Role'}`
+      "Enter a name for this CV (e.g., Software Engineer - Google):",
+      `CV for ${cvData.experience[0]?.jobTitle || "New Role"}`,
     );
     if (cvName) {
       const newSavedCV: SavedCV = {
@@ -733,216 +1012,308 @@ const AppInner: React.FC = () => {
         purpose,
         qualityReport: buildQualitySnapshot(cvData),
       };
-      setSavedCVs(prev => [newSavedCV, ...prev]);
-      toast.success('CV Saved Successfully!', `"${cvName}" has been saved to your library.`);
+      setSavedCVs((prev) => [newSavedCV, ...prev]);
+      toast.success(
+        "CV Saved Successfully!",
+        `"${cvName}" has been saved to your library.`,
+      );
     }
   };
 
-  const handleSaveCVFromPipeline = useCallback((cvData: CVData, name: string) => {
-    const newSavedCV: SavedCV = {
-      id: Date.now().toString(),
-      name,
-      createdAt: new Date().toISOString(),
-      data: cvData,
-      purpose: 'job',
-      qualityReport: buildQualitySnapshot(cvData),
-    };
-    setSavedCVs(prev => [newSavedCV, ...prev]);
-    toast.success('CV Saved!', `"${name}" saved to your CV library.`);
-  }, [setSavedCVs, toast]);
+  const handleSaveCVFromPipeline = useCallback(
+    (cvData: CVData, name: string) => {
+      const newSavedCV: SavedCV = {
+        id: Date.now().toString(),
+        name,
+        createdAt: new Date().toISOString(),
+        data: cvData,
+        purpose: "job",
+        qualityReport: buildQualitySnapshot(cvData),
+      };
+      setSavedCVs((prev) => [newSavedCV, ...prev]);
+      toast.success("CV Saved!", `"${name}" saved to your CV library.`);
+    },
+    [setSavedCVs, toast],
+  );
 
-  const handleSaveCoverLetter = useCallback((text: string, name: string) => {
-    const newCL: SavedCoverLetter = {
-      id: Date.now().toString(),
-      name,
-      createdAt: new Date().toISOString(),
-      text,
-    };
-    setSavedCoverLetters(prev => [newCL, ...prev]);
-    toast.success('Cover Letter Saved!', `"${name}" saved to your library.`);
-  }, [setSavedCoverLetters, toast]);
+  const handleSaveCoverLetter = useCallback(
+    (text: string, name: string) => {
+      const newCL: SavedCoverLetter = {
+        id: Date.now().toString(),
+        name,
+        createdAt: new Date().toISOString(),
+        text,
+      };
+      setSavedCoverLetters((prev) => [newCL, ...prev]);
+      toast.success("Cover Letter Saved!", `"${name}" saved to your library.`);
+    },
+    [setSavedCoverLetters, toast],
+  );
 
   const deleteCVTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleDeleteCV = useCallback((id: string) => {
-    const cvToDelete = savedCVs.find(cv => cv.id === id);
-    if (!cvToDelete) return;
-    // Optimistically remove immediately
-    setSavedCVs(prev => prev.filter(cv => cv.id !== id));
-    // Show undo toast
-    if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
-    toast.info(
-      'CV Deleted',
-      `"${cvToDelete.name}" removed.`,
-      () => {
+  const handleDeleteCV = useCallback(
+    (id: string) => {
+      const cvToDelete = savedCVs.find((cv) => cv.id === id);
+      if (!cvToDelete) return;
+      // Optimistically remove immediately
+      setSavedCVs((prev) => prev.filter((cv) => cv.id !== id));
+      // Show undo toast
+      if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
+      toast.info("CV Deleted", `"${cvToDelete.name}" removed.`, () => {
         // Undo: restore the CV
         if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
-        setSavedCVs(prev => [cvToDelete, ...prev]);
-        toast.success('Restored', `"${cvToDelete.name}" has been restored.`);
-      }
-    );
-    // After 6 seconds the deletion is final — nothing to do since it's already removed from state
-    deleteCVTimerRef.current = setTimeout(() => {
-      deleteCVTimerRef.current = null;
-    }, 6000);
-  }, [setSavedCVs, savedCVs, toast]);
-
-  const handleSaveStories = useCallback((newStories: STARStory[]) => {
-    setStarStories(prev => [...newStories, ...prev]);
-    toast.success('Stories Saved!', `${newStories.length} STAR+R story added to your Interview Story Bank.`);
-  }, [setStarStories, toast]);
-
-  const handleLoadCV = useCallback((cvData: CVData) => {
-    setCurrentCV(cvData);
-    setIsEditingProfile(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [setCurrentCV]);
-
-  const handleAutoTrack = useCallback((details: { roleTitle: string; company: string; savedCvName: string }) => {
-    const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    setTrackedApps(prev => {
-      const existingIdx = prev.findIndex(app => {
-        const sameRole    = normalise(app.roleTitle) === normalise(details.roleTitle);
-        const sameCompany = normalise(app.company)   === normalise(details.company);
-        const recent      = new Date(app.dateApplied) >= thirtyDaysAgo;
-        return sameRole && sameCompany && recent;
+        setSavedCVs((prev) => [cvToDelete, ...prev]);
+        toast.success("Restored", `"${cvToDelete.name}" has been restored.`);
       });
+      // After 6 seconds the deletion is final — nothing to do since it's already removed from state
+      deleteCVTimerRef.current = setTimeout(() => {
+        deleteCVTimerRef.current = null;
+      }, 6000);
+    },
+    [setSavedCVs, savedCVs, toast],
+  );
 
-      if (existingIdx !== -1) {
-        // Regeneration of the same job — update CV name only, don't create duplicate
-        const updated = [...prev];
-        updated[existingIdx] = { ...updated[existingIdx], savedCvName: details.savedCvName };
-        toast.success('CV Updated', `Re-generation detected — updated CV for "${details.roleTitle}" at ${details.company}.`);
-        return updated;
-      }
+  const handleSaveStories = useCallback(
+    (newStories: STARStory[]) => {
+      setStarStories((prev) => [...newStories, ...prev]);
+      toast.success(
+        "Stories Saved!",
+        `${newStories.length} STAR+R story added to your Interview Story Bank.`,
+      );
+    },
+    [setStarStories, toast],
+  );
 
-      const newApp: TrackedApplication = {
-        id: Date.now().toString(),
-        savedCvId: 'auto-generated',
-        savedCvName: details.savedCvName,
-        roleTitle: details.roleTitle,
-        company: details.company,
-        status: 'Applied',
-        dateApplied: new Date().toISOString().split('T')[0],
-        notes: `Automatically tracked after CV generation on ${new Date().toLocaleDateString()}.`,
-      };
-      toast.success('Application Tracked!', `Added "${details.roleTitle}" at ${details.company} to your tracker.`);
-      return [newApp, ...prev];
-    });
-  }, [setTrackedApps, toast]);
+  const handleLoadCV = useCallback(
+    (cvData: CVData) => {
+      setCurrentCV(cvData);
+      setIsEditingProfile(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [setCurrentCV],
+  );
+
+  const handleAutoTrack = useCallback(
+    (details: { roleTitle: string; company: string; savedCvName: string }) => {
+      const normalise = (s: string) =>
+        s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      setTrackedApps((prev) => {
+        const existingIdx = prev.findIndex((app) => {
+          const sameRole =
+            normalise(app.roleTitle) === normalise(details.roleTitle);
+          const sameCompany =
+            normalise(app.company) === normalise(details.company);
+          const recent = new Date(app.dateApplied) >= thirtyDaysAgo;
+          return sameRole && sameCompany && recent;
+        });
+
+        if (existingIdx !== -1) {
+          // Regeneration of the same job — update CV name only, don't create duplicate
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            savedCvName: details.savedCvName,
+          };
+          toast.success(
+            "CV Updated",
+            `Re-generation detected — updated CV for "${details.roleTitle}" at ${details.company}.`,
+          );
+          return updated;
+        }
+
+        const newApp: TrackedApplication = {
+          id: Date.now().toString(),
+          savedCvId: "auto-generated",
+          savedCvName: details.savedCvName,
+          roleTitle: details.roleTitle,
+          company: details.company,
+          status: "Applied",
+          dateApplied: new Date().toISOString().split("T")[0],
+          notes: `Automatically tracked after CV generation on ${new Date().toLocaleDateString()}.`,
+        };
+        toast.success(
+          "Application Tracked!",
+          `Added "${details.roleTitle}" at ${details.company} to your tracker.`,
+        );
+        return [newApp, ...prev];
+      });
+    },
+    [setTrackedApps, toast],
+  );
 
   // Wire CV Generator → Email Apply
-  const handleApplyViaEmail = useCallback((jd: string, _cv: CVData) => {
-    setEmailJd(jd);
-    setCurrentView('email');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast.success('Email Apply Ready', 'JD pre-filled — AI will compose your email.');
-  }, [toast]);
+  const handleApplyViaEmail = useCallback(
+    (jd: string, _cv: CVData) => {
+      setEmailJd(jd);
+      setCurrentView("email");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast.success(
+        "Email Apply Ready",
+        "JD pre-filled — AI will compose your email.",
+      );
+    },
+    [toast],
+  );
 
   // Wire CV Generator → Interview Prep
-  const handleGoToInterviewPrep = useCallback((jd: string) => {
-    setInterviewPrepJd(jd);
-    setCurrentView('interview');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast.success('Interview Prep Ready', 'JD pre-filled — generating tailored questions.');
-  }, [toast]);
+  const handleGoToInterviewPrep = useCallback(
+    (jd: string) => {
+      setInterviewPrepJd(jd);
+      setCurrentView("interview");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast.success(
+        "Interview Prep Ready",
+        "JD pre-filled — generating tailored questions.",
+      );
+    },
+    [toast],
+  );
 
   // Wire CV Toolkit → CV Generator (Fix & Regenerate / Go to Generator)
-  const handleGoToGenerator = useCallback((extraInstructions?: string) => {
-    setCurrentView('generator');
-    if (extraInstructions) {
-      setToolkitSuggestions(extraInstructions);
-      toast.success('CV Toolkit Feedback Ready', 'Open the banner in the CV Generator to apply the fixes.');
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [toast]);
+  const handleGoToGenerator = useCallback(
+    (extraInstructions?: string) => {
+      setCurrentView("generator");
+      if (extraInstructions) {
+        setToolkitSuggestions(extraInstructions);
+        toast.success(
+          "CV Toolkit Feedback Ready",
+          "Open the banner in the CV Generator to apply the fixes.",
+        );
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [toast],
+  );
 
   // Wire GitHub Import → CV Generator (AI-generated CV from repos)
-  const handleGitHubCVGenerated = useCallback((cv: CVData) => {
-    setCurrentCV(cv);
-    setCurrentView('generator');
-    toast.success('GitHub CV Ready!', 'Your AI-generated CV is loaded in the CV Generator — complete with real project links.');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [setCurrentCV, toast]);
+  const handleGitHubCVGenerated = useCallback(
+    (cv: CVData) => {
+      setCurrentCV(cv);
+      setCurrentView("generator");
+      toast.success(
+        "GitHub CV Ready!",
+        "Your AI-generated CV is loaded in the CV Generator — complete with real project links.",
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [setCurrentCV, toast],
+  );
 
   // Wire Word Import → Profile update
-  const handleWordProfileImported = useCallback((profile: UserProfile) => {
-    const cvData = profileToCV(profile);
-    if (activeSlot) {
-      // Atomically update profile + CV in a single setProfiles call.
-      const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
-      setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updatedSlot : p));
-      invalidateCVCache();
-      syncProfileToCache(updatedSlot).catch(() => {});
-      if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
-      toast.success('Profile Imported!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
-    } else {
-      const id = Date.now().toString();
-      const slot: UserProfileSlot = {
-        id,
-        name: profile.personalInfo.name || 'Imported Profile',
-        color: 'violet',
-        createdAt: new Date().toISOString(),
-        profile,
-        currentCV: cvData,
-      };
-      // Append instead of replacing — never wipe existing profiles.
-      setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
-      setActiveProfileId(id);
-      toast.success('Profile Imported!', 'Your Word CV has been imported. Edit your profile or go to the Generator.');
-      syncProfileToCache(slot).catch(() => {});
-      if (isAuthenticated) syncSlot(slot).catch(() => {});
-    }
-  }, [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated]);
+  const handleWordProfileImported = useCallback(
+    (profile: UserProfile) => {
+      const cvData = profileToCV(profile);
+      if (activeSlot) {
+        // Atomically update profile + CV in a single setProfiles call.
+        const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === activeSlot.id ? updatedSlot : p)),
+        );
+        invalidateCVCache();
+        syncProfileToCache(updatedSlot).catch(() => {});
+        if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
+        toast.success(
+          "Profile Imported!",
+          "Your CV data has been imported. Head to the CV Generator to apply a template.",
+        );
+      } else {
+        const id = Date.now().toString();
+        const slot: UserProfileSlot = {
+          id,
+          name: profile.personalInfo.name || "Imported Profile",
+          color: "violet",
+          createdAt: new Date().toISOString(),
+          profile,
+          currentCV: cvData,
+        };
+        // Append instead of replacing — never wipe existing profiles.
+        setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
+        setActiveProfileId(id);
+        toast.success(
+          "Profile Imported!",
+          "Your Word CV has been imported. Edit your profile or go to the Generator.",
+        );
+        syncProfileToCache(slot).catch(() => {});
+        if (isAuthenticated) syncSlot(slot).catch(() => {});
+      }
+    },
+    [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated],
+  );
 
   // ── JSON profile import — asks user whether to update or create new ──────
-  const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>('');
-  const [pendingJsonImport, setPendingJsonImport] = useState<{ profile: UserProfile; cvData: CVData } | null>(null);
+  const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>("");
+  const [pendingJsonImport, setPendingJsonImport] = useState<{
+    profile: UserProfile;
+    cvData: CVData;
+  } | null>(null);
 
-  const _applyJsonImport = useCallback((profile: UserProfile, cvData: CVData, slotToUpdate: UserProfileSlot | null) => {
-    if (slotToUpdate) {
-      const updatedSlot = { ...slotToUpdate, profile, currentCV: cvData };
-      setProfiles(prev => prev.map(p => p.id === slotToUpdate.id ? updatedSlot : p));
-      invalidateCVCache();
-      syncProfileToCache(updatedSlot).catch(() => {});
-      if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
-      toast.success('Profile Updated!', 'Your CV is ready — all templates are populated. Check your quality report below.');
-    } else {
-      const id = Date.now().toString();
-      const slot: UserProfileSlot = {
-        id,
-        name: profile.personalInfo.name || 'Imported Profile',
-        color: 'indigo',
-        createdAt: new Date().toISOString(),
-        profile,
-        currentCV: cvData,
-      };
-      setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
-      setActiveProfileId(id);
-      syncProfileToCache(slot).catch(() => {});
-      if (isAuthenticated) syncSlot(slot).catch(() => {});
-      toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
-    }
-    setCurrentView('generator');
-    setIsEditingProfile(false);
-    setJsonImportTimestamp(new Date().toISOString());
-  }, [setProfiles, setActiveProfileId, toast]);
+  const _applyJsonImport = useCallback(
+    (
+      profile: UserProfile,
+      cvData: CVData,
+      slotToUpdate: UserProfileSlot | null,
+    ) => {
+      if (slotToUpdate) {
+        const updatedSlot = { ...slotToUpdate, profile, currentCV: cvData };
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === slotToUpdate.id ? updatedSlot : p)),
+        );
+        invalidateCVCache();
+        syncProfileToCache(updatedSlot).catch(() => {});
+        if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
+        toast.success(
+          "Profile Updated!",
+          "Your CV is ready — all templates are populated. Check your quality report below.",
+        );
+      } else {
+        const id = Date.now().toString();
+        const slot: UserProfileSlot = {
+          id,
+          name: profile.personalInfo.name || "Imported Profile",
+          color: "indigo",
+          createdAt: new Date().toISOString(),
+          profile,
+          currentCV: cvData,
+        };
+        setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
+        setActiveProfileId(id);
+        syncProfileToCache(slot).catch(() => {});
+        if (isAuthenticated) syncSlot(slot).catch(() => {});
+        toast.success(
+          "Profile Imported!",
+          "Your CV is ready — all templates are populated. Check your quality report below.",
+        );
+      }
+      setCurrentView("generator");
+      setIsEditingProfile(false);
+      setJsonImportTimestamp(new Date().toISOString());
+    },
+    [setProfiles, setActiveProfileId, toast],
+  );
 
-  const handleJsonProfileImported = useCallback((profile: UserProfile) => {
-    const cvData = profileToCV(profile);
-    if (activeSlot) {
-      // Show the choice dialog — user decides to update current profile or create new.
-      setPendingJsonImport({ profile, cvData });
-    } else {
-      _applyJsonImport(profile, cvData, null);
-    }
-  }, [activeSlot, _applyJsonImport]);
+  const handleJsonProfileImported = useCallback(
+    (profile: UserProfile) => {
+      const cvData = profileToCV(profile);
+      if (activeSlot) {
+        // Show the choice dialog — user decides to update current profile or create new.
+        setPendingJsonImport({ profile, cvData });
+      } else {
+        _applyJsonImport(profile, cvData, null);
+      }
+    },
+    [activeSlot, _applyJsonImport],
+  );
 
   const handleConfirmUpdateCurrentProfile = useCallback(() => {
     if (!pendingJsonImport) return;
-    _applyJsonImport(pendingJsonImport.profile, pendingJsonImport.cvData, activeSlot);
+    _applyJsonImport(
+      pendingJsonImport.profile,
+      pendingJsonImport.cvData,
+      activeSlot,
+    );
     setPendingJsonImport(null);
   }, [pendingJsonImport, activeSlot, _applyJsonImport]);
 
@@ -952,67 +1323,104 @@ const AppInner: React.FC = () => {
     setPendingJsonImport(null);
   }, [pendingJsonImport, _applyJsonImport]);
 
-  const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'negotiation' | 'scanner' | 'analytics' | 'admin-leaks' | 'admin-cv-engine' | 'storage-map'>('generator');
+  const [currentView, setCurrentView] = useState<
+    | "generator"
+    | "linkedin"
+    | "interview"
+    | "jobs"
+    | "essays"
+    | "history"
+    | "tracker"
+    | "toolkit"
+    | "email"
+    | "negotiation"
+    | "scanner"
+    | "analytics"
+    | "admin-leaks"
+    | "admin-cv-engine"
+    | "storage-map"
+  >("generator");
 
   // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
   // from the main nav so they don't clutter the user-facing UI; these are
   // internal dashboards for managing the engine database and AI leaks.
   useEffect(() => {
     const sync = () => {
-      if (window.location.hash === '#admin/leaks') setCurrentView('admin-leaks');
-      else if (window.location.hash === '#admin/cv-engine') setCurrentView('admin-cv-engine');
-      else if (window.location.hash === '#admin/storage-map') setCurrentView('storage-map');
+      if (window.location.hash === "#admin/leaks")
+        setCurrentView("admin-leaks");
+      else if (window.location.hash === "#admin/cv-engine")
+        setCurrentView("admin-cv-engine");
+      else if (window.location.hash === "#admin/storage-map")
+        setCurrentView("storage-map");
     };
     sync();
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
   }, []);
-  const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
+  const [sharedCVPayload, setSharedCVPayload] =
+    useState<SharedCVPayload | null>(null);
 
-  const profileExists = useMemo(() => userProfile !== null && profiles.length > 0, [userProfile, profiles]);
-  const apiKeySet = useMemo(() =>
-    isCVEngineConfigured() || !!(apiSettings?.apiKey || (apiSettings as any)?.claudeApiKey),
-  [apiSettings]);
-  const tavilyApiKey = useMemo(() => apiSettings?.tavilyApiKey || null, [apiSettings]);
-  const brevoApiKey = useMemo(() => apiSettings?.brevoApiKey || null, [apiSettings]);
-  const jsearchApiKey = useMemo(() => apiSettings?.jsearchApiKey || null, [apiSettings]);
+  const profileExists = useMemo(
+    () => userProfile !== null && profiles.length > 0,
+    [userProfile, profiles],
+  );
+  const apiKeySet = useMemo(
+    () =>
+      isCVEngineConfigured() ||
+      !!(apiSettings?.apiKey || (apiSettings as any)?.claudeApiKey),
+    [apiSettings],
+  );
+  const tavilyApiKey = useMemo(
+    () => apiSettings?.tavilyApiKey || null,
+    [apiSettings],
+  );
+  const brevoApiKey = useMemo(
+    () => apiSettings?.brevoApiKey || null,
+    [apiSettings],
+  );
+  const jsearchApiKey = useMemo(
+    () => apiSettings?.jsearchApiKey || null,
+    [apiSettings],
+  );
 
   const primaryNav = [
-    { id: 'generator', label: 'CV Generator', icon: FileText },
-    { id: 'jobs', label: 'Job Board', icon: Globe },
-    { id: 'interview', label: 'Interview Prep', icon: InterviewNavIcon },
-    { id: 'tracker', label: 'Job Tracker', icon: Target },
+    { id: "generator", label: "CV Generator", icon: FileText },
+    { id: "jobs", label: "Job Board", icon: Globe },
+    { id: "interview", label: "Interview Prep", icon: InterviewNavIcon },
+    { id: "tracker", label: "Job Tracker", icon: Target },
   ];
 
   const moreNavGroups = [
     {
-      label: 'Apply',
+      label: "Apply",
       items: [
-        { id: 'email', label: 'Email Apply', icon: MailIcon },
-        { id: 'negotiation', label: 'Salary Negotiation', icon: NegotiationNavIcon },
-        { id: 'essays', label: 'Scholarship', icon: BookOpen },
+        { id: "email", label: "Email Apply", icon: MailIcon },
+        {
+          id: "negotiation",
+          label: "Salary Negotiation",
+          icon: NegotiationNavIcon,
+        },
+        { id: "essays", label: "Scholarship", icon: BookOpen },
       ],
     },
     {
-      label: 'Tools',
-      items: [
-        { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
-      ],
+      label: "Tools",
+      items: [{ id: "scanner", label: "Portal Scanner", icon: ScannerNavIcon }],
     },
     {
-      label: 'Track',
+      label: "Track",
       items: [
-        { id: 'history', label: 'CV History', icon: List },
-        { id: 'analytics', label: 'Analytics', icon: AnalyticsNavIcon },
+        { id: "history", label: "CV History", icon: List },
+        { id: "analytics", label: "Analytics", icon: AnalyticsNavIcon },
       ],
     },
   ];
 
-  const allMoreItems = moreNavGroups.flatMap(g => g.items);
-  const isMoreActive = allMoreItems.some(item => item.id === currentView);
+  const allMoreItems = moreNavGroups.flatMap((g) => g.items);
+  const isMoreActive = allMoreItems.some((item) => item.id === currentView);
 
   // ── Active slot color badge ────────────────────────────────────────────
-  const slotColor = activeSlot?.color ?? 'indigo';
+  const slotColor = activeSlot?.color ?? "indigo";
 
   // Hide landing once a profile is created
   useEffect(() => {
@@ -1025,7 +1433,7 @@ const AppInner: React.FC = () => {
       <LandingPage
         onGetStarted={() => setShowLanding(false)}
         darkMode={!!darkMode}
-        onToggleDark={() => setDarkMode(d => !d)}
+        onToggleDark={() => setDarkMode((d) => !d)}
         hasProfile={profileExists}
         onGoToApp={() => setShowLanding(false)}
       />
@@ -1042,13 +1450,21 @@ const AppInner: React.FC = () => {
           template={sharedCVPayload.template}
           sharedAt={sharedCVPayload.sharedAt}
           coverLetterText={sharedCVPayload.coverLetterText}
-          onLoadIntoEditor={userProfile ? (cvData) => {
-            setCurrentCV(cvData);
-            setCurrentView('generator');
-          } : undefined}
+          onLoadIntoEditor={
+            userProfile
+              ? (cvData) => {
+                  setCurrentCV(cvData);
+                  setCurrentView("generator");
+                }
+              : undefined
+          }
           onDismiss={() => {
             setSharedCVPayload(null);
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            window.history.replaceState(
+              null,
+              "",
+              window.location.pathname + window.location.search,
+            );
           }}
         />
       )}
@@ -1065,8 +1481,15 @@ const AppInner: React.FC = () => {
               <FileText className="h-5 w-5 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none" style={{fontFamily: "'Playfair Display', serif"}}>ProCV</h1>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">Your Personal Career Consultant</p>
+              <h1
+                className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                ProCV
+              </h1>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">
+                Your Personal Career Consultant
+              </p>
             </div>
             <div className="hidden sm:block w-px h-8 bg-[#C9A84C]/30 ml-1" />
           </button>
@@ -1076,14 +1499,24 @@ const AppInner: React.FC = () => {
             {profileExists && (
               <div className="relative" ref={profileManagerRef}>
                 <button
-                  onClick={() => setShowProfileManager(v => !v)}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm font-bold rounded-xl border transition-all ${showProfileManager ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 text-[#1B2B4B] dark:text-[#C9A84C]/80' : 'bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700'}`}
+                  onClick={() => setShowProfileManager((v) => !v)}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm font-bold rounded-xl border transition-all ${showProfileManager ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 text-[#1B2B4B] dark:text-[#C9A84C]/80" : "bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700"}`}
                   title="Switch profile"
                 >
-                  <div className={`w-7 h-7 rounded-full ${colorBg(slotColor)} flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0`}>
-                    {(activeSlot?.profile.personalInfo.name || activeSlot?.name || '?').charAt(0).toUpperCase()}
+                  <div
+                    className={`w-7 h-7 rounded-full ${colorBg(slotColor)} flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0`}
+                  >
+                    {(
+                      activeSlot?.profile.personalInfo.name ||
+                      activeSlot?.name ||
+                      "?"
+                    )
+                      .charAt(0)
+                      .toUpperCase()}
                   </div>
-                  <span className="hidden sm:inline max-w-[80px] truncate text-sm">{activeSlot?.name ?? 'Profile'}</span>
+                  <span className="hidden sm:inline max-w-[80px] truncate text-sm">
+                    {activeSlot?.name ?? "Profile"}
+                  </span>
                   <UsersIcon className="h-4 w-4 text-zinc-400 flex-shrink-0" />
                 </button>
 
@@ -1122,7 +1555,11 @@ const AppInner: React.FC = () => {
               className="p-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
               aria-label="Toggle dark mode"
             >
-              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              {darkMode ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
             </button>
 
             <button
@@ -1133,16 +1570,27 @@ const AppInner: React.FC = () => {
               {isAuthenticated && user ? (
                 <div className="flex items-center gap-2 px-1">
                   {user.picture ? (
-                    <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full ring-1 ring-[#C9A84C] shadow-sm" />
+                    <img
+                      src={user.picture}
+                      alt={user.name}
+                      referrerPolicy="no-referrer"
+                      className="w-6 h-6 rounded-full ring-1 ring-[#C9A84C] shadow-sm"
+                    />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[10px] text-white font-bold">{user.name.charAt(0)}</div>
+                    <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[10px] text-white font-bold">
+                      {user.name.charAt(0)}
+                    </div>
                   )}
-                  <span className="text-xs font-bold hidden lg:inline-block max-w-[80px] truncate">{user.name.split(' ')[0]}</span>
+                  <span className="text-xs font-bold hidden lg:inline-block max-w-[80px] truncate">
+                    {user.name.split(" ")[0]}
+                  </span>
                   <Settings className="h-4 w-4 text-zinc-400 group-hover:rotate-45 transition-transform" />
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-2 py-0.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-tighter text-[#1B2B4B] dark:text-[#C9A84C]">Cloud Sync</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-tighter text-[#1B2B4B] dark:text-[#C9A84C]">
+                    Cloud Sync
+                  </span>
                   <Settings className="h-4 w-4 group-hover:rotate-45 transition-transform" />
                 </div>
               )}
@@ -1154,18 +1602,20 @@ const AppInner: React.FC = () => {
         {profileExists && !isEditingProfile && (
           <div className="border-t border-zinc-200 dark:border-neutral-800">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-
               {/* ── Desktop nav ── */}
               <div className="hidden sm:flex items-center gap-0.5 py-1">
-                {primaryNav.map(item => (
+                {primaryNav.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => { setCurrentView(item.id as any); setShowMoreMenu(false); }}
+                    onClick={() => {
+                      setCurrentView(item.id as any);
+                      setShowMoreMenu(false);
+                    }}
                     title={item.label}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
                       currentView === item.id
-                        ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C]'
-                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800 border-b-2 border-transparent'
+                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C]"
+                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800 border-b-2 border-transparent"
                     }`}
                   >
                     <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
@@ -1176,30 +1626,43 @@ const AppInner: React.FC = () => {
                 {/* ── More dropdown ── */}
                 <div className="relative ml-1" ref={moreMenuRef}>
                   <button
-                    onClick={() => setShowMoreMenu(v => !v)}
+                    onClick={() => setShowMoreMenu((v) => !v)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
                       isMoreActive || showMoreMenu
-                        ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
-                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800"
                     }`}
                   >
                     <span>More</span>
-                    <svg className={`h-3 w-3 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="m6 9 6 6 6-6" /></svg>
+                    <svg
+                      className={`h-3 w-3 transition-transform ${showMoreMenu ? "rotate-180" : ""}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
                   </button>
 
                   {showMoreMenu && (
                     <div className="animate-nav-slide-down absolute left-0 top-full mt-1 w-64 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-neutral-700 p-2 z-50">
-                      {moreNavGroups.map(group => (
+                      {moreNavGroups.map((group) => (
                         <div key={group.label} className="mb-1 last:mb-0">
-                          <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{group.label}</p>
-                          {group.items.map(item => (
+                          <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                            {group.label}
+                          </p>
+                          {group.items.map((item) => (
                             <button
                               key={item.id}
-                              onClick={() => { setCurrentView(item.id as any); setShowMoreMenu(false); }}
+                              onClick={() => {
+                                setCurrentView(item.id as any);
+                                setShowMoreMenu(false);
+                              }}
                               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                                 currentView === item.id
-                                  ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
-                                  : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+                                  ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
                               }`}
                             >
                               <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
@@ -1216,14 +1679,17 @@ const AppInner: React.FC = () => {
               {/* ── Mobile nav: hamburger + slide-down ── */}
               <div className="sm:hidden flex items-center justify-between py-1.5">
                 <div className="flex gap-0.5 overflow-x-auto no-scrollbar">
-                  {primaryNav.slice(0, 3).map(item => (
+                  {primaryNav.slice(0, 3).map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
+                      onClick={() => {
+                        setCurrentView(item.id as any);
+                        setShowMobileMenu(false);
+                      }}
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                         currentView === item.id
-                          ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
-                          : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                          ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                          : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800"
                       }`}
                     >
                       <item.icon className="h-3 w-3 flex-shrink-0" />
@@ -1232,14 +1698,24 @@ const AppInner: React.FC = () => {
                   ))}
                 </div>
                 <button
-                  onClick={() => setShowMobileMenu(v => !v)}
+                  onClick={() => setShowMobileMenu((v) => !v)}
                   className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ml-1 ${
-                    showMobileMenu || (currentView === 'jobs') || isMoreActive
-                      ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
-                      : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                    showMobileMenu || currentView === "jobs" || isMoreActive
+                      ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                      : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800"
                   }`}
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
                 </button>
               </div>
 
@@ -1248,14 +1724,17 @@ const AppInner: React.FC = () => {
                 <div className="animate-mobile-menu sm:hidden pb-3 border-t border-zinc-100 dark:border-neutral-700 pt-2">
                   {/* Job Board (4th primary item that doesn't fit) */}
                   <div className="mb-2">
-                    {[primaryNav[3]].map(item => (
+                    {[primaryNav[3]].map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
+                        onClick={() => {
+                          setCurrentView(item.id as any);
+                          setShowMobileMenu(false);
+                        }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                           currentView === item.id
-                            ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
-                            : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+                            ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                            : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
                         }`}
                       >
                         <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
@@ -1263,18 +1742,23 @@ const AppInner: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                  {moreNavGroups.map(group => (
+                  {moreNavGroups.map((group) => (
                     <div key={group.label} className="mb-1">
-                      <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{group.label}</p>
+                      <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                        {group.label}
+                      </p>
                       <div className="grid grid-cols-2 gap-1">
-                        {group.items.map(item => (
+                        {group.items.map((item) => (
                           <button
                             key={item.id}
-                            onClick={() => { setCurrentView(item.id as any); setShowMobileMenu(false); }}
+                            onClick={() => {
+                              setCurrentView(item.id as any);
+                              setShowMobileMenu(false);
+                            }}
                             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                               currentView === item.id
-                                ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]'
-                                : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+                                ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                                : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
                             }`}
                           >
                             <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
@@ -1286,7 +1770,6 @@ const AppInner: React.FC = () => {
                   ))}
                 </div>
               )}
-
             </div>
           </div>
         )}
@@ -1294,92 +1777,148 @@ const AppInner: React.FC = () => {
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-
-          {(!profileExists || isEditingProfile || currentView === 'generator') && (
+          {(!profileExists ||
+            isEditingProfile ||
+            currentView === "generator") && (
             <aside className="hidden lg:block lg:col-span-4 xl:col-span-3">
               <div className="sticky top-24 space-y-4">
                 {profileExists && (
                   <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-bold flex items-center gap-3"><User className="h-5 w-5 text-[#C9A84C]" /> Profile</h2>
-                      <button onClick={() => setIsEditingProfile(true)} className="text-[#1B2B4B] hover:underline text-xs font-bold uppercase tracking-wider">Edit</button>
+                      <h2 className="text-lg font-bold flex items-center gap-3">
+                        <User className="h-5 w-5 text-[#C9A84C]" /> Profile
+                      </h2>
+                      <button
+                        onClick={() => setIsEditingProfile(true)}
+                        className="text-[#1B2B4B] hover:underline text-xs font-bold uppercase tracking-wider"
+                      >
+                        Edit
+                      </button>
                     </div>
                     <div className="space-y-3">
-
                       {/* Profiles mini-list */}
                       <div className="space-y-1">
-                        {profiles.slice(0, 3).map(slot => (
+                        {profiles.slice(0, 3).map((slot) => (
                           <div
                             key={slot.id}
                             onClick={() => handleSwitchProfile(slot)}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${slot.id === activeSlot?.id ? 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/10' : 'hover:bg-zinc-50 dark:hover:bg-neutral-700/50'}`}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${slot.id === activeSlot?.id ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/10" : "hover:bg-zinc-50 dark:hover:bg-neutral-700/50"}`}
                           >
-                            <div className={`w-5 h-5 rounded-full ${colorBg(slot.color)} flex-shrink-0 flex items-center justify-center text-[9px] text-white font-bold`}>
-                              {(slot.profile.personalInfo.name || slot.name).charAt(0).toUpperCase()}
+                            <div
+                              className={`w-5 h-5 rounded-full ${colorBg(slot.color)} flex-shrink-0 flex items-center justify-center text-[9px] text-white font-bold`}
+                            >
+                              {(slot.profile.personalInfo.name || slot.name)
+                                .charAt(0)
+                                .toUpperCase()}
                             </div>
-                            <span className={`text-xs font-semibold truncate ${slot.id === activeSlot?.id ? 'text-[#1B2B4B] dark:text-[#C9A84C]/80' : 'text-zinc-600 dark:text-zinc-400'}`}>{slot.name}</span>
-                            {slot.id === activeSlot?.id && <span className="ml-auto text-[9px] font-extrabold text-[#C9A84C] uppercase">active</span>}
+                            <span
+                              className={`text-xs font-semibold truncate ${slot.id === activeSlot?.id ? "text-[#1B2B4B] dark:text-[#C9A84C]/80" : "text-zinc-600 dark:text-zinc-400"}`}
+                            >
+                              {slot.name}
+                            </span>
+                            {slot.id === activeSlot?.id && (
+                              <span className="ml-auto text-[9px] font-extrabold text-[#C9A84C] uppercase">
+                                active
+                              </span>
+                            )}
                           </div>
                         ))}
                         {profiles.length > 3 && (
-                          <p className="text-[10px] text-zinc-400 pl-2">+{profiles.length - 3} more profiles</p>
+                          <p className="text-[10px] text-zinc-400 pl-2">
+                            +{profiles.length - 3} more profiles
+                          </p>
                         )}
                       </div>
 
                       <div className="pt-2 border-t border-zinc-100 dark:border-neutral-700">
                         <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold">Name</span>
-                          <span className="text-sm font-semibold">{userProfile?.personalInfo.name}</span>
+                          <span className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold">
+                            Name
+                          </span>
+                          <span className="text-sm font-semibold">
+                            {userProfile?.personalInfo.name}
+                          </span>
                         </div>
                         <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-2">
                           <span>Skills</span>
-                          <span className="font-bold text-zinc-700 dark:text-zinc-300">{userProfile?.skills.length}</span>
+                          <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                            {userProfile?.skills.length}
+                          </span>
                         </div>
                         <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
                           <span>Experience</span>
-                          <span className="font-bold text-zinc-700 dark:text-zinc-300">{userProfile?.workExperience.length} roles</span>
+                          <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                            {userProfile?.workExperience.length} roles
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {currentView === 'generator' && (
+                {currentView === "generator" && (
                   <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-base font-bold flex items-center gap-2"><Target className="h-4 w-4 text-[#C9A84C]" /> Recent Activity</h2>
-                      <span className="text-xs font-semibold text-zinc-400">{trackedApps.length} total</span>
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <Target className="h-4 w-4 text-[#C9A84C]" /> Recent
+                        Activity
+                      </h2>
+                      <span className="text-xs font-semibold text-zinc-400">
+                        {trackedApps.length} total
+                      </span>
                     </div>
                     {trackedApps.length === 0 ? (
                       <div className="text-center py-6">
                         <div className="w-10 h-10 rounded-full bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 flex items-center justify-center mx-auto mb-3">
                           <Target className="h-5 w-5 text-[#C9A84C]" />
                         </div>
-                        <p className="text-xs text-zinc-400 dark:text-zinc-500">No applications tracked yet.</p>
+                        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                          No applications tracked yet.
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {trackedApps.slice(0, 4).map(app => {
+                        {trackedApps.slice(0, 4).map((app) => {
                           const statusColors: Record<string, string> = {
-                            Wishlist: 'bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-400',
-                            Applied: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-                            Interviewing: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
-                            Offer: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-                            Rejected: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+                            Wishlist:
+                              "bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-400",
+                            Applied:
+                              "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
+                            Interviewing:
+                              "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
+                            Offer:
+                              "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
+                            Rejected:
+                              "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
                           };
                           return (
-                            <div key={app.id} onClick={() => setCurrentView('tracker')} className="flex items-start gap-3 p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 cursor-pointer">
+                            <div
+                              key={app.id}
+                              onClick={() => setCurrentView("tracker")}
+                              className="flex items-start gap-3 p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 cursor-pointer"
+                            >
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">{app.roleTitle}</p>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{app.company}</p>
+                                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                                  {app.roleTitle}
+                                </p>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                                  {app.company}
+                                </p>
                               </div>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[app.status] || statusColors.Applied}`}>{app.status}</span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[app.status] || statusColors.Applied}`}
+                              >
+                                {app.status}
+                              </span>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    <button onClick={() => setCurrentView('tracker')} className="w-full mt-4 text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] py-2.5 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 transition-colors flex items-center justify-center gap-1.5">
+                    <button
+                      onClick={() => setCurrentView("tracker")}
+                      className="w-full mt-4 text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] py-2.5 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 transition-colors flex items-center justify-center gap-1.5"
+                    >
                       <Target className="h-3.5 w-3.5" /> View All Applications
                     </button>
                   </div>
@@ -1388,30 +1927,52 @@ const AppInner: React.FC = () => {
             </aside>
           )}
 
-          {profileExists && !isEditingProfile && currentView === 'generator' && (
-            <div className="lg:hidden col-span-1">
-              <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold flex items-center gap-2"><Target className="h-4 w-4 text-[#C9A84C]" /> Recent Activity</h2>
-                  <button onClick={() => setCurrentView('tracker')} className="text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] hover:underline">View All</button>
-                </div>
-                {trackedApps.length === 0 ? (
-                  <p className="text-xs text-zinc-400 text-center py-3">No applications tracked yet.</p>
-                ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-                    {trackedApps.slice(0, 6).map(app => (
-                      <div key={app.id} onClick={() => setCurrentView('tracker')} className="flex-shrink-0 w-44 bg-white dark:bg-neutral-800 border rounded-xl p-3 cursor-pointer hover:shadow-md transition-all border-zinc-200 dark:border-neutral-700">
-                        <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate mt-1">{app.roleTitle}</p>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{app.company}</p>
-                      </div>
-                    ))}
+          {profileExists &&
+            !isEditingProfile &&
+            currentView === "generator" && (
+              <div className="lg:hidden col-span-1">
+                <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold flex items-center gap-2">
+                      <Target className="h-4 w-4 text-[#C9A84C]" /> Recent
+                      Activity
+                    </h2>
+                    <button
+                      onClick={() => setCurrentView("tracker")}
+                      className="text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] hover:underline"
+                    >
+                      View All
+                    </button>
                   </div>
-                )}
+                  {trackedApps.length === 0 ? (
+                    <p className="text-xs text-zinc-400 text-center py-3">
+                      No applications tracked yet.
+                    </p>
+                  ) : (
+                    <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
+                      {trackedApps.slice(0, 6).map((app) => (
+                        <div
+                          key={app.id}
+                          onClick={() => setCurrentView("tracker")}
+                          className="flex-shrink-0 w-44 bg-white dark:bg-neutral-800 border rounded-xl p-3 cursor-pointer hover:shadow-md transition-all border-zinc-200 dark:border-neutral-700"
+                        >
+                          <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate mt-1">
+                            {app.roleTitle}
+                          </p>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                            {app.company}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className={`${(!profileExists || isEditingProfile || currentView === 'generator') ? 'lg:col-span-8 xl:col-span-9' : 'lg:col-span-12'}`}>
+          <div
+            className={`${!profileExists || isEditingProfile || currentView === "generator" ? "lg:col-span-8 xl:col-span-9" : "lg:col-span-12"}`}
+          >
             {!profileExists || isEditingProfile ? (
               <ProfileForm
                 existingProfile={userProfile}
@@ -1425,7 +1986,7 @@ const AppInner: React.FC = () => {
               />
             ) : (
               <div className="space-y-6">
-                {currentView === 'generator' && (
+                {currentView === "generator" && (
                   <CVGenerator
                     userProfile={userProfile!}
                     currentCV={currentCV}
@@ -1439,12 +2000,14 @@ const AppInner: React.FC = () => {
                     onRestoreProfileBullets={handleRestoreProfileBullets}
                     savedCVs={savedCVs}
                     toolkitSuggestions={toolkitSuggestions}
-                    onDismissToolkitSuggestions={() => setToolkitSuggestions(null)}
+                    onDismissToolkitSuggestions={() =>
+                      setToolkitSuggestions(null)
+                    }
                     onSaveStories={handleSaveStories}
                     importedFromJson={jsonImportTimestamp}
                   />
                 )}
-                {currentView === 'linkedin' && (
+                {currentView === "linkedin" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <LinkedInGenerator
                       userProfile={userProfile!}
@@ -1453,7 +2016,7 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'interview' && (
+                {currentView === "interview" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <InterviewPrep
                       userProfile={userProfile!}
@@ -1463,9 +2026,25 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'essays' && <ScholarshipEssayWriter userProfile={userProfile!} apiKeySet={apiKeySet} openSettings={() => setIsSettingsOpen(true)} />}
-                {currentView === 'history' && <CVHistory savedCVs={savedCVs} onLoad={(cv) => { handleLoadCV(cv); setCurrentView('generator'); }} onDelete={handleDeleteCV} userProfile={userProfile!} />}
-                {currentView === 'jobs' && (
+                {currentView === "essays" && (
+                  <ScholarshipEssayWriter
+                    userProfile={userProfile!}
+                    apiKeySet={apiKeySet}
+                    openSettings={() => setIsSettingsOpen(true)}
+                  />
+                )}
+                {currentView === "history" && (
+                  <CVHistory
+                    savedCVs={savedCVs}
+                    onLoad={(cv) => {
+                      handleLoadCV(cv);
+                      setCurrentView("generator");
+                    }}
+                    onDelete={handleDeleteCV}
+                    userProfile={userProfile!}
+                  />
+                )}
+                {currentView === "jobs" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <JobBoard
                       tavilyApiKey={tavilyApiKey}
@@ -1480,7 +2059,7 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'toolkit' && (
+                {currentView === "toolkit" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <CVToolkit
                       userProfile={userProfile!}
@@ -1494,7 +2073,7 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'email' && (
+                {currentView === "email" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-4 sm:p-6 lg:p-8">
                     <EmailApply
                       userProfile={userProfile!}
@@ -1506,16 +2085,27 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'tracker' && (
+                {currentView === "tracker" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <div className="mb-8">
-                      <h2 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-50">Application Tracker</h2>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">Manage and track your job applications in one place.</p>
+                      <h2 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-50">
+                        Application Tracker
+                      </h2>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
+                        Manage and track your job applications in one place.
+                      </p>
                     </div>
-                    <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} starStories={starStories} setStarStories={setStarStories} />
+                    <Tracker
+                      trackedApps={trackedApps}
+                      setTrackedApps={setTrackedApps}
+                      savedCVs={savedCVs}
+                      starStories={starStories}
+                      setStarStories={setStarStories}
+                    />
                   </div>
                 )}
-                {currentView === 'negotiation' && (
+
+                {currentView === "negotiation" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <NegotiationCoach
                       apiKeySet={apiKeySet}
@@ -1523,7 +2113,7 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'scanner' && (
+                {currentView === "scanner" && (
                   <div className="rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden">
                     <PortalScanner
                       tavilyApiKey={tavilyApiKey}
@@ -1532,25 +2122,25 @@ const AppInner: React.FC = () => {
                     />
                   </div>
                 )}
-                {currentView === 'analytics' && (
+                {currentView === "analytics" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
                     <AnalyticsDashboard
                       trackedApps={trackedApps}
-                      onGoToTracker={() => setCurrentView('tracker')}
+                      onGoToTracker={() => setCurrentView("tracker")}
                     />
                   </div>
                 )}
-                {currentView === 'admin-leaks' && (
+                {currentView === "admin-leaks" && (
                   <div className="bg-slate-900 rounded-2xl border border-slate-800">
                     <AdminLeaksPage />
                   </div>
                 )}
-                {currentView === 'admin-cv-engine' && (
+                {currentView === "admin-cv-engine" && (
                   <div className="bg-slate-900 rounded-2xl border border-slate-800">
                     <AdminCVEnginePage />
                   </div>
                 )}
-                {currentView === 'storage-map' && (
+                {currentView === "storage-map" && (
                   <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700">
                     <StorageMapPage />
                   </div>
@@ -1561,7 +2151,12 @@ const AppInner: React.FC = () => {
         </div>
       </main>
 
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onSave={handleApiSettingsSave} currentApiSettings={apiSettings} />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={handleApiSettingsSave}
+        currentApiSettings={apiSettings}
+      />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
       {/* ── Mobile ProfileManager bottom-sheet ── */}
@@ -1585,9 +2180,15 @@ const AppInner: React.FC = () => {
           <div className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-zinc-100 dark:border-neutral-800">
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Import JSON Profile</h2>
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                Import JSON Profile
+              </h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                You already have a profile called <span className="font-semibold text-zinc-700 dark:text-zinc-300">"{activeSlot?.name}"</span>. What would you like to do?
+                You already have a profile called{" "}
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  "{activeSlot?.name}"
+                </span>
+                . What would you like to do?
               </p>
             </div>
             {/* Options */}
@@ -1601,7 +2202,8 @@ const AppInner: React.FC = () => {
                   Replace "{activeSlot?.name}"
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  Overwrites the current profile and CV data with the imported JSON. Cannot be undone.
+                  Overwrites the current profile and CV data with the imported
+                  JSON. Cannot be undone.
                 </p>
               </button>
               {/* Option B — create new */}
@@ -1610,10 +2212,14 @@ const AppInner: React.FC = () => {
                 className="w-full text-left p-4 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 hover:border-violet-400 dark:hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors group"
               >
                 <p className="font-semibold text-zinc-800 dark:text-zinc-100 group-hover:text-violet-700 dark:group-hover:text-violet-300">
-                  Create new profile — "{pendingJsonImport.profile.personalInfo.name || 'Imported Profile'}"
+                  Create new profile — "
+                  {pendingJsonImport.profile.personalInfo.name ||
+                    "Imported Profile"}
+                  "
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  Keeps your existing profile and adds this as a separate profile you can switch between.
+                  Keeps your existing profile and adds this as a separate
+                  profile you can switch between.
                 </p>
               </button>
             </div>
@@ -1633,10 +2239,16 @@ const AppInner: React.FC = () => {
       {/* ── Google Drive conflict resolution modal ── */}
       <DriveConflictModal
         onResolved={(key, action) => {
-          if (action === 'overwrite') {
-            toast.success('Conflict Resolved', `Your local version of "${key}" was pushed to Drive.`);
-          } else if (action === 'pull') {
-            toast.success('Conflict Resolved', `Drive version of "${key}" loaded — refreshing data.`);
+          if (action === "overwrite") {
+            toast.success(
+              "Conflict Resolved",
+              `Your local version of "${key}" was pushed to Drive.`,
+            );
+          } else if (action === "pull") {
+            toast.success(
+              "Conflict Resolved",
+              `Drive version of "${key}" loaded — refreshing data.`,
+            );
           }
         }}
       />

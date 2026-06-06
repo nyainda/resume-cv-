@@ -9,8 +9,8 @@ import { LocalStorageService } from '../services/storage/LocalStorageService';
 import { syncAllSlots, fetchUserData } from '../services/userDataCloudService';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import {
-    testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
-    getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
+  testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
+  getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
 } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
@@ -23,11 +23,11 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
-  const [geminiKey, setGeminiKey]         = useState(currentApiSettings.apiKey || '');
-  const [claudeKey, setClaudeKey]         = useState(currentApiSettings.claudeApiKey || '');
-  const [tavilyKey, setTavilyKey]         = useState(currentApiSettings.tavilyApiKey || '');
-  const [brevoKey, setBrevoKey]           = useState(currentApiSettings.brevoApiKey || '');
-  const [jsearchKey, setJsearchKey]       = useState(currentApiSettings.jsearchApiKey || '');
+  const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
+  const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
+  const [tavilyKey, setTavilyKey] = useState(currentApiSettings.tavilyApiKey || '');
+  const [brevoKey, setBrevoKey] = useState(currentApiSettings.brevoApiKey || '');
+  const [jsearchKey, setJsearchKey] = useState(currentApiSettings.jsearchApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
 
   const { user: googleUser, isAuthenticated } = useGoogleAuth();
@@ -102,9 +102,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     }
     setProviderTest({ status: 'testing' });
     if (p === 'claude') {
-      try { setRuntimeKeys({ claudeApiKey: claudeKey.trim() }); } catch {}
+      try { setRuntimeKeys({ claudeApiKey: claudeKey.trim() }); } catch { }
     } else {
-      try { setRuntimeKeys({ apiKey: geminiKey.trim() }); } catch {}
+      try { setRuntimeKeys({ apiKey: geminiKey.trim() }); } catch { }
     }
     try {
       const result = await testProviderConnection(p);
@@ -253,17 +253,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                       <button
                         onClick={handleBackupNow}
                         disabled={backupState === 'syncing'}
-                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors border whitespace-nowrap ${
-                          backupState === 'done'    ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' :
-                          backupState === 'error'   ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' :
-                          backupState === 'syncing' ? 'bg-zinc-100 text-zinc-500 border-zinc-200 cursor-wait' :
-                          'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-800 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20'
-                        }`}
+                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors border whitespace-nowrap ${backupState === 'done' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' :
+                            backupState === 'error' ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' :
+                              backupState === 'syncing' ? 'bg-zinc-100 text-zinc-500 border-zinc-200 cursor-wait' :
+                                'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-800 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20'
+                          }`}
                       >
                         {backupState === 'syncing' ? '⏳ Syncing…' :
-                         backupState === 'done'    ? `✓ ${backupSlotCount} slot${backupSlotCount !== 1 ? 's' : ''} saved` :
-                         backupState === 'error'   ? '✗ Try again' :
-                         '↑ Back up now'}
+                          backupState === 'done' ? `✓ ${backupSlotCount} slot${backupSlotCount !== 1 ? 's' : ''} saved` :
+                            backupState === 'error' ? '✗ Try again' :
+                              '↑ Back up now'}
                       </button>
                     </div>
                   </div>
@@ -291,7 +290,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 font-bold uppercase tracking-widest">Powered by Google Drive</p>
               </div>
             </div>
-            <GoogleSignInButton onSignedIn={() => {}} onSignedOut={() => {}} />
+            <GoogleSignInButton onSignedIn={() => { }} onSignedOut={() => { }} />
           </div>
 
           {/* ── Google Drive Data Panel ── */}
@@ -360,9 +359,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                   <div
                     key={opt.id}
                     onClick={() => setSelectedAiProvider(opt.id)}
-                    className={`rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${
-                      active ? `${opt.borderColor} ${opt.activeBg}` : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
-                    }`}
+                    className={`rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${active ? `${opt.borderColor} ${opt.activeBg}` : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -649,7 +647,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               className="font-mono text-sm"
             />
           </div>
-
 
           {/* ── Brevo Email Sending ── */}
           <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 p-4 space-y-3 bg-sky-50/50 dark:bg-sky-900/10">

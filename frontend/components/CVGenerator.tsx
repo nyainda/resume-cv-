@@ -22,15 +22,13 @@ import TemplateGallery from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
 import ShareCVModal from './ShareCVModal';
 import AIImprovementPanel from './AIImprovementPanel';
-import GitHubSyncModal from './GitHubSyncModal';
 import QualityIssuesPanel from './QualityIssuesPanel';
-import CVCompareModal from './CVCompareModal';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
 import { profileToCV } from '../utils/profileToCV';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
-import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe, Columns, Wand2 } from './icons';
+import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe, Wand2 } from './icons';
 import CustomTemplateUploader from './CustomTemplateUploader';
 import { loadCustomTemplates, saveCustomTemplate } from '../utils/customTemplateStorage';
 import type { CustomTemplateEntry, CustomTemplateCustomizations } from '../types';
@@ -38,6 +36,8 @@ import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProg
 import DownloadProgressModal from './DownloadProgressModal';
 import CVDoctorPanel from './CVDoctorPanel';
 import { diffCV, CVDiff } from '../services/cvDoctorService';
+import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
+import { useGoogleAuth } from '../auth/GoogleAuthContext';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -205,6 +205,9 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
 };
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson }) => {
+  const { isAuthenticated } = useGoogleAuth();
+  const [showDownloadGate, setShowDownloadGate] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState(false);
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
   const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
   const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
@@ -499,9 +502,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
-  const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showQualityPanel, setShowQualityPanel] = useState(false);
-  const [showCompareModal, setShowCompareModal] = useState(false);
   const [showImportReport, setShowImportReport] = useState(false);
   const [isFixingIssues, setIsFixingIssues] = useState(false);
   const [fixSummary, setFixSummary] = useState<{ total: number; remote: number } | null>(null);
@@ -1029,7 +1030,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [downloadTotalMs, setDownloadTotalMs] = useState<number | null>(null);
   const [downloadVia, setDownloadVia] = useState<'playwright' | 'cloudflare' | null>(null);
 
-  const handleDownload = useCallback(async () => {
+  const executeDownload = useCallback(async () => {
     if (!currentCV) return;
     const jobTitle = targetJobTitle || currentCV.experience[0]?.jobTitle || 'New Role';
     const companyName = targetCompany || 'Unknown';
@@ -1080,6 +1081,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       setDownloadError(err instanceof Error ? err.message : 'Download failed.');
     }
   }, [currentCV, targetCompany, targetJobTitle, onAutoTrack, pdfFileName, jdTier1Keywords.length]);
+
+  const handleDownload = useCallback(() => {
+    if (!currentCV) return;
+    if (shouldGateDownload(isAuthenticated)) {
+      setShowDownloadGate(true);
+      setPendingDownload(true);
+      return;
+    }
+    incrementDownloadCount();
+    executeDownload();
+  }, [currentCV, isAuthenticated, executeDownload]);
 
   const cvTextContent = useMemo(() => {
     if (!currentCV) return "";
@@ -1790,19 +1802,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                   )}
                 </Button>
               )}
-              {currentCV && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowCompareModal(true)}
-                  disabled={isEditing}
-                  title="Generate two CV modes side-by-side and pick the best one"
-                  className="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
-                >
-                  <Columns className="h-4 w-4 mr-2" />
-                  Compare
-                </Button>
-              )}
               {lastEngine && (
                 <span
                   title={`Generated by ${lastEngine}. Run window.__providerStatus() in DevTools for the full health snapshot.`}
@@ -1829,15 +1828,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
               >
                 <Sparkles className="h-4 w-4 mr-2" />CV Coach
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setShowGitHubModal(true)}
-                disabled={isEditing}
-                size="sm"
-                className="bg-zinc-50 dark:bg-neutral-800/60 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-neutral-600 hover:bg-zinc-100 dark:hover:bg-neutral-700"
-              >
-                <GitHubIcon className="h-4 w-4 mr-2" />GitHub
               </Button>
               {onApplyViaEmail && cvPurpose === 'job' && (
                 <Button
@@ -2489,15 +2479,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         />
       )}
 
-      {showGitHubModal && (
-        <GitHubSyncModal
-          savedCVs={savedCVs}
-          currentCV={currentCV}
-          personalInfo={userProfile.personalInfo}
-          onClose={() => setShowGitHubModal(false)}
-        />
-      )}
-
       {showQualityPanel && qualityReport && currentCV && (
         <QualityIssuesPanel
           open={showQualityPanel}
@@ -2516,23 +2497,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
         />
       )}
 
-      {showCompareModal && currentCV && (
-        <CVCompareModal
-          open={showCompareModal}
-          onClose={() => setShowCompareModal(false)}
-          currentCv={currentCV}
-          savedCVs={savedCVs}
-          jd={jobDescription}
-          onSelectSaved={(cv) => {
-            setCurrentCV(cv);
-            setLastEngine(null);
-          }}
-          userProfile={userProfile}
-          template={template}
-          cvPurpose={cvPurpose}
-          sidebarSections={sidebarSections}
-        />
-      )}
+      {/* Download auth gate — shown when the free 2-download limit is reached */}
+      <DownloadGateModal
+        open={showDownloadGate}
+        onClose={() => { setShowDownloadGate(false); setPendingDownload(false); }}
+        onContinue={() => {
+          setShowDownloadGate(false);
+          if (pendingDownload) {
+            setPendingDownload(false);
+            incrementDownloadCount();
+            executeDownload();
+          }
+        }}
+      />
 
       {/* Animated download progress modal — replaces the previous inline
           "Rendering preview…" button text with a step-by-step progress

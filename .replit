@@ -73,3 +73,12 @@ VITE_CV_ENGINE_URL = "https://cv-engine-worker.dripstech.workers.dev"
 deploymentTarget = "static"
 build = ["npm", "run", "build"]
 publicDir = "dist"
+
+[rules]
+
+[rules.formatter]
+
+[rules.formatter.fileExtensions]
+
+[rules.formatter.fileExtensions.".tsx"]
+id = "module:nodejs-20/formatter:prettier"
