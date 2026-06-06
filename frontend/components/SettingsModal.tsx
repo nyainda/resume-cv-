@@ -1,31 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { Label } from './ui/Label';
 import { ApiSettings, UserProfileSlot } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
-import { Shield, AlertCircle } from './icons';
-import { idbAppSet } from '../services/storage/AppDataPersistence';
+import { Shield } from './icons';
 import { LocalStorageService } from '../services/storage/LocalStorageService';
-import { syncAllSlots, fetchUserData, getDeviceId } from '../services/userDataCloudService';
+import { syncAllSlots, fetchUserData } from '../services/userDataCloudService';
+import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import {
     testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
     getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
 } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
-const LS_MS_TOKEN = 'cv_builder:ms_access_token';
-const LS_MS_USER  = 'cv_builder:ms_user';
-
-const MicrosoftIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.4 2H2v9.4h9.4V2z" fill="#f25022" />
-    <path d="M22 2h-9.4v9.4H22V2z" fill="#7fba00" />
-    <path d="M11.4 12.6H2V22h9.4v-9.4z" fill="#00a4ef" />
-    <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#ffb900" />
-  </svg>
-);
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -39,13 +27,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [claudeKey, setClaudeKey]         = useState(currentApiSettings.claudeApiKey || '');
   const [tavilyKey, setTavilyKey]         = useState(currentApiSettings.tavilyApiKey || '');
   const [brevoKey, setBrevoKey]           = useState(currentApiSettings.brevoApiKey || '');
-  const [msClientId, setMsClientId]       = useState(currentApiSettings.msClientId || '');
   const [jsearchKey, setJsearchKey]       = useState(currentApiSettings.jsearchApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
-  const [msConnected, setMsConnected]   = useState(false);
-  const [msUser, setMsUser] = useState<{ name: string; email: string } | null>(null);
-  const [msConnecting, setMsConnecting] = useState(false);
-  const [msError, setMsError] = useState<string | null>(null);
+
+  const { user: googleUser, isAuthenticated } = useGoogleAuth();
 
   // ── Session token usage (live-updating via custom event) ─────────────
   const [tokenUsage, setTokenUsage] = useState<SessionTokenUsage>(() => getSessionTokenUsage());
@@ -63,41 +48,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   type WakeState = { status: 'idle' | 'waking' | 'done'; results: PrewarmResult[]; finishedAt?: number };
   const [wakeState, setWakeState] = useState<WakeState>({ status: 'idle', results: [] });
 
-  // ── CF D1 backup state ────────────────────────────────────────────────
+  // ── CF D1 backup state (Google-auth users only) ──────────────────────
   type BackupState = 'idle' | 'syncing' | 'done' | 'error';
   const [backupState, setBackupState] = useState<BackupState>('idle');
   const [backupSlotCount, setBackupSlotCount] = useState(0);
-  const deviceId = getDeviceId();
+  const [cloudStatus, setCloudStatus] = useState<string | null>(null);
 
   const handleBackupNow = useCallback(async () => {
+    if (!isAuthenticated) return;
     setBackupState('syncing');
+    setCloudStatus(null);
     try {
       const raw = localStorage.getItem('cv_builder:profiles');
       const slots: UserProfileSlot[] = raw ? JSON.parse(raw) : [];
       const count = await syncAllSlots(slots);
       setBackupSlotCount(count);
       setBackupState('done');
-      setTimeout(() => setBackupState('idle'), 5000);
+      const data = await fetchUserData().catch(() => null);
+      if (data?.slots.length) {
+        setCloudStatus(`Last sync: ${new Date(data.slots[0].updated_at * 1000).toLocaleString()}`);
+      }
+      setTimeout(() => setBackupState('idle'), 6000);
     } catch {
       setBackupState('error');
       setTimeout(() => setBackupState('idle'), 4000);
     }
-  }, []);
-
-  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
-  const handleCheckRestore = useCallback(async () => {
-    setRestoreStatus('checking…');
-    try {
-      const data = await fetchUserData();
-      if (!data || !data.slots.length) {
-        setRestoreStatus('No data in cloud yet — save your profile first.');
-      } else {
-        setRestoreStatus(`☁️ ${data.slots.length} slot${data.slots.length !== 1 ? 's' : ''} backed up · last synced: ${new Date(data.slots[0].updated_at * 1000).toLocaleString()}`);
-      }
-    } catch {
-      setRestoreStatus('Could not reach CF D1 — check your connection.');
-    }
-  }, []);
+  }, [isAuthenticated]);
 
   const wakeAIModels = useCallback(async () => {
     setWakeState({ status: 'waking', results: [] });
@@ -149,14 +125,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setClaudeKey(currentApiSettings.claudeApiKey || '');
     setTavilyKey(currentApiSettings.tavilyApiKey || '');
     setBrevoKey(currentApiSettings.brevoApiKey || '');
-    setMsClientId(currentApiSettings.msClientId || '');
     setJsearchKey(currentApiSettings.jsearchApiKey || '');
     setSelectedAiProvider(getSelectedProvider());
-
-    const storedMsUser = localStorage.getItem(LS_MS_USER);
-    if (storedMsUser) {
-      try { setMsUser(JSON.parse(storedMsUser)); setMsConnected(true); } catch { }
-    }
   }, [currentApiSettings, isOpen]);
 
   useEffect(() => {
@@ -167,85 +137,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
-
-  const handleMsConnect = useCallback(async () => {
-    if (!msClientId.trim()) {
-      setMsError('Please enter your Azure App Client ID first.');
-      return;
-    }
-    setMsConnecting(true);
-    setMsError(null);
-
-    const redirectUri = window.location.origin;
-    const scopes = 'openid profile email Files.ReadWrite offline_access';
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
-      `client_id=${encodeURIComponent(msClientId.trim())}` +
-      `&response_type=token` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&scope=${encodeURIComponent(scopes)}` +
-      `&response_mode=fragment` +
-      `&nonce=${Date.now()}`;
-
-    const popup = window.open(authUrl, 'ms-login', 'width=500,height=700,left=300,top=100');
-    if (!popup) {
-      setMsError('Popup was blocked. Allow popups for this site and try again.');
-      setMsConnecting(false);
-      return;
-    }
-
-    const checker = setInterval(() => {
-      try {
-        if (!popup || popup.closed) {
-          clearInterval(checker);
-          setMsConnecting(false);
-          return;
-        }
-        const hash = popup.location.hash;
-        if (hash && hash.includes('access_token')) {
-          clearInterval(checker);
-          popup.close();
-          const params = new URLSearchParams(hash.slice(1));
-          const token = params.get('access_token');
-          if (token) {
-            localStorage.setItem(LS_MS_TOKEN, token);
-            idbAppSet(LS_MS_TOKEN, token).catch(() => {});
-            fetch('https://graph.microsoft.com/v1.0/me', {
-              headers: { Authorization: `Bearer ${token}` }
-            })
-              .then(r => r.json())
-              .then(data => {
-                const user = { name: data.displayName || 'Microsoft User', email: data.mail || data.userPrincipalName || '' };
-                localStorage.setItem(LS_MS_USER, JSON.stringify(user));
-                idbAppSet(LS_MS_USER, user).catch(() => {});
-                setMsUser(user);
-                setMsConnected(true);
-                setMsConnecting(false);
-              })
-              .catch(() => {
-                setMsConnected(true);
-                setMsUser({ name: 'Microsoft User', email: '' });
-                setMsConnecting(false);
-              });
-          }
-        }
-      } catch {
-        // cross-origin — still loading
-      }
-    }, 500);
-
-    setTimeout(() => {
-      clearInterval(checker);
-      if (!popup?.closed) popup?.close();
-      setMsConnecting(false);
-    }, 120000);
-  }, [msClientId]);
-
-  const handleMsDisconnect = useCallback(() => {
-    localStorage.removeItem(LS_MS_TOKEN);
-    localStorage.removeItem(LS_MS_USER);
-    setMsConnected(false);
-    setMsUser(null);
-  }, []);
 
   if (!isOpen) return null;
 
@@ -258,7 +149,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       claudeApiKey: claudeKey.trim() || null,
       tavilyApiKey: tavilyKey.trim() || null,
       brevoApiKey: brevoKey.trim() || null,
-      msClientId: msClientId.trim() || null,
+      msClientId: null,
       jsearchApiKey: jsearchKey.trim() || null,
     };
     onSave(settingsToSave);
@@ -343,47 +234,48 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                 >
                   ⬇️ Export all data as backup (.json)
                 </button>
-                {/* ── CF D1 cloud backup ── */}
-                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-900/10 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-widest">☁️ CF D1 Cloud Backup</p>
-                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Profiles auto-sync on save · your device ID: <code className="font-mono">{deviceId.slice(0,8)}…</code></p>
+                {/* ── Cloud backup — Google users only ── */}
+                {isAuthenticated && googleUser ? (
+                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-900/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300">☁️ Cloud Backup</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 font-semibold">Auto-on</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                          Syncing as <span className="font-semibold text-zinc-600 dark:text-zinc-300">{googleUser.email || googleUser.name}</span>
+                        </p>
+                        {cloudStatus && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">{cloudStatus}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleBackupNow}
+                        disabled={backupState === 'syncing'}
+                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors border whitespace-nowrap ${
+                          backupState === 'done'    ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' :
+                          backupState === 'error'   ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' :
+                          backupState === 'syncing' ? 'bg-zinc-100 text-zinc-500 border-zinc-200 cursor-wait' :
+                          'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-800 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20'
+                        }`}
+                      >
+                        {backupState === 'syncing' ? '⏳ Syncing…' :
+                         backupState === 'done'    ? `✓ ${backupSlotCount} slot${backupSlotCount !== 1 ? 's' : ''} saved` :
+                         backupState === 'error'   ? '✗ Try again' :
+                         '↑ Back up now'}
+                      </button>
                     </div>
-                    <button
-                      onClick={handleBackupNow}
-                      disabled={backupState === 'syncing'}
-                      className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors border ${
-                        backupState === 'done'  ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' :
-                        backupState === 'error' ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' :
-                        backupState === 'syncing' ? 'bg-zinc-100 text-zinc-500 border-zinc-200 cursor-wait' :
-                        'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-800 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20'
-                      }`}
-                    >
-                      {backupState === 'syncing' ? '⏳ Syncing…' :
-                       backupState === 'done'    ? `✓ ${backupSlotCount} slot${backupSlotCount !== 1 ? 's' : ''} backed up` :
-                       backupState === 'error'   ? '✗ Failed' :
-                       '↑ Back up now'}
-                    </button>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCheckRestore}
-                      className="text-[11px] text-zinc-500 dark:text-zinc-400 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold underline underline-offset-2 transition-colors"
-                    >
-                      Check cloud status
-                    </button>
-                    {restoreStatus && (
-                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">{restoreStatus}</span>
-                    )}
+                ) : (
+                  <div className="rounded-lg border border-zinc-200 dark:border-neutral-700 bg-zinc-50/80 dark:bg-neutral-800/30 p-3 flex items-center gap-3">
+                    <span className="text-lg shrink-0">☁️</span>
+                    <div>
+                      <p className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Cloud backup available</p>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Sign in with Google below to automatically back up your profiles to the cloud.</p>
+                    </div>
                   </div>
-                </div>
-                <a
-                  href="#admin/storage-map"
-                  className="w-full py-2 px-3 text-xs font-bold rounded-lg border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-center gap-2"
-                >
-                  🗄️ View Storage Map — all localStorage & IndexedDB keys
-                </a>
+                )}
               </div>
             );
           })()}
@@ -758,81 +650,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             />
           </div>
 
-          {/* ── Microsoft / OneDrive ── */}
-          <div className="rounded-xl border border-blue-200 dark:border-blue-800/40 p-4 space-y-3 bg-blue-50/50 dark:bg-blue-900/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MicrosoftIcon className="h-4 w-4" />
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Microsoft / OneDrive</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Import Word CVs · sync to OneDrive</p>
-                </div>
-              </div>
-              {msConnected ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not connected</span>
-              )}
-            </div>
-
-            {msConnected && msUser ? (
-              <div className="flex items-center justify-between bg-white dark:bg-neutral-800/60 border border-emerald-200 dark:border-emerald-800/40 rounded-lg p-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {msUser.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{msUser.name}</p>
-                    {msUser.email && <p className="text-[10px] text-zinc-500">{msUser.email}</p>}
-                  </div>
-                </div>
-                <button
-                  onClick={handleMsDisconnect}
-                  className="text-xs text-rose-500 hover:text-rose-700 font-semibold ml-2 flex-shrink-0"
-                >
-                  Sign out
-                </button>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label htmlFor="ms-client-id">Azure App Client ID</Label>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-                    Register a free app at{' '}
-                    <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline font-semibold">
-                      Azure Portal →
-                    </a>{' '}
-                    to get your Client ID. Set redirect URI to <code className="text-[10px] bg-zinc-100 dark:bg-neutral-700 px-1 py-0.5 rounded break-all">{window.location.origin}</code> and enable <strong>Single-page application</strong> as the platform.
-                  </p>
-                  <Input
-                    id="ms-client-id"
-                    type="text"
-                    value={msClientId}
-                    onChange={(e) => setMsClientId(e.target.value)}
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    className="font-mono text-sm"
-                  />
-                </div>
-                {msError && (
-                  <div className="flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {msError}
-                  </div>
-                )}
-                <button
-                  onClick={handleMsConnect}
-                  disabled={msConnecting || !msClientId.trim()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-white dark:bg-neutral-800 text-sm font-bold text-zinc-700 dark:text-zinc-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <MicrosoftIcon className="h-4 w-4" />
-                  {msConnecting ? 'Connecting…' : 'Sign in with Microsoft'}
-                </button>
-              </>
-            )}
-
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-              Powers: Word Import in CV Toolkit • OneDrive CV backup • Microsoft account sync
-            </p>
-          </div>
 
           {/* ── Brevo Email Sending ── */}
           <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 p-4 space-y-3 bg-sky-50/50 dark:bg-sky-900/10">

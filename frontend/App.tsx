@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   UserProfile, CVData, SavedCV, SavedCoverLetter, ApiSettings, TrackedApplication,
-  UserProfileSlot, ProfileColor, SavedMerge, STARStory,
+  UserProfileSlot, ProfileColor, STARStory,
 } from './types';
 import { useStorage } from './hooks/useStorage';
 import * as KeyVault from './services/security/KeyVault';
@@ -31,8 +31,6 @@ import Tracker from './components/Tracker';
 import JobBoard from './components/JobBoard';
 import CVToolkit from './components/CVToolkit';
 import EmailApply from './components/EmailApply';
-import PDFMerger from './components/PDFMerger';
-import PDFTools from './components/PDFTools';
 import { ProfileManager } from './components/ProfileManager';
 import NegotiationCoach from './components/NegotiationCoach';
 import PortalScanner from './components/PortalScanner';
@@ -62,11 +60,6 @@ const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const MergeNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 6H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3" /><path d="M16 6h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3" /><line x1="12" y1="2" x2="12" y2="22" /><path d="M9 9l3-3 3 3" /><path d="M9 15l3 3 3-3" />
-  </svg>
-);
 
 const ScannerNavIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -290,7 +283,6 @@ const AppInner: React.FC = () => {
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>('apiSettings', { provider: 'gemini', apiKey: null });
   const [apiSettings, setApiSettings] = useState<ApiSettings>({ provider: 'gemini', apiKey: null });
   const [darkMode, setDarkMode] = useStorage<boolean>('darkMode', false);
-  const [savedMerges, setSavedMerges] = useStorage<SavedMerge[]>('savedMerges', []);
 
   // Synchronously check localStorage to avoid flash-to-profile on refresh
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
@@ -369,8 +361,9 @@ const AppInner: React.FC = () => {
     document.documentElement.classList.toggle('dark', !!darkMode);
   }, [darkMode]);
 
-  // Sync user preferences to CF D1 whenever they change (debounced, fire-and-forget)
+  // Sync user preferences to CF D1 — only for signed-in Google users (debounced, fire-and-forget)
   useEffect(() => {
+    if (!isAuthenticated) return;
     const timer = setTimeout(() => {
       syncPrefs({
         aiProvider:    localStorage.getItem('cv_builder:aiProvider') ?? undefined,
@@ -384,7 +377,7 @@ const AppInner: React.FC = () => {
     }, 4000);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [darkMode]);
+  }, [darkMode, isAuthenticated]);
 
   // Drive save error notifications
   useEffect(() => {
@@ -563,7 +556,7 @@ const AppInner: React.FC = () => {
       setIsEditingProfile(false);
       // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
       syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
-      syncSlot({ ...activeSlot, profile }).catch(() => {});
+      if (isAuthenticated) syncSlot({ ...activeSlot, profile }).catch(() => {});
     } else {
       // First-time: auto-create a slot
       const id = Date.now().toString();
@@ -883,7 +876,7 @@ const AppInner: React.FC = () => {
       setProfiles(prev => prev.map(p => p.id === activeSlot.id ? updatedSlot : p));
       invalidateCVCache();
       syncProfileToCache(updatedSlot).catch(() => {});
-      syncSlot(updatedSlot).catch(() => {});
+      if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
       toast.success('Profile Imported!', 'Your CV data has been imported. Head to the CV Generator to apply a template.');
     } else {
       const id = Date.now().toString();
@@ -900,9 +893,9 @@ const AppInner: React.FC = () => {
       setActiveProfileId(id);
       toast.success('Profile Imported!', 'Your Word CV has been imported. Edit your profile or go to the Generator.');
       syncProfileToCache(slot).catch(() => {});
-      syncSlot(slot).catch(() => {});
+      if (isAuthenticated) syncSlot(slot).catch(() => {});
     }
-  }, [activeSlot, setProfiles, setActiveProfileId, toast]);
+  }, [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated]);
 
   // ── JSON profile import — asks user whether to update or create new ──────
   const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>('');
@@ -914,7 +907,7 @@ const AppInner: React.FC = () => {
       setProfiles(prev => prev.map(p => p.id === slotToUpdate.id ? updatedSlot : p));
       invalidateCVCache();
       syncProfileToCache(updatedSlot).catch(() => {});
-      syncSlot(updatedSlot).catch(() => {});
+      if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
       toast.success('Profile Updated!', 'Your CV is ready — all templates are populated. Check your quality report below.');
     } else {
       const id = Date.now().toString();
@@ -929,7 +922,7 @@ const AppInner: React.FC = () => {
       setProfiles(prev => prev.length > 0 ? [...prev, slot] : [slot]);
       setActiveProfileId(id);
       syncProfileToCache(slot).catch(() => {});
-      syncSlot(slot).catch(() => {});
+      if (isAuthenticated) syncSlot(slot).catch(() => {});
       toast.success('Profile Imported!', 'Your CV is ready — all templates are populated. Check your quality report below.');
     }
     setCurrentView('generator');
@@ -959,17 +952,7 @@ const AppInner: React.FC = () => {
     setPendingJsonImport(null);
   }, [pendingJsonImport, _applyJsonImport]);
 
-  const handleSaveMerge = useCallback((merge: SavedMerge) => {
-    setSavedMerges(prev => [merge, ...prev]);
-    toast.success('Merge Saved', `"${merge.name}" saved to your merge presets.`);
-  }, [setSavedMerges, toast]);
-
-  const handleDeleteMerge = useCallback((id: string) => {
-    setSavedMerges(prev => prev.filter(m => m.id !== id));
-    toast.success('Merge Deleted', 'Merge preset removed.');
-  }, [setSavedMerges, toast]);
-
-  const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'merger' | 'negotiation' | 'scanner' | 'analytics' | 'admin-leaks' | 'admin-cv-engine' | 'storage-map'>('generator');
+  const [currentView, setCurrentView] = useState<'generator' | 'linkedin' | 'interview' | 'jobs' | 'essays' | 'history' | 'tracker' | 'toolkit' | 'email' | 'negotiation' | 'scanner' | 'analytics' | 'admin-leaks' | 'admin-cv-engine' | 'storage-map'>('generator');
 
   // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
   // from the main nav so they don't clutter the user-facing UI; these are
@@ -1014,7 +997,6 @@ const AppInner: React.FC = () => {
       label: 'Tools',
       items: [
         { id: 'scanner', label: 'Portal Scanner', icon: ScannerNavIcon },
-        { id: 'merger', label: 'PDF Tools', icon: MergeNavIcon },
       ],
     },
     {
@@ -1531,25 +1513,6 @@ const AppInner: React.FC = () => {
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">Manage and track your job applications in one place.</p>
                     </div>
                     <Tracker trackedApps={trackedApps} setTrackedApps={setTrackedApps} savedCVs={savedCVs} starStories={starStories} setStarStories={setStarStories} />
-                  </div>
-                )}
-                {currentView === 'merger' && (
-                  <div className="space-y-6">
-                    <PDFTools />
-                    <details className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
-                      <summary className="px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-50 dark:hover:bg-neutral-700 flex items-center gap-2">
-                        <span>📋</span> Advanced Merge (with saved CV layouts)
-                      </summary>
-                      <div className="p-4">
-                        <PDFMerger
-                          savedCVs={savedCVs}
-                          userProfile={userProfile!}
-                          savedMerges={savedMerges}
-                          onSaveMerge={handleSaveMerge}
-                          onDeleteMerge={handleDeleteMerge}
-                        />
-                      </div>
-                    </details>
                   </div>
                 )}
                 {currentView === 'negotiation' && (
