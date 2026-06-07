@@ -1,10 +1,10 @@
 // src/components/GoogleSignInButton.tsx
 // A premium, high-aesthetic Google Sign In button and user card.
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
-import { migrateLocalToDrive, isDriveActive } from '../services/storage/StorageRouter';
-import { Shield, CheckCircle, RefreshCw, AlertCircle } from './icons';
+import { migrateLocalToDrive } from '../services/storage/StorageRouter';
+import { Shield, CheckCircle, AlertCircle } from './icons';
 
 interface Props {
     onSignedIn?: () => void;
@@ -12,39 +12,20 @@ interface Props {
 }
 
 export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut }) => {
-    const { user, loading, error, signIn, signOut, isAuthenticated, silentRefreshing } = useGoogleAuth();
+    const { user, loading, error, signIn, signOut, isAuthenticated } = useGoogleAuth();
 
-    const [migrating, setMigrating] = useState(false);
-    const [migrProgress, setMigrProgress] = useState({ done: 0, total: 0 });
-    const [migrDone, setMigrDone] = useState(false);
-
+    // Run the one-time local→Drive migration silently on every sign-in.
+    // No UI is shown — the migration is a background best-effort operation.
     useEffect(() => {
         if (!isAuthenticated) return;
         if (localStorage.getItem('cv_builder:gdrive_migrated') === 'done') {
-            setMigrDone(true);
+            onSignedIn?.();
             return;
         }
-
         let active = true;
-        setMigrating(true);
-
-        migrateLocalToDrive((done, total) => {
-            if (active) setMigrProgress({ done, total });
-        })
-            .then(() => {
-                if (active) {
-                    setMigrating(false);
-                    setMigrDone(true);
-                    onSignedIn?.();
-                }
-            })
-            .catch((err) => {
-                if (active) {
-                    setMigrating(false);
-                    console.error(err);
-                }
-            });
-
+        migrateLocalToDrive()
+            .then(() => { if (active) onSignedIn?.(); })
+            .catch((err) => { if (active) console.error('[Drive] Silent migration failed:', err); });
         return () => { active = false; };
     }, [isAuthenticated, onSignedIn]);
 
@@ -58,7 +39,6 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
 
     const handleSignOut = () => {
         signOut();
-        setMigrDone(false);
         onSignedOut?.();
     };
 
@@ -118,43 +98,11 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
                         </button>
                     </div>
 
-                    {/* Status Bar */}
+                    {/* Drive connection indicator — minimal, no progress noise */}
                     <div className="pt-2 border-t border-zinc-100 dark:border-neutral-700">
-                        {/* Silent-refresh indicator */}
-                        {silentRefreshing && (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[10px] font-bold text-amber-600 dark:text-amber-400 mb-2">
-                                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                                Reconnecting…
-                            </div>
-                        )}
-
-                        {migrating ? (
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[#1B2B4B] dark:text-[#C9A84C]">
-                                    <span className="flex items-center gap-1.5"><RefreshCw className="w-3 h-3 animate-spin" /> Migrating data...</span>
-                                    <span>{migrProgress.done}/{migrProgress.total}</span>
-                                </div>
-                                <div className="w-full bg-zinc-100 dark:bg-neutral-900 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                        className="h-full bg-[#1B2B4B] transition-all duration-300 ease-out shadow-[0_0_8px_rgba(99,102,241,0.5)]"
-                                        style={{ width: migrProgress.total > 0 ? `${(migrProgress.done / migrProgress.total) * 100}%` : '5%' }}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-center justify-between text-[11px]">
-                                <span className="flex items-center gap-2 text-green-600 dark:text-green-400 font-bold">
-                                    <div className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                    </div>
-                                    Syncing to Drive
-                                </span>
-                                <span className="text-zinc-400 dark:text-zinc-500 flex items-center gap-1">
-                                    <Shield className="w-3 h-3" /> Secure Connection
-                                </span>
-                            </div>
-                        )}
+                        <span className="flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-medium">
+                            <Shield className="w-3 h-3" /> Drive connected
+                        </span>
                     </div>
                 </div>
             </div>

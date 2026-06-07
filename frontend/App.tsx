@@ -53,15 +53,14 @@ import PortalScanner from "./components/PortalScanner";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import LandingPage from "./components/LandingPage";
 import DriveConflictModal from "./components/DriveConflictModal";
-import AutoSaveIndicator from "./components/AutoSaveIndicator";
 import OfflineBanner from "./components/OfflineBanner";
 import LinkedInGenerator from "./components/LinkedInGenerator";
 import InterviewPrep from "./components/InterviewPrep";
 import AdminLeaksPage from "./components/AdminLeaksPage";
 import AdminCVEnginePage from "./components/AdminCVEnginePage";
 import StorageMapPage from "./components/StorageMapPage";
-import { useAutoSave } from "./hooks/useAutoSave";
 import { useAutoSync } from "./hooks/useAutoSync";
+import { getDriveRouter } from "./services/storage/StorageRouter";
 import {
   Edit,
   User,
@@ -206,8 +205,13 @@ function colorBg(c: ProfileColor) {
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated } = useGoogleAuth();
-  const saveStatus = useAutoSave();
   useAutoSync(isAuthenticated);
+
+  // ── Drive restore-on-new-device flow ───────────────────────────────────
+  // When a user signs in on a device with no local profiles, silently check
+  // Drive for a backup and offer a one-tap restore. Only fires once per session.
+  const driveRestoreCheckedRef = useRef(false);
+  const [driveRestoreSlots, setDriveRestoreSlots] = useState<UserProfileSlot[] | null>(null);
 
   // ── Multi-profile storage ──────────────────────────────────────────────
   const [profiles, setProfiles] = useStorage<UserProfileSlot[]>("profiles", []);
@@ -289,6 +293,29 @@ const AppInner: React.FC = () => {
     }, 4000);
     return () => clearTimeout(t);
   }, []);
+
+  // ── Drive restore-on-new-device ──────────────────────────────────────────
+  // When the user signs in and has NO local profiles (fresh device / cleared
+  // browser), silently probe Drive for a backup and offer a one-tap restore.
+  // Fires at most once per browser session to avoid repeated prompts.
+  useEffect(() => {
+    if (!isAuthenticated || driveRestoreCheckedRef.current) return;
+    if (profiles.length > 0) { driveRestoreCheckedRef.current = true; return; }
+    if (sessionStorage.getItem('procv:restore-dismissed')) { driveRestoreCheckedRef.current = true; return; }
+    driveRestoreCheckedRef.current = true;
+
+    const router = getDriveRouter();
+    if (!router) return;
+
+    router.load<UserProfileSlot[]>('profiles')
+      .then(slots => {
+        if (Array.isArray(slots) && slots.length > 0) {
+          setDriveRestoreSlots(slots);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   // Boot-time profile cache sync — runs whenever the active slot changes.
   // Uploads the profile to D1 if it hasn't been synced yet (or has changed
@@ -1548,8 +1575,6 @@ const AppInner: React.FC = () => {
               </button>
             )}
 
-            <AutoSaveIndicator status={saveStatus} />
-
             <button
               onClick={() => setDarkMode(!darkMode)}
               className="p-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
@@ -2230,6 +2255,48 @@ const AppInner: React.FC = () => {
                 className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Drive restore-on-new-device prompt ── */}
+      {driveRestoreSlots && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm mx-auto px-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-full bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 flex items-center justify-center">
+                <svg className="w-4 h-4 text-[#1B2B4B] dark:text-[#C9A84C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">
+                  Backed-up profiles found
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  We found {driveRestoreSlots.length} profile{driveRestoreSlots.length !== 1 ? 's' : ''} saved in your Google Drive. Restore them to this device?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { sessionStorage.setItem('procv:restore-dismissed', '1'); setDriveRestoreSlots(null); }}
+                className="px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => {
+                  setProfiles(driveRestoreSlots);
+                  setActiveProfileId(driveRestoreSlots[0]?.id ?? null);
+                  setDriveRestoreSlots(null);
+                  toast.success('Profiles restored', `${driveRestoreSlots.length} profile${driveRestoreSlots.length !== 1 ? 's' : ''} restored from Google Drive.`);
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-white bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 dark:bg-[#C9A84C] dark:text-[#1B2B4B] dark:hover:bg-[#C9A84C]/90 rounded-lg transition-colors"
+              >
+                Restore
               </button>
             </div>
           </div>
