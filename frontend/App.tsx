@@ -44,7 +44,6 @@ import CVHistory from "./components/CVHistory";
 import ScholarshipEssayWriter from "./components/ScholarshipEssayWriter";
 import SettingsModal from "./components/SettingsModal";
 import Tracker from "./components/Tracker";
-import JobBoard from "./components/JobBoard";
 import CVToolkit from "./components/CVToolkit";
 import EmailApply from "./components/EmailApply";
 import { ProfileManager } from "./components/ProfileManager";
@@ -71,7 +70,6 @@ import {
   Moon,
   Sun,
   BookOpen,
-  Globe,
   Briefcase,
 } from "./components/icons";
 import { isCVEngineConfigured } from "./services/cvEngineClient";
@@ -1412,7 +1410,6 @@ const AppInner: React.FC = () => {
 
   const primaryNav = [
     { id: "generator", label: "CV Generator", icon: FileText },
-    { id: "jobs", label: "Job Board", icon: Globe },
     { id: "interview", label: "Interview Prep", icon: InterviewNavIcon },
     { id: "tracker", label: "Job Tracker", icon: Target },
   ];
@@ -1725,7 +1722,7 @@ const AppInner: React.FC = () => {
                 <button
                   onClick={() => setShowMobileMenu((v) => !v)}
                   className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ml-1 ${
-                    showMobileMenu || currentView === "jobs" || isMoreActive
+                    showMobileMenu || isMoreActive
                       ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
                       : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800"
                   }`}
@@ -1747,26 +1744,6 @@ const AppInner: React.FC = () => {
               {/* ── Mobile slide-down full menu ── */}
               {showMobileMenu && (
                 <div className="animate-mobile-menu sm:hidden pb-3 border-t border-zinc-100 dark:border-neutral-700 pt-2">
-                  {/* Job Board (4th primary item that doesn't fit) */}
-                  <div className="mb-2">
-                    {[primaryNav[3]].map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setCurrentView(item.id as any);
-                          setShowMobileMenu(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
-                          currentView === item.id
-                            ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
-                            : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
-                        }`}
-                      >
-                        <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
                   {moreNavGroups.map((group) => (
                     <div key={group.label} className="mb-1">
                       <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
@@ -2068,21 +2045,6 @@ const AppInner: React.FC = () => {
                     onDelete={handleDeleteCV}
                     userProfile={userProfile!}
                   />
-                )}
-                {currentView === "jobs" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <JobBoard
-                      tavilyApiKey={tavilyApiKey}
-                      jsearchApiKey={jsearchApiKey}
-                      apiKeySet={apiKeySet}
-                      userProfile={userProfile!}
-                      openSettings={() => setIsSettingsOpen(true)}
-                      onJobApplied={handleAutoTrack}
-                      onSaveCVFromPipeline={handleSaveCVFromPipeline}
-                      onSaveCoverLetter={handleSaveCoverLetter}
-                      savedCVs={savedCVs}
-                    />
-                  </div>
                 )}
                 {currentView === "toolkit" && (
                   <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">

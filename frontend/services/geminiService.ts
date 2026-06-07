@@ -2198,26 +2198,35 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         ${USER_PROFILE_SCHEMA}
     `;
 
-    // Use Cloudflare Workers AI only when it is the selected provider.
+    // Route to the user's configured provider — no silent fallback to a different one.
     let text: string | null = null;
-    if (getSelectedProvider() === 'workers-ai') {
-        try {
-            const cf = await workerTieredLLM('parser', prompt, {
-                system: SYSTEM_INSTRUCTION_PARSER,
-                temperature: 0.1,
-                json: true,
-                maxTokens: 4096,
-            });
-            if (cf && cf.trim()) {
-                try { JSON.parse(cf.trim()); text = cf; }
-                catch { console.warn('[parseProfileText] Worker JSON parse failed, falling back to selected provider.'); }
-            }
-        } catch (cfErr) {
-            console.warn('[parseProfileText] Worker call failed, falling back to selected provider:', cfErr);
+    const provider = getSelectedProvider();
+
+    if (provider === 'workers-ai') {
+        // Workers AI explicitly selected — use it only, never fall back to Groq
+        const cf = await workerTieredLLM('parser', prompt, {
+            system: SYSTEM_INSTRUCTION_PARSER,
+            temperature: 0.1,
+            json: true,
+            maxTokens: 4096,
+        });
+        if (!cf?.trim()) {
+            throw new Error('Workers AI returned an empty response. The model may be warming up — please try again, or click "Wake AI models" in Settings.');
         }
-    }
-    if (!text) {
-        text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
+        text = cf;
+    } else {
+        // All other providers: Claude key → Groq chain (groqChat handles Claude/Gemini/OpenRouter fallback)
+        const claudeKey = getClaudeApiKey();
+        if (claudeKey) {
+            try {
+                text = await claudeMultimodalCall(claudeKey, '', 'text/plain', prompt, { maxTokens: 8192, temperature: 0.1 });
+            } catch (claudeErr) {
+                console.warn('[generateProfile] Claude failed, continuing with Groq chain:', claudeErr);
+            }
+        }
+        if (!text) {
+            text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
+        }
     }
     const profileData: UserProfile = parseProfileJson(text);
     profileData.projects = profileData.projects || [];
@@ -3586,9 +3595,14 @@ export const generateProfileFromTextWithGemini = async (
         ${USER_PROFILE_SCHEMA}
     `;
 
-    // ── Route through the selected provider (Groq large model for completeness) ─
-    const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 8192, temperature: 0.1 });
-    const profileData: UserProfile = parseProfileJson(raw);
+    // ── Gemini 2.5 Flash (this function is the Gemini-specific text import path) ─
+    const ai = getGeminiClient();
+    const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: prompt }] },
+        config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
+    }));
+    const profileData: UserProfile = parseProfileJson(response.text || '');
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
