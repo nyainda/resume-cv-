@@ -2123,6 +2123,51 @@ function buildScholarshipFormatInstruction(format: ScholarshipFormat): string {
     }
 }
 
+/**
+ * Robustly strips markdown code fences and extracts the first valid JSON object
+ * from LLM output. Falls back to bracket-depth scanning when the model emits
+ * prose before/after the JSON block, then tries a backwards-walk repair for
+ * truncated responses. Throws only if no valid JSON can be recovered.
+ */
+function parseProfileJson(raw: string): UserProfile {
+    // Step 1: strip the outermost code fence (```json ... ``` or ``` ... ```)
+    const stripped = raw.trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```\s*$/i, '')
+        .trim();
+
+    // Step 2: try the stripped string as-is
+    try { return JSON.parse(stripped) as UserProfile; } catch { /* fall through */ }
+
+    // Step 3: bracket-depth scan — handles prose before/after the JSON block
+    const start = stripped.indexOf('{');
+    if (start !== -1) {
+        let depth = 0, inString = false, escaping = false;
+        for (let i = start; i < stripped.length; i++) {
+            const ch = stripped[i];
+            if (escaping) { escaping = false; continue; }
+            if (ch === '\\' && inString) { escaping = true; continue; }
+            if (ch === '"') { inString = !inString; continue; }
+            if (inString) continue;
+            if (ch === '{') depth++;
+            if (ch === '}') {
+                depth--;
+                if (depth === 0) {
+                    try { return JSON.parse(stripped.slice(start, i + 1)) as UserProfile; } catch { break; }
+                }
+            }
+        }
+        // Step 4: backwards-walk repair for truncated token-limit responses
+        for (let i = stripped.lastIndexOf('}'); i >= start; i--) {
+            if (stripped[i] === '}') {
+                try { return JSON.parse(stripped.slice(start, i + 1)) as UserProfile; } catch { /* keep walking */ }
+            }
+        }
+    }
+
+    throw new SyntaxError(`Profile import: could not extract valid JSON from model response (${stripped.length} chars). The AI may have returned an unexpected format — please try again.`);
+}
+
 export const generateProfile = async (rawText: string, githubUrl?: string): Promise<UserProfile> => {
     let githubInstruction = '';
     if (githubUrl) {
@@ -2174,7 +2219,7 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     if (!text) {
         text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
     }
-    const profileData: UserProfile = JSON.parse(text.trim());
+    const profileData: UserProfile = parseProfileJson(text);
     profileData.projects = profileData.projects || [];
     profileData.education = profileData.education || [];
     profileData.workExperience = profileData.workExperience || [];
@@ -3496,8 +3541,7 @@ export const generateProfileFromFileWithGemini = async (
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
 
-    const raw = (response.text || '').trim().replace(/^```(?:json)?|```$/gm, '').trim();
-    const profileData: UserProfile = JSON.parse(raw);
+    const profileData: UserProfile = parseProfileJson(response.text || '');
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
@@ -3544,8 +3588,7 @@ export const generateProfileFromTextWithGemini = async (
 
     // ── Route through the selected provider (Groq large model for completeness) ─
     const raw = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { maxTokens: 8192, temperature: 0.1 });
-    const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
-    const profileData: UserProfile = JSON.parse(cleaned);
+    const profileData: UserProfile = parseProfileJson(raw);
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
