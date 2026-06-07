@@ -4,7 +4,7 @@ import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, template
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
 import { auditCvQuality } from '../services/cvNumberFidelity';
-import { purifyCV, enforceTenseConsistency } from '../services/cvPurificationPipeline';
+import { purifyCV, enforceTenseConsistency, enforcePerRoleVariance } from '../services/cvPurificationPipeline';
 import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import { auditStyleGovernance } from '../services/cvStyleGovernance';
 import { getCachedBannedPhrases } from '../services/cvEngineClient';
@@ -212,6 +212,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
   const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
   const forceFreshRef = useRef(false);
+  // Tracks the JD text used for the last successful generation so we can detect
+  // when the user switches to a completely different job (Bug 1 — JD fingerprinting).
+  const lastGeneratedJDRef = useRef<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Generating...');
   // Stage-based progress tracking — used by the CVGenerationProgress modal
@@ -617,9 +620,37 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     // Smart path: when a CV already exists, audit it first and only fix what
     // is actually broken — avoids burning tokens on a full fresh generation
     // that might produce inconsistent sentence lengths or new content.
+    // ── JD similarity helper (Bug 1 — JD fingerprinting) ─────────────────────
+    // Computes word-level Jaccard similarity between two raw JD strings.
+    // Values above 0.85 mean "same JD, safe to iterate". Below that = new JD.
+    const jaccardOnStrings = (a: string, b: string): number => {
+      if (!a && !b) return 1;
+      if (!a || !b) return 0;
+      const tok = (s: string) => new Set(s.toLowerCase().split(/\W+/).filter(w => w.length > 2));
+      const setA = tok(a);
+      const setB = tok(b);
+      let intersect = 0;
+      for (const w of setA) if (setB.has(w)) intersect++;
+      const union = new Set([...setA, ...setB]).size;
+      return union === 0 ? 0 : intersect / union;
+    };
+
     const runGenerate = async (): Promise<CVData> => {
-      const skipSmartPath = forceFreshRef.current;
+      let skipSmartPath = forceFreshRef.current;
       forceFreshRef.current = false; // consume the flag immediately
+
+      // ── Bug 1: JD fingerprinting — skip smart path when a NEW JD is detected ──
+      // If the user changed the JD significantly since the last generation, always
+      // rebuild from the user profile instead of iterating on the old JD's CV.
+      const JD_SIMILARITY_THRESHOLD = 0.85;
+      if (!skipSmartPath && currentCV && lastGeneratedJDRef.current) {
+        const similarity = jaccardOnStrings(jobDescription, lastGeneratedJDRef.current);
+        if (similarity < JD_SIMILARITY_THRESHOLD) {
+          skipSmartPath = true;
+          console.log(`[CVGenerator] New JD detected (Jaccard ${similarity.toFixed(2)} < ${JD_SIMILARITY_THRESHOLD}) — rebuilding from profile.`);
+        }
+      }
+
       // ── Smart regenerate path ─────────────────────────────────────────────
       if (currentCV && !skipSmartPath) {
         advanceStage('drafting', 'Auditing existing CV for quality issues…');
@@ -743,6 +774,21 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
     }
 
     if (generatedData) {
+      // Bug 1: record the JD that produced this generation so the next run can
+      // detect a JD switch and skip the smart-path context bleed.
+      lastGeneratedJDRef.current = jobDescription;
+
+      // Bug 3: Per-role variance enforcement — if a previous CV exists and any of
+      // its roles are too similar to the newly generated CV (Jaccard > 0.60),
+      // apply deterministic opener / synonym reshuffling on those roles.
+      if (currentCV) {
+        const { cv: varied, fixes } = enforcePerRoleVariance(currentCV, generatedData);
+        if (fixes.length > 0) {
+          console.log(`[CVGenerator] Per-role variance enforcement: ${fixes.join(' | ')}`);
+          generatedData = varied;
+        }
+      }
+
       setCurrentCV(generatedData);
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());

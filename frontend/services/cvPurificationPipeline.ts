@@ -522,6 +522,20 @@ const CORRUPTED_METRIC_PATTERNS: RegExp[] = [
     /\bfrom\s+%|\bup\s+to\s+%|\bover\s+%|\bunder\s+%/i,
     // Hyphen-bounded missing number ("- person team", "- hour shift").
     /\s-\s+(?:person|hour|day|week|month|year|member)\b/i,
+
+    // ── Bug 2: Structurally broken metric placeholders ────────────────────────
+    // Missing baseline value: "improving delivery from to 94%" — the "from X"
+    // slot was never filled in; the number immediately follows "to".
+    /\bfrom\s+to\s+\d/i,
+    // Missing quantity before "of": "Delivered of purchase orders on time".
+    /\bdelivered\s+of\b/i,
+    // Preposition + bare time-adverb with no preceding number:
+    //   "reducing costs by year-on-year", "cut costs by annually".
+    /\bby\s+(?:year-on-year|annually|monthly|quarterly|per\s+(?:year|month|quarter|annum))\b/i,
+    // Object + bare time-adverb: "budget of annually", "saving of monthly".
+    /\bof\s+(?:annually|monthly|quarterly|per\s+(?:year|month|quarter|annum))\b/i,
+    // Verb + object + bare time-adverb: "reducing purchasing costs by year-on-year".
+    /\b(?:reducing|reduced|cut(?:ting)?|saving|saved|decreased?|dropped?)\s+\w[\w\s]{0,30}?\bby\s+(?:year-on-year|annually|monthly|quarterly)\b/i,
 ];
 
 /** Returns true if the text contains an obvious "metric got stripped" signature. */
@@ -2947,4 +2961,103 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
     });
 
     return { ...cv, experience };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Bug 3 — Per-role variance enforcement
+//
+// Compares V2 (newly generated) role bullets against the matching V1 (previous)
+// role using Jaccard similarity. If a role is ≥ 60% similar (< 40% different),
+// it applies deterministic reshuffling via enforceOpenerDiversity on that role,
+// plus a lightweight synonym sweep using WORD_SYNONYM_MAP, to create meaningful
+// surface-level variation without any LLM call.
+//
+// Roles are matched by a normalised (company + jobTitle) key so the function is
+// safe when the experience arrays have different lengths.
+// ────────────────────────────────────────────────────────────────────────────
+const PER_ROLE_SIMILARITY_CAP = 0.60; // roles above this threshold get reshuffled
+
+/**
+ * Enforces a minimum 40% word-level difference between corresponding roles in
+ * `v1CV` and `v2CV`. Returns the (potentially adjusted) v2 and a list of
+ * role labels that were reshuffled.
+ */
+export function enforcePerRoleVariance(
+    v1CV: CVData,
+    v2CV: CVData,
+): { cv: CVData; fixes: string[] } {
+    const fixes: string[] = [];
+    if (!v1CV?.experience?.length || !v2CV?.experience?.length) {
+        return { cv: v2CV, fixes };
+    }
+
+    // Build a lookup from normalised key → v1 bullets.
+    const normalise = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const v1Map = new Map<string, string[]>();
+    for (const role of v1CV.experience) {
+        const key = `${normalise(role.company)}::${normalise(role.jobTitle)}`;
+        v1Map.set(key, role.responsibilities || []);
+    }
+
+    let changed = false;
+    const newExperience = v2CV.experience.map(role => {
+        const key = `${normalise(role.company)}::${normalise(role.jobTitle)}`;
+        const v1Bullets = v1Map.get(key);
+        if (!v1Bullets || v1Bullets.length === 0) return role;
+
+        const v2Bullets = role.responsibilities || [];
+        if (v2Bullets.length === 0) return role;
+
+        // Compute Jaccard at the token level across all bullets in this role.
+        const tokAll = (bullets: string[]) =>
+            bullets
+                .join(' ')
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .split(/\s+/)
+                .filter(w => w.length > 2 && !BULLET_STOP_WORDS.has(w));
+
+        const tokV1 = tokAll(v1Bullets);
+        const tokV2 = tokAll(v2Bullets);
+        const sim = jaccardSimilarity(tokV1, tokV2);
+
+        if (sim < PER_ROLE_SIMILARITY_CAP) return role; // already varied enough
+
+        // Role is too similar — apply deterministic opener restructuring on this
+        // role only, then run the word-synonym sweep.
+        const label = `${role.jobTitle} @ ${role.company}`;
+        console.info(`[RoleVariance] ${label}: Jaccard ${sim.toFixed(2)} ≥ ${PER_ROLE_SIMILARITY_CAP} — reshuffling openers`);
+
+        // Wrap single role in a minimal CVData-shaped object so we can reuse
+        // enforceOpenerDiversity, then unwrap.
+        const singleRoleCV: CVData = { ...v2CV, experience: [role] };
+        const reshuffled = enforceOpenerDiversity(singleRoleCV);
+        const newRole = reshuffled.experience?.[0] ?? role;
+
+        // Lightweight synonym sweep on remaining identical openers.
+        const sweptBullets = (newRole.responsibilities || []).map((bullet, idx) => {
+            // Only sweep bullets whose first word still matches v1.
+            const v1Match = v1Bullets[idx];
+            if (!v1Match) return bullet;
+            const firstWordV1 = v1Match.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+            const firstWordV2 = bullet.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+            if (firstWordV1 !== firstWordV2) return bullet;
+            // Find a synonym for the opener verb from WORD_SYNONYM_MAP.
+            for (const [word, synonyms] of Object.entries(WORD_SYNONYM_MAP)) {
+                const rx = new RegExp(`^${word}\\b`, 'i');
+                if (rx.test(bullet)) {
+                    const replacement = synonyms[idx % synonyms.length];
+                    return bullet.replace(rx, replacement.charAt(0).toUpperCase() + replacement.slice(1));
+                }
+            }
+            return bullet;
+        });
+
+        fixes.push(`${label} (sim=${sim.toFixed(2)})`);
+        changed = true;
+        return { ...newRole, responsibilities: sweptBullets };
+    });
+
+    if (!changed) return { cv: v2CV, fixes };
+    return { cv: { ...v2CV, experience: newExperience }, fixes };
 }
