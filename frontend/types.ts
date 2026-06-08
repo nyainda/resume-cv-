@@ -409,6 +409,7 @@ export type TemplateName =
   | 'prestige'
   | 'v2-pro'
   | 'v2-navy'
+  | 'v2-photo'
   | 'v2-slate-sidebar'
   | 'v2-gold-exec'
   | 'v2-minimal'
@@ -571,6 +572,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'prestige': 'Prestige',
   'v2-pro': 'Clean Professional',
   'v2-navy': 'Navy Classic',
+  'v2-photo': 'Photo Pro',
   'v2-slate-sidebar': 'Slate Sidebar',
   'v2-gold-exec': 'Gold Executive',
   'v2-minimal': 'Pure Minimal',

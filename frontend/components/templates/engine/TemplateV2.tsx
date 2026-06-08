@@ -466,7 +466,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
           <SidebarHead title="Skills" theme={theme} sc={sc} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
             {cvData.skills.map((s, i) => (
-              <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: 'rgba(255,255,255,0.12)', color: textColor, border: '1px solid rgba(255,255,255,0.18)', fontFamily: theme.fontBody }}>
+              <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: theme.accent + '22', color: textColor, border: `1px solid ${theme.accent}55`, fontFamily: theme.fontBody }}>
                 {s}
               </span>
             ))}
@@ -653,6 +653,15 @@ const LayoutSidebarRight: React.FC<LayoutProps> = (props) => {
 const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
   const { theme, sc, cvData } = props;
   const split = computeSmartSplit(cvData);
+  // Right-column theme: use sidebar text colours + sidebar-appropriate heading style
+  const rightColTheme: TemplateTheme = {
+    ...theme,
+    bodyText: theme.sidebarText || theme.bodyText,
+    bodyMuted: theme.sidebarMuted || theme.bodyMuted,
+    sectionColor: theme.accent,
+    sectionDecoration: 'caps-line',
+    sectionBorderColor: theme.accent + '44',
+  };
   return (
     <div style={{ background: theme.bodyBg, minHeight: '280mm' }}>
       <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={props.isEditing} onUpdate={() => {}} />
@@ -673,17 +682,21 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
             <div style={{ marginBottom: sc.sectionGap }}>
               <SidebarHead title="Skills" theme={theme} sc={sc} />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                {cvData.skills.map((s, i) => <Tag key={i} label={s} theme={theme} sc={sc} />)}
+                {cvData.skills.map((s, i) => (
+                  <span key={i} style={{ fontSize: sc.tagSize, padding: '2px 6px', borderRadius: '3px', background: theme.accent + '22', color: rightColTheme.bodyText, border: `1px solid ${theme.accent}55`, fontFamily: theme.fontBody }}>
+                    {s}
+                  </span>
+                ))}
               </div>
             </div>
           )}
           {/* Education always in right column for two-col */}
-          <EducationSection  cvData={cvData} theme={{ ...theme, bodyText: theme.sidebarText, bodyMuted: theme.sidebarMuted }} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
-          <LanguagesSection  cvData={cvData} theme={{ ...theme, bodyText: theme.sidebarText, bodyMuted: theme.sidebarMuted }} sc={sc} />
-          <CertificationsSection cvData={cvData} theme={{ ...theme, bodyText: theme.sidebarText, bodyMuted: theme.sidebarMuted }} sc={sc} />
-          {split.projectsInSidebar && <ProjectsSection cvData={cvData} theme={{ ...theme, bodyText: theme.sidebarText, bodyMuted: theme.sidebarMuted }} sc={sc} />}
-          {split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={{ ...theme, bodyText: theme.sidebarText, bodyMuted: theme.sidebarMuted }} sc={sc} />}
-          {split.refsInSidebar && <ReferencesSection cvData={cvData} theme={{ ...theme, bodyText: theme.sidebarText, bodyMuted: theme.sidebarMuted }} sc={sc} />}
+          <EducationSection      cvData={cvData} theme={rightColTheme} sc={sc} isEditing={props.isEditing} onChange={props.onChange} />
+          <LanguagesSection      cvData={cvData} theme={rightColTheme} sc={sc} />
+          <CertificationsSection cvData={cvData} theme={rightColTheme} sc={sc} />
+          {split.projectsInSidebar    && <ProjectsSection    cvData={cvData} theme={rightColTheme} sc={sc} />}
+          {split.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={rightColTheme} sc={sc} />}
+          {split.refsInSidebar        && <ReferencesSection   cvData={cvData} theme={rightColTheme} sc={sc} />}
         </div>
       </div>
     </div>

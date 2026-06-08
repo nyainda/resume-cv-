@@ -22,7 +22,7 @@ interface TemplateGalleryProps {
 // ─── Category definitions ─────────────────────────────────────────────────────
 
 const templateCategories: Record<string, TemplateName[]> = {
-  '✨ New Engine': ['v2-pro', 'v2-navy', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-minimal', 'v2-sage', 'v2-noir', 'v2-coral', 'v2-forest'],
+  '✨ New Engine': ['v2-pro', 'v2-navy', 'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-minimal', 'v2-sage', 'v2-noir', 'v2-coral', 'v2-forest'],
   'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro', 'ats-clean-pro', 'london-finance', 'medical-standard'],
   'Modern':       ['prestige', 'modern', 'modern-tech', 'twoColumnBlue', 'silicon-valley', 'tokyo-night'],
   'Creative':     ['creative', 'infographic', 'sydney-creative', 'berlin-design'],
@@ -67,7 +67,7 @@ const FEATURED_PICKS: FeaturedPick[] = [
 
 // ─── ATS config ───────────────────────────────────────────────────────────────
 
-const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar', 'executive-sidebar'];
+const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar', 'executive-sidebar', 'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-sage', 'v2-coral', 'v2-forest'];
 
 const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'standard-pro': 'high', 'ats-clean-pro': 'high', 'professional': 'high',
@@ -84,8 +84,8 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'compact-slate': 'medium', 'compact-sage': 'medium', 'compact-charcoal': 'medium',
   'prestige': 'medium', 'custom': 'medium',
   'v2-pro': 'high', 'v2-navy': 'high', 'v2-minimal': 'high',
-  'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium', 'v2-sage': 'medium',
-  'v2-forest': 'medium', 'v2-coral': 'medium',
+  'v2-photo': 'medium', 'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium',
+  'v2-sage': 'medium', 'v2-forest': 'medium', 'v2-coral': 'medium',
   'v2-noir': 'low',
 };
 
