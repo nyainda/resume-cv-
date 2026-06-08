@@ -39,6 +39,7 @@ interface SmartSplit {
   refsInSidebar: boolean;
   certsInSidebar: boolean;
   customInSidebar: boolean;
+  pubsInSidebar: boolean;
 }
 
 function computeSmartSplit(cvData: CVData): SmartSplit {
@@ -55,8 +56,9 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
   const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
   const customInSidebar = (cvData.customSections?.length ?? 0) > 0;
+  const pubsInSidebar   = (cvData.publications?.length ?? 0) > 0;
 
-  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar };
+  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar, pubsInSidebar };
 }
 
 // ─── Font pairing map ─────────────────────────────────────────────────────────
@@ -570,6 +572,19 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
         </div>
       ) : null}
 
+      {/* Publications — compact sidebar version (title + year only) */}
+      {cvData.publications?.length ? (
+        <div style={{ marginBottom: sc.sectionGap }}>
+          <SidebarHead title="Publications" theme={theme} sc={sc} />
+          {cvData.publications.map((p, i) => (
+            <div key={i} style={{ marginBottom: 5 }}>
+              <div style={{ fontSize: sc.sidebarBodySize, fontWeight: 600, color: textColor, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>{p.title}</div>
+              <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody }}>{[p.journal, p.year].filter(Boolean).join(' · ')}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {/* Additional Sections (Awards, Volunteer Work, etc.) — always sidebar */}
       {cvData.customSections?.map(sec => (
         <div key={sec.id} style={{ marginBottom: sc.sectionGap }}>
@@ -608,7 +623,8 @@ const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onCh
     {!split?.eduInSidebar && <EducationSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />}
     {/* Projects go to main only when NOT in sidebar */}
     {!split?.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} />}
-    <PublicationsSection cvData={cvData} theme={theme} sc={sc} />
+    {/* Publications go to sidebar; only show here on single-col layouts */}
+    {!split?.pubsInSidebar && <PublicationsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* Additional Sections go to sidebar; only show here on single-col layouts */}
     {!split?.customInSidebar && <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />}
     {/* Certifications go to sidebar; only show here on single-col layouts */}
