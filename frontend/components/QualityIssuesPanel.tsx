@@ -21,8 +21,8 @@ import { CvQualityReport, CvQualityIssue, CvQualityIssueKind } from '../services
 import { CVData } from '../types';
 import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import {
-    fixCvIssueWithAi, applyFixToCv, getOriginalTextAt, ISSUE_KIND_INSTRUCTIONS,
-    insertKeywordIntoBullet,
+    fixCvIssueWithAi, fixSeniorityIssueWithAi, applyFixToCv, getOriginalTextAt,
+    ISSUE_KIND_INSTRUCTIONS, insertKeywordIntoBullet,
 } from '../services/aiInlineFix';
 import { stripTildeNumbers } from '../services/cvNumberFidelity';
 import {
@@ -583,6 +583,84 @@ export default function QualityIssuesPanel({
 
     const [believabilityRevealed, setBelievabilityRevealed] = useState(false);
 
+    // ── Seniority fix state ──────────────────────────────────────────────────
+    type SenFixStatus = { status: 'fixing' | 'fixed' | 'error'; error?: string };
+    const [senFixStates, setSenFixStates] = useState<Record<string, SenFixStatus>>({});
+    const [senFixingAll, setSenFixingAll] = useState(false);
+
+    const _senKey = (leak: PurifyLeak, idx: number) =>
+        `${leak.fieldLocation}::${idx}`;
+
+    const _inferTier = (roleLabel: string, isOverreach: boolean): string => {
+        const l = (roleLabel || '').toLowerCase();
+        if (l.includes('intern')) return 'intern';
+        if (l.includes('junior') || l.includes(' jr ') || l.includes('jr.')) return 'junior';
+        if (l.includes('principal') || l.includes('director') || l.includes('vp') || l.includes('c-level') || l.includes('chief') || l.includes('executive')) return 'executive';
+        if (l.includes('lead') || l.includes('staff')) return 'lead';
+        if (l.includes('senior') || l.includes(' sr ') || l.includes('sr.')) return 'senior';
+        return isOverreach ? 'junior' : 'senior';
+    };
+
+    const handleFixSeniorityOne = useCallback(async (leak: PurifyLeak, key: string) => {
+        const bulletText = getOriginalTextAt(cv, leak.fieldLocation);
+        if (!bulletText) return;
+        const isOverreach = leak.leakType === 'seniority_overreach';
+        const flaggedPhrase = (leak.phrase || '').split(' — ')[0].trim();
+        const roleLabel = leak.contextSnippet || '';
+        const tier = _inferTier(roleLabel, isOverreach);
+        setSenFixStates(s => ({ ...s, [key]: { status: 'fixing' } }));
+        try {
+            const fixed = await fixSeniorityIssueWithAi(
+                bulletText,
+                leak.leakType as 'seniority_overreach' | 'seniority_underreach',
+                roleLabel,
+                tier,
+                flaggedPhrase,
+            );
+            const nextCv = applyFixToCv(cv, leak.fieldLocation, fixed);
+            onApplyFix(nextCv);
+            setSenFixStates(s => ({ ...s, [key]: { status: 'fixed' } }));
+        } catch (e: any) {
+            const msg = e?.isUserFacing ? e.message : 'AI fix failed — every provider was unavailable.';
+            setSenFixStates(s => ({ ...s, [key]: { status: 'error', error: msg } }));
+        }
+    }, [cv, onApplyFix]);
+
+    const handleFixSeniorityAll = useCallback(async () => {
+        if (senFixingAll || seniorityLeaks.length === 0) return;
+        setSenFixingAll(true);
+        let workingCv = cv;
+        for (let i = 0; i < seniorityLeaks.length; i++) {
+            const leak = seniorityLeaks[i];
+            const key = _senKey(leak, i);
+            const bulletText = getOriginalTextAt(workingCv, leak.fieldLocation);
+            if (!bulletText) continue;
+            const isOverreach = leak.leakType === 'seniority_overreach';
+            const flaggedPhrase = (leak.phrase || '').split(' — ')[0].trim();
+            const roleLabel = leak.contextSnippet || '';
+            const tier = _inferTier(roleLabel, isOverreach);
+            setSenFixStates(s => ({ ...s, [key]: { status: 'fixing' } }));
+            try {
+                const fixed = await fixSeniorityIssueWithAi(
+                    bulletText,
+                    leak.leakType as 'seniority_overreach' | 'seniority_underreach',
+                    roleLabel,
+                    tier,
+                    flaggedPhrase,
+                );
+                workingCv = applyFixToCv(workingCv, leak.fieldLocation, fixed);
+                setSenFixStates(s => ({ ...s, [key]: { status: 'fixed' } }));
+                if (/quota|rate|exhaust|429/.test(String((fixed as any)?.message || ''))) break;
+            } catch (e: any) {
+                const msg = e?.isUserFacing ? e.message : 'AI fix failed.';
+                setSenFixStates(s => ({ ...s, [key]: { status: 'error', error: msg } }));
+                if (/quota|rate|exhaust|429/.test(String(e?.message || ''))) break;
+            }
+        }
+        onApplyFix(workingCv);
+        setSenFixingAll(false);
+    }, [cv, seniorityLeaks, senFixingAll, onApplyFix]);
+
     if (!open) return null;
 
     const allClean = report.totalIssues === 0;
@@ -892,10 +970,25 @@ export default function QualityIssuesPanel({
                             </div>
                         ) : (
                             <>
-                                <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-2 flex items-center gap-1.5">
-                                    <AlertTriangle className="h-3.5 w-3.5" />
-                                    Career believability ({seniorityLeaks.length})
-                                </h3>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                                        <AlertTriangle className="h-3.5 w-3.5" />
+                                        Career believability ({seniorityLeaks.length})
+                                    </h3>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={senFixingAll}
+                                        onClick={handleFixSeniorityAll}
+                                        className="text-[11px] h-7 px-3 border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-700/60 dark:text-rose-300 dark:hover:bg-rose-900/20 flex-shrink-0"
+                                    >
+                                        {senFixingAll ? (
+                                            <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Fixing all…</>
+                                        ) : (
+                                            <><Sparkles className="h-3 w-3 mr-1" />Fix all with AI</>
+                                        )}
+                                    </Button>
+                                </div>
                                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mb-2.5 leading-relaxed">
                                     Analysed role titles, date ranges, and career progression — no AI.
                                     Flags bullets whose ownership or language doesn't match the inferred
@@ -906,21 +999,46 @@ export default function QualityIssuesPanel({
                                         const meta = SENIORITY_LEAK_META[leak.leakType];
                                         if (!meta) return null;
                                         const isOverreach = leak.leakType === 'seniority_overreach';
+                                        const key = _senKey(leak, i);
+                                        const fixSt = senFixStates[key];
                                         return (
                                             <li
                                                 key={`sen-${i}`}
                                                 className={`border rounded-lg px-3 py-2.5 flex items-start gap-2.5 ${
-                                                    isOverreach
+                                                    fixSt?.status === 'fixed'
+                                                        ? 'border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/40 dark:bg-emerald-900/10 opacity-60'
+                                                        : isOverreach
                                                         ? 'border-rose-200 dark:border-rose-800/60 bg-rose-50/50 dark:bg-rose-900/10'
                                                         : 'border-amber-200 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-900/10'
                                                 }`}
                                             >
-                                                <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${
-                                                    isOverreach ? 'text-rose-500' : 'text-amber-400'
-                                                }`} />
-                                                <div className="min-w-0">
-                                                    <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                                                        {meta.label}
+                                                {fixSt?.status === 'fixed'
+                                                    ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-emerald-500" />
+                                                    : <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${isOverreach ? 'text-rose-500' : 'text-amber-400'}`} />
+                                                }
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                                                            {fixSt?.status === 'fixed' ? 'Fixed' : meta.label}
+                                                        </div>
+                                                        {fixSt?.status !== 'fixed' && (
+                                                            <button
+                                                                disabled={fixSt?.status === 'fixing' || senFixingAll}
+                                                                onClick={() => handleFixSeniorityOne(leak, key)}
+                                                                className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
+                                                                    fixSt?.status === 'fixing'
+                                                                        ? 'text-zinc-400 cursor-wait'
+                                                                        : isOverreach
+                                                                        ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30'
+                                                                        : 'text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                                                                }`}
+                                                            >
+                                                                {fixSt?.status === 'fixing'
+                                                                    ? <><RefreshCw className="h-2.5 w-2.5 animate-spin" />Fixing…</>
+                                                                    : <><Sparkles className="h-2.5 w-2.5" />Fix</>
+                                                                }
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     {leak.phrase && (() => {
                                                         const parts = leak.phrase.split(' — ');
@@ -947,9 +1065,14 @@ export default function QualityIssuesPanel({
                                                             {formatLocation(leak.fieldLocation)}
                                                         </div>
                                                     )}
-                                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                                                        {meta.guidance}
-                                                    </p>
+                                                    {fixSt?.status === 'error' && (
+                                                        <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">{fixSt.error}</p>
+                                                    )}
+                                                    {fixSt?.status !== 'fixed' && (
+                                                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
+                                                            {meta.guidance}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </li>
                                         );

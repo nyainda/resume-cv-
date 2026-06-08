@@ -2168,6 +2168,43 @@ function parseProfileJson(raw: string): UserProfile {
     throw new SyntaxError(`Profile import: could not extract valid JSON from model response (${stripped.length} chars). The AI may have returned an unexpected format — please try again.`);
 }
 
+/**
+ * Ensures every array item in an imported/extracted UserProfile has a unique
+ * `id` field. The extraction AI sometimes omits IDs or returns empty strings,
+ * which causes React key warnings and can make sections silently skip rendering
+ * in templates that use `.map((item, i) => <div key={item.id}>`)`.
+ */
+function _normalizeProfileIds(profile: UserProfile): UserProfile {
+    let counter = 1;
+    const uid = () => `gen_${Date.now()}_${counter++}`;
+
+    const fixIds = <T extends { id?: string }>(arr?: T[]): T[] | undefined => {
+        if (!arr) return arr;
+        return arr.map(item => (!item.id ? { ...item, id: uid() } : item));
+    };
+
+    const fixCustomSections = (sections?: any[]): any[] | undefined => {
+        if (!sections) return sections;
+        return sections.map(sec => ({
+            ...sec,
+            id: sec.id || uid(),
+            items: (sec.items || []).map((item: any) =>
+                (!item.id ? { ...item, id: uid() } : item)
+            ),
+        }));
+    };
+
+    return {
+        ...profile,
+        workExperience: fixIds(profile.workExperience) || [],
+        education:      fixIds(profile.education)      || [],
+        projects:       fixIds(profile.projects),
+        languages:      fixIds(profile.languages),
+        references:     fixIds(profile.references as any) as any,
+        customSections: fixCustomSections(profile.customSections),
+    };
+}
+
 export const generateProfile = async (rawText: string, githubUrl?: string): Promise<UserProfile> => {
     let githubInstruction = '';
     if (githubUrl) {
@@ -2228,7 +2265,7 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
             text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
         }
     }
-    const profileData: UserProfile = parseProfileJson(text);
+    const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(text));
     profileData.projects = profileData.projects || [];
     profileData.education = profileData.education || [];
     profileData.workExperience = profileData.workExperience || [];
@@ -3550,7 +3587,7 @@ export const generateProfileFromFileWithGemini = async (
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
 
-    const profileData: UserProfile = parseProfileJson(response.text || '');
+    const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(response.text || ''));
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
@@ -3602,7 +3639,7 @@ export const generateProfileFromTextWithGemini = async (
         contents: { parts: [{ text: prompt }] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
-    const profileData: UserProfile = parseProfileJson(response.text || '');
+    const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(response.text || ''));
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];

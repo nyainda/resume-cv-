@@ -281,8 +281,9 @@ export type ParsedAuditPath =
     | { kind: 'project_description'; projectIndex: number }
     | { kind: 'unknown' };
 
-const RX_EXPERIENCE = /^experience\[(\d+)\][^#]*#(\d+)$/;
-const RX_PROJECT    = /^projects\[(\d+)\]/;
+const RX_EXPERIENCE     = /^experience\[(\d+)\][^#]*#(\d+)$/;
+const RX_EXPERIENCE_DOT = /^experience\[(\d+)\]\.responsibilities\[(\d+)\]$/;
+const RX_PROJECT        = /^projects\[(\d+)\]/;
 
 export function parseAuditPath(where: string): ParsedAuditPath {
     const w = String(where ?? '').trim();
@@ -293,6 +294,16 @@ export function parseAuditPath(where: string): ParsedAuditPath {
             kind: 'experience_bullet',
             roleIndex: Number(exp[1]),
             bulletIndex: Number(exp[2]),
+        };
+    }
+    // Dot-notation format used by seniority coherence:
+    // "experience[N].responsibilities[M]"
+    const expDot = RX_EXPERIENCE_DOT.exec(w);
+    if (expDot) {
+        return {
+            kind: 'experience_bullet',
+            roleIndex: Number(expDot[1]),
+            bulletIndex: Number(expDot[2]),
         };
     }
     const proj = RX_PROJECT.exec(w);
@@ -381,6 +392,65 @@ export function getOriginalTextAt(cv: CVData, where: string): string {
         return String(p?.description ?? '');
     }
     return '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// fixSeniorityIssueWithAi — rewrite a bullet to match its actual career tier
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SENIORITY_FIX_SYSTEM = `You are a precise CV editor. A career-believability audit has flagged a bullet point whose language does not match the candidate's actual seniority level for that role. Your job is to rewrite the bullet so it is credible for the stated tier while preserving the core achievement.
+
+Rules:
+1. Preserve every number, date, company name, technology, and specific fact exactly as written.
+2. Keep the original wording and tone as much as possible — only change the parts that create the mismatch.
+3. Never invent new facts, metrics, or responsibilities.
+4. Return ONLY the corrected bullet as plain text. No markdown, no labels, no quotation marks.`.trim();
+
+/**
+ * Rewrites a single CV bullet so its ownership/language claims match the
+ * inferred seniority tier for that role. Used for the Career Believability
+ * "Fix with AI" action in QualityIssuesPanel.
+ */
+export async function fixSeniorityIssueWithAi(
+    bulletText: string,
+    issueKind: 'seniority_overreach' | 'seniority_underreach',
+    roleTitle: string,
+    roleTier: string,
+    flaggedPhrase: string,
+): Promise<string> {
+    const cleanBullet = String(bulletText ?? '').trim();
+    if (!cleanBullet) return cleanBullet;
+
+    const isOverreach = issueKind === 'seniority_overreach';
+    const instruction = isOverreach
+        ? `PROBLEM: The phrase "${flaggedPhrase}" claims ownership, strategy, or authority that is too senior for a ${roleTier}-level role (${roleTitle}). Rewrite so the bullet reflects what a ${roleTier} would realistically contribute — e.g. "supported", "contributed to", "assisted in", "helped implement" instead of claiming full ownership or C-suite-level decisions. Keep the achievement intact.`
+        : `PROBLEM: The phrase "${flaggedPhrase}" is too passive/assistive for a ${roleTier}-level role (${roleTitle}). Senior and lead roles are expected to own outcomes. Rewrite so the bullet uses ownership language — e.g. "Led", "Owned", "Drove", "Delivered", "Managed" — while preserving all specific facts and numbers.`;
+
+    const userPrompt = [
+        `ROLE: ${roleTitle} (${roleTier} level)`,
+        instruction,
+        '',
+        'BULLET TO FIX:',
+        cleanBullet,
+        '',
+        'Return only the rewritten bullet.',
+    ].join('\n');
+
+    const raw = await groqChat(
+        'llama-3.3-70b-versatile',
+        SENIORITY_FIX_SYSTEM,
+        userPrompt,
+        { temperature: 0.15, maxTokens: 320 },
+    );
+
+    const result = _sanitizeAiOutput(raw, cleanBullet);
+    if (result.trim() === cleanBullet.trim()) {
+        const err: any = new Error('AI returned the same text — the issue may need manual editing.');
+        err.isUserFacing = true;
+        err.noChange = true;
+        throw err;
+    }
+    return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
