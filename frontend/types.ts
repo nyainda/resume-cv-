@@ -406,6 +406,7 @@ export type TemplateName =
   | 'compact-sage'
   | 'compact-charcoal'
   | 'prestige'
+  | 'v2-pro'
   | 'v2-navy'
   | 'v2-slate-sidebar'
   | 'v2-gold-exec'
@@ -567,6 +568,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'compact-sage': 'Compact Sage',
   'compact-charcoal': 'Compact Charcoal',
   'prestige': 'Prestige',
+  'v2-pro': 'Clean Professional',
   'v2-navy': 'Navy Classic',
   'v2-slate-sidebar': 'Slate Sidebar',
   'v2-gold-exec': 'Gold Executive',

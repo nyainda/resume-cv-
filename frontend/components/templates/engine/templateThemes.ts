@@ -10,6 +10,7 @@ export interface TemplateTheme {
   headerNameSize: string;
   headerNameWeight: string;
   headerTitleColor: string;
+  accentBar?: string; // thin colored bar at very top of header (optional)
 
   accent: string;
   accentContrast: string;
@@ -38,14 +39,70 @@ export interface TemplateTheme {
   fontBody: string;
   bulletChar: string;
   borderColor: string;
-  pagePadding: string;
 
   atsScore: 'high' | 'medium' | 'low';
   bestFor: string;
   description: string;
 }
 
+// ─── Content density types ────────────────────────────────────────────────────
+
+export type ContentDensity = 'compact' | 'balanced' | 'spacious';
+
+export interface DensityScale {
+  bodySize: string;
+  metaSize: string;
+  tagSize: string;
+  sectionGap: number;
+  bulletGap: number;
+  itemGap: number;
+  lineH: number;
+  bodyPad: string;
+  sidebarPad: string;
+  sectionTopMargin: number;
+}
+
+export const DENSITY_SCALES: Record<ContentDensity, DensityScale> = {
+  compact: {
+    bodySize: '8.5px', metaSize: '8px', tagSize: '7.5px',
+    sectionGap: 8, bulletGap: 2, itemGap: 7,
+    lineH: 1.35, bodyPad: '14px 22px', sidebarPad: '14px 12px', sectionTopMargin: 0,
+  },
+  balanced: {
+    bodySize: '9.5px', metaSize: '8.5px', tagSize: '8.5px',
+    sectionGap: 13, bulletGap: 2.5, itemGap: 10,
+    lineH: 1.5, bodyPad: '20px 28px', sidebarPad: '20px 16px', sectionTopMargin: 2,
+  },
+  spacious: {
+    bodySize: '10.5px', metaSize: '9.5px', tagSize: '9px',
+    sectionGap: 20, bulletGap: 4, itemGap: 14,
+    lineH: 1.65, bodyPad: '28px 36px', sidebarPad: '28px 20px', sectionTopMargin: 4,
+  },
+};
+
+// ─── Theme presets ────────────────────────────────────────────────────────────
+
 export const THEMES: TemplateTheme[] = [
+  // ── PROFESSIONAL ─────────────────────────────────────────────────────────────
+  {
+    id: 'v2-pro',
+    name: 'Clean Professional',
+    layout: 'single-col',
+    category: 'Professional',
+    accentBar: '#2563eb',
+    headerBg: '#ffffff', headerText: '#0f172a', headerPadding: '20px 36px 18px',
+    headerNameSize: '26px', headerNameWeight: '900', headerTitleColor: '#2563eb',
+    accent: '#2563eb', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#0f172a', bodyMuted: '#475569',
+    sectionColor: '#0f172a', sectionSize: '9px', sectionWeight: '800',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#2563eb',
+    tagBg: '#eff6ff', tagText: '#1d4ed8', tagBorder: '#bfdbfe', tagRadius: '4px',
+    fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
+    bulletChar: '▸', borderColor: '#e2e8f0',
+    atsScore: 'high', bestFor: 'Any industry — universally safe and trusted',
+    description: 'White layout, blue accent bar, Inter font throughout. The highest ATS score in the engine — safe for every industry and seniority.',
+  },
   {
     id: 'v2-navy',
     name: 'Navy Classic',
@@ -60,8 +117,9 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'border-left', sectionBorderColor: '#1B2B4B',
     tagBg: '#e8eef7', tagText: '#1B2B4B', tagBorder: '#c0cfe8', tagRadius: '4px',
     fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', 'Inter', sans-serif",
-    bulletChar: '▸', borderColor: '#e2e8f0', pagePadding: '0',
-    atsScore: 'high', bestFor: 'Finance, consulting, law, corporate', description: 'Deep navy header with Playfair Display headings. Classic authority for corporate and finance roles.',
+    bulletChar: '▸', borderColor: '#e2e8f0',
+    atsScore: 'high', bestFor: 'Finance, consulting, law, corporate',
+    description: 'Deep navy header with Playfair Display headings. Classic authority for corporate and finance roles.',
   },
   {
     id: 'v2-slate-sidebar',
@@ -77,8 +135,9 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'caps-line', sectionBorderColor: '#3b82f6',
     tagBg: 'rgba(59,130,246,0.15)', tagText: '#3b82f6', tagBorder: 'rgba(59,130,246,0.3)', tagRadius: '3px',
     fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
-    bulletChar: '–', borderColor: '#e2e8f0', pagePadding: '0',
-    atsScore: 'medium', bestFor: 'Tech, operations, management', description: 'Dark slate sidebar with blue accent. Clean and modern for tech and management roles.',
+    bulletChar: '–', borderColor: '#e2e8f0',
+    atsScore: 'medium', bestFor: 'Tech, operations, management',
+    description: 'Dark slate sidebar with blue accent. Clean and modern for tech and management roles.',
   },
   {
     id: 'v2-gold-exec',
@@ -94,9 +153,12 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'underline', sectionBorderColor: '#c9a84c',
     tagBg: '#fef9ec', tagText: '#8b6914', tagBorder: '#c9a84c', tagRadius: '3px',
     fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', sans-serif",
-    bulletChar: '•', borderColor: '#e8dfc8', pagePadding: '0',
-    atsScore: 'medium', bestFor: 'C-suite, senior leadership, luxury industries', description: 'Deep navy and gold — Playfair headings and a warm-cream sidebar. Executive presence.',
+    bulletChar: '•', borderColor: '#e8dfc8',
+    atsScore: 'medium', bestFor: 'C-suite, senior leadership, luxury industries',
+    description: 'Deep navy and gold — Playfair headings and a warm-cream sidebar. Executive presence.',
   },
+
+  // ── MINIMAL ───────────────────────────────────────────────────────────────────
   {
     id: 'v2-minimal',
     name: 'Pure Minimal',
@@ -111,9 +173,12 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'caps-line', sectionBorderColor: '#111111',
     tagBg: '#f5f5f5', tagText: '#333333', tagBorder: '#e0e0e0', tagRadius: '2px',
     fontHeading: "'DM Sans', sans-serif", fontBody: "'DM Sans', sans-serif",
-    bulletChar: '–', borderColor: '#e5e5e5', pagePadding: '0',
-    atsScore: 'high', bestFor: 'Any industry — universally safe', description: 'White space, black ink, nothing else. Passes every ATS. Works for any role or industry.',
+    bulletChar: '–', borderColor: '#e5e5e5',
+    atsScore: 'high', bestFor: 'Any industry — universally safe',
+    description: 'White space, black ink, nothing else. Passes every ATS. Works for any role or industry.',
   },
+
+  // ── MODERN ───────────────────────────────────────────────────────────────────
   {
     id: 'v2-sage',
     name: 'Sage Modern',
@@ -128,9 +193,12 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'border-left', sectionBorderColor: '#16a34a',
     tagBg: '#dcfce7', tagText: '#15803d', tagBorder: '#86efac', tagRadius: '4px',
     fontHeading: "'DM Sans', sans-serif", fontBody: "'DM Sans', sans-serif",
-    bulletChar: '▸', borderColor: '#d1fae5', pagePadding: '0',
-    atsScore: 'medium', bestFor: 'Sustainability, healthcare, modern startups', description: 'Forest-green sidebar with sage tones. Fresh and distinctive without sacrificing readability.',
+    bulletChar: '▸', borderColor: '#d1fae5',
+    atsScore: 'medium', bestFor: 'Sustainability, healthcare, modern startups',
+    description: 'Forest-green sidebar with sage tones. Fresh and distinctive without sacrificing readability.',
   },
+
+  // ── TECHNICAL ────────────────────────────────────────────────────────────────
   {
     id: 'v2-noir',
     name: 'Noir Tech',
@@ -145,9 +213,12 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'border-left', sectionBorderColor: '#a3e635',
     tagBg: 'rgba(163,230,53,0.1)', tagText: '#a3e635', tagBorder: 'rgba(163,230,53,0.3)', tagRadius: '3px',
     fontHeading: "'JetBrains Mono', 'Fira Code', monospace", fontBody: "'Inter', sans-serif",
-    bulletChar: '›', borderColor: '#2a2a2a', pagePadding: '0',
-    atsScore: 'low', bestFor: 'Senior engineers, OSS contributors, creative tech', description: 'Dark background with lime-green accent and monospace headings. Turns heads in tech.',
+    bulletChar: '›', borderColor: '#2a2a2a',
+    atsScore: 'low', bestFor: 'Senior engineers, OSS contributors, creative tech',
+    description: 'Dark background with lime-green accent and monospace headings. Turns heads in tech.',
   },
+
+  // ── CREATIVE ─────────────────────────────────────────────────────────────────
   {
     id: 'v2-coral',
     name: 'Warm Coral',
@@ -162,9 +233,12 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'bar-bg', sectionBorderColor: '#ea580c',
     tagBg: '#fff7ed', tagText: '#c2410c', tagBorder: '#fed7aa', tagRadius: '99px',
     fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', sans-serif",
-    bulletChar: '•', borderColor: '#fed7aa', pagePadding: '0',
-    atsScore: 'medium', bestFor: 'Design, marketing, creative leadership', description: 'Deep terracotta header with warm orange accents. Two-column body for maximum density.',
+    bulletChar: '•', borderColor: '#fed7aa',
+    atsScore: 'medium', bestFor: 'Design, marketing, creative leadership',
+    description: 'Deep terracotta header with warm orange accents. Two-column body for maximum density.',
   },
+
+  // ── ACADEMIC ─────────────────────────────────────────────────────────────────
   {
     id: 'v2-forest',
     name: 'Forest Pro',
@@ -179,13 +253,13 @@ export const THEMES: TemplateTheme[] = [
     sectionDecoration: 'underline', sectionBorderColor: '#15803d',
     tagBg: '#dcfce7', tagText: '#15803d', tagBorder: '#86efac', tagRadius: '4px',
     fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', sans-serif",
-    bulletChar: '•', borderColor: '#bbf7d0', pagePadding: '0',
-    atsScore: 'medium', bestFor: 'Academia, research, NGOs, public sector', description: 'Rich forest green — Playfair Display headings with a light sidebar. Perfect for academic and research CVs.',
+    bulletChar: '•', borderColor: '#bbf7d0',
+    atsScore: 'medium', bestFor: 'Academia, research, NGOs, public sector',
+    description: 'Rich forest green — Playfair Display headings with a light sidebar. Perfect for academic and research CVs.',
   },
 ];
 
 export const THEME_MAP: Record<string, TemplateTheme> = Object.fromEntries(THEMES.map(t => [t.id, t]));
-
 export const V2_TEMPLATE_IDS = THEMES.map(t => t.id) as string[];
 
 export function getTheme(id: string): TemplateTheme {
