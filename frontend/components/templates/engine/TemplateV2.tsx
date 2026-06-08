@@ -38,6 +38,7 @@ interface SmartSplit {
   achievementsInSidebar: boolean;
   refsInSidebar: boolean;
   certsInSidebar: boolean;
+  customInSidebar: boolean;
 }
 
 function computeSmartSplit(cvData: CVData): SmartSplit {
@@ -53,8 +54,9 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   const achievementsInSidebar = (cvData.achievements?.length ?? 0) <= 5;
   const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
   const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
+  const customInSidebar = (cvData.customSections?.length ?? 0) > 0;
 
-  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar };
+  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar };
 }
 
 // ─── Font pairing map ─────────────────────────────────────────────────────────
@@ -568,6 +570,23 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
         </div>
       ) : null}
 
+      {/* Additional Sections (Awards, Volunteer Work, etc.) — always sidebar */}
+      {cvData.customSections?.map(sec => (
+        <div key={sec.id} style={{ marginBottom: sc.sectionGap }}>
+          <SidebarHead title={sec.label} theme={theme} sc={sc} />
+          {sec.items.filter(item => item.title?.trim()).map((item, i) => (
+            <div key={i} style={{ marginBottom: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>{item.title}</span>
+                {item.year && <span style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, flexShrink: 0 }}>{item.year}</span>}
+              </div>
+              {item.subtitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody }}>{item.subtitle}</div>}
+              {item.description && <div style={{ fontSize: sc.metaSize, color: mutedColor, lineHeight: sc.lineH, marginTop: 2, fontFamily: theme.fontBody }}>{item.description}</div>}
+            </div>
+          ))}
+        </div>
+      ))}
+
     </div>
   );
 };
@@ -590,7 +609,8 @@ const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onCh
     {/* Projects go to main only when NOT in sidebar */}
     {!split?.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} />}
     <PublicationsSection cvData={cvData} theme={theme} sc={sc} />
-    <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />
+    {/* Additional Sections go to sidebar; only show here on single-col layouts */}
+    {!split?.customInSidebar && <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />}
     {/* Certifications go to sidebar; only show here on single-col layouts */}
     {!split?.certsInSidebar && <CertificationsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* Achievements in main only when too many for sidebar */}
