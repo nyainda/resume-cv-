@@ -37,6 +37,7 @@ interface SmartSplit {
   projectsInSidebar: boolean;
   achievementsInSidebar: boolean;
   refsInSidebar: boolean;
+  certsInSidebar: boolean;
 }
 
 function computeSmartSplit(cvData: CVData): SmartSplit {
@@ -51,8 +52,9 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
 
   const achievementsInSidebar = (cvData.achievements?.length ?? 0) <= 5;
   const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
+  const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
 
-  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar };
+  return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar };
 }
 
 // ─── Font pairing map ─────────────────────────────────────────────────────────
@@ -589,6 +591,8 @@ const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onCh
     {!split?.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} />}
     <PublicationsSection cvData={cvData} theme={theme} sc={sc} />
     <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />
+    {/* Certifications go to sidebar; only show here on single-col layouts */}
+    {!split?.certsInSidebar && <CertificationsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* Achievements in main only when too many for sidebar */}
     {!split?.achievementsInSidebar && <AchievementsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* References in main only when too many for sidebar */}
