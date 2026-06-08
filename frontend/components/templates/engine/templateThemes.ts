@@ -265,6 +265,25 @@ export const THEMES: TemplateTheme[] = [
 
   // ── ACADEMIC ─────────────────────────────────────────────────────────────────
   {
+    id: 'v2-ink',
+    name: 'Ink & Parchment',
+    layout: 'single-col',
+    category: 'Academic',
+    accentBar: '#6b2d3e',
+    headerBg: '#1c1917', headerText: '#faf7f2', headerPadding: '28px 36px 22px',
+    headerNameSize: '26px', headerNameWeight: '700', headerTitleColor: '#d6b896',
+    accent: '#6b2d3e', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#fdfaf6', bodyText: '#1c1917', bodyMuted: '#5c4f43',
+    sectionColor: '#1c1917', sectionSize: '9.5px', sectionWeight: '800',
+    sectionDecoration: 'underline', sectionBorderColor: '#6b2d3e',
+    tagBg: '#f5efe8', tagText: '#6b2d3e', tagBorder: '#d6b896', tagRadius: '3px',
+    fontHeading: "'Merriweather', Georgia, serif", fontBody: "'Lato', 'DM Sans', sans-serif",
+    bulletChar: '›', borderColor: '#e8ddd0',
+    atsScore: 'high', bestFor: 'Academia, law, consulting, publishing',
+    description: 'Deep ink header with warm parchment body — Merriweather serif headings and a burgundy accent. Print-perfect for academic, legal, and consulting CVs.',
+  },
+  {
     id: 'v2-forest',
     name: 'Forest Pro',
     layout: 'sidebar-right',

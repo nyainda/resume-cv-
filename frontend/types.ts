@@ -416,6 +416,7 @@ export type TemplateName =
   | 'v2-sage'
   | 'v2-noir'
   | 'v2-coral'
+  | 'v2-ink'
   | 'v2-forest'
   | 'custom';
 
@@ -579,6 +580,7 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'v2-sage': 'Sage Modern',
   'v2-noir': 'Noir Tech',
   'v2-coral': 'Warm Coral',
+  'v2-ink': 'Ink & Parchment',
   'v2-forest': 'Forest Pro',
   'custom': 'My Custom',
 };
