@@ -10,7 +10,8 @@ export interface TemplateTheme {
   headerNameSize: string;
   headerNameWeight: string;
   headerTitleColor: string;
-  accentBar?: string; // thin colored bar at very top of header (optional)
+  accentBar?: string;
+  supportsPhoto?: boolean; // render circular avatar at top of sidebar
 
   accent: string;
   accentContrast: string;
@@ -53,6 +54,7 @@ export interface DensityScale {
   bodySize: string;
   metaSize: string;
   tagSize: string;
+  sidebarBodySize: string; // sidebar text – slightly larger than metaSize for readability
   sectionGap: number;
   bulletGap: number;
   itemGap: number;
@@ -64,17 +66,17 @@ export interface DensityScale {
 
 export const DENSITY_SCALES: Record<ContentDensity, DensityScale> = {
   compact: {
-    bodySize: '8.5px', metaSize: '8px', tagSize: '7.5px',
+    bodySize: '8.5px', metaSize: '8px', tagSize: '7.5px', sidebarBodySize: '8.5px',
     sectionGap: 8, bulletGap: 2, itemGap: 7,
     lineH: 1.35, bodyPad: '14px 22px', sidebarPad: '14px 12px', sectionTopMargin: 0,
   },
   balanced: {
-    bodySize: '9.5px', metaSize: '8.5px', tagSize: '8.5px',
+    bodySize: '9.5px', metaSize: '8.5px', tagSize: '8.5px', sidebarBodySize: '9px',
     sectionGap: 13, bulletGap: 2.5, itemGap: 10,
     lineH: 1.5, bodyPad: '20px 28px', sidebarPad: '20px 16px', sectionTopMargin: 2,
   },
   spacious: {
-    bodySize: '10.5px', metaSize: '9.5px', tagSize: '9px',
+    bodySize: '10.5px', metaSize: '9.5px', tagSize: '9px', sidebarBodySize: '10px',
     sectionGap: 20, bulletGap: 4, itemGap: 14,
     lineH: 1.65, bodyPad: '28px 36px', sidebarPad: '28px 20px', sectionTopMargin: 4,
   },
@@ -122,10 +124,30 @@ export const THEMES: TemplateTheme[] = [
     description: 'Deep navy header with Playfair Display headings. Classic authority for corporate and finance roles.',
   },
   {
+    id: 'v2-photo',
+    name: 'Photo Pro',
+    layout: 'sidebar-left',
+    category: 'Professional',
+    supportsPhoto: true,
+    headerBg: '#1e3a5f', headerText: '#f0f7ff', headerPadding: '22px 24px 18px',
+    headerNameSize: '23px', headerNameWeight: '800', headerTitleColor: '#93c5fd',
+    accent: '#3b82f6', accentContrast: '#ffffff',
+    sidebarBg: '#172b4d', sidebarText: '#e2ecf9', sidebarMuted: '#93b4d4', sidebarWidth: '34%',
+    bodyBg: '#ffffff', bodyText: '#1a2b40', bodyMuted: '#4b6780',
+    sectionColor: '#1a2b40', sectionSize: '9.5px', sectionWeight: '800',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#3b82f6',
+    tagBg: 'rgba(59,130,246,0.1)', tagText: '#3b82f6', tagBorder: 'rgba(59,130,246,0.3)', tagRadius: '3px',
+    fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
+    bulletChar: '▸', borderColor: '#dde8f0',
+    atsScore: 'medium', bestFor: 'Design, product, marketing, management',
+    description: 'Dark blue sidebar with circular profile photo at top. Modern and distinctive for roles where presence matters.',
+  },
+  {
     id: 'v2-slate-sidebar',
     name: 'Slate Sidebar',
     layout: 'sidebar-left',
     category: 'Professional',
+    supportsPhoto: true,
     headerBg: '#1e293b', headerText: '#f8fafc', headerPadding: '28px 24px 24px',
     headerNameSize: '22px', headerNameWeight: '800', headerTitleColor: '#94a3b8',
     accent: '#3b82f6', accentContrast: '#ffffff',
@@ -144,6 +166,7 @@ export const THEMES: TemplateTheme[] = [
     name: 'Gold Executive',
     layout: 'sidebar-right',
     category: 'Professional',
+    supportsPhoto: true,
     headerBg: '#1a1a2e', headerText: '#f5f0e8', headerPadding: '32px 28px 28px',
     headerNameSize: '24px', headerNameWeight: '700', headerTitleColor: '#c9a84c',
     accent: '#c9a84c', accentContrast: '#1a1a2e',
@@ -184,6 +207,7 @@ export const THEMES: TemplateTheme[] = [
     name: 'Sage Modern',
     layout: 'sidebar-left',
     category: 'Modern',
+    supportsPhoto: true,
     headerBg: '#2d4a3e', headerText: '#f0fdf4', headerPadding: '28px 24px 24px',
     headerNameSize: '22px', headerNameWeight: '800', headerTitleColor: '#86efac',
     accent: '#16a34a', accentContrast: '#ffffff',
@@ -224,6 +248,7 @@ export const THEMES: TemplateTheme[] = [
     name: 'Warm Coral',
     layout: 'two-col',
     category: 'Creative',
+    supportsPhoto: true,
     headerBg: '#7c2d12', headerText: '#fff7ed', headerPadding: '28px 32px 24px',
     headerNameSize: '26px', headerNameWeight: '800', headerTitleColor: '#fdba74',
     accent: '#ea580c', accentContrast: '#ffffff',
@@ -244,6 +269,7 @@ export const THEMES: TemplateTheme[] = [
     name: 'Forest Pro',
     layout: 'sidebar-right',
     category: 'Academic',
+    supportsPhoto: true,
     headerBg: '#14532d', headerText: '#f0fdf4', headerPadding: '28px 28px 24px',
     headerNameSize: '24px', headerNameWeight: '800', headerTitleColor: '#86efac',
     accent: '#15803d', accentContrast: '#ffffff',
