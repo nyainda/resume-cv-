@@ -414,8 +414,11 @@ export type TemplateName =
   | 'v2-gold-exec'
   | 'v2-minimal'
   | 'v2-sage'
+  | 'v2-terminal'
   | 'v2-noir'
+  | 'v2-editorial'
   | 'v2-coral'
+  | 'v2-amber'
   | 'v2-ink'
   | 'v2-forest'
   | 'custom';
@@ -578,8 +581,11 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'v2-gold-exec': 'Gold Executive',
   'v2-minimal': 'Pure Minimal',
   'v2-sage': 'Sage Modern',
+  'v2-terminal': 'Terminal Dark',
   'v2-noir': 'Noir Tech',
+  'v2-editorial': 'Editorial Rose',
   'v2-coral': 'Warm Coral',
+  'v2-amber': 'Amber Scholar',
   'v2-ink': 'Ink & Parchment',
   'v2-forest': 'Forest Pro',
   'custom': 'My Custom',

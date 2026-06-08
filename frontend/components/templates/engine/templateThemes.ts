@@ -224,6 +224,24 @@ export const THEMES: TemplateTheme[] = [
 
   // ── TECHNICAL ────────────────────────────────────────────────────────────────
   {
+    id: 'v2-terminal',
+    name: 'Terminal Dark',
+    layout: 'single-col',
+    category: 'Technical',
+    headerBg: '#0d1117', headerText: '#c9d1d9', headerPadding: '26px 32px 22px',
+    headerNameSize: '22px', headerNameWeight: '700', headerTitleColor: '#22d3ee',
+    accent: '#22d3ee', accentContrast: '#0d1117',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#0d1117', bodyText: '#c9d1d9', bodyMuted: '#8b949e',
+    sectionColor: '#22d3ee', sectionSize: '9px', sectionWeight: '700',
+    sectionDecoration: 'border-left', sectionBorderColor: '#22d3ee',
+    tagBg: 'rgba(34,211,238,0.1)', tagText: '#22d3ee', tagBorder: 'rgba(34,211,238,0.3)', tagRadius: '3px',
+    fontHeading: "'JetBrains Mono', 'Fira Code', monospace", fontBody: "'Inter', sans-serif",
+    bulletChar: '›', borderColor: '#21262d',
+    atsScore: 'low', bestFor: 'Senior engineers, OSS contributors, creative tech',
+    description: 'GitHub-dark background with cyan accent and monospace headings. VS Code aesthetic — stands out instantly in tech stacks.',
+  },
+  {
     id: 'v2-noir',
     name: 'Noir Tech',
     layout: 'single-col',
@@ -243,6 +261,25 @@ export const THEMES: TemplateTheme[] = [
   },
 
   // ── CREATIVE ─────────────────────────────────────────────────────────────────
+  {
+    id: 'v2-editorial',
+    name: 'Editorial Rose',
+    layout: 'sidebar-left',
+    category: 'Creative',
+    supportsPhoto: true,
+    headerBg: '#1a0a0e', headerText: '#fff1f2', headerPadding: '28px 28px 24px',
+    headerNameSize: '24px', headerNameWeight: '800', headerTitleColor: '#fda4af',
+    accent: '#e11d48', accentContrast: '#ffffff',
+    sidebarBg: '#1a0a0e', sidebarText: '#fff1f2', sidebarMuted: '#fda4af', sidebarWidth: '32%',
+    bodyBg: '#fafafa', bodyText: '#1a0a0e', bodyMuted: '#6b2239',
+    sectionColor: '#1a0a0e', sectionSize: '9.5px', sectionWeight: '800',
+    sectionDecoration: 'bar-bg', sectionBorderColor: '#e11d48',
+    tagBg: '#fff1f2', tagText: '#be123c', tagBorder: '#fecdd3', tagRadius: '99px',
+    fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', sans-serif",
+    bulletChar: '•', borderColor: '#ffe4e6',
+    atsScore: 'medium', bestFor: 'Design, media, fashion, marketing, creative leadership',
+    description: 'Deep crimson sidebar with Playfair Display headings and pill-shaped rose tags. Magazine-editorial energy — from Paris Vibe, redesigned for impact.',
+  },
   {
     id: 'v2-coral',
     name: 'Warm Coral',
@@ -264,6 +301,25 @@ export const THEMES: TemplateTheme[] = [
   },
 
   // ── ACADEMIC ─────────────────────────────────────────────────────────────────
+  {
+    id: 'v2-amber',
+    name: 'Amber Scholar',
+    layout: 'single-col',
+    category: 'Academic',
+    accentBar: '#b45309',
+    headerBg: '#ffffff', headerText: '#1c1917', headerPadding: '28px 36px 22px',
+    headerNameSize: '27px', headerNameWeight: '700', headerTitleColor: '#b45309',
+    accent: '#b45309', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#1c1917', bodyMuted: '#57534e',
+    sectionColor: '#1c1917', sectionSize: '10px', sectionWeight: '700',
+    sectionDecoration: 'underline', sectionBorderColor: '#b45309',
+    tagBg: '#fef3c7', tagText: '#92400e', tagBorder: '#fcd34d', tagRadius: '3px',
+    fontHeading: "Georgia, 'Times New Roman', serif", fontBody: "'Inter', sans-serif",
+    bulletChar: '›', borderColor: '#e7e5e4',
+    atsScore: 'high', bestFor: 'Ivy League applications, law school, academia, consulting',
+    description: 'White layout, Georgia serif headings, burnt amber accent — distilled from HarvardGold. Clean and authoritative for top-tier academic and law applications.',
+  },
   {
     id: 'v2-ink',
     name: 'Ink & Parchment',
