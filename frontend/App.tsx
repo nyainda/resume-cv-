@@ -1231,6 +1231,12 @@ const AppInner: React.FC = () => {
   const handleWordProfileImported = useCallback(
     (profile: UserProfile) => {
       const cvData = profileToCV(profile);
+      // Build "found extras" message from custom sections
+      const extras = profile.customSections?.filter(s => s.items.length > 0) ?? [];
+      const extrasMsg = extras.length > 0
+        ? ` Found ${extras.length} extra section${extras.length > 1 ? 's' : ''}: ${extras.map(s => s.label).join(', ')}. Review them in your Profile.`
+        : '';
+
       if (activeSlot) {
         // Atomically update profile + CV in a single setProfiles call.
         const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
@@ -1242,7 +1248,7 @@ const AppInner: React.FC = () => {
         if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
         toast.success(
           "Profile Imported!",
-          "Your CV data has been imported. Head to the CV Generator to apply a template.",
+          `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
         );
       } else {
         const id = Date.now().toString();
@@ -1259,7 +1265,7 @@ const AppInner: React.FC = () => {
         setActiveProfileId(id);
         toast.success(
           "Profile Imported!",
-          "Your Word CV has been imported. Edit your profile or go to the Generator.",
+          `Your CV has been imported.${extrasMsg} Edit your profile or go to the Generator.`,
         );
         syncProfileToCache(slot).catch(() => {});
         if (isAuthenticated) syncSlot(slot).catch(() => {});

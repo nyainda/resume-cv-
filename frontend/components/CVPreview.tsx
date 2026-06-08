@@ -1,5 +1,7 @@
 import React from 'react';
 import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
+import TemplateV2 from './templates/engine/TemplateV2';
+import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
 import { getCustomTemplate } from '../utils/customTemplateStorage';
 import TemplateModern from './templates/TemplateModern';
@@ -75,6 +77,16 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   const sidebarTemplateProps = { ...templateProps, sidebarSections };
 
   const renderTemplate = () => {
+    if (V2_TEMPLATE_IDS.includes(template as string)) {
+      return <TemplateV2
+        cvData={cvData}
+        personalInfo={personalInfo}
+        isEditing={isEditing}
+        onDataChange={onDataChange}
+        jobDescriptionForATS={jobDescriptionForATS}
+        themeId={template as string}
+      />;
+    }
     switch (template) {
       case 'modern':             return <TemplateModern {...templateProps} />;
       case 'professional':       return <TemplateProfessional {...templateProps} />;
