@@ -2010,7 +2010,7 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
   "customSections": [
     {
       "id": "string (unique, e.g. 'cs1')",
-      "type": "certifications | awards | publications | volunteer | presentations | patents | courses | memberships | achievements | custom",
+      "type": "certifications | awards | publications | volunteer | presentations | patents | courses | memberships | achievements | hobbies | interests | custom",
       "label": "string (exact section heading from the document, e.g. 'Certifications', 'Awards & Honours', 'Publications', 'Volunteer Experience')",
       "items": [
         {

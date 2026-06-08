@@ -12,6 +12,10 @@ interface TemplateV2Props {
   themeId: string;
 }
 
+// Types already rendered as dedicated sections — exclude from the generic customSections loop
+// to prevent the same data appearing twice in the sidebar/main body.
+const PROMOTED_SECTION_TYPES = new Set(['certifications', 'achievements', 'awards', 'publications']);
+
 // ─── Smart content density detection ─────────────────────────────────────────
 function detectDensity(cvData: CVData): ContentDensity {
   let score = 0;
@@ -55,7 +59,7 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   const achievementsInSidebar = (cvData.achievements?.length ?? 0) <= 5;
   const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
   const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
-  const customInSidebar = (cvData.customSections?.length ?? 0) > 0;
+  const customInSidebar = (cvData.customSections?.filter(s => !PROMOTED_SECTION_TYPES.has(s.type)).length ?? 0) > 0;
   const pubsInSidebar   = (cvData.publications?.length ?? 0) > 0;
 
   return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar, pubsInSidebar };
@@ -585,8 +589,10 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
         </div>
       ) : null}
 
-      {/* Additional Sections (Awards, Volunteer Work, etc.) — always sidebar */}
-      {cvData.customSections?.map(sec => (
+      {/* Additional Sections (Volunteer, Presentations, Patents, etc.)
+          Promoted types (certifications, awards, publications) are already rendered
+          above as dedicated blocks — filter them out to avoid duplication. */}
+      {cvData.customSections?.filter(sec => !PROMOTED_SECTION_TYPES.has(sec.type)).map(sec => (
         <div key={sec.id} style={{ marginBottom: sc.sectionGap }}>
           <SidebarHead title={sec.label} theme={theme} sc={sc} />
           {sec.items.filter(item => item.title?.trim()).map((item, i) => (
@@ -625,8 +631,9 @@ const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onCh
     {!split?.projectsInSidebar && <ProjectsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* Publications go to sidebar; only show here on single-col layouts */}
     {!split?.pubsInSidebar && <PublicationsSection cvData={cvData} theme={theme} sc={sc} />}
-    {/* Additional Sections go to sidebar; only show here on single-col layouts */}
-    {!split?.customInSidebar && <CustomSectionsBlock sections={cvData.customSections ?? []} theme={theme} sc={sc} />}
+    {/* Additional Sections go to sidebar; only show here on single-col layouts.
+        Filter promoted types (certifications, awards, publications) — already rendered above. */}
+    {!split?.customInSidebar && <CustomSectionsBlock sections={(cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type))} theme={theme} sc={sc} />}
     {/* Certifications go to sidebar; only show here on single-col layouts */}
     {!split?.certsInSidebar && <CertificationsSection cvData={cvData} theme={theme} sc={sc} />}
     {/* Achievements in main only when too many for sidebar */}
@@ -646,7 +653,7 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => (
       <EducationSection  cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
       <ProjectsSection   cvData={props.cvData} theme={props.theme} sc={props.sc} />
       <PublicationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <CustomSectionsBlock sections={props.cvData.customSections ?? []} theme={props.theme} sc={props.sc} />
+      <CustomSectionsBlock sections={(props.cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type))} theme={props.theme} sc={props.sc} />
       <SkillsSection        skills={props.cvData.skills} theme={props.theme} sc={props.sc} />
       <LanguagesSection     cvData={props.cvData} theme={props.theme} sc={props.sc} />
       <CertificationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
