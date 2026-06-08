@@ -10,6 +10,7 @@ import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketRes
 import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, workerRaceLLM, workerParallelSections, workerVisionExtract, getCachedBannedPhrases, type CVBrief, type ValidateVoiceResult, type ParallelSectionRequest } from './cvEngineClient';
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
+import { normaliseCustomSections } from '../utils/normaliseSectionType';
 import {
     collectSourceNumberTokens as _collectSourceNumberTokens,
     repairBulletsAgainstSource as _repairBulletsAgainstSource,
@@ -3569,7 +3570,7 @@ export const generateProfileFromFileWithGemini = async (
                 profileData.education      = profileData.education      || [];
                 profileData.workExperience = profileData.workExperience || [];
                 profileData.languages      = profileData.languages      || [];
-                profileData.customSections = profileData.customSections || [];
+                profileData.customSections = normaliseCustomSections(profileData.customSections || []);
                 console.log('[CV Import] Profile structured from file via Claude.');
                 return profileData;
             }
@@ -3592,7 +3593,7 @@ export const generateProfileFromFileWithGemini = async (
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
     profileData.languages      = profileData.languages      || [];
-    profileData.customSections = profileData.customSections || [];
+    profileData.customSections = normaliseCustomSections(profileData.customSections || []);
     return profileData;
 };
 
@@ -3644,7 +3645,7 @@ export const generateProfileFromTextWithGemini = async (
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
     profileData.languages      = profileData.languages      || [];
-    profileData.customSections = profileData.customSections || [];
+    profileData.customSections = normaliseCustomSections(profileData.customSections || []);
     return profileData;
 };
 
