@@ -28,6 +28,14 @@ const FONT_PAIRINGS = [
   { id: 'merriweather-lato',  headingLabel: 'Merriweather',   bodyLabel: 'Lato',        label: 'Classic Pro',   headingFont: "'Merriweather', Georgia, serif",             bodyFont: "'Lato', sans-serif" },
 ];
 
+const FONT_SCALES = [
+  { label: 'XS', value: 0.88, title: 'Extra small text' },
+  { label: 'S',  value: 0.94, title: 'Small text' },
+  { label: 'M',  value: 1.0,  title: 'Default text size' },
+  { label: 'L',  value: 1.08, title: 'Larger text' },
+  { label: 'XL', value: 1.16, title: 'Extra large text' },
+] as const;
+
 const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
   const colorInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,8 +47,13 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
     onChange({ ...cvData, fontPairing: cvData.fontPairing === id ? undefined : id });
   };
 
+  const setScale = (v: number) => {
+    onChange({ ...cvData, fontScale: v === 1.0 ? undefined : v });
+  };
+
   const currentAccent = cvData.accentColor ?? '';
   const currentFont   = cvData.fontPairing ?? '';
+  const currentScale  = cvData.fontScale ?? 1.0;
 
   return (
     <div className="mt-5 space-y-4">
@@ -172,9 +185,47 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
         </div>
       </div>
 
+      {/* ── Text size ────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
+            Text Size
+          </span>
+          {cvData.fontScale && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...cvData, fontScale: undefined })}
+              className="text-[10px] text-zinc-400 hover:text-rose-500 dark:text-zinc-500 dark:hover:text-rose-400 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700">
+          {FONT_SCALES.map(({ label, value, title }) => {
+            const active = Math.abs(currentScale - value) < 0.01;
+            return (
+              <button
+                key={value}
+                type="button"
+                title={title}
+                onClick={() => setScale(value)}
+                aria-pressed={active}
+                className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold border transition-all duration-100 ${
+                  active
+                    ? 'border-[#2563eb] bg-blue-50 dark:bg-blue-950/30 text-[#2563eb] shadow-sm'
+                    : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-neutral-600 hover:text-zinc-700 dark:hover:text-zinc-200'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
     </div>
   );
 };
 
 export default V2ThemePicker;
-export { FONT_PAIRINGS };

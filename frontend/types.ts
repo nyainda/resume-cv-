@@ -214,6 +214,7 @@ export interface CVData {
   sectionOrder?: ProfileSectionKey[]; // mirrors the profile's preferred section ordering
   accentColor?: string; // custom accent color for the selected template
   fontPairing?: string; // custom font pairing key for V2 templates (e.g. 'playfair-dm')
+  fontScale?: number;   // user-adjustable text-size multiplier for V2 templates (0.88–1.20, default 1.0)
 }
 
 

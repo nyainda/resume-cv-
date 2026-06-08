@@ -1,7 +1,7 @@
 import React from 'react';
 import { CVData, PersonalInfo, CustomSection, CustomSectionItem } from '../../../types';
 import HiddenATSKeywords from '../../HiddenATSKeywords';
-import { getTheme, TemplateTheme, ContentDensity, DensityScale, DENSITY_SCALES } from './templateThemes';
+import { getTheme, TemplateTheme, ContentDensity, DensityScale, DENSITY_SCALES, applyFontScale } from './templateThemes';
 
 interface TemplateV2Props {
   cvData: CVData;
@@ -293,9 +293,13 @@ const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Den
     <Section sc={sc}>
       <SectionHeading title="Education" theme={theme} sc={sc} />
       {cvData.education.map((edu, i) => (
-        <div key={i} style={{ marginBottom: sc.itemGap }}>
-          <RowMeta left={edu.school} right={edu.year} sub={edu.degree} theme={theme} sc={sc} />
-          {edu.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 2, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>{edu.description}</div>}
+        <div key={i} style={{ marginBottom: sc.itemGap, paddingLeft: 9, borderLeft: `2px solid ${theme.accent}55` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 1 }}>
+            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{edu.school}</span>
+            {edu.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, flexShrink: 0 }}>{edu.year}</span>}
+          </div>
+          {edu.degree && <div style={{ fontSize: sc.bodySize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}>{edu.degree}</div>}
+          {edu.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 1, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>{edu.description}</div>}
         </div>
       ))}
     </Section>
@@ -328,11 +332,27 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
 
 const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: DensityScale }> = ({ skills, theme, sc }) => {
   if (!skills?.length) return null;
+  const cols = skills.length > 12 ? 3 : 2;
   return (
     <Section sc={sc}>
       <SectionHeading title="Skills" theme={theme} sc={sc} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 5px' }}>
-        {skills.map((s, i) => <Tag key={i} label={s} theme={theme} sc={sc} />)}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${sc.bulletGap + 2}px 14px` }}>
+        {skills.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ color: theme.accent, fontSize: '5.5px', flexShrink: 0, opacity: 0.85, lineHeight: 1 }}>◆</span>
+            <span style={{
+              fontSize: sc.bodySize,
+              color: theme.bodyText,
+              fontFamily: theme.fontBody,
+              lineHeight: 1.45,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {s}
+            </span>
+          </div>
+        ))}
       </div>
     </Section>
   );
@@ -754,7 +774,7 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
 const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, themeId }) => {
   let theme = { ...getTheme(themeId) };
   const density = detectDensity(cvData);
-  const sc = DENSITY_SCALES[density];
+  const sc = applyFontScale(DENSITY_SCALES[density], cvData.fontScale ?? 1);
 
   // Apply user accent-colour override
   if (cvData.accentColor) {

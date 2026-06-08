@@ -82,6 +82,26 @@ export const DENSITY_SCALES: Record<ContentDensity, DensityScale> = {
   },
 };
 
+/**
+ * Multiply all px font sizes in a DensityScale by a user-chosen scale factor.
+ * Only the text-size fields are scaled; spacing values are left alone so layout
+ * proportions stay consistent.
+ */
+export function applyFontScale(sc: DensityScale, scale: number): DensityScale {
+  if (scale === 1) return sc;
+  const f = (px: string) => {
+    const n = parseFloat(px);
+    return isNaN(n) ? px : `${(n * scale).toFixed(2)}px`;
+  };
+  return {
+    ...sc,
+    bodySize:        f(sc.bodySize),
+    metaSize:        f(sc.metaSize),
+    tagSize:         f(sc.tagSize),
+    sidebarBodySize: f(sc.sidebarBodySize),
+  };
+}
+
 // ─── Theme presets ────────────────────────────────────────────────────────────
 
 export const THEMES: TemplateTheme[] = [
