@@ -213,6 +213,7 @@ export interface CVData {
   customSections?: CustomSection[]; // user-defined extra sections
   sectionOrder?: ProfileSectionKey[]; // mirrors the profile's preferred section ordering
   accentColor?: string; // custom accent color for the selected template
+  fontPairing?: string; // custom font pairing key for V2 templates (e.g. 'playfair-dm')
 }
 
 

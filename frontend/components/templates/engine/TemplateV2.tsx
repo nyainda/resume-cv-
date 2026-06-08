@@ -508,11 +508,43 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
   );
 };
 
+// ─── Font pairing map (mirrors V2ThemePicker) ─────────────────────────────────
+const FONT_PAIRING_MAP: Record<string, { heading: string; body: string }> = {
+  'inter':             { heading: "'Inter', sans-serif",                      body: "'Inter', sans-serif" },
+  'playfair-dm':       { heading: "'Playfair Display', Georgia, serif",        body: "'DM Sans', sans-serif" },
+  'georgia-open':      { heading: "Georgia, 'Times New Roman', serif",         body: "'Open Sans', sans-serif" },
+  'mono-inter':        { heading: "'JetBrains Mono', 'Fira Code', monospace",  body: "'Inter', sans-serif" },
+  'raleway-inter':     { heading: "'Raleway', sans-serif",                     body: "'Inter', sans-serif" },
+  'merriweather-lato': { heading: "'Merriweather', Georgia, serif",            body: "'Lato', sans-serif" },
+};
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, themeId }) => {
-  const theme = getTheme(themeId);
+  let theme = { ...getTheme(themeId) };
   const density = detectDensity(cvData);
   const sc = DENSITY_SCALES[density];
+
+  // Apply user accent-colour override
+  if (cvData.accentColor) {
+    const c = cvData.accentColor;
+    theme = {
+      ...theme,
+      accent: c,
+      sectionBorderColor: c,
+      accentBar: theme.accentBar ? c : undefined,
+      // For white-header templates, also tint the title/subtitle
+      headerTitleColor: theme.headerBg === '#ffffff' || theme.headerBg === '#ffffff' ? c : theme.headerTitleColor,
+      tagText: c,
+      tagBg: c + '18',
+      tagBorder: c + '44',
+    };
+  }
+
+  // Apply user font-pairing override
+  if (cvData.fontPairing && FONT_PAIRING_MAP[cvData.fontPairing]) {
+    const fp = FONT_PAIRING_MAP[cvData.fontPairing];
+    theme = { ...theme, fontHeading: fp.heading, fontBody: fp.body };
+  }
 
   const layoutProps: LayoutProps = { cvData, pi: personalInfo, theme, sc, isEditing, onChange: onDataChange };
 

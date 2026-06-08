@@ -1,5 +1,7 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
+import V2ThemePicker from './V2ThemePicker';
+import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
@@ -2348,6 +2350,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
                 })}
               </div>
             </div>
+          )}
+
+          {/* ── V2 Theme & Font Picker ────────────────────────────────────────
+              Only visible for V2 engine templates. Lets the user override the
+              accent colour and font pairing on any V2 template in real-time. */}
+          {V2_TEMPLATE_IDS.includes(template as string) && (
+            <V2ThemePicker cvData={currentCV} onChange={setCurrentCV} />
           )}
 
           {/* ── Import Quality Report ─────────────────────────────────────── */}
