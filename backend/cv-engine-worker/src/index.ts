@@ -24,6 +24,14 @@ export interface Env {
     ADMIN_TOKEN?: string;
 }
 
+// ─── KV data versioning ──────────────────────────────────────────────────────
+// Bump WORKER_DATA_VERSION whenever CV rules change (banned phrases, verb pools,
+// seniority/field/voice tables). Old KV entries under the previous prefix are
+// simply ignored; the first admin /api/cv/sync after deploy writes the new keys.
+// Meta keys (cv:meta:*) and the LLM-cache entries keep their own key schemes.
+const WORKER_DATA_VERSION = 'v2';
+const kvd = (key: string) => `${WORKER_DATA_VERSION}:${key}`;
+
 const VERB_CATEGORIES = ['technical', 'management', 'analysis', 'communication', 'financial', 'creative'] as const;
 
 export default {
@@ -151,7 +159,7 @@ async function handleWords(request: Request, env: Env, url: URL): Promise<Respon
         return json({ error: 'invalid_tense', allowed: ['present', 'past'] }, request, env, 400);
     }
 
-    const key = `cv:verbs:${category}:${tense}`;
+    const key = kvd(`cv:verbs:${category}:${tense}`);
     let pool = await env.CV_KV.get<any[]>(key, { type: 'json' });
 
     if (!pool || pool.length === 0) {
@@ -184,7 +192,7 @@ async function handleWords(request: Request, env: Env, url: URL): Promise<Respon
 }
 
 async function handleBanned(request: Request, env: Env): Promise<Response> {
-    let rows = await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' });
+    let rows = await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' });
     let source = 'kv';
     if (!rows) {
         const r = await env.CV_DB.prepare(
@@ -202,13 +210,13 @@ async function handleStructures(request: Request, env: Env, url: URL): Promise<R
     if (!allowed.includes(label)) {
         return json({ error: 'invalid_label', allowed }, request, env, 400);
     }
-    const rows = await env.CV_KV.get<any[]>(`cv:structures:${label}`, { type: 'json' }) || [];
+    const rows = await env.CV_KV.get<any[]>(kvd(`cv:structures:${label}`), { type: 'json' }) || [];
     return json({ label, count: rows.length, structures: rows }, request, env);
 }
 
 async function handleRhythm(request: Request, env: Env, url: URL): Promise<Response> {
     const section = (url.searchParams.get('section') || '').toLowerCase();
-    const all = await env.CV_KV.get<any[]>('cv:rhythm:all', { type: 'json' }) || [];
+    const all = await env.CV_KV.get<any[]>(kvd('cv:rhythm:all'), { type: 'json' }) || [];
     const filtered = section ? all.filter(r => String(r.section || '').toLowerCase() === section) : all;
     return json({ section: section || 'all', count: filtered.length, patterns: filtered }, request, env);
 }
@@ -224,7 +232,7 @@ async function handleClean(request: Request, env: Env): Promise<Response> {
     let cleaned = rawText;
 
     // 1. Banned phrase replacement (longest first so multi-word phrases hit before single words)
-    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
     for (const { phrase, replacement } of banned) {
         if (!phrase) continue;
         const re = new RegExp(`\\b${escapeRegex(phrase)}\\b`, 'gi');
@@ -301,7 +309,7 @@ async function handleValidate(request: Request, env: Env): Promise<Response> {
     });
 
     // 3. Banned phrases
-    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
     bullets.forEach((bullet, i) => {
         const lower = (bullet || '').toLowerCase();
         for (const { phrase, replacement, severity } of banned) {
@@ -509,12 +517,12 @@ async function buildBriefData(env: Env, body: any): Promise<any> {
 
     // Pull KV bundles in parallel
     const [seniorityRows, fieldRows, voiceRows, comboRows, rhythmRows, bannedRows] = await Promise.all([
-        env.CV_KV.get<any[]>('cv:seniority:all', { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:fields:all',    { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:voices:all',    { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:combos:all',    { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:rhythm:all',    { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:banned:all',    { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:seniority:all'), { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:fields:all'),    { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:voices:all'),    { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:combos:all'),    { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:rhythm:all'),    { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:banned:all'),    { type: 'json' }),
     ]);
 
     // 1. Seniority by years (with override from JD title cues)
@@ -590,7 +598,7 @@ async function buildBriefData(env: Env, body: any): Promise<any> {
     // 5. Verb pool: pick category from field language_style, build pool of ~30
     const category = mapFieldToVerbCategory(fieldRow?.language_style || '');
     const tense = section === 'current_role' ? 'present' : 'past';
-    let verbPool = await env.CV_KV.get<any[]>(`cv:verbs:${category}:${tense}`, { type: 'json' }) || [];
+    let verbPool = await env.CV_KV.get<any[]>(kvd(`cv:verbs:${category}:${tense}`), { type: 'json' }) || [];
     // Apply field's preferred/avoided verbs filter
     if (fieldRow) {
         const avoided = new Set((fieldRow.avoided_verbs || []).map((v: string) => v.toLowerCase()));
@@ -970,7 +978,7 @@ async function handleAiAudit(request: Request, env: Env): Promise<Response> {
     if (text.length > 8000) text = text.slice(0, 8000);
 
     // Already-banned set — so AI can't re-suggest things we already catch
-    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
     const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()).filter(Boolean));
 
     // ─── Style anchors from the seeded D1/KV pools ───────────────────────────
@@ -979,10 +987,10 @@ async function handleAiAudit(request: Request, env: Env): Promise<Response> {
     // drifting into yet another set of generic LLM-isms. All slices are tiny
     // (KV reads are cheap; the prompt budget is the real constraint).
     const [techVerbsKv, mgmtVerbsKv, analysisVerbsKv, resultsKv] = await Promise.all([
-        env.CV_KV.get<any[]>('cv:verbs:technical:past', { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:verbs:management:past', { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:verbs:analysis:past', { type: 'json' }),
-        env.CV_KV.get<any[]>('cv:results:emdash', { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:verbs:technical:past'), { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:verbs:management:past'), { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:verbs:analysis:past'), { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:results:emdash'), { type: 'json' }),
     ]);
     const pickVerbs = (arr: any[] | null, n: number) =>
         (arr || []).filter((r: any) => (r.human_score ?? 0) >= 8)
@@ -1305,8 +1313,8 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
             `SELECT phrase, replacement, severity FROM cv_banned_phrases ORDER BY LENGTH(phrase) DESC`
         ).all();
         const rows = (r.results as any[]) || [];
-        await env.CV_KV.put('cv:banned:all', JSON.stringify(rows), { expirationTtl: 86400 * 7 });
-        written.push(['cv:banned:all', rows.length]);
+        await env.CV_KV.put(kvd('cv:banned:all'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:banned:all'), rows.length]);
     }
 
     // Verbs
@@ -1318,7 +1326,7 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
                  ORDER BY human_score DESC`
             ).bind(cat).all();
             const rows = (r.results as any[]) || [];
-            const key = `cv:verbs:${cat}:${tense}`;
+            const key = kvd(`cv:verbs:${cat}:${tense}`);
             await env.CV_KV.put(key, JSON.stringify(rows), { expirationTtl: 86400 * 7 });
             written.push([key, rows.length]);
         }
@@ -1331,7 +1339,7 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
              FROM cv_sentence_structures WHERE pattern_label = ?`
         ).bind(label).all();
         const rows = (r.results as any[]) || [];
-        const key = `cv:structures:${label}`;
+        const key = kvd(`cv:structures:${label}`);
         await env.CV_KV.put(key, JSON.stringify(rows), { expirationTtl: 86400 * 7 });
         written.push([key, rows.length]);
     }
@@ -1342,12 +1350,69 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
             `SELECT pattern_name, sequence, section, bullet_count, description, human_score FROM cv_rhythm_patterns`
         ).all();
         const rows = ((r.results as any[]) || []).map(row => ({ ...row, sequence: safeParse(row.sequence) }));
-        await env.CV_KV.put('cv:rhythm:all', JSON.stringify(rows), { expirationTtl: 86400 * 7 });
-        written.push(['cv:rhythm:all', rows.length]);
+        await env.CV_KV.put(kvd('cv:rhythm:all'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:rhythm:all'), rows.length]);
+    }
+
+    // Seniority levels
+    {
+        const r = await env.CV_DB.prepare(
+            `SELECT level, bullet_style, metric_density, summary_tone FROM cv_seniority_levels`
+        ).all();
+        const rows = (r.results as any[]) || [];
+        await env.CV_KV.put(kvd('cv:seniority:all'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:seniority:all'), rows.length]);
+    }
+
+    // Field profiles
+    {
+        const r = await env.CV_DB.prepare(
+            `SELECT * FROM cv_field_profiles`
+        ).all();
+        const rows = (r.results as any[]).map(row => ({
+            ...row,
+            jd_keywords:      safeParse((row as any).jd_keywords),
+            preferred_verbs:  safeParse((row as any).preferred_verbs),
+            avoided_verbs:    safeParse((row as any).avoided_verbs),
+            metric_types:     safeParse((row as any).metric_types),
+        }));
+        await env.CV_KV.put(kvd('cv:fields:all'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:fields:all'), rows.length]);
+    }
+
+    // Voice profiles
+    {
+        const r = await env.CV_DB.prepare(
+            `SELECT * FROM cv_voice_profiles`
+        ).all();
+        const rows = (r.results as any[]) || [];
+        await env.CV_KV.put(kvd('cv:voices:all'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:voices:all'), rows.length]);
+    }
+
+    // Seniority-field combos
+    {
+        const r = await env.CV_DB.prepare(
+            `SELECT * FROM cv_seniority_field_combos`
+        ).all();
+        const rows = (r.results as any[]) || [];
+        await env.CV_KV.put(kvd('cv:combos:all'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:combos:all'), rows.length]);
+    }
+
+    // Result connectors (emdash type used by AI audit)
+    {
+        const r = await env.CV_DB.prepare(
+            `SELECT connector, type FROM cv_result_connectors WHERE type = 'emdash'`
+        ).all();
+        const rows = (r.results as any[]) || [];
+        await env.CV_KV.put(kvd('cv:results:emdash'), JSON.stringify(rows), { expirationTtl: 86400 * 7 });
+        written.push([kvd('cv:results:emdash'), rows.length]);
     }
 
     await env.CV_KV.put('cv:meta:last_sync', String(Date.now()));
-    return json({ ok: true, written, total_keys: written.length, synced_at: Date.now() }, request, env);
+    await env.CV_KV.put('cv:meta:data_version', WORKER_DATA_VERSION);
+    return json({ ok: true, written, total_keys: written.length, synced_at: Date.now(), data_version: WORKER_DATA_VERSION }, request, env);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2072,7 +2137,7 @@ async function handleLeakReport(request: Request, env: Env): Promise<Response> {
     if (cleaned.length === 0) return json({ error: 'no_valid_phrases' }, request, env, 400);
 
     // Skip phrases already in the banned list (saves DB churn)
-    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
     const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()));
     const fresh = cleaned.filter(p => !bannedSet.has(p));
     if (fresh.length === 0) return json({ ok: true, recorded: 0, already_banned: cleaned.length }, request, env);
@@ -2234,7 +2299,7 @@ async function runDbCleanupCron(env: Env): Promise<void> {
 
 async function runLeakPromotionCron(env: Env): Promise<void> {
     // Auto-promote pending candidates with count >= threshold that aren't already banned.
-    const banned = (await env.CV_KV.get<any[]>('cv:banned:all', { type: 'json' })) || [];
+    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
     const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()));
 
     const rs = await env.CV_DB.prepare(
@@ -2273,7 +2338,7 @@ async function rebuildBannedKv(env: Env): Promise<void> {
     const rs = await env.CV_DB.prepare(
         `SELECT phrase, replacement, severity, reason FROM cv_banned_phrases ORDER BY length(phrase) DESC`
     ).all();
-    await env.CV_KV.put('cv:banned:all', JSON.stringify(rs.results || []));
+    await env.CV_KV.put(kvd('cv:banned:all'), JSON.stringify(rs.results || []));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

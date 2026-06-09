@@ -212,6 +212,46 @@ export async function validateVoice(bullets: string[], brief: CVBrief): Promise<
     return postJSON<ValidateVoiceResult>('/api/cv/validate-voice', { bullets, brief });
 }
 
+// ─── Unified full validation ──────────────────────────────────────────────────
+// Fires all three validation endpoints in parallel and returns a single merged
+// result. Individual failures return null for that section — callers can check
+// each field independently. Use this instead of calling the three functions
+// separately to guarantee they always run together and to avoid partial scoring.
+
+export interface SemanticMatchResult {
+    score: number;
+    matched: string[];
+    missing: string[];
+    total_jd_keywords: number;
+}
+
+export interface FullValidationResult {
+    bullets:  ValidateResult       | null;
+    voice:    ValidateVoiceResult  | null;
+    semantic: SemanticMatchResult  | null;
+    /** True only when all three sections returned a result. */
+    complete: boolean;
+}
+
+export async function runFullValidation(
+    bullets: string[],
+    brief: CVBrief,
+    jdText: string,
+    cvText: string,
+): Promise<FullValidationResult> {
+    const [bulletsRes, voiceRes, semanticRes] = await Promise.allSettled([
+        validateBullets(bullets),
+        validateVoice(bullets, brief),
+        postJSON<SemanticMatchResult>('/api/cv/semantic-match', { jd: jdText, cv: cvText }),
+    ]);
+
+    const b = bulletsRes.status  === 'fulfilled' ? bulletsRes.value  : null;
+    const v = voiceRes.status    === 'fulfilled' ? voiceRes.value    : null;
+    const s = semanticRes.status === 'fulfilled' ? semanticRes.value : null;
+
+    return { bullets: b, voice: v, semantic: s, complete: b !== null && v !== null && s !== null };
+}
+
 export interface CVBrief {
     years: number;
     seniority: { level: string; bullet_style: string; metric_density: string; summary_tone: string } | null;
