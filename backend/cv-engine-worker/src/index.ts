@@ -16,23 +16,16 @@
  *   POST /api/cv/admin/bulk-add  Admin: insert rows into a whitelisted table (X-Admin-Token)
  */
 
-export interface Env {
-    CV_DB: D1Database;
-    CV_KV: KVNamespace;
-    AI: Ai;
-    ALLOWED_ORIGINS?: string;
-    ADMIN_TOKEN?: string;
-}
-
-// ─── KV data versioning ──────────────────────────────────────────────────────
-// Bump WORKER_DATA_VERSION whenever CV rules change (banned phrases, verb pools,
-// seniority/field/voice tables). Old KV entries under the previous prefix are
-// simply ignored; the first admin /api/cv/sync after deploy writes the new keys.
-// Meta keys (cv:meta:*) and the LLM-cache entries keep their own key schemes.
-const WORKER_DATA_VERSION = 'v2';
-const kvd = (key: string) => `${WORKER_DATA_VERSION}:${key}`;
-
-const VERB_CATEGORIES = ['technical', 'management', 'analysis', 'communication', 'financial', 'creative'] as const;
+import {
+    Env, kvd, WORKER_DATA_VERSION, VERB_CATEGORIES,
+    AdminRole, ROLE_RANK, VALID_ROLES, AuthCtx,
+    ADMIN_TABLES, ADMIN_SEARCHABLE, LEAK_PROMOTE_THRESHOLD,
+} from './types';
+import {
+    isAllowedOrigin, corsHeaders, json, safeJson, safeParse,
+    escapeRegex, clamp, shuffle, stringify, sanitizeStringArray, dotSim,
+    sha256Hex, verifyAdminAuth, unauthorized,
+} from './utils';
 
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -703,29 +696,9 @@ function mapFieldToVerbCategory(languageStyle: string): 'technical' | 'managemen
     return 'management';
 }
 
-function stringify(obj: any): string {
-    try { return JSON.stringify(obj); } catch { return ''; }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Admin: stats + bulk-add. Both require X-Admin-Token.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const ADMIN_TABLES = new Set([
-    'cv_verbs',
-    'cv_banned_phrases',
-    'cv_openers',
-    'cv_context_connectors',
-    'cv_result_connectors',
-    'cv_sentence_structures',
-    'cv_rhythm_patterns',
-    'cv_paragraph_structures',
-    'cv_subjects',
-    'cv_seniority_levels',
-    'cv_field_profiles',
-    'cv_seniority_field_combos',
-    'cv_voice_profiles',
-]);
 
 async function handleAdminStats(request: Request, env: Env): Promise<Response> {
     const auth = await verifyAdminAuth(request, env, 'viewer');
@@ -792,22 +765,6 @@ async function handleBulkAdd(request: Request, env: Env): Promise<Response> {
     return json({ ok: failed === 0, inserted, skipped, failed, errors, synced }, request, env);
 }
 
-// Whitelist of columns admins can search/update per table — keeps SQL safe.
-const ADMIN_SEARCHABLE: Record<string, string[]> = {
-    cv_verbs: ['verb_present', 'verb_past', 'category', 'industry'],
-    cv_banned_phrases: ['phrase', 'replacement', 'severity', 'reason', 'source'],
-    cv_openers: ['opener', 'type', 'length_type'],
-    cv_context_connectors: ['connector', 'type'],
-    cv_result_connectors: ['connector', 'type'],
-    cv_sentence_structures: ['pattern_label', 'pattern', 'use_frequency', 'section'],
-    cv_rhythm_patterns: ['pattern_name', 'section', 'description'],
-    cv_paragraph_structures: ['section', 'pattern'],
-    cv_subjects: ['subject', 'usage'],
-    cv_seniority_levels: ['level', 'bullet_style', 'metric_density', 'summary_tone'],
-    cv_field_profiles: ['field', 'language_style'],
-    cv_seniority_field_combos: ['seniority', 'field', 'required_tone', 'notes'],
-    cv_voice_profiles: ['name', 'tone', 'description', 'risk_tolerance', 'formality'],
-};
 
 async function handleAdminList(request: Request, env: Env, url: URL): Promise<Response> {
     const auth = await verifyAdminAuth(request, env, 'viewer');
@@ -1267,22 +1224,6 @@ async function handleVisionExtract(request: Request, env: Env): Promise<Response
     }
 }
 
-function sanitizeStringArray(arr: unknown[], maxLen: number, max: number): string[] {
-    const out: string[] = [];
-    const seen = new Set<string>();
-    for (const v of arr) {
-        if (typeof v !== 'string') continue;
-        const t = v.replace(/\s+/g, ' ').trim().slice(0, maxLen);
-        if (t.length < 2) continue;
-        const key = t.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(t);
-        if (out.length >= max) break;
-    }
-    return out;
-}
-
 async function embedBatch(env: Env, texts: string[]): Promise<number[][]> {
     const out: number[][] = [];
     for (let i = 0; i < texts.length; i += SEMANTIC_EMBED_BATCH) {
@@ -1292,13 +1233,6 @@ async function embedBatch(env: Env, texts: string[]): Promise<number[][]> {
         for (const v of data) out.push(v);
     }
     return out;
-}
-
-function dotSim(a: number[], b: number[]): number {
-    let s = 0;
-    const n = Math.min(a.length, b.length);
-    for (let i = 0; i < n; i++) s += a[i] * b[i];
-    return s;
 }
 
 async function handleSync(request: Request, env: Env): Promise<Response> {
@@ -1419,65 +1353,6 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
 // helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function isAllowedOrigin(origin: string, env: Env): boolean {
-    if (!origin) return false;
-    const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (allowed.includes(origin)) return true;
-    try {
-        const u = new URL(origin);
-        const host = u.hostname.toLowerCase();
-        // Replit preview/deploy domains rotate per session — auto-allow them.
-        if (host.endsWith('.replit.dev') || host.endsWith('.replit.app') || host.endsWith('.repl.co')) return true;
-        // Localhost for local dev (any port).
-        if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
-    } catch { /* not a URL — fall through */ }
-    return false;
-}
-
-function corsHeaders(request: Request, env: Env): HeadersInit {
-    const origin = request.headers.get('Origin') || '';
-    const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-    const allow = isAllowedOrigin(origin, env) ? origin : (allowed[0] || '*');
-    return {
-        'Access-Control-Allow-Origin': allow,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
-        'Access-Control-Max-Age': '86400',
-        'Vary': 'Origin',
-    };
-}
-
-function json(body: unknown, request: Request, env: Env, status = 200): Response {
-    return new Response(JSON.stringify(body), {
-        status,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders(request, env) },
-    });
-}
-
-async function safeJson(request: Request): Promise<any> {
-    try { return await request.json(); } catch { return {}; }
-}
-
-function safeParse(v: unknown): unknown {
-    if (typeof v !== 'string') return v;
-    try { return JSON.parse(v); } catch { return v; }
-}
-
-function escapeRegex(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function clamp(n: number, lo: number, hi: number): number {
-    if (!Number.isFinite(n)) return lo;
-    return Math.max(lo, Math.min(hi, n));
-}
-
-function shuffle<T>(arr: T[]): void {
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tiered LLM routing — smart model selection based on task complexity.
@@ -2117,7 +1992,7 @@ async function handleParallelSections(request: Request, env: Env): Promise<Respo
 // Phase I — Leak miner queue + nightly auto-promotion
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LEAK_PROMOTE_THRESHOLD = 5;   // count >= 5 → auto-promote
+// LEAK_PROMOTE_THRESHOLD imported from ./types
 const LEAK_REPORT_MAX_PHRASES = 100;
 const LEAK_PHRASE_MAX_LEN = 80;
 const LEAK_PHRASE_MIN_LEN = 3;
@@ -2342,49 +2217,8 @@ async function rebuildBannedKv(env: Env): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Phase H — DB-driven multi-token admin auth
+// Phase H — DB-driven multi-token admin auth  (types + utils imported above)
 // ─────────────────────────────────────────────────────────────────────────────
-
-type AdminRole = 'viewer' | 'editor' | 'admin';
-const ROLE_RANK: Record<AdminRole, number> = { viewer: 1, editor: 2, admin: 3 };
-const VALID_ROLES: AdminRole[] = ['viewer', 'editor', 'admin'];
-
-interface AuthCtx { ok: true; role: AdminRole; label: string; tokenId: string | null; }
-
-async function sha256Hex(input: string): Promise<string> {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function verifyAdminAuth(request: Request, env: Env, required: AdminRole = 'admin'): Promise<AuthCtx | null> {
-    const token = request.headers.get('X-Admin-Token') || '';
-    if (!token) return null;
-
-    // 1) DB-backed token (preferred)
-    try {
-        const hash = await sha256Hex(token);
-        const row = await env.CV_DB.prepare(
-            `SELECT id, label, role FROM cv_admin_tokens WHERE token_hash = ? AND revoked_at IS NULL`
-        ).bind(hash).first<{ id: string; label: string; role: AdminRole }>();
-        if (row && VALID_ROLES.includes(row.role) && ROLE_RANK[row.role] >= ROLE_RANK[required]) {
-            // Best-effort last_used_at update — never block the request
-            env.CV_DB.prepare(
-                `UPDATE cv_admin_tokens SET last_used_at = datetime('now') WHERE id = ?`
-            ).bind(row.id).run().catch(() => {/* swallow */});
-            return { ok: true, role: row.role, label: row.label, tokenId: row.id };
-        }
-    } catch {/* table may not exist on first deploy, fall through */}
-
-    // 2) Bootstrap: env.ADMIN_TOKEN is treated as full admin so we never lock out
-    if (env.ADMIN_TOKEN && token === env.ADMIN_TOKEN) {
-        return { ok: true, role: 'admin', label: 'env_bootstrap', tokenId: null };
-    }
-    return null;
-}
-
-function unauthorized(request: Request, env: Env, required: AdminRole): Response {
-    return json({ error: 'unauthorized', required_role: required }, request, env, 401);
-}
 
 async function handleTokensList(request: Request, env: Env): Promise<Response> {
     const auth = await verifyAdminAuth(request, env, 'admin');
