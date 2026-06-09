@@ -176,6 +176,10 @@ const CVHeader: React.FC<{
             ))}
           </div>
         )}
+        {/* Decorative separator below contacts for centred-header themes */}
+        {centered && contacts.length > 0 && (
+          <div style={{ width: '45%', borderTop: `1px solid ${isDark ? theme.headerText + '35' : theme.borderColor}`, margin: '10px auto 0' }} />
+        )}
       </div>
     </div>
   );
@@ -269,7 +273,7 @@ const SummarySection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Densi
   return (
     <Section sc={sc}>
       <SectionHeading title="Professional Summary" theme={theme} sc={sc} />
-      <p style={{ fontSize: sc.bodySize, color: theme.bodyMuted, lineHeight: sc.lineH, margin: 0, fontFamily: theme.fontBody }}
+      <p style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, margin: 0, fontFamily: theme.fontBody, opacity: 0.88 }}
         {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.summary = v; onChange(d); })}>
         {cvData.summary}
       </p>
@@ -277,14 +281,34 @@ const SummarySection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Densi
   );
 };
 
+// Detect if a date range includes a "current/present" indicator
+function isCurrentRole(dates?: string): boolean {
+  if (!dates) return false;
+  return /present|current|now|ongoing/i.test(dates);
+}
+
 const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing, onChange }) => {
   if (!cvData.experience?.length) return null;
+  const multi = cvData.experience.length > 1;
   return (
     <Section sc={sc}>
       <SectionHeading title="Experience" theme={theme} sc={sc} />
       {cvData.experience.map((exp, ei) => (
         <div key={ei} style={{ marginBottom: sc.itemGap }}>
-          <RowMeta left={exp.company} right={exp.dates} sub={exp.jobTitle} theme={theme} sc={sc} />
+          {/* Subtle separator between roles — only from the 2nd item onward */}
+          {multi && ei > 0 && (
+            <div style={{ borderTop: `1px solid ${theme.borderColor}`, marginBottom: sc.itemGap, opacity: 0.55 }} />
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{exp.company}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              {isCurrentRole(exp.dates) && (
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 2px #22c55e33' }} title="Current role" />
+              )}
+              <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{exp.dates}</span>
+            </span>
+          </div>
+          {exp.jobTitle && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}>{exp.jobTitle}</div>}
           {exp.location && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginBottom: 2 }}>{exp.location}</div>}
           <div style={{ marginTop: 3 }}>
             {exp.responsibilities.map((r, ri) => (
@@ -343,43 +367,61 @@ const ProjectsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Dens
 
 const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: DensityScale }> = ({ skills, theme, sc }) => {
   if (!skills?.length) return null;
-  const cols = skills.length > 12 ? 3 : 2;
+  // ≤8 skills: inline tag chips — clean and modern
+  // >8 skills: 2/3-col bullet grid — saves space and looks organised
+  const useGrid = skills.length > 8;
+  const cols = skills.length > 14 ? 3 : 2;
   return (
     <Section sc={sc}>
-      <SectionHeading title="Skills" theme={theme} sc={sc} />
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${sc.bulletGap + 2}px 14px` }}>
-        {skills.map((s, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <span style={{ color: theme.accent, fontSize: '5.5px', flexShrink: 0, opacity: 0.85, lineHeight: 1 }}>◆</span>
-            <span style={{
-              fontSize: sc.bodySize,
-              color: theme.bodyText,
-              fontFamily: theme.fontBody,
-              lineHeight: 1.45,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {s}
-            </span>
-          </div>
-        ))}
-      </div>
+      <SectionHeading title="Core Skills" theme={theme} sc={sc} />
+      {useGrid ? (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${sc.bulletGap + 1}px 12px` }}>
+          {skills.map((s, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+              <span style={{ color: theme.accent, fontSize: '5px', flexShrink: 0, opacity: 0.8, lineHeight: 1 }}>◆</span>
+              <span style={{ fontSize: sc.bodySize, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {s}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {skills.map((s, i) => <Tag key={i} label={s} theme={theme} sc={sc} />)}
+        </div>
+      )}
     </Section>
   );
 };
+
+// Map proficiency text to 1-5 dot count for quick visual scanning
+function proficiencyDots(p?: string): number {
+  const s = (p ?? '').toLowerCase();
+  if (s.includes('native') || s.includes('mother') || s.includes('bilingual')) return 5;
+  if (s.includes('fluent') || s.includes('full prof') || s.includes('advanced') || s.includes('c2') || s.includes('c1')) return 4;
+  if (s.includes('professional') || s.includes('upper') || s.includes('b2') || s.includes('b1') || s.includes('intermediate')) return 3;
+  if (s.includes('basic') || s.includes('elementary') || s.includes('limited') || s.includes('a2') || s.includes('a1') || s.includes('beginner')) return 2;
+  return 3; // unknown → assume intermediate
+}
 
 const LanguagesSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale }> = ({ cvData, theme, sc }) => {
   if (!cvData.languages?.length) return null;
   return (
     <Section sc={sc}>
       <SectionHeading title="Languages" theme={theme} sc={sc} />
-      {cvData.languages.map((l, i) => (
-        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-          <span style={{ fontSize: sc.bodySize, fontFamily: theme.fontBody, color: theme.bodyText }}>{l.name}</span>
-          <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{l.proficiency}</span>
-        </div>
-      ))}
+      {cvData.languages.map((l, i) => {
+        const dots = proficiencyDots(l.proficiency);
+        return (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+            <span style={{ fontSize: sc.bodySize, fontFamily: theme.fontBody, color: theme.bodyText, fontWeight: 600 }}>{l.name}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              {[1,2,3,4,5].map(n => (
+                <span key={n} style={{ width: 7, height: 7, borderRadius: '50%', background: n <= dots ? theme.accent : theme.borderColor, flexShrink: 0, display: 'inline-block' }} />
+              ))}
+            </span>
+          </div>
+        );
+      })}
     </Section>
   );
 };
@@ -390,12 +432,18 @@ const CertificationsSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc
     <Section sc={sc}>
       <SectionHeading title="Certifications" theme={theme} sc={sc} />
       {cvData.certifications.map((c, i) => {
-        const name = typeof c === 'string' ? c : c.name;
-        const meta = typeof c === 'string' ? null : [c.issuer, c.year].filter(Boolean).join(' · ');
+        const name   = typeof c === 'string' ? c : c.name;
+        const issuer = typeof c !== 'string' ? c.issuer : null;
+        const year   = typeof c !== 'string' ? c.year   : null;
         return (
-          <div key={i} style={{ marginBottom: sc.bulletGap + 2 }}>
-            <div style={{ fontSize: sc.bodySize, fontWeight: 600, color: theme.bodyText, fontFamily: theme.fontBody }}>{name}</div>
-            {meta && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{meta}</div>}
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: sc.bulletGap + 3 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: sc.bodySize, fontWeight: 600, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.35 }}>{name}</div>
+              {issuer && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, marginTop: 1 }}>{issuer}</div>}
+            </div>
+            {year && (
+              <span style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{year}</span>
+            )}
           </div>
         );
       })}
@@ -682,17 +730,18 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => (
   <div style={{ background: props.theme.bodyBg, minHeight: '280mm' }}>
     <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
     <div style={{ padding: props.sc.bodyPad }}>
+      {/* Recruiter-expected order: Summary → Experience → Education → Skills → Projects → Extras */}
       <SummarySection    cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
       <ExperienceSection cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
       <EducationSection  cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
-      <ProjectsSection   cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <PublicationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <CustomSectionsBlock sections={(props.cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type))} theme={props.theme} sc={props.sc} />
       <SkillsSection        skills={props.cvData.skills} theme={props.theme} sc={props.sc} />
-      <LanguagesSection     cvData={props.cvData} theme={props.theme} sc={props.sc} />
+      <ProjectsSection   cvData={props.cvData} theme={props.theme} sc={props.sc} />
+      <CustomSectionsBlock sections={(props.cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type))} theme={props.theme} sc={props.sc} />
       <CertificationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
+      <LanguagesSection     cvData={props.cvData} theme={props.theme} sc={props.sc} />
       <AchievementsSection  cvData={props.cvData} theme={props.theme} sc={props.sc} />
       <ReferencesSection   cvData={props.cvData} theme={props.theme} sc={props.sc} />
+      <PublicationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
     </div>
   </div>
 );
