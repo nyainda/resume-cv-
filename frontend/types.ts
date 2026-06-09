@@ -422,6 +422,8 @@ export type TemplateName =
   | 'v2-amber'
   | 'v2-ink'
   | 'v2-forest'
+  | 'v2-classic-pro'
+  | 'v2-standard-black'
   | 'custom';
 
 // ── Custom Template (user-uploaded & AI-analyzed) ─────────────────────────────
@@ -589,6 +591,8 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'v2-amber': 'Amber Scholar',
   'v2-ink': 'Ink & Parchment',
   'v2-forest': 'Forest Pro',
+  'v2-classic-pro': 'Classic Professional',
+  'v2-standard-black': 'Standard Black',
   'custom': 'My Custom',
 };
 

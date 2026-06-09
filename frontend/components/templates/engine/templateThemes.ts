@@ -10,8 +10,10 @@ export interface TemplateTheme {
   headerNameSize: string;
   headerNameWeight: string;
   headerTitleColor: string;
+  headerAlign?: 'left' | 'center';       // default: 'left'
+  headerNameStyle?: 'normal' | 'uppercase'; // default: 'normal'
   accentBar?: string;
-  supportsPhoto?: boolean; // render circular avatar at top of sidebar
+  supportsPhoto?: boolean;
 
   accent: string;
   accentContrast: string;
@@ -28,7 +30,7 @@ export interface TemplateTheme {
   sectionColor: string;
   sectionSize: string;
   sectionWeight: string;
-  sectionDecoration: 'underline' | 'border-left' | 'bar-bg' | 'caps-line' | 'none';
+  sectionDecoration: 'underline' | 'border-left' | 'bar-bg' | 'caps-line' | 'double-rule' | 'none';
   sectionBorderColor: string;
 
   tagBg: string;
@@ -54,7 +56,7 @@ export interface DensityScale {
   bodySize: string;
   metaSize: string;
   tagSize: string;
-  sidebarBodySize: string; // sidebar text – slightly larger than metaSize for readability
+  sidebarBodySize: string;
   sectionGap: number;
   bulletGap: number;
   itemGap: number;
@@ -66,27 +68,22 @@ export interface DensityScale {
 
 export const DENSITY_SCALES: Record<ContentDensity, DensityScale> = {
   compact: {
-    bodySize: '8.5px', metaSize: '8px', tagSize: '7.5px', sidebarBodySize: '8.5px',
-    sectionGap: 8, bulletGap: 2, itemGap: 7,
-    lineH: 1.35, bodyPad: '14px 22px', sidebarPad: '14px 12px', sectionTopMargin: 0,
+    bodySize: '9px', metaSize: '8px', tagSize: '7.5px', sidebarBodySize: '8.5px',
+    sectionGap: 10, bulletGap: 2.5, itemGap: 8,
+    lineH: 1.45, bodyPad: '16px 24px', sidebarPad: '14px 12px', sectionTopMargin: 0,
   },
   balanced: {
-    bodySize: '9.5px', metaSize: '8.5px', tagSize: '8.5px', sidebarBodySize: '9px',
-    sectionGap: 13, bulletGap: 2.5, itemGap: 10,
-    lineH: 1.5, bodyPad: '20px 28px', sidebarPad: '20px 16px', sectionTopMargin: 2,
+    bodySize: '10px', metaSize: '8.5px', tagSize: '8.5px', sidebarBodySize: '9.5px',
+    sectionGap: 15, bulletGap: 3, itemGap: 11,
+    lineH: 1.55, bodyPad: '22px 30px', sidebarPad: '20px 16px', sectionTopMargin: 2,
   },
   spacious: {
-    bodySize: '10.5px', metaSize: '9.5px', tagSize: '9px', sidebarBodySize: '10px',
-    sectionGap: 20, bulletGap: 4, itemGap: 14,
+    bodySize: '11px', metaSize: '9.5px', tagSize: '9px', sidebarBodySize: '10px',
+    sectionGap: 22, bulletGap: 4, itemGap: 15,
     lineH: 1.65, bodyPad: '28px 36px', sidebarPad: '28px 20px', sectionTopMargin: 4,
   },
 };
 
-/**
- * Multiply all px font sizes in a DensityScale by a user-chosen scale factor.
- * Only the text-size fields are scaled; spacing values are left alone so layout
- * proportions stay consistent.
- */
 export function applyFontScale(sc: DensityScale, scale: number): DensityScale {
   if (scale === 1) return sc;
   const f = (px: string) => {
@@ -114,16 +111,55 @@ export const THEMES: TemplateTheme[] = [
     accentBar: '#2563eb',
     headerBg: '#ffffff', headerText: '#0f172a', headerPadding: '20px 36px 18px',
     headerNameSize: '26px', headerNameWeight: '900', headerTitleColor: '#2563eb',
-    accent: '#2563eb', accentContrast: '#ffffff',
+    accent: '#1d4ed8', accentContrast: '#ffffff',
     sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
     bodyBg: '#ffffff', bodyText: '#0f172a', bodyMuted: '#475569',
-    sectionColor: '#0f172a', sectionSize: '9px', sectionWeight: '800',
-    sectionDecoration: 'caps-line', sectionBorderColor: '#2563eb',
+    sectionColor: '#0f172a', sectionSize: '10px', sectionWeight: '800',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#1d4ed8',
     tagBg: '#eff6ff', tagText: '#1d4ed8', tagBorder: '#bfdbfe', tagRadius: '4px',
     fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
     bulletChar: '▸', borderColor: '#e2e8f0',
     atsScore: 'high', bestFor: 'Any industry — universally safe and trusted',
-    description: 'White layout, blue accent bar, Inter font throughout. The highest ATS score in the engine — safe for every industry and seniority.',
+    description: 'White layout, deep-blue accent bar, Inter font throughout. Maximum ATS score — safe for every industry.',
+  },
+  {
+    id: 'v2-classic-pro',
+    name: 'Classic Professional',
+    layout: 'single-col',
+    category: 'Professional',
+    headerAlign: 'center',
+    headerBg: '#ffffff', headerText: '#0f172a', headerPadding: '28px 36px 18px',
+    headerNameSize: '28px', headerNameWeight: '800', headerTitleColor: '#1e3a5f',
+    accent: '#1e3a5f', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#1a1a2e', bodyMuted: '#475569',
+    sectionColor: '#1e3a5f', sectionSize: '11px', sectionWeight: '800',
+    sectionDecoration: 'underline', sectionBorderColor: '#1e3a5f',
+    tagBg: '#eff6ff', tagText: '#1e3a5f', tagBorder: '#bfdbfe', tagRadius: '3px',
+    fontHeading: "Georgia, 'Times New Roman', serif", fontBody: "'Inter', 'DM Sans', sans-serif",
+    bulletChar: '▸', borderColor: '#dde2ec',
+    atsScore: 'high', bestFor: 'Any professional role — the universally-recognised format',
+    description: 'Centred name, Georgia serif headings, navy underline dividers. The most familiar and trusted CV format — works everywhere.',
+  },
+  {
+    id: 'v2-standard-black',
+    name: 'Standard Black',
+    layout: 'single-col',
+    category: 'Professional',
+    headerAlign: 'center',
+    headerNameStyle: 'uppercase',
+    headerBg: '#ffffff', headerText: '#0a0a0a', headerPadding: '32px 52px 12px',
+    headerNameSize: '26px', headerNameWeight: '800', headerTitleColor: '#333333',
+    accent: '#111111', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#111111', bodyMuted: '#444444',
+    sectionColor: '#111111', sectionSize: '11px', sectionWeight: '800',
+    sectionDecoration: 'double-rule', sectionBorderColor: '#111111',
+    tagBg: '#f5f5f5', tagText: '#333333', tagBorder: '#e0e0e0', tagRadius: '2px',
+    fontHeading: "'Lora', 'Merriweather', Georgia, serif", fontBody: "'Lora', 'Merriweather', Georgia, serif",
+    bulletChar: '•', borderColor: '#e5e5e5',
+    atsScore: 'high', bestFor: 'Corporate, finance, law — maximum ATS score',
+    description: 'Lora serif throughout, double-rule section dividers, pure black on white. Closest to a printed Harvard/legal CV — commands respect.',
   },
   {
     id: 'v2-navy',
@@ -151,12 +187,12 @@ export const THEMES: TemplateTheme[] = [
     supportsPhoto: true,
     headerBg: '#1e3a5f', headerText: '#f0f7ff', headerPadding: '22px 24px 18px',
     headerNameSize: '23px', headerNameWeight: '800', headerTitleColor: '#93c5fd',
-    accent: '#3b82f6', accentContrast: '#ffffff',
+    accent: '#2563eb', accentContrast: '#ffffff',
     sidebarBg: '#172b4d', sidebarText: '#e2ecf9', sidebarMuted: '#93b4d4', sidebarWidth: '34%',
     bodyBg: '#ffffff', bodyText: '#1a2b40', bodyMuted: '#4b6780',
     sectionColor: '#1a2b40', sectionSize: '9.5px', sectionWeight: '800',
-    sectionDecoration: 'caps-line', sectionBorderColor: '#3b82f6',
-    tagBg: 'rgba(59,130,246,0.1)', tagText: '#3b82f6', tagBorder: 'rgba(59,130,246,0.3)', tagRadius: '3px',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#2563eb',
+    tagBg: 'rgba(37,99,235,0.1)', tagText: '#2563eb', tagBorder: 'rgba(37,99,235,0.3)', tagRadius: '3px',
     fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
     bulletChar: '▸', borderColor: '#dde8f0',
     atsScore: 'medium', bestFor: 'Design, product, marketing, management',
@@ -212,7 +248,7 @@ export const THEMES: TemplateTheme[] = [
     accent: '#111111', accentContrast: '#ffffff',
     sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
     bodyBg: '#ffffff', bodyText: '#111111', bodyMuted: '#666666',
-    sectionColor: '#111111', sectionSize: '9px', sectionWeight: '800',
+    sectionColor: '#111111', sectionSize: '10px', sectionWeight: '800',
     sectionDecoration: 'caps-line', sectionBorderColor: '#111111',
     tagBg: '#f5f5f5', tagText: '#333333', tagBorder: '#e0e0e0', tagRadius: '2px',
     fontHeading: "'DM Sans', sans-serif", fontBody: "'DM Sans', sans-serif",
@@ -229,12 +265,12 @@ export const THEMES: TemplateTheme[] = [
     category: 'Modern',
     supportsPhoto: true,
     headerBg: '#2d4a3e', headerText: '#f0fdf4', headerPadding: '28px 24px 24px',
-    headerNameSize: '22px', headerNameWeight: '800', headerTitleColor: '#86efac',
-    accent: '#16a34a', accentContrast: '#ffffff',
-    sidebarBg: '#2d4a3e', sidebarText: '#f0fdf4', sidebarMuted: '#86efac', sidebarWidth: '33%',
+    headerNameSize: '22px', headerNameWeight: '800', headerTitleColor: '#86d7a0',
+    accent: '#166534', accentContrast: '#ffffff',
+    sidebarBg: '#2d4a3e', sidebarText: '#f0fdf4', sidebarMuted: '#86d7a0', sidebarWidth: '33%',
     bodyBg: '#ffffff', bodyText: '#1a2e1f', bodyMuted: '#4a6555',
-    sectionColor: '#16a34a', sectionSize: '9.5px', sectionWeight: '800',
-    sectionDecoration: 'border-left', sectionBorderColor: '#16a34a',
+    sectionColor: '#166534', sectionSize: '9.5px', sectionWeight: '800',
+    sectionDecoration: 'border-left', sectionBorderColor: '#166534',
     tagBg: '#dcfce7', tagText: '#15803d', tagBorder: '#86efac', tagRadius: '4px',
     fontHeading: "'DM Sans', sans-serif", fontBody: "'DM Sans', sans-serif",
     bulletChar: '▸', borderColor: '#d1fae5',
@@ -248,36 +284,36 @@ export const THEMES: TemplateTheme[] = [
     name: 'Terminal Dark',
     layout: 'single-col',
     category: 'Technical',
-    headerBg: '#0d1117', headerText: '#c9d1d9', headerPadding: '26px 32px 22px',
-    headerNameSize: '22px', headerNameWeight: '700', headerTitleColor: '#22d3ee',
-    accent: '#22d3ee', accentContrast: '#0d1117',
+    headerBg: '#0f172a', headerText: '#e2e8f0', headerPadding: '26px 32px 22px',
+    headerNameSize: '22px', headerNameWeight: '700', headerTitleColor: '#7dd3fc',
+    accent: '#0891b2', accentContrast: '#ffffff',
     sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
-    bodyBg: '#0d1117', bodyText: '#c9d1d9', bodyMuted: '#8b949e',
-    sectionColor: '#22d3ee', sectionSize: '9px', sectionWeight: '700',
-    sectionDecoration: 'border-left', sectionBorderColor: '#22d3ee',
-    tagBg: 'rgba(34,211,238,0.1)', tagText: '#22d3ee', tagBorder: 'rgba(34,211,238,0.3)', tagRadius: '3px',
+    bodyBg: '#0f172a', bodyText: '#e2e8f0', bodyMuted: '#94a3b8',
+    sectionColor: '#7dd3fc', sectionSize: '9px', sectionWeight: '700',
+    sectionDecoration: 'border-left', sectionBorderColor: '#0891b2',
+    tagBg: 'rgba(8,145,178,0.15)', tagText: '#38bdf8', tagBorder: 'rgba(8,145,178,0.35)', tagRadius: '3px',
     fontHeading: "'JetBrains Mono', 'Fira Code', monospace", fontBody: "'Inter', sans-serif",
-    bulletChar: '›', borderColor: '#21262d',
+    bulletChar: '›', borderColor: '#1e293b',
     atsScore: 'low', bestFor: 'Senior engineers, OSS contributors, creative tech',
-    description: 'GitHub-dark background with cyan accent and monospace headings. VS Code aesthetic — stands out instantly in tech stacks.',
+    description: 'Dark slate background with teal accent and monospace headings. Technical aesthetic without the neon glare.',
   },
   {
     id: 'v2-noir',
-    name: 'Noir Tech',
+    name: 'Noir Professional',
     layout: 'single-col',
     category: 'Technical',
-    headerBg: '#0d0d0d', headerText: '#f0f0f0', headerPadding: '28px 32px 24px',
-    headerNameSize: '24px', headerNameWeight: '900', headerTitleColor: '#a3e635',
-    accent: '#a3e635', accentContrast: '#0d0d0d',
+    headerBg: '#111111', headerText: '#f0f0f0', headerPadding: '28px 32px 24px',
+    headerNameSize: '24px', headerNameWeight: '900', headerTitleColor: '#a3a3a3',
+    accent: '#d4d4d4', accentContrast: '#111111',
     sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
     bodyBg: '#111111', bodyText: '#e8e8e8', bodyMuted: '#9a9a9a',
-    sectionColor: '#a3e635', sectionSize: '10px', sectionWeight: '700',
-    sectionDecoration: 'border-left', sectionBorderColor: '#a3e635',
-    tagBg: 'rgba(163,230,53,0.1)', tagText: '#a3e635', tagBorder: 'rgba(163,230,53,0.3)', tagRadius: '3px',
+    sectionColor: '#e8e8e8', sectionSize: '10px', sectionWeight: '700',
+    sectionDecoration: 'border-left', sectionBorderColor: '#4a4a4a',
+    tagBg: 'rgba(212,212,212,0.1)', tagText: '#d4d4d4', tagBorder: 'rgba(212,212,212,0.25)', tagRadius: '3px',
     fontHeading: "'JetBrains Mono', 'Fira Code', monospace", fontBody: "'Inter', sans-serif",
     bulletChar: '›', borderColor: '#2a2a2a',
-    atsScore: 'low', bestFor: 'Senior engineers, OSS contributors, creative tech',
-    description: 'Dark background with lime-green accent and monospace headings. Turns heads in tech.',
+    atsScore: 'low', bestFor: 'Senior engineers, OSS contributors, design-tech',
+    description: 'Monochrome dark — near-black background, silver text, monospace headings. Sophisticated and readable.',
   },
 
   // ── CREATIVE ─────────────────────────────────────────────────────────────────
@@ -288,17 +324,17 @@ export const THEMES: TemplateTheme[] = [
     category: 'Creative',
     supportsPhoto: true,
     headerBg: '#1a0a0e', headerText: '#fff1f2', headerPadding: '28px 28px 24px',
-    headerNameSize: '24px', headerNameWeight: '800', headerTitleColor: '#fda4af',
-    accent: '#e11d48', accentContrast: '#ffffff',
-    sidebarBg: '#1a0a0e', sidebarText: '#fff1f2', sidebarMuted: '#fda4af', sidebarWidth: '32%',
+    headerNameSize: '24px', headerNameWeight: '800', headerTitleColor: '#fecdd3',
+    accent: '#9f1239', accentContrast: '#ffffff',
+    sidebarBg: '#1a0a0e', sidebarText: '#fff1f2', sidebarMuted: '#fecdd3', sidebarWidth: '32%',
     bodyBg: '#fafafa', bodyText: '#1a0a0e', bodyMuted: '#6b2239',
     sectionColor: '#1a0a0e', sectionSize: '9.5px', sectionWeight: '800',
-    sectionDecoration: 'bar-bg', sectionBorderColor: '#e11d48',
-    tagBg: '#fff1f2', tagText: '#be123c', tagBorder: '#fecdd3', tagRadius: '99px',
+    sectionDecoration: 'bar-bg', sectionBorderColor: '#9f1239',
+    tagBg: '#fff1f2', tagText: '#9f1239', tagBorder: '#fecdd3', tagRadius: '99px',
     fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', sans-serif",
     bulletChar: '•', borderColor: '#ffe4e6',
     atsScore: 'medium', bestFor: 'Design, media, fashion, marketing, creative leadership',
-    description: 'Deep crimson sidebar with Playfair Display headings and pill-shaped rose tags. Magazine-editorial energy — from Paris Vibe, redesigned for impact.',
+    description: 'Deep crimson sidebar with Playfair Display headings and pill-shaped tags. Editorial elegance.',
   },
   {
     id: 'v2-coral',
@@ -307,17 +343,17 @@ export const THEMES: TemplateTheme[] = [
     category: 'Creative',
     supportsPhoto: true,
     headerBg: '#7c2d12', headerText: '#fff7ed', headerPadding: '28px 32px 24px',
-    headerNameSize: '26px', headerNameWeight: '800', headerTitleColor: '#fdba74',
-    accent: '#ea580c', accentContrast: '#ffffff',
+    headerNameSize: '26px', headerNameWeight: '800', headerTitleColor: '#fb923c',
+    accent: '#c2410c', accentContrast: '#ffffff',
     sidebarBg: '#fff7ed', sidebarText: '#431407', sidebarMuted: '#7c3d12', sidebarWidth: '38%',
     bodyBg: '#ffffff', bodyText: '#1c1917', bodyMuted: '#57534e',
-    sectionColor: '#ea580c', sectionSize: '10px', sectionWeight: '800',
-    sectionDecoration: 'bar-bg', sectionBorderColor: '#ea580c',
+    sectionColor: '#c2410c', sectionSize: '10px', sectionWeight: '800',
+    sectionDecoration: 'bar-bg', sectionBorderColor: '#c2410c',
     tagBg: '#fff7ed', tagText: '#c2410c', tagBorder: '#fed7aa', tagRadius: '99px',
     fontHeading: "'Playfair Display', Georgia, serif", fontBody: "'DM Sans', sans-serif",
     bulletChar: '•', borderColor: '#fed7aa',
     atsScore: 'medium', bestFor: 'Design, marketing, creative leadership',
-    description: 'Deep terracotta header with warm orange accents. Two-column body for maximum density.',
+    description: 'Deep terracotta header with warm burnt-orange accents. Two-column body for maximum density.',
   },
 
   // ── ACADEMIC ─────────────────────────────────────────────────────────────────
@@ -338,7 +374,7 @@ export const THEMES: TemplateTheme[] = [
     fontHeading: "Georgia, 'Times New Roman', serif", fontBody: "'Inter', sans-serif",
     bulletChar: '›', borderColor: '#e7e5e4',
     atsScore: 'high', bestFor: 'Ivy League applications, law school, academia, consulting',
-    description: 'White layout, Georgia serif headings, burnt amber accent — distilled from HarvardGold. Clean and authoritative for top-tier academic and law applications.',
+    description: 'White layout, Georgia serif headings, burnt amber accent. Clean and authoritative for top-tier academic applications.',
   },
   {
     id: 'v2-ink',
@@ -357,7 +393,7 @@ export const THEMES: TemplateTheme[] = [
     fontHeading: "'Merriweather', Georgia, serif", fontBody: "'Lato', 'DM Sans', sans-serif",
     bulletChar: '›', borderColor: '#e8ddd0',
     atsScore: 'high', bestFor: 'Academia, law, consulting, publishing',
-    description: 'Deep ink header with warm parchment body — Merriweather serif headings and a burgundy accent. Print-perfect for academic, legal, and consulting CVs.',
+    description: 'Deep ink header with warm parchment body — Merriweather serif headings and a burgundy accent. Print-perfect.',
   },
   {
     id: 'v2-forest',

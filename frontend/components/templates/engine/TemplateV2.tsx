@@ -59,7 +59,10 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   const achievementsInSidebar = (cvData.achievements?.length ?? 0) <= 5;
   const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
   const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
-  const customInSidebar = (cvData.customSections?.filter(s => !PROMOTED_SECTION_TYPES.has(s.type)).length ?? 0) > 0;
+  // Only route to sidebar when there are non-promoted sections with at least one filled item
+  const customInSidebar = (cvData.customSections ?? [])
+    .filter(s => !PROMOTED_SECTION_TYPES.has(s.type))
+    .some(s => s.items.some(item => item.title?.trim()));
   const pubsInSidebar   = (cvData.publications?.length ?? 0) > 0;
 
   return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar, pubsInSidebar };
@@ -143,13 +146,14 @@ const CVHeader: React.FC<{
 }> = ({ pi, theme, sc, isEditing, onUpdate }) => {
   const contacts = buildContacts(pi);
   const isDark = theme.headerBg !== '#ffffff';
+  const centered = theme.headerAlign === 'center';
 
   return (
     <div>
       {theme.accentBar && <div style={{ height: 5, background: theme.accentBar }} />}
-      <div style={{ background: theme.headerBg, padding: theme.headerPadding, borderBottom: !isDark ? `1px solid ${theme.borderColor}` : 'none' }}>
+      <div style={{ background: theme.headerBg, padding: theme.headerPadding, borderBottom: !isDark ? `1px solid ${theme.borderColor}` : 'none', textAlign: centered ? 'center' : 'left' }}>
         <div
-          style={{ fontSize: theme.headerNameSize, fontWeight: theme.headerNameWeight as any, color: theme.headerText, fontFamily: theme.fontHeading, lineHeight: 1.1, marginBottom: 4 }}
+          style={{ fontSize: theme.headerNameSize, fontWeight: theme.headerNameWeight as any, color: theme.headerText, fontFamily: theme.fontHeading, lineHeight: 1.1, marginBottom: 4, textTransform: theme.headerNameStyle === 'uppercase' ? 'uppercase' : 'none', letterSpacing: theme.headerNameStyle === 'uppercase' ? '0.08em' : 'normal' }}
           {...editable(isEditing, v => onUpdate('name', v))}
         >
           {pi.name || 'Your Name'}
@@ -163,7 +167,7 @@ const CVHeader: React.FC<{
           </div>
         )}
         {contacts.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 3, marginTop: 2 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 3, marginTop: 2, justifyContent: centered ? 'center' : 'flex-start' }}>
             {contacts.map((c, i) => (
               <span key={i} style={{ display: 'inline-flex', alignItems: 'center', fontSize: sc.metaSize, color: theme.headerText, opacity: 0.8, fontFamily: theme.fontBody }}>
                 <ContactIcon type={c.type} color={theme.headerText} />
@@ -208,6 +212,13 @@ const SectionHeading: React.FC<{ title: string; theme: TemplateTheme; sc: Densit
   if (theme.sectionDecoration === 'bar-bg') return (
     <div style={{ background: theme.sectionBorderColor + '18', padding: '4px 8px', borderRadius: 3, borderLeft: `3px solid ${theme.sectionBorderColor}`, ...wrap }}>
       <span style={base}>{title}</span>
+    </div>
+  );
+  if (theme.sectionDecoration === 'double-rule') return (
+    <div style={{ ...wrap }}>
+      <span style={base}>{title}</span>
+      <div style={{ borderTop: `1.5px solid ${theme.sectionBorderColor}`, marginTop: 4 }} />
+      <div style={{ borderTop: `0.5px solid ${theme.sectionBorderColor}55`, marginTop: 2 }} />
     </div>
   );
   return <div style={{ ...base, ...wrap }}>{title}</div>;
@@ -440,12 +451,15 @@ const ReferencesSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
 
 const CustomSectionsBlock: React.FC<{ sections: CustomSection[]; theme: TemplateTheme; sc: DensityScale }> = ({ sections, theme, sc }) => {
   if (!sections?.length) return null;
+  // Filter out sections with no filled items to avoid phantom section headings
+  const filledSections = sections.filter(sec => sec.items.some(item => item.title?.trim()));
+  if (!filledSections.length) return null;
   return (
     <>
-      {sections.map(sec => (
+      {filledSections.map(sec => (
         <Section key={sec.id} sc={sc}>
           <SectionHeading title={sec.label} theme={theme} sc={sc} />
-          {sec.items.map((item: CustomSectionItem, i) => (
+          {sec.items.filter((item: CustomSectionItem) => item.title?.trim()).map((item: CustomSectionItem, i) => (
             <div key={i} style={{ marginBottom: sc.itemGap }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{item.title}</span>
