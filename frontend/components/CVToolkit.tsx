@@ -6,6 +6,7 @@ import {
     paraphraseText, ParaphraseTone,
 } from '../services/geminiService';
 import { scoreHRDetection, type HRDetectionResult, type HRSignalSeverity } from '../services/hrDetectorSimulation';
+import { runFullValidation, buildBrief, type FullValidationResult } from '../services/cvEngineClient';
 import { researchCompany } from '../services/tavilyService';
 import { downloadCoverLetterAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -105,6 +106,11 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     }, [currentCV]);
     const [jobDescription, setJobDescription] = useLocalStorage<string>('toolkit_jd', selectedJob?.jobDescription || '');
 
+    // ── Worker Validation — fires all 3 endpoints in parallel ──
+    const [fullValidation, setFullValidation] = useState<FullValidationResult | null>(null);
+    const [isRunningValidation, setIsRunningValidation] = useState(false);
+    const [validationError, setValidationError] = useState<string | null>(null);
+
     // ── Checker state ──
     const [checkResult, setCheckResult] = useState<CVCheckResult | null>(null);
     const [isChecking, setIsChecking] = useState(false);
@@ -129,6 +135,42 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
             setJobDescription(selectedJob.jobDescription);
         }
     }, [selectedJob]);
+
+    // ── Run full worker validation (bullets + voice + semantic match) ──
+    const handleRunValidation = useCallback(async () => {
+        if (!currentCV) return;
+        setIsRunningValidation(true);
+        setValidationError(null);
+        setFullValidation(null);
+        try {
+            const bullets: string[] = currentCV.experience.flatMap(exp => exp.responsibilities || []);
+            if (bullets.length === 0) { setValidationError('No bullet points found in this CV.'); return; }
+
+            const cvText = [
+                currentCV.summary || '',
+                ...bullets,
+                ...(currentCV.skills || []),
+            ].join('\n');
+
+            const brief = await buildBrief({
+                jd: jobDescription || '',
+                profile: undefined,
+                bulletCount: bullets.length,
+            });
+
+            const result = await runFullValidation(
+                bullets,
+                brief ?? ({} as any),
+                jobDescription || '',
+                cvText,
+            );
+            setFullValidation(result);
+        } catch (e) {
+            setValidationError(e instanceof Error ? e.message : 'Validation failed.');
+        } finally {
+            setIsRunningValidation(false);
+        }
+    }, [currentCV, jobDescription]);
 
     // ── Check CV ──
     const handleCheck = useCallback(async () => {
@@ -720,6 +762,75 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                         </button>
                                     </div>
                                 )}
+                                {/* ── Worker Validation ── */}
+                                <div className="border-t border-zinc-100 dark:border-neutral-700 pt-4 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Worker Validation</p>
+                                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">Bullets · Voice · Semantic match — checked against your engine rules via 3 parallel API calls.</p>
+                                        </div>
+                                        <button
+                                            onClick={handleRunValidation}
+                                            disabled={isRunningValidation}
+                                            className="flex-shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-zinc-800 dark:bg-zinc-700 text-white hover:bg-zinc-700 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+                                        >
+                                            {isRunningValidation ? (
+                                                <><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Running…</>
+                                            ) : 'Run Validation'}
+                                        </button>
+                                    </div>
+
+                                    {validationError && (
+                                        <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded-lg px-3 py-2">{validationError}</p>
+                                    )}
+
+                                    {fullValidation && (
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {/* Bullets */}
+                                            <div className={`rounded-xl border p-3 text-center ${fullValidation.bullets?.passed ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
+                                                <p className="text-lg font-black" style={{ color: fullValidation.bullets?.passed ? '#10b981' : '#ef4444' }}>
+                                                    {fullValidation.bullets ? (fullValidation.bullets.passed ? '✓' : '✗') : '—'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Bullets</p>
+                                                {fullValidation.bullets && (
+                                                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+                                                        {fullValidation.bullets.issues?.length ?? 0} issue{(fullValidation.bullets.issues?.length ?? 0) !== 1 ? 's' : ''}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Voice */}
+                                            <div className={`rounded-xl border p-3 text-center ${fullValidation.voice?.passed ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'}`}>
+                                                <p className="text-lg font-black" style={{ color: fullValidation.voice?.passed ? '#10b981' : '#f59e0b' }}>
+                                                    {fullValidation.voice ? `${fullValidation.voice.score}` : '—'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Voice</p>
+                                                {fullValidation.voice && (
+                                                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+                                                        {fullValidation.voice.passed ? 'Passed' : `${fullValidation.voice.summary.critical + fullValidation.voice.summary.high} critical`}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Semantic */}
+                                            <div className={`rounded-xl border p-3 text-center ${(fullValidation.semantic?.score ?? 0) >= 70 ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : (fullValidation.semantic?.score ?? 0) >= 50 ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
+                                                <p className="text-lg font-black" style={{ color: (fullValidation.semantic?.score ?? 0) >= 70 ? '#10b981' : (fullValidation.semantic?.score ?? 0) >= 50 ? '#f59e0b' : '#ef4444' }}>
+                                                    {fullValidation.semantic ? `${fullValidation.semantic.score}%` : '—'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Semantic</p>
+                                                {fullValidation.semantic && (
+                                                    <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
+                                                        {fullValidation.semantic.missing.length} missing kw
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {!fullValidation.complete && (
+                                                <p className="col-span-3 text-[10px] text-amber-500 text-center">Some sections unavailable — worker may be cold-starting.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </>
                         );
                     })() : (
