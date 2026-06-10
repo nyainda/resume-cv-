@@ -1,3 +1,5 @@
 - [CV variance architecture](cv-variance-architecture.md) — verb shuffle (12/30), forbidden rotation (20/30), rhythm constraints, narrative angle system, verbosity jitter — all live in geminiService.ts.
 - [CV examples pool diversity](cv-examples-pool-diversity.md) — NarrativeAngle type in cvExamplesClient.ts; D1 migration 017 adds narrative_angle + voice_name columns; worker ignores gracefully until deployed.
 - [Seniority fix path format](seniority-fix-path.md) — seniority coherence uses dot-notation paths; parseAuditPath and applyFixToCv now handle both formats.
+- [D1 migration tracking gap](d1-migration-tracking.md) — migrations applied manually (outside wrangler) are not tracked; INSERT into d1_migrations to unblock future runs.
+- [Auth system deployment](auth-system.md) — sessions in D1 (024+025), Google OAuth + magic link, rate limiting, audit log; BREVO_API_KEY needed as CF secret for magic link email.
