@@ -2,6 +2,7 @@ import React from 'react';
 import { SavedCV, CVData } from '../types';
 import { Button } from './ui/Button';
 import { Trash, Eye, Target } from './icons';
+import { getCVDataCached, loadCVData } from '../services/storage/cvDataStore';
 
 interface SavedCVsProps {
   savedCVs: SavedCV[];
@@ -44,7 +45,10 @@ const SavedCVs: React.FC<SavedCVsProps> = ({ savedCVs, onLoad, onDelete }) => {
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <Button variant="ghost" size="sm" onClick={() => onLoad(cv.data)} className="p-2 h-auto" aria-label="Load CV">
+            <Button variant="ghost" size="sm" onClick={async () => {
+              const data = getCVDataCached(cv.id) ?? cv.data ?? await loadCVData(cv.id);
+              if (data) onLoad(data);
+            }} className="p-2 h-auto" aria-label="Load CV">
               <Eye className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={() => onDelete(cv.id)} className="p-2 h-auto text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600" aria-label="Delete CV">

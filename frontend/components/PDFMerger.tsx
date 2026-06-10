@@ -214,8 +214,10 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
       if (item.source === 'saved-cv') {
         const cv = savedCVs.find(c => c.id === item.cvId);
         if (cv) {
+          const { getCVDataCached, loadCVData } = await import('../services/storage/cvDataStore');
+          const cvData = getCVDataCached(cv.id) ?? cv.data ?? await loadCVData(cv.id);
           const r = await getCVPdfBytes({
-            cvData: cv.data,
+            cvData: cvData!,
             personalInfo: userProfile.personalInfo,
             template: item.cvTemplate ?? 'professional',
             fileName: item.label,
@@ -378,8 +380,11 @@ const PDFMerger: React.FC<PDFMergerProps> = ({
         if (item.source === 'saved-cv') {
           const cv = savedCVs.find(c => c.id === item.cvId);
           if (!cv) continue;
+          const { getCVDataCached, loadCVData } = await import('../services/storage/cvDataStore');
+          const mergeData = getCVDataCached(cv.id) ?? cv.data ?? await loadCVData(cv.id);
+          if (!mergeData) continue;
           const r = await getCVPdfBytes({
-            cvData: cv.data,
+            cvData: mergeData,
             personalInfo: userProfile.personalInfo,
             template: item.cvTemplate ?? 'professional',
             fileName: item.label,

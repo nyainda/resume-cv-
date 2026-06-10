@@ -30,6 +30,13 @@ import {
 } from "./utils/customTemplateStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
+import {
+  saveCVData,
+  deleteCVData,
+  preloadAllCVData,
+  migrateToIDB,
+  pruneOrphanedCVData,
+} from "./services/storage/cvDataStore";
 import { GoogleAuthProvider, useGoogleAuth } from "./auth/GoogleAuthContext";
 import { WorkerAuthProvider, useWorkerAuth } from "./auth/WorkerAuthContext";
 import AuthModal from "./components/AuthModal";
@@ -435,6 +442,39 @@ const AppInner: React.FC = () => {
     ].forEach((k) => localStorage.removeItem(k));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSlot?.id]);
+
+  // IDB CV data migration + preload
+  // 1. Move any inline SavedCV.data still sitting in the slot → dedicated IDB database.
+  //    This runs once per device (guarded by the 'cvdata_migrated_v1' flag).
+  // 2. Preload all CV IDs into the in-memory cache so getCVDataCached() works
+  //    synchronously throughout the app (CVHistory, CVCompareModal, etc.).
+  // 3. Prune IDB orphans — entries with no matching slot item.
+  useEffect(() => {
+    if (!profiles.length) return;
+
+    (async () => {
+      // Step 1 — one-time migration
+      if (!localStorage.getItem('cv_builder:cvdata_migrated_v1')) {
+        try {
+          const { slots: migratedSlots, migrated } = await migrateToIDB(profiles);
+          if (migrated > 0) {
+            setProfiles(migratedSlots);
+          }
+          localStorage.setItem('cv_builder:cvdata_migrated_v1', '1');
+        } catch (err) {
+          console.warn('[cvDataStore] Migration failed (non-fatal):', err);
+        }
+      }
+
+      // Step 2 — warm in-memory cache for all current CV ids
+      const allIds = profiles.flatMap(s => (s.savedCVs ?? []).map(c => c.id));
+      await preloadAllCVData(allIds).catch(() => {});
+
+      // Step 3 — prune orphaned IDB entries (fire-and-forget)
+      pruneOrphanedCVData(new Set(allIds)).catch(() => {});
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles.length]);
 
   // ── Per-profile isolated state (each profile has its own data) ────────
   // Derived from the active slot — switching profiles gives a clean slate.
@@ -1051,11 +1091,13 @@ const AppInner: React.FC = () => {
       `CV for ${cvData.experience[0]?.jobTitle || "New Role"}`,
     );
     if (cvName) {
+      const id = Date.now().toString();
+      // Store full data in IDB; keep thin index in localStorage slot
+      saveCVData(id, cvData).catch(() => {});
       const newSavedCV: SavedCV = {
-        id: Date.now().toString(),
+        id,
         name: cvName,
         createdAt: new Date().toISOString(),
-        data: cvData,
         purpose,
         qualityReport: buildQualitySnapshot(cvData),
       };
@@ -1069,11 +1111,12 @@ const AppInner: React.FC = () => {
 
   const handleSaveCVFromPipeline = useCallback(
     (cvData: CVData, name: string) => {
+      const id = Date.now().toString();
+      saveCVData(id, cvData).catch(() => {});
       const newSavedCV: SavedCV = {
-        id: Date.now().toString(),
+        id,
         name,
         createdAt: new Date().toISOString(),
-        data: cvData,
         purpose: "job",
         qualityReport: buildQualitySnapshot(cvData),
       };
@@ -1107,14 +1150,15 @@ const AppInner: React.FC = () => {
       // Show undo toast
       if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
       toast.info("CV Deleted", `"${cvToDelete.name}" removed.`, () => {
-        // Undo: restore the CV
+        // Undo: restore the CV (IDB data is still there — only deleted after timer)
         if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
         setSavedCVs((prev) => [cvToDelete, ...prev]);
         toast.success("Restored", `"${cvToDelete.name}" has been restored.`);
       });
-      // After 6 seconds the deletion is final — nothing to do since it's already removed from state
+      // After 6 seconds the deletion is final — remove from IDB too
       deleteCVTimerRef.current = setTimeout(() => {
         deleteCVTimerRef.current = null;
+        deleteCVData(id).catch(() => {});
       }, 6000);
     },
     [setSavedCVs, savedCVs, toast],

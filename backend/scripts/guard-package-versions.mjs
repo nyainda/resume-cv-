@@ -44,12 +44,6 @@ const PROTECTED = [
     why: 'Vite 6 needed for the /__pdf proxy config used in dev.',
   },
   {
-    pkg: '@react-pdf/renderer',
-    min: '4.0.0',
-    where: 'app',
-    why: 'PDF fallback engine — earlier versions render Unicode incorrectly.',
-  },
-  {
     pkg: '@google/genai',
     min: '1.0.0',
     where: 'app',

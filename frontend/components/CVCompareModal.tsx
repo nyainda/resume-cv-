@@ -16,6 +16,7 @@ import { auditCvQuality, type CvQualityReport } from '../services/cvNumberFideli
 import { scoreAtsCoverage, type AtsKeywordReport } from '../services/cvAtsKeywords';
 import { generateCV } from '../services/geminiService';
 import CVPreview from './CVPreview';
+import { getCVDataCached } from '../services/storage/cvDataStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mode meta
@@ -256,11 +257,15 @@ export default function CVCompareModal({
   // ── Tab 2: ATS / Quality ─────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedSaved = useMemo(() => savedCVs.find(s => s.id === selectedId) ?? null, [savedCVs, selectedId]);
+  // Resolved data: in-memory cache first (populated at boot), then inline (legacy / just-saved)
+  const resolvedSelectedData = selectedSaved
+    ? (getCVDataCached(selectedSaved.id) ?? selectedSaved.data ?? null)
+    : null;
   const hasJd = jd.trim().length > 0;
   const qualityA = useMemo(() => auditCvQuality(currentCv), [currentCv]);
-  const qualityB = useMemo(() => (selectedSaved ? auditCvQuality(selectedSaved.data) : null), [selectedSaved]);
+  const qualityB = useMemo(() => (resolvedSelectedData ? auditCvQuality(resolvedSelectedData) : null), [resolvedSelectedData]);
   const atsA = useMemo(() => (hasJd ? scoreAtsCoverage(currentCv, jd) : null), [currentCv, jd, hasJd]);
-  const atsB = useMemo(() => (hasJd && selectedSaved ? scoreAtsCoverage(selectedSaved.data, jd) : null), [selectedSaved, jd, hasJd]);
+  const atsB = useMemo(() => (hasJd && resolvedSelectedData ? scoreAtsCoverage(resolvedSelectedData, jd) : null), [resolvedSelectedData, jd, hasJd]);
   const setAmatched = useMemo(() => new Set(atsA?.matched ?? []), [atsA]);
   const setBmatched = useMemo(() => new Set(atsB?.matched ?? []), [atsB]);
   const exclusiveA = useMemo(() => (atsA?.matched ?? []).filter(k => !setBmatched.has(k)), [atsA, setBmatched]);
@@ -510,7 +515,8 @@ export default function CVCompareModal({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {savedCVs.map(s => {
-                    const title = s.name || s.data.experience?.[0]?.jobTitle || 'Untitled';
+                    const sData = getCVDataCached(s.id) ?? s.data;
+                    const title = s.name || sData?.experience?.[0]?.jobTitle || 'Untitled';
                     const emoji = PURPOSE_EMOJI[s.purpose] ?? '📄';
                     const date = new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                     return (
@@ -537,11 +543,11 @@ export default function CVCompareModal({
               <CvColumn label="Current CV" sublabel="Being edited now" quality={qualityA} ats={atsA} exclusiveMatches={exclusiveA} isWinner={aWins} hasJd={hasJd} />
               {selectedSaved && qualityB ? (
                 <CvColumn
-                  label={selectedSaved.name || selectedSaved.data.experience?.[0]?.jobTitle || 'Saved CV'}
+                  label={selectedSaved.name || resolvedSelectedData?.experience?.[0]?.jobTitle || 'Saved CV'}
                   sublabel={`${PURPOSE_EMOJI[selectedSaved.purpose] ?? '📄'} ${selectedSaved.purpose} · ${new Date(selectedSaved.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`}
                   quality={qualityB} ats={atsB} exclusiveMatches={exclusiveB} isWinner={bWins} hasJd={hasJd}
                   actionLabel="Switch to this version"
-                  onAction={() => { onSelectSaved(selectedSaved.data); onClose(); }}
+                  onAction={() => { if (resolvedSelectedData) { onSelectSaved(resolvedSelectedData); onClose(); } }}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 text-center">

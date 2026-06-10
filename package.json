@@ -25,7 +25,6 @@
   },
   "dependencies": {
     "@google/genai": "^1.52.0",
-    "@react-pdf/renderer": "^4.5.1",
     "@vercel/analytics": "^2.0.1",
     "cors": "^2.8.6",
     "drizzle-zod": "^0.8.3",

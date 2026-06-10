@@ -224,7 +224,8 @@ export interface SavedCV {
   id: string;
   name: string;
   createdAt: string;
-  data: CVData;
+  /** Full CV content. Stored in IndexedDB via cvDataStore; may be absent after migration. */
+  data?: CVData;
   purpose: 'job' | 'academic' | 'general';
   template?: TemplateName;  // template used when saved
   qualityReport?: SavedCvQualityReport; // post-flight quality audit snapshot at save time

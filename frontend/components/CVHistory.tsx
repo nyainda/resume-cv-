@@ -5,6 +5,7 @@ import { Trash, Eye, Download, FileText, BookOpen, Briefcase, Globe, RefreshCw, 
 import TemplateThumbnail from './TemplateThumbnail';
 import CVPreview from './CVPreview';
 import { downloadCV } from '../services/cvDownloadService';
+import { getCVDataCached, loadCVData } from '../services/storage/cvDataStore';
 
 interface CVHistoryProps {
     savedCVs: SavedCV[];
@@ -62,8 +63,9 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
         }
     };
 
-    const handleLoadAndClose = () => {
-        onLoad(cv.data);
+    const handleLoadAndClose = async () => {
+        const data = getCVDataCached(cv.id) ?? cv.data ?? await loadCVData(cv.id);
+        if (data) onLoad(data);
         onClose();
     };
 
@@ -77,7 +79,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                             {new Date(cv.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                             {' · '}
-                            {cv.data.experience?.length || 0} roles · {cv.data.skills?.length || 0} skills
+                            {(() => { const d = getCVDataCached(cv.id) ?? cv.data; return d ? `${d.experience?.length || 0} roles · ${d.skills?.length || 0} skills` : '—'; })()}
                         </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-4">
@@ -145,14 +147,16 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                             }}
                         >
                             <div ref={previewRef} data-cv-preview-active="true">
+                                {(getCVDataCached(cv.id) ?? cv.data) && (
                                 <CVPreview
-                                    cvData={cv.data}
+                                    cvData={(getCVDataCached(cv.id) ?? cv.data)!}
                                     personalInfo={userProfile.personalInfo}
                                     template={selectedTemplate}
                                     isEditing={false}
                                     onDataChange={() => {}}
                                     jobDescriptionForATS=""
                                 />
+                                )}
                             </div>
                         </div>
                     </div>
@@ -287,18 +291,20 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                                         </div>
 
                                         {/* Stats row */}
+                                        {(() => { const d = getCVDataCached(cv.id) ?? cv.data; return d ? (
+                                        <>
                                         <div className="flex gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-3">
-                                            <span>📝 {cv.data.experience?.length || 0} roles</span>
-                                            <span>🎯 {cv.data.skills?.length || 0} skills</span>
-                                            <span>🎓 {cv.data.education?.length || 0} edu</span>
+                                            <span>📝 {d.experience?.length || 0} roles</span>
+                                            <span>🎯 {d.skills?.length || 0} skills</span>
+                                            <span>🎓 {d.education?.length || 0} edu</span>
                                         </div>
-
                                         {/* Summary snippet */}
-                                        {cv.data.summary && (
+                                        {d.summary && (
                                             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-3 italic border-l-2 border-[#C9A84C]/40 pl-2">
-                                                "{cv.data.summary.substring(0, 100)}..."
+                                                "{d.summary.substring(0, 100)}..."
                                             </p>
                                         )}
+                                        </>) : null; })()}
 
                                         {/* Action buttons */}
                                         <div className="flex items-center gap-1.5">
