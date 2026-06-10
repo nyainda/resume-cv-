@@ -177,8 +177,11 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
     const onAuthDismiss = useCallback(() => {
         setAuthModalOpen(false);
-        // Reject pending promises — generation will not proceed
-        pendingResolvers.current.splice(0);
+        // Resolve (not reject) pending "landing page entry" promises so dismissing
+        // the modal on the landing page doesn't leave callbacks hanging forever.
+        // CVGenerator checks isWorkerAuthenticated separately and will re-prompt.
+        const queue = pendingResolvers.current.splice(0);
+        queue.forEach(r => r());
     }, []);
 
     // ── requireAuth ───────────────────────────────────────────────────────────

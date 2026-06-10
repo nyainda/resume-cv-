@@ -7,6 +7,7 @@ import type { CVData } from '../types';
 
 interface Props {
   onGetStarted: () => void;
+  onSignIn: () => void;
   darkMode: boolean;
   onToggleDark: () => void;
   hasProfile?: boolean;
@@ -697,7 +698,7 @@ function parseLandingCvText(text: string): CVData {
 }
 
 /* ─── Main Component ────────────────────────────────────────────────────── */
-const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, hasProfile, onGoToApp }) => {
+const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onToggleDark, hasProfile, onGoToApp }) => {
   const [ready, setReady] = useState(false);
   const [activeCase, setActiveCase] = useState(0);
   const [activePipe, setActivePipe] = useState(0);
@@ -856,6 +857,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
             </button>
             {hasProfile && onGoToApp && (
               <button onClick={onGoToApp} style={{ padding: '6px 14px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: elevated, border: `1px solid ${border}`, cursor: 'pointer', color: muted }}>← App</button>
+            )}
+            {!hasProfile && (
+              <button onClick={onSignIn} style={{ padding: '7px 18px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: text }}>
+                Sign in
+              </button>
             )}
             <button onClick={onGetStarted} style={{ padding: '7px 18px', fontSize: 13, fontWeight: 900, borderRadius: 8, background: Y, border: 'none', cursor: 'pointer', color: '#111' }}>
               {hasProfile ? 'Open Suite' : 'Get Started'}

@@ -1485,13 +1485,24 @@ const AppInner: React.FC = () => {
   // Show landing page when requested (new users or navigated back)
   if (showLanding) {
     return (
-      <LandingPage
-        onGetStarted={() => setShowLanding(false)}
-        darkMode={!!darkMode}
-        onToggleDark={() => setDarkMode((d) => !d)}
-        hasProfile={profileExists}
-        onGoToApp={() => setShowLanding(false)}
-      />
+      <>
+        <LandingPage
+          onGetStarted={() => setShowLanding(false)}
+          onSignIn={async () => {
+            await requireAuth();
+            setShowLanding(false);
+          }}
+          darkMode={!!darkMode}
+          onToggleDark={() => setDarkMode((d) => !d)}
+          hasProfile={profileExists}
+          onGoToApp={() => setShowLanding(false)}
+        />
+        <AuthModal
+          isOpen={authModalOpen}
+          onSuccess={onAuthSuccess}
+          onDismiss={onAuthDismiss}
+        />
+      </>
     );
   }
 
@@ -1615,20 +1626,6 @@ const AppInner: React.FC = () => {
               )}
             </button>
 
-            {/* ── Sign-in button (shown when not worker-authenticated) ── */}
-            {!isWorkerAuthenticated && (
-              <button
-                onClick={showSignIn}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-white rounded-xl transition-all"
-                style={{ background: '#1B2B4B' }}
-                title="Sign in to unlock CV generation"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
-                </svg>
-                <span className="hidden sm:inline">Sign in</span>
-              </button>
-            )}
 
             <button
               onClick={() => setIsSettingsOpen(true)}
