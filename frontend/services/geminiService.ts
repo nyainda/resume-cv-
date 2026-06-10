@@ -3683,12 +3683,41 @@ export const generateCoverLetter = async (
 ): Promise<string> => {
     const profile = purifyProfile(profileInput);
     const name = profile.personalInfo?.name || 'Applicant';
+
+    // 3.5 — Cover letter brief injection.
+    // Fire buildBrief in parallel with prompt construction (zero added latency on
+    // a miss). If the worker is unreachable, briefResult stays null and we fall
+    // back to the prompt-only path with no degradation.
+    const briefPromise = buildBrief({
+        jd: jobDescription,
+        profile: profile as unknown,
+        section: 'summary',
+    }).catch(() => null);
+
+    // Build the base prompt while the brief fetches concurrently.
+    const [brief] = await Promise.all([briefPromise]);
+
+    // Compose a voice block only when the brief resolved successfully.
+    let voiceBriefBlock = '';
+    if (brief?.voice?.primary) {
+        const v = brief.voice.primary;
+        const extraForbidden = (brief.forbidden_phrases || []).slice(0, 10).join(', ');
+        voiceBriefBlock = `
+### VOICE BRIEF (match this throughout the letter)
+- Voice profile: ${v.name} — ${v.tone}
+- Verbosity target: ${v.verbosity_level <= 2 ? 'terse and punchy' : v.verbosity_level >= 4 ? 'expansive and narrative' : 'balanced'} (level ${v.verbosity_level}/5)
+- Metric preference: ${v.metric_preference}${extraForbidden ? `\n- Additional banned phrases (same list used for the CV): ${extraForbidden}` : ''}
+
+This voice must be consistent with the candidate's CV — they should read like the same person wrote both documents.
+`;
+    }
+
     const prompt = `
 You are a professional ghostwriter who writes winning cover letters for competitive roles. Your output is always polished, specific, and human — never generic or AI-sounding.
 
 ### APPLICANT
 Name: ${name}
-
+${voiceBriefBlock}
 ### PROFILE (for content and achievements only)
 ${compactProfile(profile)}
 

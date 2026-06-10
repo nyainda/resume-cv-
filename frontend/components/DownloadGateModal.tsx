@@ -12,10 +12,6 @@ export function incrementDownloadCount(): void {
   try { localStorage.setItem(STORAGE_KEY, String(getDownloadCount() + 1)); } catch {}
 }
 
-export function resetDownloadCount(): void {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-}
-
 export function shouldGateDownload(isAuthenticated: boolean): boolean {
   if (isAuthenticated) return false;
   return getDownloadCount() >= FREE_DOWNLOADS;
@@ -44,7 +40,6 @@ const GoogleLogo = () => (
 export const DownloadGateModal: React.FC<Props> = ({ open, onClose, onContinue }) => {
   const { signIn, loading, error } = useGoogleAuth();
   const [signingIn, setSigningIn] = useState(false);
-  const [showReset, setShowReset] = useState(false);
 
   if (!open) return null;
 
@@ -58,12 +53,6 @@ export const DownloadGateModal: React.FC<Props> = ({ open, onClose, onContinue }
     } finally {
       setSigningIn(false);
     }
-  };
-
-  const handleReset = () => {
-    resetDownloadCount();
-    incrementDownloadCount();
-    onContinue();
   };
 
   return (
@@ -129,50 +118,9 @@ export const DownloadGateModal: React.FC<Props> = ({ open, onClose, onContinue }
             <p className="text-xs text-rose-500 text-center mt-2">{error}</p>
           )}
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px bg-zinc-100 dark:bg-neutral-700" />
-            <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-wider">or</span>
-            <div className="flex-1 h-px bg-zinc-100 dark:bg-neutral-700" />
-          </div>
-
-          {/* Soft-gate disclosure */}
-          {!showReset ? (
-            <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500 leading-relaxed">
-              This is a soft limit tracked in your browser.{' '}
-              <button
-                onClick={() => setShowReset(true)}
-                className="underline underline-offset-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-              >
-                Reset my counter
-              </button>{' '}
-              to continue without signing in.
-            </p>
-          ) : (
-            <div className="rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 p-3 text-center">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">
-                Reset your download counter and continue?
-              </p>
-              <div className="flex gap-2 justify-center">
-                <button
-                  onClick={handleReset}
-                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors"
-                >
-                  Yes, reset &amp; download
-                </button>
-                <button
-                  onClick={() => setShowReset(false)}
-                  className="px-4 py-1.5 rounded-lg border border-zinc-200 dark:border-neutral-600 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
           <button
             onClick={onClose}
-            className="w-full text-center text-[11px] font-medium text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors pt-3"
+            className="w-full text-center text-[11px] font-medium text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors pt-4"
           >
             Go back
           </button>

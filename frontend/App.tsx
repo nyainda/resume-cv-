@@ -59,6 +59,7 @@ import AdminLeaksPage from "./components/AdminLeaksPage";
 import AdminCVEnginePage from "./components/AdminCVEnginePage";
 import StorageMapPage from "./components/StorageMapPage";
 import ScoreMyCVPage from "./components/ScoreMyCVPage";
+import CareerPivotPage from "./components/CareerPivotPage";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { getDriveRouter } from "./services/storage/StorageRouter";
 import {
@@ -88,6 +89,23 @@ const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
   >
     <rect x="2" y="4" width="20" height="16" rx="2" />
     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </svg>
+);
+
+const PivotNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M17 3l4 4-4 4" />
+    <path d="M3 7h18" />
+    <path d="M7 21l-4-4 4-4" />
+    <path d="M21 17H3" />
   </svg>
 );
 
@@ -1386,6 +1404,7 @@ const AppInner: React.FC = () => {
     | "scanner"
     | "analytics"
     | "score"
+    | "pivot"
     | "admin-leaks"
     | "admin-cv-engine"
     | "storage-map"
@@ -1456,6 +1475,7 @@ const AppInner: React.FC = () => {
       label: "Tools",
       items: [
         { id: "score",   label: "Score My CV",    icon: ScoreNavIcon },
+        { id: "pivot",   label: "Career Pivot",   icon: PivotNavIcon },
         { id: "scanner", label: "Portal Scanner", icon: ScannerNavIcon },
       ],
     },
@@ -2149,6 +2169,13 @@ const AppInner: React.FC = () => {
                   <ScoreMyCVPage
                     currentCV={currentCV}
                     onGoToGenerator={() => setCurrentView("generator")}
+                  />
+                )}
+                {currentView === "pivot" && (
+                  <CareerPivotPage
+                    currentCV={currentCV}
+                    onGoToGenerator={() => setCurrentView("generator")}
+                    onGoToScore={() => setCurrentView("score")}
                   />
                 )}
                 {currentView === "admin-leaks" && (

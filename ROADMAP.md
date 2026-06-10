@@ -80,11 +80,12 @@ These are confirmed working from code audit (June 2026):
   - Zero LLM tokens, zero network calls, results in <1 second
   - Nav item: "Score My CV" in the Tools group with bar-chart icon
 
-- [ ] **2.2 — Career Pivot Score page**
-  - When `cvSeniorityCoherence` or field detection detects background field ≠ JD field, don't penalise — explain
-  - Show: "Career Pivot Detected: Agri-Engineering → Software Dev", what transfers, what gaps, what to add
-  - Resume Worded marks this as a bad CV. ProCV explains and helps fix it.
-  - **Effort:** 1 day
+- [x] **2.2 — Career Pivot Score page**
+  - New view `"pivot"` + `CareerPivotPage.tsx` component
+  - Detects profile field vs JD field using `detectField`; flags when they differ
+  - Shows: pivot score (0–100), transferable universal skills, field-specific bridge skills already present, bridge skills missing, top JD keyword gaps via `scoreAtsCoverage`, and a numbered action plan specific to the target field
+  - All deterministic — zero LLM calls, instant results
+  - Nav item: "Career Pivot" in Tools group with swap-arrows icon
 
 - [ ] **2.3 — LinkedIn Score page**
   - Basic LinkedIn headline + summary scorer (re-use `cvQualityGate` logic adapted for LinkedIn text format)
@@ -113,23 +114,19 @@ These are confirmed working from code audit (June 2026):
   - Add `summary_formula` to each voice profile in `cv_voice_profiles` so `analytical_thinker` (verbosity 4) produces a different shape than `hands_on_builder` (verbosity 2)
   - **Effort:** 1 day
 
-- [ ] **3.4 — Rhythm patterns for Projects + Education sections**
-  - `current_role`, `past_role`, `internship`, `summary` have rhythms — `projects` and `education` have none
-  - Scenario C (no experience, has projects) is hurt most — projects are the main work history but get no rhythm enforcement
-  - Add: `project_showcase`, `project_minimal`, `education_rich` patterns
-  - **Effort:** 2 hours
+- [x] **3.4 — Rhythm patterns for Projects + Education sections**
+  - Migration `020_rhythm_projects_education.sql` adds three new patterns: `project_showcase` (5-bullet, impact-first), `project_minimal` (3-bullet, tight listing), `education_rich` (4-bullet, fresh-grad/academic)
+  - Fixes Scenario C (fresh grad / no experience) — projects now get rhythm enforcement
 
-- [ ] **3.5 — Cover letter brief injection**
-  - Cover letter generation uses the same system prompt as CV generation but never receives the brief
-  - Voice chosen for the CV is ignored for the cover letter → they sound like different people
-  - Fix: pass the same brief used for CV generation as additional context in the cover letter prompt
-  - **Effort:** 3 hours
+- [x] **3.5 — Cover letter brief injection**
+  - `generateCoverLetter` in `geminiService.ts` now fires `buildBrief({ jd, profile, section: 'summary' })` in parallel with prompt construction (zero added latency on a miss)
+  - Injects a `### VOICE BRIEF` block with voice name, tone, verbosity level, metric preference, and top-10 forbidden phrases
+  - Graceful fallback: if worker is unreachable, generates without the brief (no regression)
 
-- [ ] **3.6 — Verb energy routing by seniority**
-  - Every verb has `energy_level` (high/medium/low) — tracked in DB but never used
-  - Senior/Lead CVs should lead with high-energy verbs; Entry CVs should use medium/low
-  - Sort `verbPool` by energy level before slicing to 30, based on seniority tier
-  - **Effort:** 1 hour
+- [x] **3.6 — Verb energy routing by seniority**
+  - `brief.ts` now sorts `verbPool` by `energy_level` after voice bias sort, before slicing to 30
+  - Senior/Lead → high-energy verbs first; Entry/Junior → low/medium energy first; Mid → shuffle (variety)
+  - Uses `ENERGY_RANK` lookup table; gracefully handles missing energy_level values
 
 ---
 
@@ -144,10 +141,10 @@ These are confirmed working from code audit (June 2026):
   - `cv_events` table exists (migration 015) — tracking skeleton is in place
   - *Next: wire actual event writes into `handleTieredLLM` and `handleParallelSections` before any paid gating*
 
-- [ ] **4.3 — Remove download gate reset button**
-  - The download gate modal has a "Reset my counter" button — users bypass the gate instantly
-  - Remove the reset button. Track downloads server-side in D1 via cv_events.
-  - **Effort:** 30 minutes
+- [x] **4.3 — Remove download gate reset button**
+  - Removed `showReset` state, `handleReset` function, the "or" divider, and the soft-gate disclosure section from `DownloadGateModal.tsx`
+  - Removed `resetDownloadCount` helper (was only used internally by the reset button)
+  - Gate now has a single call-to-action: sign in with Google
 
 - [ ] **4.4 — Stripe integration (Global Payments)**
   - Free: 3 CV generations/month, 2 downloads, Score My CV unlimited

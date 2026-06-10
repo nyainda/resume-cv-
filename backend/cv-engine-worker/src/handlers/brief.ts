@@ -127,7 +127,23 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         const bias = new Set(primary.verb_bias.map((v: string) => v.toLowerCase()));
         verbPool.sort((a, b) => Number(bias.has(String(b.verb_present).toLowerCase())) - Number(bias.has(String(a.verb_present).toLowerCase())));
     }
-    shuffle(verbPool);
+    // 3.6 — Verb energy routing by seniority.
+    // energy_level is stored in the verb DB but was previously unused.
+    // Senior/Lead CVs lead with high-energy verbs; Entry/Junior CVs use
+    // medium/low energy so they don't over-claim authority.
+    // Mid-level keeps the shuffled order for natural variety.
+    const ENERGY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    if (seniorityLevel === 'senior' || seniorityLevel === 'lead') {
+        verbPool.sort((a, b) =>
+            (ENERGY_RANK[b.energy_level as string] || 2) - (ENERGY_RANK[a.energy_level as string] || 2)
+        );
+    } else if (seniorityLevel === 'entry' || seniorityLevel === 'junior') {
+        verbPool.sort((a, b) =>
+            (ENERGY_RANK[a.energy_level as string] || 2) - (ENERGY_RANK[b.energy_level as string] || 2)
+        );
+    } else {
+        shuffle(verbPool); // mid: random variety within the voice-biased order
+    }
     const verbs = verbPool.slice(0, 30).map(v => ({
         verb: tense === 'past' ? v.verb_past : v.verb_present,
         verb_present: v.verb_present,
