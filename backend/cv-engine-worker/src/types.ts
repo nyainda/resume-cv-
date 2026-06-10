@@ -13,6 +13,7 @@ export interface Env {
     AI: Ai;
     ALLOWED_ORIGINS?: string;
     ADMIN_TOKEN?: string;
+    BREVO_API_KEY?: string;
 }
 
 // ─── KV data versioning ───────────────────────────────────────────────────────

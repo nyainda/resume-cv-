@@ -31,6 +31,8 @@ import {
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import { GoogleAuthProvider, useGoogleAuth } from "./auth/GoogleAuthContext";
+import { WorkerAuthProvider, useWorkerAuth } from "./auth/WorkerAuthContext";
+import AuthModal from "./components/AuthModal";
 import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
 import WorkerStatusBanner from "./components/WorkerStatusBanner";
@@ -221,6 +223,7 @@ function colorBg(c: ProfileColor) {
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated } = useGoogleAuth();
+  const { workerUser, isWorkerAuthenticated, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn } = useWorkerAuth();
   useAutoSync(isAuthenticated);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
@@ -1612,12 +1615,46 @@ const AppInner: React.FC = () => {
               )}
             </button>
 
+            {/* ── Sign-in button (shown when not worker-authenticated) ── */}
+            {!isWorkerAuthenticated && (
+              <button
+                onClick={showSignIn}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-white rounded-xl transition-all"
+                style={{ background: '#1B2B4B' }}
+                title="Sign in to unlock CV generation"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+                <span className="hidden sm:inline">Sign in</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="group p-1.5 flex items-center gap-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-xl hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-all border border-zinc-200 dark:border-neutral-700"
               aria-label="Settings"
             >
-              {isAuthenticated && user ? (
+              {isWorkerAuthenticated && workerUser ? (
+                <div className="flex items-center gap-2 px-1">
+                  {workerUser.picture ? (
+                    <img
+                      src={workerUser.picture}
+                      alt={workerUser.name}
+                      referrerPolicy="no-referrer"
+                      className="w-6 h-6 rounded-full ring-1 ring-[#C9A84C] shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[10px] text-white font-bold">
+                      {(workerUser.name || workerUser.email).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-xs font-bold hidden lg:inline-block max-w-[80px] truncate">
+                    {(workerUser.name || workerUser.email).split(" ")[0]}
+                  </span>
+                  <Settings className="h-4 w-4 text-zinc-400 group-hover:rotate-45 transition-transform" />
+                </div>
+              ) : isAuthenticated && user ? (
                 <div className="flex items-center gap-2 px-1">
                   {user.picture ? (
                     <img
@@ -2319,6 +2356,13 @@ const AppInner: React.FC = () => {
         </div>
       )}
 
+      {/* ── Auth modal ────────────────────────────────────────────────── */}
+      <AuthModal
+        open={authModalOpen}
+        onSuccess={onAuthSuccess}
+        onDismiss={onAuthDismiss}
+      />
+
       {/* ── Google Drive conflict resolution modal ── */}
       <DriveConflictModal
         onResolved={(key, action) => {
@@ -2339,10 +2383,12 @@ const AppInner: React.FC = () => {
   );
 };
 
-// ── Root App — wraps everything in GoogleAuthProvider ─────────────────────
+// ── Root App — wraps everything in GoogleAuthProvider + WorkerAuthProvider ──
 const App: React.FC = () => (
   <GoogleAuthProvider>
-    <AppInner />
+    <WorkerAuthProvider>
+      <AppInner />
+    </WorkerAuthProvider>
   </GoogleAuthProvider>
 );
 

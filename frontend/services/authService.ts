@@ -1,0 +1,143 @@
+/**
+ * authService.ts — client for the cv-engine-worker /api/auth/* endpoints.
+ *
+ * Manages the worker-backed session token in localStorage.
+ * All network calls fail gracefully — the app continues working in offline/
+ * anonymous mode if the worker is unreachable.
+ */
+
+const ENGINE = import.meta.env.VITE_CV_ENGINE_URL as string;
+
+// ─── Storage keys ─────────────────────────────────────────────────────────────
+
+const SESSION_KEY  = 'procv:worker_session';
+const USER_KEY     = 'procv:worker_user';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface WorkerUser {
+    id: number;
+    email: string;
+    name: string;
+    picture: string;
+    plan: 'free' | 'byok' | 'pro';
+}
+
+export interface StoredSession {
+    token: string;
+    user: WorkerUser;
+}
+
+// ─── Local storage ────────────────────────────────────────────────────────────
+
+export function getStoredSession(): StoredSession | null {
+    try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw) as StoredSession;
+    } catch {
+        return null;
+    }
+}
+
+export function setStoredSession(token: string, user: WorkerUser): void {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearStoredSession(): void {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(USER_KEY);
+}
+
+// ─── Network calls ────────────────────────────────────────────────────────────
+
+/** Link a Google access token to the worker — creates or updates the identity row. */
+export async function linkGoogleSession(
+    accessToken: string,
+    deviceId: string,
+): Promise<{ token: string; user: WorkerUser } | null> {
+    try {
+        const res = await fetch(`${ENGINE}/api/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access_token: accessToken, device_id: deviceId }),
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        if (!data.ok) return null;
+        return { token: data.session_token, user: data.user as WorkerUser };
+    } catch (e) {
+        console.warn('[AuthService] linkGoogleSession failed:', e);
+        return null;
+    }
+}
+
+/**
+ * Send a magic-link email. Pass the current app origin so the link
+ * redirects back to the right domain (dev vs prod).
+ */
+export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const res = await fetch(`${ENGINE}/api/auth/magic-link/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, app_url: appUrl }),
+            signal: AbortSignal.timeout(15_000),
+        });
+        const data = await res.json() as any;
+        if (!res.ok) return { ok: false, error: data?.error || 'send_failed' };
+        return { ok: true };
+    } catch (e) {
+        console.warn('[AuthService] sendMagicLink failed:', e);
+        return { ok: false, error: 'network_error' };
+    }
+}
+
+/** Verify a magic-link token (from the ?magic= URL param). */
+export async function verifyMagicLink(
+    token: string,
+): Promise<{ token: string; user: WorkerUser } | null> {
+    try {
+        const res = await fetch(
+            `${ENGINE}/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
+            { signal: AbortSignal.timeout(10_000) },
+        );
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        if (!data.ok) return null;
+        return { token: data.session_token, user: data.user as WorkerUser };
+    } catch (e) {
+        console.warn('[AuthService] verifyMagicLink failed:', e);
+        return null;
+    }
+}
+
+/** Validate an existing session token and return fresh user data. */
+export async function validateSession(
+    sessionToken: string,
+): Promise<WorkerUser | null> {
+    try {
+        const res = await fetch(`${ENGINE}/api/auth/session`, {
+            headers: { Authorization: `Bearer ${sessionToken}` },
+            signal: AbortSignal.timeout(8_000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        return data.ok ? (data.user as WorkerUser) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Sign out — invalidates the session on the worker. */
+export async function signOutWorker(sessionToken: string): Promise<void> {
+    try {
+        await fetch(`${ENGINE}/api/auth/signout`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${sessionToken}` },
+            signal: AbortSignal.timeout(5_000),
+        });
+    } catch { /* fire-and-forget */ }
+}

@@ -40,6 +40,7 @@ import CVDoctorPanel from './CVDoctorPanel';
 import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useWorkerAuth } from '../auth/WorkerAuthContext';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -208,6 +209,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson }) => {
   const { isAuthenticated } = useGoogleAuth();
+  const { requireAuth } = useWorkerAuth();
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
@@ -559,6 +561,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       setError(`Please paste a job description to generate a job-targeted CV.`);
       return;
     }
+
+    // ── Auth gate: require a worker session before generating ─────────────────
+    // This shows the sign-in modal if the user is anonymous; after they sign in
+    // the Promise resolves and generation proceeds automatically.
+    try {
+      await requireAuth();
+    } catch {
+      return; // user dismissed the modal
+    }
+
     setIsLoading(true);
     setDraftCV(null);
     setError(null);
