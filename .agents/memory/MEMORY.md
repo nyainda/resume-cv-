@@ -3,3 +3,4 @@
 - [Seniority fix path format](seniority-fix-path.md) — seniority coherence uses dot-notation paths; parseAuditPath and applyFixToCv now handle both formats.
 - [D1 migration tracking gap](d1-migration-tracking.md) — migrations applied manually (outside wrangler) are not tracked; INSERT into d1_migrations to unblock future runs.
 - [Auth system deployment](auth-system.md) — sessions in D1 (024+025), Google OAuth + magic link, rate limiting, audit log; BREVO_API_KEY needed as CF secret for magic link email.
+- [Auth device ID key mismatch](auth-device-id.md) — WorkerAuthContext used 'procv:device_id' but getDeviceId() writes 'cv_builder:deviceId'; fixed to use getDeviceId() from userDataCloudService.

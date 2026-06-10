@@ -32,6 +32,7 @@ import {
     validateSession,
     signOutWorker,
 } from '../services/authService';
+import { getDeviceId } from '../services/userDataCloudService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -165,7 +166,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         if (linkedGoogleId.current === googleSub) return;
         linkedGoogleId.current = googleSub;
 
-        const deviceId = localStorage.getItem('procv:device_id') || '';
+        const deviceId = getDeviceId();
 
         linkGoogleSession(googleUser.accessToken, deviceId).then(result => {
             if (result) {

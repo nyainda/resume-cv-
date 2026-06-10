@@ -78,7 +78,7 @@ export async function linkGoogleSession(
  * Send a magic-link email. Pass the current app origin so the link
  * redirects back to the right domain (dev vs prod).
  */
-export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok: boolean; error?: string; retry_after?: number }> {
     try {
         const res = await fetch(`${ENGINE}/api/auth/magic-link/send`, {
             method: 'POST',
@@ -87,7 +87,7 @@ export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok
             signal: AbortSignal.timeout(15_000),
         });
         const data = await res.json() as any;
-        if (!res.ok) return { ok: false, error: data?.error || 'send_failed' };
+        if (!res.ok) return { ok: false, error: data?.error || 'send_failed', retry_after: data?.retry_after };
         return { ok: true };
     } catch (e) {
         console.warn('[AuthService] sendMagicLink failed:', e);

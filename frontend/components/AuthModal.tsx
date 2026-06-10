@@ -31,6 +31,7 @@ export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps
     const [emailError, setEmailError]  = useState('');
     const [sending, setSending]        = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const [mainNotice, setMainNotice]  = useState('');
     const emailRef = useRef<HTMLInputElement>(null);
 
     // Reset on open
@@ -41,6 +42,7 @@ export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps
             setEmailError('');
             setSending(false);
             setGoogleLoading(false);
+            setMainNotice('');
         }
     }, [open]);
 
@@ -88,12 +90,16 @@ export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps
         setSending(false);
         if (result.ok) {
             setScreen('magic-sent');
+        } else if (result.error === 'email_not_configured') {
+            setScreen('main');
+            setMainNotice('Email sign-in is not available right now. Please use Google to sign in.');
+        } else if (result.error === 'rate_limited') {
+            const mins = result.retry_after ? Math.ceil(result.retry_after / 60) : 15;
+            setEmailError(`Too many attempts. Please wait ${mins} minute${mins !== 1 ? 's' : ''} and try again.`);
+        } else if (result.error === 'email_send_failed') {
+            setEmailError('Email delivery failed. Please try again in a moment or use Google sign-in.');
         } else {
-            if (result.error === 'email_not_configured') {
-                setEmailError('Magic link email is not configured yet. Please sign in with Google.');
-            } else {
-                setEmailError('Failed to send email. Please try again or use Google sign-in.');
-            }
+            setEmailError('Something went wrong. Please try again or use Google sign-in.');
         }
     }
 
@@ -141,6 +147,15 @@ export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps
                     {/* ── Main screen ──────────────────────────────────────── */}
                     {screen === 'main' && (
                         <div className="flex flex-col gap-3">
+                            {/* Notice banner (e.g. email not configured) */}
+                            {mainNotice && (
+                                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}>
+                                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                    </svg>
+                                    <span>{mainNotice}</span>
+                                </div>
+                            )}
                             {/* Google button */}
                             <button
                                 onClick={handleGoogle}

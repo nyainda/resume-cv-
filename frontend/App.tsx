@@ -1885,6 +1885,28 @@ const AppInner: React.FC = () => {
                       </div>
                     </div>
                   ))}
+
+                  {/* ── Mobile sign-out row ── */}
+                  {isWorkerAuthenticated && (
+                    <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-neutral-700 px-1">
+                      <button
+                        onClick={async () => {
+                          setShowMobileMenu(false);
+                          await signOut();
+                          setShowLanding(true);
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                        Sign out
+                        {workerUser?.email && (
+                          <span className="ml-auto text-[10px] font-normal text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{workerUser.email}</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
