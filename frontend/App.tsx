@@ -2306,6 +2306,7 @@ const AppInner: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         onSave={handleApiSettingsSave}
         currentApiSettings={apiSettings}
+        onSignOut={() => { setIsSettingsOpen(false); setShowLanding(true); }}
       />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
