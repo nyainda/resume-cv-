@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { fetchCFBannedPhrases } from '../services/cvBannedPhrasesClient';
+import { semanticMatch } from '../services/cvEngineClient';
 
 interface Props {
   onGetStarted: () => void;
@@ -598,6 +600,127 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
   const [vis, setVis] = useState<Set<string>>(new Set());
   const refs = useRef<Record<string, HTMLElement | null>>({});
 
+  // ── Score My CV state ──────────────────────────────────────────────────
+  const [smCvText, setSmCvText] = useState('');
+  const [smJdText, setSmJdText] = useState('');
+  const [smScoring, setSmScoring] = useState(false);
+  const [smResult, setSmResult] = useState<null | {
+    aiScore: number; bulletScore: number; summaryScore: number; atsScore: number | null;
+    composite: number; topIssues: string[]; cfLive: boolean; hasJd: boolean;
+  }>(null);
+  const [smCfPhrases, setSmCfPhrases] = useState<{ openers: string[]; aiisms: string[] } | null>(null);
+
+  // Fetch CF banned phrases once on mount for live scoring
+  useEffect(() => {
+    fetchCFBannedPhrases().then(p => setSmCfPhrases(p)).catch(() => {});
+  }, []);
+
+  // ── Text-based scoring helpers (no CVData needed) ──────────────────────
+  const smRunScore = useCallback(async () => {
+    const cv = smCvText.trim();
+    if (!cv || cv.length < 80) return;
+    setSmScoring(true);
+    setSmResult(null);
+    await new Promise(r => setTimeout(r, 40));
+
+    const cfPhrases = smCfPhrases ?? { openers: [], aiisms: [] };
+    const cfLive = cfPhrases.openers.length + cfPhrases.aiisms.length > 0;
+
+    // ── Signal 1: AI Detection (banned openers + buzzwords) ──────────────
+    const BUILT_IN_OPENERS = [
+      'spearheaded','orchestrated','leveraged','utilized','facilitated',
+      'empowered','championed','harnessed','synergized','actualized',
+      'responsible for','worked on','helped to','assisted with','tasked with',
+    ];
+    const BUILT_IN_AIISMS = [
+      'highly motivated','results-driven','results-oriented','passionate about',
+      'detail-oriented','team player','hard-working','self-starter','go-getter',
+      'dynamic professional','proven track record','excellent communication',
+      'strong work ethic','dedicated professional','innovative thinker',
+      'forward-thinking','thought leader','best-in-class','value-add',
+    ];
+    const allOpeners = [...new Set([...BUILT_IN_OPENERS, ...cfPhrases.openers])];
+    const allAiisms  = [...new Set([...BUILT_IN_AIISMS,  ...cfPhrases.aiisms])];
+    const cvLower = cv.toLowerCase();
+    const openerHits = allOpeners.filter(p => cvLower.includes(p.toLowerCase())).length;
+    const aiismHits  = allAiisms.filter(p => cvLower.includes(p.toLowerCase())).length;
+    const aiRisk = Math.min(100, openerHits * 14 + aiismHits * 10);
+    const aiScore = Math.max(0, 100 - aiRisk);
+
+    // ── Signal 2: Bullet Quality ─────────────────────────────────────────
+    const lines = cv.split(/\n/).map(l => l.trim()).filter(l => l.length > 4);
+    const bullets = lines.filter(l => /^[•\-\*·›➤▸]/.test(l) || /^\d+\.\s/.test(l));
+    const bulletsFound = bullets.length;
+    const metricRx = /\b\d[\d,.]*\s*(%|K|M|B|\+\s*years?|x|×)\b/i;
+    const withMetric = bullets.filter(b => metricRx.test(b)).length;
+    const tooShort = bullets.filter(b => b.split(/\s+/).length < 8).length;
+    const arrowBullets = bullets.filter(b => b.includes('→')).length;
+    let bulletRisk = 0;
+    if (bulletsFound < 4)  bulletRisk += 30;
+    if (bulletsFound > 0 && withMetric === 0) bulletRisk += 20;
+    if (tooShort > 2) bulletRisk += 15;
+    if (arrowBullets > 0) bulletRisk += 12;
+    const bulletScore = Math.max(0, Math.min(100, 100 - bulletRisk));
+
+    // ── Signal 3: Summary Quality ────────────────────────────────────────
+    const firstPara = cv.split(/\n\n/)[0] ?? '';
+    const summaryWords = firstPara.split(/\s+/).filter(Boolean).length;
+    let summaryRisk = 0;
+    if (summaryWords < 30)  summaryRisk += 35;
+    else if (summaryWords < 50) summaryRisk += 15;
+    if (summaryWords > 130)  summaryRisk += 20;
+    if (/\b(seeking|looking for|hoping to|aiming to)\b/i.test(firstPara)) summaryRisk += 25;
+    if (/\b(highly motivated|results[‐-]?driven|passionate about|detail[‐-]?oriented)\b/i.test(firstPara)) summaryRisk += 20;
+    const summaryScore = Math.max(0, Math.min(100, 100 - summaryRisk));
+
+    // ── Signal 4: ATS Match via CF semantic-match ────────────────────────
+    let atsScore: number | null = null;
+    const jd = smJdText.trim();
+    if (jd.length > 40) {
+      // Extract simple keywords from JD (all 3+ char words, deduped)
+      const jdWords = jd.toLowerCase().match(/\b[a-z][a-z0-9\-+#\.]{2,}\b/g) ?? [];
+      const STOP = new Set(['the','and','for','with','have','that','this','from','will','are','you','our','your','their','role','team','work','year','years','day','days','able','good','strong','level','based','minimum','required','preferred','ideally','include','including','manage','support','provide','ensure','develop','create','build','lead','drive']);
+      const keywords = [...new Set(jdWords.filter(w => !STOP.has(w)))].slice(0, 30);
+      // Split CV into text chunks for profileTexts
+      const cvChunks = cv.split(/\n\n+/).filter(c => c.trim().length > 20).slice(0, 10);
+      try {
+        const result = await semanticMatch(keywords, cvChunks);
+        if (result?.results?.length) {
+          const matched = result.results.filter(r => r.status === 'matched' || r.status === 'partial').length;
+          atsScore = Math.round((matched / result.results.length) * 100);
+        } else {
+          // Fallback: simple keyword overlap
+          const cvLow = cv.toLowerCase();
+          const matched = keywords.filter(k => cvLow.includes(k)).length;
+          atsScore = keywords.length > 0 ? Math.round((matched / keywords.length) * 100) : null;
+        }
+      } catch {
+        const cvLow = cv.toLowerCase();
+        const matched = keywords.filter(k => cvLow.includes(k)).length;
+        atsScore = keywords.length > 0 ? Math.round((matched / keywords.length) * 100) : null;
+      }
+    }
+
+    // ── Composite ────────────────────────────────────────────────────────
+    const scores = atsScore !== null
+      ? [aiScore * 0.3, bulletScore * 0.25, summaryScore * 0.2, atsScore * 0.25]
+      : [aiScore * 0.4,  bulletScore * 0.33, summaryScore * 0.27];
+    const composite = Math.round(scores.reduce((a, b) => a + b, 0));
+
+    // ── Top Issues ───────────────────────────────────────────────────────
+    const topIssues: string[] = [];
+    if (openerHits > 0) topIssues.push(`${openerHits} AI-flagged phrase${openerHits > 1 ? 's' : ''} detected (e.g. "leveraged", "spearheaded") — replace with concrete action verbs.`);
+    if (aiismHits > 0) topIssues.push(`${aiismHits} generic buzzword${aiismHits > 1 ? 's' : ''} found (e.g. "highly motivated", "results-driven") — replace with a specific fact or metric.`);
+    if (bulletsFound < 4) topIssues.push('Too few bullet points found — add at least 3–4 per role to show scope and impact.');
+    if (withMetric === 0 && bulletsFound > 0) topIssues.push('No quantified metrics in bullets — add percentages, revenue figures, or headcount (e.g. "reduced costs 23%").');
+    if (tooShort > 2) topIssues.push(`${tooShort} bullets are too short — expand with context, tool used, or outcome to show real impact.`);
+    if (/\b(seeking|looking for|hoping to)\b/i.test(firstPara)) topIssues.push('Summary says what you want ("seeking…") — rewrite to say what you deliver.');
+    if (atsScore !== null && atsScore < 40) topIssues.push(`Only ${atsScore}% ATS keyword match against the job description — weave missing keywords into your bullets and summary.`);
+
+    setSmResult({ aiScore, bulletScore, summaryScore, atsScore, composite, topIssues: topIssues.slice(0, 4), cfLive, hasJd: jd.length > 40 });
+    setSmScoring(false);
+  }, [smCvText, smJdText, smCfPhrases]);
+
   useEffect(() => { const t = setTimeout(() => setReady(true), 40); return () => clearTimeout(t); }, []);
   useEffect(() => {
     const io = new IntersectionObserver(entries => {
@@ -1082,6 +1205,205 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
       </section>
 
+      {/* ── Score My CV ──────────────────────────────────────────────── */}
+      <section
+        ref={reg('smc')} data-s="smc"
+        style={{
+          padding: '72px 24px',
+          borderTop: `1px solid ${border}`,
+          opacity: v('smc') ? 1 : 0, transform: v('smc') ? 'none' : 'translateY(24px)',
+          transition: 'opacity 0.6s, transform 0.6s',
+        }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          {/* Header */}
+          <div style={{ marginBottom: 40, display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8, margin: '0 0 8px' }}>Free instant analysis</p>
+              <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 10px', lineHeight: 1.1 }}>See your CV score<br />before a recruiter does.</h2>
+              <p style={{ fontSize: 14, color: muted, margin: 0, maxWidth: 480, lineHeight: 1.6 }}>Paste your CV text. Get an instant score across 4 dimensions — AI-tell detection, bullet quality, summary strength, and ATS match. No signup needed.</p>
+            </div>
+            {smCfPhrases && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, background: surface, border: `1px solid ${border}`, fontSize: 11, color: muted, flexShrink: 0 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                Live CF data connected
+              </div>
+            )}
+          </div>
+
+          {/* Input + Result grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: smResult ? '1fr 1fr' : '1fr', gap: 20, alignItems: 'start' }}>
+
+            {/* Left: inputs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: faint, marginBottom: 6 }}>
+                  Your CV text *
+                </label>
+                <textarea
+                  value={smCvText}
+                  onChange={e => { setSmCvText(e.target.value); setSmResult(null); }}
+                  placeholder={`Paste your CV text here…\n\nExample:\nSenior Product Manager with 7+ years in fintech.\n\n• Led checkout redesign for 2.4M merchants → £12.6M ARR\n• Cut cart abandonment 34% via 22-variant A/B programme\n• Grew NPS 42→78 via onboarding personalisation`}
+                  rows={10}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '12px 14px', fontSize: 13, lineHeight: 1.55,
+                    borderRadius: 12, border: `1.5px solid ${smCvText.length > 80 ? '#22c55e55' : border}`,
+                    background: surface, color: text, resize: 'vertical',
+                    outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.2s',
+                  }}
+                />
+                <p style={{ fontSize: 11, color: faint, margin: '4px 0 0', textAlign: 'right' }}>
+                  {smCvText.length < 80 ? `${Math.max(0, 80 - smCvText.length)} more characters needed` : `✓ ${smCvText.length} chars`}
+                </p>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: faint, marginBottom: 6 }}>
+                  Job description <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — unlocks ATS match score)</span>
+                </label>
+                <textarea
+                  value={smJdText}
+                  onChange={e => { setSmJdText(e.target.value); setSmResult(null); }}
+                  placeholder="Paste the job description here to get an ATS keyword match score…"
+                  rows={4}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '12px 14px', fontSize: 13, lineHeight: 1.55,
+                    borderRadius: 12, border: `1.5px solid ${smJdText.length > 40 ? '#3b82f655' : border}`,
+                    background: surface, color: text, resize: 'vertical',
+                    outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.2s',
+                  }}
+                />
+              </div>
+              <button
+                onClick={smRunScore}
+                disabled={smScoring || smCvText.trim().length < 80}
+                style={{
+                  padding: '13px 28px', fontSize: 14, fontWeight: 900, borderRadius: 12,
+                  background: smCvText.trim().length >= 80 ? Y : elevated,
+                  border: 'none', cursor: smCvText.trim().length >= 80 ? 'pointer' : 'not-allowed',
+                  color: smCvText.trim().length >= 80 ? '#111' : faint,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.15s', alignSelf: 'flex-start',
+                  opacity: smScoring ? 0.7 : 1,
+                }}
+                onMouseEnter={e => { if (smCvText.trim().length >= 80 && !smScoring) (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.02)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+              >
+                {smScoring ? (
+                  <>
+                    <span style={{ width: 14, height: 14, border: '2px solid #111', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+                    Analysing…
+                  </>
+                ) : '⚡ Score My CV — free'}
+              </button>
+            </div>
+
+            {/* Right: results */}
+            {smResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Composite score */}
+                <div style={{ padding: 24, borderRadius: 16, background: surface, border: `1.5px solid ${border}`, display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Gauge */}
+                  <div style={{ position: 'relative', width: 100, height: 100, flexShrink: 0 }}>
+                    <svg width={100} height={100} style={{ transform: 'rotate(-90deg)' }} viewBox="0 0 100 100">
+                      <circle cx={50} cy={50} r={40} fill="none" stroke={darkMode ? '#2a2a2a' : '#e5e7eb'} strokeWidth={9} />
+                      <circle cx={50} cy={50} r={40} fill="none"
+                        stroke={smResult.composite >= 75 ? '#22c55e' : smResult.composite >= 55 ? '#f59e0b' : '#ef4444'}
+                        strokeWidth={9}
+                        strokeDasharray={`${(smResult.composite / 100) * 251.3} 251.3`}
+                        strokeLinecap="round"
+                        style={{ transition: 'stroke-dasharray 1s ease' }}
+                      />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: 26, fontWeight: 900, color: smResult.composite >= 75 ? '#22c55e' : smResult.composite >= 55 ? '#f59e0b' : '#ef4444', lineHeight: 1 }}>{smResult.composite}</span>
+                      <span style={{ fontSize: 9, color: faint }}>/100</span>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 4 }}>
+                      {smResult.composite >= 85 ? 'Excellent shape' : smResult.composite >= 70 ? 'Good — fixable gaps' : smResult.composite >= 50 ? 'Fair — needs work' : 'Needs improvement'}
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+                      {smResult.composite >= 80
+                        ? 'Strong CV. ProCV can push it further with ATS-targeted generation.'
+                        : smResult.composite >= 60
+                        ? 'Several patterns recruiters flag. ProCV fixes all of these automatically.'
+                        : 'Multiple issues found. ProCV generates ATS-optimised CVs that avoid every one of these.'}
+                    </p>
+                    {smResult.cfLive && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#3b82f615', color: '#3b82f6', border: '1px solid #3b82f630' }}>
+                        ⚡ Scored with live CF data
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dimension bars */}
+                <div style={{ padding: 20, borderRadius: 16, background: surface, border: `1px solid ${border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: faint, margin: 0 }}>Score breakdown</p>
+                  {[
+                    { label: 'AI-Tell Detection', score: smResult.aiScore, icon: '🤖' },
+                    { label: 'Bullet Quality', score: smResult.bulletScore, icon: '✦' },
+                    { label: 'Summary Strength', score: smResult.summaryScore, icon: '📝' },
+                    ...(smResult.atsScore !== null ? [{ label: 'ATS Keyword Match', score: smResult.atsScore, icon: '🎯' }] : []),
+                  ].map(({ label, score, icon }) => (
+                    <div key={label}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, color: text }}>{icon} {label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444' }}>{score}</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 99, background: darkMode ? '#2a2a2a' : '#e5e7eb' }}>
+                        <div style={{ height: '100%', borderRadius: 99, width: `${score}%`, transition: 'width 0.9s ease', background: score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444' }} />
+                      </div>
+                    </div>
+                  ))}
+                  {!smResult.hasJd && (
+                    <p style={{ fontSize: 11, color: faint, margin: 0, fontStyle: 'italic' }}>
+                      + Paste a job description above to unlock ATS match score
+                    </p>
+                  )}
+                </div>
+
+                {/* Top issues */}
+                {smResult.topIssues.length > 0 && (
+                  <div style={{ padding: 20, borderRadius: 16, background: surface, border: `1px solid ${border}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: faint, margin: '0 0 12px' }}>Top issues to fix</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {smResult.topIssues.map((issue, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 10, background: darkMode ? '#1f0a0a' : '#fef2f2', border: `1px solid ${darkMode ? '#3d1515' : '#fecaca'}` }}>
+                          <span style={{ flexShrink: 0, fontSize: 12, color: '#ef4444' }}>✗</span>
+                          <span style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>{issue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* CTA */}
+                <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, #1B2B4B 0%, #2a3f6b 100%)`, border: 'none', textAlign: 'center' }}>
+                  <p style={{ fontSize: 13, fontWeight: 900, color: '#fff', margin: '0 0 6px' }}>
+                    ProCV fixes all of this automatically.
+                  </p>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                    Generate an ATS-optimised, recruiter-safe CV from your profile in minutes.
+                  </p>
+                  <button
+                    onClick={onGetStarted}
+                    style={{ padding: '11px 24px', fontSize: 13, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 7, transition: 'transform 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.04)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
+                  >
+                    Build my ATS-optimised CV — free
+                    <svg width={13} height={13} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* ── Testimonials ─────────────────────────────────────────────── */}
       <section
         ref={reg('t')} data-s="t"
@@ -1169,7 +1491,12 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
         </div>
       </footer>
 
-      <style>{`@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+      <style>{`
+        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .sm-grid-1col { grid-template-columns: 1fr !important; }
+        @media (max-width: 700px) { .sm-score-grid { grid-template-columns: 1fr !important; } }
+      `}</style>
     </div>
   );
 };
