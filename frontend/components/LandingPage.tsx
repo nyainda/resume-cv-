@@ -828,6 +828,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               <button onClick={onGetStarted} style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
                 See all 14 tools
               </button>
+              <button
+                onClick={() => { const el = document.getElementById('score-cv'); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                ⚡ Score my CV
+              </button>
             </div>
 
             {/* Stats strip */}
@@ -1207,6 +1212,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
 
       {/* ── Score My CV ──────────────────────────────────────────────── */}
       <section
+        id="score-cv"
         ref={reg('smc')} data-s="smc"
         style={{
           padding: '72px 24px',
@@ -1222,12 +1228,6 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
               <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 10px', lineHeight: 1.1 }}>See your CV score<br />before a recruiter does.</h2>
               <p style={{ fontSize: 14, color: muted, margin: 0, maxWidth: 480, lineHeight: 1.6 }}>Paste your CV text. Get an instant score across 4 dimensions — AI-tell detection, bullet quality, summary strength, and ATS match. No signup needed.</p>
             </div>
-            {smCfPhrases && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, background: surface, border: `1px solid ${border}`, fontSize: 11, color: muted, flexShrink: 0 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-                Live CF data connected
-              </div>
-            )}
           </div>
 
           {/* Input + Result grid */}
@@ -1331,11 +1331,6 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, darkMode, onToggleDark, ha
                         ? 'Several patterns recruiters flag. ProCV fixes all of these automatically.'
                         : 'Multiple issues found. ProCV generates ATS-optimised CVs that avoid every one of these.'}
                     </p>
-                    {smResult.cfLive && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#3b82f615', color: '#3b82f6', border: '1px solid #3b82f630' }}>
-                        ⚡ Scored with live CF data
-                      </span>
-                    )}
                   </div>
                 </div>
 
