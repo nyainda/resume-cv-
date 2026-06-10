@@ -238,14 +238,14 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                 </button>
             </div>
 
-            {/* File list */}
+            {/* File list — show only human-labelled entries, hide raw cache keys */}
             <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                 {loading ? (
                     <div className="py-6 text-center text-xs text-zinc-400 animate-pulse">Loading Drive files…</div>
-                ) : files.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-zinc-400">No files found in Drive yet.<br />Click "Save All" to upload your data.</div>
+                ) : files.filter(f => KEY_META[f.key]).length === 0 ? (
+                    <div className="py-6 text-center text-xs text-zinc-400">No data found in Drive yet.<br />Click "Save All to Drive" to back up your data.</div>
                 ) : (
-                    files.map(f => (
+                    files.filter(f => KEY_META[f.key]).map(f => (
                         <div key={f.key} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 group">
                             <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-base leading-none">{f.icon}</span>

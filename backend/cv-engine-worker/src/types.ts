@@ -13,7 +13,10 @@ export interface Env {
     AI: Ai;
     ALLOWED_ORIGINS?: string;
     ADMIN_TOKEN?: string;
+    /** Brevo (Sendinblue) API key — required for email magic links. Set via: wrangler secret put BREVO_API_KEY */
     BREVO_API_KEY?: string;
+    /** The app's public URL — used to construct magic-link redirect URLs. Defaults to procv.app if not set. */
+    APP_URL?: string;
 }
 
 // ─── KV data versioning ───────────────────────────────────────────────────────
