@@ -64,7 +64,7 @@ const ScoreGauge: React.FC<{ score: number; grade: MatchGrade }> = ({ score, gra
 
 // ── Cache + history helpers ────────────────────────────────────────────────────
 const HISTORY_KEY = 'procv:jd-analysis:history';
-const HISTORY_MAX = 15;
+const HISTORY_MAX = 5;
 
 interface AnalysisHistoryEntry {
     key: string;
@@ -104,6 +104,19 @@ function saveCachedAnalysis(jd: string, cv: string, result: EnhancedJobAnalysis)
 function loadAnalysisHistory(): AnalysisHistoryEntry[] {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
 }
+function pruneOldAnalysisCaches(keepKeys: Set<string>) {
+    // Remove any procv:jd-analysis:* individual cache keys that are no longer in history
+    try {
+        const toDelete: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('procv:jd-analysis:') && k !== HISTORY_KEY && !keepKeys.has(k)) {
+                toDelete.push(k);
+            }
+        }
+        for (const k of toDelete) localStorage.removeItem(k);
+    } catch { /* best-effort */ }
+}
 function saveToAnalysisHistory(key: string, result: EnhancedJobAnalysis, jd: string) {
     try {
         const entry: AnalysisHistoryEntry = {
@@ -116,7 +129,12 @@ function saveToAnalysisHistory(key: string, result: EnhancedJobAnalysis, jd: str
             jdSnippet: jd.substring(0, 80).replace(/\s+/g, ' ').trim(),
         };
         const existing = loadAnalysisHistory().filter(e => e.key !== key);
-        localStorage.setItem(HISTORY_KEY, JSON.stringify([entry, ...existing].slice(0, HISTORY_MAX)));
+        const trimmed = [entry, ...existing].slice(0, HISTORY_MAX);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+        // Evict individual cache entries for analyses no longer in history
+        const keepKeys = new Set(trimmed.map(e => e.key));
+        keepKeys.add(key); // always keep the one we just saved
+        pruneOldAnalysisCaches(keepKeys);
     } catch { /* quota */ }
 }
 // ─────────────────────────────────────────────────────────────────────────────

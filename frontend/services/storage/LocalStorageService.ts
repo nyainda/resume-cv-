@@ -16,10 +16,9 @@ import { dispatchQuotaWarning } from './storageErrors';
 const CV_PREFIX = 'cv_builder:';
 
 // Keys we can safely evict when quota is full (ordered by eviction priority: biggest/least important first)
+// Note: jb_jsResults and jb_searchResults were moved to useState (session only) — no longer persisted.
 const EVICTABLE_KEYS = [
-    'jb_pageCache',        // JSearch API cache — largest, fully re-fetchable
-    'jb_jsResults',        // Last JSearch results grid
-    'jb_searchResults',    // Last Tavily results grid
+    'jb_pageCache',        // JSearch page cache — largest, fully re-fetchable
     'jb_seenIds',          // Seen job IDs — large, resettable
     'jb_jsRole',
     'jb_jsCategory',

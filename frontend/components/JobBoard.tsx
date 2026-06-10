@@ -41,6 +41,9 @@ interface SearchResult extends Omit<ScrapedJob, 'status' | 'jobDescription' | 'l
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
+const PAGE_CACHE_MAX = 30;  // max local page-cache entries for JSearch (evict oldest)
+const SEEN_IDS_MAX   = 500; // rolling window for deduplication
+
 const TABS: { id: TabId; label: string; emoji: string; desc: string }[] = [
     { id: 'jsearch', label: 'Live Jobs', emoji: '🔎', desc: 'Real-time listings from LinkedIn, Indeed, Glassdoor & 50+ sources' },
     { id: 'remote', label: 'Remote', emoji: '🌍', desc: 'Work-from-anywhere jobs worldwide' },
@@ -245,7 +248,7 @@ const JobBoard: React.FC<JobBoardProps> = ({
     const [role, setRole] = useLocalStorage<string>('jb_role', '');
     const [visaCountry, setVisaCountry] = useLocalStorage<string>('jb_visaCountry', 'UK');
     const [scholarshipLevel, setScholarshipLevel] = useLocalStorage<string>('jb_scholarshipLevel', 'Masters');
-    const [searchResults, setSearchResults] = useLocalStorage<SearchResult[]>('jb_searchResults', []);
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [pipeline, setPipeline] = useLocalStorage<ScrapedJob[]>('jb_pipeline', []);
 
     // ── JSearch state ──
@@ -256,13 +259,13 @@ const JobBoard: React.FC<JobBoardProps> = ({
     const [jsEmploymentTypes, setJsEmploymentTypes] = useLocalStorage<string[]>('jb_jsEmpTypes', []);
     const [jsRemoteOnly, setJsRemoteOnly] = useLocalStorage<boolean>('jb_jsRemote', false);
     const [jsExperience, setJsExperience] = useLocalStorage<string>('jb_jsExperience', '');
-    const [jsResults, setJsResults] = useLocalStorage<JSearchJob[]>('jb_jsResults', []);
+    const [jsResults, setJsResults] = useState<JSearchJob[]>([]);
     const [jsPage, setJsPage] = useLocalStorage<number>('jb_jsPage', 1);
     const [jsTotalPages, setJsTotalPages] = useLocalStorage<number>('jb_jsTotalPages', 1);
     // ── Deduplication & cache ──
     // seenJobIds: all job IDs ever shown — never show them again across sessions
     const [seenJobIds, setSeenJobIds] = useLocalStorage<string[]>('jb_seenIds', []);
-    // pageCache: raw API pages keyed by "cacheKey|page" — avoids re-fetching same page
+    // pageCache: raw API pages keyed by "cacheKey|page" — capped at PAGE_CACHE_MAX entries
     const [pageCache, setPageCache] = useLocalStorage<Record<string, { jobs: JSearchJob[]; fetchedAt: number }>>(
         'jb_pageCache', {}
     );
@@ -286,6 +289,15 @@ const JobBoard: React.FC<JobBoardProps> = ({
     const [selectedPipelineJob, setSelectedPipelineJob] = useState<ScrapedJob | null>(null);
 
     const refreshBudget = () => setRemaining(getRemainingCalls());
+
+    // One-time cleanup: remove legacy large keys that were previously persisted
+    // but have since been moved to sessionStorage / useState.
+    useEffect(() => {
+        try {
+            localStorage.removeItem('cv_builder:jb_searchResults');
+            localStorage.removeItem('cv_builder:jb_jsResults');
+        } catch { /* best-effort */ }
+    }, []);
 
     // ─── Search ──────────────────────────────────────────────────────────────────
     const handleSearch = useCallback(async () => {
@@ -370,11 +382,19 @@ const JobBoard: React.FC<JobBoardProps> = ({
                     totalPagesEstimate = result.total ? Math.min(Math.ceil(result.total / 10), 10) : totalPagesEstimate;
                     setJsTotalPages(totalPagesEstimate);
 
-                    // Cache this page locally
-                    setPageCache(prev => ({
-                        ...prev,
-                        [pageCacheKey]: { jobs: pageJobs, fetchedAt: Date.now() },
-                    }));
+                    // Cache this page locally — cap at PAGE_CACHE_MAX entries (evict oldest)
+                    setPageCache(prev => {
+                        const next = { ...prev, [pageCacheKey]: { jobs: pageJobs, fetchedAt: Date.now() } };
+                        const keys = Object.keys(next);
+                        if (keys.length > PAGE_CACHE_MAX) {
+                            // sort ascending by fetchedAt, evict the oldest entries
+                            const sorted = keys.sort((a, b) => next[a].fetchedAt - next[b].fetchedAt);
+                            for (const k of sorted.slice(0, keys.length - PAGE_CACHE_MAX)) {
+                                delete next[k];
+                            }
+                        }
+                        return next;
+                    });
                 }
 
                 // Filter out seen jobs
@@ -386,12 +406,12 @@ const JobBoard: React.FC<JobBoardProps> = ({
                 if (!isFresh && pageJobs.length === 0) break;
             }
 
-            // Mark all returned jobs as seen (even ones already in results, to avoid showing them on the next search)
+            // Mark all returned jobs as seen — cap rolling window at 500 IDs
             if (newResults.length > 0) {
                 const newIds = newResults.map(j => j.id);
                 setSeenJobIds(prev => {
-                    const merged = new Set([...prev, ...newIds]);
-                    return Array.from(merged);
+                    const merged = Array.from(new Set([...prev, ...newIds]));
+                    return merged.length > SEEN_IDS_MAX ? merged.slice(merged.length - SEEN_IDS_MAX) : merged;
                 });
             }
 

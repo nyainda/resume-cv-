@@ -19,10 +19,9 @@ const DB_VERSION = 1;
 const STORE = 'kv';
 
 // Keys we can safely evict from IDB when quota is hit
+// Note: jb_jsResults and jb_searchResults are now useState-only — no longer in IDB.
 const EVICTABLE_IDB_KEYS = [
     'cv_builder:jb_pageCache',
-    'cv_builder:jb_jsResults',
-    'cv_builder:jb_searchResults',
     'cv_builder:jb_seenIds',
 ];
 
