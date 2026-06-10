@@ -8,6 +8,8 @@
  *  3. When Google OAuth completes — link the Google token to the worker session.
  *  4. Expose requireAuth() — returns a Promise that resolves once the user is
  *     signed in (shows <AuthModal> if needed).
+ *  5. Track isNewUser — true after the first ever sign-in so the app can show
+ *     a welcome screen.
  */
 
 import React, {
@@ -43,6 +45,13 @@ interface WorkerAuthContextValue {
     /** True while validating a stored or magic-link token on mount. */
     isLoading: boolean;
     /**
+     * True immediately after the very first sign-in (brand-new account).
+     * Reset to false once the welcome screen is dismissed.
+     */
+    isNewUser: boolean;
+    /** Clear the new-user flag (called after the welcome modal is closed). */
+    clearNewUser: () => void;
+    /**
      * Ensures the user is signed in. Resolves immediately if already authed;
      * otherwise shows the AuthModal and resolves after sign-in completes.
      */
@@ -52,7 +61,7 @@ interface WorkerAuthContextValue {
     /** True when the AuthModal should be visible. */
     authModalOpen: boolean;
     /** Called by <AuthModal> when the user successfully signs in. */
-    onAuthSuccess: (token: string, user: WorkerUser) => void;
+    onAuthSuccess: (token: string, user: WorkerUser, isNew?: boolean) => void;
     /** Called by <AuthModal> when it is dismissed without signing in. */
     onAuthDismiss: () => void;
     /** Sign out — clears session locally and on the worker. */
@@ -74,10 +83,11 @@ export function useWorkerAuth(): WorkerAuthContextValue {
 export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     const { user: googleUser, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
 
-    const [workerUser,  setWorkerUser]  = useState<WorkerUser | null>(null);
-    const [sessionToken, setSessionToken] = useState<string | null>(null);
-    const [isLoading,   setIsLoading]   = useState(true);
+    const [workerUser,    setWorkerUser]    = useState<WorkerUser | null>(null);
+    const [sessionToken,  setSessionToken]  = useState<string | null>(null);
+    const [isLoading,     setIsLoading]     = useState(true);
     const [authModalOpen, setAuthModalOpen] = useState(false);
+    const [isNewUser,     setIsNewUser]     = useState(false);
 
     // Queue of resolvers waiting for auth to complete
     const pendingResolvers = useRef<Array<() => void>>([]);
@@ -96,6 +106,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         clearStoredSession();
         setSessionToken(null);
         setWorkerUser(null);
+        setIsNewUser(false);
     }, []);
 
     // ── Mount: restore / verify stored session + magic link ───────────────────
@@ -109,7 +120,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             const magicToken = params.get('magic');
 
             if (magicToken) {
-                // Remove from URL without a reload
+                // Remove from URL immediately (before async work) so a refresh
+                // doesn't re-submit the token
                 const clean = new URL(window.location.href);
                 clean.searchParams.delete('magic');
                 window.history.replaceState({}, '', clean.toString());
@@ -117,12 +129,13 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 const result = await verifyMagicLink(magicToken);
                 if (result && !cancelled) {
                     applySession(result.token, result.user);
+                    if (result.is_new_user) setIsNewUser(true);
                     setIsLoading(false);
                     return;
                 }
             }
 
-            // 2. Restore stored session
+            // 2. Restore stored session and re-validate with worker
             const stored = getStoredSession();
             if (stored?.token) {
                 const freshUser = await validateSession(stored.token);
@@ -131,7 +144,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                     setIsLoading(false);
                     return;
                 }
-                // Token is stale
+                // Token is stale — clear it
                 clearStoredSession();
             }
 
@@ -147,7 +160,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!isGoogleAuthed || !googleUser) return;
         // Only link once per unique Google user (avoids re-linking on every re-render)
-        const googleSub = googleUser.email; // we use email as a stable key client-side
+        const googleSub = googleUser.email;
         if (linkedGoogleId.current === googleSub) return;
         linkedGoogleId.current = googleSub;
 
@@ -156,9 +169,10 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         linkGoogleSession(googleUser.accessToken, deviceId).then(result => {
             if (result) {
                 applySession(result.token, result.user);
+                if (result.is_new_user) setIsNewUser(true);
             }
             // Always resolve pending requireAuth() promises when Google auth completes.
-            // If worker linkage failed (worker not deployed yet), generation still
+            // If worker linkage failed (worker not deployed), generation still
             // proceeds — graceful degradation until the worker is live.
             const queue = pendingResolvers.current.splice(0);
             queue.forEach(r => r());
@@ -168,8 +182,9 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
     // ── Auth modal callbacks ──────────────────────────────────────────────────
 
-    const onAuthSuccess = useCallback((token: string, user: WorkerUser) => {
+    const onAuthSuccess = useCallback((token: string, user: WorkerUser, isNew = false) => {
         applySession(token, user);
+        if (isNew) setIsNewUser(true);
         setAuthModalOpen(false);
         const queue = pendingResolvers.current.splice(0);
         queue.forEach(r => r());
@@ -177,9 +192,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
     const onAuthDismiss = useCallback(() => {
         setAuthModalOpen(false);
-        // Resolve (not reject) pending "landing page entry" promises so dismissing
-        // the modal on the landing page doesn't leave callbacks hanging forever.
-        // CVGenerator checks isWorkerAuthenticated separately and will re-prompt.
+        // Resolve (not reject) pending promises — the caller checks
+        // isWorkerAuthenticated separately if it needs to gate something.
         const queue = pendingResolvers.current.splice(0);
         queue.forEach(r => r());
     }, []);
@@ -196,6 +210,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
     const showSignIn = useCallback(() => setAuthModalOpen(true), []);
 
+    const clearNewUser = useCallback(() => setIsNewUser(false), []);
+
     // ── Sign out ──────────────────────────────────────────────────────────────
 
     const signOut = useCallback(async () => {
@@ -209,6 +225,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         isWorkerAuthenticated: !!sessionToken && !!workerUser,
         sessionToken,
         isLoading,
+        isNewUser,
+        clearNewUser,
         requireAuth,
         showSignIn,
         authModalOpen,

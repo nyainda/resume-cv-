@@ -897,9 +897,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             {/* Trust chips */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
               {[
-                { label: 'No signup', icon: '✓' },
-                { label: 'No cloud', icon: '✓' },
                 { label: 'Free forever', icon: '✓' },
+                { label: 'AI-powered', icon: '✓' },
+                { label: 'ATS optimised', icon: '✓' },
                 { label: 'Open source', icon: '✓' },
               ].map(c => (
                 <span key={c.label} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 99, background: elevated, border: `1px solid ${border}`, color: text, display: 'inline-flex', alignItems: 'center', gap: 6 }}>

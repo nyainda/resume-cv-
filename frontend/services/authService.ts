@@ -56,7 +56,7 @@ export function clearStoredSession(): void {
 export async function linkGoogleSession(
     accessToken: string,
     deviceId: string,
-): Promise<{ token: string; user: WorkerUser } | null> {
+): Promise<{ token: string; user: WorkerUser; is_new_user: boolean } | null> {
     try {
         const res = await fetch(`${ENGINE}/api/auth/google`, {
             method: 'POST',
@@ -67,7 +67,7 @@ export async function linkGoogleSession(
         if (!res.ok) return null;
         const data = await res.json() as any;
         if (!data.ok) return null;
-        return { token: data.session_token, user: data.user as WorkerUser };
+        return { token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.warn('[AuthService] linkGoogleSession failed:', e);
         return null;
@@ -98,7 +98,7 @@ export async function sendMagicLink(email: string, appUrl: string): Promise<{ ok
 /** Verify a magic-link token (from the ?magic= URL param). */
 export async function verifyMagicLink(
     token: string,
-): Promise<{ token: string; user: WorkerUser } | null> {
+): Promise<{ token: string; user: WorkerUser; is_new_user: boolean } | null> {
     try {
         const res = await fetch(
             `${ENGINE}/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`,
@@ -107,7 +107,7 @@ export async function verifyMagicLink(
         if (!res.ok) return null;
         const data = await res.json() as any;
         if (!data.ok) return null;
-        return { token: data.session_token, user: data.user as WorkerUser };
+        return { token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.warn('[AuthService] verifyMagicLink failed:', e);
         return null;

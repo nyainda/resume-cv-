@@ -33,6 +33,7 @@ import { profileToCV } from "./utils/profileToCV";
 import { GoogleAuthProvider, useGoogleAuth } from "./auth/GoogleAuthContext";
 import { WorkerAuthProvider, useWorkerAuth } from "./auth/WorkerAuthContext";
 import AuthModal from "./components/AuthModal";
+import WelcomeModal from "./components/WelcomeModal";
 import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
 import WorkerStatusBanner from "./components/WorkerStatusBanner";
@@ -223,7 +224,7 @@ function colorBg(c: ProfileColor) {
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated } = useGoogleAuth();
-  const { workerUser, isWorkerAuthenticated, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn } = useWorkerAuth();
+  const { workerUser, isWorkerAuthenticated, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, isNewUser, clearNewUser } = useWorkerAuth();
   useAutoSync(isAuthenticated);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
@@ -1627,6 +1628,20 @@ const AppInner: React.FC = () => {
             </button>
 
 
+            {/* ── Sign-out button (only when worker-authenticated) ─── */}
+            {isWorkerAuthenticated && (
+              <button
+                onClick={() => signOut()}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
+                title="Sign out"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Sign out
+              </button>
+            )}
+
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="group p-1.5 flex items-center gap-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-xl hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-all border border-zinc-200 dark:border-neutral-700"
@@ -2359,6 +2374,18 @@ const AppInner: React.FC = () => {
         onSuccess={onAuthSuccess}
         onDismiss={onAuthDismiss}
       />
+
+      {/* ── Welcome modal (new user first sign-in) ─────────────────────── */}
+      {isNewUser && workerUser && (
+        <WelcomeModal
+          name={workerUser.name}
+          email={workerUser.email}
+          onClose={() => {
+            clearNewUser();
+            if (!profileExists) setIsEditingProfile(true);
+          }}
+        />
+      )}
 
       {/* ── Google Drive conflict resolution modal ── */}
       <DriveConflictModal

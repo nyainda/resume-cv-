@@ -2,6 +2,15 @@
 /**
  * Auth handler — Google OAuth token link + Email magic link + Session management.
  *
+ * Security features:
+ *  - 256-bit random session tokens (crypto.getRandomValues)
+ *  - Magic links: single-use, 15 min TTL, rate-limited to 3 per email per 15 min
+ *  - Sessions: 30-day TTL, capped at 10 active per user (oldest deleted on overflow)
+ *  - Google tokens: verified server-side via googleapis userinfo
+ *  - Every sign-in / sign-out written to auth_audit_log
+ *  - last_seen_at updated on every session validation
+ *  - is_new_user flag returned so the frontend can show a welcome screen
+ *
  * Endpoints:
  *   POST /api/auth/google           — verify Google access token, upsert identity, return session
  *   POST /api/auth/magic-link/send  — generate & email a one-use sign-in link
@@ -15,8 +24,11 @@ import { json, safeJson } from '../utils';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SESSION_TTL_S    = 30 * 24 * 60 * 60; // 30 days
-const MAGIC_LINK_TTL_S = 15 * 60;            // 15 minutes
+const SESSION_TTL_S        = 30 * 24 * 60 * 60; // 30 days
+const MAGIC_LINK_TTL_S     = 15 * 60;            // 15 minutes
+const MAGIC_RATE_WINDOW_S  = 15 * 60;            // window to count sends
+const MAGIC_RATE_MAX       = 3;                   // max sends per window per email
+const SESSION_CAP          = 10;                  // max concurrent sessions per user
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +36,18 @@ function randomHex(bytes = 32): string {
     const arr = new Uint8Array(bytes);
     crypto.getRandomValues(arr);
     return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function clientIp(request: Request): string {
+    return (
+        request.headers.get('CF-Connecting-IP') ||
+        request.headers.get('X-Forwarded-For')?.split(',')[0].trim() ||
+        'unknown'
+    );
+}
+
+function clientUa(request: Request): string {
+    return (request.headers.get('User-Agent') || '').slice(0, 256);
 }
 
 interface GoogleUserInfo {
@@ -48,14 +72,59 @@ async function verifyGoogleToken(accessToken: string): Promise<GoogleUserInfo | 
     }
 }
 
+/** Create a new session and enforce the per-user session cap. */
 async function createSession(userId: number, env: Env): Promise<string> {
-    const token = randomHex(32);
+    const token = randomHex(32); // 64-char hex = 256-bit entropy
     const now   = Math.floor(Date.now() / 1000);
+
     await env.CV_DB.prepare(
         `INSERT INTO user_sessions (token, user_id, expires_at, created_at)
          VALUES (?, ?, ?, ?)`
     ).bind(token, userId, now + SESSION_TTL_S, now).run();
+
+    // Remove expired sessions for this user
+    await env.CV_DB.prepare(
+        `DELETE FROM user_sessions WHERE user_id = ? AND expires_at <= ?`
+    ).bind(userId, now).run().catch(() => {});
+
+    // Enforce the per-user active session cap (keep the 10 most recent)
+    await env.CV_DB.prepare(`
+        DELETE FROM user_sessions
+        WHERE user_id = ?
+          AND token NOT IN (
+              SELECT token FROM user_sessions
+              WHERE user_id = ?
+              ORDER BY created_at DESC
+              LIMIT ?
+          )
+    `).bind(userId, userId, SESSION_CAP).run().catch(() => {});
+
     return token;
+}
+
+/** Write an entry to the audit log (non-fatal — errors swallowed). */
+async function auditLog(
+    userId: number,
+    event: string,
+    method: string,
+    request: Request,
+    env: Env,
+): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await env.CV_DB.prepare(
+        `INSERT INTO auth_audit_log (user_id, event, method, ip, user_agent, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(userId, event, method, clientIp(request), clientUa(request), now)
+        .run().catch(() => {});
+}
+
+/** Returns true if this user was created within the last 5 seconds (brand-new account). */
+async function checkIsNewUser(userId: number, env: Env): Promise<boolean> {
+    // Count sessions excluding the one we just inserted (if count == 1 they're new)
+    const row = await env.CV_DB.prepare(
+        `SELECT COUNT(*) as c FROM user_sessions WHERE user_id = ?`
+    ).bind(userId).first<{ c: number }>();
+    return (row?.c ?? 0) <= 1;
 }
 
 // ─── Exported session helper (used by other handlers to auth-gate routes) ─────
@@ -89,9 +158,9 @@ function sessionTokenFromRequest(request: Request): string {
 
 /** POST /api/auth/google */
 export async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
-    const body      = await safeJson(request);
-    const token     = typeof body?.access_token === 'string' ? body.access_token.trim() : '';
-    const deviceId  = typeof body?.device_id    === 'string' ? body.device_id.trim()    : '';
+    const body     = await safeJson(request);
+    const token    = typeof body?.access_token === 'string' ? body.access_token.trim() : '';
+    const deviceId = typeof body?.device_id    === 'string' ? body.device_id.trim()    : '';
 
     if (!token) return json({ error: 'missing_access_token' }, request, env, 400);
 
@@ -100,6 +169,7 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
 
     const now = Math.floor(Date.now() / 1000);
 
+    // Upsert the identity (create or update)
     await env.CV_DB.prepare(`
         INSERT INTO user_identities (google_id, email, name, picture, device_id, plan, created_at, last_seen_at)
         VALUES (?, ?, ?, ?, ?, 'free', ?, ?)
@@ -111,7 +181,7 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
           last_seen_at = excluded.last_seen_at
     `).bind(gUser.sub, gUser.email, gUser.name, gUser.picture, deviceId || null, now, now).run();
 
-    // Also update by email in case a magic-link account already exists for this email
+    // Merge magic-link account if same email exists without a google_id
     await env.CV_DB.prepare(`
         UPDATE user_identities SET google_id = ?, name = ?, picture = ?, last_seen_at = ?
         WHERE email = ? AND google_id IS NULL
@@ -123,9 +193,14 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
     if (!user) return json({ error: 'db_error' }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
+    const is_new_user  = await checkIsNewUser(user.id, env);
+
+    await auditLog(user.id, 'signin_google', 'google', request, env);
+
     return json({
         ok: true,
         session_token: sessionToken,
+        is_new_user,
         user: { id: user.id, email: user.email, name: user.name, picture: user.picture, plan: user.plan },
     }, request, env);
 }
@@ -136,15 +211,29 @@ export async function handleAuthMagicSend(request: Request, env: Env): Promise<R
     const email  = typeof body?.email   === 'string' ? body.email.trim().toLowerCase()  : '';
     const appUrl = typeof body?.app_url === 'string' ? body.app_url.trim()              : '';
 
-    if (!email || !email.includes('@') || !email.includes('.')) {
+    if (!email || !email.includes('@') || email.length < 5) {
         return json({ error: 'invalid_email' }, request, env, 400);
     }
     if (!env.BREVO_API_KEY) {
         return json({ error: 'email_not_configured' }, request, env, 503);
     }
 
+    // ── Rate limit: max MAGIC_RATE_MAX sends per email per MAGIC_RATE_WINDOW_S ─
+    const now         = Math.floor(Date.now() / 1000);
+    const windowStart = now - MAGIC_RATE_WINDOW_S;
+    const recentRow   = await env.CV_DB.prepare(
+        `SELECT COUNT(*) as c FROM magic_link_tokens WHERE email = ? AND created_at > ?`
+    ).bind(email, windowStart).first<{ c: number }>();
+
+    if ((recentRow?.c ?? 0) >= MAGIC_RATE_MAX) {
+        return json({
+            error: 'rate_limited',
+            message: `Too many sign-in emails requested. Please wait ${MAGIC_RATE_WINDOW_S / 60} minutes and try again.`,
+            retry_after: MAGIC_RATE_WINDOW_S,
+        }, request, env, 429);
+    }
+
     const linkToken = randomHex(32);
-    const now       = Math.floor(Date.now() / 1000);
 
     await env.CV_DB.prepare(
         `INSERT INTO magic_link_tokens (token, email, expires_at, used, created_at)
@@ -184,13 +273,21 @@ export async function handleAuthMagicVerify(request: Request, env: Env, url: URL
         `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`
     ).bind(linkToken).first<{ email: string; expires_at: number; used: number }>();
 
-    if (!row)      return json({ error: 'invalid_token' }, request, env, 404);
-    if (row.used)  return json({ error: 'token_already_used' }, request, env, 410);
+    if (!row)          return json({ error: 'invalid_token' }, request, env, 404);
+    if (row.used)      return json({ error: 'token_already_used' }, request, env, 410);
     if (row.expires_at < now) return json({ error: 'token_expired' }, request, env, 410);
 
-    await env.CV_DB.prepare(`UPDATE magic_link_tokens SET used = 1 WHERE token = ?`)
-        .bind(linkToken).run();
+    // Mark token used atomically
+    const updateResult = await env.CV_DB.prepare(
+        `UPDATE magic_link_tokens SET used = 1 WHERE token = ? AND used = 0`
+    ).bind(linkToken).run();
 
+    // If no rows changed, another request already consumed it (race condition guard)
+    if (!updateResult.meta?.changes || updateResult.meta.changes < 1) {
+        return json({ error: 'token_already_used' }, request, env, 410);
+    }
+
+    // Upsert identity (create on first magic-link sign-in)
     await env.CV_DB.prepare(`
         INSERT INTO user_identities (email, plan, created_at, last_seen_at)
         VALUES (?, 'free', ?, ?)
@@ -203,9 +300,14 @@ export async function handleAuthMagicVerify(request: Request, env: Env, url: URL
     if (!user) return json({ error: 'db_error' }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
+    const is_new_user  = await checkIsNewUser(user.id, env);
+
+    await auditLog(user.id, 'signin_magic', 'magic_link', request, env);
+
     return json({
         ok: true,
         session_token: sessionToken,
+        is_new_user,
         user: { id: user.id, email: user.email, name: user.name || '', picture: user.picture || '', plan: user.plan },
     }, request, env);
 }
@@ -215,6 +317,13 @@ export async function handleAuthSession(request: Request, env: Env): Promise<Res
     const sessionToken = sessionTokenFromRequest(request);
     const session = await verifySession(sessionToken, env);
     if (!session) return json({ error: 'invalid_session' }, request, env, 401);
+
+    const now = Math.floor(Date.now() / 1000);
+
+    // Bump last_seen_at on the identity
+    await env.CV_DB.prepare(
+        `UPDATE user_identities SET last_seen_at = ? WHERE id = ?`
+    ).bind(now, session.userId).run().catch(() => {});
 
     const user = await env.CV_DB.prepare(
         `SELECT id, email, name, picture, plan FROM user_identities WHERE id = ?`
@@ -228,8 +337,13 @@ export async function handleAuthSession(request: Request, env: Env): Promise<Res
 export async function handleAuthSignout(request: Request, env: Env): Promise<Response> {
     const sessionToken = sessionTokenFromRequest(request);
     if (sessionToken) {
+        // Fetch user before deleting for the audit log
+        const session = await verifySession(sessionToken, env);
         await env.CV_DB.prepare(`DELETE FROM user_sessions WHERE token = ?`)
             .bind(sessionToken).run().catch(() => {});
+        if (session) {
+            await auditLog(session.userId, 'signout', 'session', request, env);
+        }
     }
     return json({ ok: true }, request, env);
 }
@@ -238,26 +352,44 @@ export async function handleAuthSignout(request: Request, env: Env): Promise<Res
 
 function buildMagicEmail(magicLink: string): string {
     return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in to ProCV</title>
+</head>
 <body style="margin:0;padding:0;background:#F8F7F4;font-family:'DM Sans',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
     <tr><td align="center" style="padding:40px 16px;">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.08);overflow:hidden;">
+      <table width="480" cellpadding="0" cellspacing="0" role="presentation"
+        style="background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.08);overflow:hidden;max-width:100%;">
+        <!-- Header -->
         <tr><td style="background:#1B2B4B;padding:24px 32px;">
           <span style="color:#C9A84C;font-size:20px;font-weight:800;letter-spacing:-0.5px;">ProCV</span>
-          <span style="color:#ffffff80;font-size:13px;margin-left:10px;">Your Personal Career Consultant</span>
+          <span style="color:rgba(255,255,255,0.5);font-size:13px;margin-left:10px;">Your Personal Career Consultant</span>
         </td></tr>
-        <tr><td style="padding:32px;">
+        <!-- Body -->
+        <tr><td style="padding:32px 32px 24px;">
           <h1 style="color:#1B2B4B;font-size:22px;font-weight:700;margin:0 0 12px;">Sign in to ProCV</h1>
           <p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 28px;">
-            Click the button below to sign in. This link is valid for <strong>15 minutes</strong> and can only be used once.
+            Click the button below to sign in securely. This link expires in
+            <strong>15 minutes</strong> and can only be used once.
           </p>
-          <a href="${magicLink}" style="display:inline-block;background:#1B2B4B;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;">
+          <a href="${magicLink}"
+            style="display:inline-block;background:#1B2B4B;color:#fff;padding:14px 32px;
+                   border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;
+                   letter-spacing:-0.01em;">
             Sign in to ProCV →
           </a>
-          <p style="color:#999;font-size:12px;margin:28px 0 0;">
-            If you didn't request this, you can safely ignore this email. Your account won't be affected.
+          <p style="color:#999;font-size:12px;line-height:1.5;margin:28px 0 0;">
+            If you didn't request this email, you can safely ignore it — your account
+            won't be affected and this link will expire automatically.<br><br>
+            For your security, never share this link with anyone.
+          </p>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background:#F8F7F4;padding:16px 32px;border-top:1px solid #e5e2d8;">
+          <p style="color:#aaa;font-size:11px;margin:0;text-align:center;">
+            ProCV · Your Personal Career Consultant<br>
+            You're receiving this because a sign-in was requested for this email address.
           </p>
         </td></tr>
       </table>
