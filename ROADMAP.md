@@ -70,12 +70,15 @@ These are confirmed working from code audit (June 2026):
 ## PHASE 2 — Beat Resume Worded (Score My CV)
 *Direct competitor killer. Build after Phase 1 is solid.*
 
-- [ ] **2.1 — "Score My CV" full feature**
-  - Composite score (0–100) across 5 dimensions already built: ATS Compatibility (`/api/cv/validate`), Human Voice Score (`hrDetectorSimulation`), Bullet Quality (`cvQualityGate`), Career Progression (`cvSeniorityCoherence`), JD Match (`/api/cv/semantic-match`)
-  - UI: upload/paste CV → optional JD → parallel score → expandable per-dimension panels with exact failing bullets → "Fix My CV Automatically" CTA
-  - Anti-gaming: 72% JD match = green ✅, 95% = amber ⚠️ "looks keyword-stuffed"
-  - Zero new infrastructure — all endpoints already exist
-  - **Effort:** 3–4 days
+- [x] **2.1 — "Score My CV" full feature**
+  - New view `"score"` + `ScoreMyCVPage.tsx` component (350 lines)
+  - 4 active dimensions: Human Voice (scoreHRDetection — 8 signals, 0–100), Bullet Quality (inline regex scorer — 7 checks, 0–100), Career Logic (auditSeniorityCoherence — overreach/underreach, 0–100), ATS Match (scoreAtsCoverage — JD keyword gap, 0–100, optional)
+  - Composite score = weighted average (equal weights; ATS excluded if no JD pasted)
+  - SVG gauge, animated progress bars, expandable per-dimension issue panels with specific fix instructions
+  - Anti-gaming: ATS >88% = amber warning "looks keyword-stuffed — aim for 65–80%"
+  - "Fix My CV →" CTA routes to CV Generator; "Re-score with JD" inline JD input
+  - Zero LLM tokens, zero network calls, results in <1 second
+  - Nav item: "Score My CV" in the Tools group with bar-chart icon
 
 - [ ] **2.2 — Career Pivot Score page**
   - When `cvSeniorityCoherence` or field detection detects background field ≠ JD field, don't penalise — explain

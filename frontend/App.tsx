@@ -58,6 +58,7 @@ import InterviewPrep from "./components/InterviewPrep";
 import AdminLeaksPage from "./components/AdminLeaksPage";
 import AdminCVEnginePage from "./components/AdminCVEnginePage";
 import StorageMapPage from "./components/StorageMapPage";
+import ScoreMyCVPage from "./components/ScoreMyCVPage";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { getDriveRouter } from "./services/storage/StorageRouter";
 import {
@@ -87,6 +88,23 @@ const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
   >
     <rect x="2" y="4" width="20" height="16" rx="2" />
     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </svg>
+);
+
+const ScoreNavIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M8 17v-6" />
+    <path d="M12 17v-4" />
+    <path d="M16 17v-9" />
   </svg>
 );
 
@@ -1367,6 +1385,7 @@ const AppInner: React.FC = () => {
     | "negotiation"
     | "scanner"
     | "analytics"
+    | "score"
     | "admin-leaks"
     | "admin-cv-engine"
     | "storage-map"
@@ -1435,7 +1454,10 @@ const AppInner: React.FC = () => {
     },
     {
       label: "Tools",
-      items: [{ id: "scanner", label: "Portal Scanner", icon: ScannerNavIcon }],
+      items: [
+        { id: "score",   label: "Score My CV",    icon: ScoreNavIcon },
+        { id: "scanner", label: "Portal Scanner", icon: ScannerNavIcon },
+      ],
     },
     {
       label: "Track",
@@ -2122,6 +2144,12 @@ const AppInner: React.FC = () => {
                       onGoToTracker={() => setCurrentView("tracker")}
                     />
                   </div>
+                )}
+                {currentView === "score" && (
+                  <ScoreMyCVPage
+                    currentCV={currentCV}
+                    onGoToGenerator={() => setCurrentView("generator")}
+                  />
                 )}
                 {currentView === "admin-leaks" && (
                   <div className="bg-slate-900 rounded-2xl border border-slate-800">
