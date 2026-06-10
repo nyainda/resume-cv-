@@ -24,7 +24,7 @@ type Screen = 'main' | 'magic-form' | 'magic-sent';
 
 export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps) {
     const { signIn: googleSignIn, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
-    const { isWorkerAuthenticated } = useWorkerAuth();
+    const { isWorkerAuthenticated, rememberDevice, setRememberDevice } = useWorkerAuth();
 
     const [screen, setScreen]         = useState<Screen>('main');
     const [email, setEmail]            = useState('');
@@ -198,7 +198,32 @@ export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps
                                 Continue with Email
                             </button>
 
-                            <p style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center', marginTop: 4 }}>
+                            {/* Remember this device */}
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none" style={{ marginTop: 2 }}>
+                                <div
+                                    onClick={() => setRememberDevice(!rememberDevice)}
+                                    className="relative flex-shrink-0 w-4 h-4 rounded border-2 transition-all flex items-center justify-center"
+                                    style={{
+                                        background: rememberDevice ? '#1B2B4B' : '#fff',
+                                        borderColor: rememberDevice ? '#1B2B4B' : '#d1d5db',
+                                    }}
+                                >
+                                    {rememberDevice && (
+                                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="2 6 5 9 10 3"/>
+                                        </svg>
+                                    )}
+                                </div>
+                                <span
+                                    onClick={() => setRememberDevice(!rememberDevice)}
+                                    style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}
+                                >
+                                    Remember me on this device
+                                    <span style={{ color: '#9ca3af', fontSize: 11 }}> — untick to sign out when you close the browser</span>
+                                </span>
+                            </label>
+
+                            <p style={{ color: '#9ca3af', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
                                 By signing in you agree to our Terms of Service. Your CV data stays private.
                             </p>
                         </div>

@@ -67,6 +67,9 @@ interface WorkerAuthContextValue {
     onAuthDismiss: () => void;
     /** Sign out — clears session locally and on the worker. */
     signOut: () => Promise<void>;
+    /** Whether to remember this device (persist session across browser closes). */
+    rememberDevice: boolean;
+    setRememberDevice: (v: boolean) => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -89,6 +92,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     const [isLoading,     setIsLoading]     = useState(true);
     const [authModalOpen, setAuthModalOpen] = useState(false);
     const [isNewUser,     setIsNewUser]     = useState(false);
+    const [rememberDevice, setRememberDevice] = useState(true);
 
     // Queue of resolvers waiting for auth to complete.
     // Resolves with true on success, false if dismissed without signing in.
@@ -98,8 +102,11 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
+    const rememberDeviceRef = useRef(rememberDevice);
+    useEffect(() => { rememberDeviceRef.current = rememberDevice; }, [rememberDevice]);
+
     const applySession = useCallback((token: string, user: WorkerUser) => {
-        setStoredSession(token, user);
+        setStoredSession(token, user, rememberDeviceRef.current);
         setSessionToken(token);
         setWorkerUser(user);
     }, []);
@@ -233,6 +240,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         onAuthSuccess,
         onAuthDismiss,
         signOut,
+        rememberDevice,
+        setRememberDevice,
     };
 
     return (

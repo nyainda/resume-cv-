@@ -10,8 +10,9 @@ const ENGINE = import.meta.env.VITE_CV_ENGINE_URL as string;
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
-const SESSION_KEY  = 'procv:worker_session';
-const USER_KEY     = 'procv:worker_user';
+const SESSION_KEY      = 'procv:worker_session';      // localStorage (persistent)
+const SESSION_TEMP_KEY = 'procv:worker_session_temp'; // sessionStorage (tab-only)
+const USER_KEY         = 'procv:worker_user';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,8 @@ export interface StoredSession {
 
 export function getStoredSession(): StoredSession | null {
     try {
-        const raw = localStorage.getItem(SESSION_KEY);
+        // Prefer persistent localStorage; fall back to tab-only sessionStorage.
+        const raw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_TEMP_KEY);
         if (!raw) return null;
         return JSON.parse(raw) as StoredSession;
     } catch {
@@ -40,14 +42,27 @@ export function getStoredSession(): StoredSession | null {
     }
 }
 
-export function setStoredSession(token: string, user: WorkerUser): void {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+/**
+ * Persist a session.
+ * @param persist true → localStorage (survives browser close, 30-day token)
+ *                false → sessionStorage (cleared when the tab is closed)
+ */
+export function setStoredSession(token: string, user: WorkerUser, persist = true): void {
+    if (persist) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ token, user }));
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        // Clean up any lingering tab-only copy from a previous session.
+        sessionStorage.removeItem(SESSION_TEMP_KEY);
+    } else {
+        sessionStorage.setItem(SESSION_TEMP_KEY, JSON.stringify({ token, user }));
+        // Do not write to localStorage so the device isn't "remembered".
+    }
 }
 
 export function clearStoredSession(): void {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(SESSION_TEMP_KEY);
 }
 
 // ─── Network calls ────────────────────────────────────────────────────────────
