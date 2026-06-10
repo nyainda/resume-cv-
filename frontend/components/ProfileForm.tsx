@@ -1293,10 +1293,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       {/* ── Word / PDF Import panel ────────────────────────────────────── */}
       {showWordImport && onProfileImported && (
         <div className="border-b border-zinc-200 dark:border-neutral-700 bg-[#F8F7F4]/60 dark:bg-[#1B2B4B]/10 p-4">
-          <p className="text-xs font-semibold text-[#1B2B4B] dark:text-[#C9A84C]/80 mb-3 flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5" />
-            Import your existing CV from a Word (.docx) or PDF file — fields are auto-filled from your document
-          </p>
           <WordImportPanel
             apiKeySet={apiKeySet}
             openSettings={openSettings}

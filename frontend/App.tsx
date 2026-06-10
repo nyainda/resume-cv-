@@ -48,7 +48,6 @@ import CVToolkit from "./components/CVToolkit";
 import EmailApply from "./components/EmailApply";
 import { ProfileManager } from "./components/ProfileManager";
 import NegotiationCoach from "./components/NegotiationCoach";
-import PortalScanner from "./components/PortalScanner";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import LandingPage from "./components/LandingPage";
 import DriveConflictModal from "./components/DriveConflictModal";
@@ -123,23 +122,6 @@ const ScoreNavIcon: React.FC<{ className?: string }> = ({ className }) => (
     <path d="M8 17v-6" />
     <path d="M12 17v-4" />
     <path d="M16 17v-9" />
-  </svg>
-);
-
-const ScannerNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.35-4.35" />
-    <path d="M11 8v6" />
-    <path d="M8 11h6" />
   </svg>
 );
 
@@ -1401,7 +1383,6 @@ const AppInner: React.FC = () => {
     | "toolkit"
     | "email"
     | "negotiation"
-    | "scanner"
     | "analytics"
     | "score"
     | "pivot"
@@ -1476,7 +1457,6 @@ const AppInner: React.FC = () => {
       label: "Tools",
       items: [
         { id: "pivot",   label: "Career Pivot",   icon: PivotNavIcon },
-        { id: "scanner", label: "Portal Scanner", icon: ScannerNavIcon },
       ],
     },
     {
@@ -2167,15 +2147,6 @@ const AppInner: React.FC = () => {
                     <NegotiationCoach
                       apiKeySet={apiKeySet}
                       openSettings={() => setIsSettingsOpen(true)}
-                    />
-                  </div>
-                )}
-                {currentView === "scanner" && (
-                  <div className="rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden">
-                    <PortalScanner
-                      tavilyApiKey={tavilyApiKey}
-                      openSettings={() => setIsSettingsOpen(true)}
-                      darkMode={!!darkMode}
                     />
                   </div>
                 )}

@@ -804,19 +804,6 @@ const OneDriveMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings,
 
     return (
         <div className="space-y-4">
-            {/* Hero banner */}
-            <div className="flex items-start gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-sky-50 dark:from-blue-900/10 dark:to-sky-900/10 border border-blue-200 dark:border-blue-800/40">
-                <div className="p-2 bg-white dark:bg-neutral-800 rounded-xl border border-blue-100 dark:border-blue-900/40 flex-shrink-0 shadow-sm">
-                    <OneDriveIcon className="h-7 w-7" />
-                </div>
-                <div>
-                    <h3 className="font-bold text-zinc-900 dark:text-zinc-100">Document Live Sync</h3>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                        Paste a sharing link from <strong>Google Docs</strong>, <strong>Word Online</strong>, or <strong>OneDrive</strong> — your profile syncs automatically, no uploads or accounts needed.
-                    </p>
-                </div>
-            </div>
-
             {/* Supported sources chips */}
             {!savedUrl && (
                 <div className="flex flex-wrap gap-2">

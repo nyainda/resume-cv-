@@ -25,9 +25,6 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings }) => {
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
-  const [tavilyKey, setTavilyKey] = useState(currentApiSettings.tavilyApiKey || '');
-  const [brevoKey, setBrevoKey] = useState(currentApiSettings.brevoApiKey || '');
-  const [jsearchKey, setJsearchKey] = useState(currentApiSettings.jsearchApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
 
   const { user: googleUser, isAuthenticated } = useGoogleAuth();
@@ -123,9 +120,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   useEffect(() => {
     setGeminiKey(currentApiSettings.apiKey || '');
     setClaudeKey(currentApiSettings.claudeApiKey || '');
-    setTavilyKey(currentApiSettings.tavilyApiKey || '');
-    setBrevoKey(currentApiSettings.brevoApiKey || '');
-    setJsearchKey(currentApiSettings.jsearchApiKey || '');
     setSelectedAiProvider(getSelectedProvider());
   }, [currentApiSettings, isOpen]);
 
@@ -147,10 +141,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       aiProvider: selectedAiProvider,
       apiKey: geminiKey.trim() || null,
       claudeApiKey: claudeKey.trim() || null,
-      tavilyApiKey: tavilyKey.trim() || null,
-      brevoApiKey: brevoKey.trim() || null,
       msClientId: null,
-      jsearchApiKey: jsearchKey.trim() || null,
     };
     onSave(settingsToSave);
     onClose();
@@ -579,109 +570,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               />
             </div>
           )}
-
-          {/* ── Tavily Job Search ── */}
-          <div className="rounded-xl border border-violet-200 dark:border-violet-800/40 p-4 space-y-3 bg-violet-50/50 dark:bg-violet-900/10">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-violet-500">🔍 Tavily Job Search</h3>
-              {tavilyKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400">○ Not connected</span>
-              )}
-            </div>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Enables the <strong>Job Board</strong> — automatically scrapes live job listings, fetches full JDs, and researches companies. Free tier: <strong>1,000 calls/month</strong>.
-            </p>
-            <a
-              href="https://app.tavily.com/home"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 underline font-semibold"
-            >
-              Get your free Tavily API key →
-            </a>
-            <Input
-              id="tavily-key"
-              type="password"
-              value={tavilyKey}
-              onChange={(e) => setTavilyKey(e.target.value)}
-              placeholder="tvly-xxxxxxxxxxxxxxxxxxxxxxxx"
-              className="font-mono text-sm"
-            />
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
-              Powers: Job Board search • Full JD fetching • Company intelligence in CV generation
-            </p>
-          </div>
-
-          {/* ── JSearch Live Jobs (RapidAPI) ── */}
-          <div className="rounded-xl border border-emerald-200 dark:border-emerald-700/40 p-4 space-y-3 bg-emerald-50/50 dark:bg-emerald-900/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🔎</span>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">JSearch — Live Job Board</h3>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">10M+ real-time listings · LinkedIn, Indeed & more · 200 searches/month free</p>
-                </div>
-              </div>
-              {jsearchKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not set</span>
-              )}
-            </div>
-            <a
-              href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 underline font-semibold"
-            >
-              Get your free JSearch API key on RapidAPI →
-            </a>
-            <Input
-              id="jsearch-key"
-              type="password"
-              value={jsearchKey}
-              onChange={(e) => setJsearchKey(e.target.value)}
-              placeholder="your-rapidapi-key"
-              className="font-mono text-sm"
-            />
-          </div>
-
-          {/* ── Brevo Email Sending ── */}
-          <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 p-4 space-y-3 bg-sky-50/50 dark:bg-sky-900/10">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-sky-600 dark:text-sky-400">✉️ Brevo Email Sending</h3>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">AI-drafted emails with CV · 300/day free · no email client needed</p>
-              </div>
-              {brevoKey ? (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">● Connected</span>
-              ) : (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400 shrink-0">○ Not connected</span>
-              )}
-            </div>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Your <strong>profile email</strong> must be a verified sender in Brevo.{' '}
-              <a href="https://app.brevo.com/senders" target="_blank" rel="noopener noreferrer"
-                className="text-sky-600 dark:text-sky-400 underline font-semibold">
-                Verify here →
-              </a>
-              {' · '}
-              <a href="https://app.brevo.com/settings/keys/api" target="_blank" rel="noopener noreferrer"
-                className="text-sky-600 dark:text-sky-400 underline font-semibold">
-                Get API key →
-              </a>
-            </p>
-            <Input
-              id="brevo-key"
-              type="password"
-              value={brevoKey}
-              onChange={(e) => setBrevoKey(e.target.value)}
-              placeholder="xkeysib-xxxxxxxxxxxxxxxxxxxxxxxx"
-              className="font-mono text-sm"
-            />
-          </div>
 
           {/* ── Mobile Save/Cancel buttons ── */}
           <div className="sm:hidden flex flex-col gap-2 pb-2">
