@@ -97,22 +97,17 @@ These are confirmed working from code audit (June 2026):
 
 ## PHASE 3 — Expand the Engine (Seed Data + Field Coverage)
 
-- [ ] **3.1 — Add 9 missing field profiles**
-  - Use the Admin CV Engine page already built
-  - Missing: `nursing_medical`, `accounting_audit`, `hospitality_tourism`, `real_estate_property`, `media_journalism`, `construction_site`, `customer_success`, `research_academia`, `supply_chain_logistics`
-  - Each needs: `jd_keywords[]`, `preferred_verbs[]`, `avoided_verbs[]`, `metric_types[]`
-  - **Effort:** 1 day
+- [x] **3.1 — Add 9 missing field profiles**
+  - Migration `021_field_profiles_expansion.sql` adds: `nursing_medical`, `accounting_audit`, `hospitality_tourism`, `real_estate_property`, `media_journalism`, `construction_site`, `customer_success`, `research_academia`, `supply_chain_logistics`
+  - Each has realistic `jd_keywords[]`, `preferred_verbs[]`, `avoided_verbs[]`, `metric_types[]` drawn from domain conventions
 
-- [ ] **3.2 — Add missing seniority + field combos**
-  - Currently 23 combos out of 85 possible (17 fields × 5 levels = 85). Covering ~27%.
-  - Most critical: `entry+healthcare_clinical`, `entry+education_teaching`, `junior+data_analytics`, `senior+finance`, `lead+product_management`, `entry+sales_commercial`, `mid+communications_marketing`, `senior+hr_people`
-  - Each combo needs `forbidden_phrases[]` — what sounds wrong at that level in that field
-  - **Effort:** 3 hours
+- [x] **3.2 — Add missing seniority + field combos**
+  - Migration `022_seniority_combos_expansion.sql` adds 10 combos: `entry+healthcare_clinical`, `entry+education_teaching`, `junior+data_analytics`, `senior+finance`, `lead+product_management`, `entry+sales_commercial`, `mid+communications_marketing`, `senior+hr_people`, `mid+tech`, `entry+consulting`
+  - Each combo has `forbidden_phrases[]` — credibility-break phrases wrong at that level in that field
 
-- [ ] **3.3 — Voice-specific summary formulas**
-  - All 13 voices currently use the same 4-line summary structure
-  - Add `summary_formula` to each voice profile in `cv_voice_profiles` so `analytical_thinker` (verbosity 4) produces a different shape than `hands_on_builder` (verbosity 2)
-  - **Effort:** 1 day
+- [x] **3.3 — Voice-specific summary formulas**
+  - Migration `023_voice_summary_formulas.sql` adds `summary_formula TEXT` to `cv_voice_profiles`
+  - 7 formula patterns keyed by verbosity_level + metric_preference — terse/results-first (v1–2+high), balanced analytical (v3+high), balanced mid-range (v3+medium), mission/people (v3+low), expansive strategic (v4–5+high), expansive narrative (v4–5+low/medium)
 
 - [x] **3.4 — Rhythm patterns for Projects + Education sections**
   - Migration `020_rhythm_projects_education.sql` adds three new patterns: `project_showcase` (5-bullet, impact-first), `project_minimal` (3-bullet, tight listing), `education_rich` (4-bullet, fresh-grad/academic)

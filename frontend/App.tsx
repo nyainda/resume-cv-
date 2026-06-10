@@ -1454,6 +1454,7 @@ const AppInner: React.FC = () => {
 
   const primaryNav = [
     { id: "generator", label: "CV Generator", icon: FileText },
+    { id: "score",     label: "Score My CV",  icon: ScoreNavIcon },
     { id: "interview", label: "Interview Prep", icon: InterviewNavIcon },
     { id: "tracker", label: "Job Tracker", icon: Target },
   ];
@@ -1474,7 +1475,6 @@ const AppInner: React.FC = () => {
     {
       label: "Tools",
       items: [
-        { id: "score",   label: "Score My CV",    icon: ScoreNavIcon },
         { id: "pivot",   label: "Career Pivot",   icon: PivotNavIcon },
         { id: "scanner", label: "Portal Scanner", icon: ScannerNavIcon },
       ],
@@ -2036,6 +2036,28 @@ const AppInner: React.FC = () => {
               />
             ) : (
               <div className="space-y-6">
+                {/* Quick-Score banner — visible on generator homepage when a CV is loaded */}
+                {currentView === "generator" && currentCV && (currentCV.summary || (currentCV.experience ?? []).length > 0) && (
+                  <div
+                    className="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl border border-[#C9A84C]/30"
+                    style={{ background: 'linear-gradient(135deg, #1B2B4B08 0%, #C9A84C08 100%)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">📊</span>
+                      <div>
+                        <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 leading-tight">Ready to score this CV?</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Human voice · Bullet quality · Career logic · ATS match</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setCurrentView("score" as any)}
+                      className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white whitespace-nowrap transition-opacity hover:opacity-90"
+                      style={{ background: '#1B2B4B' }}
+                    >
+                      Score My CV →
+                    </button>
+                  </div>
+                )}
                 {currentView === "generator" && (
                   <CVGenerator
                     userProfile={userProfile!}

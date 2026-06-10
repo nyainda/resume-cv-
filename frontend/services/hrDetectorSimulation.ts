@@ -152,18 +152,28 @@ export interface HRDetectionResult {
  * All computation is pure JS — no network calls, no LLM tokens.
  *
  * @param cv  The CVData to analyse (from getState/generateCV output).
+ * @param extraBannedOpeners  Additional bullet-opener phrases from the CF worker.
+ * @param extraAiisms  Additional summary AI-ism phrases from the CF worker.
  * @returns   HRDetectionResult with humanScore, riskScore, and per-signal breakdown.
  */
-export function scoreHRDetection(cv: CVData): HRDetectionResult {
+export function scoreHRDetection(
+    cv: CVData,
+    extraBannedOpeners: string[] = [],
+    extraAiisms: string[] = [],
+): HRDetectionResult {
     const bullets  = allBullets(cv);
     const summary  = (cv.summary || '').trim();
     const signals: HRSignal[] = [];
+
+    // Merge built-in static lists with live CF data
+    const allBannedOpeners = [...BANNED_OPENERS, ...extraBannedOpeners.map(p => new RegExp(`^${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'))];
+    const allAiisms = [...SUMMARY_AI_ISMS, ...extraAiisms.map(p => new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i'))];
 
     // ── Signal 1: Banned-opener survival (max 20 pts) ─────────────────────────
     {
         const hits: string[] = [];
         for (const b of bullets) {
-            for (const rx of BANNED_OPENERS) {
+            for (const rx of allBannedOpeners) {
                 if (rx.test(b.trim())) { hits.push(b.trim().split(/\s+/).slice(0, 3).join(' ')); break; }
             }
         }
@@ -248,7 +258,7 @@ export function scoreHRDetection(cv: CVData): HRDetectionResult {
 
     // ── Signal 5: Summary cliché density (max 15 pts) ─────────────────────────
     {
-        const hits = SUMMARY_AI_ISMS.filter(rx => rx.test(summary));
+        const hits = allAiisms.filter(rx => rx.test(summary));
         const riskPts = Math.min(15, hits.length * 5);
         signals.push({
             id: 'summary_cliches',
