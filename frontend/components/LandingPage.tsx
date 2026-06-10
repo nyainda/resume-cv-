@@ -597,18 +597,35 @@ const TESTIMONIALS = [
 
 /* ─── CV Validator — rejects obviously non-CV text ─────────────────────── */
 function isLikelyCv(text: string): string | null {
-  if (text.length < 200) {
+  const t = text.trim();
+
+  if (t.length < 200) {
     return 'Please paste more of your CV — we need at least a summary and one experience section (200+ characters).';
   }
-  const hasSections = /\b(experience|employment|education|skills|summary|profile|work history|qualifications|achievements|projects|certifications)\b/i.test(text);
-  const hasDates     = /\b(19|20)\d{2}\s*[-–—]\s*((19|20)\d{2}|present|current|now|to date)\b/i.test(text);
-  const hasBullets   = /^[\s]*[•\-\*·›➤▸]\s/m.test(text) || /^\s*\d+\.\s/m.test(text);
-  const hasContact   = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/.test(text) || /\+?\d[\d\s\-(). ]{7,}\d/.test(text);
-  const hasName      = /^[A-Z][a-z]+(?:\s[A-Z][a-z]+){1,3}\s*$/.test(text.split('\n')[0]?.trim() ?? '');
 
-  const signals = [hasSections, hasDates, hasBullets, hasContact, hasName].filter(Boolean).length;
+  // ── Step 1: Detect job descriptions first — they share signals with CVs ──
+  // JDs have employer-perspective headers and "apply" language that never appear in CVs
+  const JD_HEADERS = /^#{0,3}\s*(job\s+description|position\s+overview|about\s+(the\s+)?(role|position|company|us)|we\s+are\s+(seeking|looking\s+for)|the\s+successful\s+candidate|job\s+posting|vacancy|what\s+we\s+offer|our\s+client)\b/im;
+  const JD_SECTIONS = /^#{0,3}\s*(responsibilities|requirements|qualifications|preferred\s+skills?|desired\s+skills?|nice\s+to\s+have|benefits|compensation|salary)\s*[:\-–]?\s*$/im;
+  const JD_PHRASES  = /\b(we\s+are\s+(seeking|looking\s+for)|you\s+will\s+be\s+(responsible|expected)|the\s+(ideal|successful)\s+candidate|apply\s+(now|by|before)|equal\s+opportunity\s+(employer|employer\b)|to\s+apply\s+(please|send|email)|must\s+have\s+a\s+(degree|bachelor|master)|salary\s+(range|package)|closing\s+date)\b/i;
+
+  if (JD_HEADERS.test(t) || JD_SECTIONS.test(t) || JD_PHRASES.test(t)) {
+    return "This looks like a job description, not a CV. Please paste your own CV text — your personal experience, education, and skills.";
+  }
+
+  // ── Step 2: Check for CV-specific signals ────────────────────────────────
+  // Use only signals that genuinely separate a CV from other documents
+  const hasPersonalSections = /\b(professional\s+summary|career\s+summary|work\s+experience|work\s+history|employment\s+history|education|key\s+skills|core\s+competencies|profile|objective)\b/i.test(t);
+  const hasDateRanges   = /\b(19|20)\d{2}\s*[-–—]\s*((19|20)\d{2}|present|current|now|to\s+date)\b/i.test(t);
+  const hasBullets      = /^[\s]*[•·›➤▸]\s/m.test(t);   // only non-* bullets (JDs use * heavily)
+  const hasContact      = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/.test(t) || /\+?\d[\d\s\-(). ]{7,}\d/.test(t);
+  const hasName         = /^[A-Z][a-z]+(?:\s[A-Z][a-z]+){1,3}\s*$/.test(t.split('\n')[0]?.trim() ?? '');
+  const hasJobTitle     = /\b(manager|engineer|analyst|developer|designer|director|officer|specialist|consultant|lead|head\s+of|chief|vice\s+president|associate|coordinator)\b/i.test(t.split('\n').slice(0, 4).join(' '));
+
+  const signals = [hasPersonalSections, hasDateRanges, hasBullets, hasContact, hasName, hasJobTitle].filter(Boolean).length;
+
   if (signals < 2) {
-    return "This doesn't look like a CV. Please paste your actual CV — it should include your experience, education, skills, and contact details.";
+    return "This doesn't look like a CV. Please paste your actual CV — it should include your work experience with dates, education, skills, and contact details.";
   }
   return null;
 }
