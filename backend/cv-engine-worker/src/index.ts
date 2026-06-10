@@ -20,11 +20,11 @@ import { corsHeaders, json } from './utils';
 // ── Handler imports ───────────────────────────────────────────────────────────
 import {
     handleHealth, handleWords, handleBanned,
-    handleStructures, handleRhythm, handleClean, handleSync,
+    handleStructures, handleRhythm, handleSync,
 } from './handlers/data';
 
 import {
-    handleValidate, handleValidateVoice, handleSemanticMatch,
+    handleClean, handleValidate, handleValidateVoice, handleSemanticMatch,
 } from './handlers/validation';
 
 import { handleBrief } from './handlers/brief';
