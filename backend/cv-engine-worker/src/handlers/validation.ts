@@ -14,7 +14,7 @@ export const SEMANTIC_EMBED_BATCH = 95;
 
 export async function handleClean(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
-    const rawText: string = body?.rawText ?? body?.text ?? '';
+    const rawText: string = (body?.rawText ?? body?.text ?? '').slice(0, 50_000);
     if (!rawText || typeof rawText !== 'string') {
         return json({ error: 'missing_rawText' }, request, env, 400);
     }

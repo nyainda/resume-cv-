@@ -46,26 +46,24 @@ These are confirmed working from code audit (June 2026):
 ## PHASE 1 — Fix The Cracks (Engine Integrity)
 *These are gaps that silently hurt quality. Fix before growing.*
 
-- [ ] **1.1 — Worker purify-cv: dedup pass**
-  - Add prefix-based dedup after Step 4 in `handlePurifyCv()` in `handlers/purify.ts`
+- [x] **1.1 — Worker purify-cv: dedup pass**
+  - Added prefix-based dedup (first-6-word key) after tense-flipping in `handlePurifyCv()` in `handlers/purify.ts`
   - Prevents duplicate bullets for job-agent and direct API consumers
-  - **Effort:** 1 hour
+  - Deployed: worker version `13a83637` → superseded by Phase 1 deploy
 
-- [ ] **1.2 — Close the Leak Miner → Purify loop**
-  - After static `_SUBS` pass in `handlePurifyCv()`, add a second dynamic pass that fetches `cv:banned:all` from KV and applies new AI-isms
-  - Right now the loop is broken: phrases auto-promoted by the cron never get fixed in new CVs
-  - **Effort:** 2 hours
+- [x] **1.2 — Close the Leak Miner → Purify loop**
+  - Added dynamic KV pass in `handlePurifyCv()`: fetches `cv:banned:all` after static `_SUBS` pass, applies leak-miner-promoted phrases to summary, experience bullets, and project descriptions
+  - Wrapped in try/catch so KV outage is graceful
+  - Self-improvement loop is now closed
 
-- [ ] **1.3 — Wire the 3 dead tables into the brief**
-  - `cv_openers` (27 rows), `cv_context_connectors` (32 rows), `cv_result_connectors` (42 rows) are seeded and KV-synced but never read by `buildBriefData()`
-  - Add 3 more parallel KV reads (total goes from 6 → 9), pick 4 random openers + top-scored result/context connectors, return as `opener_suggestions`, `result_connectors`, `context_connectors`
+- [x] **1.3 — Wire the 3 dead tables into the brief**
+  - `cv_openers`, `cv_context_connectors`, `cv_result_connectors` now read in `buildBriefData()` — 6 → 9 parallel KV reads
+  - Brief now returns `opener_suggestions` (4 random), `result_connectors` (top 6 by score), `context_connectors` (6)
   - Single biggest quality win — directly improves HR detector verb-saturation score
-  - **Effort:** 3 hours
 
-- [ ] **1.4 — `handleClean` input length guard**
-  - Cap the text input to 50 000 chars: `const text = String(body?.text || '').slice(0, 50_000);`
+- [x] **1.4 — `handleClean` input length guard**
+  - Capped rawText to 50 000 chars in `handleClean()` in `handlers/validation.ts`
   - Prevents abuse and worker timeout from huge payloads
-  - **Effort:** 15 minutes
 
 ---
 

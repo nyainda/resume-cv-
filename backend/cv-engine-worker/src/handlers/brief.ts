@@ -40,13 +40,17 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         ? explicitYears
         : estimateYearsFromProfile(profile);
 
-    const [seniorityRows, fieldRows, voiceRows, comboRows, rhythmRows, bannedRows] = await Promise.all([
+    const [seniorityRows, fieldRows, voiceRows, comboRows, rhythmRows, bannedRows,
+           openerRows, resultConnRows, ctxConnRows] = await Promise.all([
         env.CV_KV.get<any[]>(kvd('cv:seniority:all'), { type: 'json' }),
         env.CV_KV.get<any[]>(kvd('cv:fields:all'),    { type: 'json' }),
         env.CV_KV.get<any[]>(kvd('cv:voices:all'),    { type: 'json' }),
         env.CV_KV.get<any[]>(kvd('cv:combos:all'),    { type: 'json' }),
         env.CV_KV.get<any[]>(kvd('cv:rhythm:all'),    { type: 'json' }),
         env.CV_KV.get<any[]>(kvd('cv:banned:all'),    { type: 'json' }),
+        env.CV_KV.get<any[]>(kvd('cv:openers:all'),   { type: 'json' }),   // ← 1.3
+        env.CV_KV.get<any[]>(kvd('cv:results:all'),   { type: 'json' }),   // ← 1.3
+        env.CV_KV.get<any[]>(kvd('cv:contexts:all'),  { type: 'json' }),   // ← 1.3
     ]);
 
     // 1. Seniority by years (with override from JD title cues)
@@ -138,6 +142,27 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         ...(combo?.forbidden_phrases || []),
     ];
 
+    // 7. Openers + connectors (1.3) — pick a small fresh set each call
+    //    Openers: 4 random picks so every generation has variety
+    //    Result connectors: top-scored 6 (already ordered DESC by human_score from KV sync)
+    //    Context connectors: first 6 (diverse types: location, scope, team)
+    const openerPool = [...(openerRows || [])];
+    shuffle(openerPool);
+    const openerSuggestions: string[] = openerPool
+        .slice(0, 4)
+        .map((o: any) => String(o.opener || ''))
+        .filter(Boolean);
+
+    const resultConnectors: string[] = (resultConnRows || [])
+        .slice(0, 6)
+        .map((r: any) => String(r.connector || ''))
+        .filter(Boolean);
+
+    const contextConnectors: string[] = (ctxConnRows || [])
+        .slice(0, 6)
+        .map((c: any) => String(c.connector || ''))
+        .filter(Boolean);
+
     return {
         years,
         seniority: seniority ? {
@@ -166,6 +191,9 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         verb_pool: verbs,
         forbidden_phrases: forbiddenPhrases,
         banned_count: (bannedRows || []).length,
+        opener_suggestions: openerSuggestions,
+        result_connectors: resultConnectors,
+        context_connectors: contextConnectors,
         debug: {
             field_scores: fieldScores.slice(0, 5).map(f => ({ field: f.field, score: f.score })),
             voice_scores: voiceScored.slice(0, 3).map(v => ({ name: v.voice.name, score: v.score })),

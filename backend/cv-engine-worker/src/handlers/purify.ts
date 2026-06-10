@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Env } from '../types';
-import { json } from '../utils';
+import { Env, kvd } from '../types';
+import { json, escapeRegex } from '../utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CV Pipeline Rules — GET /api/cv/rules
@@ -853,6 +853,47 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
     });
 
     if (tenseFlips > 0) changes.push(`tense_fixes: ${tenseFlips}`);
+
+    // ── 1.2: Dynamic KV banned-phrase pass ────────────────────────────────────
+    // Applies phrases auto-promoted by the leak-miner cron that are not yet in
+    // the static _SUBS array, closing the self-improvement loop.
+    try {
+        const dynBanned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
+        let dynSubs = 0;
+        for (const { phrase, replacement } of dynBanned) {
+            if (!phrase || !replacement) continue;
+            const re = new RegExp(`\\b${escapeRegex(String(phrase))}\\b`, 'gi');
+            const before = out.summary;
+            out.summary = out.summary.replace(re, replacement);
+            if (out.summary !== before) dynSubs++;
+            out.experience = out.experience.map((e: any) => ({
+                ...e,
+                responsibilities: (e.responsibilities || []).map((b: string) => b.replace(re, replacement)),
+            }));
+            out.projects = (out.projects || []).map((p: any) => ({
+                ...p,
+                description: String(p.description || '').replace(re, replacement),
+            }));
+        }
+        if (dynSubs > 0) changes.push(`dynamic_banned: ${dynSubs} fix(es)`);
+    } catch { /* KV unavailable — skip gracefully */ }
+
+    // ── 1.1: Prefix-based dedup pass ─────────────────────────────────────────
+    // Removes duplicate bullets in each experience role using the first-6-word
+    // prefix as the key. Prevents duplicates for API/agent consumers where the
+    // client-side Jaccard dedup has not run.
+    let dedupCount = 0;
+    out.experience = (out.experience || []).map((e: any) => {
+        const seen = new Set<string>();
+        const deduped = (e.responsibilities || []).filter((b: string) => {
+            const key = b.trim().toLowerCase().split(/\s+/).slice(0, 6).join(' ');
+            if (seen.has(key)) { dedupCount++; return false; }
+            seen.add(key);
+            return true;
+        });
+        return { ...e, responsibilities: deduped };
+    });
+    if (dedupCount > 0) changes.push(`deduped: ${dedupCount} duplicate bullet(s) removed`);
 
     return json({ cv: out, changes }, request, env);
 }
