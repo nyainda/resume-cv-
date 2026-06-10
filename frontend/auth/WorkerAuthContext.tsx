@@ -52,10 +52,10 @@ interface WorkerAuthContextValue {
     /** Clear the new-user flag (called after the welcome modal is closed). */
     clearNewUser: () => void;
     /**
-     * Ensures the user is signed in. Resolves immediately if already authed;
-     * otherwise shows the AuthModal and resolves after sign-in completes.
+     * Ensures the user is signed in. Resolves true if authenticated,
+     * false if the user dismissed the modal without signing in.
      */
-    requireAuth: () => Promise<void>;
+    requireAuth: () => Promise<boolean>;
     /** Call this to show the sign-in modal voluntarily. */
     showSignIn: () => void;
     /** True when the AuthModal should be visible. */
@@ -89,8 +89,9 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     const [authModalOpen, setAuthModalOpen] = useState(false);
     const [isNewUser,     setIsNewUser]     = useState(false);
 
-    // Queue of resolvers waiting for auth to complete
-    const pendingResolvers = useRef<Array<() => void>>([]);
+    // Queue of resolvers waiting for auth to complete.
+    // Resolves with true on success, false if dismissed without signing in.
+    const pendingResolvers = useRef<Array<(success: boolean) => void>>([]);
     // Track whether we've already tried to link the current Google user
     const linkedGoogleId = useRef<string | null>(null);
 
@@ -171,11 +172,10 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 applySession(result.token, result.user);
                 if (result.is_new_user) setIsNewUser(true);
             }
-            // Always resolve pending requireAuth() promises when Google auth completes.
-            // If worker linkage failed (worker not deployed), generation still
-            // proceeds — graceful degradation until the worker is live.
+            // Resolve pending requireAuth() promises — true because Google auth
+            // succeeded (even if worker linkage failed, the Google session is live).
             const queue = pendingResolvers.current.splice(0);
-            queue.forEach(r => r());
+            queue.forEach(r => r(true));
             setAuthModalOpen(false);
         });
     }, [isGoogleAuthed, googleUser, applySession]);
@@ -187,22 +187,21 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         if (isNew) setIsNewUser(true);
         setAuthModalOpen(false);
         const queue = pendingResolvers.current.splice(0);
-        queue.forEach(r => r());
+        queue.forEach(r => r(true));
     }, [applySession]);
 
     const onAuthDismiss = useCallback(() => {
         setAuthModalOpen(false);
-        // Resolve (not reject) pending promises — the caller checks
-        // isWorkerAuthenticated separately if it needs to gate something.
+        // Resolve with false — user dismissed without signing in.
         const queue = pendingResolvers.current.splice(0);
-        queue.forEach(r => r());
+        queue.forEach(r => r(false));
     }, []);
 
     // ── requireAuth ───────────────────────────────────────────────────────────
 
-    const requireAuth = useCallback((): Promise<void> => {
-        if (sessionToken && workerUser) return Promise.resolve();
-        return new Promise<void>(resolve => {
+    const requireAuth = useCallback((): Promise<boolean> => {
+        if (sessionToken && workerUser) return Promise.resolve(true);
+        return new Promise<boolean>(resolve => {
             pendingResolvers.current.push(resolve);
             setAuthModalOpen(true);
         });

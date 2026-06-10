@@ -564,12 +564,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
 
     // ── Auth gate: require a worker session before generating ─────────────────
     // This shows the sign-in modal if the user is anonymous; after they sign in
-    // the Promise resolves and generation proceeds automatically.
-    try {
-      await requireAuth();
-    } catch {
-      return; // user dismissed the modal
-    }
+    // the Promise resolves with true. false means the user dismissed without signing in.
+    const authed = await requireAuth();
+    if (!authed) return;
 
     setIsLoading(true);
     setDraftCV(null);

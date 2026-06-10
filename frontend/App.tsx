@@ -224,7 +224,7 @@ function colorBg(c: ProfileColor) {
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated } = useGoogleAuth();
-  const { workerUser, isWorkerAuthenticated, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, isNewUser, clearNewUser } = useWorkerAuth();
+  const { workerUser, isWorkerAuthenticated, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
   useAutoSync(isAuthenticated);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
@@ -1478,28 +1478,66 @@ const AppInner: React.FC = () => {
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? "indigo";
 
-  // Hide landing once a profile is created
+  // Hide landing once a profile is created AND authenticated
   useEffect(() => {
-    if (profileExists) setShowLanding(false);
-  }, [profileExists]);
+    if (profileExists && isWorkerAuthenticated) setShowLanding(false);
+  }, [profileExists, isWorkerAuthenticated]);
+
+  // When auth validation completes and no valid session exists, return to landing
+  // so returning users with expired sessions must sign in again.
+  useEffect(() => {
+    if (!isAuthLoading && !isWorkerAuthenticated) {
+      setShowLanding(true);
+    }
+  }, [isAuthLoading, isWorkerAuthenticated]);
+
+  // Show a loading screen while we validate the stored session on mount.
+  // This prevents a flash of the main app for users whose session has expired.
+  if (isAuthLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#F8F7F4' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 bg-[#1B2B4B] rounded-xl flex items-center justify-center text-white font-black text-sm">CV</div>
+          <div className="w-6 h-6 border-2 border-[#1B2B4B]/20 border-t-[#1B2B4B] rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   // Show landing page when requested (new users or navigated back)
   if (showLanding) {
     return (
       <>
         <LandingPage
-          onGetStarted={() => setShowLanding(false)}
+          onGetStarted={async () => {
+            // If the user already has a profile and is authenticated, go straight in.
+            if (profileExists && isWorkerAuthenticated) {
+              setShowLanding(false);
+              return;
+            }
+            // Otherwise require sign-in first. Only navigate into the app when
+            // the user actually authenticates — a dismissed modal keeps them here.
+            const ok = await requireAuth();
+            if (ok) setShowLanding(false);
+          }}
           onSignIn={async () => {
-            await requireAuth();
-            setShowLanding(false);
+            const ok = await requireAuth();
+            if (ok) setShowLanding(false);
           }}
           darkMode={!!darkMode}
           onToggleDark={() => setDarkMode((d) => !d)}
           hasProfile={profileExists}
-          onGoToApp={() => setShowLanding(false)}
+          onGoToApp={async () => {
+            if (isWorkerAuthenticated) {
+              setShowLanding(false);
+            } else {
+              const ok = await requireAuth();
+              if (ok) setShowLanding(false);
+            }
+          }}
         />
         <AuthModal
-          isOpen={authModalOpen}
+          open={authModalOpen}
           onSuccess={onAuthSuccess}
           onDismiss={onAuthDismiss}
         />
@@ -1631,7 +1669,7 @@ const AppInner: React.FC = () => {
             {/* ── Sign-out button (only when worker-authenticated) ─── */}
             {isWorkerAuthenticated && (
               <button
-                onClick={() => signOut()}
+                onClick={async () => { await signOut(); setShowLanding(true); }}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
                 title="Sign out"
               >
