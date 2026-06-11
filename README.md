@@ -1,6 +1,6 @@
 # ProCV — Your Personal Career Consultant
 
-> 14 AI-powered career tools in your browser. ATS-optimised CVs, interview prep, job search, and salary negotiation. No account. No cloud. Free forever.
+> 12 AI-powered career tools in your browser. ATS-optimised CVs, interview prep, and salary negotiation. No account. No cloud. Free forever.
 
 ---
 
@@ -12,7 +12,7 @@ ProCV is a complete career suite built entirely in your browser. It generates ta
 
 ---
 
-## The 14 Tools
+## The 12 Tools
 
 | # | Tool | What it does |
 |---|------|-------------|
@@ -20,16 +20,14 @@ ProCV is a complete career suite built entirely in your browser. It generates ta
 | 02 | **LinkedIn Optimizer** | Rewrites your headline, About section, and top 20 skills to match your target role |
 | 03 | **Interview Prep** | 10 tailored questions with model answers (Behavioural, Technical, Situational) + thank-you letter |
 | 04 | **Portal Scanner** | 150+ company career portals scanned in one click — Greenhouse, Ashby, Lever, and direct pages |
-| 05 | **Job Board** | Live job listings filtered by role and location from real-time search |
-| 06 | **CV Toolkit** | Deep ATS analysis — weak bullets flagged, missing keywords identified, rewrites suggested |
-| 07 | **Scholarship Essays** | Personal statements and funding essays tailored to each institution's prompts |
-| 08 | **Negotiation Coach** | Market-rate data, counter-offer scripts, and walk-away strategies |
-| 09 | **Email Apply** | One-click application emails personalised from your profile and the JD |
-| 10 | **Application Tracker** | Kanban pipeline — interviews, follow-ups, deadlines, all in one place |
-| 11 | **Analytics** | Application velocity, response rates, and story coverage — your search quantified |
-| 12 | **PDF Merger** | Combine CV, cover letter, and portfolio into a single polished document |
-| 13 | **Profile Manager** | Multiple career identities (software, finance, design) with full data separation |
-| 14 | **Cloud Backup** | Optional Google Drive encrypted backup — data stays local by default |
+| 05 | **CV Toolkit** | Deep ATS analysis — weak bullets flagged, missing keywords identified, rewrites suggested |
+| 06 | **Scholarship Essays** | Personal statements and funding essays tailored to each institution's prompts |
+| 07 | **Negotiation Coach** | Market-rate data, counter-offer scripts, and walk-away strategies |
+| 08 | **Email Apply** | One-click application emails personalised from your profile and the JD |
+| 09 | **Application Tracker** | Kanban pipeline — interviews, follow-ups, deadlines, all in one place |
+| 10 | **Analytics** | Application velocity, response rates, and story coverage — your search quantified |
+| 11 | **Profile Manager** | Multiple career identities (software, finance, design) with full data separation |
+| 12 | **Cloud Backup** | Optional Google Drive encrypted backup — data stays local by default |
 
 ---
 
@@ -42,7 +40,7 @@ ProCV uses AI providers you connect yourself. Your keys are stored only in your 
 | Provider | Purpose | Cost |
 |----------|---------|------|
 | [Google Gemini](https://aistudio.google.com/app/apikey) | CV generation, ATS analysis, essay writing | Free tier generous |
-| [Tavily](https://app.tavily.com/home) | Portal Scanner + Job Board | 1,000 free searches/month |
+| [Tavily](https://app.tavily.com/home) | Portal Scanner + company research | 1,000 free searches/month |
 | [Groq](https://console.groq.com/keys) *(optional)* | Faster generation alternative | Free tier |
 | [Claude](https://console.anthropic.com/keys) *(optional)* | Long-form essays and cover letters | Pay-as-you-go |
 
@@ -120,7 +118,6 @@ All sidebar templates are compressed to fit a single A4 page. All templates prod
 | Storage | Browser localStorage + IndexedDB (local-first) |
 | Cloud backup | Google Drive API (optional, OAuth PKCE) |
 | CV Engine | Cloudflare Worker + D1 (SQLite) + KV |
-| Job search | Tavily Search API, JSearch (RapidAPI) |
 
 ---
 
@@ -192,10 +189,11 @@ cd backend/resume-pdf-worker && npx wrangler deploy
 ```bash
 npm run test:pdf          # Smoke-test PDF generation (both local and CF worker)
 npm run test:cv-quality   # CV quality pipeline tests
-npm run test:gap-pin      # ATS gap-pin feature tests
-npm run test:pipeline     # Full end-to-end pipeline test
-npm run test:variance     # CV variance and diversity tests
-npm run audit:rules       # Count active rules in the CV engine
+npm run test:gap-pin            # ATS gap-pin feature tests
+npm run test:pipeline           # Full end-to-end pipeline test
+npm run test:variance           # CV variance and diversity tests
+npm run test:landing-validator  # Score My CV landing page validator tests
+npm run audit:rules             # Count active rules in the CV engine
 ```
 
 ---

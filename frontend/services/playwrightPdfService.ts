@@ -49,7 +49,7 @@ export interface PdfBytesResult {
 /**
  * POST a self-contained HTML document to the Playwright server and return the
  * resulting PDF bytes. Used by both the download flow (downloadViaPlaywright)
- * and the merge flow (PDFMerger via cvDownloadService.getCVPdfBytes).
+ * and the off-screen bytes path (cvDownloadService.getCVPdfBytes).
  */
 export const renderHtmlToPdfBytes = async (
     fullHtml: string,

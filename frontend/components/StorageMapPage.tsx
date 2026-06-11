@@ -30,7 +30,6 @@ type Category =
   | 'api-settings'
   | 'auth'
   | 'generation'
-  | 'job-board'
   | 'cloud-sync'
   | 'quality'
   | 'ui-prefs'
@@ -93,9 +92,6 @@ function classify(rawKey: string, val: string): { category: Category; syncDest: 
   if (['cv:purpose','cv:jdKeywords','cv:targetCompany','cv:targetJobTitle',
        'cv:angleHistory','cv:last_snapshot','cv_builder:sidebarSections'].includes(k))
     return { category: 'generation', syncDest: 'cf-d1-new' };
-
-  // Job board (evictable cache)
-  if (k.startsWith('cv_builder:jb_'))     return { category: 'job-board', syncDest: 'evictable' };
 
   // Tavily (evictable cache, no prefix)
   if (['tavily_usage_v2','tavily_cache_v2','tavily_refresh'].includes(k))
@@ -185,7 +181,6 @@ const CAT_META: Record<Category, { label: string; icon: string; color: string }>
   'api-settings': { label: 'API Keys & Settings',    icon: '🔑', color: '#92400e' },
   'auth':         { label: 'OAuth / Auth Tokens',    icon: '🔒', color: '#6d28d9' },
   'generation':   { label: 'CV Generation Prefs',   icon: '⚡', color: '#0891b2' },
-  'job-board':    { label: 'Job Board Cache',         icon: '💼', color: '#065f46' },
   'cloud-sync':   { label: 'Cloud Sync Metadata',    icon: '☁️', color: '#374151' },
   'quality':      { label: 'Quality Gate',            icon: '✅', color: '#166534' },
   'ui-prefs':     { label: 'UI Preferences',         icon: '🎨', color: '#9333ea' },
@@ -275,7 +270,7 @@ const StorageMapPage: React.FC = () => {
   }, {} as Record<Category, LSEntry[]>);
 
   const categoryOrder: Category[] = [
-    'core-user','api-settings','auth','generation','cloud-sync','job-board','quality','ui-prefs','temp-cache','other',
+    'core-user','api-settings','auth','generation','cloud-sync','quality','ui-prefs','temp-cache','other',
   ];
 
   const syncStats = {

@@ -50,8 +50,8 @@ export interface CloudflarePdfBytesResult {
 
 /**
  * POST HTML to the Cloudflare Worker and return the resulting PDF bytes.
- * Used by both the download flow (generateAndDownloadViaCF) and the merge
- * flow (PDFMerger via cvDownloadService.getCVPdfBytes).
+ * Used by both the download flow (generateAndDownloadViaCF) and the
+ * off-screen bytes path (cvDownloadService.getCVPdfBytes).
  */
 export async function renderHtmlToPdfBytesViaCF(
   opts: CloudflarePDFOptions

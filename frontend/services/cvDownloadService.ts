@@ -369,12 +369,12 @@ export async function getCoverLetterPdfBytes(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Off-screen CV → PDF bytes (used by PDFMerger)
+// Off-screen CV → PDF bytes
 //
-// PDFMerger needs PDF bytes for saved CVs that are NOT currently rendered on
-// screen. We mount <CVPreview> into a hidden, off-screen container, capture
-// the same HTML the on-screen download path uses, render via Playwright /
-// Cloudflare, and return the bytes. Same renderer = same pixel output.
+// Renders a saved CV that is NOT currently visible on screen: mounts
+// <CVPreview> into a hidden off-screen container, captures the same HTML the
+// on-screen download path uses, renders via Playwright / Cloudflare, and
+// returns the bytes. Same renderer = pixel-perfect output.
 // ────────────────────────────────────────────────────────────────────────────
 
 export interface GetCVPdfBytesOptions {
