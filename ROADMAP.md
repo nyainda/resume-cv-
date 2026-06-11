@@ -174,6 +174,14 @@ These are confirmed working from code audit (June 2026):
 
 ---
 
+## Backlog — Deferred Items
+
+| Priority | Item | Notes |
+|----------|------|-------|
+| 🔵 Later | **Pro upgrade path** — daily CV generation limit with clear prompt to unlock unlimited usage | Wire into `cv_events` tracking → gate at N generations/day → show upgrade modal with Stripe CTA. Requires item 4.4 (Stripe) and 4.2 (events wiring) to land first. |
+
+---
+
 ## The Big Picture
 
 ```

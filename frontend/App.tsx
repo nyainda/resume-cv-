@@ -44,7 +44,6 @@ import AuthModal from "./components/AuthModal";
 import WelcomeModal from "./components/WelcomeModal";
 import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
-import WorkerStatusBanner from "./components/WorkerStatusBanner";
 import ProfileForm from "./components/ProfileForm";
 import CVGenerator from "./components/CVGenerator";
 import SharedCVView from "./components/SharedCVView";
@@ -658,9 +657,16 @@ const AppInner: React.FC = () => {
       return true;
     }
   });
-  // Show landing page when no profile has ever been created
+  // Show landing page when no profile has ever been created, OR when there is
+  // no stored session token.  Initialising to `true` for sessionless users
+  // eliminates the one-render flash of the main app that happened between
+  // isAuthLoading going false and the effect setting showLanding = true.
   const [showLanding, setShowLanding] = useState<boolean>(() => {
     try {
+      // No session token → always start on landing (avoids flash of main app)
+      const hasSession = !!localStorage.getItem('procv:worker_session');
+      if (!hasSession) return true;
+
       const raw =
         localStorage.getItem("cv_builder:profiles") ||
         localStorage.getItem("profiles");
@@ -1683,7 +1689,6 @@ const AppInner: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
-      <WorkerStatusBanner />
       {sharedCVPayload && (
         <SharedCVView
           cvData={sharedCVPayload.cvData}

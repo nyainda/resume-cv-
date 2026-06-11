@@ -14,7 +14,6 @@ import {
   getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
 } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
-import { rewarmCVEngineModels, type PrewarmResult } from '../services/cvEngineClient';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -51,10 +50,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     return () => window.removeEventListener(TOKEN_USAGE_EVENT, handler);
   }, []);
 
-  // ── Wake-AI-models state (manual re-warm of cv-engine-worker models) ──
-  type WakeState = { status: 'idle' | 'waking' | 'done'; results: PrewarmResult[]; finishedAt?: number };
-  const [wakeState, setWakeState] = useState<WakeState>({ status: 'idle', results: [] });
-
   // ── CF D1 backup state (Google-auth users only) ──────────────────────
   type BackupState = 'idle' | 'syncing' | 'done' | 'error';
   const [backupState, setBackupState] = useState<BackupState>('idle');
@@ -81,20 +76,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
       setTimeout(() => setBackupState('idle'), 4000);
     }
   }, [isAuthenticated]);
-
-  const wakeAIModels = useCallback(async () => {
-    setWakeState({ status: 'waking', results: [] });
-    try {
-      const results = await rewarmCVEngineModels();
-      setWakeState({ status: 'done', results, finishedAt: Date.now() });
-    } catch (e) {
-      setWakeState({
-        status: 'done',
-        results: [{ task: 'wake', ok: false, ms: 0, note: e instanceof Error ? e.message : String(e) }],
-        finishedAt: Date.now(),
-      });
-    }
-  }, []);
 
   // ── Test connection state ──────────────────────────────────────────────
   type TestState = { status: 'idle' | 'testing' | 'ok' | 'fail'; message?: string };
@@ -484,51 +465,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               })}
             </div>
 
-            {/* Wake AI models (Workers AI only) */}
-            {selectedAiProvider === 'workers-ai' && (
-              <div className="rounded-lg bg-white dark:bg-neutral-800/60 border border-amber-100 dark:border-amber-900/40 p-3">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Wake AI models</p>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">
-                      Models sleep after idle. Tap to warm them up so the next generation starts instantly.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={wakeAIModels}
-                    disabled={wakeState.status === 'waking'}
-                    className="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white shrink-0"
-                  >
-                    {wakeState.status === 'waking' ? 'Waking…' : wakeState.status === 'done' ? 'Wake again' : 'Wake models'}
-                  </Button>
-                </div>
-                {wakeState.status !== 'idle' && (
-                  <div className="mt-3 space-y-1 border-t border-amber-100 dark:border-amber-900/40 pt-2">
-                    {wakeState.status === 'waking' && (
-                      <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">Pinging Cloudflare models…</p>
-                    )}
-                    {wakeState.status === 'done' && wakeState.results.length > 0 && (
-                      <>
-                        <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
-                          {wakeState.results.filter(r => r.ok).length}/{wakeState.results.length} models hot
-                        </p>
-                        <ul className="space-y-0.5">
-                          {wakeState.results.map((r) => (
-                            <li key={r.task} className="text-[11px] font-mono flex items-center gap-2">
-                              <span className={r.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{r.ok ? '✓' : '✗'}</span>
-                              <span className="text-zinc-700 dark:text-zinc-200 w-24 truncate">{r.task}</span>
-                              <span className="text-zinc-500 dark:text-zinc-400">{r.ms}ms</span>
-                              {!r.ok && r.note && <span className="text-red-500 dark:text-red-400 truncate">— {r.note}</span>}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+
           </div>
 
           {/* ── Session Token Usage & Key Security ── */}
