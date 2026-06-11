@@ -1,170 +1,200 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getAdminDashboardStats, fetchAdminStats, TableCount } from '../../services/cvEngineClient';
+import { useAdminTheme } from './AdminContext';
 import { PageHeader, Section, LoadingBar } from './OverviewTab';
 
-const NAVY = '#1B2B4B';
-const GOLD = '#C9A84C';
 const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
 
-interface PingResult { ok: boolean; latency: number; status: number; detail?: string; }
-
-async function pingEndpoint(url: string, headers: Record<string, string> = {}): Promise<PingResult> {
-    const start = performance.now();
-    try {
-        const r = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
-        const latency = Math.round(performance.now() - start);
-        let detail: string | undefined;
-        try { const j = await r.json(); detail = j?.error || j?.message || undefined; } catch { /* */ }
-        return { ok: r.status < 500, latency, status: r.status, detail };
-    } catch (e: any) {
-        const latency = Math.round(performance.now() - start);
-        return { ok: false, latency, status: 0, detail: e?.message || 'Network error' };
-    }
+async function pingEndpoint(url: string, headers: Record<string, string> = {}): Promise<{ ok: boolean; latency: number; status: number; detail?: string }> {
+  const t0 = performance.now();
+  try {
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+    const latency = Math.round(performance.now() - t0);
+    let detail: string | undefined;
+    try { const j = await r.json(); detail = j?.error || j?.message; } catch {}
+    return { ok: r.status < 500, latency, status: r.status, detail };
+  } catch (e: any) {
+    return { ok: false, latency: Math.round(performance.now() - t0), status: 0, detail: e?.message || 'Network error' };
+  }
 }
 
-function Pill({ ok, label, latency, detail }: { ok: boolean | null; label: string; latency?: number; detail?: string; [k: string]: unknown }) {
-    const color = ok === null ? '#aaa' : ok ? '#1b7a4a' : '#c62828';
-    const bg    = ok === null ? '#f5f5f5' : ok ? '#f0faf4' : '#fff5f5';
-    return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: bg, borderRadius: 8, border: `1px solid ${ok === null ? '#e0ddd8' : ok ? '#a8d5b5' : '#ffcdd2'}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0, boxShadow: ok ? `0 0 6px ${color}60` : 'none' }} />
-                <span style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{label}</span>
-                {detail && <span style={{ fontSize: 12, color: '#888' }}>— {detail}</span>}
-            </div>
-            {latency !== undefined && <span style={{ fontFamily: 'monospace', fontSize: 12, color: color, fontWeight: 600 }}>{ok === null ? '—' : `${latency}ms`}</span>}
-        </div>
-    );
+interface PingResult { ok: boolean; latency: number; status: number; detail?: string }
+
+function StatusPill({ ok, label, latency, detail }: { ok: boolean | null; label: string; latency?: number; detail?: string }) {
+  const { theme, isDark } = useAdminTheme();
+  const color = ok === null ? theme.muted : ok ? (isDark ? '#4ADE80' : '#1B7A4A') : (isDark ? '#F87171' : '#C62828');
+  const bg    = ok === null ? theme.bg : ok ? (isDark ? '#0D2E1E' : '#F0FAF4') : (isDark ? '#2A0E0E' : '#FFF5F5');
+  const bdr   = ok === null ? theme.border : ok ? (isDark ? '#1A3A1A' : '#A8D5B5') : (isDark ? '#4A1010' : '#FFCDD2');
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 13px', background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0, boxShadow: ok ? `0 0 5px ${color}60` : 'none' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: theme.text }}>{label}</span>
+        {detail && <span style={{ fontSize: 12, color: theme.sub }}>— {detail}</span>}
+      </div>
+      {latency !== undefined && (
+        <span style={{ fontFamily: 'monospace', fontSize: 12, color: ok === null ? theme.muted : color, fontWeight: 600 }}>
+          {ok === null ? '—' : `${latency}ms`}
+        </span>
+      )}
+    </div>
+  );
 }
+
+const ENDPOINTS = [
+  { key: 'Worker (CORS ping)',       path: '/api/cv/prewarm',                      auth: false },
+  { key: 'Admin stats',              path: '/api/cv/admin/stats',                  auth: true },
+  { key: 'Dashboard stats',          path: '/api/cv/admin/dashboard-stats',        auth: true },
+  { key: 'Users endpoint',           path: '/api/cv/admin/users?limit=1',          auth: true },
+  { key: 'Auth logs endpoint',       path: '/api/cv/admin/auth-logs?limit=1',      auth: true },
+  { key: 'LLM tiered endpoint',      path: '/api/cv/tiered-llm',                   auth: false },
+  { key: 'KV banned phrases',        path: '/api/cv/banned',                       auth: false },
+  { key: 'LLM cache endpoint',       path: '/api/cv/llm-cache?key=probe00',        auth: false },
+];
 
 export default function HealthTab() {
-    const [pings, setPings] = useState<Record<string, PingResult | null>>({});
-    const [dbCounts, setDbCounts] = useState<TableCount[]>([]);
-    const [checking, setChecking] = useState(false);
-    const [lastChecked, setLastChecked] = useState<Date | null>(null);
-    const adminTok = sessionStorage.getItem('procv_admin_tok') || '';
+  const { theme, isDark } = useAdminTheme();
+  const [pings, setPings]       = useState<Record<string, PingResult | null>>({});
+  const [dbCounts, setDbCounts] = useState<TableCount[]>([]);
+  const [checking, setChecking] = useState(false);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const adminTok = sessionStorage.getItem('procv_admin_tok') || '';
 
-    const runChecks = useCallback(async () => {
-        setChecking(true);
-        setPings({});
+  const runChecks = useCallback(async () => {
+    setChecking(true);
+    setPings({});
+    await Promise.all(ENDPOINTS.map(async ep => {
+      const hdrs: Record<string, string> = ep.auth ? { 'X-Admin-Token': adminTok } : {};
+      const result = await pingEndpoint(`${ENGINE_URL}${ep.path}`, hdrs);
+      setPings(p => ({ ...p, [ep.key]: result }));
+    }));
+    const stats = await getAdminDashboardStats();
+    if (stats?.table_counts) setDbCounts(stats.table_counts);
+    setLastChecked(new Date());
+    setChecking(false);
+  }, [adminTok]);
 
-        const endpoints: { key: string; url: string; headers?: Record<string, string> }[] = [
-            { key: 'Worker (CORS ping)', url: `${ENGINE_URL}/api/cv/prewarm`, headers: {} },
-            { key: 'Admin Stats endpoint', url: `${ENGINE_URL}/api/cv/admin/stats`, headers: { 'X-Admin-Token': adminTok } },
-            { key: 'Dashboard Stats endpoint', url: `${ENGINE_URL}/api/cv/admin/dashboard-stats`, headers: { 'X-Admin-Token': adminTok } },
-            { key: 'Users endpoint', url: `${ENGINE_URL}/api/cv/admin/users?limit=1`, headers: { 'X-Admin-Token': adminTok } },
-            { key: 'Auth Logs endpoint', url: `${ENGINE_URL}/api/cv/admin/auth-logs?limit=1`, headers: { 'X-Admin-Token': adminTok } },
-        ];
+  useEffect(() => {
+    void runChecks();
+    const legacyLoad = async () => {
+      const s = await fetchAdminStats();
+      if (s) {
+        const counts: TableCount[] = Object.entries(s)
+          .filter(([k]) => k !== 'last_sync')
+          .map(([table, count]) => ({ table, count: Number(count) }));
+        setDbCounts(counts);
+      }
+    };
+    void legacyLoad();
+  }, []);
 
-        await Promise.all(endpoints.map(async ep => {
-            const result = await pingEndpoint(ep.url, ep.headers);
-            setPings(p => ({ ...p, [ep.key]: result }));
-        }));
+  const results = Object.values(pings).filter(Boolean) as PingResult[];
+  const allOk   = results.length > 0 && results.every(r => r.ok);
+  const failCount = results.filter(r => !r.ok).length;
+  const avgLatency = results.length ? Math.round(results.reduce((s, r) => s + r.latency, 0) / results.length) : 0;
 
-        const stats = await getAdminDashboardStats();
-        if (stats?.table_counts) setDbCounts(stats.table_counts);
+  return (
+    <div>
+      <PageHeader title="System Health" subtitle="Endpoint latency · DB table sizes · worker config" onRefresh={runChecks} />
 
-        setLastChecked(new Date());
-        setChecking(false);
-    }, [adminTok]);
-
-    const legacyStats = useCallback(async () => {
-        const s = await fetchAdminStats();
-        if (s) {
-            const counts: TableCount[] = Object.entries(s).filter(([k]) => k !== 'last_sync').map(([table, count]) => ({ table, count: Number(count) }));
-            setDbCounts(counts);
-        }
-    }, []);
-
-    useEffect(() => {
-        void runChecks();
-        void legacyStats();
-    }, []);
-
-    const endpointKeys = [
-        'Worker (CORS ping)',
-        'Admin Stats endpoint',
-        'Dashboard Stats endpoint',
-        'Users endpoint',
-        'Auth Logs endpoint',
-    ];
-
-    return (
-        <div>
-            <PageHeader title="System Health" subtitle="Check all worker endpoints and database tables" onRefresh={runChecks} />
-
-            {lastChecked && (
-                <div style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
-                    Last checked: {lastChecked.toLocaleTimeString()}
-                    {checking && <span style={{ marginLeft: 8, color: GOLD }}>• Checking…</span>}
-                </div>
-            )}
-
-            {/* Worker URL */}
-            <Section title="Worker Configuration">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 13, color: '#666' }}>CV Engine URL:</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: 13, color: NAVY, background: '#f5f4f1', padding: '4px 10px', borderRadius: 6 }}>
-                        {ENGINE_URL || <span style={{ color: '#c62828' }}>Not configured — set VITE_CV_ENGINE_URL</span>}
-                    </span>
-                </div>
-            </Section>
-
-            {/* Endpoint health */}
-            <Section title="Endpoint Health">
-                {checking && Object.keys(pings).length === 0 ? (
-                    <LoadingBar />
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {endpointKeys.map(key => {
-                            const r = pings[key];
-                            return <Pill key={key} label={key} ok={r ? r.ok : null} latency={r?.latency} detail={r?.ok === false ? (r.detail || `HTTP ${r.status}`) : undefined} />;
-                        })}
-                    </div>
-                )}
-            </Section>
-
-            {/* DB counts */}
-            {dbCounts.length > 0 && (
-                <div style={{ marginTop: 20 }}>
-                    <Section title="Database Row Counts">
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-                            {dbCounts.map(({ table, count }) => (
-                                <div key={table} style={{ padding: '12px 14px', background: '#f9f8f5', borderRadius: 8, border: '1px solid #e8e5de' }}>
-                                    <div style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table}</div>
-                                    <div style={{ fontSize: 22, fontWeight: 700, color: count < 0 ? '#aaa' : NAVY }}>{count < 0 ? 'N/A' : count.toLocaleString()}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </Section>
-                </div>
-            )}
-
-            {/* Status summary */}
-            {!checking && Object.keys(pings).length > 0 && (
-                <div style={{ marginTop: 20 }}>
-                    <Section title="Summary">
-                        {(() => {
-                            const results = Object.values(pings).filter(Boolean) as PingResult[];
-                            const allOk = results.every(r => r.ok);
-                            const failCount = results.filter(r => !r.ok).length;
-                            const avgLatency = results.length ? Math.round(results.reduce((s, r) => s + r.latency, 0) / results.length) : 0;
-                            return (
-                                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                                    <div style={{ padding: '12px 20px', background: allOk ? '#f0faf4' : '#fff5f5', borderRadius: 8, border: `1px solid ${allOk ? '#a8d5b5' : '#ffcdd2'}` }}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: allOk ? '#1b5e20' : '#c62828' }}>
-                                            {allOk ? '✓ All systems operational' : `✗ ${failCount} endpoint${failCount > 1 ? 's' : ''} failing`}
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: '12px 20px', background: '#f9f8f5', borderRadius: 8, border: '1px solid #e8e5de' }}>
-                                        <div style={{ fontSize: 13, color: '#555' }}>Avg latency: <strong>{avgLatency}ms</strong></div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </Section>
-                </div>
-            )}
+      {lastChecked && (
+        <div style={{ fontSize: 12, color: theme.muted, marginBottom: 16 }}>
+          Last checked: {lastChecked.toLocaleTimeString()}
+          {checking && <span style={{ marginLeft: 10, color: theme.gold }}>• Running checks…</span>}
         </div>
-    );
+      )}
+
+      {/* Summary banner */}
+      {!checking && results.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ padding: '10px 18px', background: allOk ? (isDark ? '#0D2E1E' : '#F0FAF4') : (isDark ? '#2A0E0E' : '#FFF5F5'), borderRadius: 9, border: `1px solid ${allOk ? (isDark ? '#1A3A1A' : '#A8D5B5') : (isDark ? '#4A1010' : '#FFCDD2')}` }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: allOk ? (isDark ? '#4ADE80' : '#1B5E20') : (isDark ? '#F87171' : '#C62828') }}>
+              {allOk ? '✓ All systems operational' : `✗ ${failCount} endpoint${failCount > 1 ? 's' : ''} failing`}
+            </div>
+          </div>
+          <div style={{ padding: '10px 18px', background: theme.card, borderRadius: 9, border: `1px solid ${theme.border}` }}>
+            <div style={{ fontSize: 13, color: theme.sub }}>Avg latency: <strong style={{ color: theme.text }}>{avgLatency}ms</strong></div>
+          </div>
+          <div style={{ padding: '10px 18px', background: theme.card, borderRadius: 9, border: `1px solid ${theme.border}` }}>
+            <div style={{ fontSize: 13, color: theme.sub }}>{results.length} / {ENDPOINTS.length} endpoints checked</div>
+          </div>
+        </div>
+      )}
+
+      {/* Worker config */}
+      <Section title="Worker Configuration">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: theme.sub }}>CV Engine URL:</span>
+          {ENGINE_URL
+            ? <span style={{ fontFamily: 'monospace', fontSize: 13, color: theme.text, background: theme.bg, padding: '4px 10px', borderRadius: 6, border: `1px solid ${theme.border}` }}>{ENGINE_URL}</span>
+            : <span style={{ fontSize: 13, color: isDark ? '#F87171' : '#C62828' }}>⚠ Not configured — set VITE_CV_ENGINE_URL</span>
+          }
+        </div>
+      </Section>
+
+      {/* Endpoint health */}
+      <div style={{ marginTop: 16 }}>
+        <Section title="Endpoint Health">
+          {checking && Object.keys(pings).length === 0 ? <LoadingBar /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {ENDPOINTS.map(ep => {
+                const r = pings[ep.key];
+                return (
+                  <StatusPill
+                    key={ep.key}
+                    label={ep.key}
+                    ok={r ? r.ok : null}
+                    latency={r?.latency}
+                    detail={r?.ok === false ? (r.detail || `HTTP ${r.status}`) : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </Section>
+      </div>
+
+      {/* DB row counts */}
+      {dbCounts.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <Section title="Database Tables">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+              {dbCounts.map(({ table, count }) => (
+                <div key={table} style={{ padding: '12px 14px', background: theme.bg, borderRadius: 8, border: `1px solid ${theme.border}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: theme.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: count < 0 ? theme.muted : theme.text }}>{count < 0 ? 'N/A' : count.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {/* Latency breakdown */}
+      {results.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <Section title="Latency Breakdown">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {ENDPOINTS.map(ep => {
+                const r = pings[ep.key];
+                if (!r) return null;
+                const maxMs = 3000;
+                const pct = Math.min((r.latency / maxMs) * 100, 100);
+                const barColor = r.latency < 500 ? '#22C55E' : r.latency < 1500 ? '#F59E0B' : '#EF4444';
+                return (
+                  <div key={ep.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 160, fontSize: 12, color: theme.sub, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.key}</div>
+                    <div style={{ flex: 1, height: 8, background: theme.border, borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 4, transition: 'width 0.5s' }} />
+                    </div>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: barColor, width: 52, textAlign: 'right', flexShrink: 0 }}>{r.latency}ms</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        </div>
+      )}
+    </div>
+  );
 }
