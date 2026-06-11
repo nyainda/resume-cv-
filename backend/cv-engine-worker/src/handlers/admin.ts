@@ -457,6 +457,66 @@ export async function handleUsersList(request: Request, env: Env, url: URL): Pro
     return json({ ok: true, total: countRow?.c ?? 0, limit, offset, users: rows.results ?? [] }, request, env);
 }
 
+/** GET /api/cv/admin/users/:id/detail */
+export async function handleUsersDetail(request: Request, env: Env, url: URL): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
+
+    const parts  = url.pathname.split('/');
+    const userId = parseInt(parts[parts.length - 2] ?? '0');
+    if (!userId) return json({ error: 'missing_user_id' }, request, env, 400);
+
+    const now = Math.floor(Date.now() / 1000);
+
+    const [user, sessions, recentLogs, signinCount, profileRow] = await Promise.all([
+        env.CV_DB.prepare(`
+            SELECT id, email, name, picture, plan, created_at, last_seen_at, google_id,
+                   (google_id IS NOT NULL) as has_google
+            FROM user_identities WHERE id = ?
+        `).bind(userId).first<Record<string, any>>(),
+
+        env.CV_DB.prepare(`
+            SELECT id, device_id, created_at, expires_at,
+                   (expires_at > ${now}) as is_active
+            FROM user_sessions WHERE user_id = ?
+            ORDER BY created_at DESC LIMIT 20
+        `).bind(userId).all(),
+
+        env.CV_DB.prepare(`
+            SELECT id, event, method, ip, user_agent, created_at
+            FROM auth_audit_log WHERE user_id = ?
+            ORDER BY created_at DESC LIMIT 30
+        `).bind(userId).all(),
+
+        env.CV_DB.prepare(`
+            SELECT COUNT(*) as c FROM auth_audit_log
+            WHERE user_id = ? AND event LIKE 'signin%'
+        `).bind(userId).first<{c: number}>(),
+
+        env.CV_DB.prepare(`
+            SELECT hash, created_at FROM profile_cache WHERE user_id = ?
+            ORDER BY created_at DESC LIMIT 1
+        `).bind(userId).first<Record<string, any>>().catch(() => null),
+    ]);
+
+    if (!user) return json({ error: 'not_found' }, request, env, 404);
+
+    const activeSessions = (sessions.results ?? []).filter((s: any) => s.is_active).length;
+
+    return json({
+        ok: true,
+        user: {
+            ...user,
+            active_sessions: activeSessions,
+            total_sessions:  sessions.results?.length ?? 0,
+            total_signins:   signinCount?.c ?? 0,
+        },
+        sessions:  sessions.results ?? [],
+        auth_logs: recentLogs.results ?? [],
+        profile_cached: !!profileRow,
+    }, request, env);
+}
+
 /** PATCH /api/cv/admin/users/plan */
 export async function handleUsersUpdatePlan(request: Request, env: Env): Promise<Response> {
     const auth = await verifyAdminAuth(request, env, 'editor');

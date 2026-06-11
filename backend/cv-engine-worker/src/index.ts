@@ -55,7 +55,7 @@ import {
     handleBulkUpdate, handleAdminDelete, handleVoiceTest, handleAiAudit,
     handleTokensList, handleTokensCreate, handleTokensRevoke,
     handleDashboardStats, handleUsersList, handleUsersUpdatePlan,
-    handleUsersRevokeSessions, handleAuthLogsList, handleDbBrowse,
+    handleUsersRevokeSessions, handleUsersDetail, handleAuthLogsList, handleDbBrowse,
 } from './handlers/admin';
 
 import {
@@ -183,6 +183,7 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/admin/users'       && m === 'GET')                   return handleUsersList(request, env, url);
     if (p === '/api/cv/admin/users/plan'  && m === 'PATCH')                 return handleUsersUpdatePlan(request, env);
     if (p === '/api/cv/admin/users/sessions' && m === 'DELETE')             return handleUsersRevokeSessions(request, env);
+    if (/^\/api\/cv\/admin\/users\/\d+\/detail$/.test(p) && m === 'GET')    return handleUsersDetail(request, env, url);
     if (p === '/api/cv/admin/auth-logs'   && m === 'GET')                   return handleAuthLogsList(request, env, url);
     if (p === '/api/cv/admin/db-browse'   && m === 'GET')                   return handleDbBrowse(request, env, url);
 

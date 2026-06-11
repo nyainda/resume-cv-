@@ -1799,3 +1799,38 @@ export const DB_BROWSABLE_TABLES = [
     'profile_cache',
     'cv_admin_tokens',
 ] as const;
+
+// ── User detail ───────────────────────────────────────────────────────────────
+
+export interface UserSession {
+    id: number;
+    device_id: string | null;
+    created_at: number;
+    expires_at: number;
+    is_active: number;
+}
+
+export interface UserAuthLog {
+    id: number;
+    event: string;
+    method: string;
+    ip: string | null;
+    user_agent: string | null;
+    created_at: number;
+}
+
+export interface UserDetailResult {
+    ok: boolean;
+    user: AdminUser & {
+        google_id: string | null;
+        total_sessions: number;
+        total_signins: number;
+    };
+    sessions: UserSession[];
+    auth_logs: UserAuthLog[];
+    profile_cached: boolean;
+}
+
+export async function fetchUserDetail(userId: number): Promise<UserDetailResult | null> {
+    return adminFetch<UserDetailResult>(`/api/cv/admin/users/${userId}/detail`);
+}

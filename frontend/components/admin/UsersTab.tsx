@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { listAdminUsers, updateUserPlan, revokeUserSessions, AdminUser } from '../../services/cvEngineClient';
 import { useAdminTheme } from './AdminContext';
 import { PageHeader, Section, Th, Td, LoadingBar, ErrorBlock } from './OverviewTab';
+import UserDetailDrawer from './UserDetailDrawer';
 
 function Avatar({ name, picture }: { name: string | null; picture: string | null }) {
   const { theme } = useAdminTheme();
@@ -34,15 +35,16 @@ const PAGE_SIZE = 25;
 
 export default function UsersTab() {
   const { theme, isDark } = useAdminTheme();
-  const [users, setUsers]         = useState<AdminUser[]>([]);
-  const [total, setTotal]         = useState(0);
-  const [offset, setOffset]       = useState(0);
-  const [search, setSearch]       = useState('');
-  const [planFilter, setPlan]     = useState('');
-  const [loading, setLoading]     = useState(true);
-  const [err, setErr]             = useState('');
-  const [actionMsg, setActionMsg] = useState('');
-  const [pending, setPending]     = useState<Record<number, boolean>>({});
+  const [users, setUsers]             = useState<AdminUser[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [offset, setOffset]           = useState(0);
+  const [search, setSearch]           = useState('');
+  const [planFilter, setPlan]         = useState('');
+  const [loading, setLoading]         = useState(true);
+  const [err, setErr]                 = useState('');
+  const [actionMsg, setActionMsg]     = useState('');
+  const [pending, setPending]         = useState<Record<number, boolean>>({});
+  const [selectedUserId, setSelected] = useState<number | null>(null);
 
   const load = useCallback(async (off = 0) => {
     setLoading(true); setErr('');
@@ -78,11 +80,20 @@ export default function UsersTab() {
     setPending(p => { const n = { ...p }; delete n[userId]; return n; });
   };
 
+  // Drawer callbacks — keep the table row in sync when changes happen inside the drawer
+  const handleDrawerPlanChanged = useCallback((uid: number, plan: string) => {
+    setUsers(u => u.map(x => x.id === uid ? { ...x, plan } : x));
+  }, []);
+  const handleDrawerRevoked = useCallback((uid: number) => {
+    setUsers(u => u.map(x => x.id === uid ? { ...x, active_sessions: 0 } : x));
+  }, []);
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
   const inputStyle = { padding: '9px 13px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: 8, fontSize: 13, background: theme.input, color: theme.text, outline: 'none' };
 
   return (
+    <>
     <div>
       <PageHeader title="Users" subtitle={`${total.toLocaleString()} total user${total !== 1 ? 's' : ''}`} onRefresh={() => load(offset)} />
 
@@ -119,9 +130,11 @@ export default function UsersTab() {
               <tbody>
                 {users.map(u => {
                   const { bg, text } = planStyle(u.plan, isDark);
-                  const isBusy = pending[u.id];
+                  const isBusy   = pending[u.id];
+                  const isActive = selectedUserId === u.id;
                   return (
-                    <tr key={u.id} style={{ borderBottom: `1px solid ${theme.tableBorder}` }}>
+                    <tr key={u.id} style={{ borderBottom: `1px solid ${theme.tableBorder}`, background: isActive ? (isDark ? 'rgba(201,168,76,0.07)' : 'rgba(27,43,75,0.04)') : 'transparent', cursor: 'pointer', transition: 'background 0.12s' }}
+                      onClick={() => setSelected(u.id)}>
                       <Td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <Avatar name={u.name} picture={u.picture} />
@@ -132,7 +145,9 @@ export default function UsersTab() {
                         </div>
                       </Td>
                       <Td>
-                        <select value={u.plan} disabled={isBusy} onChange={e => handlePlanChange(u.id, e.target.value)}
+                        <select value={u.plan} disabled={isBusy}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => { e.stopPropagation(); handlePlanChange(u.id, e.target.value); }}
                           style={{ padding: '4px 9px', borderRadius: 99, background: bg, color: text, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <option value="free">Free</option>
                           <option value="byok">BYOK</option>
@@ -152,12 +167,18 @@ export default function UsersTab() {
                       <Td><span style={{ fontSize: 12, color: theme.sub }}>{fmtRelative(u.last_seen_at || u.last_signin_at)}</span></Td>
                       <Td><span style={{ fontSize: 12, color: theme.muted }}>{fmtDate(u.created_at)}</span></Td>
                       <Td>
-                        {u.active_sessions > 0 && (
-                          <button onClick={() => handleRevoke(u.id, u.email)} disabled={isBusy}
-                            style={{ padding: '5px 10px', background: isDark ? '#2A0E0E' : '#FFF0F0', border: `1px solid ${isDark ? '#4A1010' : '#FFCDD2'}`, borderRadius: 6, color: isDark ? '#F87171' : '#C62828', fontSize: 12, cursor: 'pointer', fontWeight: 600, opacity: isBusy ? 0.5 : 1 }}>
-                            Kick
+                        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => setSelected(u.id)}
+                            style={{ padding: '5px 10px', background: isActive ? theme.navy : theme.bg, border: `1px solid ${theme.border}`, borderRadius: 6, color: isActive ? 'white' : theme.sub, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                            View
                           </button>
-                        )}
+                          {u.active_sessions > 0 && (
+                            <button onClick={() => handleRevoke(u.id, u.email)} disabled={isBusy}
+                              style={{ padding: '5px 10px', background: isDark ? '#2A0E0E' : '#FFF0F0', border: `1px solid ${isDark ? '#4A1010' : '#FFCDD2'}`, borderRadius: 6, color: isDark ? '#F87171' : '#C62828', fontSize: 12, cursor: 'pointer', fontWeight: 600, opacity: isBusy ? 0.5 : 1 }}>
+                              Kick
+                            </button>
+                          )}
+                        </div>
                       </Td>
                     </tr>
                   );
@@ -182,5 +203,13 @@ export default function UsersTab() {
         </Section>
       )}
     </div>
+
+      <UserDetailDrawer
+        userId={selectedUserId}
+        onClose={() => setSelected(null)}
+        onPlanChanged={handleDrawerPlanChanged}
+        onSessionsRevoked={(uid) => handleDrawerRevoked(uid)}
+      />
+    </>
   );
 }
