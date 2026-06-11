@@ -25,7 +25,7 @@ interface AuthModalProps {
 type Screen = 'main' | 'magic-form' | 'magic-sent';
 
 const SIGNUP_FEATURES = [
-    { icon: '✦', text: 'AI CV tailored to every job in minutes' },
+    { icon: '✦', text: 'CV tailored to every job in minutes' },
     { icon: '✦', text: 'ATS-optimised · 35+ professional templates' },
     { icon: '✦', text: 'Interview prep, job tracker & more' },
 ];
