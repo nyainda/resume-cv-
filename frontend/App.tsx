@@ -1738,7 +1738,7 @@ const AppInner: React.FC = () => {
           }}
           darkMode={!!darkMode}
           onToggleDark={() => setDarkMode((d) => !d)}
-          hasProfile={profileExists}
+          hasProfile={profileExists && isWorkerAuthenticated}
           onGoToApp={async () => {
             if (isWorkerAuthenticated) {
               setShowLanding(false);

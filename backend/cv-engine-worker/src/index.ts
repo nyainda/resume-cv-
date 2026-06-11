@@ -69,7 +69,7 @@ import {
 
 import {
     handleAuthGoogle, handleAuthMagicSend, handleAuthMagicVerify,
-    handleAuthSession, handleAuthSignout,
+    handleAuthSession, handleAuthSignout, handleAuthDeleteAccount,
 } from './handlers/auth';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,11 +210,12 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/user-data'      && m === 'GET')                      return handleUserDataGet(request, env, url);
 
     // ── Auth ──────────────────────────────────────────────────────────────────
-    if (p === '/api/auth/google'              && m === 'POST') return handleAuthGoogle(request, env);
-    if (p === '/api/auth/magic-link/send'     && m === 'POST') return handleAuthMagicSend(request, env);
-    if (p === '/api/auth/magic-link/verify'   && m === 'GET')  return handleAuthMagicVerify(request, env, url);
-    if (p === '/api/auth/session'             && m === 'GET')  return handleAuthSession(request, env);
-    if (p === '/api/auth/signout'             && m === 'POST') return handleAuthSignout(request, env);
+    if (p === '/api/auth/google'              && m === 'POST')   return handleAuthGoogle(request, env);
+    if (p === '/api/auth/magic-link/send'     && m === 'POST')   return handleAuthMagicSend(request, env);
+    if (p === '/api/auth/magic-link/verify'   && m === 'GET')    return handleAuthMagicVerify(request, env, url);
+    if (p === '/api/auth/session'             && m === 'GET')    return handleAuthSession(request, env);
+    if (p === '/api/auth/signout'             && m === 'POST')   return handleAuthSignout(request, env);
+    if (p === '/api/auth/account'             && m === 'DELETE') return handleAuthDeleteAccount(request, env);
 
     return json({ error: 'not_found', path: p }, request, env, 404);
 }

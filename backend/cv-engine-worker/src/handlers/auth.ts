@@ -385,6 +385,39 @@ export async function handleAuthSignout(request: Request, env: Env): Promise<Res
     return json({ ok: true }, request, env);
 }
 
+/**
+ * DELETE /api/auth/account  (Authorization: Bearer <token>)
+ *
+ * Permanently deletes the authenticated user's account:
+ *  - All sessions
+ *  - All user_slots (cloud-synced CV profiles)
+ *  - All profile_cache entries
+ *  - The user_identities row itself
+ * Magic-link tokens and LLM cache entries are keyed by hash/content, not
+ * by user, so they age out naturally and are not removed here.
+ */
+export async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Response> {
+    const token = sessionTokenFromRequest(request);
+    const session = await verifySession(token, env);
+    if (!session) return json({ error: 'unauthorized' }, request, env, 401);
+
+    const uid = session.userId;
+
+    // Audit log before deletion so we have a record even if later steps fail
+    await auditLog(uid, 'account_deleted', 'delete_account', request, env);
+
+    // Delete user-scoped data in dependency order.
+    // profile_cache has no user_id; delete by slot_id matching the user's slots first.
+    await env.CV_DB.prepare(
+        `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`
+    ).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_slots      WHERE user_id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_sessions   WHERE user_id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_identities WHERE id = ?`).bind(uid).run().catch(() => {});
+
+    return json({ ok: true }, request, env);
+}
+
 // ─── Email template ───────────────────────────────────────────────────────────
 
 function buildMagicEmail(magicLink: string): string {

@@ -30,10 +30,11 @@ const SIGNUP_FEATURES = [
     { icon: '✦', text: 'Interview prep, job tracker & more' },
 ];
 
-export default function AuthModal({ open, onSuccess, onDismiss, mode = 'signup' }: AuthModalProps) {
+export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
     const { signIn: googleSignIn, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
     const { isWorkerAuthenticated, rememberDevice, setRememberDevice } = useWorkerAuth();
 
+    const [mode, setMode]              = useState<'signup' | 'signin'>(initialMode);
     const [screen, setScreen]         = useState<Screen>('main');
     const [email, setEmail]            = useState('');
     const [emailError, setEmailError]  = useState('');
@@ -41,6 +42,9 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode = 'signup' 
     const [googleLoading, setGoogleLoading] = useState(false);
     const [mainNotice, setMainNotice]  = useState('');
     const emailRef = useRef<HTMLInputElement>(null);
+
+    // Sync mode when parent changes it (e.g. clicking "Sign in" vs "Get Started")
+    useEffect(() => { setMode(initialMode); }, [initialMode]);
 
     useEffect(() => {
         if (open) {
@@ -173,6 +177,27 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode = 'signup' 
                                     ? 'Sign in to access your CVs and career tools.'
                                     : 'Free forever. No credit card. No password.'}
                             </p>
+                        </div>
+                    )}
+
+                    {/* Mode toggle tabs */}
+                    {screen !== 'magic-sent' && (
+                        <div style={{
+                            display: 'flex', gap: 4, marginTop: 18,
+                            background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 4,
+                        }}>
+                            {(['signup', 'signin'] as const).map(m => (
+                                <button key={m} onClick={() => { setMode(m); setScreen('main'); }}
+                                    style={{
+                                        flex: 1, padding: '7px 12px', borderRadius: 9, border: 'none',
+                                        fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        background: mode === m ? '#ffffff' : 'transparent',
+                                        color: mode === m ? '#1B2B4B' : 'rgba(255,255,255,0.55)',
+                                    }}>
+                                    {m === 'signup' ? 'Create account' : 'Sign in'}
+                                </button>
+                            ))}
                         </div>
                     )}
 
