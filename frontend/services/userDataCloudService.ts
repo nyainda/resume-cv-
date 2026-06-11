@@ -55,16 +55,29 @@ async function sha256hex(text: string): Promise<string> {
     }
 }
 
-// ─── HTTP helper ─────────────────────────────────────────────────────────────
+// ─── Session token (set by App.tsx via setUserSessionToken) ──────────────────
+// Using a module-level variable avoids threading the token through every caller.
+
+let _sessionToken: string | null = null;
+
+/** Call this from App.tsx whenever workerAuth.sessionToken changes. */
+export function setUserSessionToken(token: string | null): void {
+    _sessionToken = token;
+}
+
+// ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 async function post(path: string, body: object): Promise<boolean> {
-    if (!ENGINE_URL) return false;
+    if (!ENGINE_URL || !_sessionToken) return false;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
         const res = await fetch(`${ENGINE_URL}${path}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${_sessionToken}`,
+            },
             body: JSON.stringify(body),
             signal: ac.signal,
         });
@@ -76,11 +89,14 @@ async function post(path: string, body: object): Promise<boolean> {
 }
 
 async function get(path: string): Promise<any | null> {
-    if (!ENGINE_URL) return null;
+    if (!ENGINE_URL || !_sessionToken) return null;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-        const res = await fetch(`${ENGINE_URL}${path}`, { signal: ac.signal });
+        const res = await fetch(`${ENGINE_URL}${path}`, {
+            headers: { 'Authorization': `Bearer ${_sessionToken}` },
+            signal: ac.signal,
+        });
         clearTimeout(timer);
         if (!res.ok) return null;
         return await res.json();
@@ -211,13 +227,12 @@ export interface UserDataSnapshot {
 }
 
 /**
- * Fetches all synced data for this device from D1.
- * Used in the Settings restore flow.
- * Returns null if unreachable or no data found.
+ * Fetches all synced data for this user from D1.
+ * Requires a valid session token (set via setUserSessionToken).
+ * Returns null if unreachable, unauthenticated, or no data found.
  */
 export async function fetchUserData(): Promise<UserDataSnapshot | null> {
-    const deviceId = getDeviceId();
-    return get(`/api/cv/user-data?device_id=${encodeURIComponent(deviceId)}`);
+    return get(`/api/cv/user-data`);
 }
 
 /**

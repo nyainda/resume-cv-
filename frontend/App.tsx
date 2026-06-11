@@ -22,7 +22,7 @@ import { setRuntimeKeys } from "./services/security/RuntimeKeys";
 import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { syncProfileToCache } from "./services/profileCacheClient";
-import { syncSlot, syncPrefs } from "./services/userDataCloudService";
+import { syncSlot, syncPrefs, setUserSessionToken } from "./services/userDataCloudService";
 import { clearUserScopedStorage } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
@@ -232,8 +232,11 @@ function colorBg(c: ProfileColor) {
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
-  const { workerUser, isWorkerAuthenticated, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
+  const { workerUser, isWorkerAuthenticated, sessionToken, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
   useAutoSync(isAuthenticated);
+
+  // Keep the D1 sync service's module-level token in sync with the worker session
+  useEffect(() => { setUserSessionToken(sessionToken ?? null); }, [sessionToken]);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
   // When a user signs in on a device with no local profiles, silently check
@@ -644,9 +647,9 @@ const AppInner: React.FC = () => {
     document.documentElement.classList.toggle("dark", !!darkMode);
   }, [darkMode]);
 
-  // Sync user preferences to CF D1 — only for signed-in Google users (debounced, fire-and-forget)
+  // Sync user preferences to CF D1 — only when worker-authenticated (has session token)
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isWorkerAuthenticated) return;
     const timer = setTimeout(() => {
       syncPrefs({
         aiProvider: localStorage.getItem("cv_builder:aiProvider") ?? undefined,
@@ -661,7 +664,7 @@ const AppInner: React.FC = () => {
     }, 4000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [darkMode, isAuthenticated]);
+  }, [darkMode, isWorkerAuthenticated]);
 
   // Drive save error notifications
   useEffect(() => {
@@ -876,7 +879,7 @@ const AppInner: React.FC = () => {
         setIsEditingProfile(false);
         // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
         syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
-        if (isAuthenticated)
+        if (isWorkerAuthenticated)
           syncSlot({ ...activeSlot, profile }).catch(() => {});
       } else {
         // First-time: auto-create a slot
@@ -1312,7 +1315,7 @@ const AppInner: React.FC = () => {
         );
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
-        if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
+        if (isWorkerAuthenticated) syncSlot(updatedSlot).catch(() => {});
         toast.success(
           "Profile Imported!",
           `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
@@ -1335,10 +1338,10 @@ const AppInner: React.FC = () => {
           `Your CV has been imported.${extrasMsg} Edit your profile or go to the Generator.`,
         );
         syncProfileToCache(slot).catch(() => {});
-        if (isAuthenticated) syncSlot(slot).catch(() => {});
+        if (isWorkerAuthenticated) syncSlot(slot).catch(() => {});
       }
     },
-    [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated],
+    [activeSlot, setProfiles, setActiveProfileId, toast, isWorkerAuthenticated],
   );
 
   // ── JSON profile import — asks user whether to update or create new ──────
@@ -1361,7 +1364,7 @@ const AppInner: React.FC = () => {
         );
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
-        if (isAuthenticated) syncSlot(updatedSlot).catch(() => {});
+        if (isWorkerAuthenticated) syncSlot(updatedSlot).catch(() => {});
         toast.success(
           "Profile Updated!",
           "Your CV is ready — all templates are populated. Check your quality report below.",
@@ -1379,7 +1382,7 @@ const AppInner: React.FC = () => {
         setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
         setActiveProfileId(id);
         syncProfileToCache(slot).catch(() => {});
-        if (isAuthenticated) syncSlot(slot).catch(() => {});
+        if (isWorkerAuthenticated) syncSlot(slot).catch(() => {});
         toast.success(
           "Profile Imported!",
           "Your CV is ready — all templates are populated. Check your quality report below.",
