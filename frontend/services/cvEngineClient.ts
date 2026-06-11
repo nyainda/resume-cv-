@@ -1756,3 +1756,46 @@ export async function listAuthLogs(params: {
     if (params.offset) q.set('offset', String(params.offset));
     return adminFetch<AuthLogsResult>(`/api/cv/admin/auth-logs?${q}`);
 }
+
+// ── DB Browser ────────────────────────────────────────────────────────────────
+
+export interface DbBrowseResult {
+    ok: boolean;
+    table: string;
+    total: number;
+    limit: number;
+    offset: number;
+    columns: string[];
+    redacted: string[];
+    truncated: string[];
+    rows: Record<string, any>[];
+}
+
+export interface DbBrowseParams {
+    table: string;
+    limit?: number;
+    offset?: number;
+    search?: string;
+    sort_col?: string;
+    sort_order?: 'asc' | 'desc';
+}
+
+export async function fetchDbBrowse(params: DbBrowseParams): Promise<DbBrowseResult | null> {
+    const q = new URLSearchParams({ table: params.table });
+    if (params.limit  != null) q.set('limit',      String(params.limit));
+    if (params.offset != null) q.set('offset',     String(params.offset));
+    if (params.search)         q.set('search',     params.search);
+    if (params.sort_col)       q.set('sort_col',   params.sort_col);
+    if (params.sort_order)     q.set('sort_order', params.sort_order);
+    return adminFetch<DbBrowseResult>(`/api/cv/admin/db-browse?${q}`);
+}
+
+export const DB_BROWSABLE_TABLES = [
+    'user_identities',
+    'user_sessions',
+    'auth_audit_log',
+    'llm_cache',
+    'cv_examples',
+    'profile_cache',
+    'cv_admin_tokens',
+] as const;

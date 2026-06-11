@@ -510,3 +510,82 @@ export async function handleAuthLogsList(request: Request, env: Env, url: URL): 
 
     return json({ ok: true, total: countRow?.c ?? 0, limit, offset, logs: rows.results ?? [] }, request, env);
 }
+
+// ─── DB Browser ───────────────────────────────────────────────────────────────
+
+const DB_TABLE_CONFIG: Record<string, {
+    searchCols: string[];
+    redact:     string[];
+    truncate:   string[];
+    defaultSort: string;
+    defaultOrder: 'ASC' | 'DESC';
+}> = {
+    user_identities:  { searchCols: ['email','name','plan','google_id'],    redact: [],               truncate: [],                    defaultSort: 'created_at',  defaultOrder: 'DESC' },
+    user_sessions:    { searchCols: ['device_id'],                          redact: ['token_hash'],   truncate: [],                    defaultSort: 'created_at',  defaultOrder: 'DESC' },
+    auth_audit_log:   { searchCols: ['event','ip','user_agent'],            redact: [],               truncate: ['user_agent'],         defaultSort: 'created_at',  defaultOrder: 'DESC' },
+    llm_cache:        { searchCols: ['key','model_hint'],                   redact: [],               truncate: ['response_text'],      defaultSort: 'last_hit_at', defaultOrder: 'DESC' },
+    cv_examples:      { searchCols: ['fingerprint','narrative_angle','voice_name'], redact: [],       truncate: ['blueprint'],          defaultSort: 'created_at',  defaultOrder: 'DESC' },
+    profile_cache:    { searchCols: ['hash'],                               redact: [],               truncate: ['profile_json'],       defaultSort: 'created_at',  defaultOrder: 'DESC' },
+    cv_admin_tokens:  { searchCols: ['label','role'],                       redact: ['token_hash'],   truncate: [],                    defaultSort: 'created_at',  defaultOrder: 'DESC' },
+};
+
+/** GET /api/cv/admin/db-browse?table=X&limit=Y&offset=Z&search=W&sort_col=COL&sort_order=asc|desc */
+export async function handleDbBrowse(request: Request, env: Env, url: URL): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
+
+    const table = url.searchParams.get('table') || '';
+    const cfg   = DB_TABLE_CONFIG[table];
+    if (!cfg) return json({ error: 'unknown_table', allowed: Object.keys(DB_TABLE_CONFIG) }, request, env, 400);
+
+    const limit     = Math.min(Math.max(parseInt(url.searchParams.get('limit')  || '50'), 1), 200);
+    const offset    = Math.max(parseInt(url.searchParams.get('offset') || '0'), 0);
+    const search    = (url.searchParams.get('search') || '').trim();
+    const rawSort   = (url.searchParams.get('sort_col') || cfg.defaultSort).replace(/[^a-z0-9_]/gi, '');
+    const rawOrder  = url.searchParams.get('sort_order') === 'asc' ? 'ASC' : (url.searchParams.get('sort_order') === 'desc' ? 'DESC' : cfg.defaultOrder);
+
+    // Build WHERE from search — column names are safe (hardcoded in DB_TABLE_CONFIG, not user input)
+    const conds: string[] = [];
+    const binds: any[] = [];
+    if (search && cfg.searchCols.length) {
+        conds.push('(' + cfg.searchCols.map(col => `"${col}" LIKE ?`).join(' OR ') + ')');
+        for (const _ of cfg.searchCols) { binds.push(`%${search}%`); }
+    }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+    // Get columns via PRAGMA
+    const pragmaRows = await env.CV_DB.prepare(`PRAGMA table_info("${table}")`).all<{name: string; type: string}>();
+    const allCols = (pragmaRows.results ?? []).map(r => r.name);
+    const selectCols = allCols.map(c => cfg.redact.includes(c) ? `'[redacted]' AS "${c}"` : `"${c}"`).join(', ');
+
+    // D1 doesn't support ?? placeholders for column names; safe because rawSort is sanitised
+    const countSql = `SELECT COUNT(*) as c FROM "${table}" ${where}`;
+    const rowsSql  = `SELECT ${selectCols} FROM "${table}" ${where} ORDER BY "${rawSort}" ${rawOrder} LIMIT ${limit} OFFSET ${offset}`;
+
+    let total = 0;
+    let rows: any[] = [];
+    try {
+        const countRow = await env.CV_DB.prepare(countSql).bind(...binds).first<{c:number}>();
+        total = countRow?.c ?? 0;
+        const rowsRes = await env.CV_DB.prepare(rowsSql).bind(...binds).all();
+        rows = (rowsRes.results ?? []).map(row => {
+            const out: Record<string, any> = { ...row as any };
+            for (const col of cfg.truncate) {
+                if (typeof out[col] === 'string' && out[col].length > 300) {
+                    out[col] = out[col].slice(0, 300) + '…[truncated]';
+                }
+            }
+            return out;
+        });
+    } catch (e: any) {
+        return json({ error: 'query_failed', detail: e?.message }, request, env, 500);
+    }
+
+    return json({
+        ok: true, table, total, limit, offset,
+        columns: allCols,
+        redacted: cfg.redact,
+        truncated: cfg.truncate,
+        rows,
+    }, request, env);
+}

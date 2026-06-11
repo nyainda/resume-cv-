@@ -13,8 +13,9 @@ const CVEngineTab  = lazy(() => import('./CVEngineTab'));
 const LeakQueueTab = lazy(() => import('./LeakQueueTab'));
 const PipelineTab  = lazy(() => import('./PipelineTab'));
 const LiveFeedTab  = lazy(() => import('./LiveFeedTab'));
+const DBBrowserTab = lazy(() => import('./DBBrowserTab'));
 
-export type AdminTab = 'overview' | 'users' | 'auth-logs' | 'cv-engine' | 'leak-queue' | 'tokens' | 'health' | 'pipeline' | 'live-feed';
+export type AdminTab = 'overview' | 'users' | 'auth-logs' | 'cv-engine' | 'leak-queue' | 'tokens' | 'health' | 'pipeline' | 'live-feed' | 'db';
 
 const NAV_GROUPS = [
   {
@@ -31,6 +32,7 @@ const NAV_GROUPS = [
       { id: 'users'     as AdminTab, label: 'Users',         icon: <IUsers /> },
       { id: 'auth-logs' as AdminTab, label: 'Auth Logs',     icon: <ILogs /> },
       { id: 'leak-queue'as AdminTab, label: 'Leak Queue',    icon: <IWarn /> },
+      { id: 'db'        as AdminTab, label: 'DB Browser',    icon: <IDB /> },
     ],
   },
   {
@@ -254,6 +256,7 @@ function AdminAppInner() {
             {tab === 'leak-queue' && <LeakQueueTab />}
             {tab === 'tokens'     && <TokensTab />}
             {tab === 'health'     && <HealthTab />}
+            {tab === 'db'         && <DBBrowserTab />}
           </Suspense>
         </div>
       </main>
@@ -279,3 +282,4 @@ function IWarn()   { return <svg width="15" height="15" viewBox="0 0 16 16" fill
 function IHealth() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 8h3l2-5 2 10 2-5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function IEngine() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" fill="currentColor"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 function IKey()    { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5"/><path d="M9 9.5l5 3M12 11l1.5 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
+function IDB()     { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4.5" rx="5.5" ry="2" stroke="currentColor" strokeWidth="1.4"/><path d="M2.5 4.5v3c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2v-3" stroke="currentColor" strokeWidth="1.4"/><path d="M2.5 7.5v3c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2v-3" stroke="currentColor" strokeWidth="1.4"/></svg>; }
