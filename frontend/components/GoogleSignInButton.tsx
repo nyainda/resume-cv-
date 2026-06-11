@@ -5,7 +5,7 @@ import React, { useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { useWorkerAuth } from '../auth/WorkerAuthContext';
 import { migrateLocalToDrive, hasMigratedToDrive } from '../services/storage/StorageRouter';
-import { clearUserScopedStorage } from '../utils/clearUserStorage';
+import { clearUserScopedStorage, stampSignedOut } from '../utils/clearUserStorage';
 import { Shield, CheckCircle, AlertCircle } from './icons';
 
 interface Props {
@@ -44,6 +44,7 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
         await signOut();
         await workerSignOut();
         clearUserScopedStorage();
+        stampSignedOut();
         onSignedOut?.();
     };
 

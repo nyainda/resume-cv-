@@ -1,5 +1,5 @@
 /**
- * clearUserScopedStorage — call as step 7 of every sign-out sequence.
+ * clearUserScopedStorage — call as part of every sign-out sequence.
  *
  * Clears all per-user tokens, Drive conflict baselines, D1 sync hashes,
  * and restore-dismissal flags so the next user starts with a clean slate.
@@ -14,7 +14,35 @@
  * Does NOT clear:
  *  - cv_builder:deviceId    (device-level, not user-level)
  *  - procv:account_email_hash  (intentionally kept for account-switch detection)
+ *
+ * After an explicit sign-out, call stampSignedOut() so the guard in App.tsx
+ * treats the NEXT sign-in (any user, including the same one) as a fresh
+ * account-switch and wipes stale app data before rendering.
  */
+
+/** localStorage key that stores the FNV-32 hash of the last signed-in email. */
+export const ACCOUNT_HASH_KEY = 'procv:account_email_hash';
+
+/**
+ * Sentinel value written to ACCOUNT_HASH_KEY on explicit sign-out.
+ * Any real email hash will differ from this, so the next sign-in always
+ * triggers the account-switch wipe+reload — preventing a subsequent user
+ * from seeing the previous user's cached app data.
+ */
+export const SIGNED_OUT_SENTINEL = 'signed_out';
+
+/**
+ * Write the signed-out sentinel.  Call this AFTER clearUserScopedStorage()
+ * in every explicit sign-out handler so the account-switch guard fires on
+ * the next sign-in.
+ */
+export function stampSignedOut(): void {
+    try {
+        localStorage.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
+    } catch {
+        // localStorage unavailable — non-fatal
+    }
+}
 
 export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void {
     // ── Auth tokens ───────────────────────────────────────────────────────────
@@ -80,7 +108,7 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
             const k = localStorage.key(i);
             if (
                 k?.startsWith('procv:') &&
-                k !== 'procv:account_email_hash' // keep — needed for future switch detection
+                k !== ACCOUNT_HASH_KEY // keep — needed for future switch detection
             ) {
                 procvAppKeys.push(k);
             }

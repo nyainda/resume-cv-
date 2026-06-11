@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { useWorkerAuth } from '../auth/WorkerAuthContext';
 import { migrateLocalToDrive, isDriveActive, hasMigratedToDrive } from '../services/storage/StorageRouter';
-import { clearUserScopedStorage } from '../utils/clearUserStorage';
+import { clearUserScopedStorage, stampSignedOut } from '../utils/clearUserStorage';
 
 type Status = 'idle' | 'connecting' | 'migrating' | 'active' | 'error';
 
@@ -57,6 +57,7 @@ export const CloudBackupSettings: React.FC = () => {
         await signOut();
         await workerSignOut();
         clearUserScopedStorage();
+        stampSignedOut();
         setStatus('idle');
         setMigration(null);
         setErrorMsg('');

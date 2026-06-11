@@ -23,7 +23,7 @@ import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData } from "./services/userDataCloudService";
-import { clearUserScopedStorage } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
   loadCustomTemplates,
@@ -239,7 +239,7 @@ function _fnv32(s: string): string {
   }
   return h.toString(16);
 }
-const _ACCT_HASH_KEY = 'procv:account_email_hash';
+const _ACCT_HASH_KEY = ACCOUNT_HASH_KEY;
 
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
@@ -258,11 +258,20 @@ const AppInner: React.FC = () => {
   // app data so they cannot see each other's CVs and profiles.
   // We reload after clearing so React state re-initialises from clean storage.
   useEffect(() => {
-    if (!workerUser?.email) return;
-    const newHash    = _fnv32(workerUser.email);
+    // Use whichever auth resolves first — Google is faster (~100 ms) than the
+    // worker session validation (~1-2 s). Watching both prevents the guard from
+    // silently failing when worker auth is slow or unreachable.
+    const email = workerUser?.email ?? user?.email;
+    if (!email) return;
+    const newHash    = _fnv32(email);
     const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
+    // Wipe when:
+    //  (a) a different user's hash is stored, OR
+    //  (b) the sentinel 'signed_out' was written by the last sign-out handler —
+    //      this ensures every fresh sign-in starts from a clean slate even when
+    //      the same user returns, preventing residual data from leaking to the
+    //      next person who opens the app on this device.
     if (storedHash && storedHash !== newHash) {
-      // Different account detected on this device — wipe all app data first.
       clearUserScopedStorage({ clearAppData: true });
       localStorage.setItem(_ACCT_HASH_KEY, newHash);
       window.location.reload();
@@ -270,7 +279,7 @@ const AppInner: React.FC = () => {
     }
     localStorage.setItem(_ACCT_HASH_KEY, newHash);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerUser?.email]);
+  }, [workerUser?.email, user?.email]);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
   // When a user signs in on a device with no local profiles, silently check
@@ -1811,7 +1820,7 @@ const AppInner: React.FC = () => {
             {/* ── Sign-out button (only when worker-authenticated) ─── */}
             {isWorkerAuthenticated && (
               <button
-                onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); setShowLanding(true); }}
+                onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); stampSignedOut(); setShowLanding(true); }}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
                 title="Sign out"
               >
@@ -2037,6 +2046,7 @@ const AppInner: React.FC = () => {
                           await signOut();
                           await googleSignOut();
                           clearUserScopedStorage();
+                          stampSignedOut();
                           setShowLanding(true);
                         }}
                         className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
