@@ -164,6 +164,18 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         return () => { cancelled = true; };
     }, [applySession]);
 
+    // ── Bug 5 fix: Clean up worker session when Google auth dies ─────────────
+    // If Google's silent-refresh fails (session truly expired), GoogleAuthContext
+    // sets user=null. Worker session would otherwise remain alive (split-brain).
+    // authLoading guard prevents false-positive on first render before IDB rehydrates.
+    useEffect(() => {
+        if (isLoading) return;
+        if (!isGoogleAuthed && sessionToken) {
+            clearSession();
+            linkedGoogleId.current = null;
+        }
+    }, [isGoogleAuthed, isLoading, sessionToken, clearSession]);
+
     // ── Auto-link Google token to worker when Google auth completes ───────────
 
     useEffect(() => {

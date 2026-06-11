@@ -29,11 +29,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
 
-  const { user: googleUser, isAuthenticated } = useGoogleAuth();
+  const { user: googleUser, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
   const { workerUser, isWorkerAuthenticated, signOut: workerSignOut } = useWorkerAuth();
 
   const handleSignOut = async () => {
     await workerSignOut();
+    await googleSignOut();
     onClose();
     onSignOut?.();
   };

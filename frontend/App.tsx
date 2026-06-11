@@ -23,6 +23,7 @@ import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs } from "./services/userDataCloudService";
+import { clearUserScopedStorage } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
   loadCustomTemplates,
@@ -230,7 +231,7 @@ function colorBg(c: ProfileColor) {
 
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
-  const { user, isAuthenticated } = useGoogleAuth();
+  const { user, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
   const { workerUser, isWorkerAuthenticated, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
   useAutoSync(isAuthenticated);
 
@@ -1713,7 +1714,7 @@ const AppInner: React.FC = () => {
             {/* ── Sign-out button (only when worker-authenticated) ─── */}
             {isWorkerAuthenticated && (
               <button
-                onClick={async () => { await signOut(); setShowLanding(true); }}
+                onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); setShowLanding(true); }}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
                 title="Sign out"
               >
@@ -1937,6 +1938,8 @@ const AppInner: React.FC = () => {
                         onClick={async () => {
                           setShowMobileMenu(false);
                           await signOut();
+                          await googleSignOut();
+                          clearUserScopedStorage();
                           setShowLanding(true);
                         }}
                         className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"

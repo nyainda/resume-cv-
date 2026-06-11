@@ -106,9 +106,12 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
             ? JSON.stringify({ template: (slot.currentCV as any).template, updatedAt: Date.now() })
             : null;
 
-        // Build the payload we'll send — full slot JSON (profile + nested arrays)
+        // Build the payload — strip photo before sending to D1 (security: no blobs in D1)
+        const profileWithoutPhoto = slot.profile
+            ? { ...slot.profile, personalInfo: { ...slot.profile.personalInfo, photo: undefined } }
+            : {};
         const slotPayload: Record<string, unknown> = {
-            profile: slot.profile ?? {},
+            profile: profileWithoutPhoto,
             savedCVs: (slot.savedCVs ?? []).slice(0, 50),
             savedCoverLetters: (slot.savedCoverLetters ?? []).slice(0, 50),
             trackedApps: (slot.trackedApps ?? []).slice(0, 200),

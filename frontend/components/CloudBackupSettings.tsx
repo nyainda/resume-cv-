@@ -4,7 +4,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useWorkerAuth } from '../auth/WorkerAuthContext';
 import { migrateLocalToDrive, isDriveActive } from '../services/storage/StorageRouter';
+import { clearUserScopedStorage } from '../utils/clearUserStorage';
 
 type Status = 'idle' | 'connecting' | 'migrating' | 'active' | 'error';
 
@@ -15,6 +17,7 @@ interface MigrationProgress {
 
 export const CloudBackupSettings: React.FC = () => {
     const { user, loading, error, signIn, signOut, isAuthenticated } = useGoogleAuth();
+    const { signOut: workerSignOut } = useWorkerAuth();
 
     const [status, setStatus] = useState<Status>('idle');
     const [errorMsg, setErrorMsg] = useState('');
@@ -52,8 +55,10 @@ export const CloudBackupSettings: React.FC = () => {
         }
     };
 
-    const handleDisconnect = () => {
-        signOut();
+    const handleDisconnect = async () => {
+        await signOut();
+        await workerSignOut();
+        clearUserScopedStorage();
         setStatus('idle');
         setMigration(null);
         setErrorMsg('');

@@ -3,7 +3,9 @@
 
 import React, { useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useWorkerAuth } from '../auth/WorkerAuthContext';
 import { migrateLocalToDrive } from '../services/storage/StorageRouter';
+import { clearUserScopedStorage } from '../utils/clearUserStorage';
 import { Shield, CheckCircle, AlertCircle } from './icons';
 
 interface Props {
@@ -13,6 +15,7 @@ interface Props {
 
 export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut }) => {
     const { user, loading, error, signIn, signOut, isAuthenticated } = useGoogleAuth();
+    const { signOut: workerSignOut } = useWorkerAuth();
 
     // Run the one-time local→Drive migration silently on every sign-in.
     // No UI is shown — the migration is a background best-effort operation.
@@ -37,8 +40,10 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
         }
     };
 
-    const handleSignOut = () => {
-        signOut();
+    const handleSignOut = async () => {
+        await signOut();
+        await workerSignOut();
+        clearUserScopedStorage();
         onSignedOut?.();
     };
 
