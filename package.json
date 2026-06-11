@@ -21,7 +21,8 @@
     "test:variance": "node backend/scripts/test-cv-variance.mjs",
     "test:batch-cv": "node backend/scripts/batch-cv-test.mjs",
     "test:batch-cv:fast": "node backend/scripts/batch-cv-test.mjs --fast",
-    "deploy:worker": "cd backend/cv-engine-worker && bash deploy.sh"
+    "deploy:worker": "cd backend/cv-engine-worker && bash deploy.sh",
+    "test:landing-validator": "node backend/scripts/test-cv-landing-validator.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

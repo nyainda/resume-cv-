@@ -22,7 +22,7 @@ import { setRuntimeKeys } from "./services/security/RuntimeKeys";
 import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { syncProfileToCache } from "./services/profileCacheClient";
-import { syncSlot, syncPrefs, setUserSessionToken } from "./services/userDataCloudService";
+import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData } from "./services/userDataCloudService";
 import { clearUserScopedStorage } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
@@ -243,6 +243,16 @@ const AppInner: React.FC = () => {
   // Drive for a backup and offer a one-tap restore. Only fires once per session.
   const driveRestoreCheckedRef = useRef(false);
   const [driveRestoreSlots, setDriveRestoreSlots] = useState<UserProfileSlot[] | null>(null);
+  // Ref so the D1 timeout callback can see the latest Drive result without stale closure
+  const driveRestoreSlotsRef = useRef<UserProfileSlot[] | null>(null);
+  useEffect(() => { driveRestoreSlotsRef.current = driveRestoreSlots; }, [driveRestoreSlots]);
+
+  // ── D1 restore-on-new-device flow ──────────────────────────────────────
+  // Fallback: if Drive found nothing, check the ProCV cloud backup (D1) instead.
+  // Fires 2.5 s after worker-auth is ready — long enough for the Drive async
+  // call to have settled — and only when local profiles are still empty.
+  const d1RestoreCheckedRef = useRef(false);
+  const [d1RestoreSlots, setD1RestoreSlots] = useState<UserProfileSlot[] | null>(null);
 
   // ── Multi-profile storage ──────────────────────────────────────────────
   const [profiles, setProfiles] = useStorage<UserProfileSlot[]>("profiles", []);
@@ -347,6 +357,47 @@ const AppInner: React.FC = () => {
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  // ── D1 restore-on-new-device ──────────────────────────────────────────────
+  // Fires 2.5 s after the worker session is ready (giving Drive time to settle).
+  // Only proceeds if: profiles are still empty AND Drive found nothing.
+  useEffect(() => {
+    if (!isWorkerAuthenticated) return;
+    if (profiles.length > 0) return;
+    if (d1RestoreCheckedRef.current) return;
+    if (sessionStorage.getItem('procv:d1-restore-dismissed')) return;
+
+    const t = setTimeout(() => {
+      if (d1RestoreCheckedRef.current) return;
+      if (driveRestoreSlotsRef.current !== null) return; // Drive found data, let it handle it
+      d1RestoreCheckedRef.current = true;
+
+      fetchUserData()
+        .then(data => {
+          if (!data?.slots?.length) return;
+          const restored = data.slots.flatMap(s => {
+            try {
+              const profile = JSON.parse(s.profile_json);
+              return [{
+                id:   s.slot_id,
+                name: s.slot_name,
+                color: s.color ?? '#1B2B4B',
+                profile,
+                savedCVs: [],
+                savedCoverLetters: [],
+                trackedApps: [],
+                starStories: [],
+              } as UserProfileSlot];
+            } catch { return []; }
+          });
+          if (restored.length > 0) setD1RestoreSlots(restored);
+        })
+        .catch(() => {});
+    }, 2500);
+
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWorkerAuthenticated, profiles.length]);
 
   // Boot-time profile cache sync — runs whenever the active slot changes.
   // Uploads the profile to D1 if it hasn't been synced yet (or has changed
@@ -2469,6 +2520,50 @@ const AppInner: React.FC = () => {
                   setActiveProfileId(driveRestoreSlots[0]?.id ?? null);
                   setDriveRestoreSlots(null);
                   toast.success('Profiles restored', `${driveRestoreSlots.length} profile${driveRestoreSlots.length !== 1 ? 's' : ''} restored from Google Drive.`);
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-white bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 dark:bg-[#C9A84C] dark:text-[#1B2B4B] dark:hover:bg-[#C9A84C]/90 rounded-lg transition-colors"
+              >
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── D1 cloud-backup restore prompt ── */}
+      {d1RestoreSlots && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm mx-auto px-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 p-4 flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-full bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 flex items-center justify-center">
+                <svg className="w-4 h-4 text-[#1B2B4B] dark:text-[#C9A84C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <ellipse cx={12} cy={5} rx={9} ry={3} />
+                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">
+                  Cloud backup found
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  We found {d1RestoreSlots.length} profile{d1RestoreSlots.length !== 1 ? 's' : ''} in your ProCV cloud backup. Restore to this device?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { sessionStorage.setItem('procv:d1-restore-dismissed', '1'); setD1RestoreSlots(null); }}
+                className="px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => {
+                  setProfiles(d1RestoreSlots);
+                  setActiveProfileId(d1RestoreSlots[0]?.id ?? null);
+                  setD1RestoreSlots(null);
+                  toast.success('Profiles restored', `${d1RestoreSlots.length} profile${d1RestoreSlots.length !== 1 ? 's' : ''} restored from cloud backup.`);
                 }}
                 className="px-3 py-1.5 text-xs font-bold text-white bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 dark:bg-[#C9A84C] dark:text-[#1B2B4B] dark:hover:bg-[#C9A84C]/90 rounded-lg transition-colors"
               >
