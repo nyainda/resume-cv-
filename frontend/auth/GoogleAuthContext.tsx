@@ -64,6 +64,9 @@ const SCOPES = [
     'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
 
+// Key used by the oauth-callback.html localStorage fallback (iOS PWA path)
+const OAUTH_CALLBACK_KEY = 'procv:oauth_callback';
+
 function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
     return new Promise((resolve, reject) => {
         const clientId = (import.meta as { env: Record<string, string> }).env.VITE_GOOGLE_CLIENT_ID;
@@ -71,6 +74,9 @@ function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
             reject(new Error('VITE_GOOGLE_CLIENT_ID is not set in .env'));
             return;
         }
+
+        // Clear any stale callback from a previous attempt
+        try { localStorage.removeItem(OAUTH_CALLBACK_KEY); } catch { /* ignore */ }
 
         const redirectUri = `${window.location.origin}/oauth-callback.html`;
         const url =
@@ -88,30 +94,65 @@ function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
         }
 
         let settled = false;
-        const timer = setTimeout(() => {
+
+        function settle(accessToken: string, expiresIn: number): void {
             if (settled) return;
             settled = true;
-            window.removeEventListener('message', handler);
-            reject(new Error('Sign-in timed out. Please try again.'));
-        }, 300_000);
+            clearTimeout(timer);
+            window.removeEventListener('message', messageHandler);
+            window.removeEventListener('storage', storageHandler);
+            try { localStorage.removeItem(OAUTH_CALLBACK_KEY); } catch { /* ignore */ }
+            resolve({ accessToken, expiresIn });
+        }
 
-        function handler(event: MessageEvent) {
+        function fail(msg: string): void {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            window.removeEventListener('message', messageHandler);
+            window.removeEventListener('storage', storageHandler);
+            reject(new Error(msg));
+        }
+
+        const timer = setTimeout(() => fail('Sign-in timed out. Please try again.'), 300_000);
+
+        // Primary path: postMessage from the popup (desktop + Android PWA)
+        function messageHandler(event: MessageEvent) {
             if (event.origin !== window.location.origin) return;
             if (event.data?.type !== 'gdrive_token') return;
-            if (settled) return;
-            settled = true;
-            window.removeEventListener('message', handler);
-            clearTimeout(timer);
-
             const { access_token, expires_in, error } = event.data;
             if (error || !access_token) {
-                reject(new Error(error ?? 'No access token received'));
+                fail(error ?? 'No access token received');
             } else {
-                resolve({ accessToken: access_token, expiresIn: Number(expires_in ?? 3600) });
+                settle(access_token, Number(expires_in ?? 3600));
             }
         }
 
-        window.addEventListener('message', handler);
+        // Fallback path: localStorage storage event (iOS PWA standalone mode)
+        // On iOS the popup opens as a new Safari tab where window.opener is null,
+        // so postMessage never fires. The callback page writes to localStorage
+        // instead, which triggers a 'storage' event in this tab.
+        function storageHandler(event: StorageEvent) {
+            if (event.key !== OAUTH_CALLBACK_KEY || !event.newValue) return;
+            try {
+                const data = JSON.parse(event.newValue) as {
+                    type: string; access_token: string; expires_in: string; ts: number;
+                };
+                if (data.type !== 'gdrive_token') return;
+                // Ignore stale entries (older than 60 s)
+                if (Date.now() - (data.ts ?? 0) > 60_000) return;
+                if (!data.access_token) {
+                    fail('No access token received');
+                } else {
+                    settle(data.access_token, Number(data.expires_in ?? 3600));
+                }
+            } catch {
+                fail('Sign-in callback could not be parsed. Please try again.');
+            }
+        }
+
+        window.addEventListener('message', messageHandler);
+        window.addEventListener('storage', storageHandler);
     });
 }
 

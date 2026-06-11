@@ -48,13 +48,13 @@
     // /oauth-callback.html#access_token=xxx&expires_in=3600&...
     (function () {
       function getHashParam(name) {
-        const params = new URLSearchParams(window.location.hash.slice(1));
+        var params = new URLSearchParams(window.location.hash.slice(1));
         return params.get(name);
       }
 
-      const accessToken = getHashParam('access_token');
-      const expiresIn   = getHashParam('expires_in');
-      const error       = getHashParam('error');
+      var accessToken = getHashParam('access_token');
+      var expiresIn   = getHashParam('expires_in');
+      var error       = getHashParam('error');
 
       if (error || !accessToken) {
         document.getElementById('spinner').style.display = 'none';
@@ -64,19 +64,48 @@
         return;
       }
 
-      // Post the token to the opener (for popups) or parent (for iframes)
-      const target = window.opener || window.parent;
+      var payload = JSON.stringify({
+        type: 'gdrive_token',
+        access_token: accessToken,
+        expires_in: expiresIn,
+        ts: Date.now()
+      });
+
+      // Primary path: postMessage to the opener (popup opened by the PWA)
+      var target = window.opener || window.parent;
+      var sentViaPostMessage = false;
       if (target && target !== window) {
-        target.postMessage(
-          { type: 'gdrive_token', access_token: accessToken, expires_in: expiresIn },
-          window.location.origin
-        );
+        try {
+          target.postMessage(
+            { type: 'gdrive_token', access_token: accessToken, expires_in: expiresIn },
+            window.location.origin
+          );
+          sentViaPostMessage = true;
+        } catch (e) {
+          // Cross-origin guard blocked — fall through to localStorage path
+        }
+      }
+
+      // Fallback path: iOS PWA standalone mode sets window.opener = null
+      // because the popup opens as a new Safari tab with no JS reference back.
+      // Writing to localStorage triggers a 'storage' event in the PWA tab,
+      // which the GoogleAuthContext listener picks up.
+      if (!sentViaPostMessage) {
+        try {
+          localStorage.setItem('procv:oauth_callback', payload);
+          // Remove it after 10 s so it never lingers
+          setTimeout(function () {
+            localStorage.removeItem('procv:oauth_callback');
+          }, 10000);
+        } catch (e) {
+          // localStorage unavailable — nothing we can do
+        }
+        document.getElementById('msg').textContent = 'Done! You can close this tab.';
+        return;
       }
 
       document.getElementById('msg').textContent = 'Done! Closing…';
-      if (window.opener) {
-        setTimeout(() => window.close(), 800);
-      }
+      setTimeout(function () { window.close(); }, 800);
     })();
   </script>
 </body>
