@@ -51,18 +51,30 @@ export default function AdminApp() {
   );
 }
 
+const LS_KEY = 'procv_admin_tok_remember';
+
 function AdminAppInner() {
   const { theme, isDark, toggleDark } = useAdminTheme();
   const [tokenInput, setTokenInput] = useState('');
   const [authed, setAuthed]         = useState(false);
   const [loginErr, setLoginErr]     = useState('');
   const [logging, setLogging]       = useState(false);
+  const [remember, setRemember]     = useState(true);
+  const [remembered, setRemembered] = useState(false);
   const [tab, setTab]               = useState<AdminTab>('overview');
   const [mobileNav, setMobileNav]   = useState(false);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('procv_admin_tok') || getAdminToken();
-    if (stored) { setAdminToken(stored); sessionStorage.setItem('procv_admin_tok', stored); setAuthed(true); }
+    // Check localStorage first (remembered device), then sessionStorage (tab-only)
+    const local   = localStorage.getItem(LS_KEY);
+    const session = sessionStorage.getItem('procv_admin_tok') || getAdminToken();
+    const stored  = local || session;
+    if (stored) {
+      setAdminToken(stored);
+      sessionStorage.setItem('procv_admin_tok', stored);
+      if (local) setRemembered(true);
+      setAuthed(true);
+    }
   }, []);
 
   const handleLogin = useCallback(async (e: React.FormEvent) => {
@@ -73,17 +85,31 @@ function AdminAppInner() {
     const stats = await fetchAdminStats();
     if (stats) {
       sessionStorage.setItem('procv_admin_tok', tokenInput.trim());
+      if (remember) {
+        localStorage.setItem(LS_KEY, tokenInput.trim());
+        setRemembered(true);
+      }
       setAuthed(true);
     } else {
       setLoginErr('Invalid token or worker unreachable.');
       setAdminToken('');
     }
     setLogging(false);
-  }, [tokenInput]);
+  }, [tokenInput, remember]);
 
   const handleLogout = useCallback(() => {
     sessionStorage.removeItem('procv_admin_tok');
     setAdminToken('');
+    setAuthed(false);
+    setTokenInput('');
+    // Don't clear localStorage on logout — user stays remembered
+  }, []);
+
+  const handleForgetDevice = useCallback(() => {
+    localStorage.removeItem(LS_KEY);
+    sessionStorage.removeItem('procv_admin_tok');
+    setAdminToken('');
+    setRemembered(false);
     setAuthed(false);
     setTokenInput('');
   }, []);
@@ -110,15 +136,31 @@ function AdminAppInner() {
               onChange={e => setTokenInput(e.target.value)}
               placeholder="cvk_••••••••••••••••"
               autoFocus
+              autoComplete="current-password"
               style={{ width: '100%', padding: '12px 14px', border: `2px solid ${loginErr ? '#e53935' : theme.inputBorder}`, borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box', background: theme.input, color: theme.text, transition: 'border-color 0.15s' }}
             />
             {loginErr && <div style={{ color: '#e53935', fontSize: 13, marginTop: 8 }}>{loginErr}</div>}
-            <button type="submit" disabled={logging || !tokenInput.trim()} style={{ width: '100%', marginTop: 20, padding: '13px', background: logging || !tokenInput.trim() ? theme.muted : '#1B2B4B', color: 'white', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: logging || !tokenInput.trim() ? 'not-allowed' : 'pointer' }}>
+
+            {/* Remember this device */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer', userSelect: 'none' }}>
+              <div style={{ position: 'relative', width: 36, height: 20, flexShrink: 0 }}>
+                <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                  style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
+                <div style={{ position: 'absolute', inset: 0, background: remember ? '#1B2B4B' : theme.border, borderRadius: 10, transition: 'background 0.2s' }} />
+                <div style={{ position: 'absolute', top: 3, left: remember ? 19 : 3, width: 14, height: 14, background: 'white', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: theme.text }}>Remember this device</div>
+                <div style={{ fontSize: 11, color: theme.muted }}>Stay signed in after closing the browser</div>
+              </div>
+            </label>
+
+            <button type="submit" disabled={logging || !tokenInput.trim()} style={{ width: '100%', marginTop: 18, padding: '13px', background: logging || !tokenInput.trim() ? theme.muted : '#1B2B4B', color: 'white', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: logging || !tokenInput.trim() ? 'not-allowed' : 'pointer' }}>
               {logging ? 'Verifying…' : 'Sign in →'}
             </button>
           </form>
-          <div style={{ marginTop: 24, padding: '12px 14px', background: theme.bg, borderRadius: 8, border: `1px solid ${theme.border}`, fontSize: 12, color: theme.sub }}>
-            Session clears when you close this tab. Manage tokens in the Admin Tokens tab.
+          <div style={{ marginTop: 20, padding: '11px 14px', background: theme.bg, borderRadius: 8, border: `1px solid ${theme.border}`, fontSize: 12, color: theme.muted, lineHeight: 1.5 }}>
+            💡 <strong style={{ color: theme.sub }}>Tip:</strong> Your browser's password manager can save this token — just accept the prompt after signing in.
           </div>
         </div>
       </div>
@@ -167,12 +209,26 @@ function AdminAppInner() {
 
         {/* Footer */}
         <div style={{ padding: '12px 14px 16px', borderTop: `1px solid ${theme.sidebarBorder}` }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 2, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Token</div>
-          <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 10, wordBreak: 'break-all' }}>{maskedToken}</div>
-          <button onClick={handleLogout}
-            style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${theme.sidebarBorder}`, borderRadius: 6, color: 'rgba(255,255,255,0.55)', fontSize: 12, cursor: 'pointer' }}>
-            Sign out
-          </button>
+          {/* Device status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: remembered ? '#4ADE80' : theme.gold, flexShrink: 0 }} />
+            <div style={{ fontSize: 10, color: remembered ? '#4ADE80' : theme.gold, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              {remembered ? 'Remembered device' : 'Session only'}
+            </div>
+          </div>
+          <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 10, wordBreak: 'break-all' }}>{maskedToken}</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleLogout}
+              style={{ flex: 1, padding: '7px 8px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${theme.sidebarBorder}`, borderRadius: 6, color: 'rgba(255,255,255,0.55)', fontSize: 11, cursor: 'pointer' }}>
+              Sign out
+            </button>
+            {remembered && (
+              <button onClick={handleForgetDevice} title="Remove saved token from this device"
+                style={{ padding: '7px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, color: 'rgba(248,113,113,0.8)', fontSize: 11, cursor: 'pointer' }}>
+                Forget
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 
