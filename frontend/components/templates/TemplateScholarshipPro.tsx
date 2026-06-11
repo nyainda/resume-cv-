@@ -12,8 +12,11 @@ interface TemplateProps {
     jobDescriptionForATS: string;
 }
 
+const NAVY = '#1B2B4B';
+const GOLD = '#C9A84C';
+
 const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS }) => {
-    const accent = cvData.accentColor ?? '#0f766e';
+    const accent = cvData.accentColor ?? NAVY;
 
     const handleUpdate = useCallback((path: (string | number)[], value: any) => {
         const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -37,62 +40,134 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
         onBlur: (e: React.FocusEvent<HTMLElement>) => {
             handleUpdate(path, e.currentTarget.innerHTML);
         },
-        className: "outline-none ring-1 ring-teal-400 bg-teal-50 rounded px-1 -mx-1"
+        className: 'outline-none ring-1 ring-[#C9A84C] bg-[#C9A84C]/10 rounded px-1 -mx-1'
     } : {};
 
     const SectionHeading = ({ children }: { children: React.ReactNode }) => (
         <div className="flex items-center gap-4 mb-4 mt-10 first:mt-0">
-            <h2 className="text-base font-bold uppercase tracking-widest shrink-0" style={{ color: accent }}>{children}</h2>
-            <div className="h-0.5 bg-gradient-to-r from-teal-100 to-transparent flex-1" />
+            <h2
+                className="text-[11px] font-black uppercase tracking-[0.18em] shrink-0"
+                style={{ color: accent }}
+            >
+                {children}
+            </h2>
+            <div
+                className="h-px flex-1"
+                style={{ background: `linear-gradient(to right, ${GOLD}60, transparent)` }}
+            />
         </div>
     );
 
+    const initials = personalInfo.name
+        .split(' ')
+        .map(p => p[0] ?? '')
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
+
     return (
-        <div id="cv-preview-scholarship-pro" className="bg-white p-8 text-slate-800 shadow-xl border border-slate-100 font-sans leading-relaxed" style={{ fontFamily: "'Inter', sans-serif" }}>
-            <header className="grid grid-cols-12 gap-8 mb-5 items-center">
+        <div
+            id="cv-preview-scholarship-pro"
+            className="bg-white text-slate-800 shadow-xl border border-slate-100 font-sans leading-relaxed"
+            style={{ fontFamily: "'Inter', sans-serif", padding: '32px 36px' }}
+        >
+            {/* ── Header ── */}
+            <header className="grid grid-cols-12 gap-6 mb-6 items-center">
                 <div className="col-span-8">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2 uppercase">
+                    <h1
+                        className="text-[26px] font-black tracking-tight leading-none mb-2 uppercase"
+                        style={{ color: NAVY }}
+                    >
                         {personalInfo.name}
                     </h1>
-                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm font-bold uppercase tracking-widest" style={{ color: accent }}>
-                        <span>{personalInfo.email}</span>
-                        <span>{personalInfo.phone}</span>
-                        <span>{personalInfo.location}</span>
+                    <div
+                        className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] font-bold uppercase tracking-widest"
+                        style={{ color: accent }}
+                    >
+                        {personalInfo.email && <span>{personalInfo.email}</span>}
+                        {personalInfo.phone && <span>{personalInfo.phone}</span>}
+                        {personalInfo.location && <span>{personalInfo.location}</span>}
                     </div>
                 </div>
                 <div className="col-span-4 flex justify-end">
-                    <div className="px-6 py-4 bg-teal-900 text-teal-100 rounded-2xl shadow-lg rotate-2 text-right">
-                        <span className="block text-[10px] font-black uppercase tracking-[0.2em] mb-1 opacity-50">Academic ID</span>
-                        <span className="block font-mono text-sm uppercase">STU-{personalInfo.name.substring(0, 3).toUpperCase()}-2024</span>
+                    <div
+                        className="px-5 py-3 rounded-xl shadow-md text-right rotate-1"
+                        style={{ backgroundColor: NAVY }}
+                    >
+                        <span
+                            className="block text-[9px] font-black uppercase tracking-[0.22em] mb-1 opacity-50"
+                            style={{ color: GOLD }}
+                        >
+                            Academic ID
+                        </span>
+                        <span
+                            className="block font-mono text-sm font-bold uppercase"
+                            style={{ color: GOLD }}
+                        >
+                            {initials}-{personalInfo.name.length % 10}{new Date().getFullYear()}
+                        </span>
                     </div>
                 </div>
             </header>
 
-            <main className="grid grid-cols-12 gap-6">
-                <div className="col-span-12">
-                    <section className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100/50 mb-5">
-                        <div className="flex gap-4 items-start">
-                            <span className="text-4xl">🎓</span>
-                            <div>
-                                <h2 className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: accent }}>Research Intent / Profile</h2>
-                                <p className="text-lg font-medium tracking-tight text-slate-700 italic" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
-                            </div>
-                        </div>
-                    </section>
+            {/* ── Profile/Summary banner ── */}
+            <section
+                className="p-4 rounded-xl mb-5"
+                style={{ background: `${NAVY}08`, border: `1px solid ${GOLD}30` }}
+            >
+                <div className="flex gap-4 items-start">
+                    <span className="text-3xl mt-0.5">🎓</span>
+                    <div className="flex-1">
+                        <h2
+                            className="text-[9px] font-black uppercase tracking-[0.2em] mb-1.5"
+                            style={{ color: accent }}
+                        >
+                            Research Intent / Profile
+                        </h2>
+                        <p
+                            className="text-[13px] font-medium tracking-tight text-slate-700 italic leading-snug"
+                            dangerouslySetInnerHTML={{ __html: cvData.summary }}
+                            {...editableProps(['summary'])}
+                        />
+                    </div>
                 </div>
+            </section>
 
-                <div className="col-span-8 space-y-5">
+            <main className="grid grid-cols-12 gap-6">
+                {/* ── Left column ── */}
+                <div className="col-span-8 space-y-4">
                     <section>
                         <SectionHeading>Academic Formation</SectionHeading>
-                        <div className="space-y-6">
+                        <div className="space-y-5">
                             {cvData.education.map((edu, idx) => (
-                                <div key={idx} className="relative pl-8 before:absolute before:left-0 before:top-2 before:w-1.5 before:h-1.5 before:bg-teal-500 before:rounded-full after:absolute after:left-[2px] after:top-6 after:bottom-0 after:w-[2px] after:bg-teal-100 last:after:hidden">
-                                    <h3 className="text-xl font-black text-slate-900" {...editableProps(['education', idx, 'degree'])}>{edu.degree}</h3>
-                                    <div className="flex justify-between items-baseline text-sm font-bold text-teal-600 uppercase tracking-widest mt-1">
+                                <div
+                                    key={idx}
+                                    className="relative pl-6"
+                                    style={{
+                                        borderLeft: `2px solid ${GOLD}40`,
+                                    }}
+                                >
+                                    <div
+                                        className="absolute -left-[5px] top-2 w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: GOLD }}
+                                    />
+                                    <h3 className="text-[13px] font-black text-slate-900" {...editableProps(['education', idx, 'degree'])}>
+                                        {edu.degree}
+                                    </h3>
+                                    <div
+                                        className="flex justify-between items-baseline text-[10px] font-bold uppercase tracking-widest mt-0.5"
+                                        style={{ color: NAVY }}
+                                    >
                                         <span {...editableProps(['education', idx, 'school'])}>{edu.school}</span>
                                         <span {...editableProps(['education', idx, 'year'])}>{edu.year}</span>
                                     </div>
-                                    {edu.description && <p className="text-sm mt-3 text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', idx, 'description'])} />}
+                                    {edu.description && (
+                                        <p
+                                            className="text-[11px] mt-2 text-slate-600 leading-relaxed"
+                                            dangerouslySetInnerHTML={{ __html: edu.description }}
+                                            {...editableProps(['education', idx, 'description'])}
+                                        />
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -100,28 +175,44 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
 
                     <section>
                         <SectionHeading>Relevant Experience</SectionHeading>
-                        <div className="space-y-10">
+                        <div className="space-y-7">
                             {cvData.experience.map((job, index) => (
                                 <div key={index} className="relative group">
                                     {isEditing && (
                                         <button
                                             onClick={() => handleDeleteExperience(index)}
-                                            className="absolute -left-12 top-0 p-2 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute -left-10 top-0 p-2 text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <Trash className="h-4 w-4" />
                                         </button>
                                     )}
-                                    <div className="mb-4">
-                                        <div className="flex justify-between items-baseline mb-1">
-                                            <h3 className="text-xl font-black text-slate-900 uppercase italic" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                                            <span className="text-xs font-black text-teal-600 bg-teal-50 px-2 py-1 rounded-md" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
+                                    <div className="mb-2">
+                                        <div className="flex justify-between items-baseline mb-0.5">
+                                            <h3
+                                                className="text-[13px] font-black text-slate-900 uppercase italic"
+                                                {...editableProps(['experience', index, 'jobTitle'])}
+                                            >
+                                                {job.jobTitle}
+                                            </h3>
+                                            <span
+                                                className="text-[9px] font-black px-2 py-0.5 rounded"
+                                                style={{ backgroundColor: `${NAVY}10`, color: NAVY }}
+                                                {...editableProps(['experience', index, 'dates'])}
+                                            >
+                                                {job.dates}
+                                            </span>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-500 tracking-widest uppercase" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                                        <p
+                                            className="text-[10px] font-bold text-slate-500 tracking-widest uppercase"
+                                            {...editableProps(['experience', index, 'company'])}
+                                        >
+                                            {job.company}
+                                        </p>
                                     </div>
-                                    <ul className="space-y-3">
+                                    <ul className="space-y-2">
                                         {job.responsibilities.map((resp, i) => (
-                                            <li key={i} className="flex gap-4 text-base text-slate-700">
-                                                <span className="text-teal-400 mt-1.5 select-none">✦</span>
+                                            <li key={i} className="flex gap-3 text-[11px] text-slate-700 leading-snug">
+                                                <span className="mt-1 select-none font-bold" style={{ color: GOLD }}>✦</span>
                                                 <span dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                                             </li>
                                         ))}
@@ -132,14 +223,18 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     </section>
                 </div>
 
-                <div className="col-span-4 space-y-5">
+                {/* ── Right sidebar ── */}
+                <div className="col-span-4 space-y-4">
                     <section>
                         <SectionHeading>Technical Arsenal</SectionHeading>
-                        <div className="grid grid-cols-1 gap-4">
-                            {cvData.skills.slice(0, 15).map((skill, i) => (
+                        <div className="space-y-2">
+                            {cvData.skills.slice(0, 14).map((skill, i) => (
                                 <div key={i} className="flex items-center justify-between group cursor-default">
-                                    <span className="text-sm font-bold text-slate-700 group-hover:text-teal-600 transition-colors uppercase tracking-tight">{skill}</span>
-                                    <div className="h-[2px] w-8 bg-teal-100 group-hover:w-12 group-hover:bg-teal-500 transition-all" />
+                                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">{skill}</span>
+                                    <div
+                                        className="h-[2px] w-6 transition-all group-hover:w-10"
+                                        style={{ backgroundColor: `${GOLD}60` }}
+                                    />
                                 </div>
                             ))}
                         </div>
@@ -148,11 +243,22 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     {cvData.publications && cvData.publications.length > 0 && (
                         <section>
                             <SectionHeading>Select Papers</SectionHeading>
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 {cvData.publications.map((pub, idx) => (
-                                    <div key={idx} className="space-y-1">
-                                        <h3 className="text-sm font-black text-slate-900 uppercase italic line-clamp-2" title={pub.title} {...editableProps(['publications', idx, 'title'])}>{pub.title}</h3>
-                                        <p className="text-[10px] text-teal-600 font-bold uppercase tracking-widest">{pub.journal} / {pub.year}</p>
+                                    <div key={idx} className="space-y-0.5">
+                                        <h3
+                                            className="text-[11px] font-black text-slate-900 uppercase italic line-clamp-2"
+                                            title={pub.title}
+                                            {...editableProps(['publications', idx, 'title'])}
+                                        >
+                                            {pub.title}
+                                        </h3>
+                                        <p
+                                            className="text-[9px] font-bold uppercase tracking-widest"
+                                            style={{ color: NAVY }}
+                                        >
+                                            {pub.journal} / {pub.year}
+                                        </p>
                                     </div>
                                 ))}
                             </div>
@@ -162,11 +268,16 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                     {cvData.languages && cvData.languages.length > 0 && (
                         <section>
                             <SectionHeading>Linguistic Range</SectionHeading>
-                            <div className="space-y-4">
+                            <div className="space-y-2">
                                 {cvData.languages.map((lang, idx) => (
                                     <div key={idx} className="flex justify-between items-center">
-                                        <span className="text-sm font-bold text-slate-800 uppercase">{lang.name}</span>
-                                        <span className="text-[10px] font-black text-teal-600 uppercase tracking-widest px-2 py-0.5 bg-teal-50 rounded-full">{lang.proficiency}</span>
+                                        <span className="text-[11px] font-bold text-slate-800 uppercase">{lang.name}</span>
+                                        <span
+                                            className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                                            style={{ backgroundColor: `${NAVY}10`, color: NAVY }}
+                                        >
+                                            {lang.proficiency}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
@@ -175,21 +286,27 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                 </div>
             </main>
 
-            <footer className="mt-20 pt-12 border-t border-slate-100 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
-                <span>Scholarship Ready CV</span>
-                <span>Verification Hash: {personalInfo.name.substring(0, 3).toUpperCase()}-{(Math.random() * 1000).toFixed(0)}</span>
-            
-        <TemplateCustomSections
-          customSections={cvData.customSections}
-          references={cvData.references}
-          renderHeader={title => <SectionHeading>{title}</SectionHeading>}
-          sectionClassName="mb-8"
-          titleClass="font-semibold text-sm"
-          subtitleClass="text-xs text-teal-600"
-          descClass="text-xs text-slate-600 mt-0.5"
-          yearClass="text-xs text-slate-400"
-        />
-</footer>
+            <footer
+                className="mt-14 pt-6 flex justify-between items-center text-[9px] font-black uppercase tracking-[0.3em]"
+                style={{ borderTop: `1px solid ${GOLD}30`, color: `${NAVY}50` }}
+            >
+                <span>Scholarship Ready · ProCV</span>
+                <span>
+                    {personalInfo.name.substring(0, 3).toUpperCase()}-
+                    {String(personalInfo.name.length * 7 + personalInfo.email.length * 3).padStart(4, '0')}
+                </span>
+
+                <TemplateCustomSections
+                    customSections={cvData.customSections}
+                    references={cvData.references}
+                    renderHeader={title => <SectionHeading>{title}</SectionHeading>}
+                    sectionClassName="mb-6"
+                    titleClass="font-semibold text-[11px]"
+                    subtitleClass={`text-[10px]`}
+                    descClass="text-[10px] text-slate-600 mt-0.5"
+                    yearClass="text-[10px] text-slate-400"
+                />
+            </footer>
 
             {jobDescriptionForATS && (
                 <HiddenATSKeywords text={jobDescriptionForATS} />

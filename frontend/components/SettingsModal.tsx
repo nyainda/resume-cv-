@@ -5,8 +5,6 @@ import { ApiSettings, UserProfileSlot } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield } from './icons';
-import { LocalStorageService } from '../services/storage/LocalStorageService';
-import { syncAllSlots, fetchUserData } from '../services/userDataCloudService';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { useWorkerAuth } from '../auth/WorkerAuthContext';
 import {
@@ -49,33 +47,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     window.addEventListener(TOKEN_USAGE_EVENT, handler);
     return () => window.removeEventListener(TOKEN_USAGE_EVENT, handler);
   }, []);
-
-  // ── CF D1 backup state (Google-auth users only) ──────────────────────
-  type BackupState = 'idle' | 'syncing' | 'done' | 'error';
-  const [backupState, setBackupState] = useState<BackupState>('idle');
-  const [backupSlotCount, setBackupSlotCount] = useState(0);
-  const [cloudStatus, setCloudStatus] = useState<string | null>(null);
-
-  const handleBackupNow = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setBackupState('syncing');
-    setCloudStatus(null);
-    try {
-      const raw = localStorage.getItem('cv_builder:profiles');
-      const slots: UserProfileSlot[] = raw ? JSON.parse(raw) : [];
-      const count = await syncAllSlots(slots);
-      setBackupSlotCount(count);
-      setBackupState('done');
-      const data = await fetchUserData().catch(() => null);
-      if (data?.slots.length) {
-        setCloudStatus(`Last sync: ${new Date(data.slots[0].updated_at * 1000).toLocaleString()}`);
-      }
-      setTimeout(() => setBackupState('idle'), 6000);
-    } catch {
-      setBackupState('error');
-      setTimeout(() => setBackupState('idle'), 4000);
-    }
-  }, [isAuthenticated]);
 
   // ── Test connection state ──────────────────────────────────────────────
   type TestState = { status: 'idle' | 'testing' | 'ok' | 'fail'; message?: string };
@@ -223,94 +194,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
             );
           })()}
 
-          {/* ── Browser Storage Meter + Export ── */}
-          {(() => {
-            const usage = LocalStorageService.estimateUsage();
-            const pct = Math.min(100, Math.round(usage * 100));
-            const barColor = pct > 80 ? 'bg-red-500' : pct > 55 ? 'bg-amber-500' : 'bg-emerald-500';
-            const handleExport = () => {
-              const data: Record<string, unknown> = {};
-              for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k?.startsWith('cv_builder:')) {
-                  try { data[k] = JSON.parse(localStorage.getItem(k) ?? 'null'); } catch { data[k] = null; }
-                }
-              }
-              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `cv-builder-backup-${new Date().toISOString().slice(0, 10)}.json`;
-              a.click();
-              URL.revokeObjectURL(url);
-            };
-            return (
-              <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-3 bg-zinc-50 dark:bg-neutral-800/40">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">💾 Browser Storage</h3>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pct > 80 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400'}`}>
-                    ~{pct}% used
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="w-full bg-zinc-200 dark:bg-neutral-700 rounded-full h-2">
-                    <div className={`${barColor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-[11px] text-zinc-400">
-                    Approx. {(usage * 5).toFixed(1)} MB of ~5 MB used · IndexedDB provides an additional fallback.
-                    {pct > 70 && <span className="text-amber-600 dark:text-amber-400 font-semibold"> Enable Google Drive sync to free space.</span>}
-                  </p>
-                </div>
-                <button
-                  onClick={handleExport}
-                  className="w-full py-2 px-3 text-xs font-bold rounded-lg border border-zinc-300 dark:border-neutral-600 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  ⬇️ Export all data as backup (.json)
-                </button>
-                {/* ── Cloud backup — Google users only ── */}
-                {isAuthenticated && googleUser ? (
-                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-900/10 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300">☁️ Cloud Backup</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 font-semibold">Auto-on</span>
-                        </div>
-                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
-                          Syncing as <span className="font-semibold text-zinc-600 dark:text-zinc-300">{googleUser.email || googleUser.name}</span>
-                        </p>
-                        {cloudStatus && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">{cloudStatus}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={handleBackupNow}
-                        disabled={backupState === 'syncing'}
-                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors border whitespace-nowrap ${backupState === 'done' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700' :
-                            backupState === 'error' ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700' :
-                              backupState === 'syncing' ? 'bg-zinc-100 text-zinc-500 border-zinc-200 cursor-wait' :
-                                'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:bg-neutral-800 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-900/20'
-                          }`}
-                      >
-                        {backupState === 'syncing' ? '⏳ Syncing…' :
-                          backupState === 'done' ? `✓ ${backupSlotCount} slot${backupSlotCount !== 1 ? 's' : ''} saved` :
-                            backupState === 'error' ? '✗ Try again' :
-                              '↑ Back up now'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-zinc-200 dark:border-neutral-700 bg-zinc-50/80 dark:bg-neutral-800/30 p-3 flex items-center gap-3">
-                    <span className="text-lg shrink-0">☁️</span>
-                    <div>
-                      <p className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">Cloud backup available</p>
-                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Sign in with Google below to automatically back up your profiles to the cloud.</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* ── Google Drive Backup ── */}
           <div className="rounded-2xl border-2 border-[#1B2B4B]/20 bg-[#F8F7F4]/30 dark:bg-[#1B2B4B]/5 p-4 shadow-sm space-y-3">
