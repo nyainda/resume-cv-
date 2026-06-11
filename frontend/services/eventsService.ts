@@ -10,6 +10,7 @@ type EventType =
   | 'cv_downloaded'
   | 'template_used'
   | 'share_created'
+  | 'profile_published'
   | 'email_composed'
   | 'doctor_opened'
   | 'cover_letter_generated'

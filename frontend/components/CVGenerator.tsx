@@ -209,7 +209,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson }) => {
   const { isAuthenticated } = useGoogleAuth();
-  const { requireAuth } = useWorkerAuth();
+  const { requireAuth, sessionToken, workerUser } = useWorkerAuth();
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
   const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
@@ -2529,6 +2529,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
           template={template}
           coverLetterText={coverLetter ?? undefined}
           onClose={() => setShowShareModal(false)}
+          sessionToken={sessionToken ?? undefined}
+          userId={workerUser?.id}
         />
       )}
 

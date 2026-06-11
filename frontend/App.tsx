@@ -49,6 +49,7 @@ import CVGenerator from "./components/CVGenerator";
 import SharedCVView from "./components/SharedCVView";
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
+import { fetchPublicProfile } from "./services/publicProfileService";
 import SavedCVs from "./components/SavedCVs";
 import CVHistory from "./components/CVHistory";
 import ScholarshipEssayWriter from "./components/ScholarshipEssayWriter";
@@ -849,6 +850,14 @@ const AppInner: React.FC = () => {
             const payload = decodeSharePayload(compressed);
             if (payload) setSharedCVPayload(payload);
           }
+        });
+      }
+    } else if (hash.startsWith("#p=")) {
+      // Permanent public profile link — fetch latest published CV for this user
+      const userId = parseInt(hash.slice("#p=".length), 10);
+      if (userId && !isNaN(userId)) {
+        fetchPublicProfile(userId).then((payload) => {
+          if (payload) setSharedCVPayload(payload);
         });
       }
     } else if (hash.startsWith("#share=")) {

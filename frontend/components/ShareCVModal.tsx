@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
 import { createShareLink, buildShortShareUrl } from '../services/shareService';
+import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl } from '../services/publicProfileService';
 import { logEvent } from '../services/eventsService';
 
 interface ShareCVModalProps {
@@ -10,6 +11,8 @@ interface ShareCVModalProps {
   template: TemplateName;
   coverLetterText?: string | null;
   onClose: () => void;
+  sessionToken?: string;
+  userId?: number;
 }
 
 export interface SharedCVPayload {
@@ -40,15 +43,22 @@ export function buildShareUrl(payload: SharedCVPayload): string {
   return `${base}#share=${encoded}`;
 }
 
-const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, template, coverLetterText, onClose }) => {
+const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, template, coverLetterText, onClose, sessionToken, userId }) => {
   const [copied, setCopied] = useState(false);
   const [linkGenerated, setLinkGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isShortLink, setIsShortLink] = useState(false);
-  const [activeTab, setActiveTab] = useState<'link' | 'qr'>('link');
+  const [activeTab, setActiveTab] = useState<'link' | 'qr' | 'profile'>('link');
   const [includeCoverLetter, setIncludeCoverLetter] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Profile link state
+  const [profilePublishing, setProfilePublishing] = useState(false);
+  const [profilePublished, setProfilePublished] = useState(false);
+  const [profileError, setProfileError]   = useState('');
+  const [profileCopied, setProfileCopied] = useState(false);
+  const profileUrl = userId ? buildProfileUrl(userId) : '';
 
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
@@ -105,6 +115,39 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
     setShareUrl('');
     setCopied(false);
   };
+
+  const handlePublishProfile = useCallback(async () => {
+    if (!sessionToken || !userId) return;
+    setProfilePublishing(true);
+    setProfileError('');
+    const payload: SharedCVPayload = {
+      cvData, personalInfo, template,
+      sharedAt: new Date().toISOString(),
+    };
+    const ok = await publishPublicProfile(payload, sessionToken);
+    setProfilePublishing(false);
+    if (ok) {
+      setProfilePublished(true);
+      logEvent({ event_type: 'profile_published' });
+    } else {
+      setProfileError('Could not publish. Please try again.');
+    }
+  }, [sessionToken, userId, cvData, personalInfo, template]);
+
+  const handleUnpublishProfile = useCallback(async () => {
+    if (!sessionToken) return;
+    setProfilePublishing(true);
+    const ok = await unpublishPublicProfile(sessionToken);
+    setProfilePublishing(false);
+    if (ok) setProfilePublished(false);
+  }, [sessionToken]);
+
+  const copyProfileUrl = useCallback(async () => {
+    try { await navigator.clipboard.writeText(profileUrl); }
+    catch { /* fallback not needed for modern browsers */ }
+    setProfileCopied(true);
+    setTimeout(() => setProfileCopied(false), 2500);
+  }, [profileUrl]);
 
   return (
     <div
@@ -204,17 +247,21 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
 
               {/* Tab switcher */}
               <div className="flex rounded-xl border border-zinc-200 dark:border-neutral-700 p-0.5 bg-zinc-50 dark:bg-neutral-800">
-                {(['link', 'qr'] as const).map(tab => (
+                {([
+                  { id: 'link',    label: '🔗 Copy Link' },
+                  { id: 'qr',      label: '📱 QR Code' },
+                  ...(sessionToken && userId ? [{ id: 'profile', label: '🌐 Profile' }] : []),
+                ] as { id: 'link'|'qr'|'profile'; label: string }[]).map(tab => (
                   <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
                     className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all ${
-                      activeTab === tab
+                      activeTab === tab.id
                         ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-zinc-100 shadow-sm'
                         : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                     }`}
                   >
-                    {tab === 'link' ? '🔗 Copy Link' : '📱 QR Code'}
+                    {tab.label}
                   </button>
                 ))}
               </div>
@@ -311,6 +358,116 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
                       Regenerate
                     </button>
                   </div>
+                </div>
+              )}
+
+              {activeTab === 'profile' && sessionToken && userId && (
+                <div className="space-y-3">
+                  {/* Explainer */}
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-[#1B2B4B]/5 dark:bg-[#1B2B4B]/30 border border-[#1B2B4B]/10 dark:border-[#1B2B4B]/40">
+                    <svg className="w-4 h-4 text-[#C9A84C] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">Your permanent profile link.</span>{' '}
+                      Unlike a snapshot link, this URL never changes — re-publish whenever you update your CV and it always shows the latest version.
+                    </p>
+                  </div>
+
+                  {!profilePublished ? (
+                    <>
+                      {profileError && (
+                        <p className="text-xs text-red-500 font-medium px-1">{profileError}</p>
+                      )}
+                      <button
+                        onClick={handlePublishProfile}
+                        disabled={profilePublishing}
+                        className="w-full py-3 px-4 bg-[#1B2B4B] hover:bg-[#152238] disabled:bg-[#1B2B4B]/60 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        {profilePublishing ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                            </svg>
+                            Publishing…
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <circle cx="12" cy="12" r="10"/>
+                              <line x1="2" y1="12" x2="22" y2="12"/>
+                              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                            </svg>
+                            Publish profile page
+                          </>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Success banner */}
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <svg className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <p className="text-xs font-semibold text-green-700 dark:text-green-400">Profile published! Your permanent link is live.</p>
+                      </div>
+
+                      {/* Profile URL row */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={profileUrl}
+                          readOnly
+                          className="flex-1 text-xs bg-zinc-100 dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-700 rounded-xl px-3 py-2.5 text-zinc-600 dark:text-zinc-400 font-mono truncate focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+                          onClick={e => (e.target as HTMLInputElement).select()}
+                        />
+                        <button
+                          onClick={copyProfileUrl}
+                          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 flex-shrink-0 min-w-[90px] justify-center ${
+                            profileCopied
+                              ? 'bg-green-500 text-white shadow-sm'
+                              : 'bg-[#1B2B4B] hover:bg-[#152238] text-white shadow-sm'
+                          }`}
+                        >
+                          {profileCopied ? (
+                            <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
+                          ) : (
+                            <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 flex-wrap">
+                        <a
+                          href={profileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]/80 text-xs font-semibold rounded-lg hover:opacity-80 transition-opacity"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          Preview
+                        </a>
+                        <button
+                          onClick={handlePublishProfile}
+                          disabled={profilePublishing}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-neutral-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                          Update
+                        </button>
+                        <button
+                          onClick={handleUnpublishProfile}
+                          disabled={profilePublishing}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-semibold rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors ml-auto"
+                        >
+                          Unpublish
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
