@@ -229,14 +229,48 @@ function colorBg(c: ProfileColor) {
   return map[c];
 }
 
+// ── Account isolation helpers ────────────────────────────────────────────────
+// FNV-1a 32-bit hash — fast, non-crypto, sufficient for equality detection.
+function _fnv32(s: string): string {
+  let h = 0x811c9dc5 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+const _ACCT_HASH_KEY = 'procv:account_email_hash';
+
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const { user, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
   const { workerUser, isWorkerAuthenticated, sessionToken, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
   useAutoSync(isAuthenticated);
 
+  // ── Auth modal mode (signup vs sign-in copy) ────────────────────────────
+  const [authModalMode, setAuthModalMode] = useState<'signup' | 'signin'>('signup');
+
   // Keep the D1 sync service's module-level token in sync with the worker session
   useEffect(() => { setUserSessionToken(sessionToken ?? null); }, [sessionToken]);
+
+  // ── Account-switch guard ──────────────────────────────────────────────────
+  // When a different email signs in on this device, clear the previous user's
+  // app data so they cannot see each other's CVs and profiles.
+  // We reload after clearing so React state re-initialises from clean storage.
+  useEffect(() => {
+    if (!workerUser?.email) return;
+    const newHash    = _fnv32(workerUser.email);
+    const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
+    if (storedHash && storedHash !== newHash) {
+      // Different account detected on this device — wipe all app data first.
+      clearUserScopedStorage({ clearAppData: true });
+      localStorage.setItem(_ACCT_HASH_KEY, newHash);
+      window.location.reload();
+      return;
+    }
+    localStorage.setItem(_ACCT_HASH_KEY, newHash);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workerUser?.email]);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
   // When a user signs in on a device with no local profiles, silently check
@@ -1614,12 +1648,14 @@ const AppInner: React.FC = () => {
               setShowLanding(false);
               return;
             }
-            // Otherwise require sign-in first. Only navigate into the app when
-            // the user actually authenticates — a dismissed modal keeps them here.
+            // New user flow — show "Create your free account" copy.
+            setAuthModalMode('signup');
             const ok = await requireAuth();
             if (ok) setShowLanding(false);
           }}
           onSignIn={async () => {
+            // Returning user flow — show "Welcome back" copy.
+            setAuthModalMode('signin');
             const ok = await requireAuth();
             if (ok) setShowLanding(false);
           }}
@@ -1639,6 +1675,7 @@ const AppInner: React.FC = () => {
           open={authModalOpen}
           onSuccess={onAuthSuccess}
           onDismiss={onAuthDismiss}
+          mode={authModalMode}
         />
       </>
     );
@@ -2579,6 +2616,7 @@ const AppInner: React.FC = () => {
         open={authModalOpen}
         onSuccess={onAuthSuccess}
         onDismiss={onAuthDismiss}
+        mode={authModalMode}
       />
 
       {/* ── Welcome modal (new user first sign-in) ─────────────────────── */}

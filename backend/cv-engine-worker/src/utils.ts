@@ -136,3 +136,44 @@ export async function verifyAdminAuth(
 export function unauthorized(request: Request, env: Env, required: AdminRole): Response {
     return json({ error: 'unauthorized', required_role: required }, request, env, 401);
 }
+
+// ─── IP Rate Limiting (KV-backed sliding windows) ─────────────────────────────
+//
+// Uses a fixed window keyed by floor(now / windowSec).  One KV read + one
+// fire-and-forget write per allowed request.  On any KV error the call is
+// allowed through (fail open) so a KV outage never blocks the app.
+//
+// Usage:
+//   const { allowed, retryAfter } = await ipRateLimit(env, request, 'llm', 60, 60);
+//   if (!allowed) return json({ error: 'rate_limited', retry_after: retryAfter }, req, env, 429);
+
+export async function ipRateLimit(
+    env: Env,
+    request: Request,
+    prefix: string,
+    limit: number,
+    windowSec: number,
+): Promise<{ allowed: boolean; retryAfter: number }> {
+    try {
+        const ip   = request.headers.get('CF-Connecting-IP')
+                  || request.headers.get('X-Forwarded-For')?.split(',')[0].trim()
+                  || 'unknown';
+        const now  = Math.floor(Date.now() / 1000);
+        const slot = Math.floor(now / windowSec);
+        const kvKey = `rl:${prefix}:${ip}:${slot}`;
+
+        const current = parseInt(await env.CV_KV.get(kvKey) ?? '0', 10);
+        if (current >= limit) {
+            const retryAfter = (slot + 1) * windowSec - now;
+            return { allowed: false, retryAfter };
+        }
+
+        // Non-blocking increment — a race here may allow a few extra requests,
+        // which is acceptable; correctness > strict precision for rate limiting.
+        env.CV_KV.put(kvKey, String(current + 1), { expirationTtl: windowSec * 2 }).catch(() => {});
+        return { allowed: true, retryAfter: 0 };
+    } catch {
+        // KV unavailable — fail open rather than blocking all traffic
+        return { allowed: true, retryAfter: 0 };
+    }
+}

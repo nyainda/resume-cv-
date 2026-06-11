@@ -18,11 +18,13 @@ interface AuthModalProps {
     open: boolean;
     onSuccess: (token: string, user: WorkerUser) => void;
     onDismiss: () => void;
+    /** Controls header copy. 'signup' = create account; 'signin' = welcome back. Default: 'signup'. */
+    mode?: 'signup' | 'signin';
 }
 
 type Screen = 'main' | 'magic-form' | 'magic-sent';
 
-export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps) {
+export default function AuthModal({ open, onSuccess, onDismiss, mode = 'signup' }: AuthModalProps) {
     const { signIn: googleSignIn, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
     const { isWorkerAuthenticated, rememberDevice, setRememberDevice } = useWorkerAuth();
 
@@ -132,12 +134,18 @@ export default function AuthModal({ open, onSuccess, onDismiss }: AuthModalProps
                         </div>
                     </div>
                     <p style={{ color: '#ffffff', fontSize: 20, fontWeight: 700, marginTop: 20, letterSpacing: '-0.3px' }}>
-                        {screen === 'magic-sent' ? '✉️ Check your email' : 'Sign in to continue'}
+                        {screen === 'magic-sent'
+                            ? '✉️ Check your email'
+                            : mode === 'signin'
+                            ? 'Welcome back'
+                            : 'Create your free account'}
                     </p>
                     <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 4 }}>
                         {screen === 'magic-sent'
                             ? `We sent a sign-in link to ${email}`
-                            : 'Free to use. No password needed.'}
+                            : mode === 'signin'
+                            ? 'Sign in to access your CVs and tools.'
+                            : 'Free forever. No credit card. No password.'}
                     </p>
                 </div>
 

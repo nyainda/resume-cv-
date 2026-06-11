@@ -4,11 +4,19 @@
  * Clears all per-user tokens, Drive conflict baselines, D1 sync hashes,
  * and restore-dismissal flags so the next user starts with a clean slate.
  *
+ * By default does NOT clear app data (profiles, CV data) so a returning
+ * user finds their work when they sign back in.
+ *
+ * Pass { clearAppData: true } on an account-switch event to also wipe
+ * cv_builder:* localStorage keys and the cvdata IndexedDB store so a
+ * different email cannot see the previous user's work.
+ *
  * Does NOT clear:
  *  - cv_builder:deviceId    (device-level, not user-level)
- *  - cv_builder:*           (app data — profiles stay on-device after logout)
+ *  - procv:account_email_hash  (intentionally kept for account-switch detection)
  */
-export function clearUserScopedStorage(): void {
+
+export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void {
     // ── Auth tokens ───────────────────────────────────────────────────────────
     const authKeys = [
         'cv_gdrive_token',
@@ -51,4 +59,55 @@ export function clearUserScopedStorage(): void {
 
     // ── Migration flag (next user gets fresh Drive migration) ─────────────────
     localStorage.removeItem('cv_builder:gdrive_migrated');
+
+    // ── Account switch: wipe ALL cv_builder:* app data ────────────────────────
+    // Only done when a different email is detected — not on normal logout.
+    // This prevents a new user from seeing the previous user's CVs and profiles.
+    if (opts?.clearAppData) {
+        // Collect all cv_builder:* keys (except deviceId — that's device-level)
+        const appKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k?.startsWith('cv_builder:') && k !== 'cv_builder:deviceId') {
+                appKeys.push(k);
+            }
+        }
+        appKeys.forEach(k => localStorage.removeItem(k));
+
+        // Also clear any other procv:* keys that hold per-user app state
+        const procvAppKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (
+                k?.startsWith('procv:') &&
+                k !== 'procv:account_email_hash' // keep — needed for future switch detection
+            ) {
+                procvAppKeys.push(k);
+            }
+        }
+        procvAppKeys.forEach(k => localStorage.removeItem(k));
+
+        // Clear IndexedDB cv_builder_cvdata (large CV JSON blobs)
+        _clearCvDataIdb();
+    }
+}
+
+/** Wipe the cv_builder_cvdata IndexedDB store (non-fatal, fire-and-forget). */
+function _clearCvDataIdb(): void {
+    try {
+        const req = indexedDB.open('cv_builder_cvdata');
+        req.onsuccess = () => {
+            const db = req.result;
+            const stores = Array.from(db.objectStoreNames);
+            if (stores.length === 0) { db.close(); return; }
+            try {
+                const tx = db.transaction(stores, 'readwrite');
+                stores.forEach(s => tx.objectStore(s).clear());
+                tx.oncomplete = () => db.close();
+                tx.onerror   = () => db.close();
+            } catch { db.close(); }
+        };
+    } catch {
+        // IndexedDB unavailable — safe to ignore
+    }
 }

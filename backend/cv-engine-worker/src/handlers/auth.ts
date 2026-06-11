@@ -20,7 +20,7 @@
  */
 
 import { Env } from '../types';
-import { json, safeJson } from '../utils';
+import { json, safeJson, ipRateLimit } from '../utils';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -158,6 +158,14 @@ function sessionTokenFromRequest(request: Request): string {
 
 /** POST /api/auth/google */
 export async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
+    // Rate-limit: 20 Google sign-in / sign-up attempts per IP per hour.
+    // This blocks credential-stuffing and bot-signup floods while still
+    // allowing normal users (who sign in far less than once a minute).
+    const rl = await ipRateLimit(env, request, 'auth:google', 20, 3600);
+    if (!rl.allowed) {
+        return json({ error: 'rate_limited', retry_after: rl.retryAfter }, request, env, 429);
+    }
+
     const body     = await safeJson(request);
     const token    = typeof body?.access_token === 'string' ? body.access_token.trim() : '';
     const deviceId = typeof body?.device_id    === 'string' ? body.device_id.trim()    : '';

@@ -818,9 +818,15 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 {hasProfile ? 'Open Suite' : 'Build my CV — free'}
                 <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
               </button>
-              <button onClick={onGetStarted} style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
-                See all 14 tools
-              </button>
+              {!hasProfile ? (
+                <button onClick={onSignIn || onGetStarted} style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
+                  Already have an account? Sign in
+                </button>
+              ) : (
+                <button onClick={onGetStarted} style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
+                  See all 14 tools
+                </button>
+              )}
               <button
                 onClick={() => { const el = document.getElementById('score-cv'); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                 style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>

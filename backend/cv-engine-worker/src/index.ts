@@ -15,7 +15,7 @@
  */
 
 import { Env } from './types';
-import { corsHeaders, json } from './utils';
+import { corsHeaders, json, ipRateLimit } from './utils';
 
 // ── Handler imports ───────────────────────────────────────────────────────────
 import {
@@ -128,6 +128,19 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/rules'          && m === 'GET')                      return handleGetRules(request, env);
 
     // ── LLM endpoints ─────────────────────────────────────────────────────────
+    // Rate-limit the expensive generation endpoints: 60 requests per IP per
+    // minute.  Lightweight endpoints (vision, proxy, account-tier) are excluded.
+    // Fails open — if KV is unavailable, the request is allowed through.
+    if (
+        (p === '/api/cv/tiered-llm' || p === '/api/cv/race-llm' || p === '/api/cv/parallel-sections')
+        && m === 'POST'
+    ) {
+        const rl = await ipRateLimit(env, request, 'llm', 60, 60);
+        if (!rl.allowed) {
+            return json({ error: 'rate_limited', retry_after: rl.retryAfter }, request, env, 429);
+        }
+    }
+
     if (p === '/api/cv/llm'            && m === 'POST')                     return handleLLM(request, env);
     if (p === '/api/cv/vision-extract' && m === 'POST')                     return handleVisionExtract(request, env);
     if (p === '/api/cv/tiered-llm'     && m === 'POST')                     return handleTieredLLM(request, env);
