@@ -1636,3 +1636,123 @@ export async function deleteAdminRows(table: string, ids: string[]): Promise<Del
         body: JSON.stringify({ table, ids }),
     });
 }
+
+// ── New dashboard admin functions ─────────────────────────────────────────────
+
+export interface DashboardStats {
+    total_users: number;
+    new_today: number;
+    new_this_week: number;
+    active_sessions: number;
+    signins_today: number;
+    google_users: number;
+    magic_link_users: number;
+}
+
+export interface RecentSignin {
+    event: string;
+    method: string | null;
+    ip: string | null;
+    created_at: number;
+    email: string;
+    name: string | null;
+    picture: string | null;
+}
+
+export interface SignupDay { day: string; count: number; }
+export interface TableCount { table: string; count: number; }
+
+export interface DashboardData {
+    stats: DashboardStats;
+    recent_signins: RecentSignin[];
+    signups_by_day: SignupDay[];
+    table_counts: TableCount[];
+}
+
+export interface AdminUser {
+    id: number;
+    email: string;
+    name: string | null;
+    picture: string | null;
+    plan: string;
+    created_at: number;
+    last_seen_at: number | null;
+    has_google: number;
+    active_sessions: number;
+    last_signin_at: number | null;
+}
+
+export interface UsersListResult {
+    total: number;
+    limit: number;
+    offset: number;
+    users: AdminUser[];
+}
+
+export interface AuthLog {
+    id: number;
+    event: string;
+    method: string | null;
+    ip: string | null;
+    user_agent: string | null;
+    created_at: number;
+    user_id: number;
+    email: string;
+    name: string | null;
+    picture: string | null;
+}
+
+export interface AuthLogsResult {
+    total: number;
+    limit: number;
+    offset: number;
+    logs: AuthLog[];
+}
+
+export async function getAdminDashboardStats(): Promise<DashboardData | null> {
+    return adminFetch<DashboardData>('/api/cv/admin/dashboard-stats');
+}
+
+export async function listAdminUsers(params: {
+    search?: string;
+    plan?: string;
+    limit?: number;
+    offset?: number;
+} = {}): Promise<UsersListResult | null> {
+    const q = new URLSearchParams();
+    if (params.search) q.set('search', params.search);
+    if (params.plan)   q.set('plan', params.plan);
+    if (params.limit)  q.set('limit', String(params.limit));
+    if (params.offset) q.set('offset', String(params.offset));
+    return adminFetch<UsersListResult>(`/api/cv/admin/users?${q}`);
+}
+
+export async function updateUserPlan(userId: number, plan: string): Promise<{ ok: boolean } | null> {
+    return adminFetch<{ ok: boolean }>('/api/cv/admin/users/plan', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, plan }),
+    });
+}
+
+export async function revokeUserSessions(userId: number): Promise<{ ok: boolean; revoked: number } | null> {
+    return adminFetch<{ ok: boolean; revoked: number }>('/api/cv/admin/users/sessions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+    });
+}
+
+export async function listAuthLogs(params: {
+    event?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+} = {}): Promise<AuthLogsResult | null> {
+    const q = new URLSearchParams();
+    if (params.event)  q.set('event', params.event);
+    if (params.search) q.set('search', params.search);
+    if (params.limit)  q.set('limit', String(params.limit));
+    if (params.offset) q.set('offset', String(params.offset));
+    return adminFetch<AuthLogsResult>(`/api/cv/admin/auth-logs?${q}`);
+}

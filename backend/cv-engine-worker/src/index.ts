@@ -54,6 +54,8 @@ import {
     handleAdminStats, handleBulkAdd, handleAdminList,
     handleBulkUpdate, handleAdminDelete, handleVoiceTest, handleAiAudit,
     handleTokensList, handleTokensCreate, handleTokensRevoke,
+    handleDashboardStats, handleUsersList, handleUsersUpdatePlan,
+    handleUsersRevokeSessions, handleAuthLogsList,
 } from './handlers/admin';
 
 import {
@@ -177,6 +179,11 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/admin/tokens'      && m === 'GET')                   return handleTokensList(request, env);
     if (p === '/api/cv/admin/tokens'      && m === 'POST')                  return handleTokensCreate(request, env);
     if (p === '/api/cv/admin/tokens/revoke' && m === 'POST')                return handleTokensRevoke(request, env);
+    if (p === '/api/cv/admin/dashboard-stats')                              return handleDashboardStats(request, env);
+    if (p === '/api/cv/admin/users'       && m === 'GET')                   return handleUsersList(request, env, url);
+    if (p === '/api/cv/admin/users/plan'  && m === 'PATCH')                 return handleUsersUpdatePlan(request, env);
+    if (p === '/api/cv/admin/users/sessions' && m === 'DELETE')             return handleUsersRevokeSessions(request, env);
+    if (p === '/api/cv/admin/auth-logs'   && m === 'GET')                   return handleAuthLogsList(request, env, url);
 
     // ── Share links ───────────────────────────────────────────────────────────
     if (p === '/api/cv/share'          && m === 'GET')                      return handleShareGet(request, env, url);

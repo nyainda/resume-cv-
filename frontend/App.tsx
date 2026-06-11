@@ -66,6 +66,7 @@ import LinkedInGenerator from "./components/LinkedInGenerator";
 import InterviewPrep from "./components/InterviewPrep";
 import AdminLeaksPage from "./components/AdminLeaksPage";
 import AdminCVEnginePage from "./components/AdminCVEnginePage";
+import AdminApp from "./components/admin/AdminApp";
 import StorageMapPage from "./components/StorageMapPage";
 import ScoreMyCVPage from "./components/ScoreMyCVPage";
 import CareerPivotPage from "./components/CareerPivotPage";
@@ -2657,12 +2658,17 @@ const AppInner: React.FC = () => {
 };
 
 // ── Root App — wraps everything in GoogleAuthProvider + WorkerAuthProvider ──
-const App: React.FC = () => (
-  <GoogleAuthProvider>
-    <WorkerAuthProvider>
-      <AppInner />
-    </WorkerAuthProvider>
-  </GoogleAuthProvider>
-);
+const App: React.FC = () => {
+  if (window.location.pathname.startsWith('/admin')) {
+    return <AdminApp />;
+  }
+  return (
+    <GoogleAuthProvider>
+      <WorkerAuthProvider>
+        <AppInner />
+      </WorkerAuthProvider>
+    </GoogleAuthProvider>
+  );
+};
 
 export default App;

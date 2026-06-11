@@ -372,3 +372,141 @@ export async function handleTokensRevoke(request: Request, env: Env): Promise<Re
     }
     return json({ ok: true, revoked }, request, env);
 }
+
+// ── New dashboard endpoints ───────────────────────────────────────────────────
+
+/** GET /api/cv/admin/dashboard-stats */
+export async function handleDashboardStats(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
+
+    const now = Math.floor(Date.now() / 1000);
+    const todayStart = Math.floor(new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime() / 1000);
+    const weekStart  = todayStart - 6 * 86400;
+
+    const [tu, nt, nw, as_, sd, gu, mu, rs, sbd, tableCounts] = await Promise.all([
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_identities`).first<{c:number}>(),
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_identities WHERE created_at >= ?`).bind(todayStart).first<{c:number}>(),
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_identities WHERE created_at >= ?`).bind(weekStart).first<{c:number}>(),
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_sessions WHERE expires_at > ?`).bind(now).first<{c:number}>(),
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM auth_audit_log WHERE created_at >= ? AND event LIKE 'signin%'`).bind(todayStart).first<{c:number}>(),
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_identities WHERE google_id IS NOT NULL`).first<{c:number}>(),
+        env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_identities WHERE google_id IS NULL`).first<{c:number}>(),
+        env.CV_DB.prepare(`
+            SELECT l.event, l.method, l.ip, l.created_at, u.email, u.name, u.picture
+            FROM auth_audit_log l JOIN user_identities u ON u.id = l.user_id
+            ORDER BY l.created_at DESC LIMIT 10
+        `).all(),
+        env.CV_DB.prepare(`
+            SELECT date(created_at,'unixepoch') as day, COUNT(*) as count
+            FROM user_identities WHERE created_at >= ?
+            GROUP BY day ORDER BY day ASC
+        `).bind(weekStart).all(),
+        Promise.all(
+            ['user_identities','user_sessions','auth_audit_log','llm_cache','cv_examples','profile_cache'].map(async t => {
+                try { const r = await env.CV_DB.prepare(`SELECT COUNT(*) as c FROM ${t}`).first<{c:number}>(); return { table: t, count: r?.c ?? 0 }; }
+                catch { return { table: t, count: -1 }; }
+            })
+        ),
+    ]);
+
+    return json({
+        ok: true,
+        stats: {
+            total_users: tu?.c ?? 0,
+            new_today: nt?.c ?? 0,
+            new_this_week: nw?.c ?? 0,
+            active_sessions: as_?.c ?? 0,
+            signins_today: sd?.c ?? 0,
+            google_users: gu?.c ?? 0,
+            magic_link_users: mu?.c ?? 0,
+        },
+        recent_signins: rs.results ?? [],
+        signups_by_day: sbd.results ?? [],
+        table_counts: tableCounts,
+    }, request, env);
+}
+
+/** GET /api/cv/admin/users?search=&plan=&limit=&offset= */
+export async function handleUsersList(request: Request, env: Env, url: URL): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
+
+    const search = (url.searchParams.get('search') || '').trim();
+    const plan   = url.searchParams.get('plan') || '';
+    const limit  = Math.min(parseInt(url.searchParams.get('limit')  || '50'), 200);
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0'), 0);
+    const now    = Math.floor(Date.now() / 1000);
+
+    const conds: string[] = [];
+    const binds: any[] = [];
+    if (search) { conds.push('(u.email LIKE ? OR u.name LIKE ?)'); binds.push(`%${search}%`, `%${search}%`); }
+    if (plan)   { conds.push('u.plan = ?'); binds.push(plan); }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+    const countRow = await env.CV_DB.prepare(`SELECT COUNT(*) as c FROM user_identities u ${where}`).bind(...binds).first<{c:number}>();
+    const rows = await env.CV_DB.prepare(`
+        SELECT u.id, u.email, u.name, u.picture, u.plan, u.created_at, u.last_seen_at,
+               (u.google_id IS NOT NULL) as has_google,
+               (SELECT COUNT(*) FROM user_sessions s WHERE s.user_id = u.id AND s.expires_at > ${now}) as active_sessions,
+               (SELECT MAX(l.created_at) FROM auth_audit_log l WHERE l.user_id = u.id AND l.event LIKE 'signin%') as last_signin_at
+        FROM user_identities u ${where}
+        ORDER BY u.created_at DESC LIMIT ? OFFSET ?
+    `).bind(...binds, limit, offset).all();
+
+    return json({ ok: true, total: countRow?.c ?? 0, limit, offset, users: rows.results ?? [] }, request, env);
+}
+
+/** PATCH /api/cv/admin/users/plan */
+export async function handleUsersUpdatePlan(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'editor');
+    if (!auth) return unauthorized(request, env, 'editor');
+    const body = await safeJson(request);
+    const userId = body?.user_id ? Number(body.user_id) : null;
+    const plan   = typeof body?.plan === 'string' ? body.plan : '';
+    if (!userId || !['free','byok','pro'].includes(plan)) return json({ error: 'invalid_params' }, request, env, 400);
+    await env.CV_DB.prepare(`UPDATE user_identities SET plan = ? WHERE id = ?`).bind(plan, userId).run();
+    return json({ ok: true }, request, env);
+}
+
+/** DELETE /api/cv/admin/users/sessions */
+export async function handleUsersRevokeSessions(request: Request, env: Env): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'admin');
+    if (!auth) return unauthorized(request, env, 'admin');
+    const body = await safeJson(request);
+    const userId = body?.user_id ? Number(body.user_id) : null;
+    if (!userId) return json({ error: 'missing_user_id' }, request, env, 400);
+    const r = await env.CV_DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run();
+    return json({ ok: true, revoked: r.meta?.changes ?? 0 }, request, env);
+}
+
+/** GET /api/cv/admin/auth-logs?event=&search=&limit=&offset= */
+export async function handleAuthLogsList(request: Request, env: Env, url: URL): Promise<Response> {
+    const auth = await verifyAdminAuth(request, env, 'viewer');
+    if (!auth) return unauthorized(request, env, 'viewer');
+
+    const event  = url.searchParams.get('event')  || '';
+    const search = (url.searchParams.get('search') || '').trim();
+    const limit  = Math.min(parseInt(url.searchParams.get('limit')  || '50'), 200);
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0'), 0);
+
+    const conds: string[] = [];
+    const binds: any[] = [];
+    if (event)  { conds.push('l.event = ?'); binds.push(event); }
+    if (search) { conds.push('(u.email LIKE ? OR l.ip LIKE ?)'); binds.push(`%${search}%`, `%${search}%`); }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+    const countRow = await env.CV_DB.prepare(
+        `SELECT COUNT(*) as c FROM auth_audit_log l JOIN user_identities u ON u.id = l.user_id ${where}`
+    ).bind(...binds).first<{c:number}>();
+
+    const rows = await env.CV_DB.prepare(`
+        SELECT l.id, l.event, l.method, l.ip, l.user_agent, l.created_at,
+               u.id as user_id, u.email, u.name, u.picture
+        FROM auth_audit_log l JOIN user_identities u ON u.id = l.user_id
+        ${where}
+        ORDER BY l.created_at DESC LIMIT ? OFFSET ?
+    `).bind(...binds, limit, offset).all();
+
+    return json({ ok: true, total: countRow?.c ?? 0, limit, offset, logs: rows.results ?? [] }, request, env);
+}
