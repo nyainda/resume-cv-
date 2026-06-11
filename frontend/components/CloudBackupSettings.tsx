@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { useWorkerAuth } from '../auth/WorkerAuthContext';
-import { migrateLocalToDrive, isDriveActive } from '../services/storage/StorageRouter';
+import { migrateLocalToDrive, isDriveActive, hasMigratedToDrive } from '../services/storage/StorageRouter';
 import { clearUserScopedStorage } from '../utils/clearUserStorage';
 
 type Status = 'idle' | 'connecting' | 'migrating' | 'active' | 'error';
@@ -27,25 +27,23 @@ export const CloudBackupSettings: React.FC = () => {
     useEffect(() => {
         if (loading) return;
         if (isAuthenticated) {
-            const hasMigrated = localStorage.getItem('cv_builder:gdrive_migrated') === 'done';
-            setStatus(hasMigrated ? 'active' : 'idle');
+            setStatus(hasMigratedToDrive(user?.email) ? 'active' : 'idle');
         } else {
             setStatus('idle');
         }
-    }, [isAuthenticated, loading]);
+    }, [isAuthenticated, loading, user?.email]);
 
     const handleConnect = async () => {
         setErrorMsg('');
         setStatus('connecting');
         try {
             await signIn();
-            // After sign-in, attempt migration
-            const hasMigrated = localStorage.getItem('cv_builder:gdrive_migrated') === 'done';
-            if (!hasMigrated) {
+            // After sign-in, attempt migration (Bug 3: scoped per user email)
+            if (!hasMigratedToDrive(user?.email)) {
                 setStatus('migrating');
                 await migrateLocalToDrive((uploaded, total) => {
                     setMigration({ uploaded, total });
-                });
+                }, user?.email);
                 setMigration(null);
             }
             setStatus('active');

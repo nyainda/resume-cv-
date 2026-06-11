@@ -20,7 +20,16 @@ import { DriveConflictError, dispatchConflict } from './storageErrors';
 
 const TOKEN_KEY = 'cv_gdrive_token';
 const EXPIRY_KEY = 'cv_gdrive_expiry';
-const MIGRATION_FLAG = 'cv_builder:gdrive_migrated';
+
+// Bug 3 fix: scope migration flag per user so account-switching doesn't
+// skip migration for a second user (or worse, overwrite Drive with empty data).
+function getMigrationFlagKey(email: string): string {
+    const safe = btoa(email).replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+    return `cv_builder:gdrive_migrated:${safe}`;
+}
+
+// Legacy global flag — kept for backward compat check only
+const MIGRATION_FLAG_LEGACY = 'cv_builder:gdrive_migrated';
 
 // ── Singletons ────────────────────────────────────────────────────────────
 let _cache: LocalStorageService | null = null;
@@ -31,9 +40,9 @@ function getCacheService(): LocalStorageService {
     return _cache;
 }
 
-function getDriveService(token: string): DriveStorageService {
+function getDriveService(token: string, email?: string): DriveStorageService {
     if (!_drive || _drive.currentToken !== token) {
-        _drive = new DriveStorageService(token);
+        _drive = new DriveStorageService(token, email);
     }
     return _drive;
 }
@@ -162,45 +171,62 @@ export function isDriveActive(): boolean {
 /**
  * Migrates data from Browser to Google Drive.
  * SAFE: Only uploads if local data exists.
+ *
+ * Bug 3 fix: pass userEmail so the flag is scoped per account.
+ * Falls back to the legacy global flag if email is not available,
+ * then upgrades it on completion.
  */
 export async function migrateLocalToDrive(
-    onProgress?: (uploaded: number, total: number) => void
+    onProgress?: (uploaded: number, total: number) => void,
+    userEmail?: string,
 ): Promise<void> {
-    if (localStorage.getItem(MIGRATION_FLAG) === 'done') return;
+    const flagKey = userEmail ? getMigrationFlagKey(userEmail) : MIGRATION_FLAG_LEGACY;
+
+    // Also honour the legacy flag so existing users don't re-migrate
+    if (
+        localStorage.getItem(flagKey) === 'done' ||
+        (userEmail && localStorage.getItem(MIGRATION_FLAG_LEGACY) === 'done')
+    ) {
+        if (userEmail && localStorage.getItem(flagKey) !== 'done') {
+            // Upgrade legacy flag to scoped flag
+            localStorage.setItem(flagKey, 'done');
+        }
+        return;
+    }
 
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) throw new Error('Not signed in to Google');
 
     const cache = getCacheService();
-    const drive = getDriveService(token);
+    const drive = getDriveService(token, userEmail);
 
     const allData = await cache.dumpAll();
     const entries = Object.entries(allData);
 
     if (entries.length === 0) {
-        localStorage.setItem(MIGRATION_FLAG, 'done');
+        localStorage.setItem(flagKey, 'done');
         return;
     }
 
     let uploaded = 0;
     for (const [key, value] of entries) {
-        if (key === MIGRATION_FLAG) continue;
+        if (key === flagKey || key === MIGRATION_FLAG_LEGACY) continue;
         // Skip conflict check during migration — we are the authoritative source
         await drive.forceSave(key, value);
         uploaded++;
         onProgress?.(uploaded, entries.length);
     }
 
-    localStorage.setItem(MIGRATION_FLAG, 'done');
+    localStorage.setItem(flagKey, 'done');
 }
 
 /** Forced restore from Drive back to Browser (Emergency fallback) */
-export async function restoreDriveToLocal(): Promise<void> {
+export async function restoreDriveToLocal(userEmail?: string): Promise<void> {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) throw new Error('Not signed in to Google');
 
     const cache = getCacheService();
-    const drive = getDriveService(token);
+    const drive = getDriveService(token, userEmail);
 
     const keys = await drive.list();
     for (const k of keys) {
@@ -209,6 +235,13 @@ export async function restoreDriveToLocal(): Promise<void> {
     }
 }
 
-export function resetMigrationFlag(): void {
-    localStorage.removeItem(MIGRATION_FLAG);
+/** Returns true if this user has already migrated their local data to Drive. */
+export function hasMigratedToDrive(userEmail?: string): boolean {
+    if (userEmail && localStorage.getItem(getMigrationFlagKey(userEmail)) === 'done') return true;
+    return localStorage.getItem(MIGRATION_FLAG_LEGACY) === 'done';
+}
+
+export function resetMigrationFlag(userEmail?: string): void {
+    if (userEmail) localStorage.removeItem(getMigrationFlagKey(userEmail));
+    localStorage.removeItem(MIGRATION_FLAG_LEGACY);
 }

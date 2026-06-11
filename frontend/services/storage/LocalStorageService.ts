@@ -155,9 +155,14 @@ export class LocalStorageService implements IStorageService {
     }
 
     async delete(key: string): Promise<void> {
-        localStorage.removeItem(CV_PREFIX + key);
-        // Note: we intentionally don't remove from IDB so the data is
-        // recoverable. If the user explicitly deletes we could add idbAppDel too.
+        const fullKey = CV_PREFIX + key;
+        localStorage.removeItem(fullKey);
+        // Bug 6 fix: also remove from IDB so explicitly deleted slots don't
+        // resurrect when restoreLocalStorageFromIDB() runs after a cache clear.
+        try {
+            const { idbAppDel } = await import('./AppDataPersistence');
+            await idbAppDel(fullKey);
+        } catch { /* best-effort */ }
     }
 
     async sync(): Promise<void> {

@@ -16,7 +16,9 @@ import { DriveConflictError } from './storageErrors';
 
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
-const MTIME_PREFIX = 'cv_drv_mtime:';
+// Bug 4 fix: mtime keys are scoped per user so timestamps from user A don't
+// contaminate conflict detection for user B on a shared device.
+const GLOBAL_MTIME_PREFIX = 'cv_drv_mtime:';
 
 interface FileMeta {
     id: string;
@@ -27,9 +29,16 @@ export class DriveStorageService implements IStorageService {
     readonly isPersistent = true;
     readonly label = 'Google Drive';
     readonly currentToken: string;
+    private readonly mtimePrefix: string;
 
-    constructor(token: string) {
+    constructor(token: string, userEmail?: string) {
         this.currentToken = token;
+        if (userEmail) {
+            const safe = btoa(userEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+            this.mtimePrefix = `cv_drv_mtime:${safe}:`;
+        } else {
+            this.mtimePrefix = GLOBAL_MTIME_PREFIX;
+        }
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -170,16 +179,16 @@ export class DriveStorageService implements IStorageService {
 
     private storeMtime(filename: string, mtime: string): void {
         try {
-            localStorage.setItem(MTIME_PREFIX + filename, mtime);
+            localStorage.setItem(this.mtimePrefix + filename, mtime);
         } catch { /* quota — mtime is best-effort */ }
     }
 
     private getStoredMtime(filename: string): string | null {
-        return localStorage.getItem(MTIME_PREFIX + filename);
+        return localStorage.getItem(this.mtimePrefix + filename);
     }
 
     private clearMtime(filename: string): void {
-        localStorage.removeItem(MTIME_PREFIX + filename);
+        localStorage.removeItem(this.mtimePrefix + filename);
     }
 
     private async checkConflict(

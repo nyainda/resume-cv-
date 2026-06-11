@@ -4,7 +4,7 @@
 import React, { useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { useWorkerAuth } from '../auth/WorkerAuthContext';
-import { migrateLocalToDrive } from '../services/storage/StorageRouter';
+import { migrateLocalToDrive, hasMigratedToDrive } from '../services/storage/StorageRouter';
 import { clearUserScopedStorage } from '../utils/clearUserStorage';
 import { Shield, CheckCircle, AlertCircle } from './icons';
 
@@ -21,16 +21,16 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
     // No UI is shown — the migration is a background best-effort operation.
     useEffect(() => {
         if (!isAuthenticated) return;
-        if (localStorage.getItem('cv_builder:gdrive_migrated') === 'done') {
+        if (hasMigratedToDrive(user?.email)) {
             onSignedIn?.();
             return;
         }
         let active = true;
-        migrateLocalToDrive()
+        migrateLocalToDrive(undefined, user?.email)
             .then(() => { if (active) onSignedIn?.(); })
             .catch((err) => { if (active) console.error('[Drive] Silent migration failed:', err); });
         return () => { active = false; };
-    }, [isAuthenticated, onSignedIn]);
+    }, [isAuthenticated, onSignedIn, user?.email]);
 
     const handleSignIn = async () => {
         try {

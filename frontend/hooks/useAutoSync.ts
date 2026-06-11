@@ -5,11 +5,13 @@
 
 import { useEffect, useRef } from 'react';
 import { isDriveActive, migrateLocalToDrive, resetMigrationFlag } from '../services/storage/StorageRouter';
+import { useGoogleAuth } from '../auth/GoogleAuthContext';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useAutoSync(isAuthenticated: boolean) {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const { user } = useGoogleAuth();
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -25,8 +27,8 @@ export function useAutoSync(isAuthenticated: boolean) {
             try {
                 window.dispatchEvent(new CustomEvent('drive-save-start'));
                 // Force a re-sync by resetting the migration flag so every key is pushed
-                resetMigrationFlag();
-                await migrateLocalToDrive();
+                resetMigrationFlag(user?.email);
+                await migrateLocalToDrive(undefined, user?.email);
                 window.dispatchEvent(new CustomEvent('drive-save-success', { detail: { key: '__auto_sync__' } }));
                 // Store timestamp for "last synced" display
                 localStorage.setItem('cv_drive_last_sync', new Date().toISOString());
@@ -43,5 +45,5 @@ export function useAutoSync(isAuthenticated: boolean) {
             clearTimeout(initialDelay);
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [isAuthenticated]);
+    }, [isAuthenticated, user?.email]);
 }

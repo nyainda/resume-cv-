@@ -157,6 +157,10 @@ export async function idbAppGet<T>(key: string): Promise<T | null> {
     }
 }
 
+export async function idbAppDel(key: string): Promise<void> {
+    await idbDelete(key);
+}
+
 export async function idbAppGetAll(): Promise<Record<string, unknown>> {
     try {
         const db = await openDB();
