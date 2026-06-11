@@ -23,7 +23,7 @@ import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData } from "./services/userDataCloudService";
-import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
   loadCustomTemplates,
@@ -278,6 +278,36 @@ const AppInner: React.FC = () => {
       return;
     }
     localStorage.setItem(_ACCT_HASH_KEY, newHash);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workerUser?.email, user?.email]);
+
+  // ── Cross-tab account-switch guard ─────────────────────────────────────
+  // When another browser tab signs in as a different user (or signs out),
+  // it writes a new account_email_hash to localStorage. The `storage` event
+  // fires in every OTHER tab. If the new hash differs from this tab's active
+  // user, wipe app data and reload so this tab doesn't show stale data from
+  // the previous account or allow writes that overwrite the new account's data.
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key !== _ACCT_HASH_KEY) return;
+      const newHash = e.newValue;
+      if (!newHash) return; // key was deleted — not our concern
+      if (newHash === SIGNED_OUT_SENTINEL) {
+        // Another tab signed out — reload this tab to a clean unauthenticated state
+        clearUserScopedStorage({ clearAppData: true });
+        window.location.reload();
+        return;
+      }
+      const email = workerUser?.email ?? user?.email;
+      const ourHash = email ? _fnv32(email) : null;
+      if (ourHash && newHash === ourHash) return; // same user, no action needed
+      // A different user signed in on another tab — wipe and reload
+      clearUserScopedStorage({ clearAppData: true });
+      localStorage.setItem(_ACCT_HASH_KEY, newHash);
+      window.location.reload();
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workerUser?.email, user?.email]);
 

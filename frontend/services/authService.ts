@@ -129,20 +129,30 @@ export async function verifyMagicLink(
     }
 }
 
-/** Validate an existing session token and return fresh user data. */
+/**
+ * Validate an existing session token and return fresh user data.
+ *
+ * Returns:
+ *  { user: WorkerUser, invalid: false } — token is valid
+ *  { user: null, invalid: true }        — server says 401: token is definitively bad
+ *  { user: null, invalid: false }       — network/502 error: keep session, retry later
+ */
 export async function validateSession(
     sessionToken: string,
-): Promise<WorkerUser | null> {
+): Promise<{ user: WorkerUser | null; invalid: boolean }> {
     try {
         const res = await fetch(`${ENGINE}/api/auth/session`, {
             headers: { Authorization: `Bearer ${sessionToken}` },
             signal: AbortSignal.timeout(8_000),
         });
-        if (!res.ok) return null;
+        if (res.status === 401) return { user: null, invalid: true };
+        if (!res.ok) return { user: null, invalid: false }; // 502 / server down — keep session
         const data = await res.json() as any;
-        return data.ok ? (data.user as WorkerUser) : null;
+        const user = data.ok ? (data.user as WorkerUser) : null;
+        return { user, invalid: !user };
     } catch {
-        return null;
+        // Network error or timeout — do not invalidate the stored session
+        return { user: null, invalid: false };
     }
 }
 

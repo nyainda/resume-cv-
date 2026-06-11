@@ -7,6 +7,7 @@ import { DriveDataPanel } from './DriveDataPanel';
 import { Shield } from './icons';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { useWorkerAuth } from '../auth/WorkerAuthContext';
+import { clearUserScopedStorage, stampSignedOut } from '../utils/clearUserStorage';
 import {
   testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
   getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
@@ -32,6 +33,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const handleSignOut = async () => {
     await workerSignOut();
     await googleSignOut();
+    clearUserScopedStorage();
+    stampSignedOut();
     onClose();
     onSignOut?.();
   };

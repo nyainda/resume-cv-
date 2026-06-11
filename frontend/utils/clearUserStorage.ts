@@ -117,6 +117,21 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
 
         // Clear IndexedDB cv_builder_cvdata (large CV JSON blobs)
         _clearCvDataIdb();
+
+        // Clear the Google auth IDB (cv_builder_auth) so the old user's
+        // access token cannot silently re-authenticate them after reload.
+        _clearGoogleAuthIdb();
+    }
+}
+
+/** Delete the Google auth IDB entirely so a stale token cannot silently re-auth the old user. */
+function _clearGoogleAuthIdb(): void {
+    try {
+        const req = indexedDB.deleteDatabase('cv_builder_auth');
+        req.onerror = () => {};    // non-fatal
+        req.onsuccess = () => {};  // non-fatal
+    } catch {
+        // IndexedDB unavailable — safe to ignore
     }
 }
 

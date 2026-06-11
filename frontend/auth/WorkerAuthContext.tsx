@@ -147,14 +147,19 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             // 2. Restore stored session and re-validate with worker
             const stored = getStoredSession();
             if (stored?.token) {
-                const freshUser = await validateSession(stored.token);
-                if (freshUser && !cancelled) {
-                    applySession(stored.token, freshUser);
+                const result = await validateSession(stored.token);
+                if (result.user && !cancelled) {
+                    applySession(stored.token, result.user);
                     setIsLoading(false);
                     return;
                 }
-                // Token is stale — clear it
-                clearStoredSession();
+                // Only purge the stored session if the server definitively rejected
+                // the token (HTTP 401). On network errors or 502s (server down),
+                // keep the session so the user stays "signed in" — Drive and worker
+                // features will fail gracefully via their own error handling.
+                if (result.invalid) {
+                    clearStoredSession();
+                }
             }
 
             if (!cancelled) setIsLoading(false);
