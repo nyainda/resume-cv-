@@ -60,6 +60,8 @@ import { ProfileManager } from "./components/ProfileManager";
 import NegotiationCoach from "./components/NegotiationCoach";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import LandingPage from "./components/LandingPage";
+import AccountPage from "./components/AccountPage";
+import { deleteAccountWorker } from "./services/authService";
 import DriveConflictModal from "./components/DriveConflictModal";
 import OfflineBanner from "./components/OfflineBanner";
 import LinkedInGenerator from "./components/LinkedInGenerator";
@@ -1150,6 +1152,14 @@ const AppInner: React.FC = () => {
         color,
         createdAt: new Date().toISOString(),
         profile: cloneFrom ? { ...cloneFrom } : emptyProfile,
+        // Explicitly initialize all per-slot data arrays so migration effects
+        // see them as "already initialized" and skip reading from legacy
+        // localStorage keys (which would bleed data from previous profiles).
+        currentCV: null,
+        savedCVs: [],
+        savedCoverLetters: [],
+        trackedApps: [],
+        starStories: [],
       };
       setProfiles((prev) => [...prev, slot]);
       setActiveProfileId(id);
@@ -1192,6 +1202,26 @@ const AppInner: React.FC = () => {
     },
     [setProfiles, toast],
   );
+
+  // ── Delete account handler ─────────────────────────────────────────────
+  const handleDeleteAccount = useCallback(async () => {
+    // Best-effort: try to remove server-side session/data first.
+    // Use the sessionToken already in context; fallback to localStorage on miss.
+    const token = sessionToken
+      || localStorage.getItem('procv:worker_session')
+      || sessionStorage.getItem('procv:worker_session_temp')
+      || '';
+    if (token) {
+      await deleteAccountWorker(token);
+    }
+    // Always clear all local data regardless of server response.
+    clearUserScopedStorage({ clearAppData: true });
+    stampSignedOut();
+    await signOut();
+    await googleSignOut();
+    setShowLanding(true);
+    toast.success('Account deleted', 'Your data has been removed from this device.');
+  }, [sessionToken, signOut, googleSignOut, toast]);
 
   // ── CV handlers ─────────────────────────────────────────────────────────
   // Snapshot the deterministic quality audit at save time so the saved-CV
@@ -1569,6 +1599,7 @@ const AppInner: React.FC = () => {
     | "analytics"
     | "score"
     | "pivot"
+    | "account"
     | "admin-leaks"
     | "admin-cv-engine"
     | "storage-map"
@@ -1847,18 +1878,30 @@ const AppInner: React.FC = () => {
             </button>
 
 
-            {/* ── Sign-out button (only when worker-authenticated) ─── */}
+            {/* ── Account & Sign-out buttons (only when worker-authenticated) ─── */}
             {isWorkerAuthenticated && (
-              <button
-                onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); stampSignedOut(); setShowLanding(true); }}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
-                title="Sign out"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-                Sign out
-              </button>
+              <>
+                <button
+                  onClick={() => setCurrentView("account" as any)}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-700 transition-all"
+                  title="My account"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                  </svg>
+                  Account
+                </button>
+                <button
+                  onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); stampSignedOut(); setShowLanding(true); }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
+                  title="Sign out"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                  Sign out
+                </button>
+              </>
             )}
 
             <button
@@ -2067,9 +2110,24 @@ const AppInner: React.FC = () => {
                     </div>
                   ))}
 
-                  {/* ── Mobile sign-out row ── */}
+                  {/* ── Mobile account/sign-out row ── */}
                   {isWorkerAuthenticated && (
-                    <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-neutral-700 px-1">
+                    <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-neutral-700 px-1 space-y-0.5">
+                      <button
+                        onClick={() => {
+                          setShowMobileMenu(false);
+                          setCurrentView("account" as any);
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-all"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                        My Account
+                        {workerUser?.email && (
+                          <span className="ml-auto text-[10px] font-normal text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{workerUser.email}</span>
+                        )}
+                      </button>
                       <button
                         onClick={async () => {
                           setShowMobileMenu(false);
@@ -2085,9 +2143,6 @@ const AppInner: React.FC = () => {
                           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                         </svg>
                         Sign out
-                        {workerUser?.email && (
-                          <span className="ml-auto text-[10px] font-normal text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{workerUser.email}</span>
-                        )}
                       </button>
                     </div>
                   )}
@@ -2478,6 +2533,21 @@ const AppInner: React.FC = () => {
                   <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700">
                     <StorageMapPage />
                   </div>
+                )}
+                {currentView === "account" && (
+                  <AccountPage
+                    workerUser={workerUser}
+                    profiles={profiles}
+                    onSignOut={async () => {
+                      await signOut();
+                      await googleSignOut();
+                      clearUserScopedStorage();
+                      stampSignedOut();
+                      setShowLanding(true);
+                    }}
+                    onDeleteAccount={handleDeleteAccount}
+                    onBack={() => setCurrentView("generator")}
+                  />
                 )}
               </div>
             )}

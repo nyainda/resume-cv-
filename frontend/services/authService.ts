@@ -166,3 +166,20 @@ export async function signOutWorker(sessionToken: string): Promise<void> {
         });
     } catch { /* fire-and-forget */ }
 }
+
+/**
+ * Delete account — removes the user's session and all server-side data.
+ * Returns true on success, false on any error (caller should still clear local data).
+ */
+export async function deleteAccountWorker(sessionToken: string): Promise<boolean> {
+    try {
+        const res = await fetch(`${ENGINE}/api/auth/account`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${sessionToken}` },
+            signal: AbortSignal.timeout(10_000),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
