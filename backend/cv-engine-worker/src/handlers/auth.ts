@@ -177,27 +177,56 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Upsert the identity (create or update)
-    await env.CV_DB.prepare(`
-        INSERT INTO user_identities (google_id, email, name, picture, device_id, plan, created_at, last_seen_at)
-        VALUES (?, ?, ?, ?, ?, 'free', ?, ?)
-        ON CONFLICT(google_id) DO UPDATE SET
-          email        = excluded.email,
-          name         = excluded.name,
-          picture      = excluded.picture,
-          device_id    = COALESCE(device_id, excluded.device_id),
-          last_seen_at = excluded.last_seen_at
-    `).bind(gUser.sub, gUser.email, gUser.name, gUser.picture, deviceId || null, now, now).run();
+    // Three-path identity resolution — avoids UNIQUE constraint collisions that
+    // occur when the same email already exists (from a magic-link sign-up) and
+    // we naively INSERT ... ON CONFLICT(google_id) — that conflict lands on the
+    // email column, not google_id, so the ON CONFLICT clause never fires.
+    //
+    // Path 1: returning Google user (google_id already known)
+    // Path 2: email-first user (magic-link account) — merge by linking google_id
+    // Path 3: brand-new user — insert fresh row
 
-    // Merge magic-link account if same email exists without a google_id
-    await env.CV_DB.prepare(`
-        UPDATE user_identities SET google_id = ?, name = ?, picture = ?, last_seen_at = ?
-        WHERE email = ? AND google_id IS NULL
-    `).bind(gUser.sub, gUser.name, gUser.picture, now, gUser.email).run().catch(() => {});
+    type UserRow = { id: number; email: string; name: string; picture: string; plan: string };
 
-    const user = await env.CV_DB.prepare(
+    let user: UserRow | null = await env.CV_DB.prepare(
         `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`
-    ).bind(gUser.sub).first<{ id: number; email: string; name: string; picture: string; plan: string }>();
+    ).bind(gUser.sub).first<UserRow>();
+
+    if (user) {
+        // Path 1: refresh profile info for returning Google user
+        await env.CV_DB.prepare(`
+            UPDATE user_identities
+            SET name = ?, picture = ?, email = ?, last_seen_at = ?
+            WHERE google_id = ?
+        `).bind(gUser.name, gUser.picture, gUser.email, now, gUser.sub).run();
+        user = { ...user, name: gUser.name, picture: gUser.picture, email: gUser.email };
+    } else {
+        // Path 2: check for a magic-link account with the same email
+        const byEmail = await env.CV_DB.prepare(
+            `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`
+        ).bind(gUser.email).first<UserRow>();
+
+        if (byEmail) {
+            // Merge: link this Google identity onto the existing magic-link row
+            await env.CV_DB.prepare(`
+                UPDATE user_identities
+                SET google_id = ?, name = ?, picture = ?, last_seen_at = ?
+                WHERE id = ?
+            `).bind(gUser.sub, gUser.name, gUser.picture, now, byEmail.id).run();
+            user = { ...byEmail, name: gUser.name, picture: gUser.picture };
+        } else {
+            // Path 3: brand-new user — safe to insert (no conflicts possible)
+            await env.CV_DB.prepare(`
+                INSERT INTO user_identities
+                  (google_id, email, name, picture, device_id, plan, created_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, 'free', ?, ?)
+            `).bind(gUser.sub, gUser.email, gUser.name, gUser.picture, deviceId || null, now, now).run();
+            user = await env.CV_DB.prepare(
+                `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`
+            ).bind(gUser.sub).first<UserRow>();
+        }
+    }
+
     if (!user) return json({ error: 'db_error' }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);

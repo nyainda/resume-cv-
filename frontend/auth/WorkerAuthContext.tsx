@@ -191,6 +191,12 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             if (result) {
                 applySession(result.token, result.user);
                 if (result.is_new_user) setIsNewUser(true);
+            } else {
+                // Linkage failed (network error, rate limit, or worker down).
+                // Log so it shows up in browser devtools — the user still has a
+                // live Google session so we don't block them, but features that
+                // require a worker session (cloud sync, Pro plan) won't work.
+                console.warn('[WorkerAuth] Google session linkage failed — worker may be unreachable. CV generation still works.');
             }
             // Resolve pending requireAuth() promises — true because Google auth
             // succeeded (even if worker linkage failed, the Google session is live).
