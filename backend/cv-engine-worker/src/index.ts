@@ -82,6 +82,12 @@ import {
     handlePromptRegistryHistory,
 } from './handlers/promptRegistry';
 
+import {
+    handleRuleRegistryList, handleRuleRegistryEvaluate,
+    handleRuleRegistryGetKey, handleRuleRegistryPost,
+    handleRuleRegistryRollback,
+} from './handlers/ruleRegistry';
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -231,6 +237,14 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/public-profile' && m === 'GET')    return handlePublicProfileGet(request, env, url);
     if (p === '/api/cv/public-profile' && m === 'POST')   return handlePublicProfilePost(request, env);
     if (p === '/api/cv/public-profile' && m === 'DELETE') return handlePublicProfileDelete(request, env);
+
+    // ── S1 Rule Registry ──────────────────────────────────────────────────────
+    if (p === '/api/cv/rule-registry'             && m === 'GET')  return handleRuleRegistryList(request, env);
+    if (p === '/api/cv/rule-registry/evaluate'    && m === 'GET')  return handleRuleRegistryEvaluate(request, env, url);
+    if (p === '/api/cv/rule-registry/rollback'    && m === 'POST') return handleRuleRegistryRollback(request, env);
+    if (p === '/api/cv/rule-registry'             && m === 'POST') return handleRuleRegistryPost(request, env);
+    const ruleKeyMatch = /^\/api\/cv\/rule-registry\/([^/]+)$/.exec(p);
+    if (ruleKeyMatch && m === 'GET') return handleRuleRegistryGetKey(request, env, decodeURIComponent(ruleKeyMatch[1]));
 
     // ── S4 Prompt Registry ────────────────────────────────────────────────────
     if (p === '/api/cv/prompt-registry'           && m === 'GET')  return handlePromptRegistryList(request, env, url);

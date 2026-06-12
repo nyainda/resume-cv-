@@ -46,6 +46,12 @@ export interface GenerationTrace {
   pinnedKeywords: string[];
   llmCacheHit: boolean;
 
+  /** S1: Rule Registry — which rule variant drove scenario selection */
+  ruleKey?: string;        // e.g. 'scenario:B'
+  ruleId?: number | null;  // D1 row ID of the winning rule
+  abGroup?: string;        // e.g. 'scenario:B:v2' — for telemetry correlation
+  ruleSource?: 'registry' | 'fallback'; // did registry serve or did we use the compiled default?
+
   validationViolations: ValidationViolation[];
   repairApplied: boolean;
   validationPassed: boolean;

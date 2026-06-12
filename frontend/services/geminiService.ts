@@ -2527,7 +2527,32 @@ ${kwLines}
         console.log(`[CV Gen] Career pivot detected: ${pivot.from.join('/')} → ${pivot.to.join('/')} — applying bridge-formula rules.`);
     }
 
-    // ── Record scenario + pivot into trace ────────────────────────────────────
+    // S1: Rule Registry — evaluate against cached registry configs (zero latency,
+    // sync read from localStorage). Records the rule key and A/B group into the
+    // generation trace so every generation is traceable to a specific rule version.
+    let _ruleEval: import('./ruleRegistryClient').EvaluateResult | null = null;
+    try {
+        const { evaluateScenario: _evalScenario, getCachedRuleConfigsSync } = await import('./ruleRegistryClient');
+        const _ruleConfigs = getCachedRuleConfigsSync();
+        const _totalMonths = (profile.workExperience || []).reduce((acc: number, exp: any) => {
+            const start = new Date(exp.startDate);
+            const end = exp.endDate?.toLowerCase() === 'present' ? new Date() : new Date(exp.endDate);
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return acc;
+            const mo = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            return acc + Math.max(0, mo);
+        }, 0);
+        _ruleEval = _evalScenario({
+            hasExperience: (profile.workExperience || []).length > 0,
+            hasProjects: (profile.projects || []).length > 0,
+            totalMonths: _totalMonths,
+            pivotDetected: Boolean(pivot),
+        }, _ruleConfigs);
+        if (_ruleEval.source === 'registry') {
+            console.log(`[CV Gen] Rule Registry: ${_ruleEval.abGroup} (id=${_ruleEval.ruleId})`);
+        }
+    } catch { /* non-blocking — rule eval failure never aborts generation */ }
+
+    // ── Record scenario + pivot + rule registry into trace ────────────────────
     _traceBuilder.record({
         scenario,
         scenarioEvidence: {
@@ -2538,6 +2563,12 @@ ${kwLines}
             pivotTo: pivot?.to,
         },
         gapKeywords: _pinnedKeywords,
+        ...(_ruleEval ? {
+            ruleKey:    _ruleEval.ruleKey,
+            ruleId:     _ruleEval.ruleId,
+            abGroup:    _ruleEval.abGroup,
+            ruleSource: _ruleEval.source,
+        } : {}),
     });
 
     if (profile.personalInfo.github) {

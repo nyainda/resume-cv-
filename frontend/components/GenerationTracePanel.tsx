@@ -237,6 +237,24 @@ const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace }) =>
             </div>
           )}
 
+          {/* Section: Rule Registry (S1) */}
+          {trace.ruleKey && (
+            <div className="mb-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Rule Registry (S1)</p>
+              <Row label="Scenario rule">
+                <span className="font-mono text-[10px] text-zinc-600 dark:text-zinc-400">{trace.abGroup ?? trace.ruleKey}</span>
+                {trace.ruleSource === 'registry'
+                  ? <Badge color="green">registry</Badge>
+                  : <Badge color="zinc">fallback</Badge>}
+              </Row>
+              {trace.ruleId != null && (
+                <Row label="Rule ID">
+                  <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">#{trace.ruleId}</span>
+                </Row>
+              )}
+            </div>
+          )}
+
           {/* Section: Prompt Versions (S4) */}
           {trace.promptVersions && Object.keys(trace.promptVersions).length > 0 && (
             <div className="mb-3">
