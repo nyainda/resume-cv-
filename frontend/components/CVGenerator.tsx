@@ -126,6 +126,29 @@ interface CVGeneratorProps {
    * Pass a fresh Date timestamp string each time to re-trigger the panel.
    */
   importedFromJson?: string;
+
+  // ── Profile isolation ("room" system) ─────────────────────────────────
+  /** Active profile ID — used to prefix all localStorage keys so each profile
+   *  has a fully isolated JD, targeting info, and generation settings. */
+  profileId: string;
+  /** Initial values seeded from the profile slot (for migration / first load) */
+  initialJobDescription?: string;
+  initialTargetCompany?: string;
+  initialTargetJobTitle?: string;
+  initialCvPurpose?: 'job' | 'academic' | 'general';
+  initialGenerationMode?: string;
+  initialJdKeywords?: string[];
+  /** Called whenever room-level state changes so App.tsx can persist it in the slot */
+  onSlotUpdate?: (update: {
+    jobDescription?: string;
+    targetCompany?: string;
+    targetJobTitle?: string;
+    cvPurpose?: 'job' | 'academic' | 'general';
+    generationMode?: string;
+    jdKeywords?: string[];
+    lastGeneratedAt?: string;
+    lastAtsScore?: number;
+  }) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -207,14 +230,22 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
   },
 };
 
-const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings, onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions, onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson }) => {
+const CVGenerator: React.FC<CVGeneratorProps> = ({
+  userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings,
+  onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions,
+  onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
+  profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
+  initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate,
+}) => {
   const { isAuthenticated } = useGoogleAuth();
   const { requireAuth, sessionToken, workerUser } = useWorkerAuth();
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
-  const [jobDescription, setJobDescription] = useLocalStorage<string>('jobDescription', '');
-  const [targetCompany, setTargetCompany] = useLocalStorage<string>('cv:targetCompany', '');
-  const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>('cv:targetJobTitle', '');
+  // Profile-isolated "room" state — each profileId gets its own localStorage keys
+  // so switching profiles never bleeds JD or targeting info across rooms.
+  const [jobDescription, setJobDescription] = useLocalStorage<string>(`p:${profileId}:jd`, initialJobDescription ?? '');
+  const [targetCompany, setTargetCompany] = useLocalStorage<string>(`p:${profileId}:company`, initialTargetCompany ?? '');
+  const [targetJobTitle, setTargetJobTitle] = useLocalStorage<string>(`p:${profileId}:jobTitle`, initialTargetJobTitle ?? '');
   const forceFreshRef = useRef(false);
   // Tracks the JD text used for the last successful generation so we can detect
   // when the user switches to a completely different job (Bug 1 — JD fingerprinting).
@@ -307,8 +338,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [sidebarSections, setSidebarSections] = useLocalStorage<SidebarSectionsVisibility>('sidebarSections', DEFAULT_SIDEBAR_SECTIONS);
   const [font, setFont] = useLocalStorage<FontName>('cvFont', 'lora');
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
-  const [generationMode, setGenerationMode] = useLocalStorage<CVGenerationMode>('generationMode', 'honest');
-  const [cvPurpose, setCvPurpose] = useLocalStorage<CVPurpose>('cv:purpose', 'job');
+  const [generationMode, setGenerationMode] = useLocalStorage<CVGenerationMode>(`p:${profileId}:mode`, (initialGenerationMode as CVGenerationMode) ?? 'honest');
+  const [cvPurpose, setCvPurpose] = useLocalStorage<CVPurpose>(`p:${profileId}:purpose`, initialCvPurpose ?? 'job');
   const [scholarshipFormat, setScholarshipFormat] = useLocalStorage<ScholarshipFormat>('scholarshipFormat', 'standard');
   const [atsDataEmbedded, setAtsDataEmbedded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -513,7 +544,28 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
   const [showImportReport, setShowImportReport] = useState(false);
   const [isFixingIssues, setIsFixingIssues] = useState(false);
   const [fixSummary, setFixSummary] = useState<{ total: number; remote: number } | null>(null);
-  const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>('cv:jdKeywords', []);
+  const [jdTier1Keywords, setJdTier1Keywords] = useLocalStorage<string[]>(`p:${profileId}:keywords`, initialJdKeywords ?? []);
+
+  // ── Sync room state back to the slot (debounced 1s) ─────────────────────
+  // App.tsx uses this to persist JD/targeting in the profile slot so
+  // ProfileManager can display them and cloud sync includes them.
+  const slotSyncTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    if (!onSlotUpdate) return;
+    if (slotSyncTimer.current) clearTimeout(slotSyncTimer.current);
+    slotSyncTimer.current = setTimeout(() => {
+      onSlotUpdate({
+        jobDescription,
+        targetCompany,
+        targetJobTitle,
+        cvPurpose,
+        generationMode,
+        jdKeywords: jdTier1Keywords,
+      });
+    }, 1000);
+    return () => { if (slotSyncTimer.current) clearTimeout(slotSyncTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobDescription, targetCompany, targetJobTitle, cvPurpose, generationMode, jdTier1Keywords]);
 
   // ── Active AI engine (shown as badge after generation) ──
   const [lastEngine, setLastEngine] = useState<string | null>(null);
@@ -804,6 +856,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({ userProfile, currentCV, setCu
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
       setJustGenerated(true);
+      // Record generation timestamp in the slot for the profile tracker
+      onSlotUpdate?.({ lastGeneratedAt: new Date().toISOString() });
       // Instant zero-cost re-score: compare the newly generated CV against the
       // same JD to measure how many of the pinned gap terms were incorporated.
       if (_gapKeywords && _gapKeywords.length > 0 && jobDescription.trim()) {

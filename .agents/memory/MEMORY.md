@@ -4,3 +4,4 @@
 - [D1 migration tracking gap](d1-migration-tracking.md) — migrations applied manually (outside wrangler) are not tracked; INSERT into d1_migrations to unblock future runs.
 - [Auth system deployment](auth-system.md) — sessions in D1 (024+025), Google OAuth + magic link, rate limiting, audit log; BREVO_API_KEY needed as CF secret for magic link email.
 - [Auth device ID key mismatch](auth-device-id.md) — WorkerAuthContext used 'procv:device_id' but getDeviceId() writes 'cv_builder:deviceId'; fixed to use getDeviceId() from userDataCloudService.
+- [Profile room isolation](profile-room-isolation.md) — each profile slot has its own localStorage keys (p:${id}:jd/company/jobTitle/mode/purpose/keywords); CVGenerator remounts via key={activeSlot.id}; onSlotUpdate callback debounces slot writes back to profiles array.

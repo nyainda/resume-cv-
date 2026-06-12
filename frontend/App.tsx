@@ -46,6 +46,7 @@ import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
 import ProfileForm from "./components/ProfileForm";
 import CVGenerator from "./components/CVGenerator";
+import PricingModal from "./components/PricingModal";
 import SharedCVView from "./components/SharedCVView";
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
@@ -722,6 +723,7 @@ const AppInner: React.FC = () => {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [showProfileManager, setShowProfileManager] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -1210,6 +1212,24 @@ const AppInner: React.FC = () => {
       toast.success("Profile Updated", `Renamed to "${name}".`);
     },
     [setProfiles, toast],
+  );
+
+  // ── Per-slot state sync callback (room isolation) ──────────────────────
+  // CVGenerator calls this (debounced 1s) whenever JD, targeting, or generation
+  // settings change so each profile slot stores its own "room" state.
+  const handleSlotUpdate = useCallback(
+    (update: Partial<{
+      jobDescription: string; targetCompany: string; targetJobTitle: string;
+      cvPurpose: 'job' | 'academic' | 'general'; generationMode: string;
+      jdKeywords: string[]; lastGeneratedAt: string; lastAtsScore: number;
+    }>) => {
+      setProfiles(prev =>
+        prev.map(p =>
+          p.id === activeSlot?.id ? { ...p, ...update } : p
+        )
+      );
+    },
+    [activeSlot, setProfiles],
   );
 
   // ── Delete account handler ─────────────────────────────────────────────
@@ -2397,6 +2417,7 @@ const AppInner: React.FC = () => {
                 )}
                 {currentView === "generator" && (
                   <CVGenerator
+                    key={activeSlot?.id ?? 'default'}
                     userProfile={userProfile!}
                     currentCV={currentCV}
                     setCurrentCV={setCurrentCV}
@@ -2414,6 +2435,14 @@ const AppInner: React.FC = () => {
                     }
                     onSaveStories={handleSaveStories}
                     importedFromJson={jsonImportTimestamp}
+                    profileId={activeSlot?.id ?? ''}
+                    initialJobDescription={activeSlot?.jobDescription ?? activeSlot?.currentJobDescription ?? ''}
+                    initialTargetCompany={activeSlot?.targetCompany ?? ''}
+                    initialTargetJobTitle={activeSlot?.targetJobTitle ?? ''}
+                    initialCvPurpose={activeSlot?.cvPurpose}
+                    initialGenerationMode={activeSlot?.generationMode}
+                    initialJdKeywords={activeSlot?.jdKeywords}
+                    onSlotUpdate={handleSlotUpdate}
                   />
                 )}
                 {currentView === "linkedin" && (
@@ -2556,6 +2585,7 @@ const AppInner: React.FC = () => {
                     }}
                     onDeleteAccount={handleDeleteAccount}
                     onBack={() => setCurrentView("generator")}
+                    onUpgrade={() => setIsPricingOpen(true)}
                   />
                 )}
               </div>
@@ -2570,6 +2600,12 @@ const AppInner: React.FC = () => {
         onSave={handleApiSettingsSave}
         currentApiSettings={apiSettings}
         onSignOut={() => { setIsSettingsOpen(false); setShowLanding(true); }}
+      />
+      <PricingModal
+        isOpen={isPricingOpen}
+        onClose={() => setIsPricingOpen(false)}
+        currentPlan={workerUser?.plan ?? 'free'}
+        userEmail={workerUser?.email}
       />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 

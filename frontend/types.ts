@@ -134,8 +134,22 @@ export interface UserProfileSlot {
   savedCoverLetters?: SavedCoverLetter[]; // per-profile cover letters
   trackedApps?: TrackedApplication[]; // per-profile job tracker
   starStories?: STARStory[];         // per-profile STAR stories
-  currentJobDescription?: string;   // last JD used per profile
+  currentJobDescription?: string;   // legacy — use jobDescription instead
   activeTab?: string;               // last active tab per profile
+
+  // ── Per-profile "room" state ────────────────────────────────────────────
+  // Each profile is fully isolated — switching profiles never bleeds JD,
+  // targeting info, or generation settings from another profile.
+  jobDescription?: string;          // job description pasted in this profile
+  cvPurpose?: 'job' | 'academic' | 'general';
+  targetCompany?: string;
+  targetJobTitle?: string;
+  generationMode?: string;          // 'honest' | 'boosted' | 'aggressive'
+  jdKeywords?: string[];
+
+  // ── Tracker / analytics ─────────────────────────────────────────────────
+  lastGeneratedAt?: string;         // ISO timestamp of last successful generation
+  lastAtsScore?: number;            // cached ATS score after last generation (0-100)
 }
 
 // --- Email Application ---

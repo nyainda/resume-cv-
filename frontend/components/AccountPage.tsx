@@ -13,6 +13,7 @@ interface AccountPageProps {
     onSignOut: () => Promise<void>;
     onDeleteAccount: () => Promise<void>;
     onBack: () => void;
+    onUpgrade?: () => void;
 }
 
 const PLAN_LABELS: Record<string, { label: string; color: string; bg: string; description: string }> = {
@@ -21,7 +22,7 @@ const PLAN_LABELS: Record<string, { label: string; color: string; bg: string; de
     pro:   { label: 'Pro',      color: '#92400e', bg: '#fef3c7',   description: 'Full access, priority support' },
 };
 
-export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onBack }: AccountPageProps) {
+export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onBack, onUpgrade }: AccountPageProps) {
     const [deletingStep, setDeletingStep] = useState<'idle' | 'confirm' | 'typing' | 'deleting'>('idle');
     const [confirmText, setConfirmText] = useState('');
     const [signingOut, setSigningOut] = useState(false);
@@ -93,8 +94,8 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                         </div>
                     </div>
 
-                    {/* Plan badge strip */}
-                    <div className="px-6 -mt-5 pb-5">
+                    {/* Plan badge strip + upgrade CTA */}
+                    <div className="px-6 -mt-5 pb-5 flex items-center gap-3 flex-wrap">
                         <div className="inline-flex items-center gap-2 rounded-xl px-4 py-2 shadow-sm border"
                              style={{ background: planInfo.bg, borderColor: planInfo.color + '30' }}>
                             <span className="w-2 h-2 rounded-full" style={{ background: planInfo.color }} />
@@ -103,6 +104,18 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                             </span>
                             <span className="text-xs" style={{ color: planInfo.color + 'cc' }}>· {planInfo.description}</span>
                         </div>
+                        {plan === 'free' && onUpgrade && (
+                            <button
+                                onClick={onUpgrade}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black shadow-sm transition-all hover:scale-105 active:scale-100"
+                                style={{ background: 'linear-gradient(135deg, #C9A84C, #e0b85c)', color: '#1B2B4B' }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/>
+                                </svg>
+                                Upgrade to Pro
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -1,18 +1,18 @@
 // components/ProfileManager.tsx
-// Manages multiple named user profiles — create, switch, rename, delete.
-// Fully responsive: card list on desktop, bottom-sheet feel on mobile.
+// Multi-profile switcher — rich cards with JD target, stats, and tracker info.
+// Each profile is a fully isolated "room" with its own JD, targeting, and CV.
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
 
-const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string }[] = [
-    { id: 'indigo', bg: 'bg-[#1B2B4B]', ring: 'ring-[#C9A84C]', text: 'text-[#1B2B4B] dark:text-[#C9A84C]', border: 'border-[#C9A84C]/40 dark:border-[#1B2B4B]/40', lightBg: 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20' },
-    { id: 'violet', bg: 'bg-violet-600', ring: 'ring-violet-500', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-300 dark:border-violet-700', lightBg: 'bg-violet-50 dark:bg-violet-900/30' },
-    { id: 'emerald', bg: 'bg-emerald-500', ring: 'ring-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-300 dark:border-emerald-700', lightBg: 'bg-emerald-50 dark:bg-emerald-900/30' },
-    { id: 'amber', bg: 'bg-amber-500', ring: 'ring-amber-500', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-300 dark:border-amber-700', lightBg: 'bg-amber-50 dark:bg-amber-900/30' },
-    { id: 'rose', bg: 'bg-rose-500', ring: 'ring-rose-500', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-300 dark:border-rose-700', lightBg: 'bg-rose-50 dark:bg-rose-900/30' },
-    { id: 'sky', bg: 'bg-sky-500', ring: 'ring-sky-500', text: 'text-sky-600 dark:text-sky-400', border: 'border-sky-300 dark:border-sky-700', lightBg: 'bg-sky-50 dark:bg-sky-900/30' },
+const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string; hex: string }[] = [
+    { id: 'indigo',  bg: 'bg-[#1B2B4B]',    ring: 'ring-[#C9A84C]',     text: 'text-[#1B2B4B] dark:text-[#C9A84C]',           border: 'border-[#C9A84C]/40',         lightBg: 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20',    hex: '#1B2B4B' },
+    { id: 'violet',  bg: 'bg-violet-600',    ring: 'ring-violet-500',    text: 'text-violet-600 dark:text-violet-400',           border: 'border-violet-300',            lightBg: 'bg-violet-50 dark:bg-violet-900/30',    hex: '#7c3aed' },
+    { id: 'emerald', bg: 'bg-emerald-500',   ring: 'ring-emerald-500',   text: 'text-emerald-600 dark:text-emerald-400',         border: 'border-emerald-300',           lightBg: 'bg-emerald-50 dark:bg-emerald-900/30', hex: '#10b981' },
+    { id: 'amber',   bg: 'bg-amber-500',     ring: 'ring-amber-500',     text: 'text-amber-600 dark:text-amber-400',             border: 'border-amber-300',             lightBg: 'bg-amber-50 dark:bg-amber-900/30',      hex: '#f59e0b' },
+    { id: 'rose',    bg: 'bg-rose-500',      ring: 'ring-rose-500',      text: 'text-rose-600 dark:text-rose-400',               border: 'border-rose-300',              lightBg: 'bg-rose-50 dark:bg-rose-900/30',        hex: '#f43f5e' },
+    { id: 'sky',     bg: 'bg-sky-500',       ring: 'ring-sky-500',       text: 'text-sky-600 dark:text-sky-400',                 border: 'border-sky-300',               lightBg: 'bg-sky-50 dark:bg-sky-900/30',          hex: '#0ea5e9' },
 ];
 
 function getColor(id: ProfileColor) {
@@ -23,6 +23,21 @@ function initials(name: string) {
     return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 }
 
+function timeAgo(iso?: string): string {
+    if (!iso) return '';
+    const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function jdSnippet(jd?: string): string {
+    if (!jd || !jd.trim()) return '';
+    return jd.trim().slice(0, 60) + (jd.trim().length > 60 ? '…' : '');
+}
+
 interface ProfileManagerProps {
     profiles: UserProfileSlot[];
     activeProfileId: string | null;
@@ -31,7 +46,6 @@ interface ProfileManagerProps {
     onDelete: (id: string) => void;
     onRename: (id: string, name: string, color: ProfileColor) => void;
     currentProfile: UserProfile | null;
-    /** If true renders as a full-screen mobile overlay, otherwise inline */
     isMobileOverlay?: boolean;
     onClose?: () => void;
 }
@@ -55,7 +69,6 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
     const [cloneActive, setCloneActive] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-    // Lock body scroll when mobile overlay is open
     useEffect(() => {
         if (isMobileOverlay) {
             document.body.style.overflow = 'hidden';
@@ -90,12 +103,12 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
 
     const content = (
         <div className="flex flex-col h-full">
-            {/* ── Header ───────────────────────────── */}
+            {/* ── Header ─────────────────────────────────────────── */}
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <div>
-                    <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-50">Switch Profile</h3>
+                    <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-50">Career Profiles</h3>
                     <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                        {profiles.length} profile{profiles.length !== 1 ? 's' : ''} · tap to switch
+                        {profiles.length} profile{profiles.length !== 1 ? 's' : ''} · each is a separate room
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -103,7 +116,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                         onClick={openCreate}
                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1B2B4B] text-white hover:bg-[#152238] transition-colors shadow-sm"
                     >
-                        <span className="text-sm leading-none">+</span> New
+                        <span className="text-sm leading-none">+</span> New Room
                     </button>
                     {onClose && (
                         <button
@@ -116,11 +129,11 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                 </div>
             </div>
 
-            {/* ── Profile list ─────────────────────── */}
+            {/* ── Profile list ─────────────────────────────────── */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 -mr-1">
                 {profiles.length === 0 && (
                     <div className="text-center py-10 text-zinc-400 dark:text-zinc-600 text-xs">
-                        No profiles yet. Create your first one above.
+                        No profiles yet. Create your first room above.
                     </div>
                 )}
 
@@ -128,88 +141,165 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     const c = getColor(slot.color);
                     const isActive = slot.id === activeProfileId;
                     const displayName = slot.profile.personalInfo.name || slot.name;
+                    const cvCount = slot.savedCVs?.length ?? 0;
+                    const trackedCount = slot.trackedApps?.length ?? 0;
+                    const hasJD = !!(slot.jobDescription || slot.currentJobDescription);
+                    const jd = jdSnippet(slot.jobDescription || slot.currentJobDescription);
+                    const target = slot.targetJobTitle || slot.targetCompany || '';
+                    const atsScore = slot.lastAtsScore;
+                    const lastGen = slot.lastGeneratedAt || slot.createdAt;
 
                     return (
                         <div
                             key={slot.id}
-                            className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer select-none ${isActive
-                                ? `${c.border} ${c.lightBg} shadow-sm`
-                                : 'border-zinc-200 dark:border-neutral-700 hover:border-zinc-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/50 active:scale-[0.98]'
-                                }`}
+                            className={`group relative rounded-xl border-2 transition-all cursor-pointer select-none overflow-hidden ${
+                                isActive
+                                    ? `${c.border} shadow-md`
+                                    : 'border-zinc-200 dark:border-neutral-700 hover:border-zinc-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/50 active:scale-[0.99]'
+                            }`}
+                            style={isActive ? { borderColor: c.hex + '60', background: c.hex + '08' } : {}}
                             onClick={() => { if (!isActive) { onSwitch(slot); onClose?.(); } }}
                         >
-                            {/* Avatar */}
-                            <div className={`w-10 h-10 rounded-full ${c.bg} flex items-center justify-center text-white text-sm font-extrabold flex-shrink-0 ${isActive ? `ring-2 ${c.ring} ring-offset-2 ring-offset-white dark:ring-offset-neutral-800` : ''}`}>
-                                {initials(displayName)}
-                            </div>
+                            {/* Active accent bar */}
+                            {isActive && (
+                                <div className="absolute top-0 left-0 bottom-0 w-1 rounded-l-xl" style={{ background: c.hex }} />
+                            )}
 
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">{slot.name}</span>
-                                    {isActive && (
-                                        <span className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${c.text} bg-white/70 dark:bg-neutral-800/70 border ${c.border}`}>
-                                            Active
+                            <div className={`flex items-start gap-3 p-3 ${isActive ? 'pl-4' : ''}`}>
+                                {/* Avatar */}
+                                <div
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-extrabold flex-shrink-0 mt-0.5 ${
+                                        isActive ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-neutral-800` : ''
+                                    }`}
+                                    style={{ background: c.hex, ...(isActive ? { boxShadow: `0 0 0 2px ${c.hex}80` } : {}) }}
+                                >
+                                    {initials(displayName)}
+                                </div>
+
+                                {/* Main content */}
+                                <div className="flex-1 min-w-0">
+                                    {/* Row 1: name + active badge */}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">{slot.name}</span>
+                                        {isActive && (
+                                            <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                                                  style={{ background: c.hex }}>
+                                                Active
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Row 2: target company / job title */}
+                                    {target ? (
+                                        <p className="text-[11px] font-semibold truncate mt-0.5" style={{ color: c.hex }}>
+                                            🎯 {target}
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
+                                            {displayName !== slot.name ? displayName : `${slot.profile.workExperience.length} roles · ${slot.profile.skills.length} skills`}
+                                        </p>
+                                    )}
+
+                                    {/* Row 3: JD snippet */}
+                                    {jd && (
+                                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5 italic">
+                                            "{jd}"
+                                        </p>
+                                    )}
+
+                                    {/* Row 4: stats bar */}
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                        {/* CV count */}
+                                        <span className="flex items-center gap-1 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                                            </svg>
+                                            {cvCount} CV{cvCount !== 1 ? 's' : ''}
                                         </span>
+
+                                        {/* Job tracker */}
+                                        {trackedCount > 0 && (
+                                            <span className="flex items-center gap-1 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                                </svg>
+                                                {trackedCount} tracked
+                                            </span>
+                                        )}
+
+                                        {/* ATS score */}
+                                        {atsScore !== undefined && (
+                                            <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                                atsScore >= 80 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                : atsScore >= 60 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            }`}>
+                                                ATS {atsScore}
+                                            </span>
+                                        )}
+
+                                        {/* JD indicator */}
+                                        {hasJD && (
+                                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                                                JD ready
+                                            </span>
+                                        )}
+
+                                        {/* Last activity */}
+                                        {lastGen && (
+                                            <span className="text-[10px] text-zinc-400 dark:text-zinc-600 ml-auto">
+                                                {timeAgo(lastGen)}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-1 flex-shrink-0 self-center" onClick={e => e.stopPropagation()}>
+                                    <button
+                                        onClick={e => openEdit(slot, e)}
+                                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Rename / recolor"
+                                    >
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                        </svg>
+                                    </button>
+                                    {profiles.length > 1 && (
+                                        confirmDeleteId === slot.id ? (
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => { onDelete(slot.id); setConfirmDeleteId(null); }}
+                                                    className="text-[10px] px-2 py-1 rounded-lg text-red-600 font-bold bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                                                >
+                                                    Yes
+                                                </button>
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(null)}
+                                                    className="text-[10px] px-1.5 py-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-700"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setConfirmDeleteId(slot.id)}
+                                                className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Delete"
+                                            >
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                                </svg>
+                                            </button>
+                                        )
                                     )}
                                 </div>
-                                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
-                                    {displayName !== slot.name ? `${displayName} · ` : ''}
-                                    {slot.profile.workExperience.length} roles · {slot.profile.skills.length} skills
-                                </p>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                {!isActive && (
-                                    <button
-                                        onClick={() => { onSwitch(slot); onClose?.(); }}
-                                        className={`hidden sm:block text-[11px] font-bold px-2 py-1 rounded-md ${c.text} hover:${c.lightBg} transition-colors`}
-                                    >
-                                        Use
-                                    </button>
-                                )}
-                                <button
-                                    onClick={e => openEdit(slot, e)}
-                                    className="flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 border border-zinc-200 dark:border-neutral-600 hover:border-[#C9A84C]/40 dark:hover:border-[#1B2B4B]/40 transition-all"
-                                    title="Rename / recolor"
-                                >
-                                    <span>✏️</span>
-                                    <span className="hidden sm:inline">Edit</span>
-                                </button>
-                                {profiles.length > 1 && (
-                                    confirmDeleteId === slot.id ? (
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                onClick={() => { onDelete(slot.id); setConfirmDeleteId(null); }}
-                                                className="text-[11px] px-2.5 py-1.5 rounded-lg text-red-600 font-bold bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                                            >
-                                                Confirm
-                                            </button>
-                                            <button
-                                                onClick={() => setConfirmDeleteId(null)}
-                                                className="text-[11px] px-1.5 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 transition-colors"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => setConfirmDeleteId(slot.id)}
-                                            className="flex items-center gap-1 text-xs font-semibold px-2 py-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-zinc-200 dark:border-neutral-600 hover:border-red-200 dark:hover:border-red-800 transition-all"
-                                            title="Delete"
-                                        >
-                                            <span>🗑️</span>
-                                            <span className="hidden sm:inline">Delete</span>
-                                        </button>
-                                    )
-                                )}
                             </div>
                         </div>
                     );
                 })}
             </div>
-
         </div>
     );
 
@@ -224,14 +314,15 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                 style={{ maxHeight: '92dvh', overflowY: 'auto' }}
                 onClick={e => e.stopPropagation()}
             >
-                {/* Header bar */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 dark:border-neutral-800">
                     <div>
                         <h3 className="text-lg font-extrabold text-zinc-900 dark:text-white">
-                            {modal.mode === 'create' ? 'Create New Profile' : 'Edit Profile'}
+                            {modal.mode === 'create' ? 'Create New Room' : 'Edit Profile'}
                         </h3>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            {modal.mode === 'create' ? 'Each profile stores its own CV data' : 'Update name and color'}
+                            {modal.mode === 'create'
+                                ? 'Each room has its own JD, targeting, and CV — completely isolated'
+                                : 'Update name and color'}
                         </p>
                     </div>
                     <button
@@ -242,13 +333,11 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     </button>
                 </div>
 
-                {/* Body */}
                 <div className="px-6 py-5 space-y-5">
-
                     {/* Profile Name */}
                     <div>
                         <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-2">
-                            Profile Name <span className="text-red-500">*</span>
+                            Room Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -260,14 +349,14 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                             autoFocus
                         />
                         <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">
-                            Use a role or goal name to keep profiles organised
+                            Name it after the role you're targeting in this room
                         </p>
                     </div>
 
                     {/* Accent Colour */}
                     <div>
                         <label className="block text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-3">
-                            Profile Color
+                            Room Color
                         </label>
                         <div className="flex flex-wrap gap-3">
                             {COLORS.map(c => (
@@ -275,7 +364,11 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                     key={c.id}
                                     type="button"
                                     onClick={() => setColor(c.id)}
-                                    className={`w-11 h-11 rounded-full ${c.bg} transition-all flex items-center justify-center ${color === c.id ? `scale-110 ring-4 ${c.ring} ring-offset-2 ring-offset-white dark:ring-offset-neutral-900` : 'opacity-70 hover:opacity-100 hover:scale-105'}`}
+                                    className={`w-11 h-11 rounded-full transition-all flex items-center justify-center ${color === c.id ? 'scale-110' : 'opacity-70 hover:opacity-100 hover:scale-105'}`}
+                                    style={{
+                                        background: c.hex,
+                                        ...(color === c.id ? { boxShadow: `0 0 0 3px white, 0 0 0 5px ${c.hex}` } : {}),
+                                    }}
                                     title={c.id.charAt(0).toUpperCase() + c.id.slice(1)}
                                 >
                                     {color === c.id && (
@@ -294,7 +387,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                             <div className="flex items-center justify-between gap-4">
                                 <div>
                                     <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Copy current profile data</p>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Duplicates your existing work experience, skills &amp; education</p>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Duplicates work experience, skills &amp; education (not the JD or targeting)</p>
                                 </div>
                                 <button
                                     type="button"
@@ -308,7 +401,6 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     )}
                 </div>
 
-                {/* Footer */}
                 <div className="flex gap-3 px-6 py-4 border-t border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-900">
                     <button
                         type="button"
@@ -323,7 +415,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                         disabled={!name.trim()}
                         className="flex-2 flex-1 py-3 rounded-xl bg-[#1B2B4B] hover:bg-[#152238] active:bg-[#152238] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-extrabold transition-colors shadow-lg shadow-[#1B2B4B]/20"
                     >
-                        {modal.mode === 'create' ? '+ Create Profile' : 'Save Changes'}
+                        {modal.mode === 'create' ? '+ Create Room' : 'Save Changes'}
                     </button>
                 </div>
             </div>
@@ -331,7 +423,6 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
         document.body
     );
 
-    // Mobile overlay mode: full-screen bottom sheet
     if (isMobileOverlay) {
         return (
             <div className="fixed inset-0 z-50 flex flex-col" onClick={onClose}>
@@ -344,7 +435,6 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     }}
                     onClick={e => e.stopPropagation()}
                 >
-                    {/* Drag handle */}
                     <div className="w-10 h-1 rounded-full bg-zinc-200 dark:bg-neutral-700 mx-auto mb-4 flex-shrink-0" />
                     {content}
                 </div>
@@ -353,7 +443,6 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
         );
     }
 
-    // Desktop inline mode (inside a dropdown panel)
     return (
         <>
             {content}
