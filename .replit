@@ -1,8 +1,7 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "nix"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
-integrations = ["javascript_openai_ai_integrations:2.0.0"]
 
 [nix]
 channel = "stable-25_05"
@@ -49,14 +48,6 @@ waitForPort = 3001
 
 [[ports]]
 localPort = 3001
-externalPort = 3000
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
 externalPort = 3001
 
 [userenv]
@@ -64,17 +55,3 @@ externalPort = 3001
 [userenv.shared]
 VITE_PDF_WORKER_URL = "https://resume-pdf-worker.dripstech.workers.dev"
 VITE_CV_ENGINE_URL = "https://cv-engine-worker.dripstech.workers.dev"
-
-[deployment]
-deploymentTarget = "static"
-build = ["npm", "run", "build"]
-publicDir = "dist"
-
-[rules]
-
-[rules.formatter]
-
-[rules.formatter.fileExtensions]
-
-[rules.formatter.fileExtensions.".tsx"]
-id = "module:nodejs-20/formatter:prettier"

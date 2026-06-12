@@ -19,35 +19,46 @@
  *   POST /api/auth/signout          — invalidate session token
  */
 
-import { Env } from '../types';
-import { json, safeJson, ipRateLimit } from '../utils';
+import { Env } from "../types";
+import { json, safeJson, ipRateLimit } from "../utils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SESSION_TTL_S        = 30 * 24 * 60 * 60; // 30 days
-const MAGIC_LINK_TTL_S     = 15 * 60;            // 15 minutes
-const MAGIC_RATE_WINDOW_S  = 15 * 60;            // window to count sends
-const MAGIC_RATE_MAX       = 3;                   // max sends per window per email
-const SESSION_CAP          = 10;                  // max concurrent sessions per user
+const SESSION_TTL_S = 30 * 24 * 60 * 60; // 30 days
+const MAGIC_LINK_TTL_S = 15 * 60; // 15 minutes
+const MAGIC_RATE_WINDOW_S = 15 * 60; // window to count sends
+const MAGIC_RATE_MAX = 3; // max sends per window per email
+const SESSION_CAP = 10; // max concurrent sessions per user
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function randomHex(bytes = 32): string {
     const arr = new Uint8Array(bytes);
     crypto.getRandomValues(arr);
-    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashToken(token: string): Promise<string> {
+    const buf = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(token),
+    );
+
+    return Array.from(new Uint8Array(buf), (b) =>
+        b.toString(16).padStart(2, "0"),
+    ).join("");
 }
 
 function clientIp(request: Request): string {
     return (
-        request.headers.get('CF-Connecting-IP') ||
-        request.headers.get('X-Forwarded-For')?.split(',')[0].trim() ||
-        'unknown'
+        request.headers.get("CF-Connecting-IP") ||
+        request.headers.get("X-Forwarded-For")?.split(",")[0].trim() ||
+        "unknown"
     );
 }
 
 function clientUa(request: Request): string {
-    return (request.headers.get('User-Agent') || '').slice(0, 256);
+    return (request.headers.get("User-Agent") || "").slice(0, 256);
 }
 
 interface GoogleUserInfo {
@@ -57,16 +68,26 @@ interface GoogleUserInfo {
     picture: string;
 }
 
-async function verifyGoogleToken(accessToken: string): Promise<GoogleUserInfo | null> {
+async function verifyGoogleToken(
+    accessToken: string,
+): Promise<GoogleUserInfo | null> {
     try {
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            signal: AbortSignal.timeout(8000),
-        });
+        const res = await fetch(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                signal: AbortSignal.timeout(8000),
+            },
+        );
         if (!res.ok) return null;
         const d: any = await res.json();
         if (!d.sub || !d.email) return null;
-        return { sub: d.sub, email: d.email, name: d.name || '', picture: d.picture || '' };
+        return {
+            sub: d.sub,
+            email: d.email,
+            name: d.name || "",
+            picture: d.picture || "",
+        };
     } catch {
         return null;
     }
@@ -75,33 +96,44 @@ async function verifyGoogleToken(accessToken: string): Promise<GoogleUserInfo | 
 /** Create a new session and enforce the per-user session cap. */
 async function createSession(userId: number, env: Env): Promise<string> {
     const token = randomHex(32); // 64-char hex = 256-bit entropy
-    const now   = Math.floor(Date.now() / 1000);
+    const hash = await hashToken(token); // store only the hash in D1 (Bug 8 fix)
+
+    const now = Math.floor(Date.now() / 1000);
 
     await env.CV_DB.prepare(
         `INSERT INTO user_sessions (token, user_id, expires_at, created_at)
-         VALUES (?, ?, ?, ?)`
-    ).bind(token, userId, now + SESSION_TTL_S, now).run();
+             VALUES (?, ?, ?, ?)`,
+    )
+        .bind(hash, userId, now + SESSION_TTL_S, now)
+        .run();
 
     // Remove expired sessions for this user
     await env.CV_DB.prepare(
-        `DELETE FROM user_sessions WHERE user_id = ? AND expires_at <= ?`
-    ).bind(userId, now).run().catch(() => {});
+        `DELETE FROM user_sessions WHERE user_id = ? AND expires_at <= ?`,
+    )
+        .bind(userId, now)
+        .run()
+        .catch(() => {});
 
     // Enforce the per-user active session cap (keep the 10 most recent)
-    await env.CV_DB.prepare(`
-        DELETE FROM user_sessions
-        WHERE user_id = ?
-          AND token NOT IN (
-              SELECT token FROM user_sessions
-              WHERE user_id = ?
-              ORDER BY created_at DESC
-              LIMIT ?
-          )
-    `).bind(userId, userId, SESSION_CAP).run().catch(() => {});
+    await env.CV_DB.prepare(
+        `
+            DELETE FROM user_sessions
+            WHERE user_id = ?
+              AND token NOT IN (
+                  SELECT token FROM user_sessions
+                  WHERE user_id = ?
+                  ORDER BY created_at DESC
+                  LIMIT ?
+              )
+        `,
+    )
+        .bind(userId, userId, SESSION_CAP)
+        .run()
+        .catch(() => {});
 
     return token;
 }
-
 /** Write an entry to the audit log (non-fatal — errors swallowed). */
 async function auditLog(
     userId: number,
@@ -113,9 +145,11 @@ async function auditLog(
     const now = Math.floor(Date.now() / 1000);
     await env.CV_DB.prepare(
         `INSERT INTO auth_audit_log (user_id, event, method, ip, user_agent, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(userId, event, method, clientIp(request), clientUa(request), now)
-        .run().catch(() => {});
+         VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+        .bind(userId, event, method, clientIp(request), clientUa(request), now)
+        .run()
+        .catch(() => {});
 }
 
 // ─── Exported session helper (used by other handlers to auth-gate routes) ─────
@@ -128,42 +162,79 @@ export interface SessionCtx {
     plan: string;
 }
 
-export async function verifySession(token: string | null, env: Env): Promise<SessionCtx | null> {
+export async function verifySession(
+    token: string | null,
+    env: Env,
+): Promise<SessionCtx | null> {
     if (!token) return null;
+
+    const hash = await hashToken(token); // Bug fix: compare hash, not raw token
+
     const now = Math.floor(Date.now() / 1000);
-    const row = await env.CV_DB.prepare(`
-        SELECT s.user_id, u.email, u.name, u.picture, u.plan
-        FROM user_sessions s
-        JOIN user_identities u ON u.id = s.user_id
-        WHERE s.token = ? AND s.expires_at > ?
-    `).bind(token, now).first<{ user_id: number; email: string; name: string; picture: string; plan: string }>();
+
+    const row = await env.CV_DB.prepare(
+        `
+            SELECT s.user_id, u.email, u.name, u.picture, u.plan
+            FROM user_sessions s
+            JOIN user_identities u ON u.id = s.user_id
+            WHERE s.token = ? AND s.expires_at > ?
+        `,
+    )
+        .bind(hash, now)
+        .first<{
+            user_id: number;
+            email: string;
+            name: string;
+            picture: string;
+            plan: string;
+        }>();
+
     if (!row) return null;
-    return { userId: row.user_id, email: row.email, name: row.name, picture: row.picture ?? '', plan: row.plan };
+
+    return {
+        userId: row.user_id,
+        email: row.email,
+        name: row.name,
+        picture: row.picture ?? "",
+        plan: row.plan,
+    };
 }
 
 function sessionTokenFromRequest(request: Request): string {
-    const h = request.headers.get('Authorization') || '';
-    return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+    const h = request.headers.get("Authorization") || "";
+    return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
 /** POST /api/auth/google */
-export async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
+export async function handleAuthGoogle(
+    request: Request,
+    env: Env,
+): Promise<Response> {
     // Rate-limit: 20 Google sign-in / sign-up attempts per IP per hour.
-    const rl = await ipRateLimit(env, request, 'auth:google', 20, 3600);
+    const rl = await ipRateLimit(env, request, "auth:google", 20, 3600);
     if (!rl.allowed) {
-        return json({ error: 'rate_limited', retry_after: rl.retryAfter }, request, env, 429);
+        return json(
+            { error: "rate_limited", retry_after: rl.retryAfter },
+            request,
+            env,
+            429,
+        );
     }
 
-    const body     = await safeJson(request);
-    const token    = typeof body?.access_token === 'string' ? body.access_token.trim() : '';
-    const deviceId = typeof body?.device_id    === 'string' ? body.device_id.trim()    : '';
+    const body = await safeJson(request);
+    const token =
+        typeof body?.access_token === "string" ? body.access_token.trim() : "";
+    const deviceId =
+        typeof body?.device_id === "string" ? body.device_id.trim() : "";
 
-    if (!token) return json({ error: 'missing_access_token' }, request, env, 400);
+    if (!token)
+        return json({ error: "missing_access_token" }, request, env, 400);
 
     const gUser = await verifyGoogleToken(token);
-    if (!gUser) return json({ error: 'invalid_google_token' }, request, env, 401);
+    if (!gUser)
+        return json({ error: "invalid_google_token" }, request, env, 401);
 
     const now = Math.floor(Date.now() / 1000);
 
@@ -176,11 +247,19 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
     // Path 2: email-first user (magic-link account) — merge by linking google_id
     // Path 3: brand-new user — insert fresh row
 
-    type UserRow = { id: number; email: string; name: string; picture: string; plan: string };
+    type UserRow = {
+        id: number;
+        email: string;
+        name: string;
+        picture: string;
+        plan: string;
+    };
 
     let user: UserRow | null = await env.CV_DB.prepare(
-        `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`
-    ).bind(gUser.sub).first<UserRow>();
+        `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`,
+    )
+        .bind(gUser.sub)
+        .first<UserRow>();
 
     // Bug 6 fix: track new-ness at insert time instead of re-deriving from session count.
     // Session count is fragile (race with cap cleanup, merge edge case with c=2).
@@ -188,224 +267,348 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
 
     if (user) {
         // Path 1: refresh profile info for returning Google user
-        await env.CV_DB.prepare(`
+        await env.CV_DB.prepare(
+            `
             UPDATE user_identities
             SET name = ?, picture = ?, email = ?, last_seen_at = ?
             WHERE google_id = ?
-        `).bind(gUser.name, gUser.picture, gUser.email, now, gUser.sub).run();
-        user = { ...user, name: gUser.name, picture: gUser.picture, email: gUser.email };
+        `,
+        )
+            .bind(gUser.name, gUser.picture, gUser.email, now, gUser.sub)
+            .run();
+        user = {
+            ...user,
+            name: gUser.name,
+            picture: gUser.picture,
+            email: gUser.email,
+        };
     } else {
         // Path 2: check for a magic-link account with the same email
         const byEmail = await env.CV_DB.prepare(
-            `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`
-        ).bind(gUser.email).first<UserRow>();
+            `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
+        )
+            .bind(gUser.email)
+            .first<UserRow>();
 
         if (byEmail) {
             // Merge: link this Google identity onto the existing magic-link row (not new)
-            await env.CV_DB.prepare(`
+            await env.CV_DB.prepare(
+                `
                 UPDATE user_identities
                 SET google_id = ?, name = ?, picture = ?, last_seen_at = ?
                 WHERE id = ?
-            `).bind(gUser.sub, gUser.name, gUser.picture, now, byEmail.id).run();
+            `,
+            )
+                .bind(gUser.sub, gUser.name, gUser.picture, now, byEmail.id)
+                .run();
             user = { ...byEmail, name: gUser.name, picture: gUser.picture };
         } else {
             // Path 3: brand-new user — safe to insert (no conflicts possible)
             isNewInsert = true;
-            await env.CV_DB.prepare(`
+            await env.CV_DB.prepare(
+                `
                 INSERT INTO user_identities
                   (google_id, email, name, picture, device_id, plan, created_at, last_seen_at)
                 VALUES (?, ?, ?, ?, ?, 'free', ?, ?)
-            `).bind(gUser.sub, gUser.email, gUser.name, gUser.picture, deviceId || null, now, now).run();
+            `,
+            )
+                .bind(
+                    gUser.sub,
+                    gUser.email,
+                    gUser.name,
+                    gUser.picture,
+                    deviceId || null,
+                    now,
+                    now,
+                )
+                .run();
             user = await env.CV_DB.prepare(
-                `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`
-            ).bind(gUser.sub).first<UserRow>();
+                `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`,
+            )
+                .bind(gUser.sub)
+                .first<UserRow>();
         }
     }
 
-    if (!user) return json({ error: 'db_error' }, request, env, 500);
+    if (!user) return json({ error: "db_error" }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
-    await auditLog(user.id, 'signin_google', 'google', request, env);
+    await auditLog(user.id, "signin_google", "google", request, env);
 
-    return json({
-        ok: true,
-        session_token: sessionToken,
-        is_new_user: isNewInsert,
-        user: { id: user.id, email: user.email, name: user.name, picture: user.picture, plan: user.plan },
-    }, request, env);
+    return json(
+        {
+            ok: true,
+            session_token: sessionToken,
+            is_new_user: isNewInsert,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                picture: user.picture,
+                plan: user.plan,
+            },
+        },
+        request,
+        env,
+    );
 }
 
 /** POST /api/auth/magic-link/send */
-export async function handleAuthMagicSend(request: Request, env: Env): Promise<Response> {
+export async function handleAuthMagicSend(
+    request: Request,
+    env: Env,
+): Promise<Response> {
     // Bug 3 fix: IP rate limit — 10 sends per IP per hour (prevents email-quota burn via rotating addresses)
-    const ipRl = await ipRateLimit(env, request, 'auth:magic:send', 10, 3600);
+    const ipRl = await ipRateLimit(env, request, "auth:magic:send", 10, 3600);
     if (!ipRl.allowed) {
-        return json({ error: 'rate_limited', retry_after: ipRl.retryAfter }, request, env, 429);
+        return json(
+            { error: "rate_limited", retry_after: ipRl.retryAfter },
+            request,
+            env,
+            429,
+        );
     }
 
-    const body   = await safeJson(request);
-    const email  = typeof body?.email   === 'string' ? body.email.trim().toLowerCase()  : '';
-    const rawUrl = typeof body?.app_url === 'string' ? body.app_url.trim()              : '';
+    const body = await safeJson(request);
+    const email =
+        typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    const rawUrl = typeof body?.app_url === "string" ? body.app_url.trim() : "";
 
-    if (!email || !email.includes('@') || email.length < 5) {
-        return json({ error: 'invalid_email' }, request, env, 400);
+    if (!email || !email.includes("@") || email.length < 5) {
+        return json({ error: "invalid_email" }, request, env, 400);
     }
     if (!env.BREVO_API_KEY) {
-        return json({ error: 'email_not_configured' }, request, env, 503);
+        return json({ error: "email_not_configured" }, request, env, 503);
     }
 
     // Bug 5 fix: validate app_url against allowlist — prevents open redirect phishing
     const allowedOrigins: string[] = [
-        'https://procv.app',
-        'https://www.procv.app',
-        ...(env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map((s: string) => s.trim()) : []),
+        "https://procv.app",
+        "https://www.procv.app",
+        ...(env.ALLOWED_ORIGINS
+            ? env.ALLOWED_ORIGINS.split(",").map((s: string) => s.trim())
+            : []),
     ];
-    const base = allowedOrigins.includes(rawUrl) ? rawUrl.replace(/\/$/, '') : 'https://procv.app';
+    const base = allowedOrigins.includes(rawUrl)
+        ? rawUrl.replace(/\/$/, "")
+        : "https://procv.app";
 
     // ── Rate limit: max MAGIC_RATE_MAX sends per email per MAGIC_RATE_WINDOW_S ─
-    const now         = Math.floor(Date.now() / 1000);
+    const now = Math.floor(Date.now() / 1000);
     const windowStart = now - MAGIC_RATE_WINDOW_S;
-    const recentRow   = await env.CV_DB.prepare(
-        `SELECT COUNT(*) as c FROM magic_link_tokens WHERE email = ? AND created_at > ?`
-    ).bind(email, windowStart).first<{ c: number }>();
+    const recentRow = await env.CV_DB.prepare(
+        `SELECT COUNT(*) as c FROM magic_link_tokens WHERE email = ? AND created_at > ?`,
+    )
+        .bind(email, windowStart)
+        .first<{ c: number }>();
 
     if ((recentRow?.c ?? 0) >= MAGIC_RATE_MAX) {
-        return json({
-            error: 'rate_limited',
-            message: `Too many sign-in emails requested. Please wait ${MAGIC_RATE_WINDOW_S / 60} minutes and try again.`,
-            retry_after: MAGIC_RATE_WINDOW_S,
-        }, request, env, 429);
+        return json(
+            {
+                error: "rate_limited",
+                message: `Too many sign-in emails requested. Please wait ${MAGIC_RATE_WINDOW_S / 60} minutes and try again.`,
+                retry_after: MAGIC_RATE_WINDOW_S,
+            },
+            request,
+            env,
+            429,
+        );
     }
 
     const linkToken = randomHex(32);
 
     await env.CV_DB.prepare(
         `INSERT INTO magic_link_tokens (token, email, expires_at, used, created_at)
-         VALUES (?, ?, ?, 0, ?)`
-    ).bind(linkToken, email, now + MAGIC_LINK_TTL_S, now).run();
+         VALUES (?, ?, ?, 0, ?)`,
+    )
+        .bind(linkToken, email, now + MAGIC_LINK_TTL_S, now)
+        .run();
 
     const magicLink = `${base}/?magic=${linkToken}`;
 
-    const emailRes = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: { 'api-key': env.BREVO_API_KEY, 'Content-Type': 'application/json' },
+    const emailRes = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+            "api-key": env.BREVO_API_KEY,
+            "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-            sender:      { name: 'ProCV', email: 'noreply@procv.app' },
-            to:          [{ email }],
-            subject:     'Your ProCV sign-in link',
+            sender: { name: "ProCV", email: "noreply@procv.app" },
+            to: [{ email }],
+            subject: "Your ProCV sign-in link",
             htmlContent: buildMagicEmail(magicLink),
         }),
     });
 
     if (!emailRes.ok) {
-        const errTxt = await emailRes.text().catch(() => '');
-        console.error('[Auth] Brevo error:', errTxt);
-        return json({ error: 'email_send_failed' }, request, env, 502);
+        const errTxt = await emailRes.text().catch(() => "");
+        console.error("[Auth] Brevo error:", errTxt);
+        return json({ error: "email_send_failed" }, request, env, 502);
     }
 
     return json({ ok: true }, request, env);
 }
 
 /** GET /api/auth/magic-link/verify?token=X */
-export async function handleAuthMagicVerify(request: Request, env: Env, url: URL): Promise<Response> {
+export async function handleAuthMagicVerify(
+    request: Request,
+    env: Env,
+    url: URL,
+): Promise<Response> {
     // Bug 4 fix: IP rate limit — 20 verify attempts per IP per hour (token enumeration guard)
-    const ipRl = await ipRateLimit(env, request, 'auth:magic:verify', 20, 3600);
+    const ipRl = await ipRateLimit(env, request, "auth:magic:verify", 20, 3600);
     if (!ipRl.allowed) {
-        return json({ error: 'rate_limited', retry_after: ipRl.retryAfter }, request, env, 429);
+        return json(
+            { error: "rate_limited", retry_after: ipRl.retryAfter },
+            request,
+            env,
+            429,
+        );
     }
 
-    const linkToken = (url.searchParams.get('token') || '').trim();
-    if (!linkToken) return json({ error: 'missing_token' }, request, env, 400);
+    const linkToken = (url.searchParams.get("token") || "").trim();
+    if (!linkToken) return json({ error: "missing_token" }, request, env, 400);
 
     const now = Math.floor(Date.now() / 1000);
     const row = await env.CV_DB.prepare(
-        `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`
-    ).bind(linkToken).first<{ email: string; expires_at: number; used: number }>();
+        `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`,
+    )
+        .bind(linkToken)
+        .first<{ email: string; expires_at: number; used: number }>();
 
-    if (!row)                 return json({ error: 'invalid_token' }, request, env, 404);
-    if (row.used)             return json({ error: 'token_already_used' }, request, env, 410);
-    if (row.expires_at < now) return json({ error: 'token_expired' }, request, env, 410);
+    if (!row) return json({ error: "invalid_token" }, request, env, 404);
+    if (row.used)
+        return json({ error: "token_already_used" }, request, env, 410);
+    if (row.expires_at < now)
+        return json({ error: "token_expired" }, request, env, 410);
 
     // Mark token used atomically
     const updateResult = await env.CV_DB.prepare(
-        `UPDATE magic_link_tokens SET used = 1 WHERE token = ? AND used = 0`
-    ).bind(linkToken).run();
+        `UPDATE magic_link_tokens SET used = 1 WHERE token = ? AND used = 0`,
+    )
+        .bind(linkToken)
+        .run();
 
     // If no rows changed, another request already consumed it (race condition guard)
     if (!updateResult.meta?.changes || updateResult.meta.changes < 1) {
-        return json({ error: 'token_already_used' }, request, env, 410);
+        return json({ error: "token_already_used" }, request, env, 410);
     }
 
     // Bug 6 fix: determine new-user status BEFORE the upsert — a pre-existing row
     // means returning user, no row means brand new. Avoids fragile session-count heuristic.
     const existing = await env.CV_DB.prepare(
-        `SELECT id FROM user_identities WHERE email = ?`
-    ).bind(row.email).first<{ id: number }>();
+        `SELECT id FROM user_identities WHERE email = ?`,
+    )
+        .bind(row.email)
+        .first<{ id: number }>();
     const isNewInsert = !existing;
 
     // Upsert identity (create on first magic-link sign-in)
-    await env.CV_DB.prepare(`
+    await env.CV_DB.prepare(
+        `
         INSERT INTO user_identities (email, plan, created_at, last_seen_at)
         VALUES (?, 'free', ?, ?)
         ON CONFLICT(email) DO UPDATE SET last_seen_at = excluded.last_seen_at
-    `).bind(row.email, now, now).run();
+    `,
+    )
+        .bind(row.email, now, now)
+        .run();
 
     const user = await env.CV_DB.prepare(
-        `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`
-    ).bind(row.email).first<{ id: number; email: string; name: string; picture: string; plan: string }>();
-    if (!user) return json({ error: 'db_error' }, request, env, 500);
+        `SELECT id, email, name, picture, plan FROM user_identities WHERE email = ?`,
+    )
+        .bind(row.email)
+        .first<{
+            id: number;
+            email: string;
+            name: string;
+            picture: string;
+            plan: string;
+        }>();
+    if (!user) return json({ error: "db_error" }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
-    await auditLog(user.id, 'signin_magic', 'magic_link', request, env);
+    await auditLog(user.id, "signin_magic", "magic_link", request, env);
 
-    return json({
-        ok: true,
-        session_token: sessionToken,
-        is_new_user: isNewInsert,
-        user: { id: user.id, email: user.email, name: user.name || '', picture: user.picture || '', plan: user.plan },
-    }, request, env);
+    return json(
+        {
+            ok: true,
+            session_token: sessionToken,
+            is_new_user: isNewInsert,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name || "",
+                picture: user.picture || "",
+                plan: user.plan,
+            },
+        },
+        request,
+        env,
+    );
 }
 
 /** GET /api/auth/session  (Authorization: Bearer <token>) */
-export async function handleAuthSession(request: Request, env: Env): Promise<Response> {
+export async function handleAuthSession(
+    request: Request,
+    env: Env,
+): Promise<Response> {
     const token = sessionTokenFromRequest(request);
     const session = await verifySession(token, env);
-    if (!session) return json({ error: 'invalid_session' }, request, env, 401);
+    if (!session) return json({ error: "invalid_session" }, request, env, 401);
 
     // Bug 9 fix: verifySession already JOINs user_identities and returns email/name/picture/plan.
     // No second query needed — just bump last_seen_at and return the data we already have.
     const now = Math.floor(Date.now() / 1000);
     await env.CV_DB.prepare(
-        `UPDATE user_identities SET last_seen_at = ? WHERE id = ?`
-    ).bind(now, session.userId).run().catch(() => {});
+        `UPDATE user_identities SET last_seen_at = ? WHERE id = ?`,
+    )
+        .bind(now, session.userId)
+        .run()
+        .catch(() => {});
 
-    return json({
-        ok: true,
-        user: {
-            id:      session.userId,
-            email:   session.email,
-            name:    session.name,
-            picture: session.picture,
-            plan:    session.plan,
+    return json(
+        {
+            ok: true,
+            user: {
+                id: session.userId,
+                email: session.email,
+                name: session.name,
+                picture: session.picture,
+                plan: session.plan,
+            },
         },
-    }, request, env);
+        request,
+        env,
+    );
 }
 
 /** POST /api/auth/signout  (Authorization: Bearer <token>) */
-export async function handleAuthSignout(request: Request, env: Env): Promise<Response> {
+export async function handleAuthSignout(
+    request: Request,
+    env: Env,
+): Promise<Response> {
     const sessionToken = sessionTokenFromRequest(request);
+
     if (sessionToken) {
-        // Fetch user before deleting for the audit log
+        // Fetch user before deleting for audit log
         const session = await verifySession(sessionToken, env);
+
+        // Bug fix: D1 stores hashed tokens, not raw tokens
+        const hash = await hashToken(sessionToken);
+
         await env.CV_DB.prepare(`DELETE FROM user_sessions WHERE token = ?`)
-            .bind(sessionToken).run().catch(() => {});
+            .bind(hash)
+            .run()
+            .catch(() => {});
+
         if (session) {
-            await auditLog(session.userId, 'signout', 'session', request, env);
+            await auditLog(session.userId, "signout", "session", request, env);
         }
     }
+
     return json({ ok: true }, request, env);
 }
-
 /**
  * DELETE /api/auth/account  (Authorization: Bearer <token>)
  *
@@ -417,28 +620,49 @@ export async function handleAuthSignout(request: Request, env: Env): Promise<Res
  * Magic-link tokens and LLM cache entries are keyed by hash/content, not
  * by user, so they age out naturally and are not removed here.
  */
-export async function handleAuthDeleteAccount(request: Request, env: Env): Promise<Response> {
+export async function handleAuthDeleteAccount(
+    request: Request,
+    env: Env,
+): Promise<Response> {
     const token = sessionTokenFromRequest(request);
     const session = await verifySession(token, env);
-    if (!session) return json({ error: 'unauthorized' }, request, env, 401);
+    if (!session) return json({ error: "unauthorized" }, request, env, 401);
 
     const uid = session.userId;
 
     // Audit log before deletion so we have a record even if later steps fail
-    await auditLog(uid, 'account_deleted', 'delete_account', request, env);
+    await auditLog(uid, "account_deleted", "delete_account", request, env);
 
     // Delete user-scoped data in dependency order.
     // profile_cache has no user_id; delete by slot_id matching the user's slots first.
     await env.CV_DB.prepare(
-        `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`
-    ).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_slots        WHERE user_id = ?`).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_sessions     WHERE user_id = ?`).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM public_profiles   WHERE user_id = ?`).bind(uid).run().catch(() => {});
+        `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`,
+    )
+        .bind(uid)
+        .run()
+        .catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_slots        WHERE user_id = ?`)
+        .bind(uid)
+        .run()
+        .catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_sessions     WHERE user_id = ?`)
+        .bind(uid)
+        .run()
+        .catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM public_profiles   WHERE user_id = ?`)
+        .bind(uid)
+        .run()
+        .catch(() => {});
     // Bug 2 fix: auth_audit_log.user_id has no ON DELETE CASCADE, so we must delete
     // audit rows first — otherwise the user_identities DELETE throws a FK violation.
-    await env.CV_DB.prepare(`DELETE FROM auth_audit_log    WHERE user_id = ?`).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_identities   WHERE id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM auth_audit_log    WHERE user_id = ?`)
+        .bind(uid)
+        .run()
+        .catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_identities   WHERE id = ?`)
+        .bind(uid)
+        .run()
+        .catch(() => {});
 
     return json({ ok: true }, request, env);
 }
