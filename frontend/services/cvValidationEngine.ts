@@ -28,7 +28,7 @@ export interface ValidationRule {
   id: string;
   severity: 'block' | 'warn';
   check: (cv: CVData, opts: ValidationOpts) => ValidationViolation[];
-  repair?: (cv: CVData, violations: ValidationViolation[]) => CVData;
+  repair?: (cv: CVData, violations: ValidationViolation[], opts?: ValidationOpts) => CVData;
 }
 
 export interface ValidationOpts {
@@ -284,18 +284,108 @@ const ruleExcessBullets: ValidationRule = {
   },
 };
 
+/**
+ * Bullet Count Enforcer — BLOCK rule (auto-repaired).
+ *
+ * If the LLM returns significantly more bullets than requested (more than
+ * targetBulletCount + 3), trims the excess so the user never sees an
+ * overloaded role. Keeps the first N bullets (most important come first
+ * by convention in the generation prompt).
+ *
+ * Hard cap: only fires when count > targetBulletCount + 3 to avoid
+ * aggressively trimming roles where the LLM added one or two extras for
+ * legitimate reasons (e.g. a scope-anchor bullet prepended).
+ */
+const ruleBulletCountEnforcer: ValidationRule = {
+  id: 'bullet_count_enforcer',
+  severity: 'block',
+  check(cv, opts) {
+    if (!opts.targetBulletCount) return [];
+    const hardCap = opts.targetBulletCount + 3;
+    const violations: ValidationViolation[] = [];
+    cv.experience.forEach((role, i) => {
+      const count = role.responsibilities?.length ?? 0;
+      if (count > hardCap) {
+        violations.push({
+          ruleId: 'bullet_count_enforcer',
+          severity: 'block',
+          location: `experience[${i}]`,
+          message: `${count} bullets in "${role.jobTitle}" — hard cap is ${hardCap} (target ${opts.targetBulletCount})`,
+          repaired: false,
+        });
+      }
+    });
+    return violations;
+  },
+  repair(cv, _violations, opts) {
+    if (!opts?.targetBulletCount) return cv;
+    const hardCap = opts.targetBulletCount + 3;
+    const out = cloneCV(cv);
+    out.experience = out.experience.map(role => {
+      const bullets = role.responsibilities ?? [];
+      if (bullets.length > hardCap) {
+        return { ...role, responsibilities: bullets.slice(0, opts.targetBulletCount) };
+      }
+      return role;
+    });
+    return out;
+  },
+};
+
+/**
+ * Current-Role Tense Consistency — WARN rule (not auto-repaired; needs AI).
+ *
+ * Flags bullets in the current (most-recent, open-ended) role that open with
+ * a clearly past-tense verb ending in "-ed". The generation prompt instructs
+ * the LLM to use present-tense imperatives for current roles — this catches
+ * the cases where that instruction leaked through.
+ *
+ * Only catches the clearest violations (first-word "-ed" endings) to keep
+ * false-positive rate low. Complex tense detection requires a verb DB.
+ */
+const ruleCurrentRoleTense: ValidationRule = {
+  id: 'current_role_tense',
+  severity: 'warn',
+  check(cv) {
+    const violations: ValidationViolation[] = [];
+    cv.experience.forEach((role, i) => {
+      if (!isCurrentRole(role)) return;
+      const bullets = role.responsibilities ?? [];
+      const pastTenseBullets = bullets.filter(b => {
+        const firstW = b.trim().split(/\s+/)[0] ?? '';
+        // Word ends in "-ed" and is at least 4 chars (avoids "red", "bed", etc.)
+        return firstW.length >= 4 && /[^aeiou]ed$/i.test(firstW);
+      });
+      if (pastTenseBullets.length > 0) {
+        violations.push({
+          ruleId: 'current_role_tense',
+          severity: 'warn',
+          location: `experience[${i}]`,
+          message: `${pastTenseBullets.length} bullet(s) in current role "${role.jobTitle}" open with past-tense verbs — should use present imperative`,
+          repaired: false,
+        });
+      }
+    });
+    return violations;
+  },
+};
+
 // ─── Rule registry (ordered — block rules run before warn rules) ──────────────
 
 const RULES: ValidationRule[] = [
+  // Block rules first (auto-repaired, must not reach the user)
   ruleSkillsCap,
   ruleSkillsDedup,
   ruleNoSeekingPhrases,
+  ruleBulletCountEnforcer,   // NEW: trims excess bullets to targetBulletCount
+  // Warn rules (collected for telemetry / trace, not auto-repaired)
   ruleNoFirstPersonSummary,
   ruleEmptyRoles,
   ruleHollowBullets,
   ruleOverlongBullets,
   ruleDuplicateOpeners,
   ruleExcessBullets,
+  ruleCurrentRoleTense,      // NEW: flags past-tense openers in current role
 ];
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -320,7 +410,7 @@ export function runValidationEngine(cv: CVData, opts: ValidationOpts = {}): Vali
     if (violations.length === 0) continue;
 
     if (rule.repair) {
-      const repaired = rule.repair(current, violations);
+      const repaired = rule.repair(current, violations, opts);
       current = repaired;
       repairApplied = true;
       allViolations.push(...violations.map(v => ({ ...v, repaired: true })));

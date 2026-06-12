@@ -11,8 +11,8 @@
 
 | # | System | Status | What was built | Remaining |
 |---|---|---|---|---|
-| S5 | **Generation Trace** | ✅ **SHIPPED** | `generationTrace.ts` — full trace model (scenario, seniority, field, voice, verb pool, gap keywords, timings, violations). Wired into `generateCV()` at 3 decision points. Stored in `localStorage:procv:last_trace`. Attached to `CVData._trace`. Stripped before IDB persist. | Phase 2: expose trace in a debug panel in the CV editor |
-| S2 | **Validation Engine** | ✅ **SHIPPED** | `cvValidationEngine.ts` — 7 hard rules (skills cap, skills dedup, seeking phrases, first-person summary, empty bullets, hollow/overlong bullets, duplicate openers, excess bullets). Block rules auto-repair. Runs post-purification in `generateCV()`. 32/32 unit tests pass. | Add tense-consistency rule (complex — needs verb tense DB) |
+| S5 | **Generation Trace** | ✅ **FULLY SHIPPED** | `generationTrace.ts` — full trace model + `GenerationTracePanel.tsx` collapsible debug panel wired into CV editor below the preview. Shows scenario/seniority/field/voice/angle/verbs/ATS pins/blueprint hit/validation violations/timings. Collapsed by default, only renders when `currentCV._trace` exists. | — |
+| S2 | **Validation Engine** | ✅ **FULLY SHIPPED** | `cvValidationEngine.ts` — 9 rules total. New: `ruleBulletCountEnforcer` (BLOCK+repair — trims to targetBulletCount when LLM returns > target+3 bullets) and `ruleCurrentRoleTense` (WARN — flags past-tense "-ed" openers in current roles). `ValidationRule.repair` signature updated to accept `opts`. | — |
 | S4 | **Prompt Registry** | 🔲 NOT STARTED | — | D1 table `prompt_registry`, per-section version tracking (`summary_v14`, `experience_v9`), rollback capability, telemetry correlation |
 | S1 | **Rule Registry** | 🔲 NOT STARTED | — | Declarative JSON scenarios in KV (replaces hardcoded scenario strings in `purify.ts`), evaluator, A/B serving |
 | S3 | **Confidence-Tagged Fields** | 🔲 NOT STARTED | — | `TaggedValue<T>` on profile metrics, enhanced anchor block separating `user_supplied` vs `llm_inferred`, non-numeric hallucination prevention |
@@ -20,12 +20,13 @@
 
 ### What's in every generated CV now (as of June 2026)
 
-After S5 + S2 shipped, every `generateCV()` call produces a CV that has been:
+After S5 + S2 fully shipped, every `generateCV()` call produces a CV that has been:
 
-1. **Validated** against 7 deterministic hard rules before reaching the user
-2. **Auto-repaired** for block violations (skills cap enforced, duplicates removed, seeking phrases stripped)
-3. **Traced** — a full audit trail attached to `CVData._trace` answering: what scenario was selected, which voice and field were used, what gap keywords were pinned, how many violations were found, how long each stage took
-4. **Debug-accessible** — `getLastTrace()` from `generationTrace.ts` returns the most recent trace from localStorage for instant debugging without reading 5,000+ lines of geminiService.ts
+1. **Validated** against 9 deterministic hard rules before reaching the user
+2. **Auto-repaired** for block violations (skills cap, dedup, seeking phrases, excess bullet trimming)
+3. **Tense-checked** — current-role bullets with past-tense openers are flagged as `warn` violations in the trace
+4. **Traced** — a full audit trail attached to `CVData._trace` answering every "why did this CV look this way?" question
+5. **Debug-visible** — a collapsible "Generation Details" panel below the CV preview shows the full trace without reading any source code
 
 ---
 

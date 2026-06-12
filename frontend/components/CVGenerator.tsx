@@ -37,6 +37,7 @@ import type { CustomTemplateEntry, CustomTemplateCustomizations } from '../types
 import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
 import DownloadProgressModal from './DownloadProgressModal';
 import CVDoctorPanel from './CVDoctorPanel';
+import GenerationTracePanel from './GenerationTracePanel';
 import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
@@ -2536,6 +2537,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 customTemplateId={customTemplateId ?? undefined}
               />
             </div>
+            {/* Generation Trace Panel — S5 Phase 2. Shows only when the CV
+                carries a _trace from the last generation run. Collapsed by
+                default so it doesn't interrupt the normal editing flow. */}
+            {currentCV?._trace && (
+              <GenerationTracePanel trace={currentCV._trace} />
+            )}
           </div>
         </div>
       )}
