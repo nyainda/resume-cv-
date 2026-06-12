@@ -85,7 +85,7 @@ export function useWorkerAuth(): WorkerAuthContextValue {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function WorkerAuthProvider({ children }: { children: ReactNode }) {
-    const { user: googleUser, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
+    const { user: googleUser, isAuthenticated: isGoogleAuthed, loading: googleLoading } = useGoogleAuth();
 
     const [workerUser,    setWorkerUser]    = useState<WorkerUser | null>(null);
     const [sessionToken,  setSessionToken]  = useState<string | null>(null);
@@ -174,12 +174,16 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // sets user=null. Worker session would otherwise remain alive (split-brain).
     // authLoading guard prevents false-positive on first render before IDB rehydrates.
     useEffect(() => {
-        if (isLoading) return;
+        // Guard both loading states: Worker context's own isLoading AND Google
+        // context's googleLoading. Google auth rehydrates from IndexedDB async —
+        // if we run before it resolves, isGoogleAuthed=false even for a valid
+        // returning user, causing a spurious sign-in popup on every page load.
+        if (isLoading || googleLoading) return;
         if (!isGoogleAuthed && sessionToken) {
             clearSession();
             linkedGoogleId.current = null;
         }
-    }, [isGoogleAuthed, isLoading, sessionToken, clearSession]);
+    }, [isGoogleAuthed, isLoading, googleLoading, sessionToken, clearSession]);
 
     // ── Auto-link Google token to worker when Google auth completes ───────────
 

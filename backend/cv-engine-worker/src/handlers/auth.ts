@@ -118,21 +118,13 @@ async function auditLog(
         .run().catch(() => {});
 }
 
-/** Returns true if this user was created within the last 5 seconds (brand-new account). */
-async function checkIsNewUser(userId: number, env: Env): Promise<boolean> {
-    // Count sessions excluding the one we just inserted (if count == 1 they're new)
-    const row = await env.CV_DB.prepare(
-        `SELECT COUNT(*) as c FROM user_sessions WHERE user_id = ?`
-    ).bind(userId).first<{ c: number }>();
-    return (row?.c ?? 0) <= 1;
-}
-
 // ─── Exported session helper (used by other handlers to auth-gate routes) ─────
 
 export interface SessionCtx {
     userId: number;
     email: string;
     name: string;
+    picture: string;
     plan: string;
 }
 
@@ -140,13 +132,13 @@ export async function verifySession(token: string | null, env: Env): Promise<Ses
     if (!token) return null;
     const now = Math.floor(Date.now() / 1000);
     const row = await env.CV_DB.prepare(`
-        SELECT s.user_id, u.email, u.name, u.plan
+        SELECT s.user_id, u.email, u.name, u.picture, u.plan
         FROM user_sessions s
         JOIN user_identities u ON u.id = s.user_id
         WHERE s.token = ? AND s.expires_at > ?
-    `).bind(token, now).first<{ user_id: number; email: string; name: string; plan: string }>();
+    `).bind(token, now).first<{ user_id: number; email: string; name: string; picture: string; plan: string }>();
     if (!row) return null;
-    return { userId: row.user_id, email: row.email, name: row.name, plan: row.plan };
+    return { userId: row.user_id, email: row.email, name: row.name, picture: row.picture ?? '', plan: row.plan };
 }
 
 function sessionTokenFromRequest(request: Request): string {
@@ -159,8 +151,6 @@ function sessionTokenFromRequest(request: Request): string {
 /** POST /api/auth/google */
 export async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
     // Rate-limit: 20 Google sign-in / sign-up attempts per IP per hour.
-    // This blocks credential-stuffing and bot-signup floods while still
-    // allowing normal users (who sign in far less than once a minute).
     const rl = await ipRateLimit(env, request, 'auth:google', 20, 3600);
     if (!rl.allowed) {
         return json({ error: 'rate_limited', retry_after: rl.retryAfter }, request, env, 429);
@@ -192,6 +182,10 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
         `SELECT id, email, name, picture, plan FROM user_identities WHERE google_id = ?`
     ).bind(gUser.sub).first<UserRow>();
 
+    // Bug 6 fix: track new-ness at insert time instead of re-deriving from session count.
+    // Session count is fragile (race with cap cleanup, merge edge case with c=2).
+    let isNewInsert = false;
+
     if (user) {
         // Path 1: refresh profile info for returning Google user
         await env.CV_DB.prepare(`
@@ -207,7 +201,7 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
         ).bind(gUser.email).first<UserRow>();
 
         if (byEmail) {
-            // Merge: link this Google identity onto the existing magic-link row
+            // Merge: link this Google identity onto the existing magic-link row (not new)
             await env.CV_DB.prepare(`
                 UPDATE user_identities
                 SET google_id = ?, name = ?, picture = ?, last_seen_at = ?
@@ -216,6 +210,7 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
             user = { ...byEmail, name: gUser.name, picture: gUser.picture };
         } else {
             // Path 3: brand-new user — safe to insert (no conflicts possible)
+            isNewInsert = true;
             await env.CV_DB.prepare(`
                 INSERT INTO user_identities
                   (google_id, email, name, picture, device_id, plan, created_at, last_seen_at)
@@ -230,23 +225,27 @@ export async function handleAuthGoogle(request: Request, env: Env): Promise<Resp
     if (!user) return json({ error: 'db_error' }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
-    const is_new_user  = await checkIsNewUser(user.id, env);
-
     await auditLog(user.id, 'signin_google', 'google', request, env);
 
     return json({
         ok: true,
         session_token: sessionToken,
-        is_new_user,
+        is_new_user: isNewInsert,
         user: { id: user.id, email: user.email, name: user.name, picture: user.picture, plan: user.plan },
     }, request, env);
 }
 
 /** POST /api/auth/magic-link/send */
 export async function handleAuthMagicSend(request: Request, env: Env): Promise<Response> {
+    // Bug 3 fix: IP rate limit — 10 sends per IP per hour (prevents email-quota burn via rotating addresses)
+    const ipRl = await ipRateLimit(env, request, 'auth:magic:send', 10, 3600);
+    if (!ipRl.allowed) {
+        return json({ error: 'rate_limited', retry_after: ipRl.retryAfter }, request, env, 429);
+    }
+
     const body   = await safeJson(request);
     const email  = typeof body?.email   === 'string' ? body.email.trim().toLowerCase()  : '';
-    const appUrl = typeof body?.app_url === 'string' ? body.app_url.trim()              : '';
+    const rawUrl = typeof body?.app_url === 'string' ? body.app_url.trim()              : '';
 
     if (!email || !email.includes('@') || email.length < 5) {
         return json({ error: 'invalid_email' }, request, env, 400);
@@ -254,6 +253,14 @@ export async function handleAuthMagicSend(request: Request, env: Env): Promise<R
     if (!env.BREVO_API_KEY) {
         return json({ error: 'email_not_configured' }, request, env, 503);
     }
+
+    // Bug 5 fix: validate app_url against allowlist — prevents open redirect phishing
+    const allowedOrigins: string[] = [
+        'https://procv.app',
+        'https://www.procv.app',
+        ...(env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map((s: string) => s.trim()) : []),
+    ];
+    const base = allowedOrigins.includes(rawUrl) ? rawUrl.replace(/\/$/, '') : 'https://procv.app';
 
     // ── Rate limit: max MAGIC_RATE_MAX sends per email per MAGIC_RATE_WINDOW_S ─
     const now         = Math.floor(Date.now() / 1000);
@@ -277,7 +284,6 @@ export async function handleAuthMagicSend(request: Request, env: Env): Promise<R
          VALUES (?, ?, ?, 0, ?)`
     ).bind(linkToken, email, now + MAGIC_LINK_TTL_S, now).run();
 
-    const base      = (appUrl || 'https://procv.app').replace(/\/$/, '');
     const magicLink = `${base}/?magic=${linkToken}`;
 
     const emailRes = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -302,6 +308,12 @@ export async function handleAuthMagicSend(request: Request, env: Env): Promise<R
 
 /** GET /api/auth/magic-link/verify?token=X */
 export async function handleAuthMagicVerify(request: Request, env: Env, url: URL): Promise<Response> {
+    // Bug 4 fix: IP rate limit — 20 verify attempts per IP per hour (token enumeration guard)
+    const ipRl = await ipRateLimit(env, request, 'auth:magic:verify', 20, 3600);
+    if (!ipRl.allowed) {
+        return json({ error: 'rate_limited', retry_after: ipRl.retryAfter }, request, env, 429);
+    }
+
     const linkToken = (url.searchParams.get('token') || '').trim();
     if (!linkToken) return json({ error: 'missing_token' }, request, env, 400);
 
@@ -310,8 +322,8 @@ export async function handleAuthMagicVerify(request: Request, env: Env, url: URL
         `SELECT email, expires_at, used FROM magic_link_tokens WHERE token = ?`
     ).bind(linkToken).first<{ email: string; expires_at: number; used: number }>();
 
-    if (!row)          return json({ error: 'invalid_token' }, request, env, 404);
-    if (row.used)      return json({ error: 'token_already_used' }, request, env, 410);
+    if (!row)                 return json({ error: 'invalid_token' }, request, env, 404);
+    if (row.used)             return json({ error: 'token_already_used' }, request, env, 410);
     if (row.expires_at < now) return json({ error: 'token_expired' }, request, env, 410);
 
     // Mark token used atomically
@@ -323,6 +335,13 @@ export async function handleAuthMagicVerify(request: Request, env: Env, url: URL
     if (!updateResult.meta?.changes || updateResult.meta.changes < 1) {
         return json({ error: 'token_already_used' }, request, env, 410);
     }
+
+    // Bug 6 fix: determine new-user status BEFORE the upsert — a pre-existing row
+    // means returning user, no row means brand new. Avoids fragile session-count heuristic.
+    const existing = await env.CV_DB.prepare(
+        `SELECT id FROM user_identities WHERE email = ?`
+    ).bind(row.email).first<{ id: number }>();
+    const isNewInsert = !existing;
 
     // Upsert identity (create on first magic-link sign-in)
     await env.CV_DB.prepare(`
@@ -337,37 +356,39 @@ export async function handleAuthMagicVerify(request: Request, env: Env, url: URL
     if (!user) return json({ error: 'db_error' }, request, env, 500);
 
     const sessionToken = await createSession(user.id, env);
-    const is_new_user  = await checkIsNewUser(user.id, env);
-
     await auditLog(user.id, 'signin_magic', 'magic_link', request, env);
 
     return json({
         ok: true,
         session_token: sessionToken,
-        is_new_user,
+        is_new_user: isNewInsert,
         user: { id: user.id, email: user.email, name: user.name || '', picture: user.picture || '', plan: user.plan },
     }, request, env);
 }
 
 /** GET /api/auth/session  (Authorization: Bearer <token>) */
 export async function handleAuthSession(request: Request, env: Env): Promise<Response> {
-    const sessionToken = sessionTokenFromRequest(request);
-    const session = await verifySession(sessionToken, env);
+    const token = sessionTokenFromRequest(request);
+    const session = await verifySession(token, env);
     if (!session) return json({ error: 'invalid_session' }, request, env, 401);
 
+    // Bug 9 fix: verifySession already JOINs user_identities and returns email/name/picture/plan.
+    // No second query needed — just bump last_seen_at and return the data we already have.
     const now = Math.floor(Date.now() / 1000);
-
-    // Bump last_seen_at on the identity
     await env.CV_DB.prepare(
         `UPDATE user_identities SET last_seen_at = ? WHERE id = ?`
     ).bind(now, session.userId).run().catch(() => {});
 
-    const user = await env.CV_DB.prepare(
-        `SELECT id, email, name, picture, plan FROM user_identities WHERE id = ?`
-    ).bind(session.userId).first<{ id: number; email: string; name: string; picture: string; plan: string }>();
-    if (!user) return json({ error: 'user_not_found' }, request, env, 404);
-
-    return json({ ok: true, user }, request, env);
+    return json({
+        ok: true,
+        user: {
+            id:      session.userId,
+            email:   session.email,
+            name:    session.name,
+            picture: session.picture,
+            plan:    session.plan,
+        },
+    }, request, env);
 }
 
 /** POST /api/auth/signout  (Authorization: Bearer <token>) */
@@ -411,9 +432,13 @@ export async function handleAuthDeleteAccount(request: Request, env: Env): Promi
     await env.CV_DB.prepare(
         `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`
     ).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_slots      WHERE user_id = ?`).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_sessions   WHERE user_id = ?`).bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_identities WHERE id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_slots        WHERE user_id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_sessions     WHERE user_id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM public_profiles   WHERE user_id = ?`).bind(uid).run().catch(() => {});
+    // Bug 2 fix: auth_audit_log.user_id has no ON DELETE CASCADE, so we must delete
+    // audit rows first — otherwise the user_identities DELETE throws a FK violation.
+    await env.CV_DB.prepare(`DELETE FROM auth_audit_log    WHERE user_id = ?`).bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_identities   WHERE id = ?`).bind(uid).run().catch(() => {});
 
     return json({ ok: true }, request, env);
 }
