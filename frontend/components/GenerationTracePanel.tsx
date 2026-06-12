@@ -237,6 +237,20 @@ const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace }) =>
             </div>
           )}
 
+          {/* Section: Prompt Versions (S4) */}
+          {trace.promptVersions && Object.keys(trace.promptVersions).length > 0 && (
+            <div className="mb-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Prompt Registry (S4)</p>
+              <Row label="Versions">
+                <span className="font-mono text-[10px] text-zinc-600 dark:text-zinc-400 break-words">
+                  {Object.entries(trace.promptVersions)
+                    .map(([k, v]) => `${k}:v${v}`)
+                    .join('  ·  ')}
+                </span>
+              </Row>
+            </div>
+          )}
+
           {/* Section: Cache */}
           <div className="mb-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">Cache</p>

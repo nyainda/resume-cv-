@@ -76,6 +76,12 @@ import {
     handlePublicProfileGet, handlePublicProfilePost, handlePublicProfileDelete,
 } from './handlers/publicProfile';
 
+import {
+    handlePromptRegistryList, handlePromptRegistryGet,
+    handlePromptRegistryPost, handlePromptRegistryRollback,
+    handlePromptRegistryHistory,
+} from './handlers/promptRegistry';
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -225,6 +231,17 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/public-profile' && m === 'GET')    return handlePublicProfileGet(request, env, url);
     if (p === '/api/cv/public-profile' && m === 'POST')   return handlePublicProfilePost(request, env);
     if (p === '/api/cv/public-profile' && m === 'DELETE') return handlePublicProfileDelete(request, env);
+
+    // ── S4 Prompt Registry ────────────────────────────────────────────────────
+    if (p === '/api/cv/prompt-registry'           && m === 'GET')  return handlePromptRegistryList(request, env, url);
+    if (p === '/api/cv/prompt-registry/rollback'  && m === 'POST') return handlePromptRegistryRollback(request, env);
+    if (p === '/api/cv/prompt-registry'           && m === 'POST') return handlePromptRegistryPost(request, env);
+    // /api/cv/prompt-registry/history/:section  (admin — full history)
+    const histMatch = /^\/api\/cv\/prompt-registry\/history\/([^/]+)$/.exec(p);
+    if (histMatch && m === 'GET') return handlePromptRegistryHistory(request, env, decodeURIComponent(histMatch[1]));
+    // /api/cv/prompt-registry/:section  (public — active prompt)
+    const sectionMatch = /^\/api\/cv\/prompt-registry\/([^/]+)$/.exec(p);
+    if (sectionMatch && m === 'GET') return handlePromptRegistryGet(request, env, decodeURIComponent(sectionMatch[1]));
 
     return json({ error: 'not_found', path: p }, request, env, 404);
 }

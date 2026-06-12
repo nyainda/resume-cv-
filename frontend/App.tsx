@@ -21,6 +21,7 @@ import * as KeyVault from "./services/security/KeyVault";
 import { setRuntimeKeys } from "./services/security/RuntimeKeys";
 import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
+import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData } from "./services/userDataCloudService";
 import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
@@ -398,6 +399,9 @@ const AppInner: React.FC = () => {
   // Safe to call once on mount — internal memo prevents duplicate work.
   useEffect(() => {
     prewarmFontEmbedCache();
+    // S4: pre-fetch active prompt version numbers so the generation trace
+    // can tag them without a network round-trip on the critical path.
+    prefetchPromptVersions();
   }, []);
 
   // Boot-time custom template cloud sync: pull any templates stored in D1 that

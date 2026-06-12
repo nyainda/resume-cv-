@@ -20,6 +20,7 @@ import {
 } from './cvNumberFidelity';
 import { repairCvSummaryWithAi as _repairCvSummaryWithAi } from './aiInlineFix';
 import { startTrace, storeTrace, attachTrace, type TraceBuilder } from './generationTrace';
+import { getPromptVersions } from './promptRegistryClient';
 import { runValidationEngine } from './cvValidationEngine';
 
 // ── Polish sub-stage progress event ──────────────────────────────────────────
@@ -2335,6 +2336,15 @@ export const generateCV = async (
 
     // ── Generation trace — lightweight audit trail for this generation ────────
     const _traceBuilder: TraceBuilder = startTrace(CV_RULES_VERSION, _narrativeAngle, _pinnedKeywords);
+
+    // S4: fetch active prompt version numbers from cache (no network if pre-warmed)
+    // and tag them into the trace so every CV is linked to the exact prompt versions
+    // that produced it.  Fire-and-forget — failures silently produce an empty map.
+    void getPromptVersions().then(versions => {
+        if (Object.keys(versions).length > 0) {
+            _traceBuilder.record({ promptVersions: versions });
+        }
+    }).catch(() => {/* graceful degradation */});
 
     // Compute total years of experience for the engine brief
     const totalYears = (profile.workExperience || []).reduce((sum, exp) => {

@@ -22,6 +22,8 @@ export interface GenerationTrace {
   traceId: string;
   timestamp: string;
   rulesVersion: string;
+  /** S4: active prompt version numbers at time of generation, e.g. { summary: 14, experience: 9 } */
+  promptVersions?: Record<string, number>;
 
   scenario: string;
   scenarioEvidence: {
