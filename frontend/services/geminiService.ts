@@ -19,6 +19,8 @@ import {
     auditCvQuality as _auditCvQuality,
 } from './cvNumberFidelity';
 import { repairCvSummaryWithAi as _repairCvSummaryWithAi } from './aiInlineFix';
+import { startTrace, storeTrace, attachTrace, type TraceBuilder } from './generationTrace';
+import { runValidationEngine } from './cvValidationEngine';
 
 // ── Polish sub-stage progress event ──────────────────────────────────────────
 // Fired inside runQualityPolishPasses so CVGenerationProgress can show
@@ -2331,6 +2333,9 @@ export const generateCV = async (
         : selectFreshAngle();
     console.log(`[CV Gen] Narrative angle: ${_narrativeAngle}`);
 
+    // ── Generation trace — lightweight audit trail for this generation ────────
+    const _traceBuilder: TraceBuilder = startTrace(CV_RULES_VERSION, _narrativeAngle, _pinnedKeywords);
+
     // Compute total years of experience for the engine brief
     const totalYears = (profile.workExperience || []).reduce((sum, exp) => {
         const sy = exp.startDate ? new Date(exp.startDate).getFullYear() : null;
@@ -2414,6 +2419,13 @@ ${kwLines}
     if (briefRes.status === 'fulfilled' && briefRes.value) {
         engineBrief = briefRes.value;
         console.log(`[CV Engine] Brief: ${engineBrief.seniority?.level} / ${engineBrief.field?.field} / voice=${engineBrief.voice.primary?.name} / verbs=${engineBrief.verb_pool.length}`);
+        _traceBuilder.record({
+            seniority: engineBrief.seniority?.level ?? '',
+            field: engineBrief.field?.field ?? '',
+            voice: engineBrief.voice.primary?.name ?? '',
+            verbPoolSample: engineBrief.verb_pool.slice(0, 12),
+        });
+        _traceBuilder.recordTimingMark('briefMs');
     }
 
     // Build the engine-driven instruction block (only when the brief is available).
@@ -2504,6 +2516,19 @@ ${kwLines}
     if (pivot) {
         console.log(`[CV Gen] Career pivot detected: ${pivot.from.join('/')} → ${pivot.to.join('/')} — applying bridge-formula rules.`);
     }
+
+    // ── Record scenario + pivot into trace ────────────────────────────────────
+    _traceBuilder.record({
+        scenario,
+        scenarioEvidence: {
+            hasExperience: (profile.workExperience || []).length > 0,
+            hasProjects: (profile.projects || []).length > 0,
+            pivotDetected: Boolean(pivot),
+            pivotFrom: pivot?.from,
+            pivotTo: pivot?.to,
+        },
+        gapKeywords: _pinnedKeywords,
+    });
 
     if (profile.personalInfo.github) {
         githubInstruction = `IMPORTANT: The user has provided a GitHub profile: ${profile.personalInfo.github}. Leverage this to validate and enrich the technical depth of the skills and projects sections.`;
@@ -3294,6 +3319,33 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // ── Record angle used so next generation picks a different one ────────────
     if (purpose !== 'academic') recordAngleUsed(_narrativeAngle);
     console.log(`[CV Gen] Angle "${_narrativeAngle}" recorded — next run will prefer a different angle.`);
+
+    // ── Validation Engine — hard structural rules, post-purification ──────────
+    // Runs synchronously on the final CV before caching or returning.
+    // Block violations with a repair strategy are auto-fixed (e.g. skills cap,
+    // duplicate skills, seeking phrases). Warn violations are recorded in the
+    // trace for telemetry but do not block the user.
+    _traceBuilder.recordTimingMark('generationMs');
+    const _targetBulletCount = engineBrief?.rhythm?.bullet_count as number | undefined;
+    const _validation = runValidationEngine(cvData, { targetBulletCount: _targetBulletCount });
+    if (_validation.repairApplied) {
+        cvData = _validation.cv;
+        console.log(`[CV Validation] ${_validation.violations.filter(v => v.repaired).length} block violation(s) auto-repaired.`);
+    }
+    if (_validation.violations.length > 0) {
+        console.log(`[CV Validation] ${_validation.violations.length} violation(s): ${_validation.violations.map(v => v.ruleId).join(', ')}`);
+    }
+    _traceBuilder.recordTimingMark('validationMs');
+
+    // ── Finalize + store trace ────────────────────────────────────────────────
+    const _finalTrace = _traceBuilder.finalize(
+        _validation.violations,
+        _validation.repairApplied,
+        _validation.passed,
+    );
+    storeTrace(_finalTrace);
+    cvData = attachTrace(cvData, _finalTrace);
+    console.log(`[CV Trace] Generation trace stored (id=${_finalTrace.traceId.slice(0, 8)}…, total=${_finalTrace.timings.totalMs}ms, violations=${_validation.violations.length})`);
 
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);

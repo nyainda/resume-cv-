@@ -90,11 +90,14 @@ async function idbGetAllKeys(): Promise<string[]> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/** Save full CVData to IDB and update in-memory cache. */
+/** Save full CVData to IDB and update in-memory cache.
+ *  _trace is stripped before persisting — it is a session-only debug artifact. */
 export async function saveCVData(id: string, data: CVData): Promise<void> {
-    _cache.set(id, data);
+    const { _trace: _stripped, ...persistable } = data as CVData & { _trace?: unknown };
+    const clean = persistable as CVData;
+    _cache.set(id, clean);
     try {
-        await idbPut(id, data);
+        await idbPut(id, clean);
     } catch (err) {
         console.warn('[cvDataStore] IDB write failed (quota?), data still in memory:', err);
     }

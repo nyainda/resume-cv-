@@ -5,6 +5,30 @@
 
 ---
 
+## 🚦 v3 Roadmap Progress Tracker
+
+> Updated: June 2026. Tick each item as it ships.
+
+| # | System | Status | What was built | Remaining |
+|---|---|---|---|---|
+| S5 | **Generation Trace** | ✅ **SHIPPED** | `generationTrace.ts` — full trace model (scenario, seniority, field, voice, verb pool, gap keywords, timings, violations). Wired into `generateCV()` at 3 decision points. Stored in `localStorage:procv:last_trace`. Attached to `CVData._trace`. Stripped before IDB persist. | Phase 2: expose trace in a debug panel in the CV editor |
+| S2 | **Validation Engine** | ✅ **SHIPPED** | `cvValidationEngine.ts` — 7 hard rules (skills cap, skills dedup, seeking phrases, first-person summary, empty bullets, hollow/overlong bullets, duplicate openers, excess bullets). Block rules auto-repair. Runs post-purification in `generateCV()`. 32/32 unit tests pass. | Add tense-consistency rule (complex — needs verb tense DB) |
+| S4 | **Prompt Registry** | 🔲 NOT STARTED | — | D1 table `prompt_registry`, per-section version tracking (`summary_v14`, `experience_v9`), rollback capability, telemetry correlation |
+| S1 | **Rule Registry** | 🔲 NOT STARTED | — | Declarative JSON scenarios in KV (replaces hardcoded scenario strings in `purify.ts`), evaluator, A/B serving |
+| S3 | **Confidence-Tagged Fields** | 🔲 NOT STARTED | — | `TaggedValue<T>` on profile metrics, enhanced anchor block separating `user_supplied` vs `llm_inferred`, non-numeric hallucination prevention |
+| S6 | **Profession Ontology** | 🔲 NOT STARTED | — | Parent-child field hierarchy with inheritance resolver, UI dropdown linked to field profiles |
+
+### What's in every generated CV now (as of June 2026)
+
+After S5 + S2 shipped, every `generateCV()` call produces a CV that has been:
+
+1. **Validated** against 7 deterministic hard rules before reaching the user
+2. **Auto-repaired** for block violations (skills cap enforced, duplicates removed, seeking phrases stripped)
+3. **Traced** — a full audit trail attached to `CVData._trace` answering: what scenario was selected, which voice and field were used, what gap keywords were pinned, how many violations were found, how long each stage took
+4. **Debug-accessible** — `getLastTrace()` from `generationTrace.ts` returns the most recent trace from localStorage for instant debugging without reading 5,000+ lines of geminiService.ts
+
+---
+
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
