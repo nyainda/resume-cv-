@@ -149,16 +149,24 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             if (stored?.token) {
                 const result = await validateSession(stored.token);
                 if (result.user && !cancelled) {
+                    // Happy path: server returned fresh user data.
                     applySession(stored.token, result.user);
                     setIsLoading(false);
                     return;
                 }
-                // Only purge the stored session if the server definitively rejected
-                // the token (HTTP 401). On network errors or 502s (server down),
-                // keep the session so the user stays "signed in" — Drive and worker
-                // features will fail gracefully via their own error handling.
                 if (result.invalid) {
+                    // Server definitively rejected the token (HTTP 401).
+                    // Clear and fall through to show the landing page.
                     clearStoredSession();
+                } else if (stored.user && !cancelled) {
+                    // Network error / cold CF worker / mobile signal drop —
+                    // the token is not confirmed bad, just unreachable right now.
+                    // Apply the session OPTIMISTICALLY from localStorage so the
+                    // user is not kicked to the landing page on every PWA cold open.
+                    // The token will be re-validated on the next real API call.
+                    applySession(stored.token, stored.user);
+                    setIsLoading(false);
+                    return;
                 }
             }
 
