@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "92l1e6VT6zGmrFfhNscy-"
+uri = "file://docs/procv-engineering-audit.md"
+type = "text"
+title = "ProCV Principal Engineer Architecture Audit"
