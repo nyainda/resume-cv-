@@ -3368,7 +3368,10 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     // trace for telemetry but do not block the user.
     _traceBuilder.recordTimingMark('generationMs');
     const _targetBulletCount = engineBrief?.rhythm?.bullet_count as number | undefined;
-    const _validation = runValidationEngine(cvData, { targetBulletCount: _targetBulletCount });
+    const _validation = runValidationEngine(cvData, {
+        targetBulletCount: _targetBulletCount,
+        certifications: _lockedValues.certifications, // S3: pass user-supplied certs for hallucination detection
+    });
     if (_validation.repairApplied) {
         cvData = _validation.cv;
         console.log(`[CV Validation] ${_validation.violations.filter(v => v.repaired).length} block violation(s) auto-repaired.`);

@@ -33,6 +33,10 @@ export interface ValidationRule {
 
 export interface ValidationOpts {
   targetBulletCount?: number;
+  /** S3: user-supplied certifications list from lockRealNumbers().certifications.
+   *  When provided, any well-known credential pattern found in bullets that is
+   *  NOT in this list is flagged as a warn violation. */
+  certifications?: string[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -370,6 +374,94 @@ const ruleCurrentRoleTense: ValidationRule = {
   },
 };
 
+// ─── S3: Ungrounded certification detection ───────────────────────────────────
+
+/**
+ * Patterns that match well-known credential names likely to be hallucinated.
+ * Each regex is tested against every bullet; a match that isn't backed by the
+ * user's certifications list (opts.certifications) raises a warn violation.
+ */
+const CREDENTIAL_MENTION_RX: RegExp[] = [
+  // Cloud platforms
+  /\bAWS\s+Certified\b/gi,
+  /\bAzure\s+(?:Certified|Administrator|Developer|Architect|Expert|Solutions\s+Architect)\b/gi,
+  /\bGoogle\s+(?:Professional\s+Cloud|Associate\s+Cloud|Certified\s+Professional)\b/gi,
+  /\bGCP\s+(?:Professional|Associate|Certified)\b/gi,
+  // Project / Agile
+  /\bPMP\s*(?:Certified|Certification)?\b/g,
+  /\bPRINCE2\s*(?:Certified|Practitioner|Foundation)?\b/gi,
+  /\bCertified\s+Scrum\s+Master\b/gi,
+  /\bCSM\s+Certified\b/gi,
+  /\bSAFe\s+(?:Agilist|Practitioner|SPC|Architect)\b/gi,
+  // Cyber / Security
+  /\bCISSP\b/g,
+  /\bCISM\b/g,
+  /\bCEH\b/g,
+  /\bCompTIA\s+(?:Security\+|Network\+|A\+|CySA\+|CASP\+)\b/gi,
+  // Finance / Accounting
+  /\bCPA\s+Certified\b/gi,
+  /\bACCA\s+(?:Qualified|Certified|Member)?\b/gi,
+  /\bCFA\s+(?:Charterholder|Level\s+[123])?\b/gi,
+  /\bCIMA\s+(?:Qualified|Certified)?\b/gi,
+  // HR
+  /\bSHRM-(?:CP|SCP)\b/gi,
+  /\bCIPD\s+(?:Level\s+\d|Qualified)?\b/gi,
+  // Lean / Quality
+  /\b(?:Lean\s+)?Six\s+Sigma\s+(?:Black|Green|Yellow)\s+Belt\b/gi,
+  // General "Certified X" catch-all (requires capital letter after "Certified")
+  /\bCertified\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3}\b/g,
+];
+
+/** Normalise a string for fuzzy matching — lower-case, collapse whitespace. */
+function normCert(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** Return true if the credential mention is backed by at least one cert in the list. */
+function certIsGrounded(mention: string, certList: string[]): boolean {
+  const mentionNorm = normCert(mention);
+  return certList.some(c => {
+    const certNorm = normCert(c);
+    return certNorm.includes(mentionNorm) || mentionNorm.includes(certNorm);
+  });
+}
+
+const ruleUngroundedCertifications: ValidationRule = {
+  id: 'ungrounded_certifications',
+  severity: 'warn',
+  check(cv, opts) {
+    if (!opts.certifications) return [];
+    const certList = opts.certifications;
+    const violations: ValidationViolation[] = [];
+
+    const checkText = (text: string, location: string) => {
+      for (const rx of CREDENTIAL_MENTION_RX) {
+        rx.lastIndex = 0;
+        for (const m of text.matchAll(rx)) {
+          const mention = m[0].trim();
+          if (!certIsGrounded(mention, certList)) {
+            violations.push({
+              ruleId: 'ungrounded_certifications',
+              severity: 'warn',
+              location,
+              message: `Credential "${mention}" mentioned but not found in user's certifications list — possible hallucination`,
+              repaired: false,
+            });
+          }
+        }
+      }
+    };
+
+    checkText(cv.summary ?? '', 'summary');
+    cv.experience?.forEach((role, i) => {
+      (role.responsibilities ?? []).forEach((b, j) => checkText(b, `experience[${i}].bullet[${j}]`));
+    });
+    cv.projects?.forEach((p, i) => checkText(p.description ?? '', `projects[${i}]`));
+
+    return violations;
+  },
+};
+
 // ─── Rule registry (ordered — block rules run before warn rules) ──────────────
 
 const RULES: ValidationRule[] = [
@@ -377,7 +469,7 @@ const RULES: ValidationRule[] = [
   ruleSkillsCap,
   ruleSkillsDedup,
   ruleNoSeekingPhrases,
-  ruleBulletCountEnforcer,   // NEW: trims excess bullets to targetBulletCount
+  ruleBulletCountEnforcer,          // trims excess bullets to targetBulletCount
   // Warn rules (collected for telemetry / trace, not auto-repaired)
   ruleNoFirstPersonSummary,
   ruleEmptyRoles,
@@ -385,7 +477,8 @@ const RULES: ValidationRule[] = [
   ruleOverlongBullets,
   ruleDuplicateOpeners,
   ruleExcessBullets,
-  ruleCurrentRoleTense,      // NEW: flags past-tense openers in current role
+  ruleCurrentRoleTense,             // flags past-tense openers in current role
+  ruleUngroundedCertifications,     // S3: flags credential mentions not in user's profile
 ];
 
 // ─── Main entry point ─────────────────────────────────────────────────────────

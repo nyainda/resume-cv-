@@ -135,6 +135,21 @@ const FIELD_KEYWORDS: Record<Exclude<CVField, 'general'>, string[]> = {
 };
 
 export function detectField(jd: string | undefined, profile?: UserProfile): CVField {
+    // S6: If the user explicitly chose a field via the ontology dropdown, honour
+    // it directly — skip all keyword scoring. This is the primary fix for the
+    // "keyword mismatch on thin JDs" problem described in the engineering audit.
+    if (profile?.preferredField) {
+        const pf = profile.preferredField as CVField;
+        // Validate it's a known leaf (guards against stale localStorage values)
+        const VALID_FIELDS: CVField[] = [
+            'irrigation','drought_management','tech','data_analytics','civil_engineering',
+            'construction','architecture','manufacturing','logistics','ngo','government',
+            'sales','marketing','finance','legal','healthcare','education','hr',
+            'consulting','operations','hospitality','media','general',
+        ];
+        if (VALID_FIELDS.includes(pf)) return pf;
+    }
+
     const jdRaw  = jd || '';
     const jdCorpus = jdRaw.toLowerCase();
     const jdPresent = jdCorpus.trim().length > 50;
@@ -209,6 +224,17 @@ export interface LockedValues {
     yearsExperience: number;
     /** Current role title (most recent). */
     currentRole: string | null;
+    // ── S3: Confidence-tagged non-numeric claims ────────────────────────────
+    /** Certifications/courses/licences the user explicitly listed (user_supplied).
+     *  The LLM may only cite credentials that appear in this list. */
+    certifications: string[];
+    /** Awards, honours, publications, presentations the user explicitly listed
+     *  (user_supplied). The LLM may only cite these — never fabricate rankings. */
+    awardsAndHonors: string[];
+    /** Team sizes, budget figures, management scope extracted verbatim from the
+     *  responsibilities text (system_extracted). Used to validate leadership
+     *  claims without over-restricting — includes surrounding context. */
+    leadershipSignals: Array<{ signal: string; context: string }>;
 }
 
 const NUMBER_RX = /\b\d[\d,]*(?:\.\d+)?(?:\s*%|\s*(?:m|million|k|thousand|bn|billion))?\b/gi;
@@ -296,7 +322,72 @@ export function lockRealNumbers(profile: UserProfile): LockedValues {
     const currentRole = (profile.workExperience || [])
         .find(e => !e.endDate || /present|current/i.test(e.endDate))?.jobTitle || null;
 
-    return { concreteNumbers, realOrganizations, realDegrees, yearsExperience, currentRole };
+    // ── S3: Confidence-tagged non-numeric claims ────────────────────────────────
+
+    // Certifications, courses, memberships, licences — user_supplied
+    const certifications: string[] = [];
+    for (const section of profile.customSections || []) {
+        if (['certifications', 'courses', 'memberships', 'patents', 'licenses'].includes(section.type)) {
+            for (const item of section.items) {
+                if (item.title?.trim()) certifications.push(item.title.trim());
+            }
+        }
+    }
+    // Also surface certifications stored directly on CVData if this is a profile with them
+    if ((profile as unknown as { certifications?: Array<string | {name:string}> }).certifications) {
+        const rawCerts = (profile as unknown as { certifications: Array<string | {name:string}> }).certifications;
+        for (const c of rawCerts) {
+            const name = typeof c === 'string' ? c : c?.name;
+            if (name?.trim() && !certifications.includes(name.trim())) certifications.push(name.trim());
+        }
+    }
+
+    // Awards, honours, publications, presentations — user_supplied
+    const awardsAndHonors: string[] = [];
+    for (const section of profile.customSections || []) {
+        if (['awards', 'achievements', 'publications', 'presentations', 'volunteer'].includes(section.type)) {
+            for (const item of section.items) {
+                if (item.title?.trim()) awardsAndHonors.push(item.title.trim());
+            }
+        }
+    }
+
+    // Leadership signals — system_extracted from responsibilities text
+    const LEADERSHIP_RX: RegExp[] = [
+        /managed\s+(?:a\s+)?team\s+of\s+\d+/gi,
+        /led\s+(?:a\s+)?team\s+of\s+\d+/gi,
+        /supervised\s+(?:a\s+)?(?:team\s+of\s+)?\d+/gi,
+        /managed\s+\d+\s+(?:direct\s+)?reports?/gi,
+        /team\s+of\s+\d+\s+(?:engineers?|developers?|people|members?|staff|analysts?)/gi,
+        /oversaw\s+\d+\s+(?:engineers?|developers?|people|members?|staff)/gi,
+        /mentored\s+\d+\s+(?:engineers?|developers?|people|junior|mid)/gi,
+        /budget\s+of\s+(?:USD?|[$€£₦₹¥])?\s*[\d,.]+/gi,
+        /revenue\s+of\s+(?:USD?|[$€£₦₹¥])?\s*[\d,.]+/gi,
+        /\d+\s+direct\s+reports?/gi,
+        /managed\s+(?:a\s+)?(?:\$|£|€|USD|GBP|EUR)[\d,.]+\s*(?:m|million|k|thousand|bn|billion)?\s*budget/gi,
+    ];
+    const leadershipSignals: Array<{ signal: string; context: string }> = [];
+    const seenLeadership = new Set<string>();
+    for (const role of profile.workExperience || []) {
+        const blob = typeof role.responsibilities === 'string' ? role.responsibilities : '';
+        const label = `${role.jobTitle || 'role'} @ ${role.company || ''}`;
+        for (const rx of LEADERSHIP_RX) {
+            rx.lastIndex = 0;
+            for (const m of blob.matchAll(rx)) {
+                const sig = m[0].trim();
+                const key = sig.toLowerCase();
+                if (seenLeadership.has(key)) continue;
+                seenLeadership.add(key);
+                const idx = blob.toLowerCase().indexOf(key);
+                const ctx = idx >= 0
+                    ? blob.slice(Math.max(0, idx - 20), Math.min(blob.length, idx + sig.length + 20)).replace(/\s+/g, ' ').trim()
+                    : label;
+                leadershipSignals.push({ signal: sig, context: `${label}: "…${ctx}…"` });
+            }
+        }
+    }
+
+    return { concreteNumbers, realOrganizations, realDegrees, yearsExperience, currentRole, certifications, awardsAndHonors, leadershipSignals };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -542,6 +633,25 @@ Example: "stakeholder" used 3 times in the same role → replace 2 of the 3 with
 - Every contraction must keep its pronoun: write "I've", "I'm", "I'll" — never bare "'ve", "'m", "'ll".
 - Possessives must keep their pronoun: write "My goal", "My aim" — never bare "goal is" / "aim is" at the start of a clause.
 - These rules apply in summary, bullets, and project descriptions alike.
+
+=== CREDENTIAL & CLAIM INTEGRITY [S3] ===
+${locked.certifications.length > 0
+    ? `CERTIFICATIONS (user_supplied — cite freely, exact spelling):\n${locked.certifications.map(c => `   ✅ "${c}"`).join('\n')}`
+    : `CERTIFICATIONS: (none listed by the user)\n   ❌ Do NOT mention any certification name whatsoever — e.g. "AWS Certified", "PMP", "CISSP", "Scrum Master", "Google Professional" — none of these exist in this profile.`}
+
+${locked.awardsAndHonors.length > 0
+    ? `AWARDS & HONOURS (user_supplied — cite freely):\n${locked.awardsAndHonors.map(a => `   ✅ "${a}"`).join('\n')}`
+    : `AWARDS & HONOURS: (none listed)\n   ❌ Do NOT fabricate rankings, awards, or honour mentions (e.g. "Ranked #1", "Top Performer", "Best in Region", "Employee of the Month").`}
+
+${locked.leadershipSignals.length > 0
+    ? `LEADERSHIP DATA (system_extracted — only these team/budget figures are verified):\n${locked.leadershipSignals.map(l => `   ✅ ${l.signal}  [from: ${l.context}]`).join('\n')}`
+    : `LEADERSHIP DATA: (none extracted)\n   ❌ Do NOT state team sizes, headcount, direct reports, or budget/revenue responsibility unless the exact figure already appears in NUMBERS above.`}
+
+FORBIDDEN TO FABRICATE (applies regardless of context):
+   ❌ Any certification, credential, or qualification not in the CERTIFICATIONS list above.
+   ❌ Any award, ranking, or competitive claim not in the AWARDS & HONOURS list above.
+   ❌ Any team size, people-managed count, or budget figure not in NUMBERS or LEADERSHIP DATA above.
+   ❌ The phrases "Ranked #1", "Top performer", "Best in", "Award-winning", "Recognised as" — unless backed by AWARDS & HONOURS above.
 `.trim();
 }
 

@@ -1,6 +1,20 @@
 
 // types.ts
 
+// --- S3: Confidence-Tagged Profile Fields ---
+
+/** Wraps any profile value with its confidence level so the anchor block
+ *  and validation rules can distinguish facts the user explicitly wrote
+ *  from values the system inferred or the LLM extrapolated. */
+export type ConfidenceLevel = 'user_supplied' | 'system_extracted' | 'llm_inferred';
+
+export interface TaggedValue<T> {
+  value: T;
+  confidence: ConfidenceLevel;
+  /** Human-readable provenance, e.g. "extracted from work experience at Acme Corp" */
+  source?: string;
+}
+
 // --- Basic Profile & CV Data Structures ---
 
 export interface PersonalInfo {
@@ -111,6 +125,7 @@ export interface UserProfile {
   references?: Reference[];
   customSections?: CustomSection[];   // extra sections the user adds
   sectionOrder?: ProfileSectionKey[]; // preferred section order
+  preferredField?: string;            // S6: ontology slug chosen by user — bypasses keyword scoring in detectField
 }
 
 // --- Multiple Profiles ---

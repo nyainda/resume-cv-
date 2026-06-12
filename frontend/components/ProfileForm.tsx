@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import PhotoCropModal from './PhotoCropModal';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { buildFlatOntology } from '../services/fieldOntologyResolver';
 import {
   UserProfile, Reference,
   CustomSection, CustomSectionItem, CustomSectionType,
@@ -27,6 +28,8 @@ import {
 } from './icons';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+// Computed once at module load — buildFlatOntology() is pure with no deps.
+const FLAT_ONTOLOGY = buildFlatOntology();
 const PREDEFINED_SECTION_OPTIONS: { type: CustomSectionType; label: string }[] = [
   { type: 'awards',         label: 'Awards & Honours' },
   { type: 'certifications', label: 'Certifications & Licences' },
@@ -577,6 +580,34 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         <div>
           <Label htmlFor="github" className="mb-1 block">GitHub URL</Label>
           <Input id="github" {...register('personalInfo.github')} placeholder="https://github.com/username" />
+        </div>
+        {/* S6 — Profession Ontology field picker */}
+        <div className="md:col-span-2">
+          <Label htmlFor="preferredField" className="mb-1 block">
+            Industry / Field <span className="text-zinc-400 font-normal">(Optional)</span>
+          </Label>
+          <select
+            id="preferredField"
+            {...register('preferredField')}
+            className="w-full rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-700 text-zinc-800 dark:text-zinc-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40 focus:border-[#C9A84C] transition-colors"
+          >
+            <option value="">— Auto-detect from job description —</option>
+            {FLAT_ONTOLOGY.map(({ node, depth }) =>
+              !node.isLeaf ? (
+                <optgroup
+                  key={node.slug}
+                  label={`${'  '.repeat(depth)}${node.icon} ${node.label}`}
+                />
+              ) : (
+                <option key={node.slug} value={node.slug}>
+                  {'  '.repeat(depth)}{node.icon} {node.label}
+                </option>
+              )
+            )}
+          </select>
+          <p className="text-xs text-zinc-400 mt-1">
+            Selecting a field pins the AI to that industry's vocabulary and writing style. Leave blank to auto-detect from your job description.
+          </p>
         </div>
       </div>
     </div>
