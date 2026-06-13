@@ -725,14 +725,25 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const reg = (id: string) => (el: HTMLElement | null) => { refs.current[id] = el; };
   const v = (id: string) => vis.has(id);
 
-  /* Always dark-navy — same look in both light and dark mode */
-  const bg       = '#0a0f1e';
-  const surface  = '#111827';
-  const elevated = '#1a2236';
-  const border   = '#1e2d47';
-  const text     = '#f0ece0';
-  const muted    = '#8892a4';
-  const faint    = '#3d4f6b';
+  /* Two-theme token system — switches cleanly between dark and light */
+  const DARK_T = {
+    bg: '#0d1525', surface: '#141e2e', elevated: '#1a2236',
+    border: '#1e2d47', text: '#f0ece0', muted: '#8892a4', faint: '#3d4f6b',
+    footerBg: '#080e1a',
+  };
+  const LIGHT_T = {
+    bg: '#F8F7F4', surface: '#FFFFFF', elevated: '#ECEAE3',
+    border: '#DDD9D0', text: '#1B2B4B', muted: '#5C6478', faint: '#B2AFA7',
+    footerBg: '#1B2B4B',
+  };
+  const T = darkMode ? DARK_T : LIGHT_T;
+  const bg       = T.bg;
+  const surface  = T.surface;
+  const elevated = T.elevated;
+  const border   = T.border;
+  const text     = T.text;
+  const muted    = T.muted;
+  const faint    = T.faint;
   const ac       = BEFORE_AFTER_CASES[activeCase];
 
   return (
@@ -741,7 +752,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       {/* ── Nav ──────────────────────────────────────────────────────── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 40,
-        background: 'rgba(10,15,30,0.95)',
+        background: darkMode ? 'rgba(13,21,37,0.95)' : 'rgba(248,247,244,0.97)',
         backdropFilter: 'blur(20px)', borderBottom: `1px solid ${border}`,
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -776,6 +787,30 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           </nav>
           {/* Right actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {/* Light / Dark toggle */}
+            <button
+              onClick={onToggleDark}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                width: 36, height: 36, borderRadius: 8, border: `1px solid ${border}`,
+                background: 'transparent', cursor: 'pointer', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                color: muted, transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = text; e.currentTarget.style.color = text; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = muted; }}>
+              {darkMode ? (
+                /* Sun icon */
+                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+              ) : (
+                /* Moon icon */
+                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                </svg>
+              )}
+            </button>
             {hasProfile && onGoToApp && (
               <button onClick={onGoToApp} style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: muted }}>← Dashboard</button>
             )}
@@ -1459,16 +1494,16 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             </div>
           </div>
           <button onClick={onGetStarted}
-            style={{ padding: '10px 24px', fontSize: 14, fontWeight: 900, borderRadius: 8, background: '#6d28d9', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s' }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#5b21b6')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#6d28d9')}>
+            style={{ padding: '10px 24px', fontSize: 14, fontWeight: 900, borderRadius: 8, background: Y, color: '#111', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'opacity 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
             Get Started Free →
           </button>
         </div>
       </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${border}`, background: '#0d1525', padding: '40px 24px 24px' }}>
+      <footer style={{ borderTop: `1px solid ${border}`, background: T.footerBg, padding: '40px 24px 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           {/* Top: logo + columns */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 48, marginBottom: 36, justifyContent: 'space-between' }}>
