@@ -31,6 +31,41 @@ const categoryIcons: Record<Category, string> = {
     Behavioural: '🧠', Technical: '⚙️', Situational: '🎯', Culture: '🌱', Strength: '💪',
 };
 
+// STAR framework hints — tailored per category
+interface StarHint { label: string; letter: string; prompt: string; }
+const starHints: Record<Category, StarHint[]> = {
+    Behavioural: [
+        { letter: 'S', label: 'Situation', prompt: 'Set the scene — what was happening and why it mattered?' },
+        { letter: 'T', label: 'Task',      prompt: 'What was your specific responsibility in that moment?' },
+        { letter: 'A', label: 'Action',    prompt: 'What exact steps did YOU take? (use "I", not "we")' },
+        { letter: 'R', label: 'Result',    prompt: 'What measurable outcome did it produce? Quantify if you can.' },
+    ],
+    Technical: [
+        { letter: 'S', label: 'Problem',   prompt: 'What was the technical challenge or system constraint?' },
+        { letter: 'T', label: 'Ownership', prompt: 'What part of the problem were you specifically responsible for?' },
+        { letter: 'A', label: 'Solution',  prompt: 'Which tools, patterns, or decisions drove your approach?' },
+        { letter: 'R', label: 'Impact',    prompt: 'What improved — performance, reliability, velocity, cost?' },
+    ],
+    Situational: [
+        { letter: 'S', label: 'Scenario',  prompt: 'Frame the hypothetical — what stakes are involved?' },
+        { letter: 'T', label: 'Priority',  prompt: 'What would your first goal be? Why that, not something else?' },
+        { letter: 'A', label: 'Steps',     prompt: 'Walk through each concrete step you would take.' },
+        { letter: 'R', label: 'Outcome',   prompt: 'What result would you be aiming for, and how would you know?' },
+    ],
+    Culture: [
+        { letter: 'S', label: 'Context',   prompt: 'Describe the team or culture environment you were in.' },
+        { letter: 'T', label: 'Your role', prompt: 'What were you trying to achieve for the team or organisation?' },
+        { letter: 'A', label: 'Action',    prompt: 'How did you contribute, adapt, or lead by example?' },
+        { letter: 'R', label: 'Result',    prompt: 'What positive shift happened in the team or project?' },
+    ],
+    Strength: [
+        { letter: 'S', label: 'Setting',   prompt: 'When did this strength make the biggest difference?' },
+        { letter: 'T', label: 'Challenge', prompt: 'What needed to be achieved — and why was it hard?' },
+        { letter: 'A', label: 'Applied',   prompt: 'How did you specifically deploy this strength?' },
+        { letter: 'R', label: 'Delivered', prompt: 'What did it deliver for the business, team, or customer?' },
+    ],
+};
+
 const inputClass = "w-full px-3 py-2.5 rounded-xl border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 transition-all";
 const inputFocus = "focus:ring-[#C9A84C]/40 dark:focus:ring-[#C9A84C]/30 focus:border-[#C9A84C]/60";
 
@@ -53,6 +88,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
     const [error, setError]                       = useState<string | null>(null);
     const [questions, setQuestions]               = useState<Array<{ question: string; answer: string; category: string }>>([]);
     const [revealedAnswers, setRevealedAnswers]   = useState<Set<number>>(new Set());
+    const [starOpen, setStarOpen]                 = useState<Set<number>>(new Set());
     const [activeFilter, setActiveFilter]         = useState<string>('All');
     const [loadingMsg, setLoadingMsg]             = useState('Generating...');
 
@@ -76,7 +112,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
         if (!apiKeySet) { openSettings(); return; }
         if (!jobDescription.trim()) { setError('Please paste a job description to generate tailored questions.'); return; }
         setIsGenerating(true); setError(null); setQuestions([]); setRevealedAnswers(new Set());
-        setActiveFilter('All'); setThankYouLetter(null);
+        setStarOpen(new Set()); setActiveFilter('All'); setThankYouLetter(null);
         let phaseIdx = 0; setLoadingMsg(phases[0]);
         const interval = setInterval(() => { phaseIdx = Math.min(phaseIdx + 1, phases.length - 1); setLoadingMsg(phases[phaseIdx]); }, 2500);
         try {
@@ -88,6 +124,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
     }, [userProfile, jobDescription, companyName, apiKeySet, openSettings]);
 
     const toggleAnswer = (idx: number) => setRevealedAnswers(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+    const toggleStar   = (idx: number) => setStarOpen(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
     const revealAll = () => setRevealedAnswers(new Set(questions.map((_, i) => i)));
     const hideAll   = () => setRevealedAnswers(new Set());
 
@@ -256,9 +293,54 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                                             </span>
                                             <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto flex-shrink-0 font-medium">Q{globalIdx + 1}</span>
                                         </div>
-                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 leading-snug mb-4">
+                                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 leading-snug mb-3">
                                             "{q.question}"
                                         </p>
+
+                                        {/* STAR Guide — collapsed by default */}
+                                        {!isRevealed && (() => {
+                                            const hints = starHints[q.category as Category] ?? starHints.Behavioural;
+                                            const isStarOpen = starOpen.has(globalIdx);
+                                            const letterColors = ['#1B2B4B', '#C9A84C', '#1B2B4B', '#C9A84C'];
+                                            return (
+                                                <div className="mb-3">
+                                                    <button
+                                                        onClick={() => toggleStar(globalIdx)}
+                                                        className="flex items-center gap-1.5 text-xs font-semibold transition-colors mb-2"
+                                                        style={{ color: isStarOpen ? NAV : '#6b7280' }}
+                                                    >
+                                                        <span className="flex items-center gap-0.5">
+                                                            {['S','T','A','R'].map((l, li) => (
+                                                                <span key={l} className="w-4 h-4 rounded text-[10px] font-black flex items-center justify-center text-white"
+                                                                      style={{ background: isStarOpen ? letterColors[li] : '#d1d5db' }}>
+                                                                    {l}
+                                                                </span>
+                                                            ))}
+                                                        </span>
+                                                        <span>{isStarOpen ? 'Hide STAR guide' : 'STAR guide'}</span>
+                                                        <svg className={`h-3 w-3 transition-transform ${isStarOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
+                                                    </button>
+                                                    {isStarOpen && (
+                                                        <div className="grid grid-cols-2 gap-1.5">
+                                                            {hints.map((h, hi) => (
+                                                                <div key={h.letter}
+                                                                     className="rounded-xl p-2.5 border"
+                                                                     style={{ background: letterColors[hi] + '0c', borderColor: letterColors[hi] + '28' }}>
+                                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                                        <span className="w-5 h-5 rounded-lg text-[11px] font-black flex items-center justify-center text-white flex-shrink-0"
+                                                                              style={{ background: letterColors[hi] }}>
+                                                                            {h.letter}
+                                                                        </span>
+                                                                        <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200">{h.label}</span>
+                                                                    </div>
+                                                                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{h.prompt}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
 
                                         {isRevealed ? (
                                             <div className="rounded-xl border p-4"
