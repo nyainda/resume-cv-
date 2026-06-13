@@ -606,6 +606,30 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const [vis, setVis] = useState<Set<string>>(new Set());
   const refs = useRef<Record<string, HTMLElement | null>>({});
 
+  // ── Counter animation for Engine stats ────────────────────────────────
+  const STATS = [
+    { target: 98, suffix: '%', label: 'ATS-pass rate' },
+    { target: 100, suffix: '%', label: 'fact-accurate' },
+    { target: 35, suffix: '+', label: 'templates' },
+    { target: 3, suffix: '×', label: 'more interviews' },
+  ];
+  const [statVals, setStatVals] = useState(STATS.map(() => 0));
+  const statsFired = useRef(false);
+  useEffect(() => {
+    if (!v('pipe') || statsFired.current) return;
+    statsFired.current = true;
+    const duration = 1400;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setStatVals(STATS.map(s => Math.round(s.target * ease)));
+      if (p < 1) requestAnimationFrame(tick);
+      else setStatVals(STATS.map(s => s.target));
+    };
+    requestAnimationFrame(tick);
+  }, [vis]);
+
   // ── Score My CV state ──────────────────────────────────────────────────
   const [smCvText, setSmCvText] = useState('');
   const [smJdText, setSmJdText] = useState('');
@@ -1336,16 +1360,13 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 32px', maxWidth: 380 }}>
                 Every CV runs through our full quality pipeline before you ever see it. No shortcuts.
               </p>
-              {/* Stats */}
+              {/* Stats — animated count-up on scroll-in */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 36px', marginBottom: 32 }}>
-                {[
-                  { value: '98%', label: 'ATS-pass rate' },
-                  { value: '100%', label: 'fact-accurate' },
-                  { value: '35+', label: 'templates' },
-                  { value: '3×', label: 'more interviews' },
-                ].map(s => (
+                {STATS.map((s, i) => (
                   <div key={s.label}>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: '#C9A84C', lineHeight: 1 }}>{s.value}</div>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: '#C9A84C', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                      {statVals[i]}{s.suffix}
+                    </div>
                     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 4 }}>{s.label}</div>
                   </div>
                 ))}

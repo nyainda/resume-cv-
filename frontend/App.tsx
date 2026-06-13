@@ -1824,7 +1824,7 @@ const AppInner: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       {sharedCVPayload && (
         <SharedCVView
           cvData={sharedCVPayload.cvData}
@@ -1851,7 +1851,7 @@ const AppInner: React.FC = () => {
         />
       )}
       <OfflineBanner />
-      <header className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
+      <header className="bg-white dark:bg-neutral-900 border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
         {/* ── Row 1: Logo + Controls ──────────────────────────────────── */}
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
           <button
@@ -1923,48 +1923,48 @@ const AppInner: React.FC = () => {
             {profileExists && (
               <button
                 onClick={() => setIsEditingProfile(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
+                className="hidden lg:flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-700 transition-colors"
+                title="Edit profile"
               >
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Edit Profile</span>
+                <User className="h-3.5 w-3.5" />
+                <span className="hidden xl:inline">Edit Profile</span>
               </button>
             )}
 
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
+              className="p-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
               aria-label="Toggle dark mode"
             >
               {darkMode ? (
-                <Sun className="h-5 w-5" />
+                <Sun className="h-4 w-4" />
               ) : (
-                <Moon className="h-5 w-5" />
+                <Moon className="h-4 w-4" />
               )}
             </button>
 
-
-            {/* ── Account & Sign-out buttons (only when worker-authenticated) ─── */}
+            {/* ── Account & Sign-out (icon-only on lg, icon+text on xl+) ─── */}
             {isWorkerAuthenticated && (
               <>
                 <button
                   onClick={() => setCurrentView("account" as any)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-700 transition-all"
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-700 transition-all"
                   title="My account"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                   </svg>
-                  Account
+                  <span className="hidden xl:inline">Account</span>
                 </button>
                 <button
                   onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); stampSignedOut(); setShowLanding(true); }}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
                   title="Sign out"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                   </svg>
-                  Sign out
+                  <span className="hidden xl:inline">Sign out</span>
                 </button>
               </>
             )}
@@ -2038,9 +2038,9 @@ const AppInner: React.FC = () => {
                       setShowMoreMenu(false);
                     }}
                     title={item.label}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
+                    className={`flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-lg text-xs lg:text-sm font-semibold transition-all duration-150 whitespace-nowrap ${
                       currentView === item.id
-                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C]"
+                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/30 text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C]"
                         : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800 border-b-2 border-transparent"
                     }`}
                   >
@@ -2053,9 +2053,9 @@ const AppInner: React.FC = () => {
                 <div className="relative ml-1" ref={moreMenuRef}>
                   <button
                     onClick={() => setShowMoreMenu((v) => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
+                    className={`flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-lg text-xs lg:text-sm font-semibold transition-all duration-150 whitespace-nowrap ${
                       isMoreActive || showMoreMenu
-                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/30 text-[#1B2B4B] dark:text-[#C9A84C]"
                         : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800"
                     }`}
                   >
