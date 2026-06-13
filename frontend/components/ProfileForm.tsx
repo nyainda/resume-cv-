@@ -248,13 +248,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   // When an external import (Word, PDF, cloud restore) updates the `existingProfile`
   // prop, react-hook-form's defaultValues are already frozen from mount — we must
   // explicitly call reset() to reflect the new profile in the form fields.
-  // Using a ref avoids triggering on the initial mount (where defaultValues already
-  // applied the profile) and prevents resetting on every unrelated parent re-render.
+  // Also sync the two useState values (customSections, sectionOrder) that are NOT
+  // managed by react-hook-form and therefore not updated by reset() alone.
   const _prevProfileRef = useRef(existingProfile);
   useEffect(() => {
     if (existingProfile && existingProfile !== _prevProfileRef.current) {
       _prevProfileRef.current = existingProfile;
       reset(existingProfile);
+      setCustomSections(existingProfile.customSections || []);
+      setSectionOrder(existingProfile.sectionOrder || [...DEFAULT_SECTION_ORDER]);
     }
   }, [existingProfile, reset]);
 
@@ -396,9 +398,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       }
 
       reset(profile);
+      setCustomSections(profile.customSections || []);
+      setSectionOrder(profile.sectionOrder || [...DEFAULT_SECTION_ORDER]);
       onProfileImported?.(profile);
       setActiveTab('personal');
-      alert('Profile imported successfully! Please review your details and save.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setAiError(`Import failed: ${msg}`);
