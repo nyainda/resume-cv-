@@ -13,6 +13,8 @@ import {
   getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
 } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
+import { usePremiumGate } from '../hooks/usePremiumGate';
+import { PremiumUpgradeModal } from './premium/PremiumUpgradeModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -26,6 +28,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
+
+  // Premium gate for Workers AI — free users see the upgrade modal on click
+  const {
+    allowed: canUseWorkersAI,
+    isUpgradeOpen: workersAiUpgradeOpen,
+    openUpgrade: openWorkersAiUpgrade,
+    closeUpgrade: closeWorkersAiUpgrade,
+  } = usePremiumGate('workers-ai');
+
+  const handleProviderSelect = useCallback((id: AiProvider) => {
+    if (id === 'workers-ai' && !canUseWorkersAI) {
+      openWorkersAiUpgrade();
+      return;
+    }
+    setSelectedAiProvider(id);
+  }, [canUseWorkersAI, openWorkersAiUpgrade]);
 
   const { user: googleUser, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
   const { workerUser, isWorkerAuthenticated, signOut: workerSignOut } = useWorkerAuth();
@@ -113,6 +131,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   };
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center sm:p-4 transition-opacity duration-300"
       onClick={onClose}
@@ -274,22 +293,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               ]).map((opt) => {
                 const active = selectedAiProvider === opt.id;
                 const hasKey = !opt.keyNeeded || (opt.id === 'claude' ? !!claudeKey.trim() : !!geminiKey.trim());
+                const isLocked = opt.id === 'workers-ai' && !canUseWorkersAI;
                 return (
                   <div
                     key={opt.id}
-                    onClick={() => setSelectedAiProvider(opt.id)}
-                    className={`rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${active ? `${opt.borderColor} ${opt.activeBg}` : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
-                      }`}
+                    onClick={() => handleProviderSelect(opt.id)}
+                    className={`relative rounded-lg border-2 p-3 cursor-pointer transition-all space-y-2 ${
+                      isLocked
+                        ? 'border-[#C9A84C]/40 bg-amber-50/40 dark:bg-amber-900/10 opacity-90'
+                        : active
+                          ? `${opt.borderColor} ${opt.activeBg}`
+                          : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-800/40 hover:border-zinc-300 dark:hover:border-zinc-600'
+                    }`}
                   >
+                    {/* Lock overlay for gated options */}
+                    {isLocked && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/20 text-[#7a620e] dark:text-yellow-300">
+                        🔒 Premium
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-base">{opt.icon}</span>
                         <span className={`text-sm font-bold ${active ? 'text-zinc-900 dark:text-zinc-50' : 'text-zinc-600 dark:text-zinc-300'}`}>{opt.label}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${opt.badgeColor}`}>{opt.badge}</span>
+                        {!isLocked && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${opt.badgeColor}`}>{opt.badge}</span>
+                        )}
                       </div>
-                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${active ? `${opt.borderColor} bg-white dark:bg-neutral-700` : 'border-zinc-300 dark:border-zinc-600'}`}>
-                        {active && <div className="w-2 h-2 rounded-full bg-zinc-800 dark:bg-zinc-200" />}
-                      </div>
+                      {!isLocked && (
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${active ? `${opt.borderColor} bg-white dark:bg-neutral-700` : 'border-zinc-300 dark:border-zinc-600'}`}>
+                          {active && <div className="w-2 h-2 rounded-full bg-zinc-800 dark:bg-zinc-200" />}
+                        </div>
+                      )}
                     </div>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">{opt.desc}</p>
 
@@ -470,6 +505,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
         </div>
       </div>
     </div>
+
+    {/* Workers AI upgrade modal — rendered outside the scrollable panel */}
+    <PremiumUpgradeModal
+      isOpen={workersAiUpgradeOpen}
+      onClose={closeWorkersAiUpgrade}
+      blockedFeature="workers-ai"
+    />
+    </>
   );
 };
 
