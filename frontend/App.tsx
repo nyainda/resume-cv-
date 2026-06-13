@@ -736,6 +736,8 @@ const AppInner: React.FC = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const profileManagerRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const toast = useToast();
 
   // Email apply pre-fill state (set by CV Generator)
@@ -952,6 +954,20 @@ const AppInner: React.FC = () => {
     if (showMoreMenu) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showMoreMenu]);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowUserMenu(false);
+      }
+    };
+    if (showUserMenu) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showUserMenu]);
 
   // Close profile manager dropdown on outside click — desktop only.
   // On mobile the bottom-sheet has its own backdrop tap handler, so attaching a
@@ -1920,107 +1936,130 @@ const AppInner: React.FC = () => {
               </div>
             )}
 
-            {profileExists && (
-              <button
-                onClick={() => setIsEditingProfile(true)}
-                className="hidden lg:flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-700 transition-colors"
-                title="Edit profile"
-              >
-                <User className="h-3.5 w-3.5" />
-                <span className="hidden xl:inline">Edit Profile</span>
-              </button>
-            )}
-
+            {/* ── Dark mode toggle ──────────────────────────────────── */}
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors"
+              className="p-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
               aria-label="Toggle dark mode"
             >
-              {darkMode ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
+              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
-            {/* ── Account & Sign-out (icon-only on lg, icon+text on xl+) ─── */}
-            {isWorkerAuthenticated && (
-              <>
-                <button
-                  onClick={() => setCurrentView("account" as any)}
-                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 border border-zinc-200 dark:border-neutral-700 transition-all"
-                  title="My account"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                  </svg>
-                  <span className="hidden xl:inline">Account</span>
-                </button>
-                <button
-                  onClick={async () => { await signOut(); await googleSignOut(); clearUserScopedStorage(); stampSignedOut(); setShowLanding(true); }}
-                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 transition-all"
-                  title="Sign out"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-                  <span className="hidden xl:inline">Sign out</span>
-                </button>
-              </>
-            )}
+            {/* ── Consolidated user menu ─────────────────────────────── */}
+            <div className="relative flex-shrink-0" ref={userMenuRef}>
+              <button
+                onClick={() => setShowUserMenu(v => !v)}
+                className={`group flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-xl border transition-all ${
+                  showUserMenu
+                    ? "bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/10 border-[#C9A84C]/40 dark:border-[#C9A84C]/30"
+                    : "bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 hover:bg-zinc-200 dark:hover:bg-neutral-700"
+                }`}
+                aria-label="User menu"
+              >
+                {/* Avatar */}
+                {(isWorkerAuthenticated && workerUser?.picture) ? (
+                  <img src={workerUser.picture} alt={workerUser.name} referrerPolicy="no-referrer"
+                       className="w-7 h-7 rounded-full ring-2 ring-[#C9A84C]/50 shadow-sm flex-shrink-0" />
+                ) : (isAuthenticated && user?.picture) ? (
+                  <img src={user.picture} alt={user.name} referrerPolicy="no-referrer"
+                       className="w-7 h-7 rounded-full ring-2 ring-[#C9A84C]/50 shadow-sm flex-shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] flex items-center justify-center text-[11px] text-white dark:text-[#1B2B4B] font-black flex-shrink-0">
+                    {((isWorkerAuthenticated && workerUser ? (workerUser.name || workerUser.email) : isAuthenticated && user ? user.name : '') || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {/* Name — hidden on mobile, shown sm+ */}
+                <span className="hidden sm:inline text-xs font-bold text-zinc-700 dark:text-zinc-200 max-w-[90px] truncate">
+                  {isWorkerAuthenticated && workerUser
+                    ? (workerUser.name || workerUser.email || '').split(' ')[0]
+                    : isAuthenticated && user
+                      ? user.name.split(' ')[0]
+                      : 'Menu'}
+                </span>
+                <svg className={`h-3 w-3 text-zinc-400 transition-transform flex-shrink-0 ${showUserMenu ? 'rotate-180' : ''}`}
+                     viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </button>
 
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="group p-1.5 flex items-center gap-2 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-xl hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-all border border-zinc-200 dark:border-neutral-700"
-              aria-label="Settings"
-            >
-              {isWorkerAuthenticated && workerUser ? (
-                <div className="flex items-center gap-2 px-1">
-                  {workerUser.picture ? (
-                    <img
-                      src={workerUser.picture}
-                      alt={workerUser.name}
-                      referrerPolicy="no-referrer"
-                      className="w-6 h-6 rounded-full ring-1 ring-[#C9A84C] shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[10px] text-white font-bold">
-                      {(workerUser.name || workerUser.email).charAt(0).toUpperCase()}
+              {/* Dropdown */}
+              {showUserMenu && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden z-50 animate-nav-slide-down">
+                  {/* User header */}
+                  {(isWorkerAuthenticated && workerUser) && (
+                    <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900/50">
+                      <p className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{workerUser.name || workerUser.email?.split('@')[0]}</p>
+                      <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{workerUser.email}</p>
                     </div>
                   )}
-                  <span className="text-xs font-bold hidden lg:inline-block max-w-[80px] truncate">
-                    {(workerUser.name || workerUser.email).split(" ")[0]}
-                  </span>
-                  <Settings className="h-4 w-4 text-zinc-400 group-hover:rotate-45 transition-transform" />
-                </div>
-              ) : isAuthenticated && user ? (
-                <div className="flex items-center gap-2 px-1">
-                  {user.picture ? (
-                    <img
-                      src={user.picture}
-                      alt={user.name}
-                      referrerPolicy="no-referrer"
-                      className="w-6 h-6 rounded-full ring-1 ring-[#C9A84C] shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[10px] text-white font-bold">
-                      {user.name.charAt(0)}
+                  <div className="p-1.5 space-y-0.5">
+                    {/* Settings */}
+                    <button
+                      onClick={() => { setShowUserMenu(false); setIsSettingsOpen(true); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
+                    >
+                      <Settings className="h-4 w-4 text-zinc-400 flex-shrink-0" />
+                      Settings &amp; API Keys
+                    </button>
+                    {/* Edit profile */}
+                    {profileExists && (
+                      <button
+                        onClick={() => { setShowUserMenu(false); setIsEditingProfile(true); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
+                      >
+                        <User className="h-4 w-4 text-zinc-400 flex-shrink-0" />
+                        Edit Profile
+                      </button>
+                    )}
+                    {/* Account */}
+                    {isWorkerAuthenticated && (
+                      <button
+                        onClick={() => { setShowUserMenu(false); setCurrentView("account" as any); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
+                      >
+                        <svg className="h-4 w-4 text-zinc-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                        My Account
+                      </button>
+                    )}
+                  </div>
+                  {/* Sign out — separated at bottom */}
+                  {isWorkerAuthenticated && (
+                    <div className="p-1.5 border-t border-zinc-100 dark:border-neutral-700">
+                      <button
+                        onClick={async () => {
+                          setShowUserMenu(false);
+                          await signOut();
+                          await googleSignOut();
+                          clearUserScopedStorage();
+                          stampSignedOut();
+                          setShowLanding(true);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                      >
+                        <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                        Sign out
+                      </button>
                     </div>
                   )}
-                  <span className="text-xs font-bold hidden lg:inline-block max-w-[80px] truncate">
-                    {user.name.split(" ")[0]}
-                  </span>
-                  <Settings className="h-4 w-4 text-zinc-400 group-hover:rotate-45 transition-transform" />
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 px-2 py-0.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-tighter text-[#1B2B4B] dark:text-[#C9A84C]">
-                    Cloud Sync
-                  </span>
-                  <Settings className="h-4 w-4 group-hover:rotate-45 transition-transform" />
+                  {/* Unauthenticated: just cloud sync label */}
+                  {!isWorkerAuthenticated && !isAuthenticated && (
+                    <div className="p-1.5">
+                      <button
+                        onClick={() => { setShowUserMenu(false); setIsSettingsOpen(true); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
+                      >
+                        <Settings className="h-4 w-4 flex-shrink-0" />
+                        Cloud Sync &amp; Settings
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </button>
+            </div>
           </div>
         </div>
 
