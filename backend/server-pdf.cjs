@@ -18,15 +18,36 @@
 
 const express  = require('express');
 const cors     = require('cors');
+const path     = require('path');
+const fs       = require('fs');
 const { chromium } = require('playwright');
 const { Pool }     = require('pg');
 
 const app  = express();
-const PORT = 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
+const IS_PROD = process.env.NODE_ENV === 'production';
 const MAX_CONCURRENT = 3; // max simultaneous Playwright pages
 
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
+
+// ─── Static file serving (production only) ─────────────────────────────────────
+// In production the Vite build outputs to /dist. The Express server serves those
+// files so the same process handles both the React SPA and all API routes.
+const DIST_DIR = path.join(__dirname, '..', 'dist');
+if (IS_PROD && fs.existsSync(DIST_DIR)) {
+    // The frontend uses /__pdf/* to reach this server in dev (via Vite proxy).
+    // Strip that prefix early so all downstream route handlers work unchanged.
+    app.use((req, _res, next) => {
+        if (req.url.startsWith('/__pdf')) {
+            req.url = req.url.slice('/__pdf'.length) || '/';
+        }
+        next();
+    });
+
+    app.use(express.static(DIST_DIR));
+    console.log(`[Server] Serving static files from ${DIST_DIR}`);
+}
 
 // ─── Postgres pool (for telemetry / banned-phrase store) ───────────────────────
 // All DB operations are non-blocking with respect to PDF generation. If
@@ -759,6 +780,15 @@ app.post('/api/claude', async (req, res) => {
         res.status(502).json({ error: 'Claude proxy error: ' + err.message });
     }
 });
+
+// ─── SPA fallback (production only) ───────────────────────────────────────────
+// Any route not matched by an API handler returns index.html so client-side
+// routing works correctly on hard refresh or direct URL navigation.
+if (IS_PROD && fs.existsSync(DIST_DIR)) {
+    app.get('*', (_req, res) => {
+        res.sendFile(path.join(DIST_DIR, 'index.html'));
+    });
+}
 
 // ─── Start server & pre-warm browser ──────────────────────────────────────────
 
