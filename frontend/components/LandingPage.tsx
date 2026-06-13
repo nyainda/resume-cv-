@@ -795,92 +795,169 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               <span style={{ color: '#C9A84C' }}>A Better You on Paper.</span>
             </h1>
 
-            <p style={{ fontSize: 15, lineHeight: 1.7, color: muted, maxWidth: 420, margin: '0 0 24px' }}>
-              ProCV combines market intelligence with AI to generate CVs that pass ATS filters, match your target role, and get you to the interview stage.
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: muted, maxWidth: 440, margin: '0 0 20px' }}>
+              The only career platform with a 7-pass CV pipeline that writes, refines, and validates your documents so you sound like <strong style={{ color: text }}>YOU</strong>, not like everyone else.
             </p>
 
             {/* Benefit bullets */}
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', marginBottom: 8 }}>
               {[
-                'ATS-optimised for your exact job description',
-                '7-pass quality pipeline — no AI slop',
-                '35+ premium templates, one-click PDF download',
+                'No generic buzzwords',
+                'No fake achievements',
+                'No AI-sounding content',
               ].map((item) => (
-                <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, fontWeight: 500, color: text }}>
-                  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: text }}>
+                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   {item}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
+            <p style={{ fontSize: 13, color: muted, margin: '0 0 24px' }}>Just authentic, high-impact career documents that get results.</p>
 
             {/* CTAs */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
               <button onClick={onGetStarted}
-                style={{ padding: '14px 32px', fontSize: 15, fontWeight: 900, borderRadius: 12, background: Y, border: 'none', cursor: 'pointer', color: '#111', letterSpacing: '-0.01em', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.35)' }}
+                style={{ padding: '13px 28px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.35)' }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(235,255,56,0.5)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.35)'; }}>
-                {hasProfile ? 'Open Suite' : 'Build my CV — free'}
-                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                {hasProfile ? 'Open Suite' : 'Build My Profile – It\'s Free'}
+                <svg width={15} height={15} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
               </button>
-              {!hasProfile ? (
-                <button onClick={onSignIn || onGetStarted} style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
-                  Already have an account? Sign in
-                </button>
-              ) : (
-                <button onClick={onGetStarted} style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
-                  See all 14 tools
-                </button>
-              )}
               <button
                 onClick={() => { const el = document.getElementById('score-cv'); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-                style={{ padding: '14px 24px', fontSize: 14, fontWeight: 600, borderRadius: 12, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                ⚡ Score my CV
+                style={{ padding: '13px 22px', fontSize: 14, fontWeight: 600, borderRadius: 10, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                See How It Works
               </button>
             </div>
 
-            {/* Stats strip */}
-            <div style={{ display: 'flex', gap: 28, marginTop: 40, paddingTop: 32, borderTop: `1px solid ${border}` }}>
-              {[
-                { value: '35', label: 'CV templates' },
-                { value: '150+', label: 'job portals' },
-                { value: '14', label: 'career tools' },
-                { value: '94/100', label: 'avg ATS score' },
-              ].map(s => (
-                <div key={s.label}>
-                  <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em', color: text }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: faint, marginTop: 1 }}>{s.label}</div>
+            {/* Social proof */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex' }}>
+                {['#C40000','#FF9900','#1565C0','#0f9d58','#6d28d9'].map((c, i) => (
+                  <div key={i} style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: `2px solid ${surface}`, marginLeft: i > 0 ? -8 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: '#fff' }}>
+                    {['JO','KA','EK','ML','SR'][i]}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ display: 'flex', gap: 1 }}>
+                  {[...Array(5)].map((_, i) => <svg key={i} width={12} height={12} viewBox="0 0 12 12" fill="#f59e0b"><path d="M6 1l1.5 3 3.2.5-2.35 2.25.55 3.2L6 8.5l-2.9 1.45.55-3.2L1.3 4.5l3.2-.5z"/></svg>)}
                 </div>
-              ))}
+                <span style={{ fontSize: 12, color: muted }}>4.9/5 from 2,000+ professionals</span>
+              </div>
             </div>
           </div>
 
-          {/* Right: large CV template fan */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', minHeight: 380 }}>
-            {/* Back-left: Navy Sidebar */}
-            <div style={{ position: 'absolute', transform: 'rotate(-10deg) translate(-88px, 30px)', opacity: 0.65, zIndex: 1, transformOrigin: 'top center' }}>
-              <TemplateCard scale={0.48}><TemplateNavySidebar /></TemplateCard>
-            </div>
-            {/* Back-right: Modern Tech */}
-            <div style={{ position: 'absolute', transform: 'rotate(8deg) translate(88px, 24px)', opacity: 0.65, zIndex: 1, transformOrigin: 'top center' }}>
-              <TemplateCard scale={0.48}><TemplateModernTech /></TemplateCard>
-            </div>
-            {/* Front: Standard Pro — bigger and central */}
-            <div style={{ position: 'relative', zIndex: 2, transform: 'rotate(-1.5deg)', filter: 'drop-shadow(0 20px 48px rgba(0,0,0,0.22))' }}>
-              <TemplateCard scale={0.6} shadow={false}><TemplateStandardPro /></TemplateCard>
-
-              {/* ATS badge */}
-              <div style={{ position: 'absolute', bottom: -16, right: -22, background: surface, border: `1px solid ${border}`, borderRadius: 14, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.14)' }}>
-                <AtsGauge score={94} size={40} />
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 900, color: '#22c55e' }}>ATS Score</div>
-                  <div style={{ fontSize: 10, color: muted }}>Stripe · PM role</div>
-                </div>
+          {/* Right: App UI mockup */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+            <div style={{
+              width: '100%', maxWidth: 500,
+              background: surface, borderRadius: 16,
+              border: `1px solid ${border}`,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
+            }}>
+              {/* Browser chrome bar */}
+              <div style={{ background: elevated, borderBottom: `1px solid ${border}`, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
+                <div style={{ flex: 1, marginLeft: 8, background: darkMode ? '#222' : '#e8e4dc', borderRadius: 6, padding: '4px 10px', fontSize: 10, color: faint }}>procv.app/dashboard</div>
               </div>
-
-              {/* 14 tools badge */}
-              <div style={{ position: 'absolute', top: -16, left: -22, background: Y, borderRadius: 12, padding: '8px 14px', boxShadow: '0 6px 20px rgba(235,255,56,0.45)' }}>
-                <div style={{ fontSize: 13, fontWeight: 900, color: '#111', lineHeight: 1 }}>14 tools</div>
-                <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>one profile</div>
+              {/* App layout */}
+              <div style={{ display: 'flex', minHeight: 360 }}>
+                {/* Sidebar nav */}
+                <div style={{ width: 110, borderRight: `1px solid ${border}`, padding: '16px 0', background: darkMode ? '#111' : '#fafaf7', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px 14px', marginBottom: 4 }}>
+                    <div style={{ width: 20, height: 20, background: Y, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: '#111' }}>CV</div>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: text }}>ProCV</span>
+                  </div>
+                  {[
+                    { icon: '👤', label: 'Profile', active: true },
+                    { icon: '📄', label: 'CV Builder', active: false },
+                    { icon: '🎓', label: 'Scholarships', active: false },
+                    { icon: '🎯', label: 'Tracking', active: false },
+                    { icon: '📊', label: 'Analytics', active: false },
+                  ].map(item => (
+                    <div key={item.label} style={{
+                      padding: '7px 12px', fontSize: 10, fontWeight: item.active ? 700 : 500,
+                      color: item.active ? text : faint,
+                      background: item.active ? (darkMode ? 'rgba(255,255,255,0.08)' : elevated) : 'transparent',
+                      borderLeft: `2px solid ${item.active ? Y : 'transparent'}`,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      <span style={{ fontSize: 11 }}>{item.icon}</span> {item.label}
+                    </div>
+                  ))}
+                </div>
+                {/* Main content */}
+                <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Profile strength + AI detection row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {/* Profile gauge */}
+                    <div style={{ background: elevated, borderRadius: 10, padding: 12, border: `1px solid ${border}` }}>
+                      <div style={{ fontSize: 10, fontWeight: 900, color: muted, marginBottom: 10 }}>Your Profile</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {/* Mini donut chart */}
+                        <svg width={52} height={52} viewBox="0 0 52 52">
+                          <circle cx="26" cy="26" r="20" fill="none" stroke={darkMode ? '#2a2a2a' : '#e5e7eb'} strokeWidth="5"/>
+                          <circle cx="26" cy="26" r="20" fill="none" stroke="#22c55e" strokeWidth="5"
+                            strokeDasharray={`${2*Math.PI*20*0.92} ${2*Math.PI*20}`}
+                            strokeLinecap="round" transform="rotate(-90 26 26)"/>
+                          <text x="26" y="30" textAnchor="middle" fontSize="12" fontWeight="900" fill={text}>92%</text>
+                        </svg>
+                        <div>
+                          <div style={{ fontSize: 9, color: muted }}>Profile Strength</div>
+                          <div style={{ fontSize: 11, fontWeight: 900, color: '#22c55e' }}>Excellent</div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* AI detection */}
+                    <div style={{ background: elevated, borderRadius: 10, padding: 12, border: `1px solid ${border}` }}>
+                      <div style={{ fontSize: 10, fontWeight: 900, color: muted, marginBottom: 8 }}>AI Detection</div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#dcfce7', color: '#166534', fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 9 }}>✓</span> Human-like
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: text, lineHeight: 1 }}>98%</div>
+                      <div style={{ fontSize: 9, color: muted }}>Undetectable</div>
+                    </div>
+                  </div>
+                  {/* 7-pass pipeline */}
+                  <div style={{ background: elevated, borderRadius: 10, padding: '10px 12px', border: `1px solid ${border}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 900, color: muted, marginBottom: 8 }}>7-Pass CV Pipeline</div>
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
+                      {['Brief','Generate','Purify','Validate','Detect','Refine','Finalize'].map((step, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 1 }}>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: '50%',
+                            background: i < 6 ? '#22c55e' : Y,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 9, color: i < 6 ? '#fff' : '#111', fontWeight: 900,
+                          }}>
+                            {i < 6 ? '✓' : '★'}
+                          </div>
+                          <div style={{ fontSize: 7, color: faint, textAlign: 'center', lineHeight: 1.2 }}>{i+1}.{step}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Output cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                    {[
+                      { label: 'CV / Resume', tag: 'Tailored', color: '#3b82f6' },
+                      { label: 'Scholarship Essay', tag: 'Compelling', color: '#8b5cf6' },
+                      { label: 'Career Analysis', tag: 'Insightful', color: '#f59e0b' },
+                    ].map((c, i) => (
+                      <div key={i} style={{ background: surface, borderRadius: 8, padding: '8px', border: `1px solid ${border}`, textAlign: 'center' }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 6, background: c.color + '22', border: `1px solid ${c.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 5px', fontSize: 10 }}>
+                          {['📄','📝','📊'][i]}
+                        </div>
+                        <div style={{ fontSize: 8, fontWeight: 700, color: text, lineHeight: 1.2 }}>{c.label}</div>
+                        <div style={{ fontSize: 8, color: c.color, fontWeight: 700, marginTop: 2 }}>{c.tag}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -902,36 +979,63 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </section>
 
-      {/* ── We Fix What Other CV Builders Get Wrong ──────────────────── */}
+      {/* ── Solve the Real Problems Others Ignore ────────────────────── */}
       <section style={{ padding: '72px 24px', borderBottom: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 48px' }}>
-            <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 10 }}>
-              Why ProCV
-            </p>
-            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
-              We Fix What Other CV Builders Get Wrong
+          <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 48px' }}>
+            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
+              Solve the <span style={{ color: '#C9A84C' }}>Real Problems</span> Others Ignore
             </h2>
             <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0 }}>
-              Most tools generate generic text. ProCV engineers your CV from market data down.
+              We built ProCV after reading thousands of reviews and talking to recruiters. Here's what professionals hate about other tools — and how we fix it.
             </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14 }}>
             {[
-              { icon: '🎯', title: 'ATS Bypass', desc: 'Others generate filler text. ProCV maps your experience to exact JD keywords — before writing a single bullet.' },
-              { icon: '📊', title: 'Market Intelligence', desc: 'Others guess what roles want. ProCV researches your target market first, then generates.' },
-              { icon: '🗣️', title: 'Human Voice', desc: 'Others sound like AI. ProCV runs a full humanization pass on every section to strip AI-isms.' },
-              { icon: '#', title: 'Number Accuracy', desc: 'Others invent metrics. ProCV preserves your real numbers — no hallucinations, no rounding.' },
-              { icon: '📄', title: 'WYSIWYG PDF', desc: 'Others give you a broken export. ProCV renders exactly what you see on screen, every time.' },
+              {
+                icon: '💬', title: 'Too Generic',
+                quote: '"Every resume sounds the same."',
+                bad: 'Generic phrases', good: 'Unique voice & variance',
+              },
+              {
+                icon: '📈', title: 'AI Exaggerates',
+                quote: '"It invents achievements I never did."',
+                bad: 'Fake metrics', good: 'Number fidelity & validation',
+              },
+              {
+                icon: '🤖', title: 'Obvious AI Writing',
+                quote: '"Recruiters can tell it\'s AI."',
+                bad: 'Robotic tone', good: 'Human-like, natural language',
+              },
+              {
+                icon: '📊', title: 'ATS Scores Mislead',
+                quote: '"High score, same bad results."',
+                bad: 'Fake scores', good: 'Real optimization & relevance',
+              },
+              {
+                icon: '🎨', title: 'All Templates, No Substance',
+                quote: '"Looks good, content is weak."',
+                bad: 'Design over content', good: 'Content that gets interviews',
+              },
             ].map((card, i) => (
               <div key={i} onClick={onGetStarted}
-                style={{ background: surface, padding: '28px 24px', borderRadius: 14, border: `1px solid ${border}`, cursor: 'pointer', position: 'relative', overflow: 'hidden', transition: 'box-shadow 0.2s, transform 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                style={{ background: surface, padding: '22px 18px', borderRadius: 14, border: `1px solid ${border}`, cursor: 'pointer', transition: 'box-shadow 0.2s, transform 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#1B2B4B', borderRadius: '14px 14px 0 0' }} />
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 16 }}>{card.icon}</div>
-                <h3 style={{ fontSize: 16, fontWeight: 900, margin: '0 0 8px', color: text }}>{card.title}</h3>
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: 0 }}>{card.desc}</p>
+                {/* Icon circle */}
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#1B2B4B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, marginBottom: 12 }}>{card.icon}</div>
+                <h3 style={{ fontSize: 15, fontWeight: 900, margin: '0 0 6px', color: text }}>{card.title}</h3>
+                <p style={{ fontSize: 12, color: muted, fontStyle: 'italic', margin: '0 0 14px', lineHeight: 1.5 }}>{card.quote}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                    <span style={{ color: '#ef4444', fontWeight: 700, flexShrink: 0 }}>✕</span>
+                    <span style={{ color: muted, textDecoration: 'line-through' }}>{card.bad}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12 }}>
+                    <span style={{ color: '#22c55e', fontWeight: 700, flexShrink: 0 }}>✓</span>
+                    <span style={{ color: text, fontWeight: 600 }}>{card.good}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -1538,29 +1642,54 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </section>
 
-      {/* ── Privacy CTA ──────────────────────────────────────────────── */}
-      <section style={{ background: '#1B2B4B', padding: '72px 24px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#fff', margin: '0 0 16px' }}>
-            Your data stays yours. Always.
-          </h2>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, margin: '0 0 32px' }}>
-            We never sell your data, never train models on your profile, and never store more than you ask us to.
-          </p>
-          <button onClick={onGetStarted}
-            style={{ padding: '14px 32px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: '#C9A84C', color: '#1B2B4B', border: 'none', cursor: 'pointer', marginBottom: 36, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 24px rgba(201,168,76,0.35)' }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(201,168,76,0.5)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(201,168,76,0.35)'; }}>
-            Get Started Free — No Credit Card Needed →
-          </button>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 36px' }}>
+      {/* ── One Profile. Unlimited Possibilities. ────────────────────── */}
+      <section style={{ padding: '72px 24px', borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 48px' }}>
+            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
+              One Profile. <span style={{ color: '#C9A84C' }}>Unlimited Possibilities.</span>
+            </h2>
+            <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0 }}>
+              Your career data powers everything. Keep it updated once, and generate anything you need.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16 }}>
             {[
-              { icon: '🔒', label: 'End-to-end encrypted' },
-              { icon: '🙈', label: 'Zero data selling' },
-              { icon: '🗑️', label: 'Delete anytime' },
-            ].map(p => (
-              <div key={p.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                <span style={{ color: '#C9A84C' }}>{p.icon}</span>{p.label}
+              {
+                icon: '📄', color: '#3b82f6',
+                title: 'Smart CV / Resume',
+                desc: 'Tailored, ATS-friendly, and impactful resumes for any role.',
+                cta: 'Build My CV →',
+              },
+              {
+                icon: '🎓', color: '#8b5cf6',
+                title: 'Scholarship Essays',
+                desc: 'Compelling, authentic essays that tell your real story.',
+                cta: 'Write My Essay →',
+              },
+              {
+                icon: '📊', color: '#f59e0b',
+                title: 'Career Analysis',
+                desc: 'Get insights, gaps, and recommendations to grow.',
+                cta: 'Analyze My Profile →',
+              },
+              {
+                icon: '🎯', color: '#22c55e',
+                title: 'Application Tracking',
+                desc: 'Track applications, follow-ups, and success metrics.',
+                cta: 'Track My Applications →',
+              },
+            ].map((card, i) => (
+              <div key={i}
+                style={{ background: surface, borderRadius: 14, border: `1px solid ${border}`, padding: '28px 22px', display: 'flex', flexDirection: 'column', gap: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: card.color + '1a', border: `1px solid ${card.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 16 }}>{card.icon}</div>
+                <h3 style={{ fontSize: 16, fontWeight: 900, margin: '0 0 8px', color: text }}>{card.title}</h3>
+                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: '0 0 20px', flex: 1 }}>{card.desc}</p>
+                <button onClick={onGetStarted} style={{ fontSize: 13, fontWeight: 700, color: card.color, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {card.cta}
+                </button>
               </div>
             ))}
           </div>
@@ -1571,26 +1700,51 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       <section
         ref={reg('cta')} data-s="cta"
         style={{
-          padding: '88px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden',
+          padding: '80px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden',
+          borderTop: `1px solid ${border}`,
           opacity: v('cta') ? 1 : 0, transform: v('cta') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
-        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 70% 60% at 50% 110%, ${Y}20 0%, transparent 70%)`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 70% 60% at 50% 110%, ${Y}18 0%, transparent 70%)`, pointerEvents: 'none' }} />
         <div style={{ maxWidth: 560, margin: '0 auto', position: 'relative' }}>
-          <div style={{ display: 'inline-block', background: '#111', color: Y, fontSize: 10, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', padding: '4px 10px', marginBottom: 22 }}>Ready when you are</div>
-          <h2 style={{ fontSize: 'clamp(2.2rem,5.5vw,3.6rem)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.05, margin: '0 0 16px' }}>The job doesn't wait.<br />Neither should you.</h2>
-          <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 32px' }}>Fill your profile once. All 14 tools are ready immediately. No tutorial, no credit card, no signup.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <button onClick={onGetStarted} style={{ padding: '14px 36px', fontSize: 15, fontWeight: 900, borderRadius: 12, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.03)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
-              {hasProfile ? 'Go to Suite' : 'Build my CV — free'}
-              <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          <h2 style={{ fontSize: 'clamp(2rem,5vw,3.2rem)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.08, margin: '0 0 14px' }}>
+            The job doesn't wait.<br />Neither should you.
+          </h2>
+          <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 28px' }}>
+            Fill your profile once. All 14 tools are ready immediately. No tutorial, no credit card, no signup.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <button onClick={onGetStarted}
+              style={{ padding: '14px 36px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.3)' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(235,255,56,0.5)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.3)'; }}>
+              {hasProfile ? 'Go to Suite' : 'Get Started Free →'}
             </button>
             <span style={{ fontSize: 12, color: faint }}>No signup · No credit card · No cloud</span>
           </div>
         </div>
       </section>
+
+      {/* ── Privacy slim banner ───────────────────────────────────────── */}
+      <div style={{ background: '#1B2B4B', padding: '18px 24px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width={18} height={18} fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.8)" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#fff', lineHeight: 1.3 }}>Your data is private and secure.</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>We never sell your data. Ever.</div>
+            </div>
+          </div>
+          <button onClick={onGetStarted}
+            style={{ padding: '10px 24px', fontSize: 14, fontWeight: 900, borderRadius: 8, background: '#6d28d9', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#5b21b6')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#6d28d9')}>
+            Get Started Free →
+          </button>
+        </div>
+      </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <footer style={{ borderTop: `1px solid ${border}`, background: '#1B2B4B', padding: '48px 24px 28px' }}>
