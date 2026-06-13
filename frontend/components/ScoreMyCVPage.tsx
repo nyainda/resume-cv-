@@ -298,14 +298,16 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   // ── Empty state ──────────────────────────────────────────────────────────
   if (!currentCV || (!currentCV.summary && (currentCV.experience ?? []).length === 0)) {
     return (
-      <div
-        className="rounded-2xl border border-zinc-200 dark:border-neutral-700 p-10 text-center"
-        style={{ background: CREAM }}
-      >
+      <div className="rounded-2xl border border-zinc-200 dark:border-neutral-800 p-10 text-center bg-[#F8F7F4] dark:bg-neutral-900">
         <div className="text-5xl mb-4">📋</div>
-        <h2 className="text-xl font-bold text-zinc-800 mb-2">No CV loaded yet</h2>
-        <p className="text-zinc-500 mb-6 max-w-sm mx-auto">Generate or load a CV first, then come back here to score it.</p>
-        <button onClick={onGoToGenerator} className="px-5 py-2.5 rounded-xl text-white font-semibold text-sm" style={{ background: NAV }}>
+        <h2 className="text-xl font-black text-zinc-800 dark:text-zinc-100 mb-2"
+            style={{ fontFamily: "'Playfair Display', serif" }}>
+          No CV loaded yet
+        </h2>
+        <p className="text-zinc-500 dark:text-zinc-400 mb-6 max-w-sm mx-auto text-sm">
+          Generate or load a CV first, then come back here to score it.
+        </p>
+        <button onClick={onGoToGenerator} className="px-5 py-2.5 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-opacity" style={{ background: NAV }}>
           Go to CV Generator →
         </button>
       </div>
@@ -355,10 +357,12 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
+            <h1 className="text-xl font-black text-zinc-800 dark:text-zinc-100 flex items-center gap-2"
+                style={{ fontFamily: "'Playfair Display', serif" }}>
               CV Score Report
               {results.cfEnriched && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border"
+                      style={{ background: GOLD + '18', borderColor: GOLD + '40', color: '#92400e' }}>
                   ⚡ Live data
                 </span>
               )}
@@ -368,10 +372,10 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
             </p>
           </div>
           <div className="flex gap-2">
-            <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors">
+            <button onClick={reset} className="px-3 py-1.5 rounded-xl text-sm border border-zinc-200 dark:border-neutral-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors font-medium">
               ↺ Re-score
             </button>
-            <button onClick={onGoToGenerator} className="px-4 py-1.5 rounded-lg text-sm font-bold text-white" style={{ background: NAV }}>
+            <button onClick={onGoToGenerator} className="px-4 py-1.5 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-opacity" style={{ background: NAV }}>
               Fix My CV →
             </button>
           </div>
@@ -476,28 +480,32 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   return (
     <div className="space-y-5">
       {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center gap-4">
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm"
+             style={{ background: NAV }}>
+          📊
+        </div>
         <div>
-          <h1 className="text-2xl font-black flex items-center gap-2.5" style={{ color: NAV }}>
-            <span>📊</span>
-            <span className="dark:text-white">Score My CV</span>
+          <h1 className="text-2xl font-black text-zinc-900 dark:text-zinc-50 leading-tight"
+              style={{ fontFamily: "'Playfair Display', serif" }}>
+            Score My CV
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Instant 4-dimension analysis.{' '}
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             {cfStatus === 'live'
-              ? <span className="text-blue-600 dark:text-blue-400 font-medium">⚡ Live banned-phrase data loaded from engine.</span>
+              ? <span>Instant 4-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
               : cfStatus === 'offline'
-              ? <span className="text-zinc-400">Using built-in lists (engine offline).</span>
-              : <span className="text-zinc-400">Loading engine data…</span>
+              ? 'Instant 4-dimension analysis · Using built-in lists'
+              : 'Instant 4-dimension analysis · Loading engine data…'
             }
           </p>
         </div>
       </div>
 
       {/* CV card */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: NAV + '15' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+               style={{ background: NAV + '15' }}>
             📄
           </div>
           <div className="flex-1 min-w-0">
@@ -506,7 +514,9 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
               {(currentCV.experience ?? []).length} role{(currentCV.experience ?? []).length !== 1 ? 's' : ''} · {bulletCount} bullets · {(currentCV.skills ?? []).length} skills
             </p>
           </div>
-          <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ background: '#dcfce7', color: '#166534' }}>Ready</span>
+          <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40">
+            Ready
+          </span>
         </div>
       </div>
 
@@ -518,7 +528,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           { icon: '📈', label: 'Career Logic',   desc: 'Seniority coherence' },
           { icon: '🔍', label: 'ATS Match',      desc: 'JD keyword gap (optional)' },
         ].map(({ icon, label, desc }) => (
-          <div key={label} className="rounded-xl border border-zinc-100 dark:border-neutral-700 p-3 text-center" style={{ background: CREAM }}>
+          <div key={label} className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-3 text-center bg-[#F8F7F4] dark:bg-neutral-900">
             <div className="text-2xl mb-1">{icon}</div>
             <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{label}</p>
             <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 leading-snug">{desc}</p>
