@@ -89,6 +89,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
     const [questions, setQuestions]               = useState<Array<{ question: string; answer: string; category: string }>>([]);
     const [revealedAnswers, setRevealedAnswers]   = useState<Set<number>>(new Set());
     const [starOpen, setStarOpen]                 = useState<Set<number>>(new Set());
+    const [ratings, setRatings]                   = useState<Map<number, number>>(new Map());
     const [activeFilter, setActiveFilter]         = useState<string>('All');
     const [loadingMsg, setLoadingMsg]             = useState('Generating...');
 
@@ -112,7 +113,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
         if (!apiKeySet) { openSettings(); return; }
         if (!jobDescription.trim()) { setError('Please paste a job description to generate tailored questions.'); return; }
         setIsGenerating(true); setError(null); setQuestions([]); setRevealedAnswers(new Set());
-        setStarOpen(new Set()); setActiveFilter('All'); setThankYouLetter(null);
+        setStarOpen(new Set()); setRatings(new Map()); setActiveFilter('All'); setThankYouLetter(null);
         let phaseIdx = 0; setLoadingMsg(phases[0]);
         const interval = setInterval(() => { phaseIdx = Math.min(phaseIdx + 1, phases.length - 1); setLoadingMsg(phases[phaseIdx]); }, 2500);
         try {
@@ -123,10 +124,25 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
         } finally { clearInterval(interval); setIsGenerating(false); }
     }, [userProfile, jobDescription, companyName, apiKeySet, openSettings]);
 
-    const toggleAnswer = (idx: number) => setRevealedAnswers(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
-    const toggleStar   = (idx: number) => setStarOpen(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+    const toggleAnswer  = (idx: number) => setRevealedAnswers(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+    const toggleStar    = (idx: number) => setStarOpen(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+    const rateQuestion  = (idx: number, score: number) => setRatings(prev => { const m = new Map(prev); m.set(idx, score); return m; });
     const revealAll = () => setRevealedAnswers(new Set(questions.map((_, i) => i)));
     const hideAll   = () => setRevealedAnswers(new Set());
+
+    // Derived rating data
+    const ratingScale = [
+        { score: 1, emoji: '😬', label: 'Struggled' },
+        { score: 2, emoji: '😐', label: 'Unsure' },
+        { score: 3, emoji: '🙂', label: 'OK' },
+        { score: 4, emoji: '😊', label: 'Good' },
+        { score: 5, emoji: '🔥', label: 'Nailed it' },
+    ];
+    const ratedCount    = ratings.size;
+    const needsPractice = questions.filter((_, i) => (ratings.get(i) ?? 0) <= 2 && ratings.has(i));
+    const confident     = questions.filter((_, i) => (ratings.get(i) ?? 0) >= 4 && ratings.has(i));
+    const avgRating     = ratedCount > 0 ? Array.from(ratings.values()).reduce((a, b) => a + b, 0) / ratedCount : 0;
+    const readinessPct  = ratedCount > 0 ? Math.round((avgRating / 5) * 100) : 0;
 
     const categories = ['All', ...Array.from(new Set(questions.map(q => q.category)))];
     const filtered   = activeFilter === 'All' ? questions : questions.filter(q => q.category === activeFilter);
@@ -343,26 +359,65 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                                         })()}
 
                                         {isRevealed ? (
-                                            <div className="rounded-xl border p-4"
-                                                 style={{ background: NAV + '08', borderColor: NAV + '25' }}>
-                                                <div className="flex items-center justify-between mb-2.5">
-                                                    <span className="text-xs font-black uppercase tracking-wider"
-                                                          style={{ color: NAV }}>
-                                                        Model Answer
-                                                    </span>
-                                                    <div className="flex items-center gap-2">
+                                            <div className="space-y-2.5">
+                                                {/* Model answer box */}
+                                                <div className="rounded-xl border p-4"
+                                                     style={{ background: NAV + '08', borderColor: NAV + '25' }}>
+                                                    <div className="flex items-center justify-between mb-2.5">
+                                                        <span className="text-xs font-black uppercase tracking-wider"
+                                                              style={{ color: NAV }}>
+                                                            Model Answer
+                                                        </span>
                                                         <CopyButton text={q.answer} />
                                                     </div>
+                                                    <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">
+                                                        {q.answer}
+                                                    </p>
+                                                    <button
+                                                        onClick={() => toggleAnswer(globalIdx)}
+                                                        className="mt-3 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                                                    >
+                                                        Hide answer ↑
+                                                    </button>
                                                 </div>
-                                                <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">
-                                                    {q.answer}
-                                                </p>
-                                                <button
-                                                    onClick={() => toggleAnswer(globalIdx)}
-                                                    className="mt-3 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                                                >
-                                                    Hide answer ↑
-                                                </button>
+
+                                                {/* Self-rating widget */}
+                                                <div className="rounded-xl border border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-800/40 px-4 py-3">
+                                                    <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-2.5 uppercase tracking-wide">
+                                                        How did you do?
+                                                    </p>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        {ratingScale.map(r => {
+                                                            const isSelected = ratings.get(globalIdx) === r.score;
+                                                            return (
+                                                                <button
+                                                                    key={r.score}
+                                                                    onClick={() => rateQuestion(globalIdx, r.score)}
+                                                                    title={r.label}
+                                                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                                                                        isSelected
+                                                                            ? 'border-transparent text-white scale-105 shadow-sm'
+                                                                            : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-neutral-600'
+                                                                    }`}
+                                                                    style={isSelected ? {
+                                                                        background: r.score <= 2 ? '#dc2626' : r.score === 3 ? '#d97706' : NAV,
+                                                                    } : {}}
+                                                                >
+                                                                    <span className="text-base leading-none">{r.emoji}</span>
+                                                                    <span className="hidden sm:inline">{r.label}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        {ratings.has(globalIdx) && (
+                                                            <button
+                                                                onClick={() => rateQuestion(globalIdx, 0)}
+                                                                className="text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 ml-1 transition-colors"
+                                                            >
+                                                                clear
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : (
                                             <button
@@ -380,6 +435,107 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                             );
                         })}
                     </div>
+
+                    {/* ── Practice Summary ─────────────────────────── */}
+                    {ratedCount > 0 && (
+                        <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                            {/* Header */}
+                            <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800"
+                                 style={{ background: NAV + '08' }}>
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                    <div>
+                                        <h3 className="text-sm font-black text-zinc-800 dark:text-zinc-100"
+                                            style={{ fontFamily: "'Playfair Display', serif" }}>
+                                            Practice Summary
+                                        </h3>
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                            {ratedCount} of {questions.length} questions self-assessed
+                                        </p>
+                                    </div>
+                                    {/* Readiness gauge */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                            <p className="text-xs text-zinc-400 dark:text-zinc-500">Readiness</p>
+                                            <p className="text-xl font-black leading-none"
+                                               style={{ color: readinessPct >= 70 ? '#059669' : readinessPct >= 45 ? '#d97706' : '#dc2626' }}>
+                                                {readinessPct}%
+                                            </p>
+                                        </div>
+                                        <svg className="w-12 h-12 -rotate-90 flex-shrink-0" viewBox="0 0 48 48">
+                                            <circle cx="24" cy="24" r="18" fill="none" stroke="#e5e7eb" strokeWidth="5" className="dark:stroke-neutral-700"/>
+                                            <circle cx="24" cy="24" r="18" fill="none"
+                                                stroke={readinessPct >= 70 ? '#059669' : readinessPct >= 45 ? '#d97706' : '#dc2626'}
+                                                strokeWidth="5"
+                                                strokeDasharray={`${(readinessPct / 100) * 2 * Math.PI * 18} ${2 * Math.PI * 18}`}
+                                                strokeLinecap="round"
+                                                className="transition-all duration-700"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                {/* Progress bar */}
+                                <div className="mt-3 w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-1.5">
+                                    <div className="h-1.5 rounded-full transition-all duration-500"
+                                         style={{ width: `${(ratedCount / questions.length) * 100}%`, background: NAV }}/>
+                                </div>
+                            </div>
+
+                            {/* Score breakdown row */}
+                            <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-neutral-800">
+                                {[
+                                    { label: 'Need Practice', count: needsPractice.length, color: '#dc2626', emoji: '📌' },
+                                    { label: 'Getting There', count: ratedCount - needsPractice.length - confident.length, color: '#d97706', emoji: '📈' },
+                                    { label: 'Confident', count: confident.length, color: '#059669', emoji: '✅' },
+                                ].map(row => (
+                                    <div key={row.label} className="py-3 px-4 text-center">
+                                        <div className="text-lg font-black" style={{ color: row.color }}>{row.count}</div>
+                                        <div className="text-[11px] text-zinc-400 dark:text-zinc-500 font-medium leading-tight mt-0.5">{row.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Questions needing practice */}
+                            {needsPractice.length > 0 && (
+                                <div className="border-t border-zinc-100 dark:border-neutral-800 px-5 py-4">
+                                    <p className="text-xs font-black uppercase tracking-wider text-red-500 mb-2.5">
+                                        📌 Focus on these
+                                    </p>
+                                    <div className="space-y-2">
+                                        {needsPractice.map(q => {
+                                            const qi = questions.indexOf(q);
+                                            const r = ratingScale.find(rs => rs.score === ratings.get(qi));
+                                            return (
+                                                <div key={qi} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30">
+                                                    <span className="text-base flex-shrink-0 mt-0.5">{r?.emoji ?? '😬'}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="text-[10px] font-bold text-red-400 uppercase">Q{qi + 1} · {q.category}</span>
+                                                        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-snug mt-0.5 line-clamp-2">
+                                                            "{q.question}"
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => { toggleAnswer(qi); setStarOpen(prev => { const n = new Set(prev); n.delete(qi); return n; }); }}
+                                                        className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors text-white"
+                                                        style={{ background: NAV }}
+                                                    >
+                                                        Review
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* All done message */}
+                            {ratedCount === questions.length && needsPractice.length === 0 && (
+                                <div className="border-t border-zinc-100 dark:border-neutral-800 px-5 py-4 text-center">
+                                    <p className="text-2xl mb-1">🎉</p>
+                                    <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">You're interview-ready!</p>
+                                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">You rated yourself 3+ on every question. Go get that job.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Regenerate link */}
                     <div className="text-center">
