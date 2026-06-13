@@ -10,12 +10,13 @@ import {
 import {
   generateProfile,
   generateProfileFromFileWithGemini,
-  generateProfileFromTextWithGemini,
+  generateProfileFromFileClaude,
   generateEnhancedSummary,
   generateEnhancedResponsibilities,
   generateEnhancedProjectDescription,
 } from '../services/geminiService';
 import { getSelectedProvider } from '../services/groqService';
+import { workerVisionExtract } from '../services/cvEngineClient';
 import QuantifyPanel from './QuantifyPanel';
 import WordImportPanel from './WordImportPanel';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -360,38 +361,25 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
       const activeProvider = getSelectedProvider();
 
+      // ── Strict provider routing — selected provider handles EVERYTHING, no fallbacks ──
       if (uploadedFile) {
-        // File path: Gemini vision handles all file types (PDF, image, Word)
-        // regardless of selected text provider — vision extraction is a separate step
         const { base64, mimeType } = await fileToBase64(uploadedFile);
-        profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
-      } else {
-        // Text / GitHub path: route through the user's selected provider
-        if (activeProvider === 'gemini') {
-          // Gemini selected — use Gemini text path directly
-          profile = await generateProfileFromTextWithGemini(rawText, githubUrl || undefined);
+        if (activeProvider === 'claude') {
+          profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
+        } else if (activeProvider === 'gemini') {
+          profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
         } else {
-          // Workers AI or Claude — use generateProfile which respects getSelectedProvider()
-          try {
-            profile = await generateProfile(rawText, githubUrl || undefined);
-          } catch (providerErr) {
-            const msg = providerErr instanceof Error ? providerErr.message : '';
-            // Only fall back to Gemini text path for transient failures (quota/rate-limit/overload),
-            // NOT for auth errors — those should surface directly to the user.
-            const isTransient =
-              msg.toLowerCase().includes('rate limit') ||
-              msg.toLowerCase().includes('daily') ||
-              msg.toLowerCase().includes('quota') ||
-              msg.toLowerCase().includes('overload') ||
-              msg.toLowerCase().includes('503') ||
-              msg.toLowerCase().includes('502');
-            if (isTransient && activeProvider !== 'claude') {
-              profile = await generateProfileFromTextWithGemini(rawText, githubUrl || undefined);
-            } else {
-              throw providerErr;
-            }
+          // Workers AI: vision is image-only, not PDFs
+          if (!/^image\//i.test(mimeType)) {
+            throw new Error('Workers AI does not support PDF or Word file imports. Please paste your CV text in the text box instead, or switch to Claude or Gemini in Settings for file upload.');
           }
+          const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
+          if (!extracted || extracted.trim().length < 50) throw new Error('Workers AI could not extract text from the image. Please paste your CV text in the text box instead.');
+          profile = await generateProfile(extracted, githubUrl || undefined);
         }
+      } else {
+        // Text / GitHub path — generateProfile routes through selected provider internally
+        profile = await generateProfile(rawText, githubUrl || undefined);
       }
 
       reset(profile);

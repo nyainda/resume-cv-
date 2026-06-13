@@ -3562,38 +3562,29 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
     }
 }
 
-// --- Multimodal: Extract text from PDF/image using Claude (primary) → Gemini (fallback) ---
+// --- Multimodal: Extract text from PDF/image — routes strictly through selected provider ---
 export const extractProfileTextFromFile = async (base64Data: string, mimeType: string): Promise<string> => {
     const prompt = "This file is a resume, CV, or professional profile. Extract ALL text content from it. Return only the raw, complete text, preserving original line breaks and structure as much as possible. DO NOT add any commentary, summaries, or markdown formatting.";
 
-    // ── Step 1: CF Vision for images (fastest, free) ─────────────────────────
-    if (/^image\//i.test(mimeType)) {
-        try {
-            const cf = await workerVisionExtract(base64Data, mimeType, prompt, { maxTokens: 4096 });
-            if (cf && cf.trim().length > 50) {
-                console.log('[CV Import] Image text extracted via Cloudflare Workers AI Vision.');
-                return cf;
-            }
-        } catch (cfErr) {
-            console.warn('[CV Import] CF Vision failed, trying Claude / Gemini:', cfErr);
-        }
+    // ── Route strictly by selected provider — no cross-provider fallbacks ─────
+    const provider = getSelectedProvider();
+
+    if (provider === 'workers-ai') {
+        if (!/^image\//i.test(mimeType)) throw new Error('Workers AI does not support PDF extraction. Please paste your CV text or switch to Claude/Gemini in Settings.');
+        const text = await workerVisionExtract(base64Data, mimeType, prompt, { maxTokens: 4096 });
+        if (!text || text.trim().length < 20) throw new Error('Workers AI could not extract text from this image. Please paste your CV text instead.');
+        return text;
     }
 
-    // ── Step 2: Claude (supports both images and PDFs, 200 K context) ────────
-    const claudeKey = getClaudeApiKey();
-    if (claudeKey) {
-        try {
-            const text = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 4096 });
-            if (text && text.trim().length > 50) {
-                console.log('[CV Import] File text extracted via Claude.');
-                return text;
-            }
-        } catch (claudeErr) {
-            console.warn('[CV Import] Claude extraction failed, falling back to Gemini:', claudeErr);
-        }
+    if (provider === 'claude') {
+        const claudeKey = getClaudeApiKey();
+        if (!claudeKey) throw new Error('Claude API key is not set. Please add it in Settings.');
+        const text = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 4096 });
+        if (!text || text.trim().length < 20) throw new Error('Claude returned an empty response. Please try again.');
+        return text;
     }
 
-    // ── Step 3: Gemini 2.5 Flash (last resort) ────────────────────────────────
+    // Gemini
     const ai = getGeminiClient();
     const filePart = { inlineData: { data: base64Data, mimeType } };
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
@@ -3601,7 +3592,8 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
         contents: { parts: [filePart, { text: prompt }] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
-    return response.text || "";
+    if (!response.text || response.text.trim().length < 20) throw new Error('Gemini returned an empty response. Please try again.');
+    return response.text;
 };
 
 /**
@@ -3638,28 +3630,7 @@ export const generateProfileFromFileWithGemini = async (
         ${USER_PROFILE_SCHEMA}
     `;
 
-    // ── Claude first (primary: 200 K context, handles images + PDFs natively) ─
-    const claudeKey = getClaudeApiKey();
-    if (claudeKey) {
-        try {
-            const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 8192, temperature: 0.1 });
-            if (raw && raw.trim().length > 20) {
-                const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
-                const profileData: UserProfile = JSON.parse(cleaned);
-                profileData.projects       = profileData.projects       || [];
-                profileData.education      = profileData.education      || [];
-                profileData.workExperience = profileData.workExperience || [];
-                profileData.languages      = profileData.languages      || [];
-                profileData.customSections = normaliseCustomSections(profileData.customSections || []);
-                console.log('[CV Import] Profile structured from file via Claude.');
-                return profileData;
-            }
-        } catch (claudeErr) {
-            console.warn('[CV Import] Claude file→profile failed, falling back to Gemini:', claudeErr);
-        }
-    }
-
-    // ── Gemini 2.5 Flash (fallback) ───────────────────────────────────────────
+    // ── Gemini 2.5 Flash — selected provider is Gemini, use only Gemini ─────────
     const ai = getGeminiClient();
     const filePart = { inlineData: { data: base64Data, mimeType } };
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
@@ -3669,6 +3640,55 @@ export const generateProfileFromFileWithGemini = async (
     }));
 
     const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(response.text || ''));
+    profileData.projects       = profileData.projects       || [];
+    profileData.education      = profileData.education      || [];
+    profileData.workExperience = profileData.workExperience || [];
+    profileData.languages      = profileData.languages      || [];
+    profileData.customSections = normaliseCustomSections(profileData.customSections || []);
+    return profileData;
+};
+
+/**
+ * Parse a UserProfile from a file (PDF/image) using Claude ONLY.
+ * No fallback to any other provider.
+ */
+export const generateProfileFromFileClaude = async (
+    base64Data: string,
+    mimeType: string,
+    githubUrl?: string
+): Promise<UserProfile> => {
+    const claudeKey = getClaudeApiKey();
+    if (!claudeKey) throw new Error('Claude API key is not set. Please add your Claude API key in Settings.');
+
+    const githubInstruction = githubUrl ? `
+        **GitHub Deep Analysis (CRITICAL)**: The user has also provided a GitHub profile: ${githubUrl}. Analyse the public data available (repositories, languages, commit history) to enrich the profile.
+        - Populate the 'projects' array with the top 5 most impressive public repositories.
+        - Add ALL key programming languages, frameworks, and tools to the 'skills' list.
+        - Infer missing personal details (name, location, summary) from GitHub if not visible in the file.
+    ` : '';
+
+    const prompt = `
+        You are a professional CV data extractor. You are looking at a resume, CV, or professional profile document.
+        Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
+
+        ### CRITICAL EXTRACTION RULES
+        1. Extract ALL sections: work experience, education, skills, projects, personal info, languages, AND any extras such as certifications, licences, awards, honours, publications, patents, volunteer work, memberships, presentations, courses, training, hobbies, interests. Map extras to customSections.
+        2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet point.
+        3. Preserve EVERY skill listed — do NOT drop any.
+        4. Standardize all dates to 'YYYY-MM-DD'. First day of month/year if only month/year given. Current roles → endDate = 'Present'.
+        5. Generate a unique simple string 'id' for every array item (e.g. 'exp1', 'edu1', 'cs1').
+        6. Do NOT invent data that is not visibly present in the document.
+        ${githubInstruction}
+        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+
+        ${USER_PROFILE_SCHEMA}
+    `;
+
+    const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 8192, temperature: 0.1 });
+    if (!raw || raw.trim().length < 20) throw new Error('Claude returned an empty response. Please try again.');
+
+    const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
+    const profileData: UserProfile = _normalizeProfileIds(JSON.parse(cleaned));
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
@@ -3732,28 +3752,33 @@ export const generateProfileFromTextWithGemini = async (
 export const extractTextFromImage = async (base64Image: string, mimeType: string): Promise<string> => {
     const prompt = "Analyze this image, which contains text (likely a job description). Extract ALL of the visible text. Return ONLY the raw text, with no additional commentary, summary, or formatting.";
 
-    // Worker-first via Cloudflare Workers AI Llama 3.2 Vision. Falls back to Gemini.
-    if (/^image\//i.test(mimeType)) {
-        try {
-            const cf = await workerVisionExtract(base64Image, mimeType, prompt, { maxTokens: 2048 });
-            if (cf && cf.trim().length > 20) {
-                console.log('[JD Import] Image text via Cloudflare Workers AI Vision.');
-                return cf;
-            }
-        } catch (cfErr) {
-            console.warn('[JD Import] Worker vision failed, falling back to Gemini:', cfErr);
-        }
+    // ── Route strictly by selected provider — no cross-provider fallbacks ─────
+    const provider = getSelectedProvider();
+
+    if (provider === 'workers-ai') {
+        const cf = await workerVisionExtract(base64Image, mimeType, prompt, { maxTokens: 2048 });
+        if (!cf || cf.trim().length < 10) throw new Error('Workers AI could not extract text from this image. Please paste the job description text manually.');
+        return cf;
     }
 
+    if (provider === 'claude') {
+        const claudeKey = getClaudeApiKey();
+        if (!claudeKey) throw new Error('Claude API key is not set. Please add it in Settings.');
+        const text = await claudeMultimodalCall(claudeKey, base64Image, mimeType, prompt, { maxTokens: 2048 });
+        if (!text || text.trim().length < 10) throw new Error('Claude returned an empty response. Please paste the text manually.');
+        return text;
+    }
+
+    // Gemini
     const ai = getGeminiClient();
     const imagePart = { inlineData: { data: base64Image, mimeType } };
-
     const response = await retryGemini<GenerateContentResponse>(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: { parts: [imagePart, { text: prompt }] },
         config: { systemInstruction: SYSTEM_INSTRUCTION_PARSER }
     }));
-    return response.text || "";
+    if (!response.text || response.text.trim().length < 10) throw new Error('Gemini returned an empty response. Please paste the text manually.');
+    return response.text;
 };
 
 export const generateCoverLetter = async (
