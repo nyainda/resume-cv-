@@ -1481,20 +1481,17 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 70% 60% at 50% 110%, ${Y}18 0%, transparent 70%)`, pointerEvents: 'none' }} />
         <div style={{ maxWidth: 560, margin: '0 auto', position: 'relative' }}>
           <h2 style={{ fontSize: 'clamp(2rem,5vw,3.2rem)', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.08, margin: '0 0 14px' }}>
-            The job doesn't wait.<br />Neither should you.
+            Your next role starts<br />with a better CV.
           </h2>
           <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 28px' }}>
-            Fill your profile once. All 14 tools are ready immediately. No tutorial, no credit card, no signup.
+            Create your free account and get a tailored, ATS-optimised CV built around your real experience — in minutes.
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <button onClick={onGetStarted}
-              style={{ padding: '14px 36px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.3)' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(235,255,56,0.5)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.3)'; }}>
-              {hasProfile ? 'Go to Suite' : 'Get Started Free →'}
-            </button>
-            <span style={{ fontSize: 12, color: faint }}>Create your free account · No credit card needed</span>
-          </div>
+          <button onClick={onGetStarted}
+            style={{ padding: '14px 36px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.3)' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(235,255,56,0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.3)'; }}>
+            {hasProfile ? 'Go to Suite' : 'Get Started Free →'}
+          </button>
         </div>
       </section>
 
