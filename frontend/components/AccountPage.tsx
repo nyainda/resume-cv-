@@ -16,10 +16,10 @@ interface AccountPageProps {
     onUpgrade?: () => void;
 }
 
-const PLAN_CONFIG: Record<string, { label: string; color: string; bg: string; ring: string; desc: string; icon: string }> = {
-    free:  { label: 'Free',     color: '#6b7280', bg: '#f9fafb',   ring: '#e5e7eb', desc: 'All core features included',        icon: '🌱' },
-    byok:  { label: 'BYOK Pro', color: '#1B2B4B', bg: '#eef1f7',   ring: '#1B2B4B30', desc: 'Bring-your-own-key plan',          icon: '🔑' },
-    pro:   { label: 'Pro',      color: '#92400e', bg: '#fffbeb',   ring: '#fde68a', desc: 'Full access · Priority support',    icon: '⭐' },
+const PLAN_CONFIG: Record<string, { label: string; color: string; bg: string; darkBg: string; ring: string; darkRing: string; desc: string; icon: string }> = {
+    free:  { label: 'Free',     color: '#4b5563', bg: '#f3f4f6',   darkBg: 'rgba(255,255,255,0.08)', ring: '#d1d5db', darkRing: 'rgba(255,255,255,0.12)', desc: 'All core features included',     icon: '🌱' },
+    byok:  { label: 'BYOK Pro', color: '#1B2B4B', bg: '#eef1f7',   darkBg: 'rgba(27,43,75,0.5)',     ring: '#1B2B4B30', darkRing: 'rgba(201,168,76,0.3)',   desc: 'Bring-your-own-key plan',        icon: '🔑' },
+    pro:   { label: 'Pro',      color: '#92400e', bg: '#fffbeb',   darkBg: 'rgba(201,168,76,0.15)',  ring: '#fde68a',   darkRing: 'rgba(201,168,76,0.4)',   desc: 'Full access · Priority support', icon: '⭐' },
 };
 
 const PROVIDER_CONFIG: Record<string, { label: string; model: string; color: string; bg: string; darkBg: string; icon: string; desc: string }> = {
@@ -35,14 +35,14 @@ const SLOT_COLORS: Record<string, string> = {
 
 function Avatar({ name, picture, size = 'lg' }: { name: string; picture?: string; size?: 'sm' | 'md' | 'lg' }) {
     const initials = name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || '?';
-    const sz = size === 'lg' ? 'w-20 h-20 text-2xl' : size === 'md' ? 'w-12 h-12 text-base' : 'w-9 h-9 text-xs';
+    const sz = size === 'lg' ? 'w-16 h-16 text-xl' : size === 'md' ? 'w-12 h-12 text-base' : 'w-9 h-9 text-xs';
     if (picture) return (
         <img src={picture} alt={name} referrerPolicy="no-referrer"
-            className={`${sz} rounded-2xl ring-4 ring-white/25 shadow-xl object-cover flex-shrink-0`} />
+            className={`${sz} rounded-2xl ring-2 ring-zinc-200 dark:ring-neutral-700 shadow-md object-cover flex-shrink-0`} />
     );
     return (
-        <div className={`${sz} rounded-2xl ring-4 ring-white/20 shadow-xl flex items-center justify-center font-black flex-shrink-0`}
-             style={{ background: '#C9A84C', color: '#1B2B4B' }}>
+        <div className={`${sz} rounded-2xl ring-2 ring-zinc-200 dark:ring-neutral-700 shadow-md flex items-center justify-center font-black flex-shrink-0`}
+             style={{ background: '#1B2B4B', color: '#C9A84C' }}>
             {initials}
         </div>
     );
@@ -87,50 +87,45 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
     return (
         <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-950 pb-16">
 
-            {/* ── Hero Banner ─────────────────────────────────────────────── */}
-            <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1B2B4B 0%, #152238 60%, #0d1829 100%)' }}>
-                {/* Decorative background shapes */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full opacity-10" style={{ background: '#C9A84C' }} />
-                    <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full opacity-5" style={{ background: '#C9A84C' }} />
-                    <div className="absolute top-1/2 left-1/3 w-96 h-px opacity-10" style={{ background: 'linear-gradient(to right, transparent, #C9A84C, transparent)' }} />
-                </div>
+            {/* ── Header card — adapts to light & dark ────────────────────── */}
+            <div className="bg-white dark:bg-neutral-900 border-b border-zinc-200 dark:border-neutral-800">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-5 pb-6">
 
-                {/* Back button */}
-                <div className="relative z-10 px-4 sm:px-6 pt-5 pb-0">
+                    {/* Back link */}
                     <button
                         onClick={onBack}
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-white/60 hover:text-white transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors mb-5"
                     >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M19 12H5M12 5l-7 7 7 7"/>
                         </svg>
                         Back to app
                     </button>
-                </div>
 
-                {/* User info */}
-                <div className="relative z-10 px-4 sm:px-6 pt-8 pb-12">
-                    <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                    {/* User row */}
+                    <div className="flex items-center gap-4">
                         <Avatar name={displayName} picture={workerUser?.picture} size="lg" />
                         <div className="flex-1 min-w-0">
-                            <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight truncate"
+                            <h1 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-zinc-50 leading-tight truncate"
                                 style={{ fontFamily: "'Playfair Display', serif" }}>
                                 {displayName}
                             </h1>
-                            <p className="text-sm text-white/55 mt-1 truncate">{workerUser?.email ?? 'Not signed in'}</p>
-                            <div className="mt-3 flex items-center gap-2 flex-wrap">
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                                {workerUser?.email ?? 'Not signed in'}
+                            </p>
+                            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
                                 {/* Plan badge */}
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black"
-                                      style={{ background: planCfg.bg, color: planCfg.color, border: `1px solid ${planCfg.ring}` }}>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border
+                                                 bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300
+                                                 border-zinc-200 dark:border-neutral-700">
                                     <span>{planCfg.icon}</span>
                                     {planCfg.label}
                                 </span>
                                 {plan === 'free' && onUpgrade && (
                                     <button
                                         onClick={onUpgrade}
-                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black transition-all hover:scale-105 active:scale-100"
-                                        style={{ background: 'linear-gradient(135deg, #C9A84C, #e0b85c)', color: '#1B2B4B' }}>
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border transition-all hover:opacity-90 active:scale-95"
+                                        style={{ background: '#1B2B4B', color: '#C9A84C', borderColor: '#1B2B4B' }}>
                                         ↑ Upgrade to Pro
                                     </button>
                                 )}
@@ -138,13 +133,10 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                         </div>
                     </div>
                 </div>
-
-                {/* Wave divider */}
-                <div className="absolute bottom-0 left-0 right-0 h-6 rounded-t-[2rem] bg-[#F8F7F4] dark:bg-neutral-950" />
             </div>
 
             {/* ── Content ─────────────────────────────────────────────────── */}
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-0 pt-6 space-y-5">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-5">
 
                 {/* Stats grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
