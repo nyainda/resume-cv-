@@ -2256,18 +2256,9 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
         }
         text = cf;
     } else {
-        // All other providers: Claude key → Groq chain (groqChat handles Claude/Gemini/OpenRouter fallback)
-        const claudeKey = getClaudeApiKey();
-        if (claudeKey) {
-            try {
-                text = await claudeMultimodalCall(claudeKey, '', 'text/plain', prompt, { maxTokens: 8192, temperature: 0.1 });
-            } catch (claudeErr) {
-                console.warn('[generateProfile] Claude failed, continuing with Groq chain:', claudeErr);
-            }
-        }
-        if (!text) {
-            text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
-        }
+        // All other providers: route strictly through the selected provider via groqChat.
+        // No silent fallback to Claude or any other provider.
+        text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.1, json: true, maxTokens: 4096 });
     }
     const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(text));
     profileData.projects = profileData.projects || [];
@@ -2947,17 +2938,13 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     const CV_GEN_RACE_TASKS = ['cvGenerate', 'cvGenerateLong'];
 
     // ── PRIMARY (Apr 27 2026): Section-parallel CV generation ───────────────
-    // Splits the megaprompt into 4–5 section-specific calls (summary, skills,
-    // experience, education, optional projects) that fan out concurrently
-    // inside ONE Worker request. Each section uses a right-sized free or paid
-    // CF Workers AI model and auto-retries on the free `cvFallback` model on
-    // per-section failure. The merged CVData lands here ready for the existing
-    // polish pipeline. If the worker is unreachable or any required section
-    // fails to parse cleanly, we silently fall through to the legacy
-    // single-megaprompt race path below — no behaviour regression.
+    // Only used when the user has selected Workers AI as their provider.
+    // Claude / Gemini selections bypass this entirely and go straight to
+    // groqChat (which routes to the selected provider with no cross-provider
+    // fallback).
     let cvData: CVData;
     let cvDataFromSections: CVData | null = null;
-    {
+    if (getSelectedProvider() === 'workers-ai') {
         const sectionsStart = Date.now();
         // Strip the full-CVData schema reference from the preamble — each
         // section call has its own narrower schema in its instruction tail.
@@ -3114,91 +3101,87 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     if (cvDataFromSections) {
         cvData = cvDataFromSections;
     } else {
-        // ── LEGACY FALLBACK: single-megaprompt race endpoint ────────────────
-        // Used only when section-parallel is unavailable, fails, or returns
-        // malformed JSON. Tries groqChat first (which itself routes through
-        // the worker tiered endpoint by default — Groq only fires if the user
-        // has a key AND the worker is dead). On size/rate failures, falls
-        // back to the worker race endpoint, then errors out cleanly.
-        // Lowered from 90K → 70K: Groq's token limit is ~128K tokens but dense
-        // profiles (many detailed roles) can hit that at ~70K chars. Pre-routing
-        // to Workers AI earlier avoids a wasted Groq round-trip that 413s.
-        const PROMPT_SIZE_GROQ_413_THRESHOLD = 70_000;
-        const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
-        const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
-
+        // ── SINGLE-PROMPT GENERATION ─────────────────────────────────────────
+        // Routes strictly through the user's selected provider — no automatic
+        // cross-provider fallback.
+        //
+        // Workers AI: keeps a size-aware race path (Workers AI handles large
+        //   prompts better than BYOK providers) plus a slim-profile retry on 413.
+        // Claude / Gemini: groqChat routes directly to the selected provider.
+        //   If it fails, the error is surfaced to the user — no silent switch.
         let rawText: string;
-        if (willGroq413) {
-            console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI race.`);
-            const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
-                system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-                temperature,
-                json: true,
-                maxTokens: 6000,
-                timeoutMs: 90000,
-            });
-            if (!cf) {
-                // Workers AI unavailable — slim the profile (350→120 chars/role) and
-                // retry through the full groqChat fallback chain (Groq → OpenRouter →
-                // Gemini). This avoids re-sending the same too-large prompt to Groq.
-                const slimPrompt = slimPromptProfile(mainPromptInstruction, profile);
-                console.warn(`[CV Gen] Workers AI unavailable — last-resort retry with slimmed profile (${slimPrompt.length.toLocaleString()} chars) via groqChat chain.`);
-                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimPrompt, { temperature, json: true, maxTokens: 6000 });
-            } else {
-                rawText = cf.text;
-                console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms, pre-sized).`);
-            }
-        } else {
-            try {
-                rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
-            } catch (groqErr: any) {
-                const status = groqErr?.status;
-                const msg = (groqErr?.message || '').toLowerCase();
-                const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
-                const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
-                if (isTooLarge || isRateLimited) {
-                    let fallbackText: string | undefined;
+        const _selectedProvider = getSelectedProvider();
 
-                    // For 413 specifically: the prompt slipped through the char-count
-                    // pre-check but is too large in tokens. Rebuild it with a slimmer
-                    // profile (120 chars/role vs 350) — typically cuts 30–50 % on large
-                    // profiles — and retry the full groqChat chain before touching the
-                    // Workers AI race (which has its own availability issues).
-                    if (isTooLarge) {
-                        const slimPrompt = slimPromptProfile(mainPromptInstruction, profile);
-                        if (slimPrompt.length < mainPromptInstruction.length) {
-                            try {
-                                console.warn(`[CV Gen] 413 — retrying with slimmed profile (${slimPrompt.length.toLocaleString()} chars vs ${mainPromptInstruction.length.toLocaleString()})…`);
-                                fallbackText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimPrompt, { temperature, json: true, maxTokens: 6000 });
-                                console.info('[CV Gen] Slim-profile retry succeeded.');
-                            } catch {
-                                // slim retry also failed — fall through to Workers AI race
+        if (_selectedProvider === 'workers-ai') {
+            // Workers AI — size-aware routing: large prompts go to the race
+            // endpoint directly to avoid a wasted Groq round-trip that 413s.
+            const PROMPT_SIZE_GROQ_413_THRESHOLD = 70_000;
+            const totalPromptSize = SYSTEM_INSTRUCTION_PROFESSIONAL.length + mainPromptInstruction.length;
+            const willGroq413 = totalPromptSize > PROMPT_SIZE_GROQ_413_THRESHOLD;
+
+            if (willGroq413) {
+                console.warn(`[CV Gen] Prompt size ${totalPromptSize.toLocaleString()} chars > ${PROMPT_SIZE_GROQ_413_THRESHOLD.toLocaleString()} — routing directly to Cloudflare Workers AI race.`);
+                const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+                    system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+                    temperature,
+                    json: true,
+                    maxTokens: 6000,
+                    timeoutMs: 90000,
+                });
+                if (!cf) {
+                    const slimPrompt = slimPromptProfile(mainPromptInstruction, profile);
+                    console.warn(`[CV Gen] Workers AI unavailable — retrying with slimmed profile (${slimPrompt.length.toLocaleString()} chars).`);
+                    rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimPrompt, { temperature, json: true, maxTokens: 6000 });
+                } else {
+                    rawText = cf.text;
+                    console.info(`[CV Gen] Main generation completed via Workers AI race (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms, pre-sized).`);
+                }
+            } else {
+                try {
+                    rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
+                } catch (workerErr: any) {
+                    const status = workerErr?.status;
+                    const msg = (workerErr?.message || '').toLowerCase();
+                    const isTooLarge = status === 413 || msg.includes('too large') || msg.includes('too long');
+                    const isRateLimited = status === 429 || msg.includes('rate') || msg.includes('quota') || msg.includes('limit');
+                    if (isTooLarge || isRateLimited) {
+                        let fallbackText: string | undefined;
+                        if (isTooLarge) {
+                            const slimPrompt = slimPromptProfile(mainPromptInstruction, profile);
+                            if (slimPrompt.length < mainPromptInstruction.length) {
+                                try {
+                                    console.warn(`[CV Gen] 413 — retrying with slimmed profile (${slimPrompt.length.toLocaleString()} chars vs ${mainPromptInstruction.length.toLocaleString()})…`);
+                                    fallbackText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, slimPrompt, { temperature, json: true, maxTokens: 6000 });
+                                    console.info('[CV Gen] Slim-profile retry succeeded.');
+                                } catch { /* fall through to race */ }
                             }
                         }
-                    }
-
-                    if (!fallbackText) {
-                        console.warn(`[CV Gen] groqChat ${status ?? '?'} — falling back to Cloudflare Workers AI race.`);
-                        const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
-                            system: SYSTEM_INSTRUCTION_PROFESSIONAL,
-                            temperature,
-                            json: true,
-                            maxTokens: 6000,
-                            timeoutMs: 90000,
-                        });
-                        if (!cf) {
-                            console.error('[CV Gen] Section-parallel, race, groqChat, and slim-retry all unavailable — re-throwing original error.');
-                            throw groqErr;
+                        if (!fallbackText) {
+                            console.warn(`[CV Gen] Workers AI ${status ?? '?'} — falling back to race endpoint.`);
+                            const cf = await workerRaceLLM(CV_GEN_RACE_TASKS, mainPromptInstruction, {
+                                system: SYSTEM_INSTRUCTION_PROFESSIONAL,
+                                temperature,
+                                json: true,
+                                maxTokens: 6000,
+                                timeoutMs: 90000,
+                            });
+                            if (!cf) {
+                                console.error('[CV Gen] Workers AI race also unavailable — re-throwing original error.');
+                                throw workerErr;
+                            }
+                            fallbackText = cf.text;
+                            console.info(`[CV Gen] Main generation completed via Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
                         }
-                        fallbackText = cf.text;
-                        console.info(`[CV Gen] Main generation completed via Cloudflare Workers AI race fallback (winner=${cf.task}, model=${cf.model}, ${cf.raceMs}ms).`);
+                        rawText = fallbackText;
+                    } else {
+                        throw workerErr;
                     }
-
-                    rawText = fallbackText;
-                } else {
-                    throw groqErr;
                 }
             }
+        } else {
+            // Claude or Gemini — route strictly through groqChat (which enforces
+            // the selected provider). No Workers AI race, no cross-provider switch.
+            rawText = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, mainPromptInstruction, { temperature, json: true, maxTokens: 6000 });
         }
 
         const cleanText = stripFencesMain(rawText);
