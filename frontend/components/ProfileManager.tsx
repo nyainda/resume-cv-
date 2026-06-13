@@ -50,6 +50,39 @@ function strengthColor(pct: number): string {
     return '#f43f5e';                   // rose
 }
 
+// Returns up to 3 actionable tips for missing profile items, highest-value first.
+function strengthTips(p: UserProfile): string[] {
+    const tips: Array<{ msg: string; pts: number }> = [];
+    if (!p.personalInfo.name?.trim())
+        tips.push({ msg: 'Add your full name', pts: 15 });
+    if (!p.personalInfo.email?.trim())
+        tips.push({ msg: 'Add your email address', pts: 10 });
+    if (!p.summary?.trim() || p.summary.trim().length < 20)
+        tips.push({ msg: 'Write a professional summary', pts: 15 });
+    const roles = p.workExperience?.length ?? 0;
+    if (roles === 0)
+        tips.push({ msg: 'Add at least one work experience', pts: 15 });
+    else if (roles === 1)
+        tips.push({ msg: 'Add a second work experience', pts: 5 });
+    if (roles > 0 && !p.workExperience.some(r => r.description?.trim().length > 30))
+        tips.push({ msg: 'Add bullet points to your experience', pts: 10 });
+    const sc = p.skills?.length ?? 0;
+    if (sc < 3)
+        tips.push({ msg: 'Add at least 5 skills', pts: 10 });
+    else if (sc < 10)
+        tips.push({ msg: `Add more skills (${sc}/10)`, pts: 5 });
+    if ((p.education?.length ?? 0) === 0)
+        tips.push({ msg: 'Add your education', pts: 10 });
+    if (!p.personalInfo.phone?.trim() && !(p.personalInfo as any).linkedin?.trim())
+        tips.push({ msg: 'Add phone number or LinkedIn URL', pts: 5 });
+    if ((p.projects?.length ?? 0) === 0)
+        tips.push({ msg: 'Add a projects section', pts: 5 });
+    return tips
+        .sort((a, b) => b.pts - a.pts)
+        .slice(0, 3)
+        .map(t => t.msg);
+}
+
 function initials(name: string) {
     return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 }
@@ -100,6 +133,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
     const [cloneActive, setCloneActive] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [duplicatedId,   setDuplicatedId]   = useState<string | null>(null);
+    const [tipsOpenId,     setTipsOpenId]     = useState<string | null>(null);
 
     useEffect(() => {
         if (isMobileOverlay) {
@@ -190,6 +224,8 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     const strength = profileStrength(slot.profile);
                     const sColor   = strengthColor(strength);
                     const sLabel   = strengthLabel(strength);
+                    const sTips    = strengthTips(slot.profile);
+                    const tipsOpen = tipsOpenId === slot.id && sTips.length > 0;
 
                     return (
                         <div
@@ -362,23 +398,62 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                             </div>
 
                             {/* ── Profile strength bar ── */}
-                            <div className="px-3 pb-2.5">
+                            <div
+                                className="px-3 pb-2.5 cursor-default"
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    setTipsOpenId(tipsOpen ? null : (sTips.length > 0 ? slot.id : null));
+                                }}
+                                onMouseEnter={() => sTips.length > 0 && setTipsOpenId(slot.id)}
+                                onMouseLeave={() => setTipsOpenId(null)}
+                            >
                                 <div className="flex items-center justify-between mb-1">
                                     <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: sColor }}>
                                         Profile strength
                                     </span>
-                                    <span className="text-[9px] font-bold" style={{ color: sColor }}>
+                                    <span className="flex items-center gap-1 text-[9px] font-bold" style={{ color: sColor }}>
                                         {strength}% · {sLabel}
+                                        {sTips.length > 0 && (
+                                            <svg
+                                                className="w-2.5 h-2.5 transition-transform duration-200"
+                                                style={{ transform: tipsOpen ? 'rotate(180deg)' : 'rotate(0deg)', opacity: 0.7 }}
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                                            >
+                                                <polyline points="6 9 12 15 18 9"/>
+                                            </svg>
+                                        )}
                                     </span>
                                 </div>
+
                                 {/* Track */}
                                 <div className="h-1.5 w-full rounded-full bg-zinc-100 dark:bg-neutral-700 overflow-hidden">
-                                    {/* Fill */}
                                     <div
                                         className="h-full rounded-full transition-all duration-500"
                                         style={{ width: `${strength}%`, background: sColor }}
                                     />
                                 </div>
+
+                                {/* Tips panel — expands on hover/click when tips exist */}
+                                {tipsOpen && (
+                                    <div
+                                        className="mt-2 rounded-lg border px-2.5 py-2 space-y-1"
+                                        style={{
+                                            background: sColor + '0d',
+                                            borderColor: sColor + '30',
+                                        }}
+                                        onClick={e => e.stopPropagation()}
+                                    >
+                                        <p className="text-[9px] font-extrabold uppercase tracking-wider mb-1.5" style={{ color: sColor }}>
+                                            Next steps to improve
+                                        </p>
+                                        {sTips.map((tip, ti) => (
+                                            <div key={ti} className="flex items-start gap-1.5">
+                                                <span className="mt-px text-[9px] flex-shrink-0" style={{ color: sColor }}>→</span>
+                                                <span className="text-[10px] font-medium text-zinc-600 dark:text-zinc-300 leading-snug">{tip}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
