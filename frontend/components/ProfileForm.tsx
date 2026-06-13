@@ -383,6 +383,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       }
 
       reset(profile);
+      onProfileImported?.(profile);
       setActiveTab('personal');
       alert('Profile imported successfully! Please review your details and save.');
     } catch (err) {
