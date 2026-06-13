@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import PhotoCropModal from './PhotoCropModal';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { buildFlatOntology } from '../services/fieldOntologyResolver';
@@ -244,6 +244,19 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   });
 
   const { register, control, handleSubmit, formState: { errors }, reset, getValues, setValue, watch } = methods;
+
+  // When an external import (Word, PDF, cloud restore) updates the `existingProfile`
+  // prop, react-hook-form's defaultValues are already frozen from mount — we must
+  // explicitly call reset() to reflect the new profile in the form fields.
+  // Using a ref avoids triggering on the initial mount (where defaultValues already
+  // applied the profile) and prevents resetting on every unrelated parent re-render.
+  const _prevProfileRef = useRef(existingProfile);
+  useEffect(() => {
+    if (existingProfile && existingProfile !== _prevProfileRef.current) {
+      _prevProfileRef.current = existingProfile;
+      reset(existingProfile);
+    }
+  }, [existingProfile, reset]);
 
   const handleDetectLocation = useCallback(async () => {
     if (!navigator.geolocation) return;

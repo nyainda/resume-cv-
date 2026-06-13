@@ -284,23 +284,60 @@ export async function handleUserSlotsPost(request: Request, env: Env, ctx: Execu
 
     const now = Math.floor(Date.now() / 1000);
 
-    await env.CV_DB.prepare(
-        `INSERT INTO user_slots (user_id, device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(user_id, slot_id) DO UPDATE SET
-           slot_name    = excluded.slot_name,
-           color        = excluded.color,
-           profile_json = excluded.profile_json,
-           current_cv   = excluded.current_cv,
-           updated_at   = excluded.updated_at`
-    ).bind(userId, deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
+    // Strategy: attempt the user-scoped upsert first (requires migration 026 — adds
+    // user_id column + partial unique index on (user_id, slot_id)).
+    // If that fails for any reason (column missing, index missing, D1 error) fall back
+    // to the original device-scoped upsert using the always-present PRIMARY KEY.
+    // Wrapping in try-catch prevents any D1 error from surfacing as an unhandled
+    // exception → 500.
+    let upsertOk = false;
+    let upsertErr = '';
 
-    ctx.waitUntil(
-        env.CV_DB.prepare(
-            `DELETE FROM user_slots WHERE user_id = ? AND slot_id NOT IN
-             (SELECT slot_id FROM user_slots WHERE user_id = ? ORDER BY updated_at DESC LIMIT 10)`
-        ).bind(userId, userId).run().catch(() => {})
-    );
+    try {
+        await env.CV_DB.prepare(
+            `INSERT INTO user_slots (user_id, device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, slot_id) DO UPDATE SET
+               slot_name    = excluded.slot_name,
+               color        = excluded.color,
+               profile_json = excluded.profile_json,
+               current_cv   = excluded.current_cv,
+               updated_at   = excluded.updated_at`
+        ).bind(userId, deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
+        upsertOk = true;
+    } catch (e: any) {
+        upsertErr = String(e?.message ?? e);
+    }
+
+    // Fallback: device-scoped upsert on the original PRIMARY KEY (device_id, slot_id).
+    // Also handles the case where migration 026 hasn't been applied yet.
+    if (!upsertOk) {
+        try {
+            await env.CV_DB.prepare(
+                `INSERT INTO user_slots (device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(device_id, slot_id) DO UPDATE SET
+                   slot_name    = excluded.slot_name,
+                   color        = excluded.color,
+                   profile_json = excluded.profile_json,
+                   current_cv   = excluded.current_cv,
+                   updated_at   = excluded.updated_at`
+            ).bind(deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
+            upsertOk = true;
+        } catch (e2: any) {
+            return json({ error: 'db_write_failed', detail: upsertErr }, request, env, 500);
+        }
+    }
+
+    // Trim old slots — fire-and-forget, never blocks the response.
+    if (userId) {
+        ctx.waitUntil(
+            env.CV_DB.prepare(
+                `DELETE FROM user_slots WHERE user_id = ? AND slot_id NOT IN
+                 (SELECT slot_id FROM user_slots WHERE user_id = ? ORDER BY updated_at DESC LIMIT 10)`
+            ).bind(userId, userId).run().catch(() => {})
+        );
+    }
 
     return json({ ok: true, slot_id: slotId }, request, env);
 }
