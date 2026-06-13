@@ -19,6 +19,37 @@ function getColor(id: ProfileColor) {
     return COLORS.find(c => c.id === id) ?? COLORS[0];
 }
 
+function profileStrength(p: UserProfile): number {
+    let score = 0;
+    if (p.personalInfo.name?.trim())                          score += 15;
+    if (p.personalInfo.email?.trim())                         score += 10;
+    if (p.personalInfo.phone?.trim() || (p.personalInfo as any).linkedin?.trim()) score += 5;
+    if (p.summary?.trim().length >= 20)                       score += 15;
+    const roles = p.workExperience?.length ?? 0;
+    if (roles >= 1) score += 15;
+    if (roles >= 2) score += 5;
+    if (p.workExperience?.some(r => r.description?.trim().length > 30)) score += 10;
+    const skillCount = p.skills?.length ?? 0;
+    if (skillCount >= 3)  score += 10;
+    if (skillCount >= 10) score += 5;
+    if ((p.education?.length ?? 0) >= 1)  score += 10;
+    if ((p.projects?.length ?? 0) >= 1)   score += 5;
+    return Math.min(score, 100);
+}
+
+function strengthLabel(pct: number): string {
+    if (pct >= 85) return 'Complete';
+    if (pct >= 60) return 'Good';
+    if (pct >= 35) return 'Needs work';
+    return 'Starter';
+}
+
+function strengthColor(pct: number): string {
+    if (pct >= 70) return '#10b981';   // emerald
+    if (pct >= 40) return '#f59e0b';   // amber
+    return '#f43f5e';                   // rose
+}
+
 function initials(name: string) {
     return name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 }
@@ -156,6 +187,9 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     const target = slot.targetJobTitle || slot.targetCompany || '';
                     const atsScore = slot.lastAtsScore;
                     const lastGen = slot.lastGeneratedAt || slot.createdAt;
+                    const strength = profileStrength(slot.profile);
+                    const sColor   = strengthColor(strength);
+                    const sLabel   = strengthLabel(strength);
 
                     return (
                         <div
@@ -324,6 +358,26 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                             </button>
                                         )
                                     )}
+                                </div>
+                            </div>
+
+                            {/* ── Profile strength bar ── */}
+                            <div className="px-3 pb-2.5">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: sColor }}>
+                                        Profile strength
+                                    </span>
+                                    <span className="text-[9px] font-bold" style={{ color: sColor }}>
+                                        {strength}% · {sLabel}
+                                    </span>
+                                </div>
+                                {/* Track */}
+                                <div className="h-1.5 w-full rounded-full bg-zinc-100 dark:bg-neutral-700 overflow-hidden">
+                                    {/* Fill */}
+                                    <div
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{ width: `${strength}%`, background: sColor }}
+                                    />
                                 </div>
                             </div>
                         </div>
