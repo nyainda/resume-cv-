@@ -18,6 +18,7 @@
 
 import React, { useState } from 'react';
 import type { GenerationTrace, ValidationViolation } from '../services/generationTrace';
+import type { FieldDetectionSource } from '../services/cvPromptHelpers';
 
 interface GenerationTracePanelProps {
   trace: GenerationTrace;
@@ -83,6 +84,30 @@ function TimingBar({ briefMs, generationMs, validationMs, totalMs }: {
       {bar(generationMs, 'bg-violet-400', 'Generation')}
       {bar(validationMs, 'bg-teal-400', 'Validation')}
     </div>
+  );
+}
+
+function FieldSourceBadge({ source }: { source: FieldDetectionSource | undefined }) {
+  if (!source) return <Badge color="zinc">—</Badge>;
+  if (source.kind === 'user-pinned') {
+    return (
+      <span className="flex items-center gap-1">
+        <Badge color="teal">📌 user-pinned</Badge>
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">(S6 ontology)</span>
+      </span>
+    );
+  }
+  const score = source.score;
+  const confidenceColor: 'green' | 'amber' | 'zinc' =
+    score >= 15 ? 'green' : score >= 5 ? 'amber' : 'zinc';
+  return (
+    <span className="flex items-center gap-1">
+      <Badge color={confidenceColor}>🔍 auto-detected</Badge>
+      <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+        score: {score}
+        {score >= 15 ? ' — high confidence' : score >= 5 ? ' — low confidence' : ' — fallback'}
+      </span>
+    </span>
   );
 }
 
@@ -197,6 +222,9 @@ const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace }) =>
             </Row>
             <Row label="Field">
               <Badge color="teal">{trace.field || '—'}</Badge>
+            </Row>
+            <Row label="Field source">
+              <FieldSourceBadge source={trace.fieldSource} />
             </Row>
             <Row label="Voice">
               <Badge color="violet">{trace.voice || '—'}</Badge>

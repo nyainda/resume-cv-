@@ -3,7 +3,7 @@ import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode,
 import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
-import { detectField, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
+import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
 import { logGeneration, quickHash } from './telemetryService';
 import { getGeminiKey as _rtGemini, getClaudeKey as _rtClaude } from './security/RuntimeKeys';
 import { MarketResearchResult, buildMarketIntelligencePrompt } from './marketResearch';
@@ -2503,7 +2503,8 @@ ${kwLines}
     //      copy data out of them).
     //   3. Bad examples drawn from real production bugs we have seen.
     // Built once here, injected into both the job and general prompts below.
-    const _detectedField = detectField(jd, profile);
+    const { field: _detectedField, source: _fieldSource } = detectFieldWithSource(jd, profile);
+    _traceBuilder.record({ fieldSource: _fieldSource });
     const _lockedValues = lockRealNumbers(profile);
     const promptAnchorBlock = buildPromptAnchorBlock({
         locked: _lockedValues,

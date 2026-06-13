@@ -7,6 +7,7 @@
  */
 
 import type { CVData } from '../types';
+import type { FieldDetectionSource } from './cvPromptHelpers';
 
 // ─── Data model ──────────────────────────────────────────────────────────────
 
@@ -45,6 +46,13 @@ export interface GenerationTrace {
   gapKeywords: string[];
   pinnedKeywords: string[];
   llmCacheHit: boolean;
+
+  /**
+   * S6: how the field was chosen for this generation run.
+   * - 'user-pinned'   — user explicitly selected a field via the ontology dropdown
+   * - 'auto-detected' — keyword scorer chose the field; score is the winning confidence
+   */
+  fieldSource?: FieldDetectionSource;
 
   /** S1: Rule Registry — which rule variant drove scenario selection */
   ruleKey?: string;        // e.g. 'scenario:B'

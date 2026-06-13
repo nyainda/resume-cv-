@@ -206,6 +206,61 @@ export function detectField(jd: string | undefined, profile?: UserProfile): CVFi
     return best.field;
 }
 
+export type FieldDetectionSource =
+    | { kind: 'user-pinned' }
+    | { kind: 'auto-detected'; score: number };
+
+/**
+ * Same logic as detectField() but also returns *how* the field was chosen:
+ * - 'user-pinned'   — user set a preferred field via the S6 ontology dropdown
+ * - 'auto-detected' — keyword scoring won; includes the winning score
+ *
+ * Used by the generation pipeline to record fieldSource in GenerationTrace.
+ */
+export function detectFieldWithSource(
+    jd: string | undefined,
+    profile?: UserProfile,
+): { field: CVField; source: FieldDetectionSource } {
+    if (profile?.preferredField) {
+        const pf = profile.preferredField as CVField;
+        const VALID_FIELDS: CVField[] = [
+            'irrigation','drought_management','tech','data_analytics','civil_engineering',
+            'construction','architecture','manufacturing','logistics','ngo','government',
+            'sales','marketing','finance','legal','healthcare','education','hr',
+            'consulting','operations','hospitality','media','general',
+        ];
+        if (VALID_FIELDS.includes(pf)) {
+            return { field: pf, source: { kind: 'user-pinned' } };
+        }
+    }
+    // Fall through to auto-detection — re-run the scorer so this function
+    // has no hidden dependency on detectField's internal state.
+    const field = detectField(jd, profile);
+
+    // Reconstruct the winning score for the trace. We re-run a minimal
+    // scorer pass here (scores map is not exported from detectField).
+    const jdCorpus = (jd || '').toLowerCase();
+    const jdPresent = jdCorpus.trim().length > 50;
+    const profileTitles = (profile?.workExperience || [])
+        .map(e => (e.jobTitle || '').toLowerCase()).join(' ');
+    const profileBody = [
+        ...(profile?.workExperience || []).map(e => `${e.company || ''} ${e.responsibilities || ''}`),
+        ...(Array.isArray((profile as any)?.skills) ? (profile as any).skills : []),
+    ].join(' ').toLowerCase();
+    let winScore = 0;
+    const titleBoost = !jdPresent ? 10 : 2;
+    for (const [rx, f] of TITLE_FIELD_MAP) {
+        if (f === field && rx.test(profileTitles)) winScore += titleBoost;
+        if (f === field && jdPresent && rx.test(jdCorpus)) winScore += 2;
+    }
+    const fkws = (FIELD_KEYWORDS as Record<string, string[]>)[field] ?? [];
+    for (const kw of fkws) {
+        if (jdPresent && jdCorpus.includes(kw)) winScore += 3;
+        if (profileBody.includes(kw)) winScore += 1;
+    }
+    return { field, source: { kind: 'auto-detected', score: winScore } };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. LOCKED VALUES — pull every real number / proper noun out of the profile
 //    so the prompt can tell Groq exactly what may be used.
