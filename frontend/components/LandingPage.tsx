@@ -725,14 +725,14 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const reg = (id: string) => (el: HTMLElement | null) => { refs.current[id] = el; };
   const v = (id: string) => vis.has(id);
 
-  /* Fully theme-aware — no hardcoded dark backgrounds */
-  const bg       = darkMode ? '#0d0d0d' : '#f7f5f0';
-  const surface  = darkMode ? '#161616' : '#ffffff';
-  const elevated = darkMode ? '#1c1c1c' : '#eeeae0';
-  const border   = darkMode ? '#2a2a2a' : '#d9d5c8';
-  const text     = darkMode ? '#f0ece0' : '#111111';
-  const muted    = darkMode ? '#888888' : '#555555';
-  const faint    = darkMode ? '#444444' : '#aaaaaa';
+  /* Always dark-navy — same look in both light and dark mode */
+  const bg       = '#0a0f1e';
+  const surface  = '#111827';
+  const elevated = '#1a2236';
+  const border   = '#1e2d47';
+  const text     = '#f0ece0';
+  const muted    = '#8892a4';
+  const faint    = '#3d4f6b';
   const ac       = BEFORE_AFTER_CASES[activeCase];
 
   return (
@@ -741,31 +741,51 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       {/* ── Nav ──────────────────────────────────────────────────────── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 40,
-        background: darkMode ? 'rgba(13,13,13,0.92)' : 'rgba(247,245,240,0.92)',
+        background: 'rgba(10,15,30,0.95)',
         backdropFilter: 'blur(20px)', borderBottom: `1px solid ${border}`,
       }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#111' }}>CV</div>
-            <span style={{ fontWeight: 900, fontSize: 14, letterSpacing: '-0.02em' }}>ProCV</span>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{ width: 30, height: 30, background: Y, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#111' }}>CV</div>
+            <span style={{ fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', color: text }}>ProCV</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={onToggleDark} style={{ padding: 8, borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', color: muted }}>
-              {darkMode
-                ? <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                : <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-              }
-            </button>
+          {/* Nav links */}
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'center' }}>
+            {[
+              { label: 'Features', id: 'score-cv' },
+              { label: 'How It Works', id: 'pipe' },
+              { label: 'Templates', id: 'tpl' },
+              { label: 'Pricing', id: null },
+            ].map(item => (
+              <button key={item.label}
+                onClick={() => {
+                  if (item.id) {
+                    const el = document.getElementById(item.id) || document.querySelector(`[data-s="${item.id}"]`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  } else {
+                    onGetStarted();
+                  }
+                }}
+                style={{ padding: '6px 14px', fontSize: 13, fontWeight: 500, color: muted, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6, transition: 'color 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.color = text)}
+                onMouseLeave={e => (e.currentTarget.style.color = muted)}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          {/* Right actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             {hasProfile && onGoToApp && (
-              <button onClick={onGoToApp} style={{ padding: '6px 14px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: elevated, border: `1px solid ${border}`, cursor: 'pointer', color: muted }}>← App</button>
+              <button onClick={onGoToApp} style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: muted }}>← Dashboard</button>
             )}
             {!hasProfile && (
-              <button onClick={onSignIn} style={{ padding: '7px 18px', fontSize: 13, fontWeight: 700, borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: text }}>
+              <button onClick={onSignIn} style={{ padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: text }}>
                 Sign in
               </button>
             )}
-            <button onClick={onGetStarted} style={{ padding: '7px 18px', fontSize: 13, fontWeight: 900, borderRadius: 8, background: Y, border: 'none', cursor: 'pointer', color: '#111' }}>
-              {hasProfile ? 'Open Suite' : 'Get Started'}
+            <button onClick={onGetStarted} style={{ padding: '8px 18px', fontSize: 13, fontWeight: 800, borderRadius: 7, background: Y, border: 'none', cursor: 'pointer', color: '#111', letterSpacing: '-0.01em' }}>
+              {hasProfile ? 'Open Suite' : 'Get Started Free'}
             </button>
           </div>
         </div>
@@ -1341,306 +1361,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </section>
 
-      {/* ── All 14 tools — grouped ────────────────────────────────────── */}
-      <section
-        ref={reg('tools')} data-s="tools"
-        style={{
-          maxWidth: 1100, margin: '0 auto', padding: '64px 24px',
-          opacity: v('tools') ? 1 : 0, transform: v('tools') ? 'none' : 'translateY(20px)',
-          transition: 'opacity 0.5s, transform 0.5s',
-        }}>
-        <div style={{ marginBottom: 44 }}>
-          <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8 }}>The full suite</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
-            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: 0 }}>
-              14 tools.<br />One profile. Fill once.
-            </h2>
-            <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
-              Explore all tools →
-            </button>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 2, background: border }}>
-          {TOOL_GROUPS.map((group, gi) => (
-            <div key={gi} style={{ background: bg }}>
-              <div style={{ padding: '14px 20px', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 6, height: 6, borderRadius: 2, background: group.color }} />
-                <span style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>{group.label}</span>
-              </div>
-              {group.tools.map((tool, ti) => (
-                <div key={ti} onClick={onGetStarted} style={{ padding: '14px 20px', borderBottom: ti < 3 ? `1px solid ${border}` : 'none', cursor: 'pointer', transition: 'background 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = elevated)}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>{tool.name}</div>
-                  <div style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{tool.desc}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ── Templates — real CV content ───────────────────────────────── */}
-      <section
-        ref={reg('tpl')} data-s="tpl"
-        style={{ background: elevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '56px 24px', overflowX: 'hidden' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto 36px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16 }}>
-          <div>
-            <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8 }}>35 templates</p>
-            <h2 style={{ fontSize: 'clamp(1.6rem,3.5vw,2.2rem)', fontWeight: 900, letterSpacing: '-0.03em', margin: 0, color: text }}>Every template.<br />Pixel-perfect PDF.</h2>
-          </div>
-          <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>Browse templates →</button>
-        </div>
-
-        {/* 6 full-size template cards with live ATS badges */}
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,185px),1fr))', gap: 24, alignItems: 'start' }}>
-          {([
-            { label: 'Standard Pro',    tag: 'Classic',    comp: <TemplateStandardPro />,   accentColor: '#1B2B4B', atsScore: 94, atsRole: 'Stripe · PM',     desc: 'Dark navy header. Finance, consulting, law.' },
-            { label: 'Navy Sidebar',    tag: 'Prestigious', comp: <TemplateNavySidebar />,   accentColor: '#1a2f5a', atsScore: 91, atsRole: 'HSBC · Director',  desc: 'Monogram crest. Signals seniority at a glance.' },
-            { label: 'Executive',       tag: 'Luxury',     comp: <TemplateExecutive />,      accentColor: '#c8a84b', atsScore: 88, atsRole: 'Goldman · VP',     desc: 'Brown & gold. C-suite and board-level roles.' },
-            { label: 'Modern Tech',     tag: 'Developer',  comp: <TemplateModernTech />,     accentColor: '#4ade80', atsScore: 97, atsRole: 'Amazon · SWE',     desc: 'Terminal aesthetic. SWE, data, and product roles.' },
-            { label: 'Compact Sage',    tag: 'Creative',   comp: <TemplateCompactSage />,    accentColor: '#4d7c0f', atsScore: 93, atsRole: 'Spotify · Design', desc: 'Sage green sidebar. Creative, marketing, and design.' },
-            { label: 'Academic Teal',   tag: 'Clean',      comp: <TemplateAcademicTeal />,   accentColor: '#0891b2', atsScore: 96, atsRole: 'UCL · Research',   desc: 'Teal accent. Academic, analyst, and research roles.' },
-          ] as const).map(({ label, tag, comp, accentColor, atsScore, atsRole, desc }, i) => (
-            <div key={i} onClick={onGetStarted}
-              style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12,
-                transition: 'transform 0.2s ease',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-6px)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = 'none')}>
-
-              {/* Card with ATS badge overlay */}
-              <div style={{ position: 'relative' }}>
-                <div style={{ borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 36px rgba(0,0,0,0.18)', border: `2.5px solid transparent`, transition: 'border-color 0.2s' }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = accentColor)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}>
-                  <TemplateCardFluid shadow={false}>{comp}</TemplateCardFluid>
-                </div>
-
-                {/* Animated ATS badge */}
-                <div style={{
-                  position: 'absolute', bottom: 10, right: 10,
-                  background: 'rgba(255,255,255,0.96)', borderRadius: 8,
-                  padding: '5px 8px 5px 5px', display: 'flex', alignItems: 'center', gap: 5,
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
-                  transform: v('tpl') ? 'scale(1)' : 'scale(0.6)',
-                  opacity: v('tpl') ? 1 : 0,
-                  transition: `transform 0.5s cubic-bezier(0.34,1.56,0.64,1) ${i * 0.07 + 0.35}s, opacity 0.4s ease ${i * 0.07 + 0.35}s`,
-                }}>
-                  <AtsGauge score={atsScore} size={30} />
-                  <div>
-                    <div style={{ fontSize: 8, fontWeight: 900, color: atsScore >= 90 ? '#16a34a' : '#d97706', lineHeight: 1.2 }}>ATS {atsScore}</div>
-                    <div style={{ fontSize: 6.5, color: '#6b7280', lineHeight: 1.2 }}>{atsRole}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Label */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: accentColor, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 900, color: text }}>{label}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 99, background: surface, border: `1px solid ${border}`, color: faint, flexShrink: 0 }}>{tag}</span>
-                </div>
-                <p style={{ fontSize: 11, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Custom template callout */}
-        <div style={{ maxWidth: 1200, margin: '32px auto 0', padding: '18px 24px', borderRadius: 12, background: surface, border: `1.5px dashed ${border}`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: Y, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>✦</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 2, color: text }}>Upload your own template</div>
-              <div style={{ fontSize: 12, color: muted }}>Got a custom HTML/CSS design? Upload it and ProCV generates into it automatically — your brand, your layout.</div>
-            </div>
-          </div>
-          <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 18px', borderRadius: 8, background: Y, border: 'none', cursor: 'pointer', color: '#111', flexShrink: 0 }}>
-            Use my template →
-          </button>
-        </div>
-
-        <div style={{ maxWidth: 1200, margin: '16px auto 0', textAlign: 'center' }}>
-          <button onClick={onGetStarted} style={{ fontSize: 12, fontWeight: 700, padding: '9px 22px', borderRadius: 8, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted }}>
-            Browse all 35 templates →
-          </button>
-        </div>
-      </section>
-
-      {/* ── Power Features strip ──────────────────────────────────────── */}
-      <section
-        ref={reg('pf')} data-s="pf"
-        style={{
-          borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`,
-          padding: '0',
-          opacity: v('pf') ? 1 : 0, transform: v('pf') ? 'none' : 'translateY(16px)',
-          transition: 'opacity 0.5s, transform 0.5s',
-        }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', background: border, gap: 1 }}>
-          {[
-            {
-              icon: '◈',
-              color: '#6366f1',
-              title: 'Multiple profiles',
-              body: 'Keep separate profiles for different career paths — SWE, PM, freelance. Switch instantly without re-entering a thing.',
-            },
-            {
-              icon: '⊙',
-              color: '#0ea5e9',
-              title: 'Custom templates',
-              body: 'Upload your own HTML/CSS design and ProCV writes directly into it. Your layout, your brand, zero compromise.',
-            },
-            {
-              icon: '◐',
-              color: '#22c55e',
-              title: 'Full CV history',
-              body: 'Every CV you generate is saved with its ATS score. Compare any two versions side by side and track your score over time.',
-            },
-            {
-              icon: '✦',
-              color: '#f59e0b',
-              title: 'Job application tracker',
-              body: 'Log every role you apply to — status, notes, salary, recruiter contact. Never lose track of an application again.',
-            },
-          ].map((f, i) => (
-            <div key={i} onClick={onGetStarted}
-              style={{ background: bg, padding: '28px 24px', cursor: 'pointer', transition: 'background 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = elevated)}
-              onMouseLeave={e => (e.currentTarget.style.background = bg)}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: f.color + '22', border: `1px solid ${f.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: f.color, marginBottom: 14 }}>{f.icon}</div>
-              <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 6 }}>{f.title}</div>
-              <div style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>{f.body}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Before / After ────────────────────────────────────────────── */}
-      <section
-        ref={reg('ba')} data-s="ba"
-        style={{
-          maxWidth: 1100, margin: '0 auto', padding: '64px 24px',
-          opacity: v('ba') ? 1 : 0, transform: v('ba') ? 'none' : 'translateY(20px)',
-          transition: 'opacity 0.5s, transform 0.5s',
-        }}>
-        <div style={{ marginBottom: 40 }}>
-          <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8 }}>Real results</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: 0, lineHeight: 1.1 }}>From overlooked<br />to interview-ready.</h2>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {BEFORE_AFTER_CASES.map((c, i) => (
-                <button key={i} onClick={() => setActiveCase(i)} style={{ fontSize: 11, fontWeight: 700, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s', background: activeCase === i ? Y : elevated, color: activeCase === i ? '#111' : muted, border: `1px solid ${activeCase === i ? Y : border}` }}>
-                  {c.role}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
-          {/* Before */}
-          <div style={{ padding: 24, borderRadius: 16, background: surface, border: '1.5px solid #ef444430' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-              <div>
-                <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: '#ef444418', color: '#ef4444', border: '1px solid #ef444430' }}>Before</span>
-                <p style={{ fontSize: 11, color: muted, marginTop: 5 }}>{ac.role} · {ac.tag}</p>
-              </div>
-              <AtsGauge score={ac.before.score} size={48} />
-            </div>
-            <div style={{ padding: 14, borderRadius: 10, background: elevated, border: `1px solid ${border}` }}>
-              <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: faint, marginBottom: 8 }}>Experience bullets</p>
-              {ac.before.bullets.map((b, i) => (
-                <div key={i} style={{ display: 'flex', gap: 7, marginBottom: 7 }}>
-                  <span style={{ color: '#ef4444', fontSize: 10, marginTop: 2, flexShrink: 0 }}>•</span>
-                  <p style={{ fontSize: 12, lineHeight: 1.5, color: muted, margin: 0 }}>{b}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <div style={{ flex: 1, height: 4, borderRadius: 99, background: elevated }}>
-                <div style={{ width: `${ac.before.score}%`, height: '100%', background: '#ef4444', borderRadius: 99 }} />
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 900, color: '#ef4444' }}>{ac.before.score}/100</span>
-            </div>
-          </div>
-          {/* After */}
-          <div style={{ padding: 24, borderRadius: 16, background: surface, border: `1.5px solid ${Y}66` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-              <div>
-                <span style={{ fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 4, background: Y + '33', color: darkMode ? Y : '#7a6800', border: `1px solid ${Y}66` }}>After ProCV</span>
-                <p style={{ fontSize: 11, color: muted, marginTop: 5 }}>{ac.role} · Generated in {activeCase === 1 ? '3' : activeCase === 2 ? '5' : '4'} min</p>
-              </div>
-              <AtsGauge score={ac.after.score} size={48} />
-            </div>
-            <div style={{ padding: 14, borderRadius: 10, background: elevated, border: `1px solid ${Y}44` }}>
-              <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: faint, marginBottom: 8 }}>Experience bullets</p>
-              {ac.after.bullets.map((b, i) => (
-                <div key={i} style={{ display: 'flex', gap: 7, marginBottom: 7 }}>
-                  <span style={{ color: '#22c55e', fontSize: 10, marginTop: 2, flexShrink: 0 }}>•</span>
-                  <p style={{ fontSize: 12, lineHeight: 1.5, color: text, margin: 0 }}>{b}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <div style={{ flex: 1, height: 4, borderRadius: 99, background: elevated }}>
-                <div style={{ width: `${ac.after.score}%`, height: '100%', background: '#22c55e', borderRadius: 99, transition: 'width 0.6s ease' }} />
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 900, color: '#22c55e' }}>{ac.after.score}/100</span>
-            </div>
-          </div>
-        </div>
-        {/* Delta callout */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 20, padding: '14px 24px', borderRadius: 14, background: surface, border: `1px solid ${border}` }}>
-            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 26, fontWeight: 900, color: '#ef4444' }}>{ac.before.score}</div><div style={{ fontSize: 9, color: faint }}>before</div></div>
-            <div style={{ fontSize: 18, color: faint }}>→</div>
-            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 26, fontWeight: 900, color: '#22c55e' }}>{ac.after.score}</div><div style={{ fontSize: 9, color: faint }}>after</div></div>
-            <div style={{ width: 1, height: 32, background: border, margin: '0 4px' }} />
-            <div><div style={{ fontSize: 15, fontWeight: 900 }}>+{ac.after.score - ac.before.score} pts</div><div style={{ fontSize: 11, color: muted }}>{ac.role}</div></div>
-            <button onClick={onGetStarted} style={{ marginLeft: 8, padding: '8px 16px', fontSize: 12, fontWeight: 900, borderRadius: 8, background: Y, border: 'none', cursor: 'pointer', color: '#111' }}>
-              Score mine →
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Testimonials ─────────────────────────────────────────────── */}
-      <section
-        ref={reg('t')} data-s="t"
-        style={{
-          background: elevated, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`,
-          padding: '56px 24px',
-          opacity: v('t') ? 1 : 0, transform: v('t') ? 'none' : 'translateY(20px)',
-          transition: 'opacity 0.5s, transform 0.5s',
-        }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8 }}>What people say</p>
-          <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.4rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 36px' }}>Real people. Real offers.</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
-            {TESTIMONIALS.map((t, i) => (
-              <div key={i} style={{ padding: 24, borderRadius: 16, background: surface, border: `1px solid ${border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: t.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#fff', flexShrink: 0 }}>{t.avatar}</div>
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: 13 }}>{t.name}</div>
-                      <div style={{ fontSize: 11, color: muted }}>{t.role} · {t.company}</div>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 900, padding: '4px 8px', borderRadius: 6, background: Y + '33', color: darkMode ? Y : '#7a6800', border: `1px solid ${Y}55`, flexShrink: 0, marginLeft: 8 }}>{t.metric}</span>
-                </div>
-                <p style={{ fontSize: 13, lineHeight: 1.65, color: muted, margin: '0 0 14px' }}>"{t.quote}"</p>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {[...Array(5)].map((_, si) => (
-                    <svg key={si} width={12} height={12} viewBox="0 0 12 12" fill={Y}><path d="M6 1l1.5 3 3.2.5-2.35 2.25.55 3.2L6 8.5l-2.9 1.45.55-3.2L1.3 4.5l3.2-.5z"/></svg>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* ── One Profile. Unlimited Possibilities. ────────────────────── */}
       <section style={{ padding: '72px 24px', borderTop: `1px solid ${border}` }}>
@@ -1747,51 +1468,47 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${border}`, background: '#1B2B4B', padding: '48px 24px 28px' }}>
+      <footer style={{ borderTop: `1px solid ${border}`, background: '#0d1525', padding: '40px 24px 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          {/* Top row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 40, marginBottom: 40 }}>
+          {/* Top: logo + columns */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 48, marginBottom: 36, justifyContent: 'space-between' }}>
             {/* Brand */}
-            <div style={{ gridColumn: 'span 2' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <div style={{ width: 26, height: 26, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
-                <span style={{ fontWeight: 900, fontSize: 16, color: '#fff', letterSpacing: '-0.02em' }}>ProCV</span>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#C9A84C', marginTop: 6 }} />
+            <div style={{ minWidth: 180 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ width: 28, height: 28, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
+                <span style={{ fontWeight: 900, fontSize: 15, color: '#fff', letterSpacing: '-0.02em' }}>ProCV</span>
               </div>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0, lineHeight: 1.6, maxWidth: 240 }}>Your Personal Career Consultant. 14 AI-powered tools. One profile.</p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. AI-powered. Always free to start.</p>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>No sign-up required.</div>
             </div>
-            {/* Product */}
-            <div>
-              <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>Product</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {['CV Generator', 'Cover Letter', 'ATS Checker', 'Interview Prep', 'Portal Scanner'].map(n => (
-                  <button key={n} onClick={onGetStarted} style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                    onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}>{n}</button>
-                ))}
-              </div>
-            </div>
-            {/* Tools */}
-            <div>
-              <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>More Tools</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {['Negotiation Coach', 'CV Doctor', 'HR Detector', 'LinkedIn Optimiser', 'Job Board'].map(n => (
-                  <button key={n} onClick={onGetStarted} style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                    onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}>{n}</button>
-                ))}
-              </div>
+
+            {/* Link columns */}
+            <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
+              {[
+                { heading: 'Product', links: ['CV Generator', 'Cover Letter', 'ATS Checker', 'Interview Prep', 'CV Templates'] },
+                { heading: 'Resources', links: ['How It Works', 'CV Examples', 'Career Blog', 'Help Center'] },
+                { heading: 'Company', links: ['About', 'Privacy Policy', 'Terms of Service'] },
+              ].map(col => (
+                <div key={col.heading}>
+                  <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', margin: '0 0 14px' }}>{col.heading}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {col.links.map(l => (
+                      <button key={l} onClick={onGetStarted} style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          {/* Bottom row */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 20, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: 0 }}>© 2026 ProCV · Built free. Always.</p>
-            <div style={{ display: 'flex', gap: 20 }}>
-              {['Privacy Policy', 'Terms of Service'].map(l => (
-                <button key={l} onClick={onGetStarted} style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, transition: 'color 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>{l}</button>
-              ))}
+
+          {/* Bottom bar */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>© 2026 ProCV — Built by job seekers, for job seekers.</p>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>All systems operational</span>
             </div>
           </div>
         </div>
