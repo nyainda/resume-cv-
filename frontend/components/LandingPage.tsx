@@ -1493,7 +1493,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.3)'; }}>
               {hasProfile ? 'Go to Suite' : 'Get Started Free →'}
             </button>
-            <span style={{ fontSize: 12, color: faint }}>No signup · No credit card · No cloud</span>
+            <span style={{ fontSize: 12, color: faint }}>Create your free account · No credit card needed</span>
           </div>
         </div>
       </section>
@@ -1530,8 +1530,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 <div style={{ width: 28, height: 28, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
                 <span style={{ fontWeight: 900, fontSize: 15, color: text, letterSpacing: '-0.02em' }}>ProCV</span>
               </div>
-              <p style={{ fontSize: 13, color: muted, margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. AI-powered. Always free to start.</p>
-              <div style={{ fontSize: 12, color: faint }}>No sign-up required.</div>
+              <p style={{ fontSize: 13, color: muted, margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. AI-powered career documents that actually sound like you.</p>
             </div>
 
             {/* Link columns */}
