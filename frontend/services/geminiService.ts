@@ -1505,7 +1505,7 @@ async function claudeMultimodalCall(
         method: 'POST',
         headers,
         body: JSON.stringify({
-            model: 'claude-haiku-4-5',
+            model: 'claude-3-5-haiku-latest',
             max_tokens: opts.maxTokens ?? 4096,
             temperature: opts.temperature ?? 0.1,
             messages: [{ role: 'user', content: [filePart, { type: 'text', text: textPrompt }] }],

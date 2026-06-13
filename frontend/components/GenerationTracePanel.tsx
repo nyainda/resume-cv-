@@ -24,6 +24,8 @@ interface GenerationTracePanelProps {
   trace: GenerationTrace;
   /** Called when user clicks "Pin this field" inside the tooltip */
   onPinField?: (field: string) => void;
+  /** Called when user clicks "Unpin" on a user-pinned field */
+  onUnpinField?: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,21 +95,47 @@ function FieldSourceBadge({
   source,
   field,
   onPinField,
+  onUnpinField,
 }: {
   source: FieldDetectionSource | undefined;
   field: string;
   onPinField?: (field: string) => void;
+  onUnpinField?: () => void;
 }) {
   const [tip, setTip] = React.useState(false);
   const [pinned, setPinned] = React.useState(false);
+  const [unpinned, setUnpinned] = React.useState(false);
 
   if (!source) return <Badge color="zinc">—</Badge>;
 
   if (source.kind === 'user-pinned') {
     return (
-      <span className="flex items-center gap-1">
+      <span className="flex items-center gap-2">
         <Badge color="teal">📌 user-pinned</Badge>
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">(S6 ontology — dropdown overrides scoring)</span>
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">(S6 ontology — overrides keyword scoring)</span>
+        {onUnpinField && (
+          unpinned ? (
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+              ↩ Unpinned — next generation will auto-detect
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                onUnpinField();
+                setUnpinned(true);
+                setTimeout(() => setUnpinned(false), 2500);
+              }}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-neutral-600 text-[10px] text-zinc-500 dark:text-zinc-400 hover:border-rose-300 hover:text-rose-600 dark:hover:border-rose-700 dark:hover:text-rose-400 transition-colors"
+              title="Remove pinned field — scoring will choose the field again"
+            >
+              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
+              </svg>
+              Unpin
+            </button>
+          )
+        )}
       </span>
     );
   }
@@ -246,7 +274,7 @@ function ViolationList({ violations }: { violations: ValidationViolation[] }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace, onPinField }) => {
+const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace, onPinField, onUnpinField }) => {
   const [open, setOpen] = useState(false);
 
   const scenarioColor: Record<string, 'blue' | 'teal' | 'violet' | 'amber' | 'zinc'> = {
@@ -339,6 +367,7 @@ const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace, onPi
                 source={trace.fieldSource}
                 field={trace.field}
                 onPinField={onPinField}
+                onUnpinField={onUnpinField}
               />
             </Row>
             <Row label="Voice">

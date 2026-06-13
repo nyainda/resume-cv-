@@ -285,7 +285,7 @@ export async function testProviderConnection(
             timeoutMs: 12_000,
         });
         if (!result) return { ok: false, error: 'Worker proxy returned no text.' };
-        return { ok: true, model: provider === 'claude' ? 'claude-haiku-4-5' : 'gemini-2.0-flash' };
+        return { ok: true, model: provider === 'claude' ? 'claude-3-5-haiku-latest' : 'gemini-2.0-flash' };
     } catch (e: any) {
         return { ok: false, error: e?.message || 'Connection test failed.' };
     }

@@ -1238,6 +1238,16 @@ const AppInner: React.FC = () => {
     [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated],
   );
 
+  const handleUnpinField = useCallback(() => {
+    if (!userProfile || !activeSlot) return;
+    const { preferredField: _removed, ...rest } = userProfile as UserProfile & { preferredField?: string };
+    const updated = rest as UserProfile;
+    setUserProfile(updated);
+    syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
+    if (isWorkerAuthenticated)
+      syncSlot({ ...activeSlot, profile: updated }).catch(() => {});
+  }, [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated]);
+
   // ── Per-slot state sync callback (room isolation) ──────────────────────
   // CVGenerator calls this (debounced 1s) whenever JD, targeting, or generation
   // settings change so each profile slot stores its own "room" state.
@@ -2468,6 +2478,7 @@ const AppInner: React.FC = () => {
                     initialJdKeywords={activeSlot?.jdKeywords}
                     onSlotUpdate={handleSlotUpdate}
                     onPinField={handlePinField}
+                    onUnpinField={handleUnpinField}
                   />
                 )}
                 {currentView === "linkedin" && (
