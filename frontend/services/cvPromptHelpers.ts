@@ -771,6 +771,47 @@ export function fixPronouns(text: string): string {
     return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FIELD CONFIDENCE HISTORY — last 5 auto-detected fields stored in localStorage
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FIELD_HISTORY_KEY = 'cv:fieldHistory';
+const FIELD_HISTORY_MAX = 5;
+
+export interface FieldHistoryEntry {
+    field: CVField;
+    score: number;
+    /** ISO timestamp */
+    at: string;
+}
+
+/** Read the stored history (newest first). Never throws. */
+export function getFieldHistory(): FieldHistoryEntry[] {
+    try {
+        const raw = localStorage.getItem(FIELD_HISTORY_KEY);
+        if (!raw) return [];
+        return JSON.parse(raw) as FieldHistoryEntry[];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Push one entry for an auto-detected field. User-pinned detections are
+ * deliberately excluded so the history reflects what scoring actually chose.
+ */
+export function recordFieldHistory(source: FieldDetectionSource, field: CVField): void {
+    if (source.kind === 'user-pinned') return;
+    const entry: FieldHistoryEntry = { field, score: source.score, at: new Date().toISOString() };
+    try {
+        const prev = getFieldHistory();
+        const next = [entry, ...prev].slice(0, FIELD_HISTORY_MAX);
+        localStorage.setItem(FIELD_HISTORY_KEY, JSON.stringify(next));
+    } catch {
+        // localStorage full or unavailable — skip silently
+    }
+}
+
 /** Apply fixPronouns to every text field in a CV in one shot. */
 export function fixPronounsInCV<T extends {
     summary?: string;

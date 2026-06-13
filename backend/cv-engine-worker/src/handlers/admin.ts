@@ -267,7 +267,7 @@ Rules:
 
     let raw: any = null;
     try {
-        raw = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        raw = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
             messages: [
                 { role: 'system', content: sys },
                 { role: 'user', content: user },
@@ -312,7 +312,7 @@ Rules:
         already_banned_count: banned.length,
         new_findings: cleaned.length,
         findings: cleaned,
-        model: '@cf/meta/llama-3.1-8b-instruct',
+        model: '@cf/meta/llama-3.2-3b-instruct',
         raw_response: responseText.slice(0, 400),
     }, request, env);
 }

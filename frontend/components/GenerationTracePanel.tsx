@@ -18,7 +18,8 @@
 
 import React, { useState } from 'react';
 import type { GenerationTrace, ValidationViolation } from '../services/generationTrace';
-import type { FieldDetectionSource } from '../services/cvPromptHelpers';
+import type { FieldDetectionSource, FieldHistoryEntry } from '../services/cvPromptHelpers';
+import { getFieldHistory } from '../services/cvPromptHelpers';
 
 interface GenerationTracePanelProps {
   trace: GenerationTrace;
@@ -250,6 +251,52 @@ function FieldSourceBadge({
   );
 }
 
+// ─── Field Confidence History Trend ──────────────────────────────────────────
+
+function FieldHistoryTrend({ currentField }: { currentField: string }) {
+  const history = getFieldHistory();
+  if (history.length < 2) return null;
+
+  // Count occurrences of each field across all history entries
+  const counts: Record<string, number> = {};
+  for (const e of history) counts[e.field] = (counts[e.field] ?? 0) + 1;
+
+  // Sort by count descending
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const total = history.length;
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0">Last {total} runs:</span>
+      {sorted.map(([field, count]) => (
+        <span
+          key={field}
+          className={[
+            'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono',
+            field === currentField
+              ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 ring-1 ring-teal-300 dark:ring-teal-700'
+              : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400',
+          ].join(' ')}
+          title={`Detected ${count}/${total} time${count !== 1 ? 's' : ''}`}
+        >
+          {field}
+          <span className={[
+            'rounded-full px-1 text-[9px] font-bold',
+            field === currentField
+              ? 'bg-teal-200 dark:bg-teal-700 text-teal-800 dark:text-teal-200'
+              : 'bg-zinc-200 dark:bg-neutral-600 text-zinc-500 dark:text-zinc-300',
+          ].join(' ')}>
+            ×{count}
+          </span>
+        </span>
+      ))}
+      {history.length === 5 && (
+        <span className="text-[9px] text-zinc-300 dark:text-zinc-600 italic">cap 5</span>
+      )}
+    </div>
+  );
+}
+
 function ViolationList({ violations }: { violations: ValidationViolation[] }) {
   if (violations.length === 0) {
     return <span className="text-[11px] text-green-600 dark:text-green-400 font-medium">✓ All rules passed</span>;
@@ -363,12 +410,15 @@ const GenerationTracePanel: React.FC<GenerationTracePanelProps> = ({ trace, onPi
               <Badge color="teal">{trace.field || '—'}</Badge>
             </Row>
             <Row label="Field source">
-              <FieldSourceBadge
-                source={trace.fieldSource}
-                field={trace.field}
-                onPinField={onPinField}
-                onUnpinField={onUnpinField}
-              />
+              <div className="flex flex-col gap-0.5 w-full">
+                <FieldSourceBadge
+                  source={trace.fieldSource}
+                  field={trace.field}
+                  onPinField={onPinField}
+                  onUnpinField={onUnpinField}
+                />
+                <FieldHistoryTrend currentField={trace.field} />
+              </div>
             </Row>
             <Row label="Voice">
               <Badge color="violet">{trace.voice || '—'}</Badge>

@@ -26,6 +26,7 @@ import ShareCVModal from './ShareCVModal';
 import AIImprovementPanel from './AIImprovementPanel';
 import QualityIssuesPanel from './QualityIssuesPanel';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
+import { recordFieldHistory } from '../services/cvPromptHelpers';
 import { profileToCV } from '../utils/profileToCV';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
@@ -861,6 +862,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
       setJustGenerated(true);
+      // Record field confidence history entry for the trace panel trend
+      if (generatedData._trace?.fieldSource) {
+        recordFieldHistory(generatedData._trace.fieldSource, generatedData._trace.field as any);
+      }
       // Record generation timestamp in the slot for the profile tracker
       onSlotUpdate?.({ lastGeneratedAt: new Date().toISOString() });
       // Instant zero-cost re-score: compare the newly generated CV against the
