@@ -12,3 +12,9 @@ id = "5ScxqC8RdgLIl3ScshuIY"
 uri = "file://docs/APP_REFACTOR.md"
 type = "text"
 title = "App.tsx Refactor Roadmap"
+
+[[outputs]]
+id = "WYkj6vHChwiMojZGpQw5S"
+uri = "file://docs/REFACTOR_ROADMAP.md"
+type = "text"
+title = "Full Codebase Refactor Roadmap"
