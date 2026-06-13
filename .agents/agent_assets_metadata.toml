@@ -6,3 +6,9 @@ id = "92l1e6VT6zGmrFfhNscy-"
 uri = "file://docs/procv-engineering-audit.md"
 type = "text"
 title = "ProCV Engineering Audit — Full Updated Report"
+
+[[outputs]]
+id = "5ScxqC8RdgLIl3ScshuIY"
+uri = "file://docs/APP_REFACTOR.md"
+type = "text"
+title = "App.tsx Refactor Roadmap"
