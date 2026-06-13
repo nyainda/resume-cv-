@@ -150,6 +150,8 @@ interface CVGeneratorProps {
     lastGeneratedAt?: string;
     lastAtsScore?: number;
   }) => void;
+  /** Called when user pins a field from the Generation Trace panel tooltip */
+  onPinField?: (field: string) => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -236,7 +238,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions,
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
-  initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate,
+  initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField,
 }) => {
   const { isAuthenticated } = useGoogleAuth();
   const { requireAuth, sessionToken, workerUser } = useWorkerAuth();
@@ -2541,7 +2543,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 carries a _trace from the last generation run. Collapsed by
                 default so it doesn't interrupt the normal editing flow. */}
             {currentCV?._trace && (
-              <GenerationTracePanel trace={currentCV._trace} />
+              <GenerationTracePanel trace={currentCV._trace} onPinField={onPinField} />
             )}
           </div>
         </div>

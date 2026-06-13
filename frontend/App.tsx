@@ -1221,6 +1221,23 @@ const AppInner: React.FC = () => {
     [setProfiles, toast],
   );
 
+  // ── Pin-field shortcut from the Generation Trace panel ────────────────
+  // Called when the user clicks "Pin this field" inside the Why-this-field
+  // tooltip. Patches preferredField on the active profile without opening
+  // the Profile form. Fire-and-forget sync to D1 / auth backend mirrors
+  // the same path as handleProfileSave.
+  const handlePinField = useCallback(
+    (field: string) => {
+      if (!userProfile || !activeSlot) return;
+      const updated: UserProfile = { ...userProfile, preferredField: field };
+      setUserProfile(updated);
+      syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
+      if (isWorkerAuthenticated)
+        syncSlot({ ...activeSlot, profile: updated }).catch(() => {});
+    },
+    [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated],
+  );
+
   // ── Per-slot state sync callback (room isolation) ──────────────────────
   // CVGenerator calls this (debounced 1s) whenever JD, targeting, or generation
   // settings change so each profile slot stores its own "room" state.
@@ -2450,6 +2467,7 @@ const AppInner: React.FC = () => {
                     initialGenerationMode={activeSlot?.generationMode}
                     initialJdKeywords={activeSlot?.jdKeywords}
                     onSlotUpdate={handleSlotUpdate}
+                    onPinField={handlePinField}
                   />
                 )}
                 {currentView === "linkedin" && (
