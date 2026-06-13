@@ -504,12 +504,14 @@ const PROXY_HARD_MAX_TOKENS   = 16000;
 
 export async function handleProxyLLM(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
-    const provider = typeof body?.provider === 'string' ? body.provider.toLowerCase().trim() : '';
-    const apiKey   = typeof body?.apiKey   === 'string' ? body.apiKey.trim()                 : '';
-    const model    = typeof body?.model    === 'string' ? body.model.trim()                  : '';
-    const prompt   = typeof body?.prompt   === 'string' ? body.prompt.slice(0, PROXY_MAX_PROMPT_CHARS) : '';
-    const task     = typeof body?.task     === 'string' ? body.task.trim()                   : '';
-    const wantJson = body?.json === true;
+    const provider   = typeof body?.provider   === 'string' ? body.provider.toLowerCase().trim()        : '';
+    const apiKey     = typeof body?.apiKey     === 'string' ? body.apiKey.trim()                        : '';
+    const model      = typeof body?.model      === 'string' ? body.model.trim()                         : '';
+    const prompt     = typeof body?.prompt     === 'string' ? body.prompt.slice(0, PROXY_MAX_PROMPT_CHARS) : '';
+    const task       = typeof body?.task       === 'string' ? body.task.trim()                          : '';
+    const base64Data = typeof body?.base64Data === 'string' ? body.base64Data                           : '';
+    const mimeType   = typeof body?.mimeType   === 'string' ? body.mimeType.trim()                      : '';
+    const wantJson   = body?.json === true;
     const wantStream = body?.stream === true;
     const useSearch  = body?.useSearch === true;
 
@@ -552,24 +554,41 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
         // ── Claude ────────────────────────────────────────────────────────────
         if (provider === 'claude') {
             const claudeModel = model || 'claude-haiku-4-5-20251001';
+            const isPdf = mimeType === 'application/pdf';
+
+            // Build message content — multimodal (file + text) when a file is attached,
+            // plain text otherwise.
+            let claudeContent: unknown;
+            if (base64Data && mimeType) {
+                const filePart = isPdf
+                    ? { type: 'document', source: { type: 'base64', media_type: mimeType, data: base64Data } }
+                    : { type: 'image',    source: { type: 'base64', media_type: mimeType, data: base64Data } };
+                claudeContent = [filePart, { type: 'text', text: prompt }];
+            } else {
+                claudeContent = prompt;
+            }
 
             const claudeBody: Record<string, unknown> = {
                 model: claudeModel,
                 max_tokens: maxTokens,
                 temperature,
-                messages: [{ role: 'user', content: prompt }],
+                messages: [{ role: 'user', content: claudeContent }],
             };
             if (effectiveSystem) claudeBody.system = effectiveSystem;
+
+            // PDF extraction requires the Anthropic beta feature flag
+            const claudeHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+            };
+            if (base64Data && isPdf) claudeHeaders['anthropic-beta'] = 'pdfs-2024-09-25';
 
             if (wantStream) {
                 claudeBody.stream = true;
                 const sRes = await fetch('https://api.anthropic.com/v1/messages', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                    },
+                    headers: claudeHeaders,
                     body: JSON.stringify(claudeBody),
                 });
                 if (!sRes.ok || !sRes.body) {
@@ -583,11 +602,7 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
 
             const res = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01',
-                },
+                headers: claudeHeaders,
                 body: JSON.stringify(claudeBody),
             });
             if (!res.ok) {
