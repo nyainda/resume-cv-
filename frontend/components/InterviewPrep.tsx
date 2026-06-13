@@ -130,6 +130,137 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
     const revealAll = () => setRevealedAnswers(new Set(questions.map((_, i) => i)));
     const hideAll   = () => setRevealedAnswers(new Set());
 
+    // ── PDF export ──────────────────────────────────────────────────────────
+    const exportPracticeReport = useCallback(() => {
+        const now     = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const ratingLabels: Record<number, string> = { 1: '😬 Struggled', 2: '😐 Unsure', 3: '🙂 OK', 4: '😊 Good', 5: '🔥 Nailed it' };
+        const ratingColors: Record<number, string> = { 1: '#dc2626', 2: '#ea580c', 3: '#d97706', 4: '#1B2B4B', 5: '#059669' };
+        const ratingBg: Record<number, string>     = { 1: '#fef2f2', 2: '#fff7ed', 3: '#fffbeb', 4: '#eef1f7', 5: '#f0fdf4' };
+
+        const avgR   = ratings.size > 0 ? Array.from(ratings.values()).reduce((a, b) => a + b, 0) / ratings.size : 0;
+        const pct    = ratings.size > 0 ? Math.round((avgR / 5) * 100) : 0;
+        const pctColor = pct >= 70 ? '#059669' : pct >= 45 ? '#d97706' : '#dc2626';
+
+        const practiceQs = questions.filter((_, i) => (ratings.get(i) ?? 0) <= 2 && ratings.has(i));
+        const confidentQs = questions.filter((_, i) => (ratings.get(i) ?? 0) >= 4 && ratings.has(i));
+
+        const catIcon: Record<string, string> = { Behavioural: '🧠', Technical: '⚙️', Situational: '🎯', Culture: '🌱', Strength: '💪' };
+
+        const questionRows = questions.map((q, i) => {
+            const r = ratings.get(i);
+            const label  = r ? ratingLabels[r]  : '— Not rated';
+            const color  = r ? ratingColors[r]  : '#9ca3af';
+            const bg     = r ? ratingBg[r]      : '#f9fafb';
+            const icon   = catIcon[q.category] ?? '💡';
+            return `
+            <div style="margin-bottom:16px;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;break-inside:avoid;">
+                <div style="background:#f8f7f4;padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:13px;">${icon}</span>
+                        <span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">${q.category}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        ${r ? `<span style="font-size:11px;font-weight:700;color:${color};background:${bg};padding:3px 10px;border-radius:999px;border:1px solid ${color}30;">${label}</span>` : ''}
+                        <span style="font-size:11px;color:#9ca3af;font-weight:600;">Q${i + 1}</span>
+                    </div>
+                </div>
+                <div style="padding:14px 16px 10px;">
+                    <p style="font-size:13px;font-weight:600;color:#111827;margin:0 0 12px;line-height:1.5;">"${q.question.replace(/"/g, '&quot;')}"</p>
+                    <div style="background:#1B2B4B0a;border:1px solid #1B2B4B20;border-radius:10px;padding:12px 14px;">
+                        <p style="font-size:10px;font-weight:900;color:#1B2B4B;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;">Model Answer</p>
+                        <p style="font-size:12px;color:#374151;line-height:1.65;margin:0;white-space:pre-line;">${q.answer.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        const practiceList = practiceQs.length > 0 ? `
+        <div style="margin-top:24px;padding:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;break-inside:avoid;">
+            <p style="font-size:11px;font-weight:900;color:#dc2626;text-transform:uppercase;letter-spacing:.08em;margin:0 0 12px;">📌 Focus on these before your interview</p>
+            ${practiceQs.map((q, _i) => {
+                const qi = questions.indexOf(q);
+                return `<div style="margin-bottom:8px;padding:10px 12px;background:white;border-radius:8px;border:1px solid #fecaca;">
+                    <span style="font-size:10px;font-weight:700;color:#dc2626;">Q${qi + 1} · ${q.category}</span>
+                    <p style="font-size:12px;color:#374151;margin:3px 0 0;line-height:1.4;">"${q.question.replace(/"/g, '&quot;')}"</p>
+                </div>`;
+            }).join('')}
+        </div>` : '';
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Interview Practice Report — ${companyName || 'ProCV'}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: white; color: #111827; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+    @page { margin: 15mm 12mm; size: A4; }
+  }
+  .page { max-width: 760px; margin: 0 auto; padding: 32px 24px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Branding header -->
+  <div style="background:#1B2B4B;border-radius:16px;padding:24px 28px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+        <div style="background:#C9A84C;color:#1B2B4B;font-weight:900;font-size:13px;padding:5px 10px;border-radius:8px;">ProCV</div>
+        <span style="color:rgba(255,255,255,0.5);font-size:11px;font-weight:500;">Your Personal Career Consultant</span>
+      </div>
+      <h1 style="color:white;font-size:22px;font-weight:900;line-height:1.2;margin-bottom:4px;">Interview Practice Report</h1>
+      <p style="color:rgba(255,255,255,0.6);font-size:13px;">${companyName ? `Preparing for: <strong style="color:rgba(255,255,255,0.85)">${companyName}</strong> · ` : ''}${dateStr} at ${timeStr}</p>
+    </div>
+    <div style="text-align:right;flex-shrink:0;">
+      <p style="color:rgba(255,255,255,0.5);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">Readiness</p>
+      <p style="color:${pctColor};font-size:32px;font-weight:900;line-height:1;">${pct}%</p>
+      <p style="color:rgba(255,255,255,0.4);font-size:11px;margin-top:2px;">${ratings.size} of ${questions.length} rated</p>
+    </div>
+  </div>
+
+  <!-- Summary strip -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px;">
+    ${[
+      { label: 'Need Practice', count: practiceQs.length,  color: '#dc2626', bg: '#fef2f2' },
+      { label: 'Getting There', count: ratings.size - practiceQs.length - confidentQs.length, color: '#d97706', bg: '#fffbeb' },
+      { label: 'Confident',     count: confidentQs.length, color: '#059669', bg: '#f0fdf4' },
+    ].map(row => `
+    <div style="background:${row.bg};border-radius:10px;padding:12px;text-align:center;border:1px solid ${row.color}30;">
+      <p style="font-size:24px;font-weight:900;color:${row.color};line-height:1;">${row.count}</p>
+      <p style="font-size:11px;color:#6b7280;font-weight:600;margin-top:2px;">${row.label}</p>
+    </div>`).join('')}
+  </div>
+
+  <!-- Practice focus list -->
+  ${practiceList}
+
+  <!-- All questions -->
+  <h2 style="font-size:13px;font-weight:900;color:#1B2B4B;text-transform:uppercase;letter-spacing:.08em;margin:${practiceQs.length > 0 ? '24px' : '0'} 0 12px;opacity:.7;">All Questions &amp; Model Answers</h2>
+  ${questionRows}
+
+  <!-- Footer -->
+  <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:11px;color:#9ca3af;">Generated by ProCV · procv.app</span>
+    <span style="font-size:11px;color:#9ca3af;">${dateStr}</span>
+  </div>
+
+</div>
+<script>window.onload = () => { window.print(); }</script>
+</body>
+</html>`;
+
+        const blob = new Blob([html], { type: 'text/html' });
+        const url  = URL.createObjectURL(blob);
+        const win  = window.open(url, '_blank');
+        if (win) { setTimeout(() => URL.revokeObjectURL(url), 60000); }
+    }, [questions, ratings, companyName]);
+
     // Derived rating data
     const ratingScale = [
         { score: 1, emoji: '😬', label: 'Struggled' },
@@ -452,8 +583,20 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                                             {ratedCount} of {questions.length} questions self-assessed
                                         </p>
                                     </div>
-                                    {/* Readiness gauge */}
+                                    {/* Readiness gauge + export */}
                                     <div className="flex items-center gap-3">
+                                        {/* Export button */}
+                                        <button
+                                            onClick={exportPracticeReport}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all hover:opacity-90 active:scale-95 flex-shrink-0"
+                                            style={{ background: NAV, color: '#fff', borderColor: NAV }}
+                                            title="Export as PDF study guide"
+                                        >
+                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                                            </svg>
+                                            Export PDF
+                                        </button>
                                         <div className="text-right">
                                             <p className="text-xs text-zinc-400 dark:text-zinc-500">Readiness</p>
                                             <p className="text-xl font-black leading-none"
