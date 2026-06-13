@@ -235,6 +235,16 @@ function colorBg(c: ProfileColor) {
   return map[c];
 }
 
+function navTimeAgo(iso?: string): string {
+  if (!iso) return "";
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60)        return "just now";
+  if (s < 3600)      return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400)     return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 // ── Account isolation helpers ────────────────────────────────────────────────
 // FNV-1a 32-bit hash — fast, non-crypto, sufficient for equality detection.
 function _fnv32(s: string): string {
@@ -1907,6 +1917,7 @@ const AppInner: React.FC = () => {
                   className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm font-bold rounded-xl border transition-all ${showProfileManager ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 text-[#1B2B4B] dark:text-[#C9A84C]/80" : "bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700"}`}
                   title="Switch profile"
                 >
+                  {/* Avatar */}
                   <div
                     className={`w-7 h-7 rounded-full ${colorBg(slotColor)} flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0`}
                   >
@@ -1918,9 +1929,41 @@ const AppInner: React.FC = () => {
                       .charAt(0)
                       .toUpperCase()}
                   </div>
-                  <span className="hidden sm:inline max-w-[80px] truncate text-sm">
-                    {activeSlot?.name ?? "Profile"}
+
+                  {/* Two-line text block — desktop only */}
+                  <span className="hidden sm:flex flex-col items-start leading-none gap-0.5 min-w-0">
+                    <span className="max-w-[90px] truncate text-sm font-bold">
+                      {activeSlot?.name ?? "Profile"}
+                    </span>
+                    {/* Sub-row: ATS badge + time */}
+                    {(activeSlot?.lastAtsScore !== undefined || activeSlot?.lastGeneratedAt) && (
+                      <span className="flex items-center gap-1">
+                        {activeSlot?.lastAtsScore !== undefined && (
+                          <span
+                            className="text-[9px] font-extrabold px-1 py-px rounded"
+                            style={{
+                              background:
+                                activeSlot.lastAtsScore >= 80 ? "#dcfce7"
+                                : activeSlot.lastAtsScore >= 60 ? "#fef9c3"
+                                : "#fee2e2",
+                              color:
+                                activeSlot.lastAtsScore >= 80 ? "#15803d"
+                                : activeSlot.lastAtsScore >= 60 ? "#a16207"
+                                : "#b91c1c",
+                            }}
+                          >
+                            ATS {activeSlot.lastAtsScore}
+                          </span>
+                        )}
+                        {activeSlot?.lastGeneratedAt && (
+                          <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-medium">
+                            {navTimeAgo(activeSlot.lastGeneratedAt)}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </span>
+
                   <UsersIcon className="h-4 w-4 text-zinc-400 flex-shrink-0" />
                 </button>
 
