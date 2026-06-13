@@ -729,12 +729,10 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const DARK_T = {
     bg: '#0d1525', surface: '#141e2e', elevated: '#1a2236',
     border: '#1e2d47', text: '#f0ece0', muted: '#8892a4', faint: '#3d4f6b',
-    footerBg: '#080e1a',
   };
   const LIGHT_T = {
     bg: '#F8F7F4', surface: '#FFFFFF', elevated: '#ECEAE3',
     border: '#DDD9D0', text: '#1B2B4B', muted: '#5C6478', faint: '#B2AFA7',
-    footerBg: '#1B2B4B',
   };
   const T = darkMode ? DARK_T : LIGHT_T;
   const bg       = T.bg;
@@ -1316,28 +1314,26 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </div>
 
-      {/* ── The CV Quality Engine — dark navy ────────────────────────── */}
+      {/* ── The CV Quality Engine ─────────────────────────────────────── */}
       <section
         ref={reg('pipe')} data-s="pipe"
         style={{
-          background: '#1B2B4B', padding: '72px 24px', position: 'relative', overflow: 'hidden',
+          background: bg, padding: '72px 24px', position: 'relative', overflow: 'hidden',
+          borderTop: `1px solid ${border}`,
           opacity: v('pipe') ? 1 : 0, transform: v('pipe') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
-        {/* Subtle dot pattern */}
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '28px 28px', pointerEvents: 'none' }} />
-
         <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 56, alignItems: 'center' }}>
             <div>
               <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 18 }}>
                 The Engine
               </div>
-              <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: '#fff' }}>
+              <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: text }}>
                 7 Passes. One Goal —<br />
                 <span style={{ color: '#C9A84C' }}>The Best Version of You.</span>
               </h2>
-              <p style={{ fontSize: 14, lineHeight: 1.65, color: 'rgba(255,255,255,0.65)', margin: '0 0 32px', maxWidth: 380 }}>
+              <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 32px', maxWidth: 380 }}>
                 Every CV runs through our full quality pipeline before you ever see it. No shortcuts.
               </p>
               {/* Stats */}
@@ -1350,7 +1346,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 ].map(s => (
                   <div key={s.label}>
                     <div style={{ fontSize: 28, fontWeight: 900, color: '#C9A84C', lineHeight: 1 }}>{s.value}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 4 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -1363,7 +1359,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             {/* Pipeline steps — numbered with connecting line */}
             <div style={{ position: 'relative', paddingLeft: 16 }}>
               {/* Vertical connector */}
-              <div style={{ position: 'absolute', left: 36, top: 20, bottom: 20, width: 1, background: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ position: 'absolute', left: 36, top: 20, bottom: 20, width: 1, background: border }} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {PIPELINE_STEPS.map((step, i) => (
                   <div key={i}
@@ -1371,8 +1367,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                     style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer', position: 'relative', zIndex: 1 }}>
                     <div style={{
                       width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                      background: activePipe === i ? '#C9A84C' : 'rgba(255,255,255,0.08)',
-                      color: activePipe === i ? '#1B2B4B' : 'rgba(255,255,255,0.5)',
+                      background: activePipe === i ? '#C9A84C' : elevated,
+                      color: activePipe === i ? '#1B2B4B' : muted,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 14, fontWeight: 900, transition: 'all 0.25s',
                       boxShadow: activePipe === i ? '0 0 18px rgba(201,168,76,0.4)' : 'none',
@@ -1381,11 +1377,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                     </div>
                     <div style={{
                       flex: 1, padding: '12px 16px', borderRadius: 10, transition: 'all 0.25s',
-                      background: activePipe === i ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      background: activePipe === i ? elevated : 'transparent',
                       border: `1px solid ${activePipe === i ? 'rgba(201,168,76,0.4)' : 'transparent'}`,
                     }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: activePipe === i ? '#fff' : 'rgba(255,255,255,0.55)', transition: 'color 0.25s' }}>{step.label}</div>
-                      {activePipe === i && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, marginTop: 4 }}>{step.detail}</div>}
+                      <div style={{ fontSize: 14, fontWeight: 900, color: activePipe === i ? text : muted, transition: 'color 0.25s' }}>{step.label}</div>
+                      {activePipe === i && <div style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginTop: 4 }}>{step.detail}</div>}
                     </div>
                     {activePipe === i && <div style={{ fontSize: 16, color: '#22c55e', flexShrink: 0 }}>✓</div>}
                   </div>
@@ -1482,15 +1478,15 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </section>
 
       {/* ── Privacy slim banner ───────────────────────────────────────── */}
-      <div style={{ background: '#1B2B4B', padding: '18px 24px' }}>
+      <div style={{ background: surface, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '18px 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width={18} height={18} fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.8)" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width={18} height={18} fill="none" viewBox="0 0 24 24" stroke={text} strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#fff', lineHeight: 1.3 }}>Your data is private and secure.</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>We never sell your data. Ever.</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: text, lineHeight: 1.3 }}>Your data is private and secure.</div>
+              <div style={{ fontSize: 12, color: muted }}>We never sell your data. Ever.</div>
             </div>
           </div>
           <button onClick={onGetStarted}
@@ -1503,7 +1499,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${border}`, background: T.footerBg, padding: '40px 24px 24px' }}>
+      <footer style={{ borderTop: `1px solid ${border}`, background: bg, padding: '40px 24px 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           {/* Top: logo + columns */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 48, marginBottom: 36, justifyContent: 'space-between' }}>
@@ -1511,10 +1507,10 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             <div style={{ minWidth: 180 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 28, height: 28, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
-                <span style={{ fontWeight: 900, fontSize: 15, color: '#fff', letterSpacing: '-0.02em' }}>ProCV</span>
+                <span style={{ fontWeight: 900, fontSize: 15, color: text, letterSpacing: '-0.02em' }}>ProCV</span>
               </div>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. AI-powered. Always free to start.</p>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>No sign-up required.</div>
+              <p style={{ fontSize: 13, color: muted, margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. AI-powered. Always free to start.</p>
+              <div style={{ fontSize: 12, color: faint }}>No sign-up required.</div>
             </div>
 
             {/* Link columns */}
@@ -1525,12 +1521,12 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 { heading: 'Company', links: ['About', 'Privacy Policy', 'Terms of Service'] },
               ].map(col => (
                 <div key={col.heading}>
-                  <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', margin: '0 0 14px' }}>{col.heading}</h4>
+                  <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: faint, margin: '0 0 14px' }}>{col.heading}</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {col.links.map(l => (
-                      <button key={l} onClick={onGetStarted} style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}>{l}</button>
+                      <button key={l} onClick={onGetStarted} style={{ fontSize: 13, color: muted, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = muted)}>{l}</button>
                     ))}
                   </div>
                 </div>
@@ -1539,11 +1535,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           </div>
 
           {/* Bottom bar */}
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', margin: 0 }}>© 2026 ProCV — Built by job seekers, for job seekers.</p>
+          <div style={{ borderTop: `1px solid ${border}`, paddingTop: 20, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <p style={{ fontSize: 12, color: faint, margin: 0 }}>© 2026 ProCV — Built by job seekers, for job seekers.</p>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>All systems operational</span>
+              <span style={{ fontSize: 12, color: muted }}>All systems operational</span>
             </div>
           </div>
         </div>
