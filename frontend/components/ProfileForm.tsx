@@ -15,6 +15,7 @@ import {
   generateEnhancedResponsibilities,
   generateEnhancedProjectDescription,
 } from '../services/geminiService';
+import { getSelectedProvider } from '../services/groqService';
 import QuantifyPanel from './QuantifyPanel';
 import WordImportPanel from './WordImportPanel';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -357,28 +358,38 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     try {
       let profile;
 
+      const activeProvider = getSelectedProvider();
+
       if (uploadedFile) {
-        // File path: use Gemini end-to-end (read + structure in one call — no Groq needed)
+        // File path: Gemini vision handles all file types (PDF, image, Word)
+        // regardless of selected text provider — vision extraction is a separate step
         const { base64, mimeType } = await fileToBase64(uploadedFile);
         profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
       } else {
-        // Text / GitHub path: try Groq first, fall back to Gemini if Groq is unavailable
-        try {
-          profile = await generateProfile(rawText, githubUrl || undefined);
-        } catch (groqErr) {
-          const groqMsg = groqErr instanceof Error ? groqErr.message : '';
-          const isGroqUnavailable =
-            groqMsg.toLowerCase().includes('groq') ||
-            groqMsg.toLowerCase().includes('rate limit') ||
-            groqMsg.toLowerCase().includes('daily') ||
-            groqMsg.toLowerCase().includes('quota') ||
-            groqMsg.toLowerCase().includes('overload') ||
-            groqMsg.toLowerCase().includes('api key');
-          if (isGroqUnavailable) {
-            // Silently fall back to Gemini
-            profile = await generateProfileFromTextWithGemini(rawText, githubUrl || undefined);
-          } else {
-            throw groqErr;
+        // Text / GitHub path: route through the user's selected provider
+        if (activeProvider === 'gemini') {
+          // Gemini selected — use Gemini text path directly
+          profile = await generateProfileFromTextWithGemini(rawText, githubUrl || undefined);
+        } else {
+          // Workers AI or Claude — use generateProfile which respects getSelectedProvider()
+          try {
+            profile = await generateProfile(rawText, githubUrl || undefined);
+          } catch (providerErr) {
+            const msg = providerErr instanceof Error ? providerErr.message : '';
+            // Only fall back to Gemini text path for transient failures (quota/rate-limit/overload),
+            // NOT for auth errors — those should surface directly to the user.
+            const isTransient =
+              msg.toLowerCase().includes('rate limit') ||
+              msg.toLowerCase().includes('daily') ||
+              msg.toLowerCase().includes('quota') ||
+              msg.toLowerCase().includes('overload') ||
+              msg.toLowerCase().includes('503') ||
+              msg.toLowerCase().includes('502');
+            if (isTransient && activeProvider !== 'claude') {
+              profile = await generateProfileFromTextWithGemini(rawText, githubUrl || undefined);
+            } else {
+              throw providerErr;
+            }
           }
         }
       }
@@ -388,10 +399,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       alert('Profile imported successfully! Please review your details and save.');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setAiError(msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key not set')
-        ? 'Your API key appears to be invalid or missing. Please check your settings.'
-        : `Import failed: ${msg}`
-      );
+      setAiError(`Import failed: ${msg}`);
     } finally {
       setIsGenerating(false);
     }

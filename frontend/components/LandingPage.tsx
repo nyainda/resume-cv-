@@ -605,6 +605,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const [activePipe, setActivePipe] = useState(0);
   const [vis, setVis] = useState<Set<string>>(new Set());
   const refs = useRef<Record<string, HTMLElement | null>>({});
+  const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ── Counter animation for Engine stats ────────────────────────────────
   const STATS = [
@@ -745,9 +747,16 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
     const t = setInterval(() => setActivePipe(p => (p + 1) % PIPELINE_STEPS.length), 2000);
     return () => clearInterval(t);
   }, []);
+  useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const reg = (id: string) => (el: HTMLElement | null) => { refs.current[id] = el; };
   const v = (id: string) => vis.has(id);
+  const isMobile = windowWidth < 768;
+  const isTablet = windowWidth < 1024;
 
   /* Two-theme token system — switches cleanly between dark and light */
   const DARK_T = {
@@ -777,14 +786,84 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         background: darkMode ? 'rgba(13,21,37,0.95)' : 'rgba(248,247,244,0.97)',
         backdropFilter: 'blur(20px)', borderBottom: `1px solid ${border}`,
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <div style={{ width: 30, height: 30, background: Y, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#111' }}>CV</div>
             <span style={{ fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', color: text }}>ProCV</span>
           </div>
-          {/* Nav links */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'center' }}>
+          {/* Nav links — hidden on mobile */}
+          {!isMobile && (
+            <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'center' }}>
+              {[
+                { label: 'Features', id: 'score-cv' },
+                { label: 'How It Works', id: 'pipe' },
+                { label: 'Templates', id: 'tpl' },
+                { label: 'Pricing', id: 'pricing' },
+              ].map(item => (
+                <button key={item.label}
+                  onClick={() => {
+                    const el = document.getElementById(item.id) || document.querySelector(`[data-s="${item.id}"]`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  style={{ padding: '6px 12px', fontSize: 13, fontWeight: 500, color: muted, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6, transition: 'color 0.15s', whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = text)}
+                  onMouseLeave={e => (e.currentTarget.style.color = muted)}>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          )}
+          {/* Right actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {/* Light / Dark toggle */}
+            <button
+              onClick={onToggleDark}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                width: 34, height: 34, borderRadius: 8, border: `1px solid ${border}`,
+                background: 'transparent', cursor: 'pointer', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                color: muted, transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = text; e.currentTarget.style.color = text; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = muted; }}>
+              {darkMode ? (
+                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+              ) : (
+                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+                </svg>
+              )}
+            </button>
+            {!isMobile && hasProfile && onGoToApp && (
+              <button onClick={onGoToApp} style={{ padding: '6px 12px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: muted, whiteSpace: 'nowrap' }}>← Dashboard</button>
+            )}
+            {!isMobile && !hasProfile && (
+              <button onClick={onSignIn} style={{ padding: '7px 14px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: text, whiteSpace: 'nowrap' }}>
+                Sign in
+              </button>
+            )}
+            <button onClick={onGetStarted} style={{ padding: '8px 14px', fontSize: 13, fontWeight: 800, borderRadius: 7, background: Y, border: 'none', cursor: 'pointer', color: '#111', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+              {isMobile ? (hasProfile ? 'Open' : 'Start Free') : (hasProfile ? 'Open Suite' : 'Get Started Free')}
+            </button>
+            {/* Hamburger button — mobile only */}
+            {isMobile && (
+              <button
+                onClick={() => setMobileMenuOpen(o => !o)}
+                style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${border}`, background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, color: muted }}>
+                <span style={{ display: 'block', width: 16, height: 1.5, background: 'currentColor', borderRadius: 1, transition: 'transform 0.2s', transform: mobileMenuOpen ? 'rotate(45deg) translateY(5px)' : 'none' }} />
+                <span style={{ display: 'block', width: 16, height: 1.5, background: 'currentColor', borderRadius: 1, opacity: mobileMenuOpen ? 0 : 1, transition: 'opacity 0.2s' }} />
+                <span style={{ display: 'block', width: 16, height: 1.5, background: 'currentColor', borderRadius: 1, transition: 'transform 0.2s', transform: mobileMenuOpen ? 'rotate(-45deg) translateY(-5px)' : 'none' }} />
+              </button>
+            )}
+          </div>
+        </div>
+        {/* Mobile dropdown menu */}
+        {isMobile && mobileMenuOpen && (
+          <div style={{ background: darkMode ? 'rgba(13,21,37,0.98)' : 'rgba(248,247,244,0.99)', borderTop: `1px solid ${border}`, padding: '8px 16px 16px' }}>
             {[
               { label: 'Features', id: 'score-cv' },
               { label: 'How It Works', id: 'pipe' },
@@ -793,63 +872,30 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             ].map(item => (
               <button key={item.label}
                 onClick={() => {
-                  if (item.id) {
+                  setMobileMenuOpen(false);
+                  setTimeout(() => {
                     const el = document.getElementById(item.id) || document.querySelector(`[data-s="${item.id}"]`);
                     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  } else {
-                    onGetStarted();
-                  }
+                  }, 100);
                 }}
-                style={{ padding: '6px 14px', fontSize: 13, fontWeight: 500, color: muted, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6, transition: 'color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = text)}
-                onMouseLeave={e => (e.currentTarget.style.color = muted)}>
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 8px', fontSize: 15, fontWeight: 500, color: text, background: 'none', border: 'none', borderBottom: `1px solid ${border}`, cursor: 'pointer' }}>
                 {item.label}
               </button>
             ))}
-          </nav>
-          {/* Right actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {/* Light / Dark toggle */}
-            <button
-              onClick={onToggleDark}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              style={{
-                width: 36, height: 36, borderRadius: 8, border: `1px solid ${border}`,
-                background: 'transparent', cursor: 'pointer', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                color: muted, transition: 'border-color 0.15s, color 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = text; e.currentTarget.style.color = text; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = muted; }}>
-              {darkMode ? (
-                /* Sun icon */
-                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                </svg>
-              ) : (
-                /* Moon icon */
-                <svg width={16} height={16} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-                </svg>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              {!hasProfile && (
+                <button onClick={() => { setMobileMenuOpen(false); onSignIn(); }} style={{ flex: 1, padding: '10px', fontSize: 14, fontWeight: 600, borderRadius: 8, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: text }}>Sign in</button>
               )}
-            </button>
-            {hasProfile && onGoToApp && (
-              <button onClick={onGoToApp} style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: muted }}>← Dashboard</button>
-            )}
-            {!hasProfile && (
-              <button onClick={onSignIn} style={{ padding: '7px 16px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: text }}>
-                Sign in
-              </button>
-            )}
-            <button onClick={onGetStarted} style={{ padding: '8px 18px', fontSize: 13, fontWeight: 800, borderRadius: 7, background: Y, border: 'none', cursor: 'pointer', color: '#111', letterSpacing: '-0.01em' }}>
-              {hasProfile ? 'Open Suite' : 'Get Started Free'}
-            </button>
+              {hasProfile && onGoToApp && (
+                <button onClick={() => { setMobileMenuOpen(false); onGoToApp(); }} style={{ flex: 1, padding: '10px', fontSize: 14, fontWeight: 600, borderRadius: 8, background: 'transparent', border: `1px solid ${border}`, cursor: 'pointer', color: muted }}>← Dashboard</button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '72px 24px 56px' }}>
+      <section style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '48px 16px 40px' : '72px 24px 56px' }}>
 
         {/* Eyebrow */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
@@ -858,7 +904,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
 
         {/* Two-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 64, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit,minmax(320px,1fr))', gap: isMobile ? 40 : 64, alignItems: 'center' }}>
 
           {/* Left: headline + CTA */}
           <div>
@@ -928,7 +974,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           {/* Right: App UI mockup */}
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             <div style={{
-              width: '100%', maxWidth: 500,
+              width: '100%', maxWidth: isMobile ? '100%' : 500,
               background: surface, borderRadius: 16,
               border: `1px solid ${border}`,
               boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
@@ -1057,7 +1103,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </section>
 
       {/* ── Solve the Real Problems Others Ignore ────────────────────── */}
-      <section style={{ padding: '72px 24px', borderBottom: `1px solid ${border}` }}>
+      <section style={{ padding: isMobile ? '48px 16px' : '72px 24px', borderBottom: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 48px' }}>
             <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
@@ -1124,7 +1170,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         id="score-cv"
         ref={reg('smc')} data-s="smc"
         style={{
-          padding: '64px 24px',
+          padding: isMobile ? '40px 16px' : '64px 24px',
           borderTop: `1px solid ${border}`,
           borderBottom: `1px solid ${border}`,
         }}>
@@ -1342,13 +1388,13 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       <section
         ref={reg('pipe')} data-s="pipe"
         style={{
-          background: bg, padding: '72px 24px', position: 'relative', overflow: 'hidden',
+          background: bg, padding: isMobile ? '48px 16px' : '72px 24px', position: 'relative', overflow: 'hidden',
           borderTop: `1px solid ${border}`,
           opacity: v('pipe') ? 1 : 0, transform: v('pipe') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 56, alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr' : 'repeat(auto-fit,minmax(300px,1fr))', gap: isMobile ? 36 : 56, alignItems: 'center' }}>
             <div>
               <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 18 }}>
                 The Engine
@@ -1416,7 +1462,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
 
 
       {/* ── One Profile. Unlimited Possibilities. ────────────────────── */}
-      <section style={{ padding: '72px 24px', borderTop: `1px solid ${border}` }}>
+      <section style={{ padding: isMobile ? '48px 16px' : '72px 24px', borderTop: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 48px' }}>
             <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
@@ -1474,7 +1520,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         id="pricing"
         ref={reg('pricing')} data-s="pricing"
         style={{
-          padding: '80px 24px', borderTop: `1px solid ${border}`,
+          padding: isMobile ? '48px 16px' : '80px 24px', borderTop: `1px solid ${border}`,
           opacity: v('pricing') ? 1 : 0, transform: v('pricing') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
@@ -1616,7 +1662,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       <section
         ref={reg('cta')} data-s="cta"
         style={{
-          padding: '80px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden',
+          padding: isMobile ? '56px 16px' : '80px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden',
           borderTop: `1px solid ${border}`,
           opacity: v('cta') ? 1 : 0, transform: v('cta') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
@@ -1712,6 +1758,14 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         .sm-score-grid.has-result { grid-template-columns: 1fr 1fr; }
         @media (max-width: 760px) {
           .sm-score-grid.has-result { grid-template-columns: 1fr; }
+        }
+        /* Prevent long words/URLs from overflowing on small screens */
+        @media (max-width: 480px) {
+          h1, h2, h3, p, span, div { overflow-wrap: break-word; word-break: break-word; }
+        }
+        /* Hero h1 font size guardrail on tiny screens */
+        @media (max-width: 375px) {
+          h1 { font-size: 2.1rem !important; }
         }
       `}</style>
     </div>
