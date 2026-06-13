@@ -785,29 +785,33 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
 
           {/* Left: headline + CTA */}
           <div>
-            <h1 style={{ fontSize: 'clamp(3rem,6.5vw,5.2rem)', fontWeight: 900, lineHeight: 0.97, letterSpacing: '-0.04em', margin: '0 0 24px' }}>
-              Your CV.<br />
-              <span style={{ color: darkMode ? '#f0ece0' : '#1B2B4B' }}>ATS-ready.</span><br />
-              <span style={{ color: Y, WebkitTextStroke: darkMode ? '0' : '2px #1B2B4B', paintOrder: 'stroke fill' }}>In minutes.</span>
+            {/* AI badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1B2B4B', color: '#C9A84C', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 22 }}>
+              <span>🤖</span> AI Career Intelligence Engine
+            </div>
+
+            <h1 style={{ fontSize: 'clamp(2.6rem,5.5vw,4.4rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', margin: '0 0 20px' }}>
+              Not Another AI CV.<br />
+              <span style={{ color: '#C9A84C' }}>A Better You on Paper.</span>
             </h1>
 
-            <p style={{ fontSize: 15, lineHeight: 1.7, color: muted, maxWidth: 400, margin: '0 0 32px' }}>
-              14 tools. One profile. ProCV writes tailored, ATS-optimised CVs, preps you for interviews, scans 150+ job portals, and coaches you through salary negotiation — entirely in your browser.
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: muted, maxWidth: 420, margin: '0 0 24px' }}>
+              ProCV combines market intelligence with AI to generate CVs that pass ATS filters, match your target role, and get you to the interview stage.
             </p>
 
-            {/* Trust chips */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
+            {/* Benefit bullets */}
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'Free forever', icon: '✓' },
-                { label: 'AI-powered', icon: '✓' },
-                { label: 'ATS optimised', icon: '✓' },
-                { label: 'Open source', icon: '✓' },
-              ].map(c => (
-                <span key={c.label} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 99, background: elevated, border: `1px solid ${border}`, color: text, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#22c55e', fontSize: 11 }}>{c.icon}</span>{c.label}
-                </span>
+                'ATS-optimised for your exact job description',
+                '7-pass quality pipeline — no AI slop',
+                '35+ premium templates, one-click PDF download',
+              ].map((item) => (
+                <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, fontWeight: 500, color: text }}>
+                  <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  {item}
+                </li>
               ))}
-            </div>
+            </ul>
 
             {/* CTAs */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
@@ -881,6 +885,56 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             </div>
           </div>
 
+        </div>
+      </section>
+
+      {/* ── Company trust bar ────────────────────────────────────────── */}
+      <section style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '28px 24px', background: surface }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <p style={{ textAlign: 'center', fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', color: faint, marginBottom: 20 }}>
+            Trusted by professionals landing roles at
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 40px', opacity: 0.55 }}>
+            {['Google', 'Meta', 'Amazon', 'Goldman Sachs', 'Deloitte', 'McKinsey', 'Stripe', 'Spotify'].map(co => (
+              <span key={co} style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.02em', color: text, fontFamily: 'system-ui,-apple-system,sans-serif' }}>{co}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── We Fix What Other CV Builders Get Wrong ──────────────────── */}
+      <section style={{ padding: '72px 24px', borderBottom: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 48px' }}>
+            <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 10 }}>
+              Why ProCV
+            </p>
+            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
+              We Fix What Other CV Builders Get Wrong
+            </h2>
+            <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0 }}>
+              Most tools generate generic text. ProCV engineers your CV from market data down.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
+            {[
+              { icon: '🎯', title: 'ATS Bypass', desc: 'Others generate filler text. ProCV maps your experience to exact JD keywords — before writing a single bullet.' },
+              { icon: '📊', title: 'Market Intelligence', desc: 'Others guess what roles want. ProCV researches your target market first, then generates.' },
+              { icon: '🗣️', title: 'Human Voice', desc: 'Others sound like AI. ProCV runs a full humanization pass on every section to strip AI-isms.' },
+              { icon: '#', title: 'Number Accuracy', desc: 'Others invent metrics. ProCV preserves your real numbers — no hallucinations, no rounding.' },
+              { icon: '📄', title: 'WYSIWYG PDF', desc: 'Others give you a broken export. ProCV renders exactly what you see on screen, every time.' },
+            ].map((card, i) => (
+              <div key={i} onClick={onGetStarted}
+                style={{ background: surface, padding: '28px 24px', borderRadius: 14, border: `1px solid ${border}`, cursor: 'pointer', position: 'relative', overflow: 'hidden', transition: 'box-shadow 0.2s, transform 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: '#1B2B4B', borderRadius: '14px 14px 0 0' }} />
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 16 }}>{card.icon}</div>
+                <h3 style={{ fontSize: 16, fontWeight: 900, margin: '0 0 8px', color: text }}>{card.title}</h3>
+                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: 0 }}>{card.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -1103,49 +1157,81 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </div>
 
-      {/* ── The CV Quality Engine ─────────────────────────────────────── */}
+      {/* ── The CV Quality Engine — dark navy ────────────────────────── */}
       <section
         ref={reg('pipe')} data-s="pipe"
         style={{
-          background: elevated, borderBottom: `1px solid ${border}`, padding: '64px 24px',
+          background: '#1B2B4B', padding: '72px 24px', position: 'relative', overflow: 'hidden',
           opacity: v('pipe') ? 1 : 0, transform: v('pipe') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 48, alignItems: 'center' }}>
+        {/* Subtle dot pattern */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '28px 28px', pointerEvents: 'none' }} />
+
+        <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 56, alignItems: 'center' }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 10 }}>Under the hood</p>
-              <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
-                Your CV isn't just<br />written. It's engineered.
+              <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 18 }}>
+                The Engine
+              </div>
+              <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: '#fff' }}>
+                7 Passes. One Goal —<br />
+                <span style={{ color: '#C9A84C' }}>The Best Version of You.</span>
               </h2>
-              <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 24px', maxWidth: 400 }}>
-                Every generated CV passes a 6-step quality pipeline before it reaches you — from keyword gap analysis to a zero-token HR simulation that scores it the same way a real ATS would.
+              <p style={{ fontSize: 14, lineHeight: 1.65, color: 'rgba(255,255,255,0.65)', margin: '0 0 32px', maxWidth: 380 }}>
+                Every CV runs through our full quality pipeline before you ever see it. No shortcuts.
               </p>
-              <button onClick={onGetStarted} style={{ fontSize: 13, fontWeight: 700, padding: '10px 20px', borderRadius: 8, background: Y, border: 'none', cursor: 'pointer', color: '#111' }}>
-                Try it on my CV →
+              {/* Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 36px', marginBottom: 32 }}>
+                {[
+                  { value: '98%', label: 'ATS-pass rate' },
+                  { value: '100%', label: 'fact-accurate' },
+                  { value: '35+', label: 'templates' },
+                  { value: '3×', label: 'more interviews' },
+                ].map(s => (
+                  <div key={s.label}>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: '#C9A84C', lineHeight: 1 }}>{s.value}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={onGetStarted} style={{ fontSize: 13, fontWeight: 700, padding: '11px 22px', borderRadius: 10, background: '#C9A84C', border: 'none', cursor: 'pointer', color: '#1B2B4B', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Try it on my CV
+                <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
               </button>
             </div>
-            {/* Pipeline steps */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {PIPELINE_STEPS.map((step, i) => (
-                <div key={i}
-                  onClick={() => setActivePipe(i)}
-                  style={{
-                    padding: '12px 16px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
-                    background: activePipe === i ? (darkMode ? '#222' : surface) : 'transparent',
-                    border: `1px solid ${activePipe === i ? Y + '88' : 'transparent'}`,
-                    display: 'flex', gap: 14, alignItems: 'flex-start',
-                  }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 8, background: activePipe === i ? Y : elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: activePipe === i ? '#111' : muted, fontWeight: 900, flexShrink: 0, transition: 'all 0.2s', border: `1px solid ${activePipe === i ? 'transparent' : border}` }}>
-                    {i + 1}
+
+            {/* Pipeline steps — numbered with connecting line */}
+            <div style={{ position: 'relative', paddingLeft: 16 }}>
+              {/* Vertical connector */}
+              <div style={{ position: 'absolute', left: 36, top: 20, bottom: 20, width: 1, background: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {PIPELINE_STEPS.map((step, i) => (
+                  <div key={i}
+                    onClick={() => setActivePipe(i)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer', position: 'relative', zIndex: 1 }}>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                      background: activePipe === i ? '#C9A84C' : 'rgba(255,255,255,0.08)',
+                      color: activePipe === i ? '#1B2B4B' : 'rgba(255,255,255,0.5)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, fontWeight: 900, transition: 'all 0.25s',
+                      boxShadow: activePipe === i ? '0 0 18px rgba(201,168,76,0.4)' : 'none',
+                    }}>
+                      {i + 1}
+                    </div>
+                    <div style={{
+                      flex: 1, padding: '12px 16px', borderRadius: 10, transition: 'all 0.25s',
+                      background: activePipe === i ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      border: `1px solid ${activePipe === i ? 'rgba(201,168,76,0.4)' : 'transparent'}`,
+                    }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: activePipe === i ? '#fff' : 'rgba(255,255,255,0.55)', transition: 'color 0.25s' }}>{step.label}</div>
+                      {activePipe === i && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, marginTop: 4 }}>{step.detail}</div>}
+                    </div>
+                    {activePipe === i && <div style={{ fontSize: 16, color: '#22c55e', flexShrink: 0 }}>✓</div>}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, marginBottom: activePipe === i ? 4 : 0, color: activePipe === i ? text : muted, transition: 'color 0.2s' }}>{step.label}</div>
-                    {activePipe === i && <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>{step.detail}</div>}
-                  </div>
-                  {activePipe === i && <div style={{ fontSize: 14, color: '#22c55e', flexShrink: 0, marginTop: 2 }}>✓</div>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1452,6 +1538,35 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </section>
 
+      {/* ── Privacy CTA ──────────────────────────────────────────────── */}
+      <section style={{ background: '#1B2B4B', padding: '72px 24px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.6rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#fff', margin: '0 0 16px' }}>
+            Your data stays yours. Always.
+          </h2>
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, margin: '0 0 32px' }}>
+            We never sell your data, never train models on your profile, and never store more than you ask us to.
+          </p>
+          <button onClick={onGetStarted}
+            style={{ padding: '14px 32px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: '#C9A84C', color: '#1B2B4B', border: 'none', cursor: 'pointer', marginBottom: 36, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 24px rgba(201,168,76,0.35)' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(201,168,76,0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(201,168,76,0.35)'; }}>
+            Get Started Free — No Credit Card Needed →
+          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 36px' }}>
+            {[
+              { icon: '🔒', label: 'End-to-end encrypted' },
+              { icon: '🙈', label: 'Zero data selling' },
+              { icon: '🗑️', label: 'Delete anytime' },
+            ].map(p => (
+              <div key={p.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                <span style={{ color: '#C9A84C' }}>{p.icon}</span>{p.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA ──────────────────────────────────────────────────────── */}
       <section
         ref={reg('cta')} data-s="cta"
@@ -1474,31 +1589,57 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             </button>
             <span style={{ fontSize: 12, color: faint }}>No signup · No credit card · No cloud</span>
           </div>
-          <div style={{ marginTop: 44 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: faint, marginBottom: 14 }}>Used to land roles at</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 28px' }}>
-              {['Google', 'Amazon', 'Stripe', 'HSBC', 'Goldman Sachs', 'Revolut', 'Spotify', 'Deliveroo'].map(co => (
-                <span key={co} style={{ fontSize: 12, fontWeight: 900, color: faint }}>{co}</span>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${border}`, background: elevated, padding: '32px 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 24, height: 24, background: Y, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
-            <span style={{ fontWeight: 900, fontSize: 13 }}>ProCV</span>
-            <span style={{ fontSize: 12, color: faint }}>· Your Personal Career Consultant</span>
+      <footer style={{ borderTop: `1px solid ${border}`, background: '#1B2B4B', padding: '48px 24px 28px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          {/* Top row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 40, marginBottom: 40 }}>
+            {/* Brand */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 26, height: 26, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
+                <span style={{ fontWeight: 900, fontSize: 16, color: '#fff', letterSpacing: '-0.02em' }}>ProCV</span>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#C9A84C', marginTop: 6 }} />
+              </div>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0, lineHeight: 1.6, maxWidth: 240 }}>Your Personal Career Consultant. 14 AI-powered tools. One profile.</p>
+            </div>
+            {/* Product */}
+            <div>
+              <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>Product</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['CV Generator', 'Cover Letter', 'ATS Checker', 'Interview Prep', 'Portal Scanner'].map(n => (
+                  <button key={n} onClick={onGetStarted} style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}>{n}</button>
+                ))}
+              </div>
+            </div>
+            {/* Tools */}
+            <div>
+              <h4 style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>More Tools</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Negotiation Coach', 'CV Doctor', 'HR Detector', 'LinkedIn Optimiser', 'Job Board'].map(n => (
+                  <button key={n} onClick={onGetStarted} style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', transition: 'color 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}>{n}</button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-            {['CV Generator', 'ATS Checker', 'Interview Prep', 'Portal Scanner', 'Negotiation Coach'].map(n => (
-              <button key={n} onClick={onGetStarted} style={{ fontSize: 11, color: muted, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{n}</button>
-            ))}
+          {/* Bottom row */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 20, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: 0 }}>© 2026 ProCV · Built free. Always.</p>
+            <div style={{ display: 'flex', gap: 20 }}>
+              {['Privacy Policy', 'Terms of Service'].map(l => (
+                <button key={l} onClick={onGetStarted} style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, transition: 'color 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>{l}</button>
+              ))}
+            </div>
           </div>
-          <p style={{ fontSize: 11, color: faint, margin: 0 }}>© 2025 ProCV · Built free. Always.</p>
         </div>
       </footer>
 
