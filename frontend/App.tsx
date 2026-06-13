@@ -1871,9 +1871,15 @@ const AppInner: React.FC = () => {
         {/* ── Row 1: Logo + Controls ──────────────────────────────────── */}
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
           <button
-            onClick={() => setShowLanding(true)}
+            onClick={() => {
+              if (isWorkerAuthenticated || isAuthenticated) {
+                setCurrentView("generator");
+              } else {
+                setShowLanding(true);
+              }
+            }}
             className="flex items-center gap-2.5 group flex-shrink-0"
-            title="Back to homepage"
+            title="Go to dashboard"
           >
             <div className="p-1.5 bg-[#1B2B4B] group-hover:bg-[#152238] rounded-lg transition-colors">
               <FileText className="h-5 w-5 text-white" />
