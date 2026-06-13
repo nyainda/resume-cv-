@@ -68,6 +68,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
     const [color, setColor] = useState<ProfileColor>('indigo');
     const [cloneActive, setCloneActive] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [duplicatedId,   setDuplicatedId]   = useState<string | null>(null);
 
     useEffect(() => {
         if (isMobileOverlay) {
@@ -88,6 +89,13 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
         setName(slot.name);
         setColor(slot.color);
         setModal({ mode: 'edit', slot });
+    };
+
+    const handleDuplicate = (slot: UserProfileSlot, e: React.MouseEvent) => {
+        e.stopPropagation();
+        onCreate(slot.name + ' (copy)', slot.color, slot.profile);
+        setDuplicatedId(slot.id);
+        setTimeout(() => setDuplicatedId(null), 1800);
     };
 
     const handleSubmit = () => {
@@ -256,6 +264,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
 
                                 {/* Actions */}
                                 <div className="flex items-center gap-1 flex-shrink-0 self-center" onClick={e => e.stopPropagation()}>
+                                    {/* Rename */}
                                     <button
                                         onClick={e => openEdit(slot, e)}
                                         className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors opacity-0 group-hover:opacity-100"
@@ -265,6 +274,27 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                                         </svg>
+                                    </button>
+                                    {/* Duplicate */}
+                                    <button
+                                        onClick={e => handleDuplicate(slot, e)}
+                                        className={`p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${
+                                            duplicatedId === slot.id
+                                                ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                                                : 'text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] hover:bg-zinc-100 dark:hover:bg-neutral-700'
+                                        }`}
+                                        title="Duplicate room"
+                                    >
+                                        {duplicatedId === slot.id ? (
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"/>
+                                            </svg>
+                                        ) : (
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                            </svg>
+                                        )}
                                     </button>
                                     {profiles.length > 1 && (
                                         confirmDeleteId === slot.id ? (
