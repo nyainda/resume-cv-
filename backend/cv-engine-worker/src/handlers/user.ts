@@ -305,6 +305,23 @@ export async function handleUserSlotsPost(request: Request, env: Env, ctx: Execu
     return json({ ok: true, slot_id: slotId }, request, env);
 }
 
+export async function handleUserSlotsDelete(request: Request, env: Env): Promise<Response> {
+    const userId = await getUserIdFromRequest(request, env);
+    if (!userId) return json({ error: 'unauthorized' }, request, env, 401);
+
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const slotId = typeof body?.slot_id === 'string' ? body.slot_id.trim().substring(0, 64) : '';
+    if (!slotId) return json({ error: 'missing_slot_id' }, request, env, 400);
+
+    await env.CV_DB.prepare(
+        `DELETE FROM user_slots WHERE user_id = ? AND slot_id = ?`
+    ).bind(userId, slotId).run();
+
+    return json({ ok: true, slot_id: slotId }, request, env);
+}
+
 // ─── User preferences ─────────────────────────────────────────────────────────
 
 export async function handleUserPrefsPost(request: Request, env: Env): Promise<Response> {

@@ -24,7 +24,7 @@ import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
-import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData } from "./services/userDataCloudService";
+import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud } from "./services/userDataCloudService";
 import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
@@ -1206,9 +1206,11 @@ const AppInner: React.FC = () => {
           setActiveProfileId(next[0].id);
         return next;
       });
+      // Remove from D1 so it doesn't resurface on next login (fire-and-forget)
+      deleteSlotFromCloud(id).catch(() => {});
       toast.success("Profile Deleted", "Profile removed.");
     },
-    [setProfiles, activeProfileId, setActiveProfileId, toast],
+    [setProfiles, activeProfileId, setActiveProfileId, toast, deleteSlotFromCloud],
   );
 
   const handleRenameProfile = useCallback(

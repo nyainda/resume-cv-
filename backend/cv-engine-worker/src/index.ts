@@ -64,7 +64,7 @@ import {
     handleEventPost,
     handleCustomTemplatesGet, handleCustomTemplatesPost,
     handleCustomTemplatesDelete, handleCustomTemplatesPatch,
-    handleUserSlotsPost, handleUserPrefsPost, handleUserDataGet,
+    handleUserSlotsPost, handleUserSlotsDelete, handleUserPrefsPost, handleUserDataGet,
 } from './handlers/user';
 
 import {
@@ -222,6 +222,7 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
 
     // ── User data sync ────────────────────────────────────────────────────────
     if (p === '/api/cv/user-slots'     && m === 'POST')                     return handleUserSlotsPost(request, env, ctx);
+    if (p === '/api/cv/user-slots'     && m === 'DELETE')                   return handleUserSlotsDelete(request, env);
     if (p === '/api/cv/user-prefs'     && m === 'POST')                     return handleUserPrefsPost(request, env);
     if (p === '/api/cv/user-data'      && m === 'GET')                      return handleUserDataGet(request, env, url);
 

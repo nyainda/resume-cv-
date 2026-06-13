@@ -236,6 +236,30 @@ export async function fetchUserData(): Promise<UserDataSnapshot | null> {
 }
 
 /**
+ * Deletes a single slot from D1 and clears its local sync hash.
+ * Fire-and-forget safe — call without await.
+ */
+export async function deleteSlotFromCloud(slotId: string): Promise<void> {
+    // Always clear the local hash so a future slot with the same ID starts fresh
+    try { localStorage.removeItem(SLOT_HASH_PREFIX + slotId); } catch { /* ignore */ }
+    if (!ENGINE_URL || !_sessionToken) return;
+    try {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+        await fetch(`${ENGINE_URL}/api/cv/user-slots`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${_sessionToken}`,
+            },
+            body: JSON.stringify({ slot_id: slotId }),
+            signal: ac.signal,
+        });
+        clearTimeout(timer);
+    } catch { /* fire-and-forget — silently swallow */ }
+}
+
+/**
  * Forces a sync of all profile slots (used when user clicks "Back up now" in Settings).
  * Returns the number of slots successfully synced.
  */
