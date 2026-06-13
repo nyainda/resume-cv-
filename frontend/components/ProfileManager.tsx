@@ -307,6 +307,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
         <div
             className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4"
             style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+            onMouseDown={e => e.stopPropagation()}
             onClick={e => { if (e.target === e.currentTarget) setModal(null); }}
         >
             <div
