@@ -38,7 +38,7 @@ function randomHex(bytes = 32): string {
     return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function hashToken(token: string): Promise<string> {
+export async function hashToken(token: string): Promise<string> {
     const buf = await crypto.subtle.digest(
         "SHA-256",
         new TextEncoder().encode(token),

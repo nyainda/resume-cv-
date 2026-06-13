@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env } from '../types';
 import { json } from '../utils';
+import { hashToken } from './auth';
 
 function randomShareId(): string {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -251,10 +252,11 @@ async function getUserIdFromRequest(request: Request, env: Env): Promise<number 
     const authHeader = request.headers.get('Authorization') ?? '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!token) return null;
+    const hash = await hashToken(token); // sessions stored as SHA-256 hashes (Bug 8 fix)
     const now = Math.floor(Date.now() / 1000);
     const session = await env.CV_DB.prepare(
         `SELECT user_id FROM user_sessions WHERE token = ? AND expires_at > ?`
-    ).bind(token, now).first<{ user_id: number }>();
+    ).bind(hash, now).first<{ user_id: number }>();
     return session?.user_id ?? null;
 }
 
