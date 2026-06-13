@@ -208,7 +208,7 @@ export function detectField(jd: string | undefined, profile?: UserProfile): CVFi
 
 export type FieldDetectionSource =
     | { kind: 'user-pinned' }
-    | { kind: 'auto-detected'; score: number };
+    | { kind: 'auto-detected'; score: number; evidence: string[] };
 
 /**
  * Same logic as detectField() but also returns *how* the field was chosen:
@@ -237,28 +237,57 @@ export function detectFieldWithSource(
     // has no hidden dependency on detectField's internal state.
     const field = detectField(jd, profile);
 
-    // Reconstruct the winning score for the trace. We re-run a minimal
-    // scorer pass here (scores map is not exported from detectField).
+    // Reconstruct the winning score and collect human-readable evidence lines.
+    // We re-run a minimal scorer pass here (the scores map is not exported
+    // from detectField, so we can't reuse it).
     const jdCorpus = (jd || '').toLowerCase();
     const jdPresent = jdCorpus.trim().length > 50;
+    const jdThin = (jd || '').trim().length > 0 && (jd || '').trim().length < 200;
+    const jdFirstLine = jdThin
+        ? (jd || '').trim().split(/\r?\n/).find(l => l.trim().length > 3) ?? ''
+        : '';
     const profileTitles = (profile?.workExperience || [])
         .map(e => (e.jobTitle || '').toLowerCase()).join(' ');
     const profileBody = [
         ...(profile?.workExperience || []).map(e => `${e.company || ''} ${e.responsibilities || ''}`),
         ...(Array.isArray((profile as any)?.skills) ? (profile as any).skills : []),
     ].join(' ').toLowerCase();
+
     let winScore = 0;
-    const titleBoost = !jdPresent ? 10 : 2;
+    const evidence: string[] = [];
+    const titleBoost = !jdPresent ? 10 : jdThin ? 8 : 2;
+
     for (const [rx, f] of TITLE_FIELD_MAP) {
-        if (f === field && rx.test(profileTitles)) winScore += titleBoost;
-        if (f === field && jdPresent && rx.test(jdCorpus)) winScore += 2;
+        if (f !== field) continue;
+        if (rx.test(profileTitles)) {
+            winScore += titleBoost;
+            // Extract the first profile job title that matched for the label
+            const matchedTitle = (profile?.workExperience || [])
+                .map(e => e.jobTitle || '')
+                .find(t => rx.test(t.toLowerCase()));
+            evidence.push(`title: "${matchedTitle ?? 'profile'}" (+${titleBoost})`);
+        }
+        if (jdThin && rx.test(jdFirstLine.toLowerCase())) {
+            winScore += 6;
+            evidence.push(`title in JD: "${jdFirstLine.slice(0, 40)}" (+6)`);
+        } else if (jdPresent && rx.test(jdCorpus)) {
+            winScore += 2;
+            evidence.push(`title match in JD (+2)`);
+        }
     }
+
     const fkws = (FIELD_KEYWORDS as Record<string, string[]>)[field] ?? [];
     for (const kw of fkws) {
-        if (jdPresent && jdCorpus.includes(kw)) winScore += 3;
-        if (profileBody.includes(kw)) winScore += 1;
+        if (jdPresent && jdCorpus.includes(kw)) {
+            winScore += 3;
+            evidence.push(`JD: "${kw}" (+3)`);
+        } else if (profileBody.includes(kw)) {
+            winScore += 1;
+            evidence.push(`profile: "${kw}" (+1)`);
+        }
     }
-    return { field, source: { kind: 'auto-detected', score: winScore } };
+
+    return { field, source: { kind: 'auto-detected', score: winScore, evidence } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

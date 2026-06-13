@@ -88,25 +88,77 @@ function TimingBar({ briefMs, generationMs, validationMs, totalMs }: {
 }
 
 function FieldSourceBadge({ source }: { source: FieldDetectionSource | undefined }) {
+  const [tip, setTip] = React.useState(false);
+
   if (!source) return <Badge color="zinc">—</Badge>;
+
   if (source.kind === 'user-pinned') {
     return (
       <span className="flex items-center gap-1">
         <Badge color="teal">📌 user-pinned</Badge>
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">(S6 ontology)</span>
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">(S6 ontology — dropdown overrides scoring)</span>
       </span>
     );
   }
-  const score = source.score;
+
+  const { score, evidence } = source;
   const confidenceColor: 'green' | 'amber' | 'zinc' =
     score >= 15 ? 'green' : score >= 5 ? 'amber' : 'zinc';
+  const confidenceLabel =
+    score >= 15 ? 'high confidence' : score >= 5 ? 'low confidence' : 'fallback';
+
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1.5 relative">
       <Badge color={confidenceColor}>🔍 auto-detected</Badge>
       <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
-        score: {score}
-        {score >= 15 ? ' — high confidence' : score >= 5 ? ' — low confidence' : ' — fallback'}
+        score: {score} — {confidenceLabel}
       </span>
+      {evidence && evidence.length > 0 && (
+        <span className="relative inline-block">
+          <button
+            type="button"
+            onClick={() => setTip(t => !t)}
+            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-zinc-200 dark:bg-neutral-600 text-zinc-500 dark:text-zinc-400 text-[9px] font-bold hover:bg-zinc-300 dark:hover:bg-neutral-500 transition-colors cursor-pointer select-none leading-none"
+            title="Why this field?"
+            aria-label="Show field detection evidence"
+          >
+            ?
+          </button>
+          {tip && (
+            <div className="absolute left-0 top-5 z-50 w-72 rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 shadow-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">Why this field?</span>
+                <button
+                  type="button"
+                  onClick={() => setTip(false)}
+                  className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 leading-none"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mb-2">
+                Signals that contributed to the score (higher = stronger match):
+              </p>
+              <ul className="space-y-0.5">
+                {evidence.slice(0, 12).map((line, i) => (
+                  <li key={i} className="flex items-start gap-1.5 text-[10px]">
+                    <span className="text-zinc-300 dark:text-zinc-600 flex-shrink-0 mt-0.5">›</span>
+                    <span className="font-mono text-zinc-600 dark:text-zinc-300 break-all">{line}</span>
+                  </li>
+                ))}
+                {evidence.length > 12 && (
+                  <li className="text-[10px] text-zinc-400 dark:text-zinc-500 pl-3">
+                    +{evidence.length - 12} more signals…
+                  </li>
+                )}
+              </ul>
+              <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-neutral-700 text-[10px] text-zinc-400 dark:text-zinc-500">
+                Total score: <span className="font-semibold text-zinc-600 dark:text-zinc-300">{score}</span>
+                {score >= 15 ? ' — strong match' : score >= 5 ? ' — weak match, consider pinning field' : ' — no signal, defaulted to "general"'}
+              </div>
+            </div>
+          )}
+        </span>
+      )}
     </span>
   );
 }
