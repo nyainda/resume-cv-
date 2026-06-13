@@ -789,7 +789,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               { label: 'Features', id: 'score-cv' },
               { label: 'How It Works', id: 'pipe' },
               { label: 'Templates', id: 'tpl' },
-              { label: 'Pricing', id: null },
+              { label: 'Pricing', id: 'pricing' },
             ].map(item => (
               <button key={item.label}
                 onClick={() => {
@@ -1132,9 +1132,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           {/* Header */}
           <div style={{ marginBottom: 36, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8, margin: '0 0 8px' }}>Free · instant · no signup</p>
+              <p style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: faint, marginBottom: 8, margin: '0 0 8px' }}>Free · instant · no AI required</p>
               <h2 style={{ fontSize: 'clamp(1.7rem,3.8vw,2.4rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 10px', lineHeight: 1.1 }}>See your CV score<br />before a recruiter does.</h2>
-              <p style={{ fontSize: 14, color: muted, margin: 0, maxWidth: 500, lineHeight: 1.6 }}>Paste your CV text and get an instant score across 5 dimensions — AI-tell detection, bullet quality, summary strength, seniority coherence, and ATS match. No signup needed.</p>
+              <p style={{ fontSize: 14, color: muted, margin: 0, maxWidth: 500, lineHeight: 1.6 }}>Paste your CV text and get an instant score across 5 dimensions — AI-tell detection, bullet quality, summary strength, seniority coherence, and ATS match. Create a free account to fix everything ProCV finds.</p>
             </div>
           </div>
 
@@ -1315,7 +1315,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
                   >
-                    Build my ATS-optimised CV — free
+                    Fix my CV with ProCV →
                     <svg width={13} height={13} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                   </button>
                 </div>
@@ -1466,6 +1466,149 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ───────────────────────────────────────────────────── */}
+      <section
+        id="pricing"
+        ref={reg('pricing')} data-s="pricing"
+        style={{
+          padding: '80px 24px', borderTop: `1px solid ${border}`,
+          opacity: v('pricing') ? 1 : 0, transform: v('pricing') ? 'none' : 'translateY(20px)',
+          transition: 'opacity 0.5s, transform 0.5s',
+        }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          {/* Header */}
+          <div style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto 56px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 18 }}>
+              Pricing
+            </div>
+            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: text }}>
+              Pay for what you download.<br />
+              <span style={{ color: '#C9A84C' }}>Nothing else.</span>
+            </h2>
+            <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0 }}>
+              All tools are free to use. You only pay when you're happy and want to download your CV.
+            </p>
+          </div>
+
+          {/* Plan cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 20, maxWidth: 960, margin: '0 auto' }}>
+
+            {/* Free */}
+            <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: muted, marginBottom: 12 }}>Free</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
+                <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', color: text }}>$0</span>
+                <span style={{ fontSize: 13, color: muted }}>forever</span>
+              </div>
+              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: '0 0 28px' }}>
+                Full access to every tool — CV builder, ATS checker, interview prep, job tracker, and more. Always.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
+                {[
+                  'All 14 career tools',
+                  'AI CV generation',
+                  'ATS scoring & analysis',
+                  'Cover letter builder',
+                  'Interview prep & coaching',
+                  'Unlimited profile slots',
+                  'Job application tracker',
+                ].map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: text }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    {f}
+                  </div>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: muted }}>
+                  <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  CV download (pay per download)
+                </div>
+              </div>
+              <button onClick={onGetStarted} style={{ padding: '12px 20px', fontSize: 14, fontWeight: 800, borderRadius: 10, background: elevated, border: `1.5px solid ${border}`, cursor: 'pointer', color: text, transition: 'border-color 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = border)}>
+                Start for free
+              </button>
+            </div>
+
+            {/* Pay-per-download — highlighted */}
+            <div style={{ background: '#1B2B4B', borderRadius: 18, border: `2px solid #C9A84C`, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', pointerEvents: 'none' }} />
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#C9A84C', marginBottom: 12 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />
+                Most popular
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
+                <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>$2</span>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>per CV download</span>
+              </div>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 28px' }}>
+                Only pay when you download. No subscription, no commitment. Download the CVs you need, when you need them.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
+                {[
+                  'Everything in Free',
+                  'High-quality PDF download',
+                  'WYSIWYG — exactly what you see',
+                  '35+ professional templates',
+                  'ATS-optimised output',
+                  'Each download = one credit',
+                  'Credits never expire',
+                ].map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#fff' }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={onGetStarted} style={{ padding: '12px 20px', fontSize: 14, fontWeight: 800, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(235,255,56,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
+                Get started — it's free
+              </button>
+            </div>
+
+            {/* BYOK */}
+            <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: muted, marginBottom: 12 }}>BYOK — Power User</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
+                <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', color: text }}>$0</span>
+                <span style={{ fontSize: 13, color: muted }}>+ your API key</span>
+              </div>
+              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: '0 0 28px' }}>
+                Bring Your Own Key. Connect your own AI API keys and pay only the AI provider's cost — typically a few cents per CV.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
+                {[
+                  'Everything in Free',
+                  'Unlimited CV downloads',
+                  'Use your own Groq / Gemini key',
+                  'Pay only AI provider costs',
+                  'Full pipeline — no limits',
+                  'Priority generation speed',
+                  'Advanced model selection',
+                ].map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: text }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={onGetStarted} style={{ padding: '12px 20px', fontSize: 14, fontWeight: 800, borderRadius: 10, background: elevated, border: `1.5px solid ${border}`, cursor: 'pointer', color: text, transition: 'border-color 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = border)}>
+                Set up BYOK
+              </button>
+            </div>
+
+          </div>
+
+          {/* Bottom note */}
+          <p style={{ textAlign: 'center', fontSize: 13, color: faint, marginTop: 32 }}>
+            All plans include a free account. No credit card required to sign up.
+          </p>
         </div>
       </section>
 
