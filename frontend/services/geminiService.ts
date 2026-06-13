@@ -3613,7 +3613,8 @@ export const generateProfileFromFileWithGemini = async (
         - Infer missing personal details (name, location, summary) from GitHub if not visible in the file.
     ` : '';
 
-    const prompt = `
+    const prompt = `RESPOND WITH ONLY A RAW JSON OBJECT. NO GREETING. NO PREAMBLE. NO EXPLANATION. START YOUR RESPONSE WITH "{" AND END WITH "}".
+
         You are a professional CV data extractor. You are looking at a resume, CV, or professional profile document.
         Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
 
@@ -3625,7 +3626,7 @@ export const generateProfileFromFileWithGemini = async (
         5. Generate a unique simple string 'id' for every array item (e.g. 'exp1', 'edu1', 'cs1').
         6. Do NOT invent data that is not visibly present in the document.
         ${githubInstruction}
-        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary, no preamble of any kind.
 
         ${USER_PROFILE_SCHEMA}
     `;
@@ -3667,7 +3668,8 @@ export const generateProfileFromFileClaude = async (
         - Infer missing personal details (name, location, summary) from GitHub if not visible in the file.
     ` : '';
 
-    const prompt = `
+    const prompt = `RESPOND WITH ONLY A RAW JSON OBJECT. NO GREETING. NO PREAMBLE. NO EXPLANATION. START YOUR RESPONSE WITH "{" AND END WITH "}".
+
         You are a professional CV data extractor. You are looking at a resume, CV, or professional profile document.
         Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
 
@@ -3679,7 +3681,7 @@ export const generateProfileFromFileClaude = async (
         5. Generate a unique simple string 'id' for every array item (e.g. 'exp1', 'edu1', 'cs1').
         6. Do NOT invent data that is not visibly present in the document.
         ${githubInstruction}
-        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary.
+        7. Return ONLY the raw JSON object — no markdown, no code fences, no commentary, no "I'm ready" or any other preamble.
 
         ${USER_PROFILE_SCHEMA}
     `;
@@ -3687,8 +3689,7 @@ export const generateProfileFromFileClaude = async (
     const raw = await claudeMultimodalCall(claudeKey, base64Data, mimeType, prompt, { maxTokens: 8192, temperature: 0.1 });
     if (!raw || raw.trim().length < 20) throw new Error('Claude returned an empty response. Please try again.');
 
-    const cleaned = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
-    const profileData: UserProfile = _normalizeProfileIds(JSON.parse(cleaned));
+    const profileData: UserProfile = _normalizeProfileIds(parseProfileJson(raw));
     profileData.projects       = profileData.projects       || [];
     profileData.education      = profileData.education      || [];
     profileData.workExperience = profileData.workExperience || [];
