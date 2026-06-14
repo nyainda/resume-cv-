@@ -2674,6 +2674,7 @@ const AppInner: React.FC = () => {
                   <ScoreMyCVPage
                     currentCV={currentCV}
                     onGoToGenerator={() => setCurrentView("generator")}
+                    onCVUpdate={(cv) => setCurrentCV(cv)}
                   />
                 )}
                 {currentView === "pivot" && (

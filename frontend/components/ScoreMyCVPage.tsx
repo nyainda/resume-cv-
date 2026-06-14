@@ -36,6 +36,10 @@ import { scoreAchievementDensity } from '../services/cvAchievementDensity';
 import type { AchievementDensityReport } from '../services/cvAchievementDensity';
 import { scoreMetricStrength } from '../services/cvMetricStrength';
 import type { MetricStrengthReport, MetricLevel } from '../services/cvMetricStrength';
+import { scoreVerbVariety } from '../services/cvVerbVariety';
+import type { VerbVarietyReport, OverusedVerb } from '../services/cvVerbVariety';
+import { fixVerbVariety, fixAiIsms } from '../services/cvAutoFixer';
+import type { FixChange } from '../services/cvAutoFixer';
 
 // Brand tokens
 const NAV   = '#1B2B4B';
@@ -501,6 +505,230 @@ const MetricStrengthCard: React.FC<{ report: MetricStrengthReport }> = ({ report
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// VerbVarietyCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface VerbVarietyCardProps {
+  report: VerbVarietyReport;
+  currentCV: CVData;
+  onCVUpdate?: (cv: CVData) => void;
+}
+
+const VerbVarietyCard: React.FC<VerbVarietyCardProps> = ({ report, currentCV, onCVUpdate }) => {
+  const [expanded, setExpanded]       = useState(false);
+  const [fixing, setFixing]           = useState(false);
+  const [fixResult, setFixResult]     = useState<{ count: number; changes: FixChange[] } | null>(null);
+  const [fixingAi, setFixingAi]       = useState(false);
+  const [fixAiResult, setFixAiResult] = useState<{ count: number } | null>(null);
+  const meta = scoreMeta(report.score);
+
+  const canFix = !!onCVUpdate && report.fixableBulletCount > 0;
+  const canFixAi = !!onCVUpdate;
+
+  function handleFixVerbs() {
+    if (!onCVUpdate) return;
+    setFixing(true);
+    setTimeout(() => {
+      const result = fixVerbVariety(currentCV, report.overusedVerbs);
+      onCVUpdate(result.updatedCV);
+      setFixResult({ count: result.fixCount, changes: result.changes });
+      setFixing(false);
+    }, 60);
+  }
+
+  function handleFixAiIsms() {
+    if (!onCVUpdate) return;
+    setFixingAi(true);
+    setTimeout(() => {
+      const result = fixAiIsms(currentCV);
+      onCVUpdate(result.updatedCV);
+      setFixAiResult({ count: result.fixCount });
+      setFixingAi(false);
+    }, 60);
+  }
+
+  return (
+    <div className="rounded-xl border overflow-hidden border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+      <div
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-neutral-800/60"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="text-xl flex-shrink-0">🔤</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="font-semibold text-sm text-zinc-800 dark:text-zinc-100">Verb Variety</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>{meta.label}</span>
+            {report.overusedVerbs.length > 0 && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400">
+                {report.overusedVerbs.length} overused verb{report.overusedVerbs.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-snug mb-1.5">
+            Recruiters notice when every bullet starts with the same verb — it signals low effort.
+          </p>
+          <div className="w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${report.score}%`, background: meta.bar }} />
+          </div>
+        </div>
+        <span className={`text-lg font-bold tabular-nums ${meta.text} flex-shrink-0`}>{report.score}%</span>
+        <span className="text-zinc-400 dark:text-zinc-500 flex-shrink-0 text-xs ml-1">{expanded ? '▲' : '▼'}</span>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-zinc-100 dark:border-neutral-800 px-4 py-3 space-y-3">
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl p-2.5 bg-zinc-50 dark:bg-neutral-800">
+              <div className="text-xl font-black tabular-nums text-zinc-700 dark:text-zinc-300">{report.uniqueVerbCount}</div>
+              <div className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">Unique verbs</div>
+            </div>
+            <div className="rounded-xl p-2.5 bg-red-50 dark:bg-red-950/30">
+              <div className="text-xl font-black tabular-nums text-red-700 dark:text-red-400">{report.overusedVerbs.length}</div>
+              <div className="text-[10px] font-semibold text-red-700 dark:text-red-400 mt-0.5">Overused</div>
+            </div>
+            <div className="rounded-xl p-2.5 bg-amber-50 dark:bg-amber-950/30">
+              <div className="text-xl font-black tabular-nums text-amber-700 dark:text-amber-400">{report.weakVerbInstances.reduce((s, w) => s + w.count, 0)}</div>
+              <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 mt-0.5">Weak verbs</div>
+            </div>
+          </div>
+
+          {/* Overused verbs list */}
+          {report.overusedVerbs.length > 0 && (
+            <div className="rounded-xl border border-red-100 dark:border-red-900/40 overflow-hidden">
+              <div className="px-3 py-1.5 bg-red-50 dark:bg-red-950/30 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                  Overused starting verbs
+                </span>
+                <span className="text-[10px] text-red-500 dark:text-red-400">
+                  Why: same verb = same impact level to a recruiter's eye
+                </span>
+              </div>
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                {report.overusedVerbs.map(ov => (
+                  <div key={ov.verb} className="px-3 py-2.5 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200 capitalize">{ov.verb}</span>
+                      <span className="text-xs text-red-500 dark:text-red-400 ml-2">×{ov.count}</span>
+                      {ov.synonyms.length > 0 && (
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          Try: <span className="text-zinc-700 dark:text-zinc-300">{ov.synonyms.slice(0, 4).join(', ')}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Apply verb fix button */}
+              {canFix && !fixResult && (
+                <div className="px-3 py-2.5 bg-zinc-50 dark:bg-neutral-800/60 border-t border-zinc-100 dark:border-neutral-700">
+                  <button
+                    onClick={e => { e.stopPropagation(); handleFixVerbs(); }}
+                    disabled={fixing}
+                    className="w-full py-2 px-4 rounded-lg text-sm font-bold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                    style={{ background: NAV }}
+                  >
+                    {fixing ? (
+                      <><span className="animate-spin inline-block">⚙</span> Applying…</>
+                    ) : (
+                      <>✨ Auto-fix — replace overused verbs in CV ({report.fixableBulletCount} bullets)</>
+                    )}
+                  </button>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5 text-center">
+                    Keeps the first occurrence of each verb; replaces repetitions with synonyms from the list above.
+                  </p>
+                </div>
+              )}
+
+              {fixResult && (
+                <div className="px-3 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-100 dark:border-emerald-900/40">
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                    <span>✅</span>
+                    {fixResult.count} verb{fixResult.count !== 1 ? 's' : ''} replaced in your CV
+                  </p>
+                  {fixResult.changes.slice(0, 3).map((c, i) => (
+                    <p key={i} className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">
+                      <span className="text-red-400 line-through">{c.original.slice(0, 60)}…</span>
+                      <br />
+                      <span className="text-emerald-600 dark:text-emerald-400">→ {c.fixed.slice(0, 60)}…</span>
+                    </p>
+                  ))}
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1.5">Re-score to see updated Verb Variety score.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Weak verbs */}
+          {report.weakVerbInstances.length > 0 && (
+            <div className="rounded-xl p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1.5">Weak opening verbs (low impact)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {report.weakVerbInstances.map(w => (
+                  <span key={w.verb} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-medium">
+                    {w.verb} ×{w.count}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">
+                Replace with impact verbs: <span className="font-medium">drove, spearheaded, engineered, launched, reduced</span>
+              </p>
+            </div>
+          )}
+
+          {/* AI-ism quick fix */}
+          {canFixAi && (
+            <div className="rounded-xl border border-zinc-100 dark:border-neutral-700 overflow-hidden">
+              <div className="px-3 py-2 bg-zinc-50 dark:bg-neutral-800/60">
+                <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Bonus fix: strip AI-isms</p>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Replaces phrases like "delve into", "utilise", "harnessing the power of" that flag AI-written content.
+                </p>
+              </div>
+              {!fixAiResult ? (
+                <div className="px-3 py-2.5">
+                  <button
+                    onClick={e => { e.stopPropagation(); handleFixAiIsms(); }}
+                    disabled={fixingAi}
+                    className="w-full py-2 px-4 rounded-lg text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                    style={{ borderColor: GOLD, color: GOLD }}
+                  >
+                    {fixingAi ? (
+                      <><span className="animate-spin inline-block">⚙</span> Scanning…</>
+                    ) : (
+                      <>🧹 Remove AI-isms from CV</>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="px-3 py-2.5 bg-emerald-50 dark:bg-emerald-950/30">
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                    <span>✅</span>
+                    {fixAiResult.count > 0
+                      ? `${fixAiResult.count} AI-ism phrase${fixAiResult.count !== 1 ? 's' : ''} removed`
+                      : 'No AI-isms found — your CV is clean!'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {report.score >= 85 && report.overusedVerbs.length === 0 && (
+            <div className="rounded-xl p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 flex items-start gap-2">
+              <span>✅</span>
+              <p className="text-zinc-700 dark:text-zinc-300 text-sm">
+                Strong verb variety — {report.uniqueVerbCount} distinct action verbs across {report.totalBullets} bullets.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Score theming — ProCV colors
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -631,6 +859,7 @@ function atsEffectiveScore(report: AtsKeywordReport): { displayScore: number; wa
 interface ScoreMyCVPageProps {
   currentCV: CVData | null;
   onGoToGenerator: () => void;
+  onCVUpdate?: (cv: CVData) => void;
 }
 
 interface ScoreResults {
@@ -641,12 +870,13 @@ interface ScoreResults {
   evidenceScore: EvidenceScoreReport;
   densityScore: AchievementDensityReport;
   metricStrength: MetricStrengthReport;
+  verbVariety: VerbVarietyReport;
   composite: number;
   scoredAt: Date;
   cfEnriched: boolean;
 }
 
-const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator }) => {
+const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator, onCVUpdate }) => {
   const [jd, setJd]                     = useState('');
   const [jdExpanded, setJdExpanded]     = useState(false);
   const [scoring, setScoring]           = useState(false);
@@ -678,14 +908,15 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     const evidenceScore  = scoreEvidenceStrength(currentCV);
     const densityScore   = scoreAchievementDensity(currentCV);
     const metricStrength = scoreMetricStrength(currentCV);
+    const verbVariety    = scoreVerbVariety(currentCV);
 
     const sScore = seniorityScore(careerLogic);
     const aScore = atsMatch ? atsEffectiveScore(atsMatch).displayScore : null;
-    const dimScores = [humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, densityScore.score, metricStrength.score];
+    const dimScores = [humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, densityScore.score, metricStrength.score, verbVariety.score];
     if (aScore !== null) dimScores.push(aScore);
     const comp = compositeScore(dimScores);
 
-    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, densityScore, metricStrength, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
+    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, densityScore, metricStrength, verbVariety, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
     setScoring(false);
   }, [currentCV, jd, cfPhrases, cfStatus]);
 
@@ -800,6 +1031,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
                   { label: 'Evidence Score',      score: results.evidenceScore.score },
                   { label: 'Achievement Density', score: results.densityScore.score },
                   { label: 'Metric Strength',     score: results.metricStrength.score },
+                  { label: 'Verb Variety',         score: results.verbVariety.score },
                   { label: 'ATS Match',           score: results.atsMatch ? atsData!.displayScore : null },
                 ].map(({ label, score }) => {
                   const m = score !== null ? scoreMeta(score) : null;
@@ -843,6 +1075,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           <EvidenceScoreCard report={results.evidenceScore} />
           <AchievementDensityCard report={results.densityScore} />
           <MetricStrengthCard report={results.metricStrength} />
+          <VerbVarietyCard report={results.verbVariety} currentCV={currentCV!} onCVUpdate={onCVUpdate} />
         </div>
 
         {/* Re-score with JD */}
@@ -894,10 +1127,10 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             {cfStatus === 'live'
-              ? <span>Instant 7-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
+              ? <span>Instant 8-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
               : cfStatus === 'offline'
-              ? 'Instant 7-dimension analysis · Using built-in lists'
-              : 'Instant 7-dimension analysis · Loading engine data…'
+              ? 'Instant 8-dimension analysis · Using built-in lists'
+              : 'Instant 8-dimension analysis · Loading engine data…'
             }
           </p>
         </div>
@@ -931,6 +1164,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           { icon: '🔬', label: 'Evidence Score',       desc: 'Skill proof vs. just listing' },
           { icon: '🏆', label: 'Achievement Density',  desc: 'Achievements vs. duties ratio' },
           { icon: '📊', label: 'Metric Strength',      desc: 'Weak / medium / strong numbers' },
+          { icon: '🔤', label: 'Verb Variety',         desc: 'Overused & weak openers + auto-fix' },
           { icon: '🔍', label: 'ATS Match',            desc: 'JD keyword gap (optional)' },
         ].map(({ icon, label, desc }) => (
           <div key={label} className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-3 text-center bg-[#F8F7F4] dark:bg-neutral-900">
