@@ -1,18 +1,24 @@
 /**
  * ScoreMyCVPage.tsx
  *
- * Phase 2.1 — "Score My CV"
+ * Phase 2.2 — "Score My CV"
  *
- * Composite 4-dimension CV scoring.
+ * Composite 6-dimension CV scoring.
  * Signal 1 (Human Voice) is augmented with live banned-phrase data from the
  * CF worker so it reflects the same rules used during generation.
  * Falls back to built-in lists when offline.
  *
  * Dimensions:
- *   1. Human Voice       — scoreHRDetection() + CF banned phrases  0–100
- *   2. Bullet Quality    — inline regex checks                      0–100
- *   3. Career Logic      — auditSeniorityCoherence()                0–100
- *   4. ATS Match         — scoreAtsCoverage() (requires JD)         0–100
+ *   1. Human Voice          — scoreHRDetection() + CF banned phrases  0–100
+ *   2. Bullet Quality       — inline regex checks                      0–100
+ *   3. Career Logic         — auditSeniorityCoherence()                0–100
+ *   4. Evidence Score       — scoreEvidenceStrength()                  0–100
+ *   5. Achievement Density  — scoreAchievementDensity()                0–100
+ *   6. ATS Match            — scoreAtsCoverage() (requires JD)         0–100
+ *
+ * Composite = simple average of all available dimensions (ATS excluded when
+ * no JD is provided). This way adding/removing dimensions never creates
+ * confusing score jumps — each is always weighted equally.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -26,6 +32,8 @@ import type { SeniorityCoherenceReport } from '../services/cvSeniorityCoherence'
 import { fetchCFBannedPhrases } from '../services/cvBannedPhrasesClient';
 import { scoreEvidenceStrength } from '../services/cvEvidenceScore';
 import type { EvidenceScoreReport, EvidenceLevel } from '../services/cvEvidenceScore';
+import { scoreAchievementDensity } from '../services/cvAchievementDensity';
+import type { AchievementDensityReport } from '../services/cvAchievementDensity';
 
 // Brand tokens
 const NAV   = '#1B2B4B';
@@ -109,9 +117,10 @@ function seniorityScore(report: SeniorityCoherenceReport): number {
   return Math.max(0, Math.min(100, 100 - overreach * 15 - underreach * 8));
 }
 
-function compositeScore(humanVoice: number, bulletQuality: number, careerLogic: number, evidence: number, atsMatch: number | null): number {
-  if (atsMatch !== null) return Math.round(humanVoice * 0.20 + bulletQuality * 0.20 + careerLogic * 0.20 + evidence * 0.20 + atsMatch * 0.20);
-  return Math.round(humanVoice * 0.25 + bulletQuality * 0.25 + careerLogic * 0.25 + evidence * 0.25);
+/** Simple equal-weight average of however many dimensions are available. */
+function compositeScore(scores: number[]): number {
+  if (scores.length === 0) return 0;
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,6 +241,129 @@ const EvidenceScoreCard: React.FC<{ report: EvidenceScoreReport }> = ({ report }
               <span className="flex-shrink-0">✅</span>
               <p className="text-zinc-700 dark:text-zinc-300 text-sm">
                 {report.resultCount} skill{report.resultCount > 1 ? 's' : ''} backed by measurable results — exactly what recruiters want to see.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Achievement Density Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DENSITY_BAND_COLORS = {
+  excellent: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', bar: '#059669' },
+  strong:    { bg: 'bg-blue-50 dark:bg-blue-950/30',       text: 'text-blue-700 dark:text-blue-400',       bar: '#2563eb' },
+  good:      { bg: 'bg-amber-50 dark:bg-amber-950/30',     text: 'text-amber-700 dark:text-amber-400',     bar: '#d97706' },
+  weak:      { bg: 'bg-red-50 dark:bg-red-950/30',         text: 'text-red-700 dark:text-red-400',         bar: '#dc2626' },
+};
+
+const AchievementDensityCard: React.FC<{ report: AchievementDensityReport }> = ({ report }) => {
+  const [expanded, setExpanded] = useState(false);
+  const col = DENSITY_BAND_COLORS[report.band];
+  const meta = scoreMeta(report.score);
+
+  const issues: { severity: 'critical' | 'moderate'; text: string; fix: string }[] = [];
+  if (report.band === 'weak') {
+    issues.push({
+      severity: 'critical',
+      text: `Only ${report.achievementCount} of ${report.totalBullets} bullets show a concrete achievement — the rest just describe duties.`,
+      fix: 'Rewrite at least 60% of your bullets to start with an impact verb and include a metric or outcome.',
+    });
+  } else if (report.band === 'good') {
+    issues.push({
+      severity: 'moderate',
+      text: `${report.dutyCount} bullet${report.dutyCount > 1 ? 's' : ''} read${report.dutyCount === 1 ? 's' : ''} as duties. Recruiters skip these looking for proof.`,
+      fix: 'Add a result or number to duty bullets: "Maintained X" → "Maintained X, reducing downtime by 40%."',
+    });
+  }
+
+  return (
+    <div className="rounded-xl border overflow-hidden border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+      <div
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-neutral-800/60"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="text-xl flex-shrink-0">🏆</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="font-semibold text-sm text-zinc-800 dark:text-zinc-100">Achievement Density</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${col.bg} ${col.text}`}>{report.bandLabel}</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              {report.achievementCount}/{report.totalBullets} bullets are achievements
+            </span>
+          </div>
+          <div className="w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${report.score}%`, background: meta.bar }} />
+          </div>
+        </div>
+        <span className={`text-lg font-bold tabular-nums ${meta.text} flex-shrink-0`}>{report.score}%</span>
+        <span className="text-zinc-400 dark:text-zinc-500 flex-shrink-0 text-xs ml-1">{expanded ? '▲' : '▼'}</span>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-zinc-100 dark:border-neutral-800 px-4 py-3 space-y-3">
+          {/* Summary stats */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl p-2.5 bg-emerald-50 dark:bg-emerald-950/30">
+              <div className="text-xl font-black tabular-nums text-emerald-700 dark:text-emerald-400">{report.achievementCount}</div>
+              <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">Achievements</div>
+            </div>
+            <div className="rounded-xl p-2.5 bg-red-50 dark:bg-red-950/30">
+              <div className="text-xl font-black tabular-nums text-red-700 dark:text-red-400">{report.dutyCount}</div>
+              <div className="text-[10px] font-semibold text-red-700 dark:text-red-400 mt-0.5">Duties</div>
+            </div>
+            <div className="rounded-xl p-2.5 bg-zinc-50 dark:bg-neutral-800">
+              <div className="text-xl font-black tabular-nums text-zinc-700 dark:text-zinc-300">{report.totalBullets}</div>
+              <div className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">Total Bullets</div>
+            </div>
+          </div>
+
+          {/* Issues */}
+          {issues.map((issue, i) => (
+            <div key={i} className={`rounded-xl p-3 text-sm ${issue.severity === 'critical' ? 'bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40' : 'bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40'}`}>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 mt-0.5">{issue.severity === 'critical' ? '🔴' : '🟡'}</span>
+                <div>
+                  <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-snug">{issue.text}</p>
+                  <p className="mt-1.5 text-zinc-500 dark:text-zinc-400 text-xs"><span className="font-semibold">Fix: </span>{issue.fix}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Per-role breakdown */}
+          {report.roleBreakdown.length > 0 && (
+            <div className="rounded-xl border border-zinc-100 dark:border-neutral-800 overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto] text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-3 py-1.5 bg-zinc-50 dark:bg-neutral-800/60 border-b border-zinc-100 dark:border-neutral-800 gap-3">
+                <span>Role</span><span>Density</span><span>A/D</span>
+              </div>
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                {report.roleBreakdown.map(r => {
+                  const bandCol = r.density >= 80 ? DENSITY_BAND_COLORS.excellent
+                    : r.density >= 60 ? DENSITY_BAND_COLORS.strong
+                    : r.density >= 30 ? DENSITY_BAND_COLORS.good
+                    : DENSITY_BAND_COLORS.weak;
+                  return (
+                    <div key={r.role} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-2">
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{r.role}</span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${bandCol.bg} ${bandCol.text}`}>{r.density}%</span>
+                      <span className="text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums">{r.achievementCount}/{r.total}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {report.band === 'excellent' && (
+            <div className="rounded-xl p-3 text-sm bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 flex items-start gap-2">
+              <span>✅</span>
+              <p className="text-zinc-700 dark:text-zinc-300 text-sm">
+                {report.score}% of your bullets lead with a concrete achievement — top tier for recruiter impact.
               </p>
             </div>
           )}
@@ -380,6 +512,7 @@ interface ScoreResults {
   careerLogic: SeniorityCoherenceReport;
   atsMatch: AtsKeywordReport | null;
   evidenceScore: EvidenceScoreReport;
+  densityScore: AchievementDensityReport;
   composite: number;
   scoredAt: Date;
   cfEnriched: boolean;
@@ -415,12 +548,15 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     const careerLogic   = auditSeniorityCoherence(currentCV);
     const atsMatch      = jd.trim() ? scoreAtsCoverage(currentCV, jd.trim()) : null;
     const evidenceScore = scoreEvidenceStrength(currentCV);
+    const densityScore  = scoreAchievementDensity(currentCV);
 
     const sScore = seniorityScore(careerLogic);
     const aScore = atsMatch ? atsEffectiveScore(atsMatch).displayScore : null;
-    const comp   = compositeScore(humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, aScore);
+    const dimScores = [humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, densityScore.score];
+    if (aScore !== null) dimScores.push(aScore);
+    const comp = compositeScore(dimScores);
 
-    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
+    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, densityScore, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
     setScoring(false);
   }, [currentCV, jd, cfPhrases, cfStatus]);
 
@@ -529,11 +665,12 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
               </p>
               <div className="space-y-2.5">
                 {[
-                  { label: 'Human Voice',    score: results.humanVoice.humanScore },
-                  { label: 'Bullet Quality', score: results.bulletQuality.score },
-                  { label: 'Career Logic',   score: sScore },
-                  { label: 'Evidence Score', score: results.evidenceScore.score },
-                  { label: 'ATS Match',      score: results.atsMatch ? atsData!.displayScore : null },
+                  { label: 'Human Voice',         score: results.humanVoice.humanScore },
+                  { label: 'Bullet Quality',      score: results.bulletQuality.score },
+                  { label: 'Career Logic',        score: sScore },
+                  { label: 'Evidence Score',      score: results.evidenceScore.score },
+                  { label: 'Achievement Density', score: results.densityScore.score },
+                  { label: 'ATS Match',           score: results.atsMatch ? atsData!.displayScore : null },
                 ].map(({ label, score }) => {
                   const m = score !== null ? scoreMeta(score) : null;
                   return (
@@ -574,6 +711,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
             <DimensionCard title="ATS Keyword Match" icon="🔍" score={0} locked lockMessage="Paste a job description below and re-score to unlock this dimension." issues={[]} />
           )}
           <EvidenceScoreCard report={results.evidenceScore} />
+          <AchievementDensityCard report={results.densityScore} />
         </div>
 
         {/* Re-score with JD */}
@@ -625,10 +763,10 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             {cfStatus === 'live'
-              ? <span>Instant 5-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
+              ? <span>Instant 6-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
               : cfStatus === 'offline'
-              ? 'Instant 5-dimension analysis · Using built-in lists'
-              : 'Instant 5-dimension analysis · Loading engine data…'
+              ? 'Instant 6-dimension analysis · Using built-in lists'
+              : 'Instant 6-dimension analysis · Loading engine data…'
             }
           </p>
         </div>
@@ -654,13 +792,14 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
       </div>
 
       {/* What we check */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {[
-          { icon: '🗣️', label: 'Human Voice',    desc: '8 recruiter signals + live CF data' },
-          { icon: '📌', label: 'Bullet Quality', desc: 'AI-tell & structure checks' },
-          { icon: '📈', label: 'Career Logic',   desc: 'Seniority coherence' },
-          { icon: '🔬', label: 'Evidence Score', desc: 'Skill proof vs. just listing' },
-          { icon: '🔍', label: 'ATS Match',      desc: 'JD keyword gap (optional)' },
+          { icon: '🗣️', label: 'Human Voice',         desc: '8 recruiter signals + live CF data' },
+          { icon: '📌', label: 'Bullet Quality',       desc: 'AI-tell & structure checks' },
+          { icon: '📈', label: 'Career Logic',         desc: 'Seniority coherence' },
+          { icon: '🔬', label: 'Evidence Score',       desc: 'Skill proof vs. just listing' },
+          { icon: '🏆', label: 'Achievement Density',  desc: 'Achievements vs. duties ratio' },
+          { icon: '🔍', label: 'ATS Match',            desc: 'JD keyword gap (optional)' },
         ].map(({ icon, label, desc }) => (
           <div key={label} className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-3 text-center bg-[#F8F7F4] dark:bg-neutral-900">
             <div className="text-2xl mb-1">{icon}</div>
