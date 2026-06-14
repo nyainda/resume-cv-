@@ -24,6 +24,8 @@ import type { AtsKeywordReport } from '../services/cvAtsKeywords';
 import { auditSeniorityCoherence } from '../services/cvSeniorityCoherence';
 import type { SeniorityCoherenceReport } from '../services/cvSeniorityCoherence';
 import { fetchCFBannedPhrases } from '../services/cvBannedPhrasesClient';
+import { scoreEvidenceStrength } from '../services/cvEvidenceScore';
+import type { EvidenceScoreReport, EvidenceLevel } from '../services/cvEvidenceScore';
 
 // Brand tokens
 const NAV   = '#1B2B4B';
@@ -107,10 +109,137 @@ function seniorityScore(report: SeniorityCoherenceReport): number {
   return Math.max(0, Math.min(100, 100 - overreach * 15 - underreach * 8));
 }
 
-function compositeScore(humanVoice: number, bulletQuality: number, careerLogic: number, atsMatch: number | null): number {
-  if (atsMatch !== null) return Math.round(humanVoice * 0.25 + bulletQuality * 0.25 + careerLogic * 0.25 + atsMatch * 0.25);
-  return Math.round(humanVoice * 0.34 + bulletQuality * 0.33 + careerLogic * 0.33);
+function compositeScore(humanVoice: number, bulletQuality: number, careerLogic: number, evidence: number, atsMatch: number | null): number {
+  if (atsMatch !== null) return Math.round(humanVoice * 0.20 + bulletQuality * 0.20 + careerLogic * 0.20 + evidence * 0.20 + atsMatch * 0.20);
+  return Math.round(humanVoice * 0.25 + bulletQuality * 0.25 + careerLogic * 0.25 + evidence * 0.25);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Evidence Score Card — custom expandable card with skill breakdown table
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EVIDENCE_COLORS: Record<EvidenceLevel, { bg: string; text: string; label: string; bar: string }> = {
+  result:    { bg: 'bg-emerald-50 dark:bg-emerald-950/30',  text: 'text-emerald-700 dark:text-emerald-400', label: 'Result-Proven', bar: '#059669' },
+  measured:  { bg: 'bg-blue-50 dark:bg-blue-950/30',        text: 'text-blue-700 dark:text-blue-400',       label: 'Measured',     bar: '#2563eb' },
+  applied:   { bg: 'bg-amber-50 dark:bg-amber-950/30',      text: 'text-amber-700 dark:text-amber-400',     label: 'Applied',      bar: '#d97706' },
+  mentioned: { bg: 'bg-zinc-100 dark:bg-neutral-700/50',    text: 'text-zinc-500 dark:text-zinc-400',       label: 'Mentioned Only', bar: '#a1a1aa' },
+};
+
+const EvidenceScoreCard: React.FC<{ report: EvidenceScoreReport }> = ({ report }) => {
+  const [expanded, setExpanded] = useState(false);
+  const meta = scoreMeta(report.score);
+
+  const issues: { severity: 'critical' | 'moderate'; text: string; fix: string }[] = [];
+  if (report.mentionedCount > 0) {
+    issues.push({
+      severity: report.mentionedCount > report.totalSkills * 0.5 ? 'critical' : 'moderate',
+      text: `${report.mentionedCount} skill${report.mentionedCount > 1 ? 's' : ''} listed but never used in a bullet — ATS sees them, recruiters don't believe them.`,
+      fix: 'Add at least one bullet per skill showing how you used it: tool, context, and ideally a number.',
+    });
+  }
+  const unquantified = report.appliedCount;
+  if (unquantified > 0 && (report.measuredCount + report.resultCount) < report.totalSkills * 0.4) {
+    issues.push({
+      severity: 'moderate',
+      text: `${unquantified} skill${unquantified > 1 ? 's' : ''} used in bullets but without any metric to back them up.`,
+      fix: 'Add a scale, number, or % to bullets mentioning these skills — e.g. "Used Python to automate 12 reports, saving 8 hrs/week."',
+    });
+  }
+
+  return (
+    <div className="rounded-xl border overflow-hidden border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+      <div
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-neutral-800/60"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="text-xl flex-shrink-0">🔬</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="font-semibold text-sm text-zinc-800 dark:text-zinc-100">Evidence Score</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}`}>{meta.label}</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              {report.resultCount + report.measuredCount} of {report.totalSkills} skills proven
+            </span>
+          </div>
+          <div className="w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${report.score}%`, background: meta.bar }} />
+          </div>
+        </div>
+        <span className={`text-lg font-bold tabular-nums ${meta.text} flex-shrink-0`}>{report.score}</span>
+        <span className="text-zinc-400 dark:text-zinc-500 flex-shrink-0 text-xs ml-1">{expanded ? '▲' : '▼'}</span>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-zinc-100 dark:border-neutral-800 px-4 py-3 space-y-3">
+          {/* Summary stats row */}
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {([
+              { label: 'Result-Proven', count: report.resultCount,   col: EVIDENCE_COLORS.result    },
+              { label: 'Measured',      count: report.measuredCount,  col: EVIDENCE_COLORS.measured  },
+              { label: 'Applied',       count: report.appliedCount,   col: EVIDENCE_COLORS.applied   },
+              { label: 'Mentioned',     count: report.mentionedCount, col: EVIDENCE_COLORS.mentioned },
+            ] as const).map(({ label, count, col }) => (
+              <div key={label} className={`rounded-xl p-2.5 ${col.bg}`}>
+                <div className={`text-xl font-black tabular-nums ${col.text}`}>{count}</div>
+                <div className={`text-[10px] font-semibold leading-tight mt-0.5 ${col.text}`}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Issues */}
+          {issues.map((issue, i) => (
+            <div key={i} className={`rounded-xl p-3 text-sm ${issue.severity === 'critical' ? 'bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40' : 'bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40'}`}>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 mt-0.5">{issue.severity === 'critical' ? '🔴' : '🟡'}</span>
+                <div>
+                  <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-snug">{issue.text}</p>
+                  <p className="mt-1.5 text-zinc-500 dark:text-zinc-400 text-xs leading-snug">
+                    <span className="font-semibold">Fix: </span>{issue.fix}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Per-skill breakdown table */}
+          <div className="rounded-xl border border-zinc-100 dark:border-neutral-800 overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto] text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 px-3 py-1.5 bg-zinc-50 dark:bg-neutral-800/60 border-b border-zinc-100 dark:border-neutral-800">
+              <span>Skill</span>
+              <span>Evidence Level</span>
+            </div>
+            <div className="divide-y divide-zinc-100 dark:divide-neutral-800 max-h-72 overflow-y-auto">
+              {report.skills.map(({ skill, level, exampleBullet }) => {
+                const col = EVIDENCE_COLORS[level];
+                return (
+                  <div key={skill} className="grid grid-cols-[1fr_auto] items-start gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">{skill}</span>
+                      {exampleBullet && (
+                        <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 leading-snug line-clamp-1">{exampleBullet}</p>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5 ${col.bg} ${col.text}`}>
+                      {col.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {report.resultCount > 0 && (
+            <div className="rounded-xl p-3 text-sm bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 flex items-start gap-2">
+              <span className="flex-shrink-0">✅</span>
+              <p className="text-zinc-700 dark:text-zinc-300 text-sm">
+                {report.resultCount} skill{report.resultCount > 1 ? 's' : ''} backed by measurable results — exactly what recruiters want to see.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Score theming — ProCV colors
@@ -250,6 +379,7 @@ interface ScoreResults {
   bulletQuality: BulletQualityResult;
   careerLogic: SeniorityCoherenceReport;
   atsMatch: AtsKeywordReport | null;
+  evidenceScore: EvidenceScoreReport;
   composite: number;
   scoredAt: Date;
   cfEnriched: boolean;
@@ -284,12 +414,13 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     const bulletQuality = scoreBulletQuality(currentCV);
     const careerLogic   = auditSeniorityCoherence(currentCV);
     const atsMatch      = jd.trim() ? scoreAtsCoverage(currentCV, jd.trim()) : null;
+    const evidenceScore = scoreEvidenceStrength(currentCV);
 
     const sScore = seniorityScore(careerLogic);
     const aScore = atsMatch ? atsEffectiveScore(atsMatch).displayScore : null;
-    const comp   = compositeScore(humanVoice.humanScore, bulletQuality.score, sScore, aScore);
+    const comp   = compositeScore(humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, aScore);
 
-    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
+    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
     setScoring(false);
   }, [currentCV, jd, cfPhrases, cfStatus]);
 
@@ -398,10 +529,11 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
               </p>
               <div className="space-y-2.5">
                 {[
-                  { label: 'Human Voice',   score: results.humanVoice.humanScore },
+                  { label: 'Human Voice',    score: results.humanVoice.humanScore },
                   { label: 'Bullet Quality', score: results.bulletQuality.score },
-                  { label: 'Career Logic',  score: sScore },
-                  { label: 'ATS Match',     score: results.atsMatch ? atsData!.displayScore : null },
+                  { label: 'Career Logic',   score: sScore },
+                  { label: 'Evidence Score', score: results.evidenceScore.score },
+                  { label: 'ATS Match',      score: results.atsMatch ? atsData!.displayScore : null },
                 ].map(({ label, score }) => {
                   const m = score !== null ? scoreMeta(score) : null;
                   return (
@@ -441,6 +573,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           ) : (
             <DimensionCard title="ATS Keyword Match" icon="🔍" score={0} locked lockMessage="Paste a job description below and re-score to unlock this dimension." issues={[]} />
           )}
+          <EvidenceScoreCard report={results.evidenceScore} />
         </div>
 
         {/* Re-score with JD */}
@@ -492,10 +625,10 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             {cfStatus === 'live'
-              ? <span>Instant 4-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
+              ? <span>Instant 5-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
               : cfStatus === 'offline'
-              ? 'Instant 4-dimension analysis · Using built-in lists'
-              : 'Instant 4-dimension analysis · Loading engine data…'
+              ? 'Instant 5-dimension analysis · Using built-in lists'
+              : 'Instant 5-dimension analysis · Loading engine data…'
             }
           </p>
         </div>
@@ -521,11 +654,12 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
       </div>
 
       {/* What we check */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
         {[
           { icon: '🗣️', label: 'Human Voice',    desc: '8 recruiter signals + live CF data' },
           { icon: '📌', label: 'Bullet Quality', desc: 'AI-tell & structure checks' },
           { icon: '📈', label: 'Career Logic',   desc: 'Seniority coherence' },
+          { icon: '🔬', label: 'Evidence Score', desc: 'Skill proof vs. just listing' },
           { icon: '🔍', label: 'ATS Match',      desc: 'JD keyword gap (optional)' },
         ].map(({ icon, label, desc }) => (
           <div key={label} className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-3 text-center bg-[#F8F7F4] dark:bg-neutral-900">
