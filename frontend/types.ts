@@ -201,9 +201,12 @@ export interface CVEducation {
 export interface CVProject {
   name: string;
   description: string;
+  bullets?: string[];     // 3-5 achievement bullets (full pipeline treatment)
   year?: string;
   technologies?: string[];
   link?: string;
+  dates?: string;         // e.g. "Jan 2024 – Present" or "2023"
+  endDate?: string;       // "Present" if live, date string if completed — used for tense detection
 }
 
 export interface CVLanguage {

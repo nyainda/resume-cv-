@@ -384,6 +384,25 @@ export function auditStyleGovernance(cv: CVData): StyleGovernanceReport {
         issues.push(...auditMeaningClusterRepetition(bullets, where, fieldLocation));
     }
 
+    // Also audit project bullets when they exist (Bug 2 — projects now first-class citizens)
+    for (let i = 0; i < (cv.projects || []).length; i++) {
+        const project = (cv.projects || [])[i];
+        if (!project) continue;
+        const bullets = (project.bullets || []).filter(
+            b => typeof b === 'string' && b.trim().length > 0,
+        );
+        if (bullets.length < 2) continue;
+
+        const where = `Project: ${project.name || '?'}`;
+        const fieldLocation = `projects[${i}].bullets`;
+
+        issues.push(...auditOpenerDiversity(bullets, where, fieldLocation));
+        issues.push(...auditVerbClusterDominance(bullets, where, fieldLocation));
+        issues.push(...auditBareMetricOpener(bullets, where, fieldLocation));
+        issues.push(...auditContextBeforeAchievement(bullets, where, fieldLocation));
+        issues.push(...auditMeaningClusterRepetition(bullets, where, fieldLocation));
+    }
+
     const issuesByKind: Record<string, number> = {};
     for (const iss of issues) {
         issuesByKind[iss.kind] = (issuesByKind[iss.kind] || 0) + 1;

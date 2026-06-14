@@ -914,8 +914,12 @@ function normaliseWhitespaceAndDashes(text: string): { text: string; changed: bo
     // content after ", and applying/implementing/…" but leave the ", and" stub.
     out = out.replace(/,\s*and\s*$/i, '');
     out = out.replace(/\s+and\s*$/i, '');
-    // "hands- with" — incomplete "hands-on" left by model truncation
-    out = out.replace(/\bhands-\s+with\b/gi, 'hands-on experience with');
+    // "hands-on" truncation — model drops the "on" or spaces it away from the word
+    out = out.replace(/\bhands-\s*on\b/gi,                  'hands-on');
+    out = out.replace(/\bhands-\s*with\b/gi,                'hands-on experience with');
+    out = out.replace(/\bhands-\s*in\b/gi,                  'hands-on experience in');
+    out = out.replace(/\bhands-\s*across\b/gi,              'hands-on experience across');
+    out = out.replace(/\bhands-\s*(?!on\b)(?=[a-zA-Z])/gi, 'hands-on ');
     // Convert em dash used as a list separator to ", " — the LLM frequently
     // writes "lifecycles—site assessments" or "managed X—coordinated Y" instead
     // of a comma. Parenthetical/proper-noun em dashes have a capital or digit on
@@ -2277,6 +2281,8 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         projects: (cv.projects || []).map((p, i) => ({
             ...p,
             description: leakStripField(p.description || '', `projects[${i}].description`),
+            bullets: (p.bullets || []).map((b, j) =>
+                leakStripField(b, `projects[${i}].bullets[${j}]`)),
         })),
         education: (cv.education || []).map((e, i) => ({
             ...e,
@@ -2333,6 +2339,8 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         projects: (cv.projects || []).map((p, i) => ({
             ...p,
             description: subTrack(p.description || '', `projects[${i}].description`),
+            bullets: (p.bullets || []).map((b, j) =>
+                subTrack(b, `projects[${i}].bullets[${j}]`)),
         })),
     };
 
@@ -2478,7 +2486,10 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
                 polish(b, `experience[${i}].responsibilities[${j}]`)),
         })),
         projects: (working.projects || []).map((p, i) => ({
-            ...p, description: polish(p.description || '', `projects[${i}].description`),
+            ...p,
+            description: polish(p.description || '', `projects[${i}].description`),
+            bullets: (p.bullets || []).map((b, j) =>
+                polish(b, `projects[${i}].bullets[${j}]`)),
         })),
         education: (working.education || []).map((ed, i) => ({
             ...ed, description: polish(ed.description || '', `education[${i}].description`),
@@ -2936,15 +2947,17 @@ function _tryReshapeOpener(bullet: string): string | null {
 export function enforceOpenerDiversity(cv: CVData): CVData {
     const experience = (cv.experience || []).map(role => {
         const bullets = role.responsibilities || [];
-        if (bullets.length < 4) return role;
+        if (bullets.length < 3) return role;
 
         const cats = bullets.map(classifyOpener);
         const verbCount = cats.filter(c => c === 'verb').length;
-        if (verbCount / bullets.length <= 0.70) return role; // already diverse
+        if (verbCount / bullets.length <= 0.60) return role; // already diverse
 
         let fixed = 0;
+        const MAX_RESHAPES = Math.max(2, Math.floor(bullets.length / 3));
         const newBullets = bullets.map((b, i) => {
-            if (fixed >= 2) return b;
+            if (fixed >= MAX_RESHAPES) return b;
+            if (i === 0) return b; // never touch bullet 0 — scope anchor
             if (cats[i] !== 'verb') return b;
             const rewritten = _tryReshapeOpener(b);
             if (rewritten && rewritten !== b) {
@@ -2955,12 +2968,41 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
         });
 
         if (fixed > 0) {
-            console.info(`[OpenerDiversity] Restructured ${fixed} bullet(s) in "${role.jobTitle} @ ${role.company}"`);
+            console.info(`[OpenerDiversity] Restructured ${fixed}/${MAX_RESHAPES} bullet(s) in "${role.jobTitle} @ ${role.company}"`);
         }
         return { ...role, responsibilities: newBullets };
     });
 
-    return { ...cv, experience };
+    // Bug 5 — also enforce on project bullets
+    const projects = (cv.projects || []).map(project => {
+        const bullets = project.bullets || [];
+        if (bullets.length < 3) return project;
+
+        const cats = bullets.map(classifyOpener);
+        const verbCount = cats.filter(c => c === 'verb').length;
+        if (verbCount / bullets.length <= 0.60) return project;
+
+        let fixed = 0;
+        const MAX_RESHAPES = Math.max(2, Math.floor(bullets.length / 3));
+        const newBullets = bullets.map((b, i) => {
+            if (fixed >= MAX_RESHAPES) return b;
+            if (i === 0) return b; // scope anchor — always verb
+            if (cats[i] !== 'verb') return b;
+            const rewritten = _tryReshapeOpener(b);
+            if (rewritten && rewritten !== b) {
+                fixed++;
+                return rewritten;
+            }
+            return b;
+        });
+
+        if (fixed > 0) {
+            console.info(`[OpenerDiversity] Restructured ${fixed} project bullet(s) in "${project.name}"`);
+        }
+        return { ...project, bullets: newBullets };
+    });
+
+    return { ...cv, experience, projects };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

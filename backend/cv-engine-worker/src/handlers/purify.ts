@@ -216,7 +216,14 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
     { "degree": "string", "school": "string", "year": "string", "description": "string" }
   ],
   "projects": [
-    { "name": "string", "description": "string", "link": "string" }
+    {
+      "name": "string",
+      "description": "string",
+      "bullets": ["string"],
+      "link": "string",
+      "dates": "string",
+      "endDate": "string"
+    }
   ],
   "languages": [
     { "name": "string", "proficiency": "string" }
@@ -375,7 +382,11 @@ const _SUBS: Array<[RegExp, string]> = [
     [/\bof\s*[–—]\s+(?=[a-zA-Z])/g,  'of '],
     [/\bfor\s*[–—]\s+(?=[a-zA-Z])/g, 'for '],
     [/\s*[–—]\s*$/,                   ''],
-    [/\bhands-\s+with\b/gi,           'hands-on experience with'],
+    [/\bhands-\s*on\b/gi,                  'hands-on'],
+    [/\bhands-\s*with\b/gi,               'hands-on experience with'],
+    [/\bhands-\s*in\b/gi,                 'hands-on experience in'],
+    [/\bhands-\s*across\b/gi,             'hands-on experience across'],
+    [/\bhands-\s*(?!on\b)(?=[a-zA-Z])/gi, 'hands-on '],
     [/,\s*and\s*$/,                   ''],
     [/\s+and\s*$/,                    ''],
     [/,\s*$/,                         ''],
@@ -413,7 +424,7 @@ const _SUBS: Array<[RegExp, string]> = [
     [/\bideating\b/gi,                   'developing'],
     [/\bsolutioned\b/gi,                 'resolved'],
     [/\bsolutioning\b/gi,                'resolving'],
-    [/\bhands-\s+in\b/gi,                'hands-on experience in'],
+    // (hands-on catch-all patterns now cover all cases above — no separate "in" needed)
     [/\bDeployed troubleshooting\b/gi,                                'Performed troubleshooting and maintenance on'],
     [/\bDeployed\s+(analysis|review|audit|research)\b/gi,            'Conducted $1'],
     [/^Eager to\b/gim,                                               ''],
@@ -819,7 +830,9 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
             ...e, description: sub(String(e.description || '')),
         })),
         projects: (Array.isArray(cv.projects) ? cv.projects : []).map((p: any) => ({
-            ...p, description: sub(String(p.description || '')),
+            ...p,
+            description: sub(String(p.description || '')),
+            bullets: (Array.isArray(p.bullets) ? p.bullets : []).map((b: string) => sub(String(b || ''))),
         })),
     };
 
@@ -829,6 +842,10 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
     out.experience = (out.experience || []).map((e: any) => ({
         ...e,
         responsibilities: (e.responsibilities || []).map((b: string) => _stripFirstPerson(b)),
+    }));
+    out.projects = (out.projects || []).map((p: any) => ({
+        ...p,
+        bullets: (p.bullets || []).map((b: string) => _stripFirstPerson(b)),
     }));
 
     out.experience = (out.experience || []).map((e: any) => {
@@ -852,6 +869,21 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
         return { ...e, responsibilities: newBullets };
     });
 
+    // ── Project tense enforcement ────────────────────────────────────────────
+    // Present tense if endDate is "Present"/blank, past tense if completed.
+    out.projects = (out.projects || []).map((p: any) => {
+        const target: 'present' | 'past' = _isCurrent(p.endDate) ? 'present' : 'past';
+        return {
+            ...p,
+            bullets: (p.bullets || []).map((b: string) => {
+                const lead = _flipLead(b, target);
+                const mid = _flipMid(lead.text, target);
+                if (lead.changed || mid.changed) tenseFlips++;
+                return mid.text;
+            }),
+        };
+    });
+
     if (tenseFlips > 0) changes.push(`tense_fixes: ${tenseFlips}`);
 
     // ── 1.2: Dynamic KV banned-phrase pass ────────────────────────────────────
@@ -873,6 +905,7 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
             out.projects = (out.projects || []).map((p: any) => ({
                 ...p,
                 description: String(p.description || '').replace(re, replacement),
+                bullets: (p.bullets || []).map((b: string) => String(b || '').replace(re, replacement)),
             }));
         }
         if (dynSubs > 0) changes.push(`dynamic_banned: ${dynSubs} fix(es)`);
@@ -894,6 +927,32 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
         return { ...e, responsibilities: deduped };
     });
     if (dedupCount > 0) changes.push(`deduped: ${dedupCount} duplicate bullet(s) removed`);
+
+    // ── Project bullet dedup pass ──────────────────────────────────────────────
+    let projDedupCount = 0;
+    out.projects = (out.projects || []).map((p: any) => {
+        const seen = new Set<string>();
+        const deduped = (p.bullets || []).filter((b: string) => {
+            const key = b.trim().toLowerCase().split(/\s+/).slice(0, 6).join(' ');
+            if (seen.has(key)) { projDedupCount++; return false; }
+            seen.add(key);
+            return true;
+        });
+        return { ...p, bullets: deduped };
+    });
+    if (projDedupCount > 0) changes.push(`project_bullet_dedup: ${projDedupCount} duplicate(s) removed`);
+
+    // ── Skill dedup pass ──────────────────────────────────────────────────────
+    const normaliseSkill = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
+    const seenSkills = new Set<string>();
+    let skillDedupCount = 0;
+    out.skills = (out.skills || []).filter((s: string) => {
+        const key = normaliseSkill(s);
+        if (seenSkills.has(key)) { skillDedupCount++; return false; }
+        seenSkills.add(key);
+        return true;
+    });
+    if (skillDedupCount > 0) changes.push(`skill_dedup: ${skillDedupCount} duplicate(s) removed`);
 
     return json({ cv: out, changes }, request, env);
 }
