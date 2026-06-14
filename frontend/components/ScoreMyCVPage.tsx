@@ -672,7 +672,7 @@ const VerbVarietyCard: React.FC<VerbVarietyCardProps> = ({ report, currentCV, on
                 ))}
               </div>
               <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1.5">
-                Replace with impact verbs: <span className="font-medium">drove, spearheaded, engineered, launched, reduced</span>
+                Replace with impact verbs: <span className="font-medium">drove, engineered, launched, reduced, delivered, built</span>
               </p>
             </div>
           )}

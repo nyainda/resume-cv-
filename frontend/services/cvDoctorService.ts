@@ -20,6 +20,8 @@
 
 import { CVData } from '../types';
 import { groqChat } from './groqService';
+import { getCachedBannedPhrases } from './cvEngineClient';
+import { detectField } from './cvPromptHelpers';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -275,28 +277,64 @@ export function classifyBullets(cvData: CVData): BulletAnnotation[] {
 // ─── 2. AI scan (add / remove / quick wins) ───────────────────────────────────
 
 export async function scanCVForDoctor(cvData: CVData, jobDescription?: string): Promise<CVDoctorScan> {
-    const roles     = cvData.experience.map(e => `${e.jobTitle} at ${e.company} (${e.dates || 'no dates'})`).join('; ');
+    // ── Gather pipeline context in parallel (non-blocking — both fall back gracefully) ──
+    const [bannedEntries] = await Promise.allSettled([
+        getCachedBannedPhrases(),
+    ]);
+    const bannedPhrases = bannedEntries.status === 'fulfilled' && bannedEntries.value
+        ? bannedEntries.value.slice(0, 20).map(b => b.phrase).join(', ')
+        : 'spearheaded, leveraged, orchestrated, utilized, facilitated, synergized, responsible for, helped to, worked on, passionate about, dynamic, results-driven, detail-oriented, innovative';
+
+    // ── Field detection using CV data as a synthetic profile signal ──
+    const syntheticProfile = {
+        workExperience: cvData.experience.map(e => ({
+            jobTitle: e.jobTitle || '',
+            company:  e.company  || '',
+            responsibilities: (e.responsibilities || []).join(' '),
+        })),
+        skills: cvData.skills || [],
+    } as any;
+    const detectedField = detectField(jobDescription, syntheticProfile);
+
+    // ── Build a bullet snapshot: role header + first 4 bullets each ──
+    const bulletSnapshot = cvData.experience.map(role => {
+        const bullets = (role.responsibilities || []).slice(0, 4);
+        const header  = `${role.jobTitle} at ${role.company} (${role.dates || 'no dates'})`;
+        if (bullets.length === 0) return header;
+        return `${header}:\n${bullets.map(b => `  • ${b}`).join('\n')}`;
+    }).join('\n\n');
+
     const skillList = (cvData.skills || []).slice(0, 20).join(', ');
 
-    const prompt = `You are a senior CV consultant doing a quick diagnostic review.
+    const prompt = `You are a senior CV consultant doing a diagnostic review. Field detected: ${detectedField}.
 
 CV SNAPSHOT:
-Roles: ${roles || 'none'}
+${bulletSnapshot || 'No experience entries.'}
+
 Skills: ${skillList || 'none'}
 Education: ${cvData.education?.map(e => `${e.degree} ${e.school} ${e.year}`).join('; ') || 'none'}
 Has LinkedIn: ${cvData.personalInfo?.linkedin ? 'yes' : 'no'}
-Has GitHub: ${cvData.personalInfo?.github ? 'yes' : 'no'}
-Has projects section: ${(cvData.projects || []).length > 0 ? `yes (${cvData.projects!.length})` : 'no'}
+Has GitHub:   ${cvData.personalInfo?.github   ? 'yes' : 'no'}
+Has projects: ${(cvData.projects || []).length > 0 ? `yes (${cvData.projects!.length})` : 'no'}
 ${jobDescription ? `\nTARGET ROLE:\n${jobDescription.substring(0, 500)}` : ''}
+
+BANNED PHRASES — flag any of these found in the bullets above and list them as things to remove:
+${bannedPhrases}
+
+CRITICAL RULES for your output:
+- Base every suggestion on the ACTUAL bullet text shown above — do NOT invent new metrics.
+- Do NOT use approximation markers like "~", "+", "-" in your suggestions.
+- Be specific: name the role, bullet, or section you are referring to.
+- Flag banned phrases found in the CV as concrete "toRemove" items.
 
 Return ONLY this JSON (no markdown, no prose):
 {
-  "toAdd": ["up to 5 specific things MISSING that would strengthen this CV — be concrete, e.g. 'Add LinkedIn URL to contact header', 'Add a Projects section showcasing 2–3 technical builds', 'Quantify the scope of the intern role at CompanyX'"],
-  "toRemove": ["up to 4 specific things that WEAKEN or CLUTTER the CV — be direct, e.g. 'Remove Microsoft Word from skills — too basic for a senior role', 'Cut the References section — wastes space, add on request'"],
-  "quickWins": ["up to 4 one-sentence improvements with IMMEDIATE impact — e.g. 'Start the Summary with a number: years of experience or client count', 'Add a scope anchor to the first bullet of every role (team size, budget, or region)'"]
+  "toAdd": ["up to 5 specific things MISSING that would strengthen this CV — reference actual roles/bullets, e.g. 'The Site Engineer role has no metric — add team size or project value', 'Add LinkedIn URL to contact header'"],
+  "toRemove": ["up to 4 specific things that WEAKEN or CLUTTER the CV — e.g. 'Replace \\"leveraged\\" in the first bullet of Role X with a direct verb', 'Cut the References section — wastes space'"],
+  "quickWins": ["up to 4 one-sentence improvements with IMMEDIATE impact — reference specific bullets, e.g. 'The bullet starting \\"Managed projects…\\" in Role Y is missing a scope anchor — add team size or region'"]
 }`;
 
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1400 });
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1600 });
     const parsed = safeParseJson(text, ['toAdd', 'toRemove', 'quickWins']) as Record<string, unknown>;
     const clean = (arr: unknown): string[] =>
         Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
@@ -318,19 +356,25 @@ export async function rewriteBulletOptions(
     const isCurrentRole = role.endDate === 'Present' || !role.endDate;
     const tense = isCurrentRole ? 'present tense (bare imperative, e.g. "Manage", "Lead")' : 'past tense (e.g. "Managed", "Led")';
 
+    // Fetch live banned phrases — falls back gracefully if CF worker unreachable
+    const bannedEntries = await getCachedBannedPhrases().catch(() => null);
+    const bannedList = bannedEntries && bannedEntries.length > 0
+        ? bannedEntries.slice(0, 20).map(b => b.phrase).join(', ')
+        : 'spearheaded, leveraged, orchestrated, utilized, facilitated, synergized, responsible for, helped to, worked on, assisted with, tasked with, passionate about, dynamic, results-driven';
+
     const taskDesc =
         issues.includes('pronoun')             ? 'Remove the first-person pronoun (I, my, we, our) and rewrite starting with a strong action verb.' :
-        issues.includes('ai_language')         ? 'Replace the AI/corporate buzzword with a direct, real verb. Keep the same achievement.' :
+        issues.includes('ai_language')         ? 'Replace the AI/corporate buzzword with a direct, specific verb that describes exactly what was done. Keep the same achievement.' :
         issues.includes('third_person')        ? 'Change the verb from 3rd-person ("Manages") to bare imperative ("Manage").' :
         issues.includes('passive_voice')       ? 'Convert from passive voice to active voice — start with a strong action verb showing what you did.' :
         issues.includes('tense_mismatch')      ? (isCurrentRole ? 'Switch from past tense to present tense (bare imperative) — e.g. "Managed" → "Manage", "Developed" → "Develop".' : 'Switch from present tense to past tense — e.g. "Manage" → "Managed", "Build" → "Built".') :
-        issues.includes('weak_verb')           ? 'Replace the weak opener with a specific, strong action verb.' :
-        issues.includes('ensuring_virus')      ? 'Remove "ensuring" — state the outcome or action directly using a concrete verb.' :
-        issues.includes('no_metric')           ? 'Add a specific number, percentage, or scale — if no exact figure exists, use a reasonable approximation (e.g. "~12 clients", "3+ regions").' :
-        issues.includes('bare_metric_opener')  ? 'Restructure so a strong action verb comes first, then use the number as supporting evidence.' :
+        issues.includes('weak_verb')           ? 'Replace the weak opener ("helped", "assisted", "worked on") with a specific, strong action verb that directly names what was done.' :
+        issues.includes('ensuring_virus')      ? 'Remove "ensuring" — state what was achieved or delivered directly using a concrete verb and outcome.' :
+        issues.includes('no_metric')           ? 'Reframe the bullet to highlight observable scope or impact using language already present in the sentence. Do NOT invent figures or use approximation markers.' :
+        issues.includes('bare_metric_opener')  ? 'Restructure so a strong action verb comes first, then use the number as supporting evidence within the sentence.' :
         issues.includes('duplicate_word')      ? 'Fix the repeated word and improve the overall clarity of the sentence.' :
-        issues.includes('too_short')           ? 'Expand with more specific detail about the scope, method, or measurable result. Aim for 15–25 words.' :
-        issues.includes('too_long')            ? 'Trim to under 28 words. Remove filler; keep the verb, scope, and result.' :
+        issues.includes('too_short')           ? 'Expand with specific detail about scope, method, or result that is inferable from the role context. Aim for 15–25 words.' :
+        issues.includes('too_long')            ? 'Trim to under 28 words. Remove filler phrases; keep the verb, scope, and result.' :
         'Improve the clarity and professional impact of this bullet.';
 
     const prompt = `You are a professional CV writer. Rewrite the bullet below in 3 different ways.
@@ -342,9 +386,11 @@ TENSE: Use ${tense}.
 ${jobDescription ? `TARGETING JOB: ${jobDescription.substring(0, 300)}` : ''}
 
 RULES:
-- Keep the same underlying fact or achievement — do NOT invent new metrics
-- Each rewrite must have a different opening structure
-- Plain, direct language — no buzzwords like "spearheaded", "leveraged", "orchestrated"
+- Keep the same underlying fact or achievement — do NOT invent new metrics or figures
+- Do NOT use approximation markers like "~", "approx.", "around", "up to" unless already in the original
+- Each rewrite must start with a DIFFERENT strong action verb
+- BANNED phrases — never use any of these: ${bannedList}
+- Plain, direct language — the banned list above includes AI buzzwords like "spearheaded" and "leveraged"
 - No bullet character, no quotation marks around the output
 
 Return ONLY a JSON array of exactly 3 strings:
@@ -395,18 +441,24 @@ export async function rewriteAllFlaggedBullets(
 
     if (flagged.length === 0) return { applied: [], failedCount: 0 };
 
+    // Fetch live banned phrases — falls back gracefully if CF worker unreachable
+    const bannedEntries = await getCachedBannedPhrases().catch(() => null);
+    const bannedList = bannedEntries && bannedEntries.length > 0
+        ? bannedEntries.slice(0, 20).map(b => b.phrase).join(', ')
+        : 'spearheaded, leveraged, orchestrated, utilized, facilitated, synergized, responsible for, helped to, worked on, assisted with, tasked with, passionate about, dynamic, results-driven';
+
     const ISSUE_TASK: Record<BulletIssueType, string> = {
         pronoun:            'Remove the first-person pronoun (I, my, we, our) — rewrite starting with a strong action verb.',
-        ai_language:        'Replace the corporate buzzword (e.g. "spearheaded", "leveraged") with a direct, real action verb.',
+        ai_language:        'Replace the corporate buzzword (e.g. "spearheaded", "leveraged") with a direct, specific verb that names exactly what was done.',
         third_person:       'Change the verb to bare imperative form — "Manages" → "Manage", "Generates" → "Generate".',
         passive_voice:      'Convert from passive voice ("was responsible for", "were tasked with") to active voice — start with an action verb.',
         tense_mismatch:     'Fix the verb tense: current-role bullets need present tense ("Manage"), past-role bullets need past tense ("Managed").',
-        weak_verb:          'Replace the weak opener with a strong, specific action verb.',
+        weak_verb:          'Replace the weak opener ("helped", "assisted", "worked on") with a strong, specific action verb.',
         ensuring_virus:     'Remove "ensuring" — state what was achieved or delivered directly using a concrete verb.',
-        no_metric:          'Add a specific number, %, or scale. Use a reasonable estimate if no exact figure is available.',
+        no_metric:          'Reframe to highlight observable scope or impact using language already in the bullet. Do NOT invent figures or use approximation markers like "~".',
         bare_metric_opener: 'Move the number into the body of the sentence — start with an action verb that frames the metric.',
         duplicate_word:     'Fix the repeated word and ensure the sentence reads naturally.',
-        too_short:          'Expand with scope, method, or result detail. Aim for 15–25 words.',
+        too_short:          'Expand with scope, method, or result detail inferable from the role context. Aim for 15–25 words.',
         too_long:           'Trim to under 28 words — keep the verb, scope, and result; cut filler.',
         good:               'No change needed.',
     };
@@ -423,7 +475,10 @@ ${lines.join('\n')}
 ${jobDescription ? `\nTARGET ROLE (for context only):\n${jobDescription.substring(0, 400)}` : ''}
 
 RULES:
-- Keep the same underlying achievement — do NOT invent new facts or metrics
+- Keep the same underlying achievement — do NOT invent new facts, figures, or metrics
+- Do NOT use approximation markers like "~", "approx.", or "around" unless already in the original
+- Each output must start with a DIFFERENT strong action verb from the others
+- BANNED phrases — never use any of these: ${bannedList}
 - Use the specified TENSE for each bullet
 - No bullet characters, no quotation marks in output values
 - Each output must be a single clean sentence
