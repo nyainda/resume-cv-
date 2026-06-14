@@ -23,6 +23,26 @@ import { startTrace, storeTrace, attachTrace, type TraceBuilder } from './genera
 import { getPromptVersions } from './promptRegistryClient';
 import { runValidationEngine } from './cvValidationEngine';
 
+// ── Pipeline-safe banned-phrases helper ──────────────────────────────────────
+// Used by every AI call that generates or rewrites CV content to ensure
+// they respect the same banned-phrase list as the main generation pipeline.
+// Falls back to a hardcoded set when the CF worker is unreachable.
+const _BANNED_PHRASES_FALLBACK =
+    'spearheaded, leveraged, orchestrated, utilized, facilitated, synergized, ' +
+    'catalyzed, responsible for, helped with, assisted in, tasked with, worked on, ' +
+    'passionate about, dynamic, results-driven, detail-oriented, innovative, ' +
+    'cutting-edge, robust, seamlessly, delve, harnessed, navigated';
+
+async function _getBannedPhrasesForPrompt(): Promise<string> {
+    try {
+        const entries = await getCachedBannedPhrases();
+        if (entries && entries.length > 0) {
+            return entries.slice(0, 25).map(b => `"${b.phrase}"`).join(', ');
+        }
+    } catch { /* silent fallback */ }
+    return _BANNED_PHRASES_FALLBACK;
+}
+
 // ── Polish sub-stage progress event ──────────────────────────────────────────
 // Fired inside runQualityPolishPasses so CVGenerationProgress can show
 // per-substep detail while the 'polishing' stage is active.
@@ -4217,10 +4237,13 @@ export const analyzeJobDescriptionForKeywords = async (jobDescription: string): 
 
 export const generateEnhancedSummary = async (profileInput: UserProfile): Promise<string> => {
     const profile = purifyProfile(profileInput);
+    const banned = await _getBannedPhrasesForPrompt();
     const prompt = `
       You are a professional career coach. Based STRICTLY on the provided user profile, write a concise and powerful professional summary (2-4 sentences) that highlights their key strengths and experience.
       
       **CRITICAL:** Do NOT invent skills, experiences, or achievements not present in the profile. If the profile is sparse, write a strong summary based ONLY on what is there.
+      **BANNED PHRASES — never use any of these:** ${banned}
+      Write in confident, direct third-person. No first-person pronouns. No clichés.
       Return only the summary text.
       USER PROFILE:
       ${compactProfile(profile)}
@@ -4230,10 +4253,11 @@ export const generateEnhancedSummary = async (profileInput: UserProfile): Promis
 };
 
 export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string, pointCount: number = 5): Promise<string> => {
+    const banned = await _getBannedPhrasesForPrompt();
     const prompt = `
       You are an expert resume writer and career coach specializing in creating HIGH-IMPACT, ATS-OPTIMIZED bullet points.
       
-      **Goal:** Transform the user's responsibilities into impressive, quantified achievements that match standard industry expectations for their tenure and align with the target job description.
+      **Goal:** Transform the user's responsibilities into strong, credible achievement bullets grounded in the draft provided. Keep all real numbers, dates, and specifics exactly as given.
 
       **Input Context:**
       - **Role:** ${jobTitle} at ${company}
@@ -4243,12 +4267,15 @@ export const generateEnhancedResponsibilities = async (jobTitle: string, company
       - **REQUIRED BULLET COUNT: EXACTLY ${pointCount} bullet points** — no more, no fewer.
 
       **Instructions:**
-      1. **Analyze & Upgrade:** Check if the metrics/achievements in the draft are impressive enough for the role's tenure (${duration}). 
-      2. **Tailor to JD:** If a JD is provided, prioritize keywords and skills from the JD.
-      3. **Quantify:** Frame each point around specific accomplishments. Use numbers!
-      4. **Action Verbs:** Start with powerful verbs (e.g., "Orchestrated", "Engineered", "Capitalized").
+      1. **Reframe from the draft:** Use only facts, numbers, and scope present in the draft. Do NOT invent metrics, percentages, team sizes, or figures not in the draft.
+      2. **Tailor to JD:** If a JD is provided, weave in relevant keywords naturally — never force them.
+      3. **Metrics:** Surface any numbers already in the draft prominently. If no numbers are present, describe observable scope (e.g. "across 3 regions", "for 200-seat deployment") without inventing figures.
+      4. **Action Verbs:** Start each bullet with a strong past-tense verb. Good examples: Led, Built, Delivered, Improved, Deployed, Designed, Managed, Reduced, Launched, Negotiated.
       5. **STRICT COUNT:** Output EXACTLY ${pointCount} bullet points.
       6. **Format:** Return ONLY the bullet points as a single string. Each point must start with a newline and the '•' character.
+
+      **BANNED PHRASES — never use any of these:** ${banned}
+      Never use approximation markers like "~", "approx.", or "roughly X%".
     `;
     const result = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.7, maxTokens: 900 });
     return purifyText(result.trim().replace(/^- /gm, '• '));
@@ -4266,15 +4293,17 @@ export const generateQuantifiedAchievements = async (
 
     if (bullets.length === 0) throw new Error('No bullet points found. Add some responsibilities first.');
 
+    const banned = await _getBannedPhrasesForPrompt();
     const prompt = `
-You are a career coach who specialises in achievement quantification for resumes.
+You are a career coach who specialises in surfacing impact from resume bullet points.
 
 For each bullet point from a ${jobTitle} at ${company}, do the following:
 - Determine if it already contains a quantifiable metric (%, a number, $, timeframe, team size, etc.).
-- If it does NOT have a metric, rewrite it to include one realistic, plausible metric based on typical industry standards for this role. Never invent an implausible number.
 - If it already HAS a clear metric, return it unchanged and mark hasMetric as true.
+- If it does NOT have a metric, reframe it to surface observable scope or output using ONLY language and context already in the bullet — e.g. "across 3 sites", "for the flagship product line". Do NOT invent or estimate any figure, percentage, or count.
 - Keep rewrites under 25 words. Preserve the original action verb.
-- Do not add commentary. Do not change facts.
+- Do not add commentary. Do not change facts. Never use "~", "approx.", or hedged estimates like "approximately 30%".
+- BANNED PHRASES — never use any of these: ${banned}
 
 Bullet points to analyse:
 ${bullets.map((b, i) => `${i + 1}. ${b}`).join('\n')}
@@ -4549,11 +4578,12 @@ export const paraphraseText = async (
     tone: ParaphraseTone = 'professional',
     context: string = ''
 ): Promise<string> => {
+    const banned = await _getBannedPhrasesForPrompt();
     const toneInstructions: Record<ParaphraseTone, string> = {
-        professional: 'Rewrite in a polished, professional tone suitable for a senior executive. Use strong action verbs, quantify achievements where possible, and maintain formal language.',
+        professional: 'Rewrite in a polished, professional tone. Use strong past-tense action verbs (e.g. Led, Built, Delivered, Reduced, Launched). Keep formal language but sound human — not robotic.',
         concise: 'Rewrite to be as concise as possible. Cut filler words, reduce length by 30-40%, but preserve ALL key information and impact. Each bullet should be one powerful line.',
         creative: 'Rewrite with more engaging, dynamic language. Use vivid descriptions and compelling narrative while staying professional. Make it memorable.',
-        'ats-friendly': 'Rewrite to maximize ATS (Applicant Tracking System) compatibility. Use standard industry keywords, avoid creative formatting, use common section headers, and include relevant buzzwords naturally. Keep it keyword-rich but human-readable.',
+        'ats-friendly': 'Rewrite to maximise ATS compatibility. Use standard industry keywords from the job description context where provided. Keep it keyword-rich but human-readable. Avoid jargon and buzzwords.',
     };
 
     const prompt = `
@@ -4565,7 +4595,9 @@ export const paraphraseText = async (
         ${text}
 
         RULES:
-        - Preserve ALL factual details: dates, numbers, company names, job titles, metrics.
+        - Preserve ALL factual details: dates, numbers, company names, job titles, metrics. Do NOT invent new figures.
+        - Never use approximation markers like "~", "approx.", or hedged estimates.
+        - BANNED PHRASES — never use any of these: ${banned}
         - Return ONLY the rewritten text, no commentary or explanation.
         - Maintain the same general structure (if it's bullets, return bullets; if paragraphs, return paragraphs).
     `;
