@@ -34,6 +34,8 @@ import { scoreEvidenceStrength } from '../services/cvEvidenceScore';
 import type { EvidenceScoreReport, EvidenceLevel } from '../services/cvEvidenceScore';
 import { scoreAchievementDensity } from '../services/cvAchievementDensity';
 import type { AchievementDensityReport } from '../services/cvAchievementDensity';
+import { scoreMetricStrength } from '../services/cvMetricStrength';
+import type { MetricStrengthReport, MetricLevel } from '../services/cvMetricStrength';
 
 // Brand tokens
 const NAV   = '#1B2B4B';
@@ -374,6 +376,131 @@ const AchievementDensityCard: React.FC<{ report: AchievementDensityReport }> = (
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MetricStrengthCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+const METRIC_LEVEL_STYLE: Record<MetricLevel, { bg: string; text: string; label: string; dot: string }> = {
+  strong: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', label: 'Strong',  dot: '🟢' },
+  medium: { bg: 'bg-amber-50 dark:bg-amber-950/30',     text: 'text-amber-700 dark:text-amber-400',     label: 'Medium',  dot: '🟡' },
+  weak:   { bg: 'bg-red-50 dark:bg-red-950/30',         text: 'text-red-700 dark:text-red-400',         label: 'Weak',    dot: '🔴' },
+};
+
+const MetricStrengthCard: React.FC<{ report: MetricStrengthReport }> = ({ report }) => {
+  const [expanded, setExpanded] = useState(false);
+  const meta = scoreMeta(report.score);
+
+  const coveragePct = report.totalBullets > 0
+    ? Math.round((report.totalMetrics / report.totalBullets) * 100)
+    : 0;
+
+  const noMetricCount = report.totalBullets - report.totalMetrics;
+
+  return (
+    <div className="rounded-xl border overflow-hidden border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+      <div
+        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-neutral-800/60"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="text-xl flex-shrink-0">📊</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="font-semibold text-sm text-zinc-800 dark:text-zinc-100">Metric Strength</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+              {report.strongCount} strong
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
+              {report.mediumCount} medium
+            </span>
+            {report.weakCount > 0 && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400">
+                {report.weakCount} weak
+              </span>
+            )}
+          </div>
+          <div className="w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${report.score}%`, background: meta.bar }} />
+          </div>
+        </div>
+        <span className={`text-lg font-bold tabular-nums ${meta.text} flex-shrink-0`}>{report.score}%</span>
+        <span className="text-zinc-400 dark:text-zinc-500 flex-shrink-0 text-xs ml-1">{expanded ? '▲' : '▼'}</span>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-zinc-100 dark:border-neutral-800 px-4 py-3 space-y-3">
+          {/* Summary stats */}
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {[
+              { val: report.strongCount, label: 'Strong',    col: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' },
+              { val: report.mediumCount, label: 'Medium',    col: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' },
+              { val: report.weakCount,   label: 'Weak',      col: 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400' },
+              { val: noMetricCount,      label: 'No metric', col: 'bg-zinc-50 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400' },
+            ].map(({ val, label, col }) => (
+              <div key={label} className={`rounded-xl p-2.5 ${col.split(' ').slice(0, 2).join(' ')}`}>
+                <div className={`text-xl font-black tabular-nums ${col.split(' ').slice(2).join(' ')}`}>{val}</div>
+                <div className={`text-[10px] font-semibold ${col.split(' ').slice(2).join(' ')} mt-0.5`}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Coverage note */}
+          {noMetricCount > 0 && (
+            <div className="rounded-xl p-3 bg-zinc-50 dark:bg-neutral-800 border border-zinc-100 dark:border-neutral-700">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                <span className="font-semibold">{coveragePct}% metric coverage</span> — {noMetricCount} bullet{noMetricCount > 1 ? 's' : ''} contain no measurable number at all.{' '}
+                {noMetricCount > 3 && 'Add at least one number to every experience bullet to make it scannable.'}
+              </p>
+            </div>
+          )}
+
+          {/* Weak metrics — upgrade suggestions */}
+          {report.metrics.filter(m => m.level === 'weak').length > 0 && (
+            <div className="rounded-xl border border-red-100 dark:border-red-900/40 overflow-hidden">
+              <div className="px-3 py-1.5 bg-red-50 dark:bg-red-950/30 text-[11px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                Weak metrics — upgrade these first
+              </div>
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                {report.metrics.filter(m => m.level === 'weak').slice(0, 5).map((m, i) => (
+                  <div key={i} className="px-3 py-2.5">
+                    <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-snug mb-1 italic">"{m.bullet}"</p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{m.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Strong metrics — reinforcement */}
+          {report.strongCount > 0 && (
+            <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/40 overflow-hidden">
+              <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                Strong metrics — keep this up
+              </div>
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                {report.metrics.filter(m => m.level === 'strong').slice(0, 4).map((m, i) => (
+                  <div key={i} className="px-3 py-2.5 flex items-start gap-2">
+                    <span className="text-xs flex-shrink-0 mt-0.5">✅</span>
+                    <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-snug italic">"{m.bullet}"</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {report.score >= 85 && (
+            <div className="rounded-xl p-3 text-sm bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 flex items-start gap-2">
+              <span>✅</span>
+              <p className="text-zinc-700 dark:text-zinc-300 text-sm">
+                Excellent metric quality — {report.strongCount} strong impact metrics show real business outcomes.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Score theming — ProCV colors
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -513,6 +640,7 @@ interface ScoreResults {
   atsMatch: AtsKeywordReport | null;
   evidenceScore: EvidenceScoreReport;
   densityScore: AchievementDensityReport;
+  metricStrength: MetricStrengthReport;
   composite: number;
   scoredAt: Date;
   cfEnriched: boolean;
@@ -543,20 +671,21 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     const extraOpeners = cfPhrases?.openers ?? [];
     const extraAiisms  = cfPhrases?.aiisms  ?? [];
 
-    const humanVoice    = scoreHRDetection(currentCV, extraOpeners, extraAiisms);
-    const bulletQuality = scoreBulletQuality(currentCV);
-    const careerLogic   = auditSeniorityCoherence(currentCV);
-    const atsMatch      = jd.trim() ? scoreAtsCoverage(currentCV, jd.trim()) : null;
-    const evidenceScore = scoreEvidenceStrength(currentCV);
-    const densityScore  = scoreAchievementDensity(currentCV);
+    const humanVoice     = scoreHRDetection(currentCV, extraOpeners, extraAiisms);
+    const bulletQuality  = scoreBulletQuality(currentCV);
+    const careerLogic    = auditSeniorityCoherence(currentCV);
+    const atsMatch       = jd.trim() ? scoreAtsCoverage(currentCV, jd.trim()) : null;
+    const evidenceScore  = scoreEvidenceStrength(currentCV);
+    const densityScore   = scoreAchievementDensity(currentCV);
+    const metricStrength = scoreMetricStrength(currentCV);
 
     const sScore = seniorityScore(careerLogic);
     const aScore = atsMatch ? atsEffectiveScore(atsMatch).displayScore : null;
-    const dimScores = [humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, densityScore.score];
+    const dimScores = [humanVoice.humanScore, bulletQuality.score, sScore, evidenceScore.score, densityScore.score, metricStrength.score];
     if (aScore !== null) dimScores.push(aScore);
     const comp = compositeScore(dimScores);
 
-    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, densityScore, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
+    setResults({ humanVoice, bulletQuality, careerLogic, atsMatch, evidenceScore, densityScore, metricStrength, composite: comp, scoredAt: new Date(), cfEnriched: cfStatus === 'live' });
     setScoring(false);
   }, [currentCV, jd, cfPhrases, cfStatus]);
 
@@ -670,6 +799,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
                   { label: 'Career Logic',        score: sScore },
                   { label: 'Evidence Score',      score: results.evidenceScore.score },
                   { label: 'Achievement Density', score: results.densityScore.score },
+                  { label: 'Metric Strength',     score: results.metricStrength.score },
                   { label: 'ATS Match',           score: results.atsMatch ? atsData!.displayScore : null },
                 ].map(({ label, score }) => {
                   const m = score !== null ? scoreMeta(score) : null;
@@ -712,6 +842,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           )}
           <EvidenceScoreCard report={results.evidenceScore} />
           <AchievementDensityCard report={results.densityScore} />
+          <MetricStrengthCard report={results.metricStrength} />
         </div>
 
         {/* Re-score with JD */}
@@ -763,10 +894,10 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             {cfStatus === 'live'
-              ? <span>Instant 6-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
+              ? <span>Instant 7-dimension analysis · <span style={{ color: GOLD }} className="font-medium">⚡ Live engine data loaded</span></span>
               : cfStatus === 'offline'
-              ? 'Instant 6-dimension analysis · Using built-in lists'
-              : 'Instant 6-dimension analysis · Loading engine data…'
+              ? 'Instant 7-dimension analysis · Using built-in lists'
+              : 'Instant 7-dimension analysis · Loading engine data…'
             }
           </p>
         </div>
@@ -799,6 +930,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           { icon: '📈', label: 'Career Logic',         desc: 'Seniority coherence' },
           { icon: '🔬', label: 'Evidence Score',       desc: 'Skill proof vs. just listing' },
           { icon: '🏆', label: 'Achievement Density',  desc: 'Achievements vs. duties ratio' },
+          { icon: '📊', label: 'Metric Strength',      desc: 'Weak / medium / strong numbers' },
           { icon: '🔍', label: 'ATS Match',            desc: 'JD keyword gap (optional)' },
         ].map(({ icon, label, desc }) => (
           <div key={label} className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-3 text-center bg-[#F8F7F4] dark:bg-neutral-900">
