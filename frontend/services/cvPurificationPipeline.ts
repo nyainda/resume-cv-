@@ -2896,47 +2896,136 @@ const _OPENER_SCOPE_MID = /\b(across\s+(?:\d+[+]?\s+(?:counties|sites|regions|co
 // "with [the/a/an/my] X team/department/unit" anywhere mid-sentence
 const _OPENER_COLLAB_MID = /\b((?:with|alongside)\s+(?:the|a|an|my|our)\s+[\w\s]{2,30}?(?:team|department|unit|group|division))\b/i;
 
-function _tryReshapeOpener(bullet: string): string | null {
-    // 1. Timeframe tail → front
-    const tmMatch = bullet.match(_OPENER_TF_TAIL);
-    if (tmMatch && tmMatch.index !== undefined) {
-        const extracted = tmMatch[1].trim();
-        const rest = bullet.slice(0, tmMatch.index).trim().replace(/,\s*$/, '');
-        if (rest.length > 12) {
-            const prefix = extracted.replace(/^in\s+/i, 'In ');
-            const verbLower = rest.charAt(0).toLowerCase() + rest.slice(1);
-            return `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}, ${verbLower}`;
-        }
-    }
+// Currency amount mid-sentence: "KES 2.8M+", "$1.2M", "£50K", "USD 800K"
+// Only matches when not already at the start of the bullet (index > 3 checked at call site).
+const _OPENER_CURRENCY_MID = /\b((?:kes|ksh|usd|gbp|eur|[\$£€])\s*[\d,.]+[kmbt]?\+?)\b/i;
 
-    // 2. Scope phrase mid-sentence → front
-    const scopeMatch = bullet.match(_OPENER_SCOPE_MID);
-    if (scopeMatch && scopeMatch.index !== undefined && scopeMatch.index > 3) {
-        const extracted = scopeMatch[1].trim();
-        const before = bullet.slice(0, scopeMatch.index).replace(/,?\s*$/, '').trim();
-        const after = bullet.slice(scopeMatch.index + scopeMatch[0].length).replace(/^,?\s*/, '').trim();
-        if (before.length > 5) {
-            const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
-            const scopeUp = extracted.charAt(0).toUpperCase() + extracted.slice(1);
-            const tail = after.length > 0 ? `, ${after}` : '';
-            return `${scopeUp}, ${verbLower}${tail}`;
-        }
-    }
+// "N+ [common business noun]" mid-sentence: "12+ clients", "200 staff members"
+const _OPENER_COUNT_MID = /\b(\d+[,\d]*[+]?\s+(?:projects?|clients?|accounts?|sites?|systems?|staff|members?|users?|schools?|hospitals?|contracts?|reports?|layouts?|models?|designs?|applications?|teams?|vendors?|partners?))\b/i;
 
-    // 3. Collaboration phrase mid-sentence → front
-    const collabMatch = bullet.match(_OPENER_COLLAB_MID);
-    if (collabMatch && collabMatch.index !== undefined && collabMatch.index > 3) {
-        const extracted = collabMatch[1].trim();
-        const before = bullet.slice(0, collabMatch.index).replace(/,?\s*$/, '').trim();
-        const after = bullet.slice(collabMatch.index + collabMatch[0].length).replace(/^,?\s*/, '').trim();
-        if (before.length > 5) {
-            const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
-            const collabUp = extracted.charAt(0).toUpperCase() + extracted.slice(1);
-            const tail = after.length > 0 ? `, ${after}` : '';
-            return `${collabUp}, ${verbLower}${tail}`;
-        }
-    }
+// ─── Seeding helpers ──────────────────────────────────────────────────────────
+// These produce deterministic daily variety: the same CV generated on different
+// days gets different reshape priority (scope today → number tomorrow → collab
+// the day after). No user data is used as seed input.
 
+/** Returns an integer that changes every calendar day. */
+function _dateSeed(): number {
+    const d = new Date();
+    return (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) | 0;
+}
+
+/**
+ * Fisher-Yates shuffle driven by a linear congruential generator.
+ * Pure and deterministic — same seed always produces the same order.
+ */
+function _seededShuffle<T>(arr: T[], seed: number): T[] {
+    const result = [...arr];
+    let s = seed;
+    for (let i = result.length - 1; i > 0; i--) {
+        s = Math.imul(s, 1664525) + 1013904223;
+        const j = ((s >>> 1) % (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+/**
+ * Tries to reshape a single verb-led bullet into a different opener type by
+ * rearranging phrases that ALREADY EXIST inside the bullet.
+ *
+ * SAFETY GUARANTEE — zero fabrication:
+ *   Every transformation only moves an existing phrase to the front.
+ *   No new words, numbers, company names, or metrics are ever introduced.
+ *   The fidelity rules in cvNumberFidelity.ts strip any hallucinated numbers
+ *   as a further backstop, but this function never generates them in the
+ *   first place. Guide examples (e.g. "KES 2.8M+", "dripstech.co.ke") are
+ *   illustrations only — they are never stored in code as seed content.
+ *
+ * Four transforms tried in a date-seeded order so the same role on different
+ * days naturally produces different variety:
+ *   1. Timeframe  — "Managed X in Q3 2024"         → "In Q3 2024, managed X"
+ *   2. Scope      — "Led X across 3 counties"       → "Across 3 counties, led X"
+ *   3. Collab     — "Directed X with the ops team"  → "With the ops team, directed X"
+ *   4. Number     — "Secured KES 2.8M+ in sales"    → "KES 2.8M+ secured in sales"
+ *                   "Trained 200+ staff members"     → "200+ staff members trained…"
+ *
+ * Returns null if no valid extraction exists — the bullet is left unchanged.
+ */
+function _tryReshapeOpener(bullet: string, seed?: number): string | null {
+    // ── 1. Timeframe tail → front ──────────────────────────────────────────
+    const tryTimeframe = (): string | null => {
+        const m = bullet.match(_OPENER_TF_TAIL);
+        if (!m || m.index === undefined) return null;
+        const extracted = m[1].trim();
+        const rest = bullet.slice(0, m.index).trim().replace(/,\s*$/, '');
+        if (rest.length <= 12) return null;
+        const prefix = extracted.replace(/^in\s+/i, 'In ');
+        const verbLower = rest.charAt(0).toLowerCase() + rest.slice(1);
+        return `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)}, ${verbLower}`;
+    };
+
+    // ── 2. Scope phrase → front ────────────────────────────────────────────
+    const tryScope = (): string | null => {
+        const m = bullet.match(_OPENER_SCOPE_MID);
+        if (!m || m.index === undefined || m.index <= 3) return null;
+        const extracted = m[1].trim();
+        const before = bullet.slice(0, m.index).replace(/,?\s*$/, '').trim();
+        const after  = bullet.slice(m.index + m[0].length).replace(/^,?\s*/, '').trim();
+        if (before.length <= 5) return null;
+        const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
+        const scopeUp   = extracted.charAt(0).toUpperCase() + extracted.slice(1);
+        return `${scopeUp}, ${verbLower}${after.length > 0 ? `, ${after}` : ''}`;
+    };
+
+    // ── 3. Collaboration phrase → front ────────────────────────────────────
+    const tryCollab = (): string | null => {
+        const m = bullet.match(_OPENER_COLLAB_MID);
+        if (!m || m.index === undefined || m.index <= 3) return null;
+        const extracted = m[1].trim();
+        const before = bullet.slice(0, m.index).replace(/,?\s*$/, '').trim();
+        const after  = bullet.slice(m.index + m[0].length).replace(/^,?\s*/, '').trim();
+        if (before.length <= 5) return null;
+        const verbLower  = before.charAt(0).toLowerCase() + before.slice(1);
+        const collabUp   = extracted.charAt(0).toUpperCase() + extracted.slice(1);
+        return `${collabUp}, ${verbLower}${after.length > 0 ? `, ${after}` : ''}`;
+    };
+
+    // ── 4. Currency / count number → front (new) ───────────────────────────
+    const tryNumber = (): string | null => {
+        // 4a. Currency amount: "Secured KES 2.8M+ in annual sales" → "KES 2.8M+ secured in annual sales"
+        const cm = bullet.match(_OPENER_CURRENCY_MID);
+        if (cm && cm.index !== undefined && cm.index > 3) {
+            const extracted = cm[0].trim();
+            const before = bullet.slice(0, cm.index).replace(/,?\s*$/, '').trim();
+            const after  = bullet.slice(cm.index + cm[0].length).replace(/^[,\s]+/, '').trim();
+            if (before.length > 5) {
+                const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
+                return `${extracted} ${verbLower}${after.length > 0 ? ` ${after}` : ''}`.replace(/\s{2,}/g, ' ').trim();
+            }
+        }
+        // 4b. Count noun: "Trained 200+ staff members on new systems" → "200+ staff members trained on new systems"
+        const km = bullet.match(_OPENER_COUNT_MID);
+        if (km && km.index !== undefined && km.index > 3) {
+            const extracted = km[1].trim();
+            const before = bullet.slice(0, km.index).replace(/,?\s*$/, '').trim();
+            const after  = bullet.slice(km.index + km[0].length).replace(/^[,\s]+/, '').trim();
+            if (before.length > 5) {
+                const verbLower = before.charAt(0).toLowerCase() + before.slice(1);
+                const numUp = extracted.charAt(0).toUpperCase() + extracted.slice(1);
+                return `${numUp} ${verbLower}${after.length > 0 ? ` ${after}` : ''}`.replace(/\s{2,}/g, ' ').trim();
+            }
+        }
+        return null;
+    };
+
+    // Date-seeded priority shuffle — same CV on different days gets different
+    // reshape variety without any new content being introduced.
+    const transforms = [tryTimeframe, tryScope, tryCollab, tryNumber];
+    const ordered = _seededShuffle(transforms, seed ?? _dateSeed());
+    for (const fn of ordered) {
+        const result = fn();
+        if (result) return result;
+    }
     return null;
 }
 
@@ -2945,6 +3034,11 @@ function _tryReshapeOpener(bullet: string): string | null {
  * Called as a post-generation deterministic pass inside runQualityPolishPasses.
  */
 export function enforceOpenerDiversity(cv: CVData): CVData {
+    // Computed once per call — all roles in the same generation share the same
+    // daily seed so reshape priority is consistent within a session, but changes
+    // naturally the next day the user regenerates.
+    const seed = _dateSeed();
+
     const experience = (cv.experience || []).map(role => {
         const bullets = role.responsibilities || [];
         if (bullets.length < 3) return role;
@@ -2959,7 +3053,7 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
             if (fixed >= MAX_RESHAPES) return b;
             if (i === 0) return b; // never touch bullet 0 — scope anchor
             if (cats[i] !== 'verb') return b;
-            const rewritten = _tryReshapeOpener(b);
+            const rewritten = _tryReshapeOpener(b, seed);
             if (rewritten && rewritten !== b) {
                 fixed++;
                 return rewritten;
@@ -2973,7 +3067,7 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
         return { ...role, responsibilities: newBullets };
     });
 
-    // Bug 5 — also enforce on project bullets
+    // Also enforce on project bullets
     const projects = (cv.projects || []).map(project => {
         const bullets = project.bullets || [];
         if (bullets.length < 3) return project;
@@ -2988,7 +3082,7 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
             if (fixed >= MAX_RESHAPES) return b;
             if (i === 0) return b; // scope anchor — always verb
             if (cats[i] !== 'verb') return b;
-            const rewritten = _tryReshapeOpener(b);
+            const rewritten = _tryReshapeOpener(b, seed);
             if (rewritten && rewritten !== b) {
                 fixed++;
                 return rewritten;
