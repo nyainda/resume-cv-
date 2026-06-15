@@ -911,7 +911,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           <div>
             {/* AI badge */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1B2B4B', color: '#C9A84C', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 22 }}>
-              <span>🤖</span> AI Career Intelligence Engine
+              <span>⚙️</span> 7-Pass Quality Engine
             </div>
 
             <h1 style={{ fontSize: 'clamp(2.6rem,5.5vw,4.4rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', margin: '0 0 20px' }}>
@@ -958,9 +958,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             {/* Trust line */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {[
-                { icon: '🔒', text: 'No signup required' },
-                { icon: '💾', text: 'Data stays in your browser' },
-                { icon: '🆓', text: 'Free to build' },
+                { icon: '🆓', text: 'Free account · no card needed' },
+                { icon: '💾', text: 'Your data stays local' },
+                { icon: '💳', text: '$2 per PDF download' },
               ].map(({ icon, text }) => (
                 <span key={text} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: muted, background: elevated, border: `1px solid ${border}`, borderRadius: 20, padding: '4px 10px' }}>
                   <span>{icon}</span>{text}
@@ -1030,9 +1030,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {[
-                      'Owned Checkout EU roadmap (2.4M merchants); shipped 18 features → £12.6M ARR in 18 months',
-                      'Reduced cart abandonment 34% via 22-variant A/B programme — incremental £2.1M revenue',
-                      'Redesigned onboarding (180 interviews, 3 cohorts) — NPS 42 → 78, shipped in 11 weeks',
+                      'Owned the Checkout EU roadmap for 2.4M merchants, shipping 18 features that generated £12.6M ARR over 18 months',
+                      'Cut cart abandonment by 34% through a 22-variant A/B programme, adding £2.1M in annual revenue',
+                      'Redesigned onboarding using 180 user interviews across 3 cohorts, lifting NPS from 42 to 78 in 11 weeks',
                     ].map((b, i) => (
                       <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 12px', background: darkMode ? '#0a1a0a' : '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
                         <span style={{ color: '#22c55e', fontWeight: 900, flexShrink: 0, fontSize: 13, lineHeight: '1.4' }}>✓</span>
