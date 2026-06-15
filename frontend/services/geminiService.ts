@@ -22,6 +22,7 @@ import { repairCvSummaryWithAi as _repairCvSummaryWithAi } from './aiInlineFix';
 import { startTrace, storeTrace, attachTrace, type TraceBuilder } from './generationTrace';
 import { getPromptVersions } from './promptRegistryClient';
 import { runValidationEngine } from './cvValidationEngine';
+import { runFinalCVGuard, fixSummaryOpener, purgeSummarySeekingLanguage, deduplicateSkills } from './cvFinalGuard';
 
 // ── Pipeline-safe banned-phrases helper ──────────────────────────────────────
 // Used by every AI call that generates or rewrites CV content to ensure
@@ -3395,6 +3396,12 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     cvData = attachTrace(cvData, _finalTrace);
     console.log(`[CV Trace] Generation trace stored (id=${_finalTrace.traceId.slice(0, 8)}…, total=${_finalTrace.timings.totalMs}ms, violations=${_validation.violations.length})`);
 
+    // ── Final CV guard: skill dedup + summary opener + bullet leak purge ────────
+    // Zero AI calls — deterministic only. Catches anything that slipped through
+    // all the upstream quality passes (purifyCV, humanizer, validationEngine).
+    const _guard = runFinalCVGuard(cvData);
+    if (_guard.changed) cvData = _guard.cvData;
+
     // ── Store result in cache ──
     cvCacheSet(cacheKey, cvData);
 
@@ -4004,9 +4011,13 @@ ${HUMANIZATION_CHECKLIST}
         finalize: { sourceCv: cvInput },
     });
 
+    // ── Final guard (partial) — skill dedup + summary opener on optimized output ─
+    const _guardedSummary = purgeSummarySeekingLanguage(fixSummaryOpener(finalized.summary || ''));
+    const _guardedSkills  = deduplicateSkills(finalized.skills || []);
+
     return {
-        summary: finalized.summary,
-        skills: finalized.skills,
+        summary:    _guardedSummary,
+        skills:     _guardedSkills,
         experience: finalized.experience,
     };
 };
@@ -4249,7 +4260,9 @@ export const generateEnhancedSummary = async (profileInput: UserProfile): Promis
       ${compactProfile(profile)}
     `;
     const summary = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5 });
-    return purifyText(summary);
+    const purified = purifyText(summary);
+    // Final guard: strip any generic opener the AI snuck in despite instructions
+    return purgeSummarySeekingLanguage(fixSummaryOpener(purified));
 };
 
 export const generateEnhancedResponsibilities = async (jobTitle: string, company: string, currentResponsibilities: string, jobDescription?: string, duration?: string, pointCount: number = 5): Promise<string> => {
