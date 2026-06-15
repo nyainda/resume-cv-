@@ -592,11 +592,6 @@ const BEFORE_AFTER_CASES = [
   },
 ];
 
-const TESTIMONIALS = [
-  { name: 'James O.', role: 'Product Manager', company: 'HSBC', avatar: 'JO', color: '#C40000', metric: '38 → 91 ATS', quote: 'Got a call from HSBC within 48 hours. I\'d applied to the same role six months earlier and heard nothing. Only the CV changed.' },
-  { name: 'Kwame A.', role: 'Software Engineer', company: 'Amazon', avatar: 'KA', color: '#FF9900', metric: 'Interview in 2 weeks', quote: 'The CV Doctor flagged every weak bullet I\'d written for years. The before/after is embarrassing. Amazon interviews in two weeks.' },
-  { name: 'Elena K.', role: 'Finance Analyst', company: 'Goldman Sachs', avatar: 'EK', color: '#6EC6F5', metric: '+23% salary', quote: 'Negotiation Coach gave me the exact counter-offer script. I asked 23% above initial offer and they accepted immediately.' },
-];
 
 
 /* ─── Main Component ────────────────────────────────────────────────────── */
@@ -1057,11 +1052,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       <section style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '28px 24px', background: surface }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <p style={{ textAlign: 'center', fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', color: faint, marginBottom: 20 }}>
-            Trusted by professionals landing roles at
+            Built for candidates targeting roles across
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 40px', opacity: 0.55 }}>
-            {['Google', 'Meta', 'Amazon', 'Goldman Sachs', 'Deloitte', 'McKinsey', 'Stripe', 'Spotify'].map(co => (
-              <span key={co} style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.02em', color: text, fontFamily: 'system-ui,-apple-system,sans-serif' }}>{co}</span>
+            {['Software Engineering', 'Finance & Banking', 'Product Management', 'Consulting', 'Marketing', 'Data & Analytics', 'Healthcare', 'Academia'].map(co => (
+              <span key={co} style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.02em', color: text, fontFamily: 'system-ui,-apple-system,sans-serif' }}>{co}</span>
             ))}
           </div>
         </div>
@@ -1075,7 +1070,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               Solve the <span style={{ color: '#C9A84C' }}>Real Problems</span> Others Ignore
             </h2>
             <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0 }}>
-              We built ProCV after reading thousands of reviews and talking to recruiters. Here's what professionals hate about other tools — and how we fix it.
+              We built ProCV around the most common complaints job seekers have about AI CV tools. Here's what frustrates people — and how we fix it.
             </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14 }}>
@@ -1594,9 +1589,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
                 {[
                   'Everything in Free',
-                  'Unlimited CV downloads',
+                  'CV downloads at AI provider cost',
                   'Use your own Groq / Gemini key',
-                  'Pay only AI provider costs',
+                  'Typically a few cents per CV',
                   'Full pipeline — no limits',
                   'Priority generation speed',
                   'Advanced model selection',
