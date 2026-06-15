@@ -954,7 +954,211 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
     });
     if (skillDedupCount > 0) changes.push(`skill_dedup: ${skillDedupCount} duplicate(s) removed`);
 
-    return json({ cv: out, changes }, request, env);
+    // ── Final visible-text gate ───────────────────────────────────────────────
+    // Runs after ALL cleaning passes. Scans every user-visible field and emits
+    // structured findings. The gate NEVER blocks the response — it annotates it
+    // so the client can decide how to react (surface a warning, trigger a repair,
+    // or cache only if gate.passed === true).
+    const gate = runFinalVisibleTextGate(out);
+
+    return json({ cv: out, changes, gate }, request, env);
+}
+
+// ─── Final visible-text gate ──────────────────────────────────────────────────
+//
+// Checks every user-visible field in the assembled CV for issues that purify's
+// regex passes could miss (e.g. phrases that need word-boundary context,
+// cross-section patterns, structural problems).
+//
+// Severity levels:
+//   critical — a human recruiter would immediately reject the CV
+//   high     — strongly degrades quality / AI detectability
+//   medium   — advisory; worth noting but not blocking
+//
+// Returns:
+//   passed       — true only when zero critical + zero high issues found
+//   quality_mode — 'full' | 'degraded'  (degraded = any critical issue present)
+//   counts       — { critical, high, medium }
+//   issues       — flat list of { field, location, issue, text, severity }
+
+export interface GateIssue {
+    field:    string;       // e.g. 'summary', 'experience[0].responsibilities[2]'
+    issue:    string;       // machine-readable key
+    text:     string;       // the offending snippet (≤120 chars)
+    severity: 'critical' | 'high' | 'medium';
+}
+
+export interface GateResult {
+    passed:       boolean;
+    quality_mode: 'full' | 'degraded';
+    counts:       { critical: number; high: number; medium: number };
+    issues:       GateIssue[];
+}
+
+// ── Pattern tables ────────────────────────────────────────────────────────────
+
+// Summary openers that mean "I want a job" instead of "I deliver value"
+const GATE_SUMMARY_OPENERS = /^(seeking\s+(to|for|an?\s)|looking\s+(to|for|for\s+an?\s)|aiming\s+(to|for)|hoping\s+to|eager\s+to\s+(join|work|contribute|learn)|excited\s+to\s+(join|contribute)|in\s+search\s+of|i\s+am\s+(looking|seeking)|driven\s+by\s+a\s+passion)/i;
+
+// Bullet openers that signal task-list writing (not achievement writing)
+const GATE_WEAK_BULLET_OPENERS = /^(responsible\s+for|was\s+responsible|tasked\s+with|helped\s+(to\s+)?|assisted\s+(with|in)\s+|worked\s+on\s+|involved\s+in\s+|participated\s+in\s+|duties\s+included|part\s+of\s+(a\s+)?team)/i;
+
+// High-signal AI-ism bullet openers (recruiter surveys flag these on sight)
+const GATE_AI_BULLET_OPENERS = /^(spearheaded|orchestrated|leveraged|utilized|utilised|facilitated|empowered|championed|synergized|ideated|actioned|solutioned|conceptualized|operationalized)/i;
+
+// Placeholder / template text that leaked into the output
+const GATE_PLACEHOLDER = /(\[company(\s+name)?\]|\[year\]|\[name\]|\[title\]|\[insert\b|lorem\s+ipsum|placeholder|your\s+name\s+here|\{\{[a-z_]+\}\})/i;
+
+// Tilde-number AI tell (~50, ~30%) — should have been cleaned, but belt-and-suspenders
+const GATE_TILDE_NUMBER = /~\d/;
+
+// First-person pronouns at the start of a bullet (bullets are imperative, not autobiographical)
+const GATE_FIRST_PERSON_BULLET = /^(i\s|my\s|we\s|our\s)/i;
+
+// Chained-causal metric pattern — the #1 fabricated-metric tell
+const GATE_CHAINED_METRIC = /\d+\s*%.*?resulting\s+in\s+\d+\s*%/i;
+
+export function runFinalVisibleTextGate(cv: any): GateResult {
+    const issues: GateIssue[] = [];
+
+    const flag = (
+        field: string,
+        issue: string,
+        text: string,
+        severity: GateIssue['severity'],
+    ) => issues.push({ field, issue, text: text.slice(0, 120), severity });
+
+    // ── 1. Summary ────────────────────────────────────────────────────────────
+    const summary: string = String(cv?.summary || '').trim();
+
+    if (summary.length === 0) {
+        flag('summary', 'summary_empty', '', 'critical');
+    } else {
+        if (GATE_SUMMARY_OPENERS.test(summary)) {
+            flag('summary', 'jobseeker_opener', summary.slice(0, 80), 'critical');
+        }
+        if (GATE_PLACEHOLDER.test(summary)) {
+            flag('summary', 'placeholder_text', summary.slice(0, 80), 'critical');
+        }
+        if (GATE_TILDE_NUMBER.test(summary)) {
+            flag('summary', 'tilde_number', summary.slice(0, 80), 'high');
+        }
+        const wordCount = summary.split(/\s+/).filter(Boolean).length;
+        if (wordCount < 25) {
+            flag('summary', 'summary_too_short', `${wordCount} words`, 'high');
+        }
+    }
+
+    // ── 2. Skills ─────────────────────────────────────────────────────────────
+    const skills: string[] = Array.isArray(cv?.skills) ? cv.skills : [];
+
+    if (skills.length > 22) {
+        flag('skills', 'skills_list_padded', `${skills.length} skills listed`, 'medium');
+    }
+    for (const s of skills) {
+        if (GATE_PLACEHOLDER.test(String(s || ''))) {
+            flag('skills', 'placeholder_text', String(s).slice(0, 60), 'critical');
+        }
+    }
+
+    // ── 3. Experience bullets ─────────────────────────────────────────────────
+    const experience: any[] = Array.isArray(cv?.experience) ? cv.experience : [];
+    const allBulletPrefixes = new Set<string>(); // cross-role dedup tracker
+
+    for (let ei = 0; ei < experience.length; ei++) {
+        const role = experience[ei];
+        const bullets: string[] = Array.isArray(role?.responsibilities) ? role.responsibilities : [];
+
+        for (let bi = 0; bi < bullets.length; bi++) {
+            const b = String(bullets[bi] || '').trim();
+            if (!b) continue;
+            const fieldRef = `experience[${ei}].responsibilities[${bi}]`;
+
+            if (GATE_WEAK_BULLET_OPENERS.test(b)) {
+                flag(fieldRef, 'weak_bullet_opener', b.slice(0, 80), 'critical');
+            }
+            if (GATE_AI_BULLET_OPENERS.test(b)) {
+                flag(fieldRef, 'ai_bullet_opener', b.slice(0, 80), 'critical');
+            }
+            if (GATE_FIRST_PERSON_BULLET.test(b)) {
+                flag(fieldRef, 'first_person_bullet', b.slice(0, 80), 'critical');
+            }
+            if (GATE_PLACEHOLDER.test(b)) {
+                flag(fieldRef, 'placeholder_text', b.slice(0, 80), 'critical');
+            }
+            if (GATE_CHAINED_METRIC.test(b)) {
+                flag(fieldRef, 'chained_causal_metric', b.slice(0, 100), 'high');
+            }
+            if (GATE_TILDE_NUMBER.test(b)) {
+                flag(fieldRef, 'tilde_number', b.slice(0, 80), 'high');
+            }
+
+            // Cross-role duplicate detection (first 7 words as key)
+            const prefix = b.toLowerCase().split(/\s+/).slice(0, 7).join(' ');
+            if (allBulletPrefixes.has(prefix)) {
+                flag(fieldRef, 'cross_role_duplicate_bullet', b.slice(0, 80), 'high');
+            } else {
+                allBulletPrefixes.add(prefix);
+            }
+
+            // Bullet too short (fewer than 7 words is essentially a fragment)
+            const wc = b.split(/\s+/).filter(Boolean).length;
+            if (wc < 7) {
+                flag(fieldRef, 'bullet_too_short', `"${b}" (${wc} words)`, 'medium');
+            }
+        }
+    }
+
+    // ── 4. Education ──────────────────────────────────────────────────────────
+    const education: any[] = Array.isArray(cv?.education) ? cv.education : [];
+    for (let i = 0; i < education.length; i++) {
+        const edu = education[i];
+        const desc = String(edu?.description || '');
+        if (GATE_PLACEHOLDER.test(desc)) {
+            flag(`education[${i}].description`, 'placeholder_text', desc.slice(0, 80), 'critical');
+        }
+        // Invented degree detail check — catches "First Class Honours" with no evidence
+        // (Placeholder detection covers "[GPA]" etc.; this catches freeform invention signals)
+        if (/\bGPA\s*:\s*[0-9]/.test(desc) && !/\bgpa\b/i.test(String(cv?.summary || '') + JSON.stringify(cv?.experience || []))) {
+            flag(`education[${i}].description`, 'possible_invented_gpa', desc.slice(0, 80), 'medium');
+        }
+    }
+
+    // ── 5. Projects ───────────────────────────────────────────────────────────
+    const projects: any[] = Array.isArray(cv?.projects) ? cv.projects : [];
+    for (let pi = 0; pi < projects.length; pi++) {
+        const proj = projects[pi];
+        const projBullets: string[] = Array.isArray(proj?.bullets) ? proj.bullets : [];
+        for (let bi = 0; bi < projBullets.length; bi++) {
+            const b = String(projBullets[bi] || '').trim();
+            if (!b) continue;
+            const fieldRef = `projects[${pi}].bullets[${bi}]`;
+            if (GATE_AI_BULLET_OPENERS.test(b)) {
+                flag(fieldRef, 'ai_bullet_opener', b.slice(0, 80), 'critical');
+            }
+            if (GATE_WEAK_BULLET_OPENERS.test(b)) {
+                flag(fieldRef, 'weak_bullet_opener', b.slice(0, 80), 'critical');
+            }
+            if (GATE_PLACEHOLDER.test(b)) {
+                flag(fieldRef, 'placeholder_text', b.slice(0, 80), 'critical');
+            }
+        }
+        const projDesc = String(proj?.description || '');
+        if (GATE_PLACEHOLDER.test(projDesc)) {
+            flag(`projects[${pi}].description`, 'placeholder_text', projDesc.slice(0, 80), 'critical');
+        }
+    }
+
+    // ── Summarise ─────────────────────────────────────────────────────────────
+    const counts = {
+        critical: issues.filter(i => i.severity === 'critical').length,
+        high:     issues.filter(i => i.severity === 'high').length,
+        medium:   issues.filter(i => i.severity === 'medium').length,
+    };
+    const passed       = counts.critical === 0 && counts.high === 0;
+    const quality_mode = counts.critical > 0 ? 'degraded' : 'full';
+
+    return { passed, quality_mode, counts, issues };
 }
 
 export async function handleGetRules(request: Request, env: Env): Promise<Response> {
