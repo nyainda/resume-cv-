@@ -522,12 +522,13 @@ const AtsGauge = ({ score, size = 52 }: { score: number; size?: number }) => {
 
 /* ─── Data ──────────────────────────────────────────────────────────────── */
 const PIPELINE_STEPS = [
-  { icon: '✦', label: 'JD Analysis', detail: 'Scans the job description, detects industry & seniority, extracts Tier 1/2 keywords' },
-  { icon: '⬆', label: 'ATS Gap Pin', detail: 'Finds keywords absent from your CV and pins them verbatim into the generated output' },
-  { icon: '◈', label: 'Smart Writing', detail: 'Multiple language models craft metric-dense, verb-varied bullets — matched to your real experience and the target role' },
-  { icon: '⊙', label: 'Purify Pass', detail: 'Strips AI tells, fixes verb tense, collapses duplicate words, jitter-rounds numbers to look human' },
-  { icon: '◐', label: 'HR Detector', detail: 'Zero-LLM simulation scores bullet rhythm, metric density, seniority coherence & passive voice' },
-  { icon: '✓', label: 'Voice Audit', detail: 'Checks pronoun consistency, banned phrases (synergy, self-starter), and writing-style fingerprint' },
+  { icon: '✦', label: 'Parse Profile', detail: 'Extracts your real experience, numbers, and skills. Prevents the AI from inventing context it was never given.' },
+  { icon: '⬆', label: 'Analyse Job', detail: 'Detects industry, seniority, and Tier 1/2 keywords from the JD. Prevents generic, role-agnostic output.' },
+  { icon: '◈', label: 'Build Strategy', detail: 'Pins confirmed missing keywords and sets bullet rhythm targets. Prevents keyword stuffing and uniform sentence structure.' },
+  { icon: '⊙', label: 'Generate Sections', detail: 'Multiple models craft metric-dense, verb-varied bullets matched to your real experience. Prevents weak, unquantified claims.' },
+  { icon: '◐', label: 'Remove AI Tells', detail: 'Strips banned phrases, fixes tense, collapses duplicates, jitter-rounds numbers. Prevents AI-detector flags and robotic tone.' },
+  { icon: '★', label: 'Check Evidence', detail: 'Validates every metric against your source profile. Prevents fake skills, inflated figures, and unsupported claims.' },
+  { icon: '✓', label: 'Final ATS Polish', detail: 'Checks pronoun consistency, voice fingerprint, and seniority coherence. Prevents the subtle signals that get CVs deprioritised.' },
 ];
 
 const TOOL_GROUPS = [
@@ -915,11 +916,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
 
             <h1 style={{ fontSize: 'clamp(2.6rem,5.5vw,4.4rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', margin: '0 0 20px' }}>
               Not Another AI CV.<br />
-              <span style={{ color: '#C9A84C' }}>A Better You on Paper.</span>
+              <span style={{ color: '#C9A84C' }}>A builder that checks its own work.</span>
             </h1>
 
             <p style={{ fontSize: 15, lineHeight: 1.7, color: muted, maxWidth: 440, margin: '0 0 20px' }}>
-              The only career platform with a 7-pass CV pipeline that writes, refines, and validates your documents so you sound like <strong style={{ color: text }}>YOU</strong>, not like everyone else.
+              Most AI tools generate and stop. ProCV runs a 7-pass quality pipeline that catches AI tells, validates every number, and rewrites until your CV sounds like <strong style={{ color: text }}>you</strong> — not a template.
             </p>
 
             {/* Benefit bullets */}
@@ -949,7 +950,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               <button
                 onClick={() => { const el = document.getElementById('score-cv'); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                 style={{ padding: '13px 22px', fontSize: 14, fontWeight: 600, borderRadius: 10, background: 'transparent', border: `1.5px solid ${border}`, cursor: 'pointer', color: muted, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                See How It Works
+                <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Score My CV Free
               </button>
             </div>
 
@@ -967,7 +969,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             </div>
           </div>
 
-          {/* Right: App UI mockup */}
+          {/* Right: Before / After CV card */}
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             <div style={{
               width: '100%', maxWidth: isMobile ? '100%' : 500,
@@ -976,106 +978,73 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
               overflow: 'hidden',
             }}>
-              {/* Browser chrome bar */}
-              <div style={{ background: elevated, borderBottom: `1px solid ${border}`, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
-                <div style={{ flex: 1, marginLeft: 8, background: darkMode ? '#222' : '#e8e4dc', borderRadius: 6, padding: '4px 10px', fontSize: 10, color: faint }}>procv.app/dashboard</div>
-              </div>
-              {/* App layout */}
-              <div style={{ display: 'flex', minHeight: 360 }}>
-                {/* Sidebar nav */}
-                <div style={{ width: 110, borderRight: `1px solid ${border}`, padding: '16px 0', background: darkMode ? '#111' : '#fafaf7', flexShrink: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px 14px', marginBottom: 4 }}>
-                    <div style={{ width: 20, height: 20, background: Y, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: '#111' }}>CV</div>
-                    <span style={{ fontSize: 11, fontWeight: 900, color: text }}>ProCV</span>
-                  </div>
-                  {[
-                    { icon: '👤', label: 'Profile', active: true },
-                    { icon: '📄', label: 'CV Builder', active: false },
-                    { icon: '🎓', label: 'Scholarships', active: false },
-                    { icon: '🎯', label: 'Tracking', active: false },
-                    { icon: '📊', label: 'Analytics', active: false },
-                  ].map(item => (
-                    <div key={item.label} style={{
-                      padding: '7px 12px', fontSize: 10, fontWeight: item.active ? 700 : 500,
-                      color: item.active ? text : faint,
-                      background: item.active ? (darkMode ? 'rgba(255,255,255,0.08)' : elevated) : 'transparent',
-                      borderLeft: `2px solid ${item.active ? Y : 'transparent'}`,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                    }}>
-                      <span style={{ fontSize: 11 }}>{item.icon}</span> {item.label}
-                    </div>
-                  ))}
+              {/* Card header */}
+              <div style={{ background: elevated, borderBottom: `1px solid ${border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
                 </div>
-                {/* Main content */}
-                <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {/* Profile strength + AI detection row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    {/* Profile gauge */}
-                    <div style={{ background: elevated, borderRadius: 10, padding: 12, border: `1px solid ${border}` }}>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: muted, marginBottom: 10 }}>Your Profile</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {/* Mini donut chart */}
-                        <svg width={52} height={52} viewBox="0 0 52 52">
-                          <circle cx="26" cy="26" r="20" fill="none" stroke={darkMode ? '#2a2a2a' : '#e5e7eb'} strokeWidth="5"/>
-                          <circle cx="26" cy="26" r="20" fill="none" stroke="#22c55e" strokeWidth="5"
-                            strokeDasharray={`${2*Math.PI*20*0.92} ${2*Math.PI*20}`}
-                            strokeLinecap="round" transform="rotate(-90 26 26)"/>
-                          <text x="26" y="30" textAnchor="middle" fontSize="12" fontWeight="900" fill={text}>92%</text>
-                        </svg>
-                        <div>
-                          <div style={{ fontSize: 9, color: muted }}>Profile Strength</div>
-                          <div style={{ fontSize: 11, fontWeight: 900, color: '#22c55e' }}>Excellent</div>
-                        </div>
-                      </div>
-                    </div>
-                    {/* AI detection */}
-                    <div style={{ background: elevated, borderRadius: 10, padding: 12, border: `1px solid ${border}` }}>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: muted, marginBottom: 8 }}>AI Detection</div>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#dcfce7', color: '#166534', fontSize: 10, fontWeight: 900, padding: '3px 8px', borderRadius: 6, marginBottom: 6 }}>
-                        <span style={{ fontSize: 9 }}>✓</span> Human-like
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: text, lineHeight: 1 }}>98%</div>
-                      <div style={{ fontSize: 9, color: muted }}>Undetectable</div>
-                    </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: faint, letterSpacing: '0.12em', textTransform: 'uppercase' }}>CV Transformation · Product Manager</span>
+                <div style={{ width: 60 }} />
+              </div>
+
+              <div style={{ padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Before */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#ef4444' }}>Before</span>
+                    <div style={{ flex: 1, height: 1, background: '#ef444430' }} />
+                    <span style={{ fontSize: 10, fontWeight: 900, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }}>Score: 31</span>
                   </div>
-                  {/* 7-pass pipeline */}
-                  <div style={{ background: elevated, borderRadius: 10, padding: '10px 12px', border: `1px solid ${border}` }}>
-                    <div style={{ fontSize: 10, fontWeight: 900, color: muted, marginBottom: 8 }}>7-Pass CV Pipeline</div>
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
-                      {['Brief','Generate','Purify','Validate','Detect','Refine','Finalize'].map((step, i) => (
-                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 1 }}>
-                          <div style={{
-                            width: 24, height: 24, borderRadius: '50%',
-                            background: i < 6 ? '#22c55e' : Y,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 9, color: i < 6 ? '#fff' : '#111', fontWeight: 900,
-                          }}>
-                            {i < 6 ? '✓' : '★'}
-                          </div>
-                          <div style={{ fontSize: 7, color: faint, textAlign: 'center', lineHeight: 1.2 }}>{i+1}.{step}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Output cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {[
-                      { label: 'CV / Resume', tag: 'Tailored', color: '#3b82f6' },
-                      { label: 'Scholarship Essay', tag: 'Compelling', color: '#8b5cf6' },
-                      { label: 'Career Analysis', tag: 'Insightful', color: '#f59e0b' },
-                    ].map((c, i) => (
-                      <div key={i} style={{ background: surface, borderRadius: 8, padding: '8px', border: `1px solid ${border}`, textAlign: 'center' }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 6, background: c.color + '22', border: `1px solid ${c.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 5px', fontSize: 10 }}>
-                          {['📄','📝','📊'][i]}
-                        </div>
-                        <div style={{ fontSize: 8, fontWeight: 700, color: text, lineHeight: 1.2 }}>{c.label}</div>
-                        <div style={{ fontSize: 8, color: c.color, fontWeight: 700, marginTop: 2 }}>{c.tag}</div>
+                      'Managed product roadmap and worked with engineers',
+                      'Helped improve customer satisfaction metrics',
+                      'Ran sprint planning and stakeholder meetings',
+                    ].map((b, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 12px', background: darkMode ? '#1a0a0a' : '#fff5f5', border: '1px solid #fecaca', borderRadius: 8 }}>
+                        <span style={{ color: '#ef4444', fontWeight: 900, flexShrink: 0, fontSize: 13, lineHeight: '1.4' }}>✕</span>
+                        <span style={{ fontSize: 12, color: darkMode ? '#fca5a5' : '#7f1d1d', lineHeight: 1.5 }}>{b}</span>
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Arrow */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, height: 1, background: border }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1B2B4B', color: '#C9A84C', fontSize: 10, fontWeight: 900, padding: '5px 12px', borderRadius: 99, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+                    ↓ 7-pass pipeline
+                  </div>
+                  <div style={{ flex: 1, height: 1, background: border }} />
+                </div>
+
+                {/* After */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#22c55e' }}>After</span>
+                    <div style={{ flex: 1, height: 1, background: '#22c55e30' }} />
+                    <span style={{ fontSize: 10, fontWeight: 900, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 6, padding: '2px 7px' }}>Score: 94</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {[
+                      'Owned Checkout EU roadmap (2.4M merchants); shipped 18 features → £12.6M ARR in 18 months',
+                      'Reduced cart abandonment 34% via 22-variant A/B programme — incremental £2.1M revenue',
+                      'Redesigned onboarding (180 interviews, 3 cohorts) — NPS 42 → 78, shipped in 11 weeks',
+                    ].map((b, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 12px', background: darkMode ? '#0a1a0a' : '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                        <span style={{ color: '#22c55e', fontWeight: 900, flexShrink: 0, fontSize: 13, lineHeight: '1.4' }}>✓</span>
+                        <span style={{ fontSize: 12, color: darkMode ? '#86efac' : '#14532d', lineHeight: 1.5 }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer note */}
+                <div style={{ textAlign: 'center', fontSize: 11, color: faint }}>
+                  Same person. Same experience. Different pipeline.
                 </div>
               </div>
             </div>
