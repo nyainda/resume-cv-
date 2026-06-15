@@ -66,8 +66,10 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
     const profileHay = stringify(profile).toLowerCase();
     const jdPresent  = jd.length > 50;
 
+    // Explicit field: direct lookup by name (safe even if name doesn't exist in KV)
+    const explicitFieldRow = (fieldRows || []).find(f => f.field === explicitField) || null;
+
     const fieldScores: Array<{ field: string; score: number; row: any }> = (fieldRows || []).map(f => {
-        if (explicitField && f.field === explicitField) return { field: f.field, score: 9999, row: f };
         const kws: string[] = Array.isArray(f.jd_keywords) ? f.jd_keywords : [];
         let score = 0;
         for (const kw of kws) {
@@ -78,7 +80,11 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         }
         return { field: f.field, score, row: f };
     }).sort((a, b) => b.score - a.score);
-    const fieldRow = fieldScores[0]?.row || null;
+
+    // Use explicit field first; fall back to best-scored field only if score > 0.
+    // A zero-score "winner" is no better than general — don't pretend it is.
+    const bestScoredField = fieldScores[0]?.score > 0 ? fieldScores[0].row : null;
+    const fieldRow = explicitFieldRow || bestScoredField;
     const fieldName: string = fieldRow?.field || 'general';
 
     // 3. Voice scoring: compatibility with field + seniority
@@ -123,26 +129,36 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         const avoided = new Set((fieldRow.avoided_verbs || []).map((v: string) => v.toLowerCase()));
         verbPool = verbPool.filter(v => !avoided.has(String(v.verb_present || '').toLowerCase()));
     }
-    if (primary && Array.isArray(primary.verb_bias)) {
-        const bias = new Set(primary.verb_bias.map((v: string) => v.toLowerCase()));
-        verbPool.sort((a, b) => Number(bias.has(String(b.verb_present).toLowerCase())) - Number(bias.has(String(a.verb_present).toLowerCase())));
-    }
+    // Shuffle first so equal-ranked verbs are always in a random order,
+    // not the deterministic order they came out of KV storage.
+    shuffle(verbPool);
+
+    // Pre-compute bias set once (used as a tiebreaker in every sort below).
+    const biasedVerbs = primary && Array.isArray(primary.verb_bias)
+        ? new Set(primary.verb_bias.map((v: string) => v.toLowerCase()))
+        : new Set<string>();
+    const biasRank = (v: any): number =>
+        Number(biasedVerbs.has(String(v.verb_present || '').toLowerCase()));
+
     // 3.6 — Verb energy routing by seniority.
-    // energy_level is stored in the verb DB but was previously unused.
-    // Senior/Lead CVs lead with high-energy verbs; Entry/Junior CVs use
-    // medium/low energy so they don't over-claim authority.
-    // Mid-level keeps the shuffled order for natural variety.
+    // Voice bias is always the primary key so it is respected at every level.
+    // Energy is the tiebreaker: senior/lead want high-energy first,
+    // entry/junior want low-energy first (avoids over-claiming authority),
+    // mid keeps the shuffled order within each bias tier for natural variety.
     const ENERGY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
     if (seniorityLevel === 'senior' || seniorityLevel === 'lead') {
         verbPool.sort((a, b) =>
+            biasRank(b) - biasRank(a) ||
             (ENERGY_RANK[b.energy_level as string] || 2) - (ENERGY_RANK[a.energy_level as string] || 2)
         );
     } else if (seniorityLevel === 'entry' || seniorityLevel === 'junior') {
         verbPool.sort((a, b) =>
+            biasRank(b) - biasRank(a) ||
             (ENERGY_RANK[a.energy_level as string] || 2) - (ENERGY_RANK[b.energy_level as string] || 2)
         );
     } else {
-        shuffle(verbPool); // mid: random variety within the voice-biased order
+        // mid: bias-first, then the earlier shuffle keeps random variety within tiers
+        verbPool.sort((a, b) => biasRank(b) - biasRank(a));
     }
     const verbs = verbPool.slice(0, 30).map(v => ({
         verb: tense === 'past' ? v.verb_past : v.verb_present,
@@ -223,14 +239,19 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
 export function estimateYearsFromProfile(profile: any): number {
     if (!profile || typeof profile !== 'object') return 0;
     const exp = Array.isArray(profile.experience) ? profile.experience : [];
-    let totalMonths = 0;
+    // Use a Set of absolute month numbers to deduplicate overlapping roles
+    // (e.g. freelancing while employed full-time must not count twice).
+    const coveredMonths = new Set<number>();
     const now = new Date();
     for (const e of exp) {
         const start = parseDateLoose(e?.startDate || e?.start_date || e?.start);
         const end   = parseDateLoose(e?.endDate || e?.end_date || e?.end) || now;
-        if (start) totalMonths += Math.max(0, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
+        if (!start || end < start) continue; // skip malformed entries
+        const startMonth = start.getFullYear() * 12 + start.getMonth();
+        const endMonth   = end.getFullYear()   * 12 + end.getMonth();
+        for (let m = startMonth; m < endMonth; m++) coveredMonths.add(m);
     }
-    return Math.round(totalMonths / 12);
+    return Math.round(coveredMonths.size / 12);
 }
 
 export function parseDateLoose(s: any): Date | null {
