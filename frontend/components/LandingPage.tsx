@@ -639,6 +639,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   }>(null);
   const [smCfPhrases, setSmCfPhrases] = useState<{ openers: string[]; aiisms: string[] } | null>(null);
 
+  // ── Quick bullet checker state ─────────────────────────────────────────
+  const [qbText, setQbText] = useState('Helped with various process improvements across teams to drive organizational efficiency and stakeholder engagement.');
+
   // Fetch CF banned phrases once on mount for live scoring
   useEffect(() => {
     fetchCFBannedPhrases().then(p => setSmCfPhrases(p)).catch(() => {});
@@ -1121,6 +1124,185 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Live Bullet Checker ───────────────────────────────────────── */}
+      <section style={{ padding: isMobile ? '40px 16px' : '56px 24px', borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#22c55e22', border: '1px solid #22c55e55', color: '#16a34a', fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 14 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              Live · no sign-up needed
+            </div>
+            <h2 style={{ fontSize: 'clamp(1.5rem,3.5vw,2.2rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 10px', lineHeight: 1.15, color: text }}>
+              Paste a bullet. See what's wrong. <span style={{ color: '#C9A84C' }}>Instantly.</span>
+            </h2>
+            <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
+              Type or paste any CV bullet below — 5 checks fire in real time, no button needed.
+            </p>
+          </div>
+
+          {/* Checker grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, alignItems: 'start' }}>
+
+            {/* Left: input */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: faint, marginBottom: 8 }}>
+                Your CV bullet
+              </label>
+              <textarea
+                value={qbText}
+                onChange={e => setQbText(e.target.value)}
+                rows={5}
+                placeholder="e.g. Led the product redesign that increased conversion by 34%…"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '14px 16px', fontSize: 14, lineHeight: 1.6,
+                  borderRadius: 12, border: `1.5px solid ${border}`,
+                  background: surface, color: text, resize: 'vertical',
+                  outline: 'none', fontFamily: 'inherit',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#C9A84C'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = border; }}
+              />
+              {/* Sample bullets */}
+              <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: 11, color: faint, margin: '0 0 8px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Try a sample:</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
+                    { label: '✗ Weak bullet', text: 'Assisted with various process improvements to drive organizational efficiency.' },
+                    { label: '✓ Strong bullet', text: 'Cut checkout abandonment by 34% through a 22-variant A/B programme, adding £2.1M in annual revenue.' },
+                  ].map(({ label, text }) => (
+                    <button key={label} onClick={() => setQbText(text)} style={{
+                      padding: '7px 12px', fontSize: 12, borderRadius: 8, border: `1px solid ${border}`,
+                      background: elevated, color: muted, cursor: 'pointer', textAlign: 'left',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#C9A84C'; e.currentTarget.style.color = text; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = border; e.currentTarget.style.color = muted; }}>
+                      <span style={{ fontWeight: 800, marginRight: 6 }}>{label}:</span>
+                      <span style={{ opacity: 0.7, display: 'block', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{text.slice(0, 72)}…</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: live check results */}
+            {(() => {
+              const b = qbText.trim();
+              const checks = [
+                {
+                  id: 'metric',
+                  label: 'Contains a measurable result',
+                  pass: /(\b\d[\d,.]*\s*(%|K|M|B|x|×|\+\s*years?)\b)|(£|€|\$)\s*\d[\d,.]*|(reduced?|increased?|grew?|cut|saved?|generated?|raised?|delivered?)\s+\w+\s+by\s+\d/i.test(b),
+                  fix: 'Add a % change, £/$ figure, headcount, or time saved.',
+                  icon: '📊',
+                },
+                {
+                  id: 'noAiTell',
+                  label: 'No AI buzzwords',
+                  pass: !/\b(spearheaded?|orchestrated?|leveraged?|utilized?|facilitated?|synergized?|synergies|passionate(ly)?|proactive(ly)?|results.driven|impactful|thought leader|holistic(ally)?|empower(ed)?|stakeholder engagement)\b/i.test(b),
+                  fix: 'Remove: spearheaded, leveraged, synergies, passionate, proactive.',
+                  icon: '🤖',
+                },
+                {
+                  id: 'strongVerb',
+                  label: 'Starts with a strong action verb',
+                  pass: /^(Led|Built|Drove|Cut|Grew|Launched|Delivered|Reduced|Increased|Scaled|Shipped|Designed|Managed|Created|Developed|Improved|Implemented|Negotiated|Achieved|Generated|Secured|Established|Overhauled|Restructured|Introduced|Deployed|Automated|Migrated|Trained|Hired|Directed|Oversaw|Produced|Closed|Won|Raised|Saved|Accelerated|Executed|Transformed|Rebuilt|Closed|Doubled|Halved|Pioneered)\b/i.test(b),
+                  fix: 'Start with: Led, Built, Drove, Cut, Grew, Launched, Delivered…',
+                  icon: '⚡',
+                },
+                {
+                  id: 'detail',
+                  label: 'Enough detail (10+ words)',
+                  pass: b.split(/\s+/).filter(Boolean).length >= 10,
+                  fix: 'Add context — what was the scale, the method, or the outcome?',
+                  icon: '📝',
+                },
+                {
+                  id: 'noJunior',
+                  label: 'No passive / junior language',
+                  pass: !/\b(assisted?|helped?|supported?|worked (on|with)|participated in|contributed to|involved in|responsible for|duties included?|tasked with)\b/i.test(b),
+                  fix: 'Remove: assisted, helped, supported, responsible for, contributed to.',
+                  icon: '🎯',
+                },
+              ];
+              const passed = checks.filter(c => c.pass).length;
+              const pct = Math.round((passed / checks.length) * 100);
+              const scoreColor = pct >= 80 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444';
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Score badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: 12, background: surface, border: `1.5px solid ${border}` }}>
+                    <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
+                      <svg width={56} height={56} style={{ transform: 'rotate(-90deg)' }} viewBox="0 0 56 56">
+                        <circle cx={28} cy={28} r={22} fill="none" stroke={darkMode ? '#2a2a2a' : '#e5e7eb'} strokeWidth={5} />
+                        <circle cx={28} cy={28} r={22} fill="none"
+                          stroke={scoreColor} strokeWidth={5}
+                          strokeDasharray={`${(pct / 100) * 138.2} 138.2`}
+                          strokeLinecap="round"
+                          style={{ transition: 'stroke-dasharray 0.4s ease, stroke 0.3s ease' }}
+                        />
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 15, fontWeight: 900, color: scoreColor, lineHeight: 1, transition: 'color 0.3s' }}>{passed}/{checks.length}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: text }}>
+                        {passed === 5 ? 'Recruiter-ready ✓' : passed >= 4 ? 'Almost there' : passed >= 3 ? 'Needs some work' : 'Multiple issues'}
+                      </div>
+                      <div style={{ fontSize: 12, color: muted, marginTop: 2, lineHeight: 1.4 }}>
+                        {passed === 5 ? 'This bullet passes all 5 quality checks.' : `${5 - passed} check${5 - passed > 1 ? 's' : ''} below — click any to see the fix.`}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Check rows */}
+                  {checks.map(check => (
+                    <div key={check.id} style={{
+                      padding: '12px 16px', borderRadius: 10,
+                      background: check.pass ? (darkMode ? '#0a1a0a' : '#f0fdf4') : (darkMode ? '#1a0a0a' : '#fff8f8'),
+                      border: `1px solid ${check.pass ? '#bbf7d0' : '#fecaca'}`,
+                      display: 'flex', gap: 12, alignItems: 'flex-start',
+                    }}>
+                      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{check.pass ? '✓' : '✗'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: check.pass ? (darkMode ? '#86efac' : '#15803d') : (darkMode ? '#fca5a5' : '#b91c1c') }}>
+                          {check.icon} {check.label}
+                        </div>
+                        {!check.pass && (
+                          <div style={{ fontSize: 12, color: muted, marginTop: 3, lineHeight: 1.45 }}>{check.fix}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* CTA row */}
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <button onClick={onGetStarted} style={{
+                      padding: '10px 20px', fontSize: 13, fontWeight: 800, borderRadius: 10,
+                      background: '#1B2B4B', border: 'none', cursor: 'pointer', color: '#fff',
+                      display: 'inline-flex', alignItems: 'center', gap: 7,
+                    }}>
+                      Fix with AI — free account
+                      <svg width={13} height={13} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                    </button>
+                    <button onClick={() => { document.getElementById('score-cv')?.scrollIntoView({ behavior: 'smooth' }); }} style={{
+                      padding: '10px 16px', fontSize: 13, fontWeight: 700, borderRadius: 10,
+                      background: 'none', border: `1px solid ${border}`, cursor: 'pointer', color: muted,
+                    }}>
+                      Score my full CV ↓
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </section>
