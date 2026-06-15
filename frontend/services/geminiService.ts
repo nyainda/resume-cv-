@@ -3396,10 +3396,12 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
     cvData = attachTrace(cvData, _finalTrace);
     console.log(`[CV Trace] Generation trace stored (id=${_finalTrace.traceId.slice(0, 8)}…, total=${_finalTrace.timings.totalMs}ms, violations=${_validation.violations.length})`);
 
-    // ── Final CV guard: skill dedup + summary opener + bullet leak purge ────────
-    // Zero AI calls — deterministic only. Catches anything that slipped through
-    // all the upstream quality passes (purifyCV, humanizer, validationEngine).
-    const _guard = runFinalCVGuard(cvData);
+    // ── Final CV guard: comprehensive last-mile quality gate ─────────────────
+    // Layer 1 (deterministic): skill dedup, summary opener, seeking language,
+    //   placeholders, double-words, project bullets, free-text fields.
+    // Layer 2 (AI, GROQ_FAST, 5s timeout): grammar & coherence on summary +
+    //   project descriptions. Graceful fallback — never blocks the CV return.
+    const _guard = await runFinalCVGuard(cvData);
     if (_guard.changed) cvData = _guard.cvData;
 
     // ── Store result in cache ──
