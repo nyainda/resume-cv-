@@ -1354,68 +1354,252 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr' : 'repeat(auto-fit,minmax(300px,1fr))', gap: isMobile ? 36 : 56, alignItems: 'center' }}>
-            <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 18 }}>
-                The Engine
-              </div>
-              <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: text }}>
-                7 Passes. One Goal —<br />
-                <span style={{ color: '#C9A84C' }}>The Best Version of You.</span>
-              </h2>
-              <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: '0 0 32px', maxWidth: 380 }}>
-                Every CV runs through our full quality pipeline before you ever see it. No shortcuts.
-              </p>
-              {/* Stats — animated count-up on scroll-in */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 36px', marginBottom: 32 }}>
-                {STATS.map((s, i) => (
-                  <div key={s.label}>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: '#C9A84C', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                      {statVals[i]}{s.suffix}
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 4 }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={onGetStarted} style={{ fontSize: 13, fontWeight: 700, padding: '11px 22px', borderRadius: 10, background: '#C9A84C', border: 'none', cursor: 'pointer', color: '#1B2B4B', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                Try it on my CV
-                <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
-              </button>
-            </div>
 
-            {/* Pipeline steps — numbered with connecting line */}
-            <div style={{ position: 'relative', paddingLeft: 16 }}>
-              {/* Vertical connector */}
-              <div style={{ position: 'absolute', left: 36, top: 20, bottom: 20, width: 1, background: border }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {PIPELINE_STEPS.map((step, i) => (
-                  <div key={i}
-                    onClick={() => setActivePipe(i)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer', position: 'relative', zIndex: 1 }}>
-                    <div style={{
-                      width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                      background: activePipe === i ? '#C9A84C' : elevated,
-                      color: activePipe === i ? '#1B2B4B' : muted,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 14, fontWeight: 900, transition: 'all 0.25s',
-                      boxShadow: activePipe === i ? '0 0 18px rgba(201,168,76,0.4)' : 'none',
-                    }}>
-                      {i + 1}
-                    </div>
-                    <div style={{
-                      flex: 1, padding: '12px 16px', borderRadius: 10, transition: 'all 0.25s',
-                      background: activePipe === i ? elevated : 'transparent',
-                      border: `1px solid ${activePipe === i ? 'rgba(201,168,76,0.4)' : 'transparent'}`,
-                    }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: activePipe === i ? text : muted, transition: 'color 0.25s' }}>{step.label}</div>
-                      {activePipe === i && <div style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginTop: 4 }}>{step.detail}</div>}
-                    </div>
-                    {activePipe === i && <div style={{ fontSize: 16, color: '#22c55e', flexShrink: 0 }}>✓</div>}
-                  </div>
-                ))}
+          {/* Section header */}
+          <div style={{ textAlign: 'center', maxWidth: 620, margin: '0 auto 48px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 16 }}>
+              How It Works
+            </div>
+            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: text }}>
+              7 passes. Zero shortcuts.<br />
+              <span style={{ color: '#C9A84C' }}>Here's exactly what happens.</span>
+            </h2>
+            <p style={{ fontSize: 14, lineHeight: 1.65, color: muted, margin: 0 }}>
+              Click any step to see what it does — and what it prevents.
+            </p>
+          </div>
+
+          {/* Stats row — count-up fires when section enters view */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 48px', marginBottom: 40 }}>
+            {STATS.map((s, i) => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color: '#C9A84C', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                  {statVals[i]}{s.suffix}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, marginTop: 4 }}>{s.label}</div>
               </div>
+            ))}
+          </div>
+
+          {/* Tab row — horizontally scrollable on mobile */}
+          <div style={{ overflowX: 'auto', marginBottom: 24, paddingBottom: 4 }}>
+            <div style={{ display: 'flex', gap: 6, minWidth: 'max-content', padding: '0 2px' }}>
+              {PIPELINE_STEPS.map((step, i) => (
+                <button key={i} onClick={() => setActivePipe(i)} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '9px 16px', borderRadius: 10, cursor: 'pointer', border: 'none',
+                  background: activePipe === i ? '#1B2B4B' : elevated,
+                  color: activePipe === i ? '#fff' : muted,
+                  fontWeight: activePipe === i ? 800 : 600, fontSize: 13,
+                  transition: 'all 0.2s', flexShrink: 0,
+                  boxShadow: activePipe === i ? '0 4px 16px rgba(27,43,75,0.25)' : 'none',
+                }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    background: activePipe === i ? '#C9A84C' : (darkMode ? '#333' : '#e5e7eb'),
+                    color: activePipe === i ? '#1B2B4B' : faint,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 900,
+                  }}>{i + 1}</span>
+                  {step.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Demo panel */}
+          <div style={{
+            background: surface, borderRadius: 16, border: `1px solid ${border}`,
+            overflow: 'hidden', minHeight: 320,
+            boxShadow: '0 8px 40px rgba(0,0,0,0.08)',
+          }}>
+            {/* Panel header */}
+            <div style={{ background: '#1B2B4B', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#C9A84C', color: '#1B2B4B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>{activePipe + 1}</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#fff' }}>{PIPELINE_STEPS[activePipe].label}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 1 }}>Pass {activePipe + 1} of {PIPELINE_STEPS.length}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 700, background: 'rgba(201,168,76,0.15)', padding: '4px 10px', borderRadius: 6, maxWidth: 320, textAlign: 'right' }}>
+                Prevents: {PIPELINE_STEPS[activePipe].detail.split('Prevents')[1]?.trim().replace(/^:?\s*/, '') || ''}
+              </div>
+            </div>
+
+            {/* Panel body — step-specific demo */}
+            <div style={{ padding: '28px 28px 32px' }}>
+              {activePipe === 0 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>What gets extracted from your profile</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                    {[
+                      { label: 'Name & Title', value: 'Sarah Chen · Senior Product Manager' },
+                      { label: 'Total Experience', value: '7 years · Fintech & Payments' },
+                      { label: 'Verified Metrics', value: '£12.6M ARR · 34% abandonment drop · NPS 42→78' },
+                      { label: 'Core Skills', value: 'Product Strategy, OKRs, A/B Testing, SQL, Payments' },
+                      { label: 'Certifications', value: 'CSPO, AWS Cloud Practitioner, Google Analytics' },
+                      { label: 'Education', value: 'UCL — BSc Computer Science, First Class Honours' },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ padding: '12px 14px', background: elevated, borderRadius: 10, border: `1px solid ${border}` }}>
+                        <div style={{ fontSize: 10, color: faint, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: 13, color: text, fontWeight: 600, lineHeight: 1.4 }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activePipe === 1 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>Job description analysis output</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {[
+                        { label: 'Industry', value: 'Fintech / B2B SaaS', color: '#3b82f6' },
+                        { label: 'Seniority', value: 'Senior IC / Lead', color: '#8b5cf6' },
+                        { label: 'Primary Function', value: 'Product Management', color: '#f59e0b' },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: elevated, borderRadius: 10, border: `1px solid ${border}` }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 11, color: faint, width: 110, flexShrink: 0 }}>{label}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: text }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: faint, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>Gap keywords to pin</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {['B2B SaaS', 'KPI dashboard', 'cross-functional', 'stakeholder alignment', 'go-to-market'].map(kw => (
+                          <span key={kw} style={{ padding: '4px 10px', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                            + {kw}
+                          </span>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: 11, color: faint, marginTop: 10, lineHeight: 1.5 }}>These terms are absent from your CV and confirmed present in the JD — they will be woven into the output verbatim.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activePipe === 2 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>Generation strategy brief</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                    {[
+                      { label: 'Bullet rhythm target', value: 'Punchy (1) → Standard (2) → Narrative (1) per role' },
+                      { label: 'Voice & tense', value: 'First-person implied · Past tense · Active verbs only' },
+                      { label: 'Seniority signals', value: 'Senior — no "assisted", "supported", "helped with"' },
+                      { label: 'Pinned keywords', value: '"B2B SaaS", "KPI dashboard", "cross-functional" — must appear verbatim' },
+                      { label: 'Verb pool', value: '80+ approved verbs · No "spearheaded", "leveraged", "synergized"' },
+                      { label: 'Metric anchor', value: '£12.6M ARR, 34% reduction, NPS 42→78 — locked to source' },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ padding: '11px 14px', background: elevated, borderRadius: 10, border: `1px solid ${border}` }}>
+                        <div style={{ fontSize: 10, color: faint, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: 12, color: text, lineHeight: 1.4 }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activePipe === 3 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>Generated bullets — experience section</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      { type: 'Punchy', bullet: 'Scaled B2B SaaS checkout platform to £12.6M ARR — 18 features shipped across 18 months for 2.4M merchants.' },
+                      { type: 'Standard', bullet: 'Cut cart abandonment by 34% through a 22-variant A/B programme, applying cross-functional KPI dashboard analysis to isolate friction points and adding £2.1M in annual revenue.' },
+                      { type: 'Narrative', bullet: 'Redesigned the onboarding experience end-to-end — running 180 user interviews across 3 cohorts, rebuilding the stakeholder alignment process, and lifting NPS from 42 to 78 in 11 weeks.' },
+                    ].map(({ type, bullet }) => (
+                      <div key={type} style={{ padding: '12px 16px', background: darkMode ? '#0a1a0a' : '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10 }}>
+                        <span style={{ fontSize: 10, fontWeight: 900, color: '#22c55e', background: '#dcfce7', padding: '2px 7px', borderRadius: 4, marginBottom: 8, display: 'inline-block', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{type}</span>
+                        <p style={{ fontSize: 13, color: darkMode ? '#86efac' : '#14532d', lineHeight: 1.55, margin: 0 }}>{bullet}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activePipe === 4 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>AI-tell removal — live edits</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {[
+                      { before: 'Spearheaded the initiative, leveraging synergies to facilitate cross-team alignment and drive impactful outcomes.', after: 'Led the programme, coordinating across four teams to align priorities and deliver a 28% efficiency gain in 6 weeks.' },
+                      { before: 'Passionate about utilizing cutting-edge technologies to orchestrate seamless digital transformation journeys.', after: 'Built the technical roadmap for a cloud migration covering 14 services, completing 3 weeks ahead of schedule.' },
+                    ].map(({ before, after }, idx) => (
+                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+                        <div style={{ padding: '12px 14px', background: darkMode ? '#1a0a0a' : '#fff5f5', border: '1px solid #fecaca', borderRadius: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 900, color: '#ef4444', marginBottom: 6, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Before</div>
+                          <p style={{ fontSize: 12, color: darkMode ? '#fca5a5' : '#7f1d1d', lineHeight: 1.5, margin: 0 }}>{before}</p>
+                        </div>
+                        <div style={{ padding: '12px 14px', background: darkMode ? '#0a1a0a' : '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 900, color: '#22c55e', marginBottom: 6, letterSpacing: '0.1em', textTransform: 'uppercase' }}>After</div>
+                          <p style={{ fontSize: 12, color: darkMode ? '#86efac' : '#14532d', lineHeight: 1.5, margin: 0 }}>{after}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activePipe === 5 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>Evidence validation — every number checked</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      { source: '£12.6M ARR in profile', cv: '£12.6M ARR in output', pass: true },
+                      { source: 'Team of 11 in profile', cv: 'squad of 11 in output', pass: true },
+                      { source: '34% abandonment drop in profile', cv: '34% cart abandonment reduction', pass: true },
+                      { source: 'NPS 42 → 78 in profile', cv: 'NPS from 42 to 78 in output', pass: true },
+                      { source: 'No "£15M" anywhere in profile', cv: '"£15M revenue" — FLAGGED', pass: false },
+                    ].map(({ source, cv, pass }) => (
+                      <div key={source} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center', padding: '10px 14px', background: pass ? (darkMode ? '#0a1a0a' : '#f0fdf4') : (darkMode ? '#1a0a0a' : '#fff5f5'), border: `1px solid ${pass ? '#bbf7d0' : '#fecaca'}`, borderRadius: 10 }}>
+                        <span style={{ fontSize: 12, color: muted }}>{source}</span>
+                        <span style={{ fontSize: 12, color: pass ? (darkMode ? '#86efac' : '#14532d') : (darkMode ? '#fca5a5' : '#7f1d1d'), fontWeight: 600 }}>{cv}</span>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>{pass ? '✓' : '✗'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 11, color: faint, marginTop: 12, lineHeight: 1.5 }}>Flagged metrics are either corrected to match your profile or removed. Nothing is invented.</p>
+                </div>
+              )}
+
+              {activePipe === 6 && (
+                <div>
+                  <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>Final quality report</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+                    {[
+                      { label: 'ATS keyword coverage', value: '91%', sub: '11 of 12 Tier 1 terms present', ok: true },
+                      { label: 'AI-tell score', value: '3%', sub: 'Human-like — below 5% threshold', ok: true },
+                      { label: 'Seniority coherence', value: 'Senior', sub: 'No junior signals detected', ok: true },
+                    ].map(({ label, value, sub, ok }) => (
+                      <div key={label} style={{ padding: '16px', background: elevated, borderRadius: 12, border: `1px solid ${ok ? '#bbf7d0' : '#fecaca'}`, textAlign: 'center' }}>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: ok ? '#22c55e' : '#ef4444', lineHeight: 1, marginBottom: 6 }}>{value}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: text, marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: 11, color: faint, lineHeight: 1.4 }}>{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '14px 16px', background: '#1B2B4B', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>✦</span>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>CV passed all 7 checks. Ready for download — exactly matching your on-screen preview.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom CTA */}
+          <div style={{ textAlign: 'center', marginTop: 32 }}>
+            <button onClick={onGetStarted} style={{ fontSize: 13, fontWeight: 700, padding: '11px 28px', borderRadius: 10, background: '#C9A84C', border: 'none', cursor: 'pointer', color: '#1B2B4B', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              Run all 7 passes on my CV
+              <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </button>
+            <p style={{ fontSize: 12, color: faint, marginTop: 10 }}>Free account · no card needed · $2 per PDF download</p>
+          </div>
+
         </div>
       </section>
 
