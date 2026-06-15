@@ -1978,50 +1978,105 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                         (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)';
                         (e.currentTarget as HTMLDivElement).style.borderColor = border;
                       }}>
-                        {tpl.sidebar ? (
-                          /* Sidebar layout */
-                          <div style={{ display: 'flex', height: 180 }}>
-                            <div style={{ width: '32%', background: tpl.sidebar, padding: '10px 6px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', margin: '0 auto 4px' }} />
-                              {[100, 70, 85, 60, 90, 75].map((w, i) => (
-                                <div key={i} style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.3)', width: `${w}%` }} />
-                              ))}
-                              <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '3px 0' }} />
-                              {[80, 65, 90].map((w, i) => (
-                                <div key={i} style={{ height: 3, borderRadius: 2, background: tpl.accent + 'cc', width: `${w}%` }} />
-                              ))}
-                            </div>
-                            <div style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <div style={{ height: 5, background: tpl.accent + '55', borderRadius: 2, width: '90%', marginBottom: 2 }} />
-                              <div style={{ height: 3, background: darkMode ? '#555' : '#d1d5db', borderRadius: 2, width: '70%', marginBottom: 4 }} />
-                              <div style={{ height: 1, background: tpl.accent, marginBottom: 4 }} />
-                              {[100, 85, 70, 90, 75, 80, 65, 88, 72].map((w, i) => (
-                                <div key={i} style={{ height: 3, borderRadius: 2, background: darkMode ? '#444' : '#e5e7eb', width: `${w}%` }} />
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          /* Standard layout */
-                          <div>
-                            {/* Header band */}
-                            <div style={{ background: tpl.header, padding: '12px 10px 10px' }}>
-                              <div style={{ height: 5, background: 'rgba(255,255,255,0.85)', borderRadius: 2, width: '80%', marginBottom: 5 }} />
-                              <div style={{ height: 3, background: 'rgba(255,255,255,0.45)', borderRadius: 2, width: '55%', marginBottom: 8 }} />
-                              <div style={{ display: 'flex', gap: 4 }}>
-                                {[1, 2, 3].map(i => (
-                                  <div key={i} style={{ height: 3, background: tpl.accent + 'cc', borderRadius: 2, flex: 1 }} />
+                        {(() => {
+                          // Per-category personas for realistic mini CV content
+                          const PERSONAS: Record<string, { initials: string; name: string; title: string; contact: string; co1: string; role1: string; dates1: string; bullets1: string[]; co2: string; role2: string; dates2: string; bullets2: string[]; skills: string[] }> = {
+                            Professional: { initials: 'SC', name: 'Sarah Chen', title: 'Senior Product Manager', contact: 'sarah.chen@email.com · London, UK · linkedin.com/in/sarahchen', co1: 'Stripe', role1: 'Senior Product Manager', dates1: '2022–Present', bullets1: ['Owned Checkout EU roadmap → £12.6M ARR in 18 months', 'Cut cart abandonment 34% via 22-variant A/B programme', 'Grew NPS 42→78 via personalised onboarding redesign'], co2: 'Monzo', role2: 'Product Manager', dates2: '2019–2022', bullets2: ['Launched Monzo Business Lite — 40K SME accounts in 6 months', 'Delivery variance improved 63%→12% across 8 squads'], skills: ['Product Strategy','OKRs','A/B Testing','SQL','Figma','Payments'] },
+                            Modern: { initials: 'AK', name: 'Alex Kumar', title: 'Senior Software Engineer', contact: 'alex.kumar@dev.io · San Francisco · github.com/alexkumar', co1: 'Meta', role1: 'Senior Software Engineer', dates1: '2021–Present', bullets1: ['Reduced API latency 47% serving 2.4B daily active users', 'Led migration of monolith → microservices — 99.98% uptime', 'Mentored 8 engineers; 3 promoted to senior in 18 months'], co2: 'Google', role2: 'Software Engineer', dates2: '2018–2021', bullets2: ['Built real-time ML feature pipeline processing 12M events/s', 'Cut infrastructure cost $2.1M/yr via serverless re-architecture'], skills: ['React','TypeScript','Go','Kubernetes','Postgres','Redis'] },
+                            Creative: { initials: 'JR', name: 'Jamie Rivera', title: 'Lead UX Designer', contact: 'jamie@design.co · New York · dribbble.com/jamierivera', co1: 'Airbnb', role1: 'Lead UX Designer', dates1: '2022–Present', bullets1: ['Redesigned host onboarding — 28% increase in listing completion', 'Built Design System used by 40+ engineers across 6 product teams', 'Led 0→1 mobile redesign; App Store rating 3.8→4.7 (n=2.1M)'], co2: 'Figma', role2: 'Product Designer', dates2: '2019–2022', bullets2: ['Shipped 14 plugin features now used by 800K+ designers', 'Ran 60-participant usability studies to define v3 canvas UX'], skills: ['Figma','Prototyping','User Research','Motion Design','HTML/CSS'] },
+                            Academic: { initials: 'EW', name: 'Dr Emma Watson', title: 'Research Scientist · ML & NLP', contact: 'e.watson@university.ac.uk · Oxford, UK · scholar.google.com', co1: 'Oxford University', role1: 'Postdoctoral Research Fellow', dates1: '2021–Present', bullets1: ['Published 9 peer-reviewed papers; h-index 14, 680+ citations', 'Secured £420K EPSRC grant — PI on 3-year NLP safety project', 'Supervised 6 DPhil students; 4 awarded competitive fellowships'], co2: 'DeepMind', role2: 'Research Intern', dates2: '2019–2020', bullets2: ['Co-authored NeurIPS 2020 paper: RLHF alignment (top-8% accept)', 'Contributed to Gemini language model pre-training dataset curation'], skills: ['PyTorch','Transformers','RLHF','Python','LaTeX','R','CUDA'] },
+                            Technical: { initials: 'RP', name: 'Ryan Park', title: 'Principal Engineer · Cloud Infra', contact: 'ryan.park@tech.io · Seattle, WA · github.com/ryanpark', co1: 'Amazon Web Services', role1: 'Principal Engineer', dates1: '2020–Present', bullets1: ['Architected multi-region failover serving 99.999% SLA at 50M req/s', 'Reduced EC2 spend $6.8M/yr via spot + savings plan automation', 'Filed 4 patents in distributed consensus and cache invalidation'], co2: 'Cloudflare', role2: 'Staff Engineer', dates2: '2016–2020', bullets2: ['Built edge-caching layer reducing origin hits 78% globally', 'Led team of 11 engineers shipping Workers runtime v2'], skills: ['Go','Rust','Terraform','Kubernetes','Distributed Systems','gRPC'] },
+                            Compact: { initials: 'MG', name: 'Maria Garcia', title: 'VP Marketing · B2B SaaS', contact: 'maria.garcia@company.com · Madrid · linkedin.com/in/mariagarcia', co1: 'HubSpot', role1: 'VP Marketing', dates1: '2021–Present', bullets1: ['Grew MQL pipeline 3.2× to €48M ARR in 24 months', 'Built performance marketing team of 18 from scratch', 'Reduced CAC 31% via account-based marketing programme'], co2: 'Salesforce', role2: 'Senior Marketing Manager', dates2: '2018–2021', bullets2: ['Launched EMEA demand gen — 22K SQLs in year one', 'Managed €4.1M digital budget across 8 paid channels'], skills: ['Demand Gen','ABM','HubSpot','Marketo','SQL','Paid Media'] },
+                          };
+                          const p = PERSONAS[tpl.cat] ?? PERSONAS['Professional'];
+                          const bodyText  = tpl.dark ? 'rgba(255,255,255,0.88)' : '#1f2937';
+                          const bodyMuted = tpl.dark ? 'rgba(255,255,255,0.45)' : '#6b7280';
+                          const bodyBg    = tpl.dark ? tpl.header : '#ffffff';
+
+                          if (tpl.sidebar) {
+                            return (
+                              <div style={{ display: 'flex', height: 180, fontFamily: 'Arial,sans-serif' }}>
+                                {/* Sidebar */}
+                                <div style={{ width: '33%', background: tpl.sidebar, padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, overflow: 'hidden', flexShrink: 0 }}>
+                                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.22)', border: '1px solid rgba(255,255,255,0.35)', margin: '0 auto 3px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 900, color: 'rgba(255,255,255,0.9)', flexShrink: 0 }}>{p.initials}</div>
+                                  <div style={{ fontSize: 5.5, fontWeight: 800, color: 'rgba(255,255,255,0.95)', lineHeight: 1.2, textAlign: 'center', marginBottom: 1 }}>{p.name}</div>
+                                  <div style={{ height: 0.5, background: 'rgba(255,255,255,0.2)', margin: '1px 0' }} />
+                                  <div style={{ fontSize: 4.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: tpl.accent, marginBottom: 2 }}>Skills</div>
+                                  {p.skills.slice(0, 5).map((s, i) => (
+                                    <div key={i} style={{ fontSize: 4.5, color: 'rgba(255,255,255,0.75)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>· {s}</div>
+                                  ))}
+                                  <div style={{ height: 0.5, background: 'rgba(255,255,255,0.2)', margin: '2px 0' }} />
+                                  <div style={{ fontSize: 4.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: tpl.accent, marginBottom: 2 }}>Contact</div>
+                                  {['LinkedIn','GitHub','London, UK'].map((c, i) => (
+                                    <div key={i} style={{ fontSize: 4, color: 'rgba(255,255,255,0.6)', lineHeight: 1.3 }}>{c}</div>
+                                  ))}
+                                </div>
+                                {/* Main */}
+                                <div style={{ flex: 1, padding: '8px 7px', background: bodyBg, overflow: 'hidden' }}>
+                                  <div style={{ fontSize: 8, fontWeight: 900, color: tpl.dark ? '#fff' : '#111', lineHeight: 1.1, marginBottom: 1 }}>{p.name}</div>
+                                  <div style={{ fontSize: 5, color: tpl.accent, fontWeight: 700, marginBottom: 4, lineHeight: 1.2 }}>{p.title}</div>
+                                  <div style={{ fontSize: 4.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: tpl.accent, borderBottom: `0.5px solid ${tpl.accent}`, paddingBottom: 1, marginBottom: 3 }}>Experience</div>
+                                  <div style={{ fontSize: 5, fontWeight: 800, color: bodyText, marginBottom: 0.5 }}>{p.co1} — <span style={{ fontWeight: 600 }}>{p.role1}</span></div>
+                                  <div style={{ fontSize: 4, color: bodyMuted, marginBottom: 2 }}>{p.dates1}</div>
+                                  {p.bullets1.slice(0, 2).map((b, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: 2, marginBottom: 1.5 }}>
+                                      <span style={{ color: tpl.accent, flexShrink: 0, fontSize: 6, lineHeight: '0.9' }}>·</span>
+                                      <span style={{ fontSize: 4.5, lineHeight: 1.4, color: bodyText }}>{b}</span>
+                                    </div>
+                                  ))}
+                                  <div style={{ fontSize: 5, fontWeight: 800, color: bodyText, marginBottom: 0.5, marginTop: 3 }}>{p.co2} — <span style={{ fontWeight: 600 }}>{p.role2}</span></div>
+                                  <div style={{ fontSize: 4, color: bodyMuted, marginBottom: 2 }}>{p.dates2}</div>
+                                  {p.bullets2.slice(0, 2).map((b, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: 2, marginBottom: 1.5 }}>
+                                      <span style={{ color: tpl.accent, flexShrink: 0, fontSize: 6, lineHeight: '0.9' }}>·</span>
+                                      <span style={{ fontSize: 4.5, lineHeight: 1.4, color: bodyText }}>{b}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{ fontFamily: 'Arial,sans-serif' }}>
+                              {/* Header */}
+                              <div style={{ background: tpl.header, padding: '10px 9px 8px', overflow: 'hidden' }}>
+                                <div style={{ fontSize: 10, fontWeight: 900, color: '#fff', letterSpacing: '0.02em', lineHeight: 1.1, marginBottom: 2 }}>{p.name}</div>
+                                <div style={{ fontSize: 5.5, color: 'rgba(255,255,255,0.65)', fontWeight: 600, marginBottom: 4, lineHeight: 1.2 }}>{p.title}</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                  {['London, UK', p.co1, 'linkedin.com'].map((c, i) => (
+                                    <span key={i} style={{ fontSize: 4, color: tpl.accent, fontWeight: 600, background: 'rgba(255,255,255,0.08)', padding: '1px 4px', borderRadius: 2 }}>{c}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              {/* Body */}
+                              <div style={{ padding: '7px 9px', background: bodyBg, minHeight: 108, overflow: 'hidden' }}>
+                                <div style={{ fontSize: 4.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: tpl.accent, borderBottom: `0.5px solid ${tpl.accent}40`, paddingBottom: 1.5, marginBottom: 4 }}>Experience</div>
+                                <div style={{ fontSize: 5.5, fontWeight: 800, color: bodyText, marginBottom: 0.5 }}>{p.co1} · {p.role1}</div>
+                                <div style={{ fontSize: 4, color: bodyMuted, marginBottom: 2.5 }}>{p.dates1}</div>
+                                {p.bullets1.map((b, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: 2, marginBottom: 2 }}>
+                                    <span style={{ color: tpl.accent, flexShrink: 0, fontSize: 6, lineHeight: '0.9', fontWeight: 900 }}>·</span>
+                                    <span style={{ fontSize: 4.5, lineHeight: 1.4, color: bodyText }}>{b}</span>
+                                  </div>
                                 ))}
+                                <div style={{ fontSize: 5, fontWeight: 800, color: bodyText, marginBottom: 0.5, marginTop: 4 }}>{p.co2} · {p.role2}</div>
+                                <div style={{ fontSize: 4, color: bodyMuted, marginBottom: 2 }}>{p.dates2}</div>
+                                {p.bullets2.map((b, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: 2, marginBottom: 2 }}>
+                                    <span style={{ color: tpl.accent, flexShrink: 0, fontSize: 6, lineHeight: '0.9', fontWeight: 900 }}>·</span>
+                                    <span style={{ fontSize: 4.5, lineHeight: 1.4, color: bodyText }}>{b}</span>
+                                  </div>
+                                ))}
+                                <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                                  {p.skills.slice(0, 4).map((s, i) => (
+                                    <span key={i} style={{ fontSize: 4, padding: '1px 4px', background: tpl.accent + '22', border: `0.5px solid ${tpl.accent}55`, borderRadius: 2, color: tpl.dark ? tpl.accent : bodyText, fontWeight: 600 }}>{s}</span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                            {/* Body */}
-                            <div style={{ padding: '10px 10px', background: tpl.dark ? tpl.header : '#fff', display: 'flex', flexDirection: 'column', gap: 4, minHeight: 110 }}>
-                              <div style={{ height: 3, background: tpl.accent, borderRadius: 2, width: '45%', marginBottom: 2 }} />
-                              {[100, 80, 90, 70, 85, 75, 65, 88, 72, 80].map((w, i) => (
-                                <div key={i} style={{ height: 3, borderRadius: 2, background: tpl.dark ? 'rgba(255,255,255,0.2)' : (darkMode ? '#444' : '#e5e7eb'), width: `${w}%` }} />
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
 
                       {/* Card footer */}
