@@ -7,9 +7,13 @@
  *
  * POST /api/cv/purify-cv
  *   Body:     { cv: CVData }
- *   Response: { cv: CVData, changes: string[] }
+ *   Response: { cv: CVData, changes: string[], gate: WorkerGateResult }
  *
  * Falls back gracefully (returns original cv) if the Worker is unreachable.
+ *
+ * The `gate` field contains the Worker's final visible-text quality verdict
+ * (passed, quality_mode, counts, issues). Callers should check
+ * `gate.quality_mode === 'degraded'` to decide whether to trigger a repair pass.
  */
 
 import type { CVData } from '../types';
@@ -35,15 +39,49 @@ function _openCircuit(): void {
     _circuitOpenAt = Date.now();
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface WorkerGateIssue {
+    field:    string;
+    issue:    string;
+    text:     string;
+    severity: 'critical' | 'high' | 'medium';
+}
+
+export interface WorkerGateResult {
+    passed:       boolean;
+    quality_mode: 'full' | 'degraded';
+    counts:       { critical: number; high: number; medium: number };
+    issues:       WorkerGateIssue[];
+}
+
+export interface RemotePurifyResult {
+    cv:          CVData;
+    changes:     string[];
+    gate:        WorkerGateResult | null;
+    fromWorker:  boolean;
+}
+
+// ── Null gate sentinel — used when worker is unreachable ──────────────────────
+const NULL_GATE: WorkerGateResult = {
+    passed:       true,
+    quality_mode: 'full',
+    counts:       { critical: 0, high: 0, medium: 0 },
+    issues:       [],
+};
+
 /**
  * Sends the CV to the Worker's purification endpoint.
  * Runs substitution, tense enforcement, and voice fidelity passes server-side.
- * Returns the cleaned CV (and a list of changes made).
- * On any failure, returns the original CV unchanged so the local pipeline can continue.
+ * Also runs the final visible-text gate (scans all fields for critical issues).
+ *
+ * Returns the cleaned CV, a list of changes made, and the gate verdict.
+ * On any failure, returns the original CV unchanged so the local pipeline
+ * can continue — gate is null when the worker was unreachable.
  */
-export async function remotePrePurify(cv: CVData): Promise<{ cv: CVData; changes: string[]; fromWorker: boolean }> {
+export async function remotePrePurify(cv: CVData): Promise<RemotePurifyResult> {
     if (!ENGINE_URL || !_circuitAlive()) {
-        return { cv, changes: [], fromWorker: false };
+        return { cv, changes: [], gate: null, fromWorker: false };
     }
 
     const ctrl = new AbortController();
@@ -60,20 +98,30 @@ export async function remotePrePurify(cv: CVData): Promise<{ cv: CVData; changes
         if (!res.ok) {
             if (res.status >= 500) _openCircuit();
             console.warn(`[PurifyClient] Worker returned ${res.status} — falling back to local pipeline.`);
-            return { cv, changes: [], fromWorker: false };
+            return { cv, changes: [], gate: null, fromWorker: false };
         }
 
-        const data = await res.json() as { cv?: CVData; changes?: string[] };
+        const data = await res.json() as { cv?: CVData; changes?: string[]; gate?: WorkerGateResult };
         if (!data?.cv) {
             console.warn('[PurifyClient] Unexpected response shape — using original cv.');
-            return { cv, changes: [], fromWorker: false };
+            return { cv, changes: [], gate: null, fromWorker: false };
         }
+
+        const gate: WorkerGateResult = data.gate ?? NULL_GATE;
 
         if (data.changes?.length) {
             console.info(`[PurifyClient] Worker purify: ${data.changes.join(', ')}`);
         }
 
-        return { cv: data.cv, changes: data.changes ?? [], fromWorker: true };
+        if (!gate.passed) {
+            console.warn(
+                `[PurifyClient] Gate FAILED — quality_mode=${gate.quality_mode}, ` +
+                `critical=${gate.counts.critical}, high=${gate.counts.high}, medium=${gate.counts.medium}. ` +
+                `Issues: ${gate.issues.map(i => `${i.field}:${i.issue}`).join(', ')}`,
+            );
+        }
+
+        return { cv: data.cv, changes: data.changes ?? [], gate, fromWorker: true };
 
     } catch (err: unknown) {
         const isAbort = err instanceof Error && err.name === 'AbortError';
@@ -83,7 +131,7 @@ export async function remotePrePurify(cv: CVData): Promise<{ cv: CVData; changes
             _openCircuit();
             console.warn('[PurifyClient] Worker purify failed — continuing with local pipeline.', err);
         }
-        return { cv, changes: [], fromWorker: false };
+        return { cv, changes: [], gate: null, fromWorker: false };
     } finally {
         clearTimeout(timer);
     }

@@ -4905,10 +4905,42 @@ async function runQualityPolishPasses(
     // 6a. Worker pre-purify — server-side IP rules (substitutions, tense, voice).
     //     Runs BEFORE the local purifyCV so the Worker's rules are applied first.
     //     Falls back silently if the Worker is unreachable.
+    //     Also runs the final visible-text gate; if the gate finds critical issues,
+    //     a targeted LLM repair is triggered for the affected sections (summary /
+    //     experience) before the local pipeline continues.
     _dispatchPolishStage('purifying');
     try {
         const pre = await remotePrePurify(out);
         out = pre.cv;
+
+        // ── Gate-triggered repair ────────────────────────────────────────────
+        // The worker gate scans every visible field AFTER all server-side
+        // cleaning passes. Critical findings (jobseeker openers, weak bullet
+        // verbs, AI-ism openers, first-person bullets, placeholder text) are
+        // issues that need rewriting, not just substitution. We route them
+        // through the existing runQualityGate Stage 2 LLM repair.
+        const gate = pre.gate;
+        if (gate && gate.quality_mode === 'degraded' && gate.counts.critical > 0) {
+            try {
+                console.info(
+                    `[Polish/Gate] ${gate.counts.critical} critical issue(s) detected by server gate — ` +
+                    `triggering targeted repair. Issues: ${gate.issues.filter(i => i.severity === 'critical').map(i => i.issue).join(', ')}`,
+                );
+                const gateRepair = await runQualityGate(
+                    String(out.summary ?? ''),
+                    Array.isArray(out.experience) ? out.experience : [],
+                    { repair: true, skills: Array.isArray(out.skills) ? out.skills : [] },
+                );
+                if (gateRepair.repairedSummary) {
+                    out = { ...out, summary: gateRepair.repairedSummary };
+                }
+                if (gateRepair.repairedExperience) {
+                    out = { ...out, experience: gateRepair.repairedExperience };
+                }
+            } catch (repairErr) {
+                console.debug('[Polish/Gate] Targeted repair after server gate failed (non-fatal):', repairErr);
+            }
+        }
     } catch { /* non-fatal — local purifyCV handles the rest */ }
 
     // 6. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).

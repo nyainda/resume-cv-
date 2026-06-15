@@ -1000,6 +1000,38 @@ export interface GateResult {
 // Summary openers that mean "I want a job" instead of "I deliver value"
 const GATE_SUMMARY_OPENERS = /^(seeking\s+(to|for|an?\s)|looking\s+(to|for|for\s+an?\s)|aiming\s+(to|for)|hoping\s+to|eager\s+to\s+(join|work|contribute|learn)|excited\s+to\s+(join|contribute)|in\s+search\s+of|i\s+am\s+(looking|seeking)|driven\s+by\s+a\s+passion)/i;
 
+// Generic/padded skills that add zero ATS value and signal low-quality AI output.
+// Only exact normalised matches — we do NOT substring-match to avoid false positives
+// on real technologies (e.g. "communication protocols" must not flag).
+const GATE_GENERIC_SKILLS = new Set([
+    'communication', 'communication skills', 'good communication',
+    'verbal communication', 'written communication', 'oral communication',
+    'interpersonal skills', 'interpersonal communication',
+    'team player', 'teamwork', 'team work',
+    'ms office', 'microsoft office', 'microsoft word', 'microsoft excel',
+    'microsoft powerpoint', 'microsoft outlook', 'ms word', 'ms excel',
+    'ms powerpoint', 'ms outlook',
+    'hard worker', 'hardworking', 'hard-working',
+    'fast learner', 'quick learner',
+    'self motivated', 'self-motivated', 'highly motivated',
+    'attention to detail', 'detail oriented', 'detail-oriented',
+    'willingness to learn', 'eager to learn',
+    'time management', 'multitasking', 'multi-tasking',
+    'organizational skills', 'organisational skills',
+    'leadership skills',   // vague; leadership + context = fine; standalone = padding
+    'problem solving',     // standalone; "problem-solving for distributed systems" = fine
+    'problem-solving',
+    'critical thinking',
+    'adaptability',
+    'flexibility',
+    'work ethic',
+    'positive attitude',
+]);
+
+// Certification placeholder patterns — model left a template stub instead of
+// a real certification name.
+const GATE_CERT_PLACEHOLDER = /(\[certification(\s+name)?\]|\[cert\b[^\]]*\]|certified\s+in\s+\[|certification\s+in\s+\[|\[year\]|\[20\d{2}\]|\[month\s+year\])/i;
+
 // Bullet openers that signal task-list writing (not achievement writing)
 const GATE_WEAK_BULLET_OPENERS = /^(responsible\s+for|was\s+responsible|tasked\s+with|helped\s+(to\s+)?|assisted\s+(with|in)\s+|worked\s+on\s+|involved\s+in\s+|participated\s+in\s+|duties\s+included|part\s+of\s+(a\s+)?team)/i;
 
@@ -1055,10 +1087,20 @@ export function runFinalVisibleTextGate(cv: any): GateResult {
     if (skills.length > 22) {
         flag('skills', 'skills_list_padded', `${skills.length} skills listed`, 'medium');
     }
+    const genericSkillsFound: string[] = [];
     for (const s of skills) {
-        if (GATE_PLACEHOLDER.test(String(s || ''))) {
-            flag('skills', 'placeholder_text', String(s).slice(0, 60), 'critical');
+        const raw = String(s || '');
+        if (GATE_PLACEHOLDER.test(raw)) {
+            flag('skills', 'placeholder_text', raw.slice(0, 60), 'critical');
         }
+        // Normalise: lowercase + collapse whitespace for exact-set lookup
+        const norm = raw.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (GATE_GENERIC_SKILLS.has(norm)) {
+            genericSkillsFound.push(raw.slice(0, 40));
+        }
+    }
+    if (genericSkillsFound.length > 0) {
+        flag('skills', 'generic_skills', genericSkillsFound.join(', '), 'high');
     }
 
     // ── 3. Experience bullets ─────────────────────────────────────────────────
@@ -1121,6 +1163,25 @@ export function runFinalVisibleTextGate(cv: any): GateResult {
         // (Placeholder detection covers "[GPA]" etc.; this catches freeform invention signals)
         if (/\bGPA\s*:\s*[0-9]/.test(desc) && !/\bgpa\b/i.test(String(cv?.summary || '') + JSON.stringify(cv?.experience || []))) {
             flag(`education[${i}].description`, 'possible_invented_gpa', desc.slice(0, 80), 'medium');
+        }
+
+        // Certification placeholder — model used a template stub instead of a real cert name.
+        const certField = String(edu?.certifications || edu?.certification || '');
+        if (certField && GATE_CERT_PLACEHOLDER.test(certField)) {
+            flag(`education[${i}].certification`, 'cert_placeholder', certField.slice(0, 80), 'critical');
+        }
+    }
+
+    // ── 4b. Certifications array (top-level field used by some templates) ────
+    const certifications: any[] = Array.isArray(cv?.certifications) ? cv.certifications : [];
+    for (let i = 0; i < certifications.length; i++) {
+        const cert = certifications[i];
+        const certName = String(cert?.name || cert?.title || cert || '');
+        if (GATE_CERT_PLACEHOLDER.test(certName)) {
+            flag(`certifications[${i}]`, 'cert_placeholder', certName.slice(0, 80), 'critical');
+        }
+        if (GATE_PLACEHOLDER.test(certName)) {
+            flag(`certifications[${i}]`, 'placeholder_text', certName.slice(0, 80), 'critical');
         }
     }
 
