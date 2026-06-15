@@ -14,6 +14,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { CVData } from '../types';
 import {
     classifyBullets, scanCVForDoctor, rewriteBulletOptions, rewriteAllFlaggedBullets,
+    suggestQuantifiedBullet,
     BulletAnnotation, BulletIssueType, CVDoctorScan, CVDiff, ISSUE_META,
 } from '../services/cvDoctorService';
 import { paraphraseText, ParaphraseTone } from '../services/geminiService';
@@ -47,29 +48,44 @@ const LEGEND: { type: BulletIssueType; label: string }[] = [
 // ─── Sub-component: single colour-coded bullet row ────────────────────────────
 
 const BulletRow: React.FC<{
-    ann:          BulletAnnotation;
-    role:         CVData['experience'][number];
+    ann:             BulletAnnotation;
+    role:            CVData['experience'][number];
+    cv:              CVData;
     jobDescription?: string;
-    onApply:      (text: string) => void;
-}> = ({ ann, role, jobDescription, onApply }) => {
-    const [expanded,  setExpanded]  = useState(false);
-    const [rewrites,  setRewrites]  = useState<string[] | null>(null);
-    const [loading,   setLoading]   = useState(false);
-    const [applied,   setApplied]   = useState<number | null>(null);
+    onApply:         (text: string) => void;
+}> = ({ ann, role, cv, jobDescription, onApply }) => {
+    const [expanded,       setExpanded]       = useState(false);
+    const [rewrites,       setRewrites]       = useState<string[] | null>(null);
+    const [loading,        setLoading]        = useState(false);
+    const [applied,        setApplied]        = useState<number | null>(null);
+    // Quantified suggestion — only fetched for no_metric bullets
+    const [quantified,     setQuantified]     = useState<string | null>(null);
+    const [quantLoading,   setQuantLoading]   = useState(false);
+    const [quantApplied,   setQuantApplied]   = useState(false);
     const meta = ISSUE_META[ann.primaryIssue];
+    const isNoMetric = ann.primaryIssue === 'no_metric' || ann.issues.includes('no_metric');
 
     const fetchRewrites = useCallback(async () => {
         if (rewrites !== null || loading) return;
         setLoading(true);
-        try {
-            const opts = await rewriteBulletOptions(ann.text, role, ann.issues, jobDescription);
-            setRewrites(opts);
-        } catch {
-            setRewrites([]);
-        } finally {
-            setLoading(false);
+
+        const standardFetch = rewriteBulletOptions(ann.text, role, ann.issues, jobDescription)
+            .then(setRewrites)
+            .catch(() => setRewrites([]));
+
+        // Fire quantified suggestion in parallel for no_metric bullets
+        let quantFetch: Promise<void> = Promise.resolve();
+        if (isNoMetric && quantified === null) {
+            setQuantLoading(true);
+            quantFetch = suggestQuantifiedBullet(ann.text, role, cv, jobDescription)
+                .then(setQuantified)
+                .catch(() => setQuantified(null))
+                .finally(() => setQuantLoading(false));
         }
-    }, [ann, role, jobDescription, rewrites, loading]);
+
+        await Promise.allSettled([standardFetch, quantFetch]);
+        setLoading(false);
+    }, [ann, role, cv, jobDescription, rewrites, loading, isNoMetric, quantified]);
 
     const handleExpand = () => {
         setExpanded(e => !e);
@@ -79,6 +95,13 @@ const BulletRow: React.FC<{
     const handleApply = (idx: number, text: string) => {
         setApplied(idx);
         onApply(text);
+        setTimeout(() => setExpanded(false), 600);
+    };
+
+    const handleApplyQuantified = () => {
+        if (!quantified) return;
+        setQuantApplied(true);
+        onApply(quantified);
         setTimeout(() => setExpanded(false), 600);
     };
 
@@ -141,6 +164,56 @@ const BulletRow: React.FC<{
                     ) : rewrites !== null && rewrites.length === 0 ? (
                         <p className="text-[11px] text-red-500">Could not generate rewrites — try again.</p>
                     ) : null}
+
+                    {/* ── Quantified suggestion (no_metric bullets only) ── */}
+                    {isNoMetric && (
+                        <div className="mt-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-2.5 space-y-2">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                    ⚡ With metric
+                                </span>
+                                <span className="text-[9px] text-amber-600 dark:text-amber-500 italic">
+                                    — AI suggestion, verify numbers before using
+                                </span>
+                            </div>
+
+                            {quantLoading ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-block w-3 h-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                                    <span className="text-[11px] text-amber-600 dark:text-amber-400">Generating metric suggestion…</span>
+                                </div>
+                            ) : quantified ? (
+                                <div className="flex items-start gap-2">
+                                    <p className="flex-1 text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed font-medium">
+                                        {quantified}
+                                    </p>
+                                    <button
+                                        onClick={handleApplyQuantified}
+                                        className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded transition-colors ${
+                                            quantApplied
+                                                ? 'bg-green-500 text-white'
+                                                : 'bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700/60'
+                                        }`}
+                                    >
+                                        {quantApplied ? '✓ Applied' : 'Use this'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => {
+                                        setQuantLoading(true);
+                                        suggestQuantifiedBullet(ann.text, role, cv, jobDescription)
+                                            .then(setQuantified)
+                                            .catch(() => setQuantified(null))
+                                            .finally(() => setQuantLoading(false));
+                                    }}
+                                    className="text-[10px] text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 underline"
+                                >
+                                    Generate metric suggestion
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     {ann.primaryIssue !== 'good' && (
                         <button
@@ -356,6 +429,21 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                             {scan && !scanLoading && (
                                 <div className="space-y-5">
+                                    {/* Metric coverage banner */}
+                                    {scan.noMetricCount > 0 && (
+                                        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-3">
+                                            <span className="flex-shrink-0 text-2xl">📊</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                                                    {scan.noMetricCount} bullet{scan.noMetricCount > 1 ? 's' : ''} have no number
+                                                </p>
+                                                <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                                                    Go to the <strong>Bullets</strong> tab and click any amber bullet to get rewrite options — including a suggested metric version.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Quick Wins */}
                                     {scan.quickWins.length > 0 && (
                                         <ScanSection
@@ -382,6 +470,28 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                             colour="red"
                                             items={scan.toRemove}
                                             description="Content that dilutes your story or takes up valuable space."
+                                        />
+                                    )}
+
+                                    {/* Duplicate skills */}
+                                    {scan.duplicateSkills.length > 0 && (
+                                        <ScanSection
+                                            title="Duplicate / Redundant Skills"
+                                            icon="♻"
+                                            colour="amber"
+                                            items={scan.duplicateSkills}
+                                            description="Similar skills listed separately — merge them into one clear term."
+                                        />
+                                    )}
+
+                                    {/* Summary issues */}
+                                    {scan.summaryIssues.length > 0 && (
+                                        <ScanSection
+                                            title="Summary Needs Work"
+                                            icon="✍"
+                                            colour="amber"
+                                            items={scan.summaryIssues}
+                                            description="Your opening summary is the first thing a recruiter reads — make every sentence count."
                                         />
                                     )}
 
@@ -479,6 +589,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                                 key={`${ann.roleIndex}-${ann.bulletIndex}`}
                                                 ann={ann}
                                                 role={role}
+                                                cv={cv}
                                                 jobDescription={jobDescription}
                                                 onApply={text => onApplyBullet(ann.roleIndex, ann.bulletIndex, text)}
                                             />
@@ -642,6 +753,7 @@ const COLOUR_MAP = {
     violet: { bg: 'bg-violet-50 dark:bg-violet-900/20', border: 'border-violet-200 dark:border-violet-800', title: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-400' },
     green:  { bg: 'bg-green-50 dark:bg-green-900/20',   border: 'border-green-200 dark:border-green-800',   title: 'text-green-700 dark:text-green-300',   dot: 'bg-green-400' },
     red:    { bg: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-800',       title: 'text-red-700 dark:text-red-300',       dot: 'bg-red-400' },
+    amber:  { bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-200 dark:border-amber-800',   title: 'text-amber-700 dark:text-amber-300',   dot: 'bg-amber-400' },
 };
 
 const ScanSection: React.FC<{

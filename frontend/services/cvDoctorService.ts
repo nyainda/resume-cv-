@@ -185,9 +185,12 @@ export interface BulletAnnotation {
 }
 
 export interface CVDoctorScan {
-    toAdd:      string[];
-    toRemove:   string[];
-    quickWins:  string[];
+    toAdd:          string[];
+    toRemove:       string[];
+    quickWins:      string[];
+    noMetricCount:  number;     // deterministic count — bullets with no digit
+    duplicateSkills:string[];   // similar/redundant skill pairs detected by AI
+    summaryIssues:  string[];   // specific problems in the summary section
 }
 
 export interface CVDiff {
@@ -277,10 +280,13 @@ export function classifyBullets(cvData: CVData): BulletAnnotation[] {
 // ─── 2. AI scan (add / remove / quick wins) ───────────────────────────────────
 
 export async function scanCVForDoctor(cvData: CVData, jobDescription?: string): Promise<CVDoctorScan> {
-    // ── Gather pipeline context in parallel (non-blocking — both fall back gracefully) ──
-    const [bannedEntries] = await Promise.allSettled([
-        getCachedBannedPhrases(),
-    ]);
+    // ── Deterministic metric coverage (no AI needed) ──────────────────────────
+    const allAnnotations = classifyBullets(cvData);
+    const noMetricCount  = allAnnotations.filter(a => a.issues.includes('no_metric')).length;
+    const totalBullets   = allAnnotations.length;
+
+    // ── Gather pipeline context in parallel ───────────────────────────────────
+    const [bannedEntries] = await Promise.allSettled([getCachedBannedPhrases()]);
     const bannedPhrases = bannedEntries.status === 'fulfilled' && bannedEntries.value
         ? bannedEntries.value.slice(0, 20).map(b => b.phrase).join(', ')
         : 'spearheaded, leveraged, orchestrated, utilized, facilitated, synergized, responsible for, helped to, worked on, passionate about, dynamic, results-driven, detail-oriented, innovative';
@@ -304,44 +310,54 @@ export async function scanCVForDoctor(cvData: CVData, jobDescription?: string): 
         return `${header}:\n${bullets.map(b => `  • ${b}`).join('\n')}`;
     }).join('\n\n');
 
-    const skillList = (cvData.skills || []).slice(0, 20).join(', ');
+    const skillList = (cvData.skills || []).slice(0, 25).join(', ');
+    const summaryText = cvData.summary ? `"${cvData.summary.substring(0, 300)}"` : 'none';
 
-    const prompt = `You are a senior CV consultant doing a diagnostic review. Field detected: ${detectedField}.
+    const prompt = `You are a senior CV consultant doing a diagnostic review. Field: ${detectedField}.
+
+METRIC COVERAGE: ${noMetricCount} of ${totalBullets} bullets have no number — this is the #1 issue to flag.
+
+SUMMARY:
+${summaryText}
 
 CV SNAPSHOT:
 ${bulletSnapshot || 'No experience entries.'}
 
 Skills: ${skillList || 'none'}
 Education: ${cvData.education?.map(e => `${e.degree} ${e.school} ${e.year}`).join('; ') || 'none'}
-Has LinkedIn: ${cvData.personalInfo?.linkedin ? 'yes' : 'no'}
-Has GitHub:   ${cvData.personalInfo?.github   ? 'yes' : 'no'}
 Has projects: ${(cvData.projects || []).length > 0 ? `yes (${cvData.projects!.length})` : 'no'}
 ${jobDescription ? `\nTARGET ROLE:\n${jobDescription.substring(0, 500)}` : ''}
 
-BANNED PHRASES — flag any of these found in the bullets above and list them as things to remove:
+BANNED PHRASES — flag any found in the bullets as things to remove:
 ${bannedPhrases}
 
-CRITICAL RULES for your output:
-- Base every suggestion on the ACTUAL bullet text shown above — do NOT invent new metrics.
-- Do NOT use approximation markers like "~", "+", "-" in your suggestions.
-- Be specific: name the role, bullet, or section you are referring to.
+CRITICAL RULES:
+- Base every suggestion on the ACTUAL text shown above — do NOT invent metrics.
+- Be specific: name the role, bullet, or skill you are referring to.
 - Flag banned phrases found in the CV as concrete "toRemove" items.
+- For duplicateSkills: list PAIRS that are redundant (e.g. "Stakeholder Management / Stakeholder Engagement").
+- For summaryIssues: be specific about what is generic or missing (years of experience, scale, achievement).
 
 Return ONLY this JSON (no markdown, no prose):
 {
-  "toAdd": ["up to 5 specific things MISSING that would strengthen this CV — reference actual roles/bullets, e.g. 'The Site Engineer role has no metric — add team size or project value', 'Add LinkedIn URL to contact header'"],
-  "toRemove": ["up to 4 specific things that WEAKEN or CLUTTER the CV — e.g. 'Replace \\"leveraged\\" in the first bullet of Role X with a direct verb', 'Cut the References section — wastes space'"],
-  "quickWins": ["up to 4 one-sentence improvements with IMMEDIATE impact — reference specific bullets, e.g. 'The bullet starting \\"Managed projects…\\" in Role Y is missing a scope anchor — add team size or region'"]
+  "toAdd": ["up to 5 specific things MISSING — e.g. 'The Site Engineer role has no metric — add team size or project budget', 'Add LinkedIn URL'"],
+  "toRemove": ["up to 4 things that WEAKEN the CV — e.g. 'Replace \\"leveraged\\" in bullet 1 of Role X', 'Cut the References section'"],
+  "quickWins": ["up to 4 one-sentence improvements — e.g. 'Add team size or region to \\"Managed projects…\\" in Role Y'"],
+  "duplicateSkills": ["up to 4 redundant skill pairs — e.g. 'Stakeholder Management / Stakeholder Engagement', 'MS Excel / Microsoft Excel'"],
+  "summaryIssues": ["up to 3 specific problems — e.g. 'No metric or scale (add years of experience or budget managed)', 'Generic opener — lead with your strongest achievement'"]
 }`;
 
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1600 });
-    const parsed = safeParseJson(text, ['toAdd', 'toRemove', 'quickWins']) as Record<string, unknown>;
-    const clean = (arr: unknown): string[] =>
-        Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, 5) : [];
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1800 });
+    const parsed = safeParseJson(text, ['toAdd', 'toRemove', 'quickWins', 'duplicateSkills', 'summaryIssues']) as Record<string, unknown>;
+    const clean = (arr: unknown, max = 5): string[] =>
+        Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, max) : [];
     return {
-        toAdd:     clean(parsed.toAdd),
-        toRemove:  clean(parsed.toRemove),
-        quickWins: clean(parsed.quickWins),
+        toAdd:          clean(parsed.toAdd),
+        toRemove:       clean(parsed.toRemove),
+        quickWins:      clean(parsed.quickWins),
+        noMetricCount,
+        duplicateSkills:clean(parsed.duplicateSkills, 4),
+        summaryIssues:  clean(parsed.summaryIssues, 3),
     };
 }
 
@@ -400,6 +416,86 @@ Return ONLY a JSON array of exactly 3 strings:
     const arr = safeParseJson(text);
     if (!Array.isArray(arr)) return [];
     return arr.filter((s: unknown): s is string => typeof s === 'string').slice(0, 3);
+}
+
+// ─── 3b. Suggest a quantified version for a metric-less bullet ────────────────
+/**
+ * For bullets flagged as `no_metric`, generates ONE additional rewrite that
+ * includes a plausible, role-calibrated metric.  Numbers are anchored to
+ * existing figures in the same role when available; otherwise scope language
+ * is used ("across 3 departments", "for 50+ stakeholders").
+ *
+ * The caller MUST show a "verify numbers before using" disclaimer alongside
+ * this suggestion — it is intentionally separate from the 3 standard
+ * scope-reframing rewrites returned by rewriteBulletOptions().
+ */
+export async function suggestQuantifiedBullet(
+    bullet: string,
+    role: { jobTitle: string; company: string; endDate?: string },
+    cvData: CVData,
+    jobDescription?: string,
+): Promise<string> {
+    // Gather number anchors from other bullets in the same role
+    const roleEntry = cvData.experience.find(
+        e => e.jobTitle === role.jobTitle && e.company === role.company,
+    );
+    const anchorBullets = (roleEntry?.responsibilities ?? [])
+        .filter(b => b.trim() !== bullet.trim() && /\d/.test(b))
+        .slice(0, 3);
+
+    const bannedEntries = await getCachedBannedPhrases().catch(() => null);
+    const bannedList = bannedEntries && bannedEntries.length > 0
+        ? bannedEntries.slice(0, 20).map(b => b.phrase).join(', ')
+        : 'spearheaded, leveraged, orchestrated, utilized, facilitated, synergized, responsible for, helped to, worked on';
+
+    const syntheticProfile = {
+        workExperience: cvData.experience.map(e => ({
+            jobTitle: e.jobTitle ?? '',
+            company:  e.company  ?? '',
+            responsibilities: (e.responsibilities ?? []).join(' '),
+        })),
+        skills: cvData.skills ?? [],
+    } as any;
+    const field = detectField(jobDescription, syntheticProfile);
+    const isCurrentRole = !role.endDate || /^(present|current|now|today)$/i.test(role.endDate.trim());
+    const tense = isCurrentRole ? 'present-tense bare imperative (e.g. "Manage", "Lead")' : 'past tense (e.g. "Managed", "Led")';
+
+    const anchorBlock = anchorBullets.length > 0
+        ? `\nNUMBER ANCHORS — other bullets in this role that already have figures (calibrate scale from these):\n${anchorBullets.map(b => `  • ${b}`).join('\n')}`
+        : '';
+
+    const prompt = `You are a CV coach adding a plausible, seniority-calibrated metric to a bullet point.
+
+ROLE: ${role.jobTitle} at ${role.company}
+FIELD: ${field}
+TENSE: ${tense}${anchorBlock}
+${jobDescription ? `\nJOB CONTEXT: ${jobDescription.substring(0, 300)}` : ''}
+
+BULLET WITH NO METRIC:
+"${bullet}"
+
+YOUR TASK: Write ONE improved version of this bullet that adds a specific, believable metric.
+
+METRIC GUIDANCE (use the most relevant type):
+- If anchor bullets show numbers, calibrate to the same scale
+- Team/client/vendor counts: junior 2–10, manager 5–20, senior/director 20+
+- Budget scale: junior <$500K, manager $500K–$5M, director/VP $5M+
+- % improvements: conservative (15–30%) are more believable than round numbers
+- If nothing specific is inferable, use scope language: "across 3 departments", "for 50+ stakeholders", "covering 8 workstreams", "in 4 countries"
+
+STRICT RULES:
+- Keep the core achievement from the original bullet unchanged
+- Do NOT use "~", "approx.", "up to", or any hedging marker before a number
+- Metric must be plausible — never claim a junior analyst "saved $50M"
+- BANNED phrases — never use: ${bannedList}
+- Return ONLY the single rewritten bullet — no quotes, no preamble, no commentary`;
+
+    const raw = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.5, maxTokens: 130 });
+    return raw.trim()
+        .replace(/^```[\s\S]*?```/g, '')
+        .replace(/^["•\-*·»]\s*/, '')
+        .replace(/^["']|["']$/g, '')
+        .trim();
 }
 
 // ─── 4. Batch rewrite all flagged bullets ─────────────────────────────────────
