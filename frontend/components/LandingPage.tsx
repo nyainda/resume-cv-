@@ -642,6 +642,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   // ── Quick bullet checker state ─────────────────────────────────────────
   const [qbText, setQbText] = useState('Helped with various process improvements across teams to drive organizational efficiency and stakeholder engagement.');
 
+  // ── Template gallery filter ─────────────────────────────────────────────
+  const [activeTplCat, setActiveTplCat] = useState<string>('All');
+
   // Fetch CF banned phrases once on mount for live scoring
   useEffect(() => {
     fetchCFBannedPhrases().then(p => setSmCfPhrases(p)).catch(() => {});
@@ -1840,6 +1843,221 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           </div>
         </div>
       </section>
+
+      {/* ── Template Gallery ──────────────────────────────────────────── */}
+      {(() => {
+        const TPL_CATS = ['All', 'Professional', 'Modern', 'Creative', 'Academic', 'Technical', 'Compact'];
+
+        interface TplDef {
+          id: string; name: string; cat: string;
+          ats: 'high' | 'medium' | 'low';
+          header: string; accent: string;
+          sidebar?: string; dark?: boolean; badge?: string;
+        }
+
+        const TPLS: TplDef[] = [
+          // Professional
+          { id: 'standard-pro',     name: 'Standard Pro',      cat: 'Professional', ats: 'high',   header: '#1a1a1a', accent: '#2563eb', badge: '🎯 ATS King' },
+          { id: 'professional',     name: 'Professional',      cat: 'Professional', ats: 'high',   header: '#1B2B4B', accent: '#C9A84C', badge: '⭐ Most Popular' },
+          { id: 'executive',        name: 'Executive',         cat: 'Professional', ats: 'high',   header: '#0f172a', accent: '#b8860b' },
+          { id: 'corporate',        name: 'Corporate',         cat: 'Professional', ats: 'medium', header: '#1e3a5f', accent: '#4a90d9' },
+          { id: 'elegant',          name: 'Elegant',           cat: 'Professional', ats: 'medium', header: '#2d1b4e', accent: '#9b59b6' },
+          { id: 'ats-clean-pro',    name: 'ATS Clean Pro',     cat: 'Professional', ats: 'high',   header: '#065f46', accent: '#10b981' },
+          { id: 'london-finance',   name: 'London Finance',    cat: 'Professional', ats: 'medium', header: '#1e3a5f', accent: '#c0a040' },
+          { id: 'prestige',         name: 'Prestige',          cat: 'Professional', ats: 'medium', header: '#1B2B4B', accent: '#C9A84C', badge: '👑 Premium' },
+          // Modern
+          { id: 'modern',           name: 'Modern',            cat: 'Modern',       ats: 'medium', header: '#0f172a', accent: '#3b82f6', badge: '🔥 Trending' },
+          { id: 'silicon-valley',   name: 'Silicon Valley',    cat: 'Modern',       ats: 'medium', header: '#065f46', accent: '#34d399' },
+          { id: 'tokyo-night',      name: 'Tokyo Night',       cat: 'Modern',       ats: 'low',    header: '#0f0f1a', accent: '#7c3aed', dark: true },
+          { id: 'paris-vibe',       name: 'Paris Vibe',        cat: 'Modern',       ats: 'low',    header: '#831843', accent: '#ec4899' },
+          { id: 'twoColumnBlue',    name: 'Two Column',        cat: 'Modern',       ats: 'medium', header: '#1d4ed8', accent: '#60a5fa', sidebar: '#1d4ed8' },
+          { id: 'modern-tech',      name: 'Modern Tech',       cat: 'Modern',       ats: 'medium', header: '#111827', accent: '#6366f1', sidebar: '#111827' },
+          // Creative
+          { id: 'creative',         name: 'Creative',          cat: 'Creative',     ats: 'low',    header: '#be123c', accent: '#fb7185' },
+          { id: 'infographic',      name: 'Infographic',       cat: 'Creative',     ats: 'low',    header: '#7c3aed', accent: '#a78bfa' },
+          { id: 'sydney-creative',  name: 'Sydney Creative',   cat: 'Creative',     ats: 'low',    header: '#ea580c', accent: '#fb923c' },
+          { id: 'berlin-design',    name: 'Berlin Design',     cat: 'Creative',     ats: 'low',    header: '#18181b', accent: '#e11d48' },
+          // Academic
+          { id: 'harvard-gold',     name: 'Harvard Gold',      cat: 'Academic',     ats: 'medium', header: '#7c1d1d', accent: '#b91c1c' },
+          { id: 'scholarship-pro',  name: 'Scholarship Pro',   cat: 'Academic',     ats: 'medium', header: '#1e40af', accent: '#3b82f6' },
+          { id: 'classic',          name: 'Classic',           cat: 'Academic',     ats: 'high',   header: '#1a1a1a', accent: '#525252' },
+          { id: 'medical-standard', name: 'Medical Standard',  cat: 'Academic',     ats: 'medium', header: '#0e7490', accent: '#22d3ee' },
+          // Technical
+          { id: 'swe-elite',        name: 'SWE Elite',         cat: 'Technical',    ats: 'medium', header: '#0c0c0c', accent: '#22d3ee', dark: true },
+          { id: 'software-engineer',name: 'Tech',              cat: 'Technical',    ats: 'medium', header: '#1e3a5f', accent: '#38bdf8', badge: '💻 Best for Tech' },
+          { id: 'technical',        name: 'Technical',         cat: 'Technical',    ats: 'medium', header: '#1c1c1e', accent: '#32d74b', dark: true },
+          { id: 'timeline',         name: 'Timeline',          cat: 'Technical',    ats: 'medium', header: '#0f172a', accent: '#0ea5e9' },
+          // Compact
+          { id: 'compact-slate',    name: 'Compact Slate',     cat: 'Compact',      ats: 'medium', header: '#334155', accent: '#94a3b8', sidebar: '#334155', badge: '📄 One-Page' },
+          { id: 'compact-sage',     name: 'Compact Sage',      cat: 'Compact',      ats: 'medium', header: '#3d6b52', accent: '#6ee7b7', sidebar: '#3d6b52' },
+          { id: 'compact-charcoal', name: 'Compact Charcoal',  cat: 'Compact',      ats: 'medium', header: '#1c1c1c', accent: '#C9A84C', sidebar: '#1c1c1c' },
+          { id: 'navy-sidebar',     name: 'Navy Sidebar',      cat: 'Compact',      ats: 'medium', header: '#1e3a5f', accent: '#60a5fa', sidebar: '#1e3a5f', badge: '🏛️ Bold & Sharp' },
+          { id: 'minimalist',       name: 'Minimalist',        cat: 'Compact',      ats: 'high',   header: '#18181b', accent: '#71717a', badge: '✨ Clean & Safe' },
+        ];
+
+        const visible = activeTplCat === 'All'
+          ? TPLS.filter(t => t.badge)   // featured only in "All" view
+          : TPLS.filter(t => t.cat === activeTplCat);
+
+        const atsChip = (ats: 'high' | 'medium' | 'low') =>
+          ats === 'high'   ? { label: 'ATS Safe',     bg: '#dcfce7', color: '#15803d' } :
+          ats === 'medium' ? { label: 'ATS Friendly', bg: '#fef9c3', color: '#854d0e' } :
+                             { label: 'Design Only',  bg: '#fee2e2', color: '#991b1b' };
+
+        return (
+          <section
+            id="tpl"
+            ref={reg('tpl')} data-s="tpl"
+            style={{
+              padding: isMobile ? '48px 16px' : '80px 24px',
+              borderTop: `1px solid ${border}`,
+              opacity: v('tpl') ? 1 : 0, transform: v('tpl') ? 'none' : 'translateY(20px)',
+              transition: 'opacity 0.5s, transform 0.5s',
+            }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+
+              {/* Header */}
+              <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 40px' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 16 }}>
+                  35+ Templates
+                </div>
+                <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 12px', lineHeight: 1.1, color: text }}>
+                  A design for every<br /><span style={{ color: '#C9A84C' }}>role and industry.</span>
+                </h2>
+                <p style={{ fontSize: 14, color: muted, lineHeight: 1.65, margin: 0 }}>
+                  Every template renders as a pixel-perfect PDF. Switch templates at any time — your data stays.
+                </p>
+              </div>
+
+              {/* Category filter */}
+              <div style={{ overflowX: 'auto', marginBottom: 32, paddingBottom: 4 }}>
+                <div style={{ display: 'flex', gap: 6, minWidth: 'max-content', justifyContent: isMobile ? 'flex-start' : 'center' }}>
+                  {TPL_CATS.map(cat => (
+                    <button key={cat} onClick={() => setActiveTplCat(cat)} style={{
+                      padding: '8px 18px', borderRadius: 99, cursor: 'pointer',
+                      border: `1.5px solid ${activeTplCat === cat ? '#1B2B4B' : border}`,
+                      background: activeTplCat === cat ? '#1B2B4B' : surface,
+                      color: activeTplCat === cat ? '#fff' : muted,
+                      fontSize: 13, fontWeight: activeTplCat === cat ? 800 : 600,
+                      transition: 'all 0.18s', flexShrink: 0,
+                    }}>
+                      {cat}{cat !== 'All' ? ` (${TPLS.filter(t => t.cat === cat).length})` : ` (${TPLS.filter(t => t.badge).length} featured)`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Template grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(155px, 1fr))',
+                gap: 14,
+              }}>
+                {visible.map(tpl => {
+                  const chip = atsChip(tpl.ats);
+                  return (
+                    <div key={tpl.id}
+                      onClick={onGetStarted}
+                      style={{ cursor: 'pointer', position: 'relative' }}
+                      title={`Use ${tpl.name} template`}>
+                      {/* Mini CV mockup */}
+                      <div style={{
+                        borderRadius: 10, overflow: 'hidden',
+                        border: `1.5px solid ${border}`,
+                        background: tpl.dark ? tpl.header : '#ffffff',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+                      }}
+                      onMouseEnter={e => {
+                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)';
+                        (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 32px rgba(0,0,0,0.15)`;
+                        (e.currentTarget as HTMLDivElement).style.borderColor = '#C9A84C';
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+                        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)';
+                        (e.currentTarget as HTMLDivElement).style.borderColor = border;
+                      }}>
+                        {tpl.sidebar ? (
+                          /* Sidebar layout */
+                          <div style={{ display: 'flex', height: 180 }}>
+                            <div style={{ width: '32%', background: tpl.sidebar, padding: '10px 6px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', margin: '0 auto 4px' }} />
+                              {[100, 70, 85, 60, 90, 75].map((w, i) => (
+                                <div key={i} style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.3)', width: `${w}%` }} />
+                              ))}
+                              <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '3px 0' }} />
+                              {[80, 65, 90].map((w, i) => (
+                                <div key={i} style={{ height: 3, borderRadius: 2, background: tpl.accent + 'cc', width: `${w}%` }} />
+                              ))}
+                            </div>
+                            <div style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              <div style={{ height: 5, background: tpl.accent + '55', borderRadius: 2, width: '90%', marginBottom: 2 }} />
+                              <div style={{ height: 3, background: darkMode ? '#555' : '#d1d5db', borderRadius: 2, width: '70%', marginBottom: 4 }} />
+                              <div style={{ height: 1, background: tpl.accent, marginBottom: 4 }} />
+                              {[100, 85, 70, 90, 75, 80, 65, 88, 72].map((w, i) => (
+                                <div key={i} style={{ height: 3, borderRadius: 2, background: darkMode ? '#444' : '#e5e7eb', width: `${w}%` }} />
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          /* Standard layout */
+                          <div>
+                            {/* Header band */}
+                            <div style={{ background: tpl.header, padding: '12px 10px 10px' }}>
+                              <div style={{ height: 5, background: 'rgba(255,255,255,0.85)', borderRadius: 2, width: '80%', marginBottom: 5 }} />
+                              <div style={{ height: 3, background: 'rgba(255,255,255,0.45)', borderRadius: 2, width: '55%', marginBottom: 8 }} />
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                {[1, 2, 3].map(i => (
+                                  <div key={i} style={{ height: 3, background: tpl.accent + 'cc', borderRadius: 2, flex: 1 }} />
+                                ))}
+                              </div>
+                            </div>
+                            {/* Body */}
+                            <div style={{ padding: '10px 10px', background: tpl.dark ? tpl.header : '#fff', display: 'flex', flexDirection: 'column', gap: 4, minHeight: 110 }}>
+                              <div style={{ height: 3, background: tpl.accent, borderRadius: 2, width: '45%', marginBottom: 2 }} />
+                              {[100, 80, 90, 70, 85, 75, 65, 88, 72, 80].map((w, i) => (
+                                <div key={i} style={{ height: 3, borderRadius: 2, background: tpl.dark ? 'rgba(255,255,255,0.2)' : (darkMode ? '#444' : '#e5e7eb'), width: `${w}%` }} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card footer */}
+                      <div style={{ marginTop: 8, paddingLeft: 2 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: text, lineHeight: 1.2 }}>{tpl.name}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: chip.bg, color: chip.color, flexShrink: 0 }}>
+                            {chip.label}
+                          </span>
+                        </div>
+                        {tpl.badge && (
+                          <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 700, marginTop: 2 }}>{tpl.badge}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom CTA */}
+              <div style={{ textAlign: 'center', marginTop: 40 }}>
+                <button onClick={onGetStarted} style={{
+                  padding: '12px 32px', fontSize: 14, fontWeight: 800, borderRadius: 12,
+                  background: '#1B2B4B', border: 'none', cursor: 'pointer', color: '#fff',
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                }}>
+                  Browse all 35+ templates in the builder
+                  <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                </button>
+                <p style={{ fontSize: 12, color: faint, marginTop: 10 }}>Switch templates at any time — your CV data follows.</p>
+              </div>
+
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ── Pricing ───────────────────────────────────────────────────── */}
       <section
