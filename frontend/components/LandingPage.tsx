@@ -610,10 +610,10 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
 
   // ── Counter animation for Engine stats ────────────────────────────────
   const STATS = [
-    { target: 98, suffix: '%', label: 'ATS-pass rate' },
-    { target: 100, suffix: '%', label: 'fact-accurate' },
+    { target: 98, suffix: '%', label: 'ATS keyword coverage' },
+    { target: 7, suffix: '-pass', label: 'quality pipeline' },
     { target: 35, suffix: '+', label: 'templates' },
-    { target: 3, suffix: '×', label: 'more interviews' },
+    { target: 0, suffix: '', label: 'AI buzzwords allowed' },
   ];
   const [statVals, setStatVals] = useState(STATS.map(() => 0));
   const statsFired = useRef(false);
@@ -943,7 +943,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 style={{ padding: '13px 28px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.35)' }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(235,255,56,0.5)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.35)'; }}>
-                {hasProfile ? 'Open Suite' : 'Build My Profile – It\'s Free'}
+                {hasProfile ? 'Open Suite' : 'Improve My CV – It\'s Free'}
                 <svg width={15} height={15} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
               </button>
               <button
@@ -953,21 +953,17 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               </button>
             </div>
 
-            {/* Social proof */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ display: 'flex' }}>
-                {['#C40000','#FF9900','#1565C0','#0f9d58','#6d28d9'].map((c, i) => (
-                  <div key={i} style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: `2px solid ${surface}`, marginLeft: i > 0 ? -8 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: '#fff' }}>
-                    {['JO','KA','EK','ML','SR'][i]}
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ display: 'flex', gap: 1 }}>
-                  {[...Array(5)].map((_, i) => <svg key={i} width={12} height={12} viewBox="0 0 12 12" fill="#f59e0b"><path d="M6 1l1.5 3 3.2.5-2.35 2.25.55 3.2L6 8.5l-2.9 1.45.55-3.2L1.3 4.5l3.2-.5z"/></svg>)}
-                </div>
-                <span style={{ fontSize: 12, color: muted }}>4.9/5 from 2,000+ professionals</span>
-              </div>
+            {/* Trust line */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { icon: '🔒', text: 'No signup required' },
+                { icon: '💾', text: 'Data stays in your browser' },
+                { icon: '🆓', text: 'Free to build' },
+              ].map(({ icon, text }) => (
+                <span key={text} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: muted, background: elevated, border: `1px solid ${border}`, borderRadius: 20, padding: '4px 10px' }}>
+                  <span>{icon}</span>{text}
+                </span>
+              ))}
             </div>
           </div>
 
