@@ -24,6 +24,14 @@ jobs:
     name: App — guards, tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    env:
+      # Prevent Playwright from downloading Chromium during npm ci.
+      # Production PDF generation uses the Cloudflare resume-pdf-worker;
+      # the local Playwright binary is only used in the Replit dev environment
+      # where the system Chromium is already present.
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -35,20 +43,23 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: npm ci
 
+      # Scrub any lingering Replit-internal package-firewall URLs from the
+      # lockfile so future npm operations use the public registry.
+      - name: Scrub Replit proxy URLs from lockfile
+        run: node backend/scripts/scrub-lockfile.mjs --check
+
       # HARD GATE 1 — package version guard.
       # Fails the build if any of the protected packages have been
-      # downgraded below the known-working minimum versions. This prevents
-      # the kind of silent regression that broke the PDF worker (someone
-      # pinning back to @cloudflare/puppeteer 0.0.5).
+      # downgraded below the known-working minimum versions.
       - name: Package version guard
-        run: node scripts/guard-package-versions.mjs
+        run: node backend/scripts/guard-package-versions.mjs
 
       # HARD GATE 2 — banned-phrase filter golden test.
       # Locks in the grammar-preserving behaviour of applyBannedPhraseFilter
       # so a future "simplification" can't reintroduce broken sentences
       # like "I payment systems" or "an change".
       - name: Banned-phrase filter golden test
-        run: node scripts/test-banned-phrase-filter.mjs
+        run: node backend/scripts/test-banned-phrase-filter.mjs
 
       # HARD GATE 2b — purification pipeline regression test.
       # Locks in the four April 2026 bug fixes:
@@ -58,7 +69,7 @@ jobs:
       #   • mid-bullet tense flips ("Develops and implemented" → "and implements")
       # Mirrors logic from services/cvPurificationPipeline.ts — keep in sync.
       - name: Purification pipeline bug-fix test
-        run: node scripts/test-bug-fixes.mjs
+        run: node backend/scripts/test-bug-fixes.mjs
 
       # SOFT GATE — typecheck only the files we control day-to-day.
       # The full project has a few pre-existing strict-mode warnings
@@ -69,8 +80,8 @@ jobs:
         continue-on-error: true
 
       # HARD GATE 3 — production build must succeed.
-      # If `npm run build` breaks, the deploy will fail too — better to
-      # catch it here than after a Vercel push.
+      # If `npm run build` breaks, the Vercel deploy will fail too — better to
+      # catch it here than after a push.
       - name: Production build
         run: npm run build
 
@@ -82,6 +93,10 @@ jobs:
     name: Worker — guards, typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -90,14 +105,14 @@ jobs:
           node-version: '20'
 
       - name: Install worker dependencies
-        working-directory: ./resume-pdf-worker
+        working-directory: ./backend/resume-pdf-worker
         run: npm install
 
       # HARD GATE — protect against the @cloudflare/puppeteer downgrade
       # that originally broke production. Minimum version 1.0.0.
       - name: Worker package version guard
-        run: node scripts/guard-package-versions.mjs --worker
+        run: node backend/scripts/guard-package-versions.mjs --worker
 
       - name: Worker TypeScript check
-        working-directory: ./resume-pdf-worker
+        working-directory: ./backend/resume-pdf-worker
         run: npx tsc --noEmit

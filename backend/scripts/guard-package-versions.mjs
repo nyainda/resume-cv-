@@ -21,7 +21,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, '..');
+// __dirname is backend/scripts/ — go up two levels to reach the repo root.
+const REPO_ROOT = resolve(__dirname, '../..');
 
 const args = new Set(process.argv.slice(2));
 const isWorker = args.has('--worker');
@@ -96,7 +97,7 @@ function loadPkg(path) {
 // ─── Main ───────────────────────────────────────────────────────────────
 
 const targetPath = isWorker
-  ? resolve(REPO_ROOT, 'resume-pdf-worker/package.json')
+  ? resolve(REPO_ROOT, 'backend/resume-pdf-worker/package.json')
   : resolve(REPO_ROOT, 'package.json');
 
 const targetLabel = isWorker ? 'resume-pdf-worker' : 'main app';
