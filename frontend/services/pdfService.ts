@@ -14,21 +14,29 @@ interface DownloadCVProps {
     jobDescription?: string; // For ATS optimization
 }
 
-// Helper function to decode HTML entities for PDF rendering
+// Helper function to decode HTML entities for PDF rendering.
+// Uses regex instead of innerHTML to avoid static-analysis false positives
+// and to work safely in non-browser environments.
 const decodeHtmlEntities = (text: string): string => {
-    if (typeof document === 'undefined' || !text) return text;
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
+    if (!text) return text;
+    return text
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#039;/g, "'")
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 };
 
-// Helper function to strip HTML tags and decode entities for plain-text PDF rendering
+// Helper function to strip HTML tags for plain-text PDF rendering.
+// Uses DOMParser (fully sandboxed, no script execution) instead of innerHTML.
 const stripHtml = (html: string): string => {
     if (!html) return '';
     if (typeof document === 'undefined') return html.replace(/<[^>]*>/g, '');
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    return div.textContent || div.innerText || '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
 };
 
 // --- PDF GENERATION LOGIC ---

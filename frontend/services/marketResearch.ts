@@ -391,7 +391,7 @@ export async function conductMarketResearch(
         const cacheKey = await buildMRCacheKey(scenario, role, industry, jobDescription);
         const cached = await checkMRCache(cacheKey);
         if (cached) {
-            console.info(`[MarketResearch] D1 cache hit — Scenario ${scenario}, role "${role}" (skipped AI call)`);
+            if (import.meta.env.DEV) console.info(`[MarketResearch] D1 cache hit — Scenario ${scenario}, role "${role}" (skipped AI call)`);
             return cached;
         }
         // Cache miss — run AI call then store result in the background.

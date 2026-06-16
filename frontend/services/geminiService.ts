@@ -3556,7 +3556,7 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
                         maxTokens: 1200,
                         timeoutMs: 30000,
                     });
-                    if (raw) console.log(`[CV Engine] Voice fix via Workers AI — ${role.jobTitle}.`);
+                    if (raw && import.meta.env.DEV) console.log(`[CV Engine] Voice fix via Workers AI — ${role.jobTitle}.`);
                 } catch (cfErr) {
                     console.warn('[CV Engine] Workers AI voice fix failed, falling back to selected provider:', cfErr);
                 }
@@ -3575,7 +3575,7 @@ Rules: keep the original meaning and any real metrics, fix the listed issues, do
             role.responsibilities = bullets;
             return { fixed, ran: true };
         } catch (e) {
-            console.warn(`[CV Engine] Voice fix failed for role ${role.jobTitle}:`, e);
+            if (import.meta.env.DEV) console.warn(`[CV Engine] Voice fix failed for role ${role.jobTitle}:`, e);
             return { fixed: 0, ran: false };
         }
     };
@@ -4857,7 +4857,7 @@ async function runQualityPolishPasses(
         const current = role.responsibilities || [];
         if (current.length === desired) return role;
         if (current.length > desired) {
-            console.warn(`[Polish BulletCount] Trimmed "${role.jobTitle} @ ${role.company}" from ${current.length} → ${desired} bullets.`);
+            if (import.meta.env.DEV) console.warn(`[Polish BulletCount] Trimmed "${role.jobTitle} @ ${role.company}" from ${current.length} → ${desired} bullets.`);
             return { ...role, responsibilities: current.slice(0, desired) };
         }
         // Pad from source bullets — never invent text.
@@ -4869,7 +4869,7 @@ async function runQualityPolishPasses(
             }
         }
         if (padded.length !== current.length) {
-            console.warn(`[Polish BulletCount] Padded "${role.jobTitle} @ ${role.company}" from ${current.length} → ${padded.length} bullets.`);
+            if (import.meta.env.DEV) console.warn(`[Polish BulletCount] Padded "${role.jobTitle} @ ${role.company}" from ${current.length} → ${padded.length} bullets.`);
         }
         return { ...role, responsibilities: padded };
     });

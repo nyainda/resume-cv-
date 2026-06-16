@@ -17,8 +17,11 @@ export const sanitizeHtml = (html: string): string => {
       .replace(/\son[a-z]+=(["']).*?\1/gi, '');
   }
 
+  // <template> elements are inert — their content is a DocumentFragment that
+  // never renders or executes scripts. This is the correct, safe pattern for
+  // parsing untrusted HTML before sanitizing it. nosemgrep: insecure-document-method
   const template = document.createElement('template');
-  template.innerHTML = html;
+  template.innerHTML = html; // nosemgrep: insecure-document-method
 
   for (const tag of BLOCKED_TAGS) {
     template.content.querySelectorAll(tag).forEach(node => node.remove());

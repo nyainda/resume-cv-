@@ -2384,7 +2384,7 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         const label = `experience[${ri}](${role.jobTitle ?? '?'} @ ${role.company ?? '?'})`;
         const result = dedupBulletsInRole(role.responsibilities || [], label);
         if (result.removed.length > 0) {
-            console.warn(`[Purify] Semantic dedup removed ${result.removed.length} bullet(s) from ${label}`);
+            if (import.meta.env.DEV) console.warn(`[Purify] Semantic dedup removed ${result.removed.length} bullet(s) from ${label}`);
             for (const r of result.removed) {
                 leaks.push({
                     leakType: 'duplicate_bullet',
@@ -2735,7 +2735,7 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         const withNum = bullets.filter(b => /\d/.test(b)).length;
         if (withNum === 0) {
             const roleLabel = `${e.jobTitle || '?'} @ ${e.company || '?'}`;
-            console.warn(`[Purify] Role "${roleLabel}" has 0 quantified bullets.`);
+            if (import.meta.env.DEV) console.warn(`[Purify] Role "${roleLabel}" has 0 quantified bullets.`);
             leaks.push({
                 leakType: 'low_quantification_role',
                 phrase: `${roleLabel}: 0 of ${bullets.length} bullets have a number`,
@@ -3062,7 +3062,7 @@ export function enforceOpenerDiversity(cv: CVData): CVData {
         });
 
         if (fixed > 0) {
-            console.info(`[OpenerDiversity] Restructured ${fixed}/${MAX_RESHAPES} bullet(s) in "${role.jobTitle} @ ${role.company}"`);
+            if (import.meta.env.DEV) console.info(`[OpenerDiversity] Restructured ${fixed}/${MAX_RESHAPES} bullet(s) in "${role.jobTitle} @ ${role.company}"`);
         }
         return { ...role, responsibilities: newBullets };
     });
@@ -3162,7 +3162,7 @@ export function enforcePerRoleVariance(
         // Role is too similar — apply deterministic opener restructuring on this
         // role only, then run the word-synonym sweep.
         const label = `${role.jobTitle} @ ${role.company}`;
-        console.info(`[RoleVariance] ${label}: Jaccard ${sim.toFixed(2)} ≥ ${PER_ROLE_SIMILARITY_CAP} — reshuffling openers`);
+        if (import.meta.env.DEV) console.info(`[RoleVariance] ${label}: Jaccard ${sim.toFixed(2)} ≥ ${PER_ROLE_SIMILARITY_CAP} — reshuffling openers`);
 
         // Wrap single role in a minimal CVData-shaped object so we can reuse
         // enforceOpenerDiversity, then unwrap.
