@@ -1,12 +1,11 @@
 // components/DriveConflictModal.tsx
 //
-// Shown automatically whenever DriveStorageService detects that the remote
-// file was modified since we last loaded it (optimistic locking conflict).
+// Shown whenever DriveStorageService detects a remote file was modified
+// since the last local load (optimistic locking conflict).
 //
-// The user gets three choices:
-//  1. Overwrite — push local data to Drive, discarding the remote version.
-//  2. Use Drive version — pull the remote data and discard local edits.
-//  3. Dismiss — do nothing for now (local edits stay in browser, Drive unchanged).
+// Design: slides up from bottom-right as a compact card rather than a
+// full-screen modal — less alarming, doesn't block work, auto-highlights
+// whichever version is newer so the right choice is obvious.
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { getDriveRouter } from '../services/storage/StorageRouter';
@@ -30,15 +29,29 @@ function formatDate(iso: string): string {
     }
 }
 
+function timeAgo(iso: string): string {
+    try {
+        const diff = Date.now() - new Date(iso).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        return `${Math.floor(hrs / 24)}d ago`;
+    } catch {
+        return '';
+    }
+}
+
 const KEY_LABELS: Record<string, string> = {
     userProfile: 'User Profile',
     savedCVs: 'Saved CVs',
     currentCV: 'Current CV Draft',
     trackedApps: 'Job Applications',
     apiSettings: 'API Settings',
-    profiles: 'Multiple Profiles',
+    profiles: 'Profiles',
     activeProfileId: 'Active Profile',
-    darkMode: 'Theme Preference',
+    darkMode: 'Theme',
 };
 
 function labelFor(key: string): string {
@@ -46,30 +59,39 @@ function labelFor(key: string): string {
 }
 
 interface Props {
-    /** Called after the conflict is resolved so the parent can reload data if needed. */
     onResolved?: (key: string, action: 'overwrite' | 'pull' | 'dismiss') => void;
 }
 
 export const DriveConflictModal: React.FC<Props> = ({ onResolved }) => {
     const [conflict, setConflict] = useState<ConflictEvent | null>(null);
-    const [working, setWorking] = useState(false);
+    const [working, setWorking] = useState<'overwrite' | 'pull' | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [visible, setVisible] = useState(false);
 
-    // Listen for drive-conflict events dispatched by StorageRouter
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<ConflictEvent>).detail;
             setConflict(detail);
             setError(null);
-            setWorking(false);
+            setWorking(null);
+            // Small delay so the CSS transition fires
+            setTimeout(() => setVisible(true), 20);
         };
         window.addEventListener('drive-conflict', handler);
         return () => window.removeEventListener('drive-conflict', handler);
     }, []);
 
-    const resolve = useCallback(async (action: 'overwrite' | 'pull' | 'dismiss') => {
+    const dismiss = useCallback(() => {
+        setVisible(false);
+        setTimeout(() => {
+            setConflict(null);
+            onResolved?.(conflict?.key ?? '', 'dismiss');
+        }, 300);
+    }, [conflict, onResolved]);
+
+    const resolve = useCallback(async (action: 'overwrite' | 'pull') => {
         if (!conflict) return;
-        setWorking(true);
+        setWorking(action);
         setError(null);
 
         try {
@@ -78,121 +100,183 @@ export const DriveConflictModal: React.FC<Props> = ({ onResolved }) => {
 
             if (action === 'overwrite') {
                 await router.forceSaveToDrive(conflict.key, conflict.localData);
-            } else if (action === 'pull') {
+            } else {
                 await router.pullFromDrive(conflict.key);
-                // Trigger a page reload so React state picks up the new local data
                 window.location.reload();
             }
 
             onResolved?.(conflict.key, action);
-            setConflict(null);
+            setVisible(false);
+            setTimeout(() => setConflict(null), 300);
         } catch (err) {
             setError((err as Error).message ?? 'Something went wrong');
-        } finally {
-            setWorking(false);
+            setWorking(null);
         }
     }, [conflict, onResolved]);
 
     if (!conflict) return null;
 
-    const driveDate = formatDate(conflict.driveModifiedAt);
-    const localDate = formatDate(conflict.storedModifiedAt);
+    const driveTs = new Date(conflict.driveModifiedAt).getTime();
+    const localTs = new Date(conflict.storedModifiedAt).getTime();
+    const driveIsNewer = driveTs > localTs;
+    const recommended: 'pull' | 'overwrite' = driveIsNewer ? 'pull' : 'overwrite';
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={() => !working && resolve('dismiss')}
-            />
-
-            {/* Dialog */}
-            <div className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden">
+        <div
+            style={{
+                position: 'fixed',
+                bottom: 24,
+                right: 24,
+                zIndex: 9999,
+                width: 360,
+                maxWidth: 'calc(100vw - 32px)',
+                transform: visible ? 'translateY(0)' : 'translateY(120%)',
+                opacity: visible ? 1 : 0,
+                transition: 'transform 0.3s cubic-bezier(0.34,1.26,0.64,1), opacity 0.25s ease',
+                pointerEvents: visible ? 'all' : 'none',
+            }}
+        >
+            <div style={{
+                background: '#ffffff',
+                border: '1px solid #e4e4e7',
+                borderRadius: 16,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)',
+                overflow: 'hidden',
+                fontFamily: 'system-ui,-apple-system,sans-serif',
+            }}>
                 {/* Header */}
-                <div className="px-5 pt-5 pb-4 border-b border-zinc-100 dark:border-neutral-800">
-                    <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-xl">
-                            ⚡
+                <div style={{
+                    padding: '14px 16px 12px',
+                    borderBottom: '1px solid #f4f4f5',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                }}>
+                    <div style={{
+                        width: 32, height: 32, borderRadius: '50%',
+                        background: '#fef3c7', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontSize: 15, flexShrink: 0,
+                    }}>
+                        🔄
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#18181b', lineHeight: 1.2 }}>
+                            Drive version differs
                         </div>
-                        <div>
-                            <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                Sync conflict detected
-                            </h2>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{labelFor(conflict.key)}</span>
-                                {' '}was updated on another device since your last sync.
-                            </p>
+                        <div style={{ fontSize: 11, color: '#71717a', marginTop: 2, lineHeight: 1.4 }}>
+                            <strong style={{ color: '#3f3f46' }}>{labelFor(conflict.key)}</strong>
+                            {' '}was changed on another device.
                         </div>
                     </div>
+                    <button
+                        onClick={dismiss}
+                        disabled={!!working}
+                        style={{
+                            border: 'none', background: 'none', cursor: 'pointer',
+                            color: '#a1a1aa', padding: '2px 4px', borderRadius: 6,
+                            fontSize: 16, lineHeight: 1, flexShrink: 0,
+                        }}
+                        title="Decide later"
+                    >
+                        ✕
+                    </button>
                 </div>
 
-                {/* Timeline */}
-                <div className="px-5 py-4 space-y-3">
+                {/* Version comparison */}
+                <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* Drive version */}
-                    <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                        <span className="text-lg leading-none flex-shrink-0">☁️</span>
-                        <div className="min-w-0">
-                            <p className="text-xs font-bold text-blue-700 dark:text-blue-400">Drive version</p>
-                            <p className="text-[11px] text-blue-600 dark:text-blue-500 mt-0.5">
-                                Last modified: <span className="font-semibold">{driveDate}</span>
-                            </p>
+                    <div
+                        onClick={() => !working && resolve('pull')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 12px', borderRadius: 12, cursor: working ? 'default' : 'pointer',
+                            border: `1.5px solid ${recommended === 'pull' ? '#3b82f6' : '#e4e4e7'}`,
+                            background: recommended === 'pull' ? '#eff6ff' : '#fafafa',
+                            transition: 'all 0.15s',
+                            opacity: working === 'overwrite' ? 0.4 : 1,
+                        }}
+                    >
+                        <span style={{ fontSize: 18, flexShrink: 0 }}>☁️</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>
+                                Drive version
+                                {recommended === 'pull' && (
+                                    <span style={{ marginLeft: 6, fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: 99, fontWeight: 700 }}>
+                                        NEWER ✓
+                                    </span>
+                                )}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                                {timeAgo(conflict.driveModifiedAt)} · {formatDate(conflict.driveModifiedAt)}
+                            </div>
                         </div>
+                        {working === 'pull' ? (
+                            <span style={{ fontSize: 14, animation: 'spin 0.8s linear infinite', display: 'inline-block' }}>⟳</span>
+                        ) : (
+                            <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth={2.5} style={{ flexShrink: 0 }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        )}
                     </div>
 
                     {/* Local version */}
-                    <div className="flex items-start gap-3 p-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
-                        <span className="text-lg leading-none flex-shrink-0">💻</span>
-                        <div className="min-w-0">
-                            <p className="text-xs font-bold text-violet-700 dark:text-violet-400">Your local version</p>
-                            <p className="text-[11px] text-violet-600 dark:text-violet-500 mt-0.5">
-                                Based on Drive snapshot from: <span className="font-semibold">{localDate}</span>
-                            </p>
+                    <div
+                        onClick={() => !working && resolve('overwrite')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 12px', borderRadius: 12, cursor: working ? 'default' : 'pointer',
+                            border: `1.5px solid ${recommended === 'overwrite' ? '#7c3aed' : '#e4e4e7'}`,
+                            background: recommended === 'overwrite' ? '#f5f3ff' : '#fafafa',
+                            transition: 'all 0.15s',
+                            opacity: working === 'pull' ? 0.4 : 1,
+                        }}
+                    >
+                        <span style={{ fontSize: 18, flexShrink: 0 }}>💻</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#6d28d9' }}>
+                                This device
+                                {recommended === 'overwrite' && (
+                                    <span style={{ marginLeft: 6, fontSize: 10, background: '#ede9fe', color: '#6d28d9', padding: '1px 6px', borderRadius: 99, fontWeight: 700 }}>
+                                        NEWER ✓
+                                    </span>
+                                )}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                                {timeAgo(conflict.storedModifiedAt)} · {formatDate(conflict.storedModifiedAt)}
+                            </div>
                         </div>
+                        {working === 'overwrite' ? (
+                            <span style={{ fontSize: 14, animation: 'spin 0.8s linear infinite', display: 'inline-block' }}>⟳</span>
+                        ) : (
+                            <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="#7c3aed" strokeWidth={2.5} style={{ flexShrink: 0 }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        )}
                     </div>
 
                     {error && (
-                        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-400">
+                        <div style={{
+                            padding: '8px 12px', borderRadius: 10,
+                            background: '#fef2f2', border: '1px solid #fecaca',
+                            fontSize: 11, color: '#dc2626',
+                        }}>
                             {error}
                         </div>
                     )}
                 </div>
 
-                {/* Actions */}
-                <div className="px-5 pb-5 space-y-2">
-                    <p className="text-[11px] text-zinc-400 dark:text-zinc-500 text-center pb-1">
-                        Which version do you want to keep?
-                    </p>
-
-                    {/* Keep mine */}
-                    <button
-                        disabled={working}
-                        onClick={() => resolve('overwrite')}
-                        className="w-full py-2.5 px-4 text-xs font-bold rounded-xl bg-violet-600 hover:bg-violet-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {working ? <span className="animate-spin">⟳</span> : '💻'}
-                        Overwrite Drive with my version
-                    </button>
-
-                    {/* Use Drive */}
-                    <button
-                        disabled={working}
-                        onClick={() => resolve('pull')}
-                        className="w-full py-2.5 px-4 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {working ? <span className="animate-spin">⟳</span> : '☁️'}
-                        Use Drive version (discard my changes)
-                    </button>
-
-                    {/* Dismiss */}
-                    <button
-                        disabled={working}
-                        onClick={() => resolve('dismiss')}
-                        className="w-full py-2 px-4 text-xs font-medium rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
-                    >
-                        Decide later
-                    </button>
+                {/* Footer hint */}
+                <div style={{
+                    padding: '8px 16px 12px',
+                    fontSize: 10.5, color: '#a1a1aa', textAlign: 'center', lineHeight: 1.4,
+                }}>
+                    Click a version to use it · ✕ to decide later
                 </div>
             </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `}</style>
         </div>
     );
 };

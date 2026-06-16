@@ -642,8 +642,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   // ── Quick bullet checker state ─────────────────────────────────────────
   const [qbText, setQbText] = useState('Helped with various process improvements across teams to drive organizational efficiency and stakeholder engagement.');
 
-  // ── Template gallery filter ─────────────────────────────────────────────
+  // ── Template gallery filter + hover preview ─────────────────────────────
   const [activeTplCat, setActiveTplCat] = useState<string>('All');
+  const [hoveredTplId, setHoveredTplId] = useState<string | null>(null);
 
   // Fetch CF banned phrases once on mount for live scoring
   useEffect(() => {
@@ -1958,25 +1959,18 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                   return (
                     <div key={tpl.id}
                       onClick={onGetStarted}
+                      onMouseEnter={() => setHoveredTplId(tpl.id)}
+                      onMouseLeave={() => setHoveredTplId(null)}
                       style={{ cursor: 'pointer', position: 'relative' }}
                       title={`Use ${tpl.name} template`}>
                       {/* Mini CV mockup */}
                       <div style={{
                         borderRadius: 10, overflow: 'hidden',
-                        border: `1.5px solid ${border}`,
+                        border: `1.5px solid ${hoveredTplId === tpl.id ? '#C9A84C' : border}`,
                         background: tpl.dark ? tpl.header : '#ffffff',
                         transition: 'all 0.2s',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-                      }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)';
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 32px rgba(0,0,0,0.15)`;
-                        (e.currentTarget as HTMLDivElement).style.borderColor = '#C9A84C';
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.07)';
-                        (e.currentTarget as HTMLDivElement).style.borderColor = border;
+                        boxShadow: hoveredTplId === tpl.id ? '0 12px 32px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.07)',
+                        transform: hoveredTplId === tpl.id ? 'translateY(-4px)' : 'translateY(0)',
                       }}>
                         {(() => {
                           // Per-category personas for realistic mini CV content
@@ -2095,6 +2089,119 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                   );
                 })}
               </div>
+
+              {/* ── Hover preview overlay ───────────────────────────────── */}
+              {(() => {
+                const ht = hoveredTplId ? TPLS.find(t => t.id === hoveredTplId) : null;
+                if (!ht) return null;
+                const htChip = atsChip(ht.ats);
+                const htPersona = (() => {
+                  const cat = ht.cat;
+                  if (cat === 'Modern') return { name: 'Alex Kumar', title: 'Senior Software Engineer', co: 'Meta → Google', bullets: ['Reduced API latency 47% serving 2.4B daily active users','Led monolith → microservices migration — 99.98% uptime','Built ML feature pipeline processing 12M events/s'], skills: ['React','TypeScript','Go','Kubernetes','Postgres'] };
+                  if (cat === 'Creative') return { name: 'Jamie Rivera', title: 'Senior UX Designer', co: 'Airbnb → Figma', bullets: ['Redesigned checkout flow — 28% conversion uplift ($4.1M ARR)','Built design system used by 120+ product designers','Reduced user drop-off 41% through usability research'], skills: ['Figma','UX Research','Prototyping','Design Systems','Motion'] };
+                  if (cat === 'Academic') return { name: 'Dr Emma Watson', title: 'Research Fellow, NLP', co: 'Oxford → DeepMind', bullets: ['Published 12 peer-reviewed papers (h-index 14, 1,800+ citations)','EPSRC grant holder — £420K for LLM alignment research','PhD supervisor: 3 students, 2 awarded fellowships'], skills: ['NLP','PyTorch','LaTeX','Python','Academic Writing'] };
+                  if (cat === 'Technical') return { name: 'Ryan Park', title: 'Staff DevOps Engineer', co: 'AWS → Cloudflare', bullets: ['Architected zero-downtime CI/CD pipeline for 200+ engineers','Reduced cloud spend $1.8M/yr via auto-scaling optimisation','99.997% uptime across 14 production Kubernetes clusters'], skills: ['Kubernetes','Terraform','Go','AWS','Prometheus'] };
+                  if (cat === 'Compact') return { name: 'Maria Garcia', title: 'Head of Revenue Ops', co: 'HubSpot → Salesforce', bullets: ['Built RevOps function from scratch — $0 to $22M ARR in 3 yrs','Unified 5 CRMs into single Salesforce instance (zero data loss)','Increased pipeline velocity 67% via forecast automation'], skills: ['Salesforce','SQL','Python','Tableau','RevOps'] };
+                  return { name: 'Sarah Chen', title: 'Senior Product Manager', co: 'Stripe → Monzo', bullets: ['Owned Checkout EU roadmap → £12.6M ARR in 18 months','Cut cart abandonment 34% via 22-variant A/B programme','Grew NPS 42→78 via personalised onboarding redesign'], skills: ['Product Strategy','OKRs','A/B Testing','SQL','Figma'] };
+                })();
+                const isSidebar = !!ht.sidebar;
+                return (
+                  <div style={{
+                    position: 'fixed', top: 0, right: 0, bottom: 0,
+                    width: 300, zIndex: 9998,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    pointerEvents: 'none',
+                  }}>
+                    <div style={{
+                      width: 272, background: '#fff',
+                      borderRadius: 16, overflow: 'hidden',
+                      border: `2px solid ${ht.accent}`,
+                      boxShadow: '0 24px 60px rgba(0,0,0,0.22), 0 6px 20px rgba(0,0,0,0.1)',
+                      animation: 'fadeSlideIn 0.18s ease',
+                    }}>
+                      {/* Header band */}
+                      <div style={{
+                        background: ht.header, padding: '14px 16px 12px',
+                        position: 'relative',
+                      }}>
+                        {isSidebar ? (
+                          <div style={{ display: 'flex', gap: 0 }}>
+                            {/* Sidebar strip */}
+                            <div style={{ width: 72, background: ht.sidebar, padding: '10px 8px', marginTop: -14, marginBottom: -12, marginLeft: -16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: ht.accent, opacity: 0.8, margin: '0 auto' }} />
+                              {[40, 30, 36, 24, 32].map((w, i) => (
+                                <div key={i} style={{ height: 3, width: w, background: 'rgba(255,255,255,0.4)', borderRadius: 2 }} />
+                              ))}
+                              <div style={{ height: 1, background: 'rgba(255,255,255,0.2)', margin: '3px 0' }} />
+                              {[28, 22, 26].map((w, i) => (
+                                <div key={i} style={{ height: 3, width: w, background: 'rgba(255,255,255,0.3)', borderRadius: 2 }} />
+                              ))}
+                            </div>
+                            {/* Main area */}
+                            <div style={{ flex: 1, padding: '8px 10px' }}>
+                              <div style={{ height: 8, width: '70%', background: '#fff', borderRadius: 2, marginBottom: 3 }} />
+                              <div style={{ height: 5, width: '50%', background: `${ht.accent}cc`, borderRadius: 2, marginBottom: 8 }} />
+                              {[90, 75, 85].map((w, i) => (
+                                <div key={i} style={{ height: 3.5, width: `${w}%`, background: 'rgba(255,255,255,0.4)', borderRadius: 2, marginBottom: 3 }} />
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ height: 10, width: '55%', background: '#fff', borderRadius: 3, marginBottom: 4 }} />
+                            <div style={{ height: 6, width: '35%', background: `${ht.accent}bb`, borderRadius: 2, marginBottom: 8 }} />
+                            <div style={{ height: 3, width: '75%', background: 'rgba(255,255,255,0.3)', borderRadius: 2, marginBottom: 2 }} />
+                            <div style={{ height: 3, width: '55%', background: 'rgba(255,255,255,0.25)', borderRadius: 2 }} />
+                          </>
+                        )}
+                      </div>
+                      {/* Body */}
+                      <div style={{ padding: '12px 14px', background: '#fff' }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#18181b', marginBottom: 2 }}>{htPersona.name}</div>
+                        <div style={{ fontSize: 9.5, color: ht.accent === '#C9A84C' ? '#92400e' : ht.accent, fontWeight: 600, marginBottom: 6 }}>{htPersona.title}</div>
+                        <div style={{ fontSize: 9, color: '#52525b', marginBottom: 6 }}>{htPersona.co}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
+                          {htPersona.bullets.map((b, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
+                              <span style={{ color: ht.accent, fontSize: 8, marginTop: 2, flexShrink: 0 }}>▪</span>
+                              <span style={{ fontSize: 9, color: '#3f3f46', lineHeight: 1.4 }}>{b}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                          {htPersona.skills.map((s, i) => (
+                            <span key={i} style={{ fontSize: 8.5, background: '#f4f4f5', color: '#52525b', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{s}</span>
+                          ))}
+                        </div>
+                        {/* Footer meta */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #f4f4f5' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ fontSize: 9, background: htChip.bg, color: htChip.color, padding: '2px 7px', borderRadius: 99, fontWeight: 700, border: `1px solid ${htChip.border}` }}>{htChip.label}</span>
+                            {ht.badge && <span style={{ fontSize: 9 }}>{ht.badge.split(' ')[0]}</span>}
+                          </div>
+                          <span style={{ fontSize: 9.5, color: '#71717a', fontWeight: 600 }}>{ht.name} →</span>
+                        </div>
+                      </div>
+                      {/* CTA */}
+                      <div style={{ padding: '0 14px 12px' }}>
+                        <div style={{
+                          background: ht.header, color: '#fff',
+                          padding: '8px 14px', borderRadius: 8, textAlign: 'center',
+                          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.03em',
+                        }}>
+                          Click to use this template
+                        </div>
+                      </div>
+                    </div>
+                    <style>{`
+                      @keyframes fadeSlideIn {
+                        from { opacity: 0; transform: translateX(12px) scale(0.97); }
+                        to   { opacity: 1; transform: translateX(0)  scale(1); }
+                      }
+                    `}</style>
+                  </div>
+                );
+              })()}
 
               {/* Bottom CTA */}
               <div style={{ textAlign: 'center', marginTop: 40 }}>
