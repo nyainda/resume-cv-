@@ -78,6 +78,7 @@ import ScoreMyCVPage from "./components/ScoreMyCVPage";
 import CareerPivotPage from "./components/CareerPivotPage";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { getDriveRouter } from "./services/storage/StorageRouter";
+import { deleteAllDriveData } from "./services/storage/DriveStorageService";
 import {
   Edit,
   User,
@@ -1296,8 +1297,13 @@ const AppInner: React.FC = () => {
 
   // ── Delete account handler ─────────────────────────────────────────────
   const handleDeleteAccount = useCallback(async () => {
-    // Best-effort: try to remove server-side session/data first.
-    // Use the sessionToken already in context; fallback to localStorage on miss.
+    // Step 1: Delete all Drive files BEFORE revoking the token.
+    // deleteAllDriveData is best-effort — an error here never blocks deletion.
+    if (user?.accessToken) {
+      await deleteAllDriveData(user.accessToken).catch(() => {});
+    }
+
+    // Step 2: Remove server-side session and account rows.
     const token = sessionToken
       || localStorage.getItem('procv:worker_session')
       || sessionStorage.getItem('procv:worker_session_temp')
@@ -1305,16 +1311,16 @@ const AppInner: React.FC = () => {
     if (token) {
       await deleteAccountWorker(token);
     }
-    // Always clear all local data regardless of server response.
+
+    // Step 3: Wipe all client-side data and sign out.
     clearUserScopedStorage({ clearAppData: true });
     stampSignedOut();
     await signOut();
     await googleSignOut();
-    toast.success('Account deleted', 'Your data has been removed from this device.');
+    toast.success('Account deleted', 'Your account and all Drive files have been removed.');
     // Hard reload so React state (profiles, CVs) is fully reset alongside localStorage.
-    // Without this, re-login with the same email would see stale in-memory data.
     setTimeout(() => window.location.reload(), 800);
-  }, [sessionToken, signOut, googleSignOut, toast]);
+  }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);
 
   // ── CV handlers ─────────────────────────────────────────────────────────
   // Snapshot the deterministic quality audit at save time so the saved-CV

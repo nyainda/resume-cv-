@@ -270,3 +270,52 @@ export class DriveStorageService implements IStorageService {
         return res;
     }
 }
+
+/**
+ * deleteAllDriveData — call during account deletion, while the Google token
+ * is still valid (before googleSignOut()).
+ *
+ * Removes:
+ *  1. All ProCV data files stored in the hidden appDataFolder (JSON blobs)
+ *  2. The "ProCV" PDF export folder visible in the user's My Drive
+ *
+ * All operations are best-effort — a Drive error never blocks account deletion.
+ */
+export async function deleteAllDriveData(token: string): Promise<void> {
+    if (!token) return;
+    const auth = { Authorization: `Bearer ${token}` };
+
+    // ── 1. appDataFolder (hidden app data — cvb__*.json files) ───────────────
+    try {
+        const listRes = await fetch(
+            `${DRIVE_FILES_URL}?spaces=appDataFolder&fields=files(id)&pageSize=1000`,
+            { headers: auth },
+        );
+        if (listRes.ok) {
+            const { files } = await listRes.json() as { files: Array<{ id: string }> };
+            await Promise.allSettled(
+                (files ?? []).map(f =>
+                    fetch(`${DRIVE_FILES_URL}/${f.id}`, { method: 'DELETE', headers: auth }),
+                ),
+            );
+        }
+    } catch { /* best-effort — Drive unavailable or token insufficient */ }
+
+    // ── 2. "ProCV" folder in My Drive (PDF exports) ───────────────────────────
+    try {
+        const folderRes = await fetch(
+            `${DRIVE_FILES_URL}?spaces=drive` +
+            `&q=name%3D%27ProCV%27+and+mimeType%3D%27application%2Fvnd.google-apps.folder%27+and+trashed%3Dfalse` +
+            `&fields=files(id)`,
+            { headers: auth },
+        );
+        if (folderRes.ok) {
+            const { files } = await folderRes.json() as { files: Array<{ id: string }> };
+            await Promise.allSettled(
+                (files ?? []).map(f =>
+                    fetch(`${DRIVE_FILES_URL}/${f.id}?supportsAllDrives=true`, { method: 'DELETE', headers: auth }),
+                ),
+            );
+        }
+    } catch { /* best-effort */ }
+}
