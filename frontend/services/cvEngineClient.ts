@@ -10,6 +10,8 @@
  * back to the local pipeline. No call here ever throws into the UI path.
  */
 
+import { getDeviceId } from './userDataCloudService';
+
 // IMPORTANT: access `import.meta.env.X` directly. The `(import.meta as any)`
 // cast pattern defeats Vite's static replacement at build time, leaving the
 // value undefined in the production bundle — which silently disables the CV
@@ -110,14 +112,46 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
     }
 }
 
+// ── 429 back-off state ────────────────────────────────────────────────────────
+// When the worker returns 429, we record the retry-after deadline and suppress
+// all outgoing requests to that rate-limit group until the window resets.
+// This prevents the client from hammering a worker that has already told it
+// to wait.  The circuit breaker is NOT opened for 429 — the request is not a
+// server error; it is expected under normal heavy usage.
+const _rateLimitUntil: Map<string, number> = new Map();
+
+function _isRateLimited(path: string): number {
+    // Returns seconds remaining if still rate-limited, 0 if clear.
+    const until = _rateLimitUntil.get(path) ?? 0;
+    const remaining = Math.ceil((until - Date.now()) / 1000);
+    return remaining > 0 ? remaining : 0;
+}
+
+function _setRateLimited(path: string, retryAfterSec: number): void {
+    _rateLimitUntil.set(path, Date.now() + retryAfterSec * 1000);
+    console.warn(`[cvEngineClient] Rate limited on ${path} — backing off for ${retryAfterSec}s.`);
+}
+
 async function getJSON<T>(path: string, params?: Record<string, string>): Promise<T | null> {
     if (!isCVEngineConfigured()) return null;
     if (isDead(path)) return null;
+    const wait = _isRateLimited(path);
+    if (wait > 0) {
+        if (import.meta.env.DEV) console.info(`[cvEngineClient] Skipping GET ${path} — rate limited for ${wait}s more.`);
+        return null;
+    }
     const u = new URL(path, ENGINE_URL);
     if (params) for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     try {
-        const r = await fetchWithTimeout(u.toString());
+        const r = await fetchWithTimeout(u.toString(), {
+            headers: { 'X-Device-ID': getDeviceId() },
+        });
         if (!r.ok) {
+            if (r.status === 429) {
+                const retryAfter = parseInt(r.headers.get('Retry-After') ?? '60', 10);
+                _setRateLimited(path, retryAfter);
+                return null;
+            }
             if (r.status >= 500) markDead(path, `HTTP ${r.status}`);
             return null;
         }
@@ -134,14 +168,24 @@ async function getJSON<T>(path: string, params?: Record<string, string>): Promis
 async function postJSON<T>(path: string, body: unknown): Promise<T | null> {
     if (!isCVEngineConfigured()) return null;
     if (isDead(path)) return null;
+    const wait = _isRateLimited(path);
+    if (wait > 0) {
+        if (import.meta.env.DEV) console.info(`[cvEngineClient] Skipping POST ${path} — rate limited for ${wait}s more.`);
+        return null;
+    }
     const u = new URL(path, ENGINE_URL);
     try {
         const r = await fetchWithTimeout(u.toString(), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Device-ID': getDeviceId() },
             body: JSON.stringify(body ?? {}),
         });
         if (!r.ok) {
+            if (r.status === 429) {
+                const retryAfter = parseInt(r.headers.get('Retry-After') ?? '60', 10);
+                _setRateLimited(path, retryAfter);
+                return null;
+            }
             if (r.status >= 500) markDead(path, `HTTP ${r.status}`);
             return null;
         }

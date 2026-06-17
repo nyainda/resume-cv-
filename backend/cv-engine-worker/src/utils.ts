@@ -29,7 +29,7 @@ export function corsHeaders(request: Request, env: Env): HeadersInit {
     return {
         'Access-Control-Allow-Origin': allow,
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, PATCH, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token, Authorization, X-Device-ID',
         'Access-Control-Max-Age': '86400',
         'Vary': 'Origin',
     };
@@ -137,16 +137,80 @@ export function unauthorized(request: Request, env: Env, required: AdminRole): R
     return json({ error: 'unauthorized', required_role: required }, request, env, 401);
 }
 
-// ─── IP Rate Limiting (KV-backed sliding windows) ─────────────────────────────
+// ─── Rate Limiting (KV-backed fixed windows) ──────────────────────────────────
 //
 // Uses a fixed window keyed by floor(now / windowSec).  One KV read + one
 // fire-and-forget write per allowed request.  On any KV error the call is
 // allowed through (fail open) so a KV outage never blocks the app.
 //
+// Identifier priority (most specific → least specific):
+//   1. X-Device-ID header — a stable UUID the frontend mints at first load and
+//      persists in localStorage.  Ties limits to the browser, not the network.
+//   2. CF-Connecting-IP  — Cloudflare's authoritative client IP; present on
+//      every production request but shares an address on NAT/corporate networks.
+//   3. X-Forwarded-For   — fallback for dev/proxy environments.
+//   4. "unknown"         — last-resort; still rate-limits but may be overly broad.
+//
 // Usage:
-//   const { allowed, retryAfter } = await ipRateLimit(env, request, 'llm', 60, 60);
-//   if (!allowed) return json({ error: 'rate_limited', retry_after: retryAfter }, req, env, 429);
+//   const rl = await rateLimitRequest(env, request, 'llm', 20, 60);
+//   if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
 
+function _rateLimitId(request: Request): string {
+    // Prefer device ID (browser-stable UUID), fall back to network IP
+    const deviceId = request.headers.get('X-Device-ID')?.trim();
+    if (deviceId && deviceId.length >= 8 && deviceId.length <= 128) return `d:${deviceId}`;
+    return `ip:${
+        request.headers.get('CF-Connecting-IP')
+        || request.headers.get('X-Forwarded-For')?.split(',')[0].trim()
+        || 'unknown'
+    }`;
+}
+
+export async function rateLimitRequest(
+    env: Env,
+    request: Request,
+    prefix: string,
+    limit: number,
+    windowSec: number,
+): Promise<{ allowed: boolean; retryAfter: number; remaining: number }> {
+    try {
+        const id    = _rateLimitId(request);
+        const now   = Math.floor(Date.now() / 1000);
+        const slot  = Math.floor(now / windowSec);
+        const kvKey = `rl:${prefix}:${id}:${slot}`;
+
+        const current = parseInt(await env.CV_KV.get(kvKey) ?? '0', 10);
+        if (current >= limit) {
+            const retryAfter = (slot + 1) * windowSec - now;
+            return { allowed: false, retryAfter, remaining: 0 };
+        }
+
+        // Non-blocking increment — a race may allow a few extra requests;
+        // correctness > strict precision for rate limiting.
+        env.CV_KV.put(kvKey, String(current + 1), { expirationTtl: windowSec * 2 }).catch(() => {});
+        return { allowed: true, retryAfter: 0, remaining: limit - current - 1 };
+    } catch {
+        // KV unavailable — fail open rather than blocking all traffic
+        return { allowed: true, retryAfter: 0, remaining: limit };
+    }
+}
+
+/** Build a standard 429 response with Retry-After HTTP header. */
+export function rateLimitResponse(request: Request, env: Env, retryAfter: number): Response {
+    return new Response(
+        JSON.stringify({ error: 'rate_limited', retry_after: retryAfter }),
+        {
+            status: 429,
+            headers: {
+                ...corsHeaders(request, env) as Record<string, string>,
+                'Content-Type': 'application/json',
+                'Retry-After': String(retryAfter),
+            },
+        },
+    );
+}
+
+/** @deprecated  Use rateLimitRequest instead.  Kept for back-compat. */
 export async function ipRateLimit(
     env: Env,
     request: Request,
@@ -154,26 +218,5 @@ export async function ipRateLimit(
     limit: number,
     windowSec: number,
 ): Promise<{ allowed: boolean; retryAfter: number }> {
-    try {
-        const ip   = request.headers.get('CF-Connecting-IP')
-                  || request.headers.get('X-Forwarded-For')?.split(',')[0].trim()
-                  || 'unknown';
-        const now  = Math.floor(Date.now() / 1000);
-        const slot = Math.floor(now / windowSec);
-        const kvKey = `rl:${prefix}:${ip}:${slot}`;
-
-        const current = parseInt(await env.CV_KV.get(kvKey) ?? '0', 10);
-        if (current >= limit) {
-            const retryAfter = (slot + 1) * windowSec - now;
-            return { allowed: false, retryAfter };
-        }
-
-        // Non-blocking increment — a race here may allow a few extra requests,
-        // which is acceptable; correctness > strict precision for rate limiting.
-        env.CV_KV.put(kvKey, String(current + 1), { expirationTtl: windowSec * 2 }).catch(() => {});
-        return { allowed: true, retryAfter: 0 };
-    } catch {
-        // KV unavailable — fail open rather than blocking all traffic
-        return { allowed: true, retryAfter: 0 };
-    }
+    return rateLimitRequest(env, request, prefix, limit, windowSec);
 }

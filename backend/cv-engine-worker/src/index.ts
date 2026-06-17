@@ -15,7 +15,7 @@
  */
 
 import { Env } from './types';
-import { corsHeaders, json, ipRateLimit } from './utils';
+import { corsHeaders, json, rateLimitRequest, rateLimitResponse } from './utils';
 
 // ── Handler imports ───────────────────────────────────────────────────────────
 import {
@@ -124,6 +124,58 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     const m = request.method;
     const p = url.pathname;
 
+    // ── Rate limiting ─────────────────────────────────────────────────────────
+    //
+    // Must run BEFORE route handlers so every matched path is protected.
+    // Three tiers, keyed by device ID (preferred) or CF IP:
+    //
+    //   llm    — heavy AI generation (tiered-llm, race-llm, parallel-sections)
+    //            20 req / 60 s  — costs real money per call
+    //
+    //   medium — lighter AI passes (purify-cv, validate, validate-voice,
+    //            semantic-match, brief, clean)
+    //            40 req / 60 s  — each still spins up an LLM
+    //
+    //   cache  — cheap KV/D1 reads & writes (llm-cache, profile, examples,
+    //            jd-analysis, market-research, share, job-cache)
+    //            120 req / 60 s — pure storage; token-free
+    //
+    // Fails open on KV error — a KV outage must never block generation.
+    // /health, /api/cv/banned, admin routes, and cron handlers are excluded.
+    if (m === 'POST' && (
+        p === '/api/cv/tiered-llm'        ||
+        p === '/api/cv/race-llm'          ||
+        p === '/api/cv/parallel-sections'
+    )) {
+        const rl = await rateLimitRequest(env, request, 'llm', 20, 60);
+        if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
+    }
+
+    if (m === 'POST' && (
+        p === '/api/cv/purify-cv'      ||
+        p === '/api/cv/validate'       ||
+        p === '/api/cv/validate-voice' ||
+        p === '/api/cv/semantic-match' ||
+        p === '/api/cv/brief'          ||
+        p === '/api/cv/clean'
+    )) {
+        const rl = await rateLimitRequest(env, request, 'medium', 40, 60);
+        if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
+    }
+
+    if (
+        (p === '/api/cv/llm-cache'       && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/profile'         && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/examples'        && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/jd-analysis'     && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/market-research' && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/share'           && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/job-cache'       && (m === 'GET' || m === 'POST'))
+    ) {
+        const rl = await rateLimitRequest(env, request, 'cache', 120, 60);
+        if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
+    }
+
     // ── Data / KV reads ───────────────────────────────────────────────────────
     if (p === '/health')                                                    return handleHealth(request, env);
     if (p === '/api/cv/words')                                              return handleWords(request, env, url);
@@ -144,20 +196,6 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     // ── Purify + rules ────────────────────────────────────────────────────────
     if (p === '/api/cv/purify-cv'      && m === 'POST')                     return handlePurifyCv(request, env);
     if (p === '/api/cv/rules'          && m === 'GET')                      return handleGetRules(request, env);
-
-    // ── LLM endpoints ─────────────────────────────────────────────────────────
-    // Rate-limit the expensive generation endpoints: 60 requests per IP per
-    // minute.  Lightweight endpoints (vision, proxy, account-tier) are excluded.
-    // Fails open — if KV is unavailable, the request is allowed through.
-    if (
-        (p === '/api/cv/tiered-llm' || p === '/api/cv/race-llm' || p === '/api/cv/parallel-sections')
-        && m === 'POST'
-    ) {
-        const rl = await ipRateLimit(env, request, 'llm', 60, 60);
-        if (!rl.allowed) {
-            return json({ error: 'rate_limited', retry_after: rl.retryAfter }, request, env, 429);
-        }
-    }
 
     if (p === '/api/cv/llm'            && m === 'POST')                     return handleLLM(request, env);
     if (p === '/api/cv/vision-extract' && m === 'POST')                     return handleVisionExtract(request, env);
