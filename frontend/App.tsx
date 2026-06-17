@@ -1310,8 +1310,10 @@ const AppInner: React.FC = () => {
     stampSignedOut();
     await signOut();
     await googleSignOut();
-    setShowLanding(true);
     toast.success('Account deleted', 'Your data has been removed from this device.');
+    // Hard reload so React state (profiles, CVs) is fully reset alongside localStorage.
+    // Without this, re-login with the same email would see stale in-memory data.
+    setTimeout(() => window.location.reload(), 800);
   }, [sessionToken, signOut, googleSignOut, toast]);
 
   // ── CV handlers ─────────────────────────────────────────────────────────

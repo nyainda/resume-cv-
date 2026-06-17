@@ -363,6 +363,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) { setUploadedFile(file); setRawText(''); setAiError(null); }
+    e.target.value = '';
   };
 
   const handleGenerateProfile = async () => {
@@ -531,7 +532,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             <UploadCloud className="h-5 w-5 text-zinc-400 mb-1" />
             <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Click to upload photo</p>
             <p className="text-xs text-zinc-400">PNG, JPG, WEBP · Max 2MB</p>
-            <input id="photo-upload" type="file" className="hidden" accept="image/png,image/jpeg,image/webp"
+            <input id="photo-upload" type="file" className="sr-only" accept="image/png,image/jpeg,image/webp"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
@@ -1220,7 +1221,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               <p className="text-xs text-zinc-400 mt-1">PDF, PNG, JPG, WEBP — Gemini will read and extract your details</p>
             </>
           )}
-          <input id="profile-upload" type="file" className="hidden"
+          <input id="profile-upload" type="file" className="sr-only"
             accept="application/pdf,image/png,image/jpeg,image/webp"
             onChange={handleFileChange} disabled={!apiKeySet} />
         </label>
