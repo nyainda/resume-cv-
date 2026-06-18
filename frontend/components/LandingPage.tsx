@@ -1901,9 +1901,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           : TPLS.filter(t => t.cat === activeTplCat);
 
         const atsChip = (ats: 'high' | 'medium' | 'low') =>
-          ats === 'high'   ? { label: 'ATS Safe',     bg: '#dcfce7', color: '#15803d' } :
-          ats === 'medium' ? { label: 'ATS Friendly', bg: '#fef9c3', color: '#854d0e' } :
-                             { label: 'Design Only',  bg: '#fee2e2', color: '#991b1b' };
+          ats === 'high'   ? { label: 'ATS Safe',     bg: darkMode ? '#14532d' : '#dcfce7', color: darkMode ? '#86efac' : '#15803d', border: darkMode ? '#166534' : '#bbf7d0' } :
+          ats === 'medium' ? { label: 'ATS Friendly', bg: darkMode ? '#422006' : '#fef9c3', color: darkMode ? '#fcd34d' : '#854d0e', border: darkMode ? '#92400e' : '#fef08a' } :
+                             { label: 'Design Only',  bg: darkMode ? '#450a0a' : '#fee2e2', color: darkMode ? '#fca5a5' : '#991b1b', border: darkMode ? '#7f1d1d' : '#fecaca' };
 
         return (
           <section
@@ -1967,7 +1967,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                       <div style={{
                         borderRadius: 10, overflow: 'hidden',
                         border: `1.5px solid ${hoveredTplId === tpl.id ? '#C9A84C' : border}`,
-                        background: tpl.dark ? tpl.header : '#ffffff',
+                        background: tpl.dark ? tpl.header : (darkMode ? '#1a2236' : '#ffffff'),
                         transition: 'all 0.2s',
                         boxShadow: hoveredTplId === tpl.id ? '0 12px 32px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.07)',
                         transform: hoveredTplId === tpl.id ? 'translateY(-4px)' : 'translateY(0)',
@@ -1983,9 +1983,9 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                             Compact: { initials: 'MG', name: 'Maria Garcia', title: 'VP Marketing · B2B SaaS', contact: 'maria.garcia@company.com · Madrid · linkedin.com/in/mariagarcia', co1: 'HubSpot', role1: 'VP Marketing', dates1: '2021–Present', bullets1: ['Grew MQL pipeline 3.2× to €48M ARR in 24 months', 'Built performance marketing team of 18 from scratch', 'Reduced CAC 31% via account-based marketing programme'], co2: 'Salesforce', role2: 'Senior Marketing Manager', dates2: '2018–2021', bullets2: ['Launched EMEA demand gen — 22K SQLs in year one', 'Managed €4.1M digital budget across 8 paid channels'], skills: ['Demand Gen','ABM','HubSpot','Marketo','SQL','Paid Media'] },
                           };
                           const p = PERSONAS[tpl.cat] ?? PERSONAS['Professional'];
-                          const bodyText  = tpl.dark ? 'rgba(255,255,255,0.88)' : '#1f2937';
-                          const bodyMuted = tpl.dark ? 'rgba(255,255,255,0.45)' : '#6b7280';
-                          const bodyBg    = tpl.dark ? tpl.header : '#ffffff';
+                          const bodyText  = tpl.dark ? 'rgba(255,255,255,0.88)' : (darkMode ? '#e2e8f0' : '#1f2937');
+                          const bodyMuted = tpl.dark ? 'rgba(255,255,255,0.45)' : (darkMode ? '#94a3b8' : '#6b7280');
+                          const bodyBg    = tpl.dark ? tpl.header : (darkMode ? '#1a2236' : '#ffffff');
 
                           if (tpl.sidebar) {
                             return (
@@ -2113,7 +2113,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                     pointerEvents: 'none',
                   }}>
                     <div style={{
-                      width: 272, background: '#fff',
+                      width: 272, background: darkMode ? '#1a2236' : '#fff',
                       borderRadius: 16, overflow: 'hidden',
                       border: `2px solid ${ht.accent}`,
                       boxShadow: '0 24px 60px rgba(0,0,0,0.22), 0 6px 20px rgba(0,0,0,0.1)',
@@ -2156,30 +2156,30 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                         )}
                       </div>
                       {/* Body */}
-                      <div style={{ padding: '12px 14px', background: '#fff' }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#18181b', marginBottom: 2 }}>{htPersona.name}</div>
-                        <div style={{ fontSize: 9.5, color: ht.accent === '#C9A84C' ? '#92400e' : ht.accent, fontWeight: 600, marginBottom: 6 }}>{htPersona.title}</div>
-                        <div style={{ fontSize: 9, color: '#52525b', marginBottom: 6 }}>{htPersona.co}</div>
+                      <div style={{ padding: '12px 14px', background: darkMode ? '#1a2236' : '#fff' }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: darkMode ? '#f1f5f9' : '#18181b', marginBottom: 2 }}>{htPersona.name}</div>
+                        <div style={{ fontSize: 9.5, color: ht.accent === '#C9A84C' ? (darkMode ? '#fcd34d' : '#92400e') : ht.accent, fontWeight: 600, marginBottom: 6 }}>{htPersona.title}</div>
+                        <div style={{ fontSize: 9, color: darkMode ? '#94a3b8' : '#52525b', marginBottom: 6 }}>{htPersona.co}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8 }}>
                           {htPersona.bullets.map((b, i) => (
                             <div key={i} style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
                               <span style={{ color: ht.accent, fontSize: 8, marginTop: 2, flexShrink: 0 }}>▪</span>
-                              <span style={{ fontSize: 9, color: '#3f3f46', lineHeight: 1.4 }}>{b}</span>
+                              <span style={{ fontSize: 9, color: darkMode ? '#cbd5e1' : '#3f3f46', lineHeight: 1.4 }}>{b}</span>
                             </div>
                           ))}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
                           {htPersona.skills.map((s, i) => (
-                            <span key={i} style={{ fontSize: 8.5, background: '#f4f4f5', color: '#52525b', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{s}</span>
+                            <span key={i} style={{ fontSize: 8.5, background: darkMode ? '#1e2d47' : '#f4f4f5', color: darkMode ? '#94a3b8' : '#52525b', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{s}</span>
                           ))}
                         </div>
                         {/* Footer meta */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #f4f4f5' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: `1px solid ${darkMode ? '#1e2d47' : '#f4f4f5'}` }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                             <span style={{ fontSize: 9, background: htChip.bg, color: htChip.color, padding: '2px 7px', borderRadius: 99, fontWeight: 700, border: `1px solid ${htChip.border}` }}>{htChip.label}</span>
                             {ht.badge && <span style={{ fontSize: 9 }}>{ht.badge.split(' ')[0]}</span>}
                           </div>
-                          <span style={{ fontSize: 9.5, color: '#71717a', fontWeight: 600 }}>{ht.name} →</span>
+                          <span style={{ fontSize: 9.5, color: darkMode ? '#94a3b8' : '#71717a', fontWeight: 600 }}>{ht.name} →</span>
                         </div>
                       </div>
                       {/* CTA */}

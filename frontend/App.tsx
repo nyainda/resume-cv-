@@ -1297,27 +1297,28 @@ const AppInner: React.FC = () => {
 
   // ── Delete account handler ─────────────────────────────────────────────
   const handleDeleteAccount = useCallback(async () => {
-    // Step 1: Delete all Drive files BEFORE revoking the token.
-    // deleteAllDriveData is best-effort — an error here never blocks deletion.
+    // Step 1: Best-effort Drive cleanup — never blocks the local wipe.
     if (user?.accessToken) {
       await deleteAllDriveData(user.accessToken).catch(() => {});
     }
 
-    // Step 2: Remove server-side session and account rows.
-    const token = sessionToken
-      || localStorage.getItem('procv:worker_session')
-      || sessionStorage.getItem('procv:worker_session_temp')
-      || '';
-    if (token) {
-      await deleteAccountWorker(token);
-    }
+    // Step 2: Best-effort server-side session / account removal.
+    // Wrapped in its own try-catch so a 401/network error doesn't abort the
+    // local wipe that follows.
+    try {
+      const token = sessionToken
+        || localStorage.getItem('procv:worker_session')
+        || sessionStorage.getItem('procv:worker_session_temp')
+        || '';
+      if (token) await deleteAccountWorker(token);
+    } catch { /* non-fatal */ }
 
-    // Step 3: Wipe all client-side data and sign out.
+    // Step 3: LOCAL wipe — runs unconditionally even if server calls failed.
     clearUserScopedStorage({ clearAppData: true });
     stampSignedOut();
-    await signOut();
-    await googleSignOut();
-    toast.success('Account deleted', 'Your account and all Drive files have been removed.');
+    try { await signOut(); }  catch { /* non-fatal */ }
+    try { googleSignOut(); }  catch { /* non-fatal */ }  // void-returning wrapper
+    toast.success('Account deleted', 'Your account and all data have been removed.');
     // Hard reload so React state (profiles, CVs) is fully reset alongside localStorage.
     setTimeout(() => window.location.reload(), 800);
   }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);

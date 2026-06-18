@@ -115,6 +115,22 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
         }
         procvAppKeys.forEach(k => localStorage.removeItem(k));
 
+        // Clear profile-room keys: p:${id}:jd / company / jobTitle / mode / purpose / keywords
+        const profileRoomKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k?.startsWith('p:')) profileRoomKeys.push(k);
+        }
+        profileRoomKeys.forEach(k => localStorage.removeItem(k));
+
+        // Clear cv:* per-session state (cv:purpose, cv:jdKeywords, cv:targetCompany, cv:targetJobTitle)
+        const cvStateKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k?.startsWith('cv:')) cvStateKeys.push(k);
+        }
+        cvStateKeys.forEach(k => localStorage.removeItem(k));
+
         // Clear IndexedDB cv_builder_cvdata (large CV JSON blobs)
         _clearCvDataIdb();
 
