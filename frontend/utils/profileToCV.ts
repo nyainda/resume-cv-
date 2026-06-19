@@ -5,6 +5,10 @@ import { UserProfile, CVData, CVPublication, CustomSection } from '../types';
  * Used for the "Use Template" (no-AI) path so users can just pick a template
  * and render their existing data without any API key or JD required.
  * Also used by the JSON import flow in App.tsx to immediately populate all templates.
+ *
+ * Defensive by design — handles both string and array variants of skills/
+ * responsibilities so round-tripping through the JSON export/import flow
+ * (where the form stores skills as a textarea string) works correctly.
  */
 export function profileToCV(profile: UserProfile): CVData {
   const formatDate = (dateStr: string | undefined): string => {
@@ -23,6 +27,14 @@ export function profileToCV(profile: UserProfile): CVData {
     if (!e) return s;
     return `${s} – ${e}`;
   };
+
+  // ── Normalise skills — form stores as textarea string, API stores as array ──
+  const rawSkills = (profile as any).skills;
+  const normalisedSkills: string[] = Array.isArray(rawSkills)
+    ? (rawSkills as string[]).filter(Boolean)
+    : typeof rawSkills === 'string' && rawSkills.trim()
+      ? rawSkills.split(/[,\n;]/).map((s: string) => s.trim()).filter(Boolean)
+      : [];
 
   const customSections: CustomSection[] = profile.customSections || [];
 
@@ -67,15 +79,16 @@ export function profileToCV(profile: UserProfile): CVData {
 
   return {
     summary: profile.summary || '',
-    skills:  profile.skills  || [],
+    skills:  normalisedSkills,
     experience: (profile.workExperience || []).map(exp => ({
       company:          exp.company  || '',
       jobTitle:         exp.jobTitle || '',
       dates:            formatDateRange(exp.startDate, exp.endDate),
       startDate:        exp.startDate || '',
       endDate:          exp.endDate   || '',
+      location:         (exp as any).location || '',
       responsibilities: typeof exp.responsibilities === 'string'
-        ? exp.responsibilities.split('\n').map(r => r.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
+        ? (exp.responsibilities as string).split('\n').map(r => r.replace(/^[-•*]\s*/, '').trim()).filter(Boolean)
         : (exp.responsibilities || []),
     })),
     education: (profile.education || []).map(edu => ({

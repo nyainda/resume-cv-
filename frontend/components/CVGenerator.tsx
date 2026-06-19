@@ -362,8 +362,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
   const [optimizeStage, setOptimizeStage] = useState<'analysing' | 'improving' | 'polishing' | 'scoring' | null>(null);
   const [isScoringCV, setIsScoringCV] = useState(false);
-  const [showDoctorPanel, setShowDoctorPanel] = useLocalStorage<boolean>('cv:doctorPanelOpen', false);
-  const [optimizeDiff, setOptimizeDiff] = useLocalStorage<CVDiff | null>('cv:doctorDiff', null);
+  const [showDoctorPanel, setShowDoctorPanel] = useLocalStorage<boolean>(`p:${profileId}:doctorPanelOpen`, false);
+  const [optimizeDiff, setOptimizeDiff] = useLocalStorage<CVDiff | null>(`p:${profileId}:doctorDiff`, null);
 
   // Leaks produced by the purification pipeline during the most recent generation.
   // Accumulates synonym_sub fixes so the quality panel can display them.
@@ -2677,6 +2677,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               return { ...prev, experience: exp };
             });
           }}
+          onUpdateCV={(updatedCV) => setCurrentCV(updatedCV)}
           onClose={() => setShowDoctorPanel(false)}
         />
       )}

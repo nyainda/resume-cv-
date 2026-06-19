@@ -18,6 +18,7 @@ import {
     BulletAnnotation, BulletIssueType, CVDoctorScan, CVDiff, ISSUE_META,
 } from '../services/cvDoctorService';
 import { paraphraseText, ParaphraseTone } from '../services/geminiService';
+import { deduplicateSkills } from '../services/cvFinalGuard';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ interface Props {
     diff?:           CVDiff | null;
     onApplyBullet:   (roleIndex: number, bulletIndex: number, newText: string) => void;
     onClose:         () => void;
+    /** Called when the doctor makes a structural change to the full CV (e.g. dedup skills) */
+    onUpdateCV?:     (cv: CVData) => void;
 }
 
 // ─── Colour legend items ──────────────────────────────────────────────────────
@@ -241,7 +244,7 @@ const PARAPHRASE_TONES: { id: ParaphraseTone; label: string; desc: string; emoji
 
 type Tab = 'scan' | 'bullets' | 'changes' | 'paraphrase';
 
-const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBullet, onClose }) => {
+const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBullet, onClose, onUpdateCV }) => {
     const [activeTab, setActiveTab] = useState<Tab>(diff && diff.totalChanges > 0 ? 'changes' : 'scan');
     const [scan,      setScan]      = useState<CVDoctorScan | null>(null);
     const [scanLoading, setScanLoading] = useState(false);
@@ -252,6 +255,16 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     const [isRewritingAll,   setIsRewritingAll]   = useState(false);
     const [batchDoneCount,   setBatchDoneCount]   = useState<number | null>(null);
     const [batchError,       setBatchError]       = useState<string | null>(null);
+
+    // Dedup skills state
+    const [dedupDone, setDedupDone] = useState(false);
+    const handleCleanDuplicates = useCallback(() => {
+        if (!onUpdateCV) return;
+        const cleaned = deduplicateSkills(cv.skills || []);
+        onUpdateCV({ ...cv, skills: cleaned });
+        setDedupDone(true);
+        setTimeout(() => setDedupDone(false), 3000);
+    }, [cv, onUpdateCV]);
     // Track which bullets have been batch-rewritten so they show green
     const [batchApplied,     setBatchApplied]     = useState<Set<string>>(new Set());
 
@@ -475,13 +488,35 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                                     {/* Duplicate skills */}
                                     {scan.duplicateSkills.length > 0 && (
-                                        <ScanSection
-                                            title="Duplicate / Redundant Skills"
-                                            icon="♻"
-                                            colour="amber"
-                                            items={scan.duplicateSkills}
-                                            description="Similar skills listed separately — merge them into one clear term."
-                                        />
+                                        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
+                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-base">♻</span>
+                                                    <h3 className="text-sm font-bold text-amber-700 dark:text-amber-300">Duplicate / Redundant Skills</h3>
+                                                </div>
+                                                {onUpdateCV && (
+                                                    <button
+                                                        onClick={handleCleanDuplicates}
+                                                        className={`flex-shrink-0 text-[10px] font-bold px-3 py-1 rounded-lg transition-colors ${
+                                                            dedupDone
+                                                                ? 'bg-green-500 text-white'
+                                                                : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                        }`}
+                                                    >
+                                                        {dedupDone ? '✓ Cleaned!' : 'Clean now'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-3">Similar skills listed separately — merge them into one clear term.</p>
+                                            <ul className="space-y-2">
+                                                {scan.duplicateSkills.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2">
+                                                        <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                        <span className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
                                     )}
 
                                     {/* Summary issues */}

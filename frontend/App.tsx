@@ -352,8 +352,13 @@ const AppInner: React.FC = () => {
   );
 
   // ── Derive active user profile from slot ──────────────────────────────
+  // Only fall back to profiles[0] when no room has ever been explicitly chosen.
+  // If an activeProfileId is set but not found (e.g. after cloud restore), stay
+  // null rather than silently jumping to Room 1 and overwriting the wrong room.
   const activeSlot = useMemo(
-    () => profiles.find((p) => p.id === activeProfileId) ?? profiles[0] ?? null,
+    () =>
+      profiles.find((p) => p.id === activeProfileId) ??
+      (activeProfileId ? null : profiles[0] ?? null),
     [profiles, activeProfileId],
   );
   const userProfile: UserProfile | null = activeSlot?.profile ?? null;
