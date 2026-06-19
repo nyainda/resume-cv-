@@ -16,32 +16,45 @@ import { resetStorageRouter } from '../services/storage/StorageRouter';
  * different email cannot see the previous user's work.
  *
  * Does NOT clear:
- *  - cv_builder:deviceId    (device-level, not user-level)
- *  - procv:account_email_hash  (intentionally kept for account-switch detection)
- *
- * After an explicit sign-out, call stampSignedOut() so the guard in App.tsx
- * treats the NEXT sign-in (any user, including the same one) as a fresh
- * account-switch and wipes stale app data before rendering.
+ *  - cv_builder:deviceId           (device-level, not user-level)
+ *  - procv:account_email_hash      (kept for account-switch detection)
+ *  - procv:last_real_email_hash    (kept for same-user-return detection)
  */
 
 /** localStorage key that stores the FNV-32 hash of the last signed-in email. */
 export const ACCOUNT_HASH_KEY = 'procv:account_email_hash';
 
 /**
+ * localStorage key that stores the FNV-32 hash of the user who explicitly
+ * signed out.  Written by stampSignedOut() alongside the sentinel so the
+ * account-switch guard can distinguish "same user returning" (no wipe needed)
+ * from "different user signing in" (wipe required).
+ */
+export const LAST_REAL_HASH_KEY = 'procv:last_real_email_hash';
+
+/**
  * Sentinel value written to ACCOUNT_HASH_KEY on explicit sign-out.
- * Any real email hash will differ from this, so the next sign-in always
- * triggers the account-switch wipe+reload — preventing a subsequent user
- * from seeing the previous user's cached app data.
+ * Tells the guard that a sign-out happened; it consults LAST_REAL_HASH_KEY
+ * to decide whether to wipe (different user) or just proceed (same user).
  */
 export const SIGNED_OUT_SENTINEL = 'signed_out';
 
 /**
  * Write the signed-out sentinel.  Call this AFTER clearUserScopedStorage()
- * in every explicit sign-out handler so the account-switch guard fires on
- * the next sign-in.
+ * in every explicit sign-out handler.
+ *
+ * Preserves the current user's email hash in LAST_REAL_HASH_KEY so that when
+ * the next sign-in fires the account-switch guard, it can detect "same user
+ * returning" and skip the wipe+reload (which was causing the double-login bug).
  */
 export function stampSignedOut(): void {
     try {
+        const currentHash = localStorage.getItem(ACCOUNT_HASH_KEY);
+        // Save who signed out so the guard can compare on the next sign-in.
+        // Only save a real hash — never re-save the sentinel itself.
+        if (currentHash && currentHash !== SIGNED_OUT_SENTINEL) {
+            localStorage.setItem(LAST_REAL_HASH_KEY, currentHash);
+        }
         localStorage.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
     } catch {
         // localStorage unavailable — non-fatal
@@ -108,9 +121,13 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
             .filter(k => k.startsWith('cv_builder:') && k !== 'cv_builder:deviceId')
             .forEach(k => localStorage.removeItem(k));
 
-        // procv:* (except ACCOUNT_HASH_KEY — needed for future switch detection)
+        // procv:* except the two account-switch keys (needed across reloads)
         allKeys
-            .filter(k => k.startsWith('procv:') && k !== ACCOUNT_HASH_KEY)
+            .filter(k =>
+                k.startsWith('procv:') &&
+                k !== ACCOUNT_HASH_KEY &&
+                k !== LAST_REAL_HASH_KEY,
+            )
             .forEach(k => localStorage.removeItem(k));
 
         // Profile-room keys: p:${id}:jd / company / jobTitle / mode / purpose / keywords

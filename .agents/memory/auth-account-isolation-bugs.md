@@ -28,4 +28,9 @@ description: Four root-cause bugs in the ProCV account-switch / cross-account is
 ## Additional fix — localStorage iteration safety
 `clearUserScopedStorage({ clearAppData: true })` previously mutated localStorage keys while iterating over `localStorage.length`, which is unsafe (indices shift on deletion). Refactored to collect all keys into an array first, then delete.
 
-**Why these matter**: On a shared device (or phone with multiple Google accounts), these four bugs together could cause User B to see User A's CVs, or silently log User A back in after User B tries to start fresh.
+## Bug 5 — "First login refuses, second works" (same user returning after sign-out)
+**Files**: `frontend/utils/clearUserStorage.ts`, `frontend/App.tsx`  
+**Root cause**: `stampSignedOut()` wrote the sentinel to `ACCOUNT_HASH_KEY` but never recorded WHO signed out. The account-switch guard in `App.tsx` compares `storedHash !== newHash`. Since `sentinel !== any_real_hash` is always true, the guard triggered a wipe+reload every single time any user signed back in after sign-out — even if it was the same person. The user had to click "Sign in" twice: first click caused a wipe+reload, second click succeeded.  
+**Fix**: `stampSignedOut()` now writes the current user's hash to a new `LAST_REAL_HASH_KEY` (`procv:last_real_email_hash`) before writing the sentinel. The guard checks: when sentinel is present, compare `LAST_REAL_HASH_KEY` against `newHash`. If they match → same user returning → skip the wipe, just clear the sentinel and proceed. If they differ → different user → wipe. `LAST_REAL_HASH_KEY` is preserved by `clearUserScopedStorage({ clearAppData: true })` so it survives the delete-account flow too.
+
+**Why these matter**: On a shared device (or phone with multiple Google accounts), these bugs together could cause User B to see User A's CVs, silently log User A back in after User B tries to start fresh, or force every user to click "Sign in" twice after every sign-out.

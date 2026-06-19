@@ -25,7 +25,7 @@ import { prefetchVersions as prefetchPromptVersions } from "./services/promptReg
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud } from "./services/userDataCloudService";
-import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
   loadCustomTemplates,
@@ -290,13 +290,24 @@ const AppInner: React.FC = () => {
     if (!email) return;
     const newHash    = _fnv32(email);
     const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
-    // Wipe when:
-    //  (a) a different user's hash is stored, OR
-    //  (b) the sentinel 'signed_out' was written by the last sign-out handler —
-    //      this ensures every fresh sign-in starts from a clean slate even when
-    //      the same user returns, preventing residual data from leaking to the
-    //      next person who opens the app on this device.
+    // Wipe when a DIFFERENT user signs in.
+    //  (a) A different real user's hash is stored → wipe immediately.
+    //  (b) The sentinel 'signed_out' is stored → check LAST_REAL_HASH_KEY:
+    //      - Same user returning → skip the wipe so they don't have to sign in
+    //        twice (the original "first login refuses" bug).
+    //      - Different user (or no record) → wipe.
     if (storedHash && storedHash !== newHash) {
+      if (storedHash === SIGNED_OUT_SENTINEL) {
+        // Someone signed out.  Compare against who signed out.
+        const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);
+        localStorage.removeItem(LAST_REAL_HASH_KEY); // consume — one-time use
+        if (lastRealHash && lastRealHash === newHash) {
+          // Same user coming back — their data is their own, no wipe needed.
+          localStorage.setItem(_ACCT_HASH_KEY, newHash);
+          return;
+        }
+        // Different user (or no prior record) after sign-out → wipe.
+      }
       _wipePending = true;
       clearUserScopedStorage({ clearAppData: true });
       localStorage.setItem(_ACCT_HASH_KEY, newHash);
