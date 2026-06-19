@@ -61,6 +61,37 @@ export function stampSignedOut(): void {
     }
 }
 
+/**
+ * Write the signed-out sentinel after an account DELETION.
+ *
+ * Unlike stampSignedOut(), this deliberately does NOT preserve LAST_REAL_HASH_KEY.
+ * That means the account-switch guard will always trigger a full wipe on the next
+ * sign-in — even if the exact same email re-registers one second later.
+ * "New account = new slate, no exceptions."
+ */
+export function stampDeletedAccount(): void {
+    try {
+        // Erase any prior last-real-hash so the guard has no "same user" record.
+        localStorage.removeItem(LAST_REAL_HASH_KEY);
+        localStorage.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
+    } catch {
+        // localStorage unavailable — non-fatal
+    }
+}
+
+/**
+ * Await completion of both IDB wipes (Google auth DB + CV data store).
+ * Call this in the delete-account flow to ensure IDB is actually empty before
+ * the page reloads, preventing any async-race where the reload fires while the
+ * IDB clear is still in progress.
+ */
+export async function clearAllIdbAsync(): Promise<void> {
+    await Promise.allSettled([
+        _clearGoogleAuthIdbAsync(),
+        _clearCvDataIdbAsync(),
+    ]);
+}
+
 export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void {
     // ── Auth tokens ───────────────────────────────────────────────────────────
     const authKeys = [
@@ -168,6 +199,20 @@ function _clearGoogleAuthIdb(): void {
     }
 }
 
+/** Awaitable version of _clearGoogleAuthIdb — resolves when the database is deleted. */
+function _clearGoogleAuthIdbAsync(): Promise<void> {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.deleteDatabase('cv_builder_auth');
+            req.onsuccess = () => resolve();
+            req.onerror   = () => resolve(); // non-fatal — always resolve
+            req.onblocked = () => resolve();
+        } catch {
+            resolve(); // IndexedDB unavailable — non-fatal
+        }
+    });
+}
+
 /** Wipe the cv_builder_cvdata IndexedDB store (non-fatal, fire-and-forget). */
 function _clearCvDataIdb(): void {
     try {
@@ -186,4 +231,27 @@ function _clearCvDataIdb(): void {
     } catch {
         // IndexedDB unavailable — safe to ignore
     }
+}
+
+/** Awaitable version of _clearCvDataIdb — resolves when all stores are cleared. */
+function _clearCvDataIdbAsync(): Promise<void> {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.open('cv_builder_cvdata');
+            req.onerror = () => resolve(); // DB may not exist — non-fatal
+            req.onsuccess = () => {
+                const db = req.result;
+                const stores = Array.from(db.objectStoreNames);
+                if (stores.length === 0) { db.close(); resolve(); return; }
+                try {
+                    const tx = db.transaction(stores, 'readwrite');
+                    stores.forEach(s => tx.objectStore(s).clear());
+                    tx.oncomplete = () => { db.close(); resolve(); };
+                    tx.onerror    = () => { db.close(); resolve(); }; // non-fatal
+                } catch { db.close(); resolve(); }
+            };
+        } catch {
+            resolve(); // IndexedDB unavailable — non-fatal
+        }
+    });
 }

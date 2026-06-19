@@ -25,7 +25,7 @@ import { prefetchVersions as prefetchPromptVersions } from "./services/promptReg
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud } from "./services/userDataCloudService";
-import { clearUserScopedStorage, stampSignedOut, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
   loadCustomTemplates,
@@ -1348,12 +1348,17 @@ const AppInner: React.FC = () => {
 
     // Step 3: LOCAL wipe — runs unconditionally even if server calls failed.
     clearUserScopedStorage({ clearAppData: true });
-    stampSignedOut();
+    // Use stampDeletedAccount (not stampSignedOut) so LAST_REAL_HASH_KEY is NOT
+    // preserved. This means even if the same email re-registers one second later,
+    // the account-switch guard fires a second full wipe — "new account = new slate."
+    stampDeletedAccount();
     try { await signOut(); }  catch { /* non-fatal */ }
     try { googleSignOut(); }  catch { /* non-fatal */ }  // void-returning wrapper
     toast.success('Account deleted', 'Your account and all data have been removed.');
-    // Hard reload so React state (profiles, CVs) is fully reset alongside localStorage.
-    setTimeout(() => window.location.reload(), 800);
+    // Await IDB clears before reloading so the async wipes finish before the
+    // next page load — eliminating the race that could leave stale CV data in IDB.
+    await clearAllIdbAsync().catch(() => {});
+    window.location.reload();
   }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);
 
   // ── CV handlers ─────────────────────────────────────────────────────────
