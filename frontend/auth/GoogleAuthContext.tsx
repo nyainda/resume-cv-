@@ -99,6 +99,7 @@ function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
             if (settled) return;
             settled = true;
             clearTimeout(timer);
+            clearInterval(closedPoller);
             window.removeEventListener('message', messageHandler);
             window.removeEventListener('storage', storageHandler);
             try { localStorage.removeItem(OAUTH_CALLBACK_KEY); } catch { /* ignore */ }
@@ -109,10 +110,22 @@ function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
             if (settled) return;
             settled = true;
             clearTimeout(timer);
+            clearInterval(closedPoller);
             window.removeEventListener('message', messageHandler);
             window.removeEventListener('storage', storageHandler);
             reject(new Error(msg));
         }
+
+        // Detect popup closed early (user clicks ✕ or navigates away in the popup).
+        // Without this the promise hangs for 5 minutes, locking the UI in loading state
+        // and leaving dangling event listeners that can consume subsequent sign-in tokens.
+        const closedPoller = setInterval(() => {
+            try {
+                if (popup.closed) fail('Sign-in cancelled. Please try again.');
+            } catch {
+                // cross-origin access throws in some browsers — safe to ignore
+            }
+        }, 500);
 
         const timer = setTimeout(() => fail('Sign-in timed out. Please try again.'), 300_000);
 

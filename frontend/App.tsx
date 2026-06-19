@@ -249,6 +249,12 @@ function navTimeAgo(iso?: string): string {
 }
 
 // ── Account isolation helpers ────────────────────────────────────────────────
+// Flag set to true the moment a wipe+reload is scheduled.
+// Any async effect (e.g. syncProfileToCache) that fires in the gap between
+// clearUserScopedStorage() and the actual page navigation must check this
+// flag and abort to prevent pushing the previous user's data to D1.
+let _wipePending = false;
+
 // FNV-1a 32-bit hash — fast, non-crypto, sufficient for equality detection.
 function _fnv32(s: string): string {
   let h = 0x811c9dc5 >>> 0;
@@ -291,6 +297,7 @@ const AppInner: React.FC = () => {
     //      the same user returns, preventing residual data from leaking to the
     //      next person who opens the app on this device.
     if (storedHash && storedHash !== newHash) {
+      _wipePending = true;
       clearUserScopedStorage({ clearAppData: true });
       localStorage.setItem(_ACCT_HASH_KEY, newHash);
       window.location.reload();
@@ -313,6 +320,7 @@ const AppInner: React.FC = () => {
       if (!newHash) return; // key was deleted — not our concern
       if (newHash === SIGNED_OUT_SENTINEL) {
         // Another tab signed out — reload this tab to a clean unauthenticated state
+        _wipePending = true;
         clearUserScopedStorage({ clearAppData: true });
         window.location.reload();
         return;
@@ -321,6 +329,7 @@ const AppInner: React.FC = () => {
       const ourHash = email ? _fnv32(email) : null;
       if (ourHash && newHash === ourHash) return; // same user, no action needed
       // A different user signed in on another tab — wipe and reload
+      _wipePending = true;
       clearUserScopedStorage({ clearAppData: true });
       localStorage.setItem(_ACCT_HASH_KEY, newHash);
       window.location.reload();
@@ -504,9 +513,12 @@ const AppInner: React.FC = () => {
   // Boot-time profile cache sync — runs whenever the active slot changes.
   // Uploads the profile to D1 if it hasn't been synced yet (or has changed
   // since the last upload). Best-effort; a failure is silent.
+  // Guard: if a wipe+reload is in progress, skip the sync entirely so we
+  // never push the previous user's profile to D1 under the new user's session.
   useEffect(() => {
     if (!activeSlot) return;
     const t = setTimeout(() => {
+      if (_wipePending) return;
       syncProfileToCache(activeSlot).catch(() => {});
     }, 3000);
     return () => clearTimeout(t);

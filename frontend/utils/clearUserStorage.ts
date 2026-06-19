@@ -1,3 +1,7 @@
+import { LS_AUTH_CLEARED } from '../auth/AuthPersistence';
+import { clearCVDataStore } from '../services/storage/cvDataStore';
+import { resetStorageRouter } from '../services/storage/StorageRouter';
+
 /**
  * clearUserScopedStorage — call as part of every sign-out sequence.
  *
@@ -92,50 +96,46 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
     // Only done when a different email is detected — not on normal logout.
     // This prevents a new user from seeing the previous user's CVs and profiles.
     if (opts?.clearAppData) {
-        // Collect all cv_builder:* keys (except deviceId — that's device-level)
-        const appKeys: string[] = [];
+        // ── Collect all keys first (mutating localStorage while iterating is unsafe) ──
+        const allKeys: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k?.startsWith('cv_builder:') && k !== 'cv_builder:deviceId') {
-                appKeys.push(k);
-            }
+            if (k) allKeys.push(k);
         }
-        appKeys.forEach(k => localStorage.removeItem(k));
 
-        // Also clear any other procv:* keys that hold per-user app state
-        const procvAppKeys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (
-                k?.startsWith('procv:') &&
-                k !== ACCOUNT_HASH_KEY // keep — needed for future switch detection
-            ) {
-                procvAppKeys.push(k);
-            }
-        }
-        procvAppKeys.forEach(k => localStorage.removeItem(k));
+        // cv_builder:* (except deviceId — device-level, not user-level)
+        allKeys
+            .filter(k => k.startsWith('cv_builder:') && k !== 'cv_builder:deviceId')
+            .forEach(k => localStorage.removeItem(k));
 
-        // Clear profile-room keys: p:${id}:jd / company / jobTitle / mode / purpose / keywords
-        const profileRoomKeys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k?.startsWith('p:')) profileRoomKeys.push(k);
-        }
-        profileRoomKeys.forEach(k => localStorage.removeItem(k));
+        // procv:* (except ACCOUNT_HASH_KEY — needed for future switch detection)
+        allKeys
+            .filter(k => k.startsWith('procv:') && k !== ACCOUNT_HASH_KEY)
+            .forEach(k => localStorage.removeItem(k));
 
-        // Clear cv:* per-session state (cv:purpose, cv:jdKeywords, cv:targetCompany, cv:targetJobTitle)
-        const cvStateKeys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k?.startsWith('cv:')) cvStateKeys.push(k);
-        }
-        cvStateKeys.forEach(k => localStorage.removeItem(k));
+        // Profile-room keys: p:${id}:jd / company / jobTitle / mode / purpose / keywords
+        allKeys.filter(k => k.startsWith('p:')).forEach(k => localStorage.removeItem(k));
 
-        // Clear IndexedDB cv_builder_cvdata (large CV JSON blobs)
+        // cv:* per-session state (cv:purpose, cv:jdKeywords, cv:targetCompany, cv:targetJobTitle)
+        allKeys.filter(k => k.startsWith('cv:')).forEach(k => localStorage.removeItem(k));
+
+        // ── Synchronous in-memory resets ─────────────────────────────────────────
+        // These MUST happen before window.location.reload() so async effects that
+        // fire between the wipe and the reload cannot read or write stale data.
+
+        // 1. Nullify the StorageRouter Drive singleton (holds the old user's OAuth token).
+        try { resetStorageRouter(); } catch { /* non-fatal */ }
+
+        // 2. Clear the CV data in-memory cache and close its IDB connection.
+        try { clearCVDataStore(); } catch { /* non-fatal */ }
+
+        // 3. Write the IDB-skip sentinel SYNCHRONOUSLY so that on the next page load
+        //    loadAuthState() ignores any stale Google auth entry that the async IDB
+        //    deletion (below) may not have finished removing before the reload.
+        try { localStorage.setItem(LS_AUTH_CLEARED, '1'); } catch { /* quota — non-fatal */ }
+
+        // ── Async IDB wipes (fire-and-forget; sentinel above is the safety net) ──
         _clearCvDataIdb();
-
-        // Clear the Google auth IDB (cv_builder_auth) so the old user's
-        // access token cannot silently re-authenticate them after reload.
         _clearGoogleAuthIdb();
     }
 }

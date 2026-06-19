@@ -169,6 +169,21 @@ export async function migrateToIDB(slots: UserProfileSlot[]): Promise<{ slots: U
 }
 
 /**
+ * Clear in-memory cache and close/release the cached IDB connection.
+ * Call this as part of every account-switch wipe so stale CV data from the
+ * previous user cannot be read from memory after storage is cleared but before
+ * the page reloads.  Also prevents the stale _db handle from writing back into
+ * the freshly-cleared IDB store.
+ */
+export function clearCVDataStore(): void {
+    _cache.clear();
+    if (_db) {
+        try { _db.close(); } catch { /* ignore */ }
+        _db = null;
+    }
+}
+
+/**
  * Housekeeping: remove IDB entries whose IDs are no longer in any slot.
  * Run fire-and-forget — never critical.
  */

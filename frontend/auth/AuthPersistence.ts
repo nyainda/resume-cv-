@@ -79,6 +79,14 @@ const LS_TOKEN = 'cv_gdrive_token';
 const LS_EXPIRY = 'cv_gdrive_expiry';
 const LS_USER = 'cv_gdrive_user';
 
+// ── IDB invalidation sentinel ─────────────────────────────────────────────────
+// Written synchronously by clearUserScopedStorage() before window.location.reload().
+// Because IndexedDB deletion is async/fire-and-forget, it may not complete before
+// the page reloads. On the next load, this sentinel causes loadAuthState() to
+// ignore any stale IDB entry and return null instead, preventing the previous
+// user's token from silently re-authenticating them.
+export const LS_AUTH_CLEARED = 'cv_auth_cleared';
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /** Persist auth state to BOTH IndexedDB (primary) and localStorage (fallback). */
@@ -102,6 +110,22 @@ export async function saveAuthState(state: PersistedAuthState): Promise<void> {
 
 /** Load auth state. Tries IndexedDB first, then falls back to localStorage. */
 export async function loadAuthState(): Promise<PersistedAuthState | null> {
+    // Safety-guard: if clearUserScopedStorage() ran on the previous page load it
+    // wrote LS_AUTH_CLEARED synchronously before calling window.location.reload().
+    // The async IDB deletion may not have completed before the reload, so we must
+    // not trust stale IDB data here.  Consume and remove the sentinel, then bail.
+    try {
+        if (localStorage.getItem(LS_AUTH_CLEARED)) {
+            localStorage.removeItem(LS_AUTH_CLEARED);
+            // Also attempt a best-effort async IDB clean-up now that we're safely
+            // on the new page load and the previous user is no longer active.
+            await idbDel('auth');
+            return null;
+        }
+    } catch {
+        // localStorage unavailable — proceed to IDB as normal
+    }
+
     // 1. Try IndexedDB
     const idbState = await idbGet<PersistedAuthState>('auth');
     if (idbState?.accessToken && idbState.expiresAt) {

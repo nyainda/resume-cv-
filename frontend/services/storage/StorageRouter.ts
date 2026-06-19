@@ -245,3 +245,14 @@ export function resetMigrationFlag(userEmail?: string): void {
     if (userEmail) localStorage.removeItem(getMigrationFlagKey(userEmail));
     localStorage.removeItem(MIGRATION_FLAG_LEGACY);
 }
+
+/**
+ * Reset the StorageRouter singletons.
+ * Call as part of every account-switch wipe so the _drive singleton (which
+ * caches the previous user's Google OAuth token) cannot be reused after the
+ * token is removed from localStorage and before the page reloads.
+ */
+export function resetStorageRouter(): void {
+    _cache = null;
+    _drive = null;
+}
