@@ -33,11 +33,20 @@ export const ACCOUNT_HASH_KEY = 'procv:account_email_hash';
 export const LAST_REAL_HASH_KEY = 'procv:last_real_email_hash';
 
 /**
- * Sentinel value written to ACCOUNT_HASH_KEY on explicit sign-out.
- * Tells the guard that a sign-out happened; it consults LAST_REAL_HASH_KEY
- * to decide whether to wipe (different user) or just proceed (same user).
+ * Sentinel written to ACCOUNT_HASH_KEY on explicit sign-out.
+ * The guard consults LAST_REAL_HASH_KEY to decide whether to wipe.
  */
 export const SIGNED_OUT_SENTINEL = 'signed_out';
+
+/**
+ * Sentinel written to ACCOUNT_HASH_KEY after a full account deletion where
+ * both IDB stores were AWAITED (not fire-and-forget).
+ *
+ * When the guard sees this sentinel it knows the local slate is already
+ * guaranteed clean — no second wipe+reload is needed.  Any email (same or
+ * different) can sign straight in: "new account = one click."
+ */
+export const DELETED_CLEAN_SENTINEL = 'deleted_clean';
 
 /**
  * Write the signed-out sentinel.  Call this AFTER clearUserScopedStorage()
@@ -45,14 +54,17 @@ export const SIGNED_OUT_SENTINEL = 'signed_out';
  *
  * Preserves the current user's email hash in LAST_REAL_HASH_KEY so that when
  * the next sign-in fires the account-switch guard, it can detect "same user
- * returning" and skip the wipe+reload (which was causing the double-login bug).
+ * returning" and skip the wipe+reload (the double-login fix).
  */
 export function stampSignedOut(): void {
     try {
         const currentHash = localStorage.getItem(ACCOUNT_HASH_KEY);
-        // Save who signed out so the guard can compare on the next sign-in.
-        // Only save a real hash — never re-save the sentinel itself.
-        if (currentHash && currentHash !== SIGNED_OUT_SENTINEL) {
+        // Save who signed out — never save either sentinel value itself.
+        if (
+            currentHash &&
+            currentHash !== SIGNED_OUT_SENTINEL &&
+            currentHash !== DELETED_CLEAN_SENTINEL
+        ) {
             localStorage.setItem(LAST_REAL_HASH_KEY, currentHash);
         }
         localStorage.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
@@ -62,18 +74,18 @@ export function stampSignedOut(): void {
 }
 
 /**
- * Write the signed-out sentinel after an account DELETION.
+ * Write the deleted-clean sentinel after a full account deletion.
  *
- * Unlike stampSignedOut(), this deliberately does NOT preserve LAST_REAL_HASH_KEY.
- * That means the account-switch guard will always trigger a full wipe on the next
- * sign-in — even if the exact same email re-registers one second later.
- * "New account = new slate, no exceptions."
+ * Call this AFTER clearUserScopedStorage({ clearAppData: true }) AND after
+ * clearAllIdbAsync() has resolved — only then is the local slate guaranteed
+ * empty.  The guard will let the next sign-in proceed without a second wipe,
+ * making delete → re-register a single click, exactly like first-time sign-up.
  */
 export function stampDeletedAccount(): void {
     try {
-        // Erase any prior last-real-hash so the guard has no "same user" record.
+        // Erase last-real-hash: whoever signs in next is a brand-new user.
         localStorage.removeItem(LAST_REAL_HASH_KEY);
-        localStorage.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
+        localStorage.setItem(ACCOUNT_HASH_KEY, DELETED_CLEAN_SENTINEL);
     } catch {
         // localStorage unavailable — non-fatal
     }

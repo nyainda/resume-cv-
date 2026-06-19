@@ -25,7 +25,7 @@ import { prefetchVersions as prefetchPromptVersions } from "./services/promptReg
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud } from "./services/userDataCloudService";
-import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
 import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
 import {
   loadCustomTemplates,
@@ -291,12 +291,21 @@ const AppInner: React.FC = () => {
     const newHash    = _fnv32(email);
     const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
     // Wipe when a DIFFERENT user signs in.
-    //  (a) A different real user's hash is stored → wipe immediately.
-    //  (b) The sentinel 'signed_out' is stored → check LAST_REAL_HASH_KEY:
-    //      - Same user returning → skip the wipe so they don't have to sign in
-    //        twice (the original "first login refuses" bug).
-    //      - Different user (or no record) → wipe.
+    //  (a) Different real hash stored → wipe immediately.
+    //  (b) SIGNED_OUT_SENTINEL stored → check LAST_REAL_HASH_KEY:
+    //        same user returning  → skip wipe (double-login fix)
+    //        different/unknown    → wipe
+    //  (c) DELETED_CLEAN_SENTINEL → data was already fully wiped with awaited
+    //        IDB clears before the reload; no second wipe needed for any email.
+    //        Delete → re-register is a single click, same as first-time sign-up.
     if (storedHash && storedHash !== newHash) {
+      if (storedHash === DELETED_CLEAN_SENTINEL) {
+        // Account was properly deleted; local slate is guaranteed empty.
+        // Proceed straight in — no wipe, no reload.
+        localStorage.removeItem(LAST_REAL_HASH_KEY);
+        localStorage.setItem(_ACCT_HASH_KEY, newHash);
+        return;
+      }
       if (storedHash === SIGNED_OUT_SENTINEL) {
         // Someone signed out.  Compare against who signed out.
         const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);

@@ -35,11 +35,12 @@ function makeLocalStorageMock() {
 
 // ─── Constants (must stay in sync with clearUserStorage.ts) ──────────────────
 
-const ACCOUNT_HASH_KEY    = 'procv:account_email_hash';
-const LAST_REAL_HASH_KEY  = 'procv:last_real_email_hash';
-const SIGNED_OUT_SENTINEL = 'signed_out';
-const LS_AUTH_CLEARED     = 'cv_auth_cleared';
-const DEVICE_ID_KEY       = 'cv_builder:deviceId';
+const ACCOUNT_HASH_KEY      = 'procv:account_email_hash';
+const LAST_REAL_HASH_KEY    = 'procv:last_real_email_hash';
+const SIGNED_OUT_SENTINEL   = 'signed_out';
+const DELETED_CLEAN_SENTINEL = 'deleted_clean';
+const LS_AUTH_CLEARED       = 'cv_auth_cleared';
+const DEVICE_ID_KEY         = 'cv_builder:deviceId';
 
 // ─── FNV-32 (must stay in sync with App.tsx _fnv32) ──────────────────────────
 
@@ -56,7 +57,12 @@ function _fnv32(str: string): string {
 
 function stampSignedOut(ls: ReturnType<typeof makeLocalStorageMock>): void {
     const currentHash = ls.getItem(ACCOUNT_HASH_KEY);
-    if (currentHash && currentHash !== SIGNED_OUT_SENTINEL) {
+    // Never re-save either sentinel — only real hashes are worth preserving
+    if (
+        currentHash &&
+        currentHash !== SIGNED_OUT_SENTINEL &&
+        currentHash !== DELETED_CLEAN_SENTINEL
+    ) {
         ls.setItem(LAST_REAL_HASH_KEY, currentHash);
     }
     ls.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
@@ -66,17 +72,18 @@ function stampSignedOut(ls: ReturnType<typeof makeLocalStorageMock>): void {
 
 function stampDeletedAccount(ls: ReturnType<typeof makeLocalStorageMock>): void {
     ls.removeItem(LAST_REAL_HASH_KEY);
-    ls.setItem(ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL);
+    ls.setItem(ACCOUNT_HASH_KEY, DELETED_CLEAN_SENTINEL);
 }
 
 // ─── Pure account-switch guard (mirrors App.tsx useEffect logic) ─────────────
 //
-// Returns one of three outcomes:
-//   'wipe'      — different user detected; clear app data and reload
-//   'same-user' — same user returning after explicit sign-out; no wipe needed
-//   'no-action' — no prior record or same user; just update the hash
+// Returns one of four outcomes:
+//   'wipe'         — different user detected; clear app data and reload
+//   'same-user'    — same user returning after explicit sign-out; no wipe
+//   'clean-delete' — account was deleted with awaited IDB clear; straight in
+//   'no-action'    — no prior record or same user; just update the hash
 //
-type GuardOutcome = 'wipe' | 'same-user' | 'no-action';
+type GuardOutcome = 'wipe' | 'same-user' | 'clean-delete' | 'no-action';
 
 function runAccountSwitchGuard(
     ls: ReturnType<typeof makeLocalStorageMock>,
@@ -91,6 +98,13 @@ function runAccountSwitchGuard(
     }
 
     // storedHash exists and differs from newHash
+    if (storedHash === DELETED_CLEAN_SENTINEL) {
+        // Data was fully wiped (IDB awaited) before reload — no second wipe needed
+        ls.removeItem(LAST_REAL_HASH_KEY);
+        ls.setItem(ACCOUNT_HASH_KEY, newHash);
+        return 'clean-delete';
+    }
+
     if (storedHash === SIGNED_OUT_SENTINEL) {
         const lastRealHash = ls.getItem(LAST_REAL_HASH_KEY);
         ls.removeItem(LAST_REAL_HASH_KEY); // consume — one-time use
@@ -684,17 +698,16 @@ describe('Full flow: sign-out then same user signs back in', () => {
         expect(ls.getItem(LAST_REAL_HASH_KEY)).toBeNull(); // consumed
     });
 
-    it('delete account then same user re-registers → wipe (new account = new slate)', () => {
-        // Account deletion: clearAppData then stampDeletedAccount (NOT stampSignedOut)
+    it('delete account then same user re-registers → clean-delete (1-click, data already gone)', () => {
+        // Account deletion: clearAppData + awaited IDB + stampDeletedAccount
         ls.setItem(ACCOUNT_HASH_KEY, _fnv32('alice@example.com'));
         ls.setItem('cv_builder:profiles', 'some data');
         clearAppData(ls);         // wipes app data, ACCOUNT_HASH_KEY preserved
-        stampDeletedAccount(ls);  // sentinel written, LAST_REAL_HASH_KEY NOT saved
+        stampDeletedAccount(ls);  // DELETED_CLEAN_SENTINEL written, no LAST_REAL_HASH_KEY
 
-        // Alice re-registers immediately — must see a fresh wipe, not "same-user"
+        // Alice re-registers immediately — guard sees clean-delete, straight in
         const result = runAccountSwitchGuard(ls, 'alice@example.com');
-        expect(result).toBe('wipe');
-        // LAST_REAL_HASH_KEY must not exist (stampDeletedAccount erased it)
+        expect(result).toBe('clean-delete'); // no second wipe, no second sign-in click
         expect(ls.getItem(LAST_REAL_HASH_KEY)).toBeNull();
     });
 });
@@ -706,10 +719,11 @@ describe('stampDeletedAccount — new account = new slate', () => {
 
     beforeEach(() => { ls = makeLocalStorageMock(); });
 
-    it('writes the sentinel to ACCOUNT_HASH_KEY', () => {
+    it('writes DELETED_CLEAN_SENTINEL (not SIGNED_OUT_SENTINEL) to ACCOUNT_HASH_KEY', () => {
         ls.setItem(ACCOUNT_HASH_KEY, _fnv32('alice@example.com'));
         stampDeletedAccount(ls);
-        expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(SIGNED_OUT_SENTINEL);
+        expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(DELETED_CLEAN_SENTINEL);
+        expect(ls.getItem(ACCOUNT_HASH_KEY)).not.toBe(SIGNED_OUT_SENTINEL);
     });
 
     it('does NOT save LAST_REAL_HASH_KEY (unlike stampSignedOut)', () => {
@@ -725,16 +739,18 @@ describe('stampDeletedAccount — new account = new slate', () => {
         expect(ls.getItem(LAST_REAL_HASH_KEY)).toBeNull();
     });
 
-    it('same email signing in after delete always triggers wipe', () => {
+    it('same email signing in after delete → clean-delete (straight in, data already wiped)', () => {
         ls.setItem(ACCOUNT_HASH_KEY, _fnv32('alice@example.com'));
         stampDeletedAccount(ls);
-        expect(runAccountSwitchGuard(ls, 'alice@example.com')).toBe('wipe');
+        // IDB was cleared before reload; guard skips second wipe
+        expect(runAccountSwitchGuard(ls, 'alice@example.com')).toBe('clean-delete');
     });
 
-    it('different email signing in after delete also triggers wipe', () => {
+    it('different email signing in after delete → clean-delete (IDB already wiped, straight in)', () => {
         ls.setItem(ACCOUNT_HASH_KEY, _fnv32('alice@example.com'));
         stampDeletedAccount(ls);
-        expect(runAccountSwitchGuard(ls, 'bob@example.com')).toBe('wipe');
+        // IDB was cleared before reload; any new user goes straight in
+        expect(runAccountSwitchGuard(ls, 'bob@example.com')).toBe('clean-delete');
     });
 
     it('contrast: stampSignedOut DOES save LAST_REAL_HASH_KEY', () => {
@@ -774,50 +790,50 @@ describe('Delete account then immediately re-register', () => {
         expect(ls.getItem('cv_builder:cvdata_1')).toBeNull();
         expect(ls.getItem('p:slot-1:jd')).toBeNull();
         expect(ls.getItem('cv:purpose')).toBeNull();
-        expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(SIGNED_OUT_SENTINEL);
+        expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(DELETED_CLEAN_SENTINEL);
         expect(ls.getItem(LAST_REAL_HASH_KEY)).toBeNull();
     });
 
-    it('re-signing-in with the same email 1 second later always wipes (never "same-user")', () => {
+    it('re-signing-in with the same email goes straight in (clean-delete, never "same-user")', () => {
         clearAppData(ls);
         stampDeletedAccount(ls);
 
+        // IDB was already cleared before this reload — guard skips second wipe
         const result = runAccountSwitchGuard(ls, 'alice@example.com');
-        expect(result).toBe('wipe');
+        expect(result).toBe('clean-delete');
     });
 
-    it('re-signing-in with a different email also wipes', () => {
+    it('re-signing-in with a different email also goes straight in (clean-delete)', () => {
         clearAppData(ls);
         stampDeletedAccount(ls);
 
         const result = runAccountSwitchGuard(ls, 'charlie@example.com');
-        expect(result).toBe('wipe');
+        expect(result).toBe('clean-delete');
     });
 
-    it('after the guard wipes, ACCOUNT_HASH_KEY has the new email and no leftover data', () => {
+    it('after clean-delete guard, ACCOUNT_HASH_KEY has the new email and no leftover data', () => {
         clearAppData(ls);
         stampDeletedAccount(ls);
-        // Simulate guard wipe — clearAppData again, then set new hash
-        clearAppData(ls);
-        ls.setItem(ACCOUNT_HASH_KEY, _fnv32('alice@example.com'));
 
-        expect(ls.getItem('cv_builder:profiles')).toBeNull();
+        // Guard runs — clean-delete path sets new hash, no reload
+        runAccountSwitchGuard(ls, 'alice@example.com');
+
+        expect(ls.getItem('cv_builder:profiles')).toBeNull(); // already wiped by clearAppData
         expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(_fnv32('alice@example.com'));
         expect(ls.getItem(LAST_REAL_HASH_KEY)).toBeNull();
     });
 
-    it('full round-trip: delete → same email signs in → wipe → signs in again → no-action', () => {
-        // Step 1: delete
+    it('full round-trip: delete → same email signs in → clean-delete → signs in again → no-action', () => {
+        // Step 1: delete (IDB cleared + sentinel written)
         clearAppData(ls);
         stampDeletedAccount(ls);
 
-        // Step 2: same email signs in → guard detects: sentinel, no LAST_REAL_HASH_KEY → wipe
+        // Step 2: same email signs in — guard sees DELETED_CLEAN_SENTINEL → straight in
         const step2 = runAccountSwitchGuard(ls, 'alice@example.com');
-        expect(step2).toBe('wipe');
-        // Guard sets ACCOUNT_HASH_KEY before reload
+        expect(step2).toBe('clean-delete'); // 1-click re-register
         expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(_fnv32('alice@example.com'));
 
-        // Step 3: (after page reload) same email signs in again → hash matches → no-action
+        // Step 3: (next load or same session) same email → hash matches → no-action
         const step3 = runAccountSwitchGuard(ls, 'alice@example.com');
         expect(step3).toBe('no-action');
     });
