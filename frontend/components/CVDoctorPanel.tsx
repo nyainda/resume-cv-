@@ -324,18 +324,37 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     }, [annotations, cv, jobDescription, onApplyBullet]);
 
     const hasScan = useRef(false);
+    // The JD string that was active when the last scan ran — used to detect staleness
+    const lastScanJD = useRef<string>('');
+    // Show a "JD changed" prompt when the JD is swapped after a scan has run
+    const [jdChangedSinceLastScan, setJdChangedSinceLastScan] = useState(false);
+
+    // When jobDescription changes after a scan has already run, mark the scan as stale
+    // so the user is prompted to re-run (instead of silently showing stale results)
+    useEffect(() => {
+        if (hasScan.current && (jobDescription ?? '') !== lastScanJD.current) {
+            setJdChangedSinceLastScan(true);
+        }
+    }, [jobDescription]);
+
+    const triggerScan = useCallback(() => {
+        hasScan.current = true;
+        lastScanJD.current = jobDescription ?? '';
+        setJdChangedSinceLastScan(false);
+        setScan(null);
+        setScanLoading(true);
+        setScanError(null);
+        scanCVForDoctor(cv, jobDescription)
+            .then(setScan)
+            .catch(err => setScanError(err?.message ?? 'Scan failed — try again.'))
+            .finally(() => setScanLoading(false));
+    }, [cv, jobDescription]);
 
     useEffect(() => {
         if (activeTab === 'scan' && !hasScan.current && !scan && !scanLoading) {
-            hasScan.current = true;
-            setScanLoading(true);
-            setScanError(null);
-            scanCVForDoctor(cv, jobDescription)
-                .then(setScan)
-                .catch(err => setScanError(err?.message ?? 'Scan failed — try again.'))
-                .finally(() => setScanLoading(false));
+            triggerScan();
         }
-    }, [activeTab, cv, jobDescription, scan, scanLoading]);
+    }, [activeTab, triggerScan, scan, scanLoading]);
 
     const tabs: { id: Tab; label: string; count?: number }[] = [
         { id: 'scan',       label: 'Smart Review' },
@@ -370,7 +389,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-zinc-200 dark:border-neutral-700 bg-gradient-to-r from-violet-600 to-violet-500 dark:from-violet-800 dark:to-violet-700 flex-shrink-0">
-                    <div>
+                    <div className="min-w-0 flex-1">
                         <h2 className="text-base font-extrabold text-white flex items-center gap-2">
                             <span>⚕</span>
                             CV Doctor
@@ -382,6 +401,12 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                         </h2>
                         <p className="text-xs text-violet-100 mt-0.5">
                             {annotations.length} bullets · {goodCount} strong · {issueCount} flagged
+                        </p>
+                        {/* JD context indicator — shows which JD the Doctor is working from */}
+                        <p className="text-[10px] text-violet-200/80 mt-1 truncate max-w-[260px]">
+                            {jobDescription?.trim()
+                                ? `📋 ${jobDescription.trim().substring(0, 60).replace(/\n/g, ' ')}${jobDescription.trim().length > 60 ? '…' : ''}`
+                                : '📋 General review — no JD pasted'}
                         </p>
                     </div>
                     <button
@@ -421,10 +446,30 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                     {/* ── SCAN TAB ── */}
                     {activeTab === 'scan' && (
                         <>
+                            {/* JD changed banner — appears when the JD is updated after a scan ran */}
+                            {jdChangedSinceLastScan && !scanLoading && (
+                                <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold text-amber-800 dark:text-amber-300">Job description changed</p>
+                                        <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                                            This review was run against a different JD. Re-scan to get tailored results for the current one.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={triggerScan}
+                                        className="flex-shrink-0 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                                    >
+                                        Re-scan now
+                                    </button>
+                                </div>
+                            )}
+
                             {scanLoading && (
                                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                                     <span className="inline-block w-8 h-8 rounded-full border-3 border-violet-400 border-t-transparent animate-spin" style={{ borderWidth: '3px' }} />
-                                    <p className="text-sm text-zinc-500">Reviewing your CV…</p>
+                                    <p className="text-sm text-zinc-500">
+                                        {jobDescription?.trim() ? 'Reviewing CV against job description…' : 'Reviewing your CV…'}
+                                    </p>
                                 </div>
                             )}
 
@@ -432,7 +477,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                 <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-sm text-red-700 dark:text-red-300">
                                     {scanError}
                                     <button
-                                        onClick={() => { hasScan.current = false; setScan(null); setScanError(null); setActiveTab('bullets'); setTimeout(() => setActiveTab('scan'), 50); }}
+                                        onClick={triggerScan}
                                         className="block mt-2 text-xs underline"
                                     >
                                         Try again
