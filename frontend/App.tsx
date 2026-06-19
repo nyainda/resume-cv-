@@ -2781,6 +2781,7 @@ const AppInner: React.FC = () => {
         onSave={handleApiSettingsSave}
         currentApiSettings={apiSettings}
         onSignOut={() => { setIsSettingsOpen(false); setShowLanding(true); }}
+        onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
       />
       <PricingModal
         isOpen={isPricingOpen}

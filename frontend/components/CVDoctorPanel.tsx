@@ -256,15 +256,23 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
     const [batchDoneCount,   setBatchDoneCount]   = useState<number | null>(null);
     const [batchError,       setBatchError]       = useState<string | null>(null);
 
-    // Dedup skills state
+    // Dedup skills state — stays true permanently after user clicks "Clean now"
     const [dedupDone, setDedupDone] = useState(false);
     const handleCleanDuplicates = useCallback(() => {
-        if (!onUpdateCV) return;
+        if (!onUpdateCV || dedupDone) return;
         const cleaned = deduplicateSkills(cv.skills || []);
         onUpdateCV({ ...cv, skills: cleaned });
         setDedupDone(true);
-        setTimeout(() => setDedupDone(false), 3000);
-    }, [cv, onUpdateCV]);
+        // No timeout — button remains in "Applied ✓" state until the panel is closed or re-scanned
+    }, [cv, onUpdateCV, dedupDone]);
+
+    // Apply suggested summary to the CV
+    const [summaryApplied, setSummaryApplied] = useState(false);
+    const handleApplySuggestedSummary = useCallback((suggested: string) => {
+        if (!onUpdateCV || summaryApplied) return;
+        onUpdateCV({ ...cv, summary: suggested });
+        setSummaryApplied(true);
+    }, [cv, onUpdateCV, summaryApplied]);
     // Track which bullets have been batch-rewritten so they show green
     const [batchApplied,     setBatchApplied]     = useState<Set<string>>(new Set());
 
@@ -564,15 +572,40 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                         </div>
                                     )}
 
-                                    {/* Summary issues */}
+                                    {/* Summary issues + suggested rewrite */}
                                     {scan.summaryIssues.length > 0 && (
-                                        <ScanSection
-                                            title="Summary Needs Work"
-                                            icon="✍"
-                                            colour="amber"
-                                            items={scan.summaryIssues}
-                                            description="Your opening summary is the first thing a recruiter reads — make every sentence count."
-                                        />
+                                        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-base">✍</span>
+                                                <h3 className="text-sm font-bold text-amber-700 dark:text-amber-300">Summary Needs Work</h3>
+                                            </div>
+                                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Your opening summary is the first thing a recruiter reads — make every sentence count.</p>
+                                            <ul className="space-y-1.5">
+                                                {scan.summaryIssues.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2">
+                                                        <span className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                        <span className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                            {scan.suggestedSummary && onUpdateCV && (
+                                                <div className="mt-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-neutral-800 p-3 space-y-2">
+                                                    <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Suggested rewrite</p>
+                                                    <p className="text-xs text-zinc-700 dark:text-zinc-200 leading-relaxed italic">{scan.suggestedSummary}</p>
+                                                    <button
+                                                        onClick={() => handleApplySuggestedSummary(scan.suggestedSummary!)}
+                                                        disabled={summaryApplied}
+                                                        className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                                                            summaryApplied
+                                                                ? 'bg-green-500 text-white cursor-default'
+                                                                : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                                        }`}
+                                                    >
+                                                        {summaryApplied ? '✓ Applied!' : 'Apply to CV'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
 
                                     <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center pt-2">

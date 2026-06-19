@@ -22,9 +22,10 @@ interface SettingsModalProps {
   onSave: (settings: ApiSettings) => void;
   currentApiSettings: ApiSettings;
   onSignOut?: () => void;
+  onOpenOnboarding?: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onSignOut }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onSignOut, onOpenOnboarding }) => {
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
@@ -199,6 +200,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                     ✓ {profile.via}
                   </span>
                 </div>
+                {/* Re-run setup */}
+                {onOpenOnboarding && (
+                  <button
+                    onClick={onOpenOnboarding}
+                    className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-zinc-500 dark:text-zinc-400 hover:text-[#1B2B4B] hover:bg-[#1B2B4B]/10 dark:hover:text-[#C9A84C] dark:hover:bg-[#C9A84C]/10 border border-zinc-200 dark:border-neutral-700 hover:border-[#1B2B4B]/30 dark:hover:border-[#C9A84C]/30 transition-all"
+                    title="Re-run setup wizard"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                    </svg>
+                    Setup
+                  </button>
+                )}
                 {/* Sign out */}
                 {isWorkerAuthenticated && (
                   <button

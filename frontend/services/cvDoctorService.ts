@@ -185,12 +185,13 @@ export interface BulletAnnotation {
 }
 
 export interface CVDoctorScan {
-    toAdd:          string[];
-    toRemove:       string[];
-    quickWins:      string[];
-    noMetricCount:  number;     // deterministic count — bullets with no digit
-    duplicateSkills:string[];   // similar/redundant skill pairs detected by AI
-    summaryIssues:  string[];   // specific problems in the summary section
+    toAdd:           string[];
+    toRemove:        string[];
+    quickWins:       string[];
+    noMetricCount:   number;     // deterministic count — bullets with no digit
+    duplicateSkills: string[];   // similar/redundant skill pairs detected by AI
+    summaryIssues:   string[];   // specific problems in the summary section
+    suggestedSummary?: string;   // concrete AI-rewritten summary the user can apply
 }
 
 export interface CVDiff {
@@ -341,23 +342,29 @@ CRITICAL RULES:
 Return ONLY this JSON (no markdown, no prose):
 {
   "toAdd": ["up to 5 specific things MISSING — e.g. 'The Site Engineer role has no metric — add team size or project budget', 'Add LinkedIn URL'"],
-  "toRemove": ["up to 4 things that WEAKEN the CV — e.g. 'Replace \\"leveraged\\" in bullet 1 of Role X', 'Cut the References section'"],
+  "toRemove": ["up to 4 things that WEAKEN the CV — e.g. 'Replace \\"leveraged\\" in bullet 1 of Role X with a specific verb', 'Cut the References section'"],
   "quickWins": ["up to 4 one-sentence improvements — e.g. 'Add team size or region to \\"Managed projects…\\" in Role Y'"],
   "duplicateSkills": ["up to 4 redundant skill pairs — e.g. 'Stakeholder Management / Stakeholder Engagement', 'MS Excel / Microsoft Excel'"],
-  "summaryIssues": ["up to 3 specific problems — e.g. 'No metric or scale (add years of experience or budget managed)', 'Generic opener — lead with your strongest achievement'"]
+  "summaryIssues": ["up to 3 specific problems — e.g. 'No metric or scale (add years of experience or budget managed)', 'Generic opener — lead with your strongest achievement'"],
+  "suggestedSummary": "A concrete 2-3 sentence rewrite of the summary section. Keep only real facts from the CV. Must start with a strong role title and year count. Include one specific achievement or scale figure if visible in the CV. Do NOT invent metrics. Return empty string if the summary is already strong."
 }`;
 
-    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 1800 });
-    const parsed = safeParseJson(text, ['toAdd', 'toRemove', 'quickWins', 'duplicateSkills', 'summaryIssues']) as Record<string, unknown>;
+    const text = await groqChat(FAST_MODEL, SYSTEM_JSON, prompt, { temperature: 0.3, json: true, maxTokens: 2000 });
+    const parsed = safeParseJson(text, ['toAdd', 'toRemove', 'quickWins', 'duplicateSkills', 'summaryIssues', 'suggestedSummary']) as Record<string, unknown>;
     const clean = (arr: unknown, max = 5): string[] =>
         Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string').slice(0, max) : [];
+    const cleanStr = (v: unknown): string | undefined => {
+        if (typeof v === 'string' && v.trim().length > 20) return v.trim();
+        return undefined;
+    };
     return {
-        toAdd:          clean(parsed.toAdd),
-        toRemove:       clean(parsed.toRemove),
-        quickWins:      clean(parsed.quickWins),
+        toAdd:            clean(parsed.toAdd),
+        toRemove:         clean(parsed.toRemove),
+        quickWins:        clean(parsed.quickWins),
         noMetricCount,
-        duplicateSkills:clean(parsed.duplicateSkills, 4),
-        summaryIssues:  clean(parsed.summaryIssues, 3),
+        duplicateSkills:  clean(parsed.duplicateSkills, 4),
+        summaryIssues:    clean(parsed.summaryIssues, 3),
+        suggestedSummary: cleanStr(parsed.suggestedSummary),
     };
 }
 

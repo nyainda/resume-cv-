@@ -41,9 +41,35 @@ const PHRASE_STOPWORDS = new Set([
     'able', 'work', 'role', 'team', 'time', 'year', 'years', 'day', 'days',
     'strong', 'good', 'great', 'well', 'high', 'plus', 'more', 'other',
     'level', 'based', 'minimum', 'required', 'preferred', 'ideally', 'bonus',
-    'include', 'including', 'including', 'manage', 'support', 'provide',
-    'ensure', 'develop', 'create', 'build', 'lead', 'drive', 'help', 'use',
+    'include', 'including', 'manage', 'support', 'provide', 'ensure',
+    'develop', 'create', 'build', 'lead', 'drive', 'help', 'use',
     'within', 'across', 'between', 'during', 'related', 'using', 'making',
+    // Job-ad filler words — appear in every JD but aren't ATS keywords
+    'opportunity', 'position', 'candidate', 'applicant', 'apply', 'application',
+    'responsibilities', 'requirements', 'qualifications', 'about', 'join',
+    'experience', 'background', 'knowledge', 'ability', 'skills', 'skill',
+    'proven', 'demonstrated', 'excellent', 'outstanding', 'exceptional',
+    'passionate', 'motivated', 'dynamic', 'innovative', 'collaborative',
+    'seeking', 'looking', 'ideal', 'perfect', 'successful', 'fast',
+    'growing', 'exciting', 'competitive', 'attractive', 'generous',
+    'please', 'send', 'email', 'contact', 'submit', 'interested',
+]);
+
+// Generic phrases that look like keywords but are too vague to be real ATS terms.
+// Matched case-insensitively. If a noun-phrase matches any of these it is discarded.
+const GENERIC_PHRASE_BLOCKLIST = new Set([
+    'track record', 'strong background', 'minimum experience', 'proven ability',
+    'strong skills', 'excellent communication', 'good communication',
+    'attention detail', 'problem solving', 'team player', 'self starter',
+    'fast paced', 'new opportunities', 'wide range', 'broad range',
+    'key skills', 'core skills', 'essential skills', 'relevant experience',
+    'strong experience', 'deep experience', 'solid experience',
+    'demonstrated ability', 'proven track', 'strong understanding',
+    'good knowledge', 'solid knowledge', 'working knowledge',
+    'basic knowledge', 'understanding of', 'familiarity with',
+    'various tools', 'variety of', 'wide variety', 'wide range',
+    'years of experience', 'minimum of', 'at least', 'or more',
+    'plus years', 'years plus', 'equal opportunity', 'all qualified',
 ]);
 
 // Curated list of common lowercase tech/domain terms to extract even when
@@ -125,11 +151,27 @@ export function extractJdKeywords(jd: string): string[] {
     }
 
     // 5. Noun-phrase extraction — adjacent non-stop capitalised words (e.g. "Cloud Architecture")
+    //    Requires ≥2 occurrences OR presence in CURATED_TECH_TERMS to prevent generic JD phrases
+    //    from polluting the keyword set (e.g. "Strong Background", "New Opportunities").
+    const nounPhraseFreq: Map<string, number> = new Map();
     for (const m of jd.matchAll(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b/g)) {
         const phrase = m[1];
-        const words = phrase.split(/\s+/).map(w => w.toLowerCase());
-        if (words.every(w => !PHRASE_STOPWORDS.has(w))) {
-            add(phrase, 1);
+        const phraseLower = phrase.toLowerCase();
+        const words = phraseLower.split(/\s+/);
+        // Reject if any constituent word is a stopword
+        if (!words.every(w => !PHRASE_STOPWORDS.has(w))) continue;
+        // Reject if the phrase matches any generic-phrase blocklist entry
+        if (GENERIC_PHRASE_BLOCKLIST.has(phraseLower)) continue;
+        // Reject single-word "phrases" that are just generic nouns
+        if (words.length === 1 && PHRASE_STOPWORDS.has(phraseLower)) continue;
+        nounPhraseFreq.set(phrase, (nounPhraseFreq.get(phrase) ?? 0) + 1);
+    }
+    for (const [phrase, count] of nounPhraseFreq) {
+        // Only include a noun phrase if it appears ≥2 times in the JD (prevents one-off noise)
+        // Exception: multi-word phrases with 3+ words are specific enough to include once
+        const words = phrase.split(/\s+/);
+        if (count >= 2 || words.length >= 3) {
+            add(phrase, count);
         }
     }
 
