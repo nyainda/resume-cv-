@@ -67,6 +67,8 @@ import LandingPage from "./components/LandingPage";
 import AccountPage from "./components/AccountPage";
 import { deleteAccountWorker } from "./services/authService";
 import DriveConflictModal from "./components/DriveConflictModal";
+import { OnboardingWizard, hasCompletedOnboarding } from "./components/OnboardingWizard";
+import { extractTextFromDocx, parseWordTextToProfile } from "./services/wordImportService";
 import OfflineBanner from "./components/OfflineBanner";
 import LinkedInGenerator from "./components/LinkedInGenerator";
 import InterviewPrep from "./components/InterviewPrep";
@@ -744,6 +746,9 @@ const AppInner: React.FC = () => {
       return true;
     }
   });
+
+  // Onboarding wizard — shown once to new users after they pass the landing page
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
@@ -1690,6 +1695,32 @@ const AppInner: React.FC = () => {
     setPendingJsonImport(null);
   }, [pendingJsonImport, _applyJsonImport]);
 
+  // ── Onboarding wizard completion ──────────────────────────────────────────
+  const handleOnboardingComplete = useCallback(
+    async (opts: {
+      plan: 'premium' | 'free';
+      pendingDocxFile?: File;
+      importedProfile?: UserProfile;
+      apiSettings: ApiSettings;
+    }) => {
+      setShowOnboarding(false);
+      await handleApiSettingsSave(opts.apiSettings);
+      if (opts.importedProfile) {
+        handleWordProfileImported(opts.importedProfile);
+      }
+      if (opts.pendingDocxFile) {
+        try {
+          const text = await extractTextFromDocx(opts.pendingDocxFile);
+          const profile = await parseWordTextToProfile(text);
+          handleWordProfileImported(profile);
+        } catch (e: any) {
+          toast.error('Word Import Failed', e?.message ?? 'Could not parse the Word document. Try again from your Profile page.');
+        }
+      }
+    },
+    [handleApiSettingsSave, handleWordProfileImported, toast],
+  );
+
   const [currentView, setCurrentView] = useState<
     | "generator"
     | "linkedin"
@@ -1833,7 +1864,13 @@ const AppInner: React.FC = () => {
             // New user flow — show "Create your free account" copy.
             setAuthModalMode('signup');
             const ok = await requireAuth();
-            if (ok) setShowLanding(false);
+            if (ok) {
+              setShowLanding(false);
+              // Show onboarding wizard for brand-new users
+              if (!hasCompletedOnboarding()) {
+                setShowOnboarding(true);
+              }
+            }
           }}
           onSignIn={async () => {
             // Returning user flow — show "Welcome back" copy.
@@ -1865,6 +1902,9 @@ const AppInner: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+      {showOnboarding && (
+        <OnboardingWizard onComplete={handleOnboardingComplete} />
+      )}
       {sharedCVPayload && (
         <SharedCVView
           cvData={sharedCVPayload.cvData}
