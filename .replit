@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash", "postgresql-16"]
+modules = ["nodejs-20", "web", "bash"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -45,6 +45,10 @@ outputType = "console"
 task = "shell.exec"
 args = "npm run pdf-server"
 waitForPort = 3001
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
 [[ports]]
 localPort = 5000
