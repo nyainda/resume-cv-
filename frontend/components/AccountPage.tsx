@@ -12,6 +12,7 @@ interface AccountPageProps {
     profiles: UserProfileSlot[];
     onSignOut: () => Promise<void>;
     onDeleteAccount: () => Promise<void>;
+    onClearAllData: () => Promise<void>;
     onBack: () => void;
     onUpgrade?: () => void;
 }
@@ -48,11 +49,12 @@ function Avatar({ name, picture, size = 'lg' }: { name: string; picture?: string
     );
 }
 
-export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onBack, onUpgrade }: AccountPageProps) {
+export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onClearAllData, onBack, onUpgrade }: AccountPageProps) {
     const [deletingStep, setDeletingStep] = useState<'idle' | 'confirm' | 'typing' | 'deleting'>('idle');
     const [confirmText, setConfirmText] = useState('');
     const [signingOut, setSigningOut] = useState(false);
     const [provider, setProvider] = useState<string>('workers-ai');
+    const [clearDataStep, setClearDataStep] = useState<'idle' | 'confirm' | 'clearing'>('idle');
 
     useEffect(() => { setProvider(getSelectedProvider()); }, []);
 
@@ -275,7 +277,73 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                             Danger Zone
                         </h2>
                     </div>
-                    <div className="p-5">
+                    <div className="p-5 space-y-5">
+
+                        {/* ── Reset browser data ─────────────────────────────── */}
+                        <div className="pb-5 border-b border-zinc-100 dark:border-neutral-800">
+                            <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-1">Reset browser data</p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">
+                                Clears all locally stored data from this browser — profiles, CVs, settings, cookies, and cached files. Your account and cloud-synced data are <strong>not</strong> deleted. Use this if you're seeing stale data from a previous account.
+                            </p>
+
+                            {clearDataStep === 'idle' && (
+                                <button
+                                    onClick={() => setClearDataStep('confirm')}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-amber-200 dark:border-amber-800 text-sm font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all"
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
+                                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                                    </svg>
+                                    Reset browser data
+                                </button>
+                            )}
+
+                            {clearDataStep === 'confirm' && (
+                                <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                                    </svg>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-black text-amber-700 dark:text-amber-400 mb-1">This will sign you out on this device</p>
+                                        <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mb-3 leading-relaxed">
+                                            All local data (profiles, CVs, API keys, settings) will be wiped from this browser. You can sign back in to restore cloud-synced data.
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setClearDataStep('idle')}
+                                                className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-neutral-700 text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    setClearDataStep('clearing');
+                                                    await onClearAllData();
+                                                }}
+                                                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-black transition-all"
+                                            >
+                                                Yes, clear everything
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {clearDataStep === 'clearing' && (
+                                <div className="inline-flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 font-semibold">
+                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="10" stroke="rgba(217,119,6,0.3)" strokeWidth="3"/>
+                                        <path d="M12 2a10 10 0 0 1 10 10" stroke="#d97706" strokeWidth="3" strokeLinecap="round"/>
+                                    </svg>
+                                    Clearing browser data…
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ── Delete account ─────────────────────────────────── */}
+                        <div>
                         {deletingStep === 'idle' && (
                             <>
                                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4 leading-relaxed">
@@ -351,6 +419,7 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                                 </div>
                             </div>
                         )}
+                        </div>
                     </div>
                 </div>
 

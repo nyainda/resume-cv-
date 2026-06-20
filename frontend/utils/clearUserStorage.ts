@@ -138,6 +138,71 @@ export async function clearAllIdbAsync(): Promise<void> {
     ]);
 }
 
+/**
+ * Nuclear browser-data reset — wipes EVERYTHING this app has ever stored
+ * in this browser: localStorage, sessionStorage, all three IndexedDB databases,
+ * the Cache API (service-worker caches), and any first-party cookies.
+ *
+ * Use for the "Reset browser data" emergency button and as the final step
+ * of account deletion to guarantee a truly clean slate on the next load.
+ *
+ * Does NOT touch any server-side data — call deleteAccountWorker() first if
+ * you also want the cloud session removed.
+ */
+export async function clearAllBrowserStorage(): Promise<void> {
+    // 1. Write IDB-skip sentinels SYNCHRONOUSLY so that restoreLocalStorageFromIDB()
+    //    and loadAuthState() skip any stale IDB data on the very next boot, even if
+    //    the async deletes below haven't finished by the time the page reloads.
+    try { localStorage.setItem(LS_AUTH_CLEARED, '1'); } catch { /* quota — non-fatal */ }
+    try { localStorage.setItem(LS_APPDATA_CLEARED, '1'); } catch { /* quota — non-fatal */ }
+
+    // 2. Flush in-memory caches so no async effect can read stale data after this.
+    try { resetStorageRouter(); } catch { /* non-fatal */ }
+    try { clearCVDataStore(); } catch { /* non-fatal */ }
+
+    // 3. Wipe all localStorage.
+    //    Collect keys into an array first — mutating localStorage while iterating
+    //    its numeric indices shifts subsequent indices and skips keys.
+    try {
+        const allKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k) allKeys.push(k);
+        }
+        allKeys.forEach(k => localStorage.removeItem(k));
+    } catch { /* non-fatal */ }
+
+    // 4. Wipe sessionStorage.
+    try { sessionStorage.clear(); } catch { /* non-fatal */ }
+
+    // 5. Delete all three IndexedDB databases — awaited so they finish before reload.
+    await Promise.allSettled([
+        _clearGoogleAuthIdbAsync(),
+        _clearCvDataIdbAsync(),
+        _clearAppDataIdbAsync(),
+    ]);
+
+    // 6. Delete all Cache API entries (service-worker / Workbox caches).
+    try {
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+    } catch { /* caches API unavailable or blocked — non-fatal */ }
+
+    // 7. Expire all first-party cookies visible to JavaScript.
+    //    HttpOnly cookies (set by a server) are not reachable here, but this app
+    //    does not set any — every session token lives in localStorage / IDB.
+    try {
+        document.cookie.split(';').forEach(cookie => {
+            const name = cookie.trim().split('=')[0];
+            if (name) {
+                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            }
+        });
+    } catch { /* non-fatal */ }
+}
+
 export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void {
     // ── Auth tokens ───────────────────────────────────────────────────────────
     const authKeys = [

@@ -26,7 +26,7 @@ import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount } from "./services/storage/syncQueue";
-import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, rotateDeviceId, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, clearAllBrowserStorage, rotateDeviceId, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import {
@@ -1384,11 +1384,21 @@ const AppInner: React.FC = () => {
     try { await signOut(); }  catch { /* non-fatal */ }
     try { googleSignOut(); }  catch { /* non-fatal */ }  // void-returning wrapper
     toast.success('Account deleted', 'Your account and all data have been removed.');
-    // Await IDB clears before reloading so the async wipes finish before the
-    // next page load — eliminating the race that could leave stale CV data in IDB.
-    await clearAllIdbAsync().catch(() => {});
+    // Nuclear browser-data wipe: clears all localStorage, sessionStorage, all
+    // three IDB databases, the Cache API, and first-party cookies — ensuring a
+    // truly clean slate on the next load with no stale data from the old account.
+    await clearAllBrowserStorage().catch(() => {});
     window.location.reload();
   }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);
+
+  // ── Clear all browser data (emergency reset — no account deletion) ──────
+  const handleClearAllData = useCallback(async () => {
+    // Wipe every byte of local storage without touching the server account.
+    // On next load the user will be signed out on this device and can sign
+    // back in to restore any cloud-synced data.
+    await clearAllBrowserStorage().catch(() => {});
+    window.location.reload();
+  }, []);
 
   // ── CV handlers ─────────────────────────────────────────────────────────
   // Snapshot the deterministic quality audit at save time so the saved-CV
@@ -2825,6 +2835,7 @@ const AppInner: React.FC = () => {
                       setShowLanding(true);
                     }}
                     onDeleteAccount={handleDeleteAccount}
+                    onClearAllData={handleClearAllData}
                     onBack={() => setCurrentView("generator")}
                     onUpgrade={() => setIsPricingOpen(true)}
                   />
