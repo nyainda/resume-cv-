@@ -1980,10 +1980,18 @@ const AppInner: React.FC = () => {
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? "indigo";
 
-  // Hide landing once a profile is created AND authenticated
+  // Hide landing whenever authenticated — profiles are optional.
+  // A new user with no profiles still goes to the main app and sees onboarding.
+  // This prevents the refresh bug where a valid session + no profiles = landing page.
   useEffect(() => {
-    if (profileExists && isWorkerAuthenticated) setShowLanding(false);
-  }, [profileExists, isWorkerAuthenticated]);
+    if (isWorkerAuthenticated) {
+      setShowLanding(false);
+      // Show onboarding for authenticated users who haven't completed it yet
+      if (!profileExists && !hasCompletedOnboarding()) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [isWorkerAuthenticated, profileExists]);
 
   // When auth validation completes and no valid session exists, return to landing
   // so returning users with expired sessions must sign in again.
