@@ -32,7 +32,7 @@ const SIGNUP_FEATURES = [
 
 export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
     const { signIn: googleSignIn, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
-    const { isWorkerAuthenticated, rememberDevice, setRememberDevice } = useWorkerAuth();
+    const { isWorkerAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit } = useWorkerAuth();
 
     const [mode, setMode]              = useState<'signup' | 'signin'>(initialMode);
     const [screen, setScreen]         = useState<Screen>('main');
@@ -54,6 +54,7 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMod
             setSending(false);
             setGoogleLoading(false);
             setMainNotice('');
+            clearGoogleRateLimit();
         }
     }, [open]);
 
@@ -236,18 +237,39 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMod
                                 </div>
                             )}
 
+                            {/* Google rate-limit notice */}
+                            {googleRateLimited && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                                    padding: '10px 12px', borderRadius: 12, fontSize: 12,
+                                    background: '#FEF3C7', color: '#92400E',
+                                    border: '1px solid #FDE68A',
+                                }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}>
+                                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                    </svg>
+                                    <span>
+                                        Too many sign-in attempts from this network.
+                                        {googleRateLimited.retryAfter
+                                            ? ` Please wait ${Math.ceil(googleRateLimited.retryAfter / 60)} minute${Math.ceil(googleRateLimited.retryAfter / 60) !== 1 ? 's' : ''} and try again.`
+                                            : ' Please try again in a few minutes.'}
+                                        {' '}You can still sign in with a magic link below.
+                                    </span>
+                                </div>
+                            )}
+
                             {/* Google button */}
                             <button
                                 onClick={handleGoogle}
-                                disabled={googleLoading}
+                                disabled={googleLoading || !!googleRateLimited}
                                 style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     gap: 10, width: '100%', padding: '13px 20px',
                                     borderRadius: 14, border: '2px solid #1B2B4B',
-                                    background: googleLoading ? '#374151' : '#1B2B4B',
+                                    background: (googleLoading || googleRateLimited) ? '#374151' : '#1B2B4B',
                                     color: '#ffffff', fontWeight: 700, fontSize: 14,
-                                    cursor: googleLoading ? 'not-allowed' : 'pointer',
-                                    opacity: googleLoading ? 0.75 : 1,
+                                    cursor: (googleLoading || googleRateLimited) ? 'not-allowed' : 'pointer',
+                                    opacity: (googleLoading || googleRateLimited) ? 0.6 : 1,
                                     transition: 'all 0.15s',
                                     outline: 'none',
                                 }}
@@ -258,7 +280,7 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMod
                                         <path d="M12 2a10 10 0 0 1 10 10" stroke="#C9A84C" strokeWidth="3" strokeLinecap="round"/>
                                     </svg>
                                 ) : <GoogleLogo />}
-                                {googleLoading ? 'Connecting to Google…' : 'Continue with Google'}
+                                {googleLoading ? 'Connecting to Google…' : googleRateLimited ? 'Google sign-in unavailable' : 'Continue with Google'}
                             </button>
 
                             {/* Divider */}

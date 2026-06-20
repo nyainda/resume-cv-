@@ -71,6 +71,10 @@ interface WorkerAuthContextValue {
     /** Whether to remember this device (persist session across browser closes). */
     rememberDevice: boolean;
     setRememberDevice: (v: boolean) => void;
+    /** Set when Google sign-in is blocked by the IP rate limit (20/hr). */
+    googleRateLimited: { retryAfter?: number } | null;
+    /** Clear the rate-limit notice (e.g. when modal closes). */
+    clearGoogleRateLimit: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -94,6 +98,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     const [authModalOpen, setAuthModalOpen] = useState(false);
     const [isNewUser,     setIsNewUser]     = useState(false);
     const [rememberDevice, setRememberDevice] = useState(true);
+    const [googleRateLimited, setGoogleRateLimited] = useState<{ retryAfter?: number } | null>(null);
 
     // Queue of resolvers waiting for auth to complete.
     // Resolves with true on success, false if dismissed without signing in.
@@ -226,12 +231,17 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 result = await linkGoogleSession(accessToken, deviceId);
             }
 
-            if (result) {
+            if (result && result.ok) {
                 applySession(result.token, result.user);
                 if (result.is_new_user) setIsNewUser(true);
+                setGoogleRateLimited(null);
+            } else if (result && !result.ok && result.error === 'rate_limited') {
+                // IP rate-limited (20 sign-in attempts/IP/hour) — surface to UI.
+                linkedGoogleId.current = null;
+                setGoogleRateLimited({ retryAfter: result.retry_after });
+                console.warn('[WorkerAuth] Google sign-in rate-limited.');
             } else {
-                // All 3 attempts failed.  Reset the ref so the next popup attempt
-                // can retry rather than hitting the early-return guard.
+                // null = network failure / timeout — reset so the user can retry.
                 linkedGoogleId.current = null;
                 console.warn('[WorkerAuth] Google session linkage failed after 3 attempts.');
             }
@@ -283,6 +293,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         linkedGoogleId.current = null;
     }, [sessionToken, clearSession]);
 
+    const clearGoogleRateLimit = useCallback(() => setGoogleRateLimited(null), []);
+
     const value: WorkerAuthContextValue = {
         workerUser,
         isWorkerAuthenticated: !!sessionToken && !!workerUser,
@@ -298,6 +310,8 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         signOut,
         rememberDevice,
         setRememberDevice,
+        googleRateLimited,
+        clearGoogleRateLimit,
     };
 
     return (
