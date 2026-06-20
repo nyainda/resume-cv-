@@ -72,10 +72,23 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMod
 
     async function handleGoogle() {
         setGoogleLoading(true);
+        setMainNotice('');
         try {
             await googleSignIn();
-        } catch (e) {
+        } catch (e: unknown) {
             console.warn('[AuthModal] Google sign-in failed:', e);
+            const msg = e instanceof Error ? e.message : '';
+            if (msg.includes('VITE_GOOGLE_CLIENT_ID')) {
+                setMainNotice('Google sign-in is not set up yet. Please use the email option below instead.');
+            } else if (msg.includes('cancelled') || msg.includes('canceled')) {
+                // User closed the popup — no need to show an error
+            } else if (msg.includes('Popup was blocked')) {
+                setMainNotice('Popup was blocked. Please allow popups for this site and try again.');
+            } else if (msg) {
+                setMainNotice(msg);
+            } else {
+                setMainNotice('Google sign-in failed. Please try again or use the email option below.');
+            }
             setGoogleLoading(false);
         }
     }

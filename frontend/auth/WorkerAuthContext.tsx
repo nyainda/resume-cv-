@@ -107,22 +107,44 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // Track whether we've already tried to link the current Google user
     const linkedGoogleId = useRef<string | null>(null);
 
+    // Tracks whether the CURRENT session was established via Google OAuth.
+    // Persisted in localStorage so it survives page reloads.
+    // This is the key that guards the "Bug 5 fix" effect — we only clear the
+    // worker session if Google auth dies AND the session was linked via Google.
+    // Magic-link sessions are independent of Google and must NOT be cleared
+    // when Google auth is unavailable (e.g. VITE_GOOGLE_CLIENT_ID not set).
+    const SESSION_VIA_GOOGLE_KEY = 'procv:session_via_google';
+    const [sessionViaGoogle, setSessionViaGoogle] = useState<boolean>(
+        () => localStorage.getItem(SESSION_VIA_GOOGLE_KEY) === '1'
+    );
+
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     const rememberDeviceRef = useRef(rememberDevice);
     useEffect(() => { rememberDeviceRef.current = rememberDevice; }, [rememberDevice]);
 
-    const applySession = useCallback((token: string, user: WorkerUser) => {
+    const applySession = useCallback((token: string, user: WorkerUser, viaGoogle = false) => {
         setStoredSession(token, user, rememberDeviceRef.current);
         setSessionToken(token);
         setWorkerUser(user);
+        if (viaGoogle) {
+            try { localStorage.setItem(SESSION_VIA_GOOGLE_KEY, '1'); } catch { /* non-fatal */ }
+            setSessionViaGoogle(true);
+        } else {
+            try { localStorage.removeItem(SESSION_VIA_GOOGLE_KEY); } catch { /* non-fatal */ }
+            setSessionViaGoogle(false);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const clearSession = useCallback(() => {
         clearStoredSession();
+        try { localStorage.removeItem(SESSION_VIA_GOOGLE_KEY); } catch { /* non-fatal */ }
         setSessionToken(null);
         setWorkerUser(null);
         setIsNewUser(false);
+        setSessionViaGoogle(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // ── Mount: restore / verify stored session + magic link ───────────────────
@@ -191,17 +213,22 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // If Google's silent-refresh fails (session truly expired), GoogleAuthContext
     // sets user=null. Worker session would otherwise remain alive (split-brain).
     // authLoading guard prevents false-positive on first render before IDB rehydrates.
+    //
+    // IMPORTANT: Only clear the session if it was ESTABLISHED VIA GOOGLE.
+    // Magic-link sessions are fully independent of Google auth — we must NOT
+    // wipe them when Google is unavailable (e.g. VITE_GOOGLE_CLIENT_ID not set,
+    // silent refresh failed, or user never granted Google access).
     useEffect(() => {
         // Guard both loading states: Worker context's own isLoading AND Google
         // context's googleLoading. Google auth rehydrates from IndexedDB async —
         // if we run before it resolves, isGoogleAuthed=false even for a valid
         // returning user, causing a spurious sign-in popup on every page load.
         if (isLoading || googleLoading) return;
-        if (!isGoogleAuthed && sessionToken) {
+        if (!isGoogleAuthed && sessionToken && sessionViaGoogle) {
             clearSession();
             linkedGoogleId.current = null;
         }
-    }, [isGoogleAuthed, isLoading, googleLoading, sessionToken, clearSession]);
+    }, [isGoogleAuthed, isLoading, googleLoading, sessionToken, sessionViaGoogle, clearSession]);
 
     // ── Auto-link Google token to worker when Google auth completes ───────────
 
@@ -239,7 +266,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 // Fresh Google sign-in — wipe any stale queue items left by
                 // a previous account on this device before starting the session.
                 await clearQueueForAccount();
-                applySession(result.token, result.user);
+                applySession(result.token, result.user, true); // viaGoogle = true
                 if (result.is_new_user) setIsNewUser(true);
                 setGoogleRateLimited(null);
             } else if (result && !result.ok && result.error === 'rate_limited') {
