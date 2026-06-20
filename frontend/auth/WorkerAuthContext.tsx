@@ -28,6 +28,7 @@ import {
     setStoredSession,
     clearStoredSession,
     linkGoogleSession,
+    type LinkGoogleResult,
     verifyMagicLink,
     validateSession,
     signOutWorker,

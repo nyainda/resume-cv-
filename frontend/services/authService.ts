@@ -67,11 +67,16 @@ export function clearStoredSession(): void {
 
 // ─── Network calls ────────────────────────────────────────────────────────────
 
+export type LinkGoogleResult =
+    | { ok: true;  token: string; user: WorkerUser; is_new_user: boolean }
+    | { ok: false; error: 'rate_limited'; retry_after?: number }
+    | null; // network failure / timeout
+
 /** Link a Google access token to the worker — creates or updates the identity row. */
 export async function linkGoogleSession(
     accessToken: string,
     deviceId: string,
-): Promise<{ token: string; user: WorkerUser; is_new_user: boolean } | null> {
+): Promise<LinkGoogleResult> {
     try {
         const res = await fetch(`${ENGINE}/api/auth/google`, {
             method: 'POST',
@@ -82,10 +87,14 @@ export async function linkGoogleSession(
             // each individual attempt still completes well within the modal wait.
             signal: AbortSignal.timeout(18_000),
         });
+        if (res.status === 429) {
+            const data = await res.json().catch(() => ({})) as any;
+            return { ok: false, error: 'rate_limited', retry_after: data?.retry_after };
+        }
         if (!res.ok) return null;
         const data = await res.json() as any;
         if (!data.ok) return null;
-        return { token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
+        return { ok: true, token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.warn('[AuthService] linkGoogleSession failed:', e);
         return null;
