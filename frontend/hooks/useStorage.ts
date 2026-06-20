@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getStorageService } from '../services/storage/StorageRouter';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 import { idbAppGet } from '../services/storage/AppDataPersistence';
@@ -57,11 +57,24 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
     // instead of starting with `initialValue` and causing a flicker / reset.
     const [value, setValue] = useState<T>(() => readLocalSync(key, initialValue));
 
+    // ── Write-generation counter ──────────────────────────────────────────────
+    // Every call to `persist` increments this counter. The async effect captures
+    // the counter value at the moment the load starts and only applies the loaded
+    // value if no writes happened while the load was in flight. This prevents a
+    // stale IDB/Drive read (e.g. one that started before the user created a new
+    // profile) from overwriting a newer synchronous write, which was the root
+    // cause of cross-profile contamination (room A data reappearing in room B).
+    const writeGenRef = useRef(0);
+
     // ── Async hydration (Drive or IDB fallback) ──────────────────────────────
     useEffect(() => {
         if (authLoading) return;
 
         let cancelled = false;
+        // Snapshot the write generation at the moment this load starts.
+        // If `persist` is called before the async load resolves, writeGenRef
+        // will have advanced past this value and we skip the stale update.
+        const capturedWriteGen = writeGenRef.current;
 
         // Only hit the async storage if we are using Google Drive OR if
         // localStorage was empty (IDB fallback).
@@ -77,7 +90,8 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
             if (!driveActive) {
                 // Try IDB in case localStorage was just partially cleared
                 idbAppGet<T>(CV_PREFIX + key).then(idbVal => {
-                    if (!cancelled && idbVal !== null && isCompatibleType(idbVal, initialValue)) {
+                    if (!cancelled && writeGenRef.current === capturedWriteGen
+                        && idbVal !== null && isCompatibleType(idbVal, initialValue)) {
                         // Update localStorage so future reads are fast
                         try {
                             window.localStorage.setItem(CV_PREFIX + key, JSON.stringify(idbVal));
@@ -96,7 +110,8 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
         getStorageService()
             .load<T>(key)
             .then((loaded) => {
-                if (!cancelled && loaded !== null && isCompatibleType(loaded, initialValue)) {
+                if (!cancelled && writeGenRef.current === capturedWriteGen
+                    && loaded !== null && isCompatibleType(loaded, initialValue)) {
                     setValue(prev =>
                         JSON.stringify(prev) !== JSON.stringify(loaded) ? loaded : prev
                     );
@@ -110,6 +125,10 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
     const persist: Setter<T> = useCallback(
         async (newValueOrUpdater) => {
             setValue((prev) => {
+                // Advance the write generation BEFORE the async storage write so any
+                // in-flight IDB/Drive load that completes afterwards will see the
+                // counter has moved and will discard its (now stale) loaded value.
+                writeGenRef.current += 1;
                 const next =
                     typeof newValueOrUpdater === 'function'
                         ? (newValueOrUpdater as (p: T) => T)(prev)

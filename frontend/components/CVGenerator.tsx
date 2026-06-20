@@ -539,7 +539,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
   const [targetLanguage, setTargetLanguage] = useLocalStorage<string>('cv:targetLanguage', 'English');
 
-  const [coverLetter, setCoverLetter] = useLocalStorage<string | null>('coverLetter', null);
+  const [coverLetter, setCoverLetter] = useLocalStorage<string | null>(`p:${profileId}:coverLetter`, null);
   const [streamingLetter, setStreamingLetter] = useState('');
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
@@ -785,6 +785,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         // Progressive draft callback — fires when raw Worker sections arrive,
         // before quality polishing. Reveals content in the background preview.
         (raw) => { revealDraftProgressively(raw); },
+        // Pass the active slot ID so the profile cache lookup is scoped to
+        // THIS room only — prevents cross-room hash reuse on cloned profiles.
+        profileId,
       );
       advanceStage('polishing', 'Polishing every line — capitals, punctuation, numbers…');
       await new Promise(r => setTimeout(r, 300));
@@ -886,7 +889,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       // No API, no LLM — pure localStorage set arithmetic.
       setCvDiversityScore((() => {
         try {
-          const SNAP_KEY = 'cv:last_snapshot';
+          const SNAP_KEY = `p:${profileId}:snapshot`;
           const summaryWords = (generatedData.summary || '').toLowerCase().split(/\W+/).filter(Boolean).slice(0, 60);
           const bulletOpeners = (generatedData.experience || []).flatMap(exp => {
             const bullets = Array.isArray(exp.responsibilities) ? exp.responsibilities : [];

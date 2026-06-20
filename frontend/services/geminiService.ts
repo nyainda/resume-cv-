@@ -66,7 +66,7 @@ import {
     type NarrativeAngle,
     computeExampleQualityScore,
 } from './cvExamplesClient';
-import { getHashIfCached } from './profileCacheClient';
+import { getHashIfCached, getProfileCacheHash, sha256Hex } from './profileCacheClient';
 
 // ── Variance helpers ──────────────────────────────────────────────────────────
 // These inject controlled randomness at the prompt level so each generation
@@ -2313,6 +2313,12 @@ export const generateCV = async (
      * progressively while polishing runs in the background.
      */
     onSectionsDraft?: (cv: Partial<CVData>) => void,
+    /**
+     * Active profile slot ID. When provided, the profile cache lookup is
+     * scoped to THIS slot only — preventing cross-profile hash reuse when two
+     * slots share the same compact profile JSON (e.g. a freshly-cloned room).
+     */
+    slotId?: string,
 ): Promise<CVData> => {
 
     // ── HOT FIRE (inbound) ── Scrub banned phrases out of the source profile
@@ -2998,15 +3004,44 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
         // uploaded to D1, replace its text with {{PROFILE}} so the worker
         // fetches it server-side. This shrinks the HTTP request body significantly
         // and keeps the profile out of the network layer on every generation.
+        //
+        // ISOLATION RULE: When a slotId is provided we ONLY accept the hash that
+        // is stored for THAT specific slot, and we re-verify the content hash
+        // matches the currently stored hash. This prevents cross-slot contamination
+        // where two rooms with identical compact-JSON (e.g. a freshly-cloned room)
+        // would incorrectly share the other room's D1 profile cache entry — causing
+        // the worker to generate the CV with the wrong room's profile data.
+        //
+        // Without a slotId we fall back to the old content-addressed scan (safe
+        // for all legacy callers that don't pass slotId yet).
+        //
         // Fully optional: if the lookup fails the full preamble is used as-is.
         let profileHashForWorker: string | null = null;
         try {
             const compactText = compactProfile(profile);
-            const cachedHash = await getHashIfCached(compactText);
+            let cachedHash: string | null = null;
+
+            if (slotId) {
+                // Slot-specific: only accept the hash stored for THIS slot
+                const slotStoredHash = getProfileCacheHash(slotId);
+                if (slotStoredHash) {
+                    // Re-verify the current content still matches what was uploaded
+                    const currentHash = await sha256Hex(compactText);
+                    if (currentHash === slotStoredHash) {
+                        cachedHash = slotStoredHash;
+                    } else {
+                        console.info(`[ProfileCache] Slot ${slotId.slice(0, 8)} hash mismatch — profile changed since last sync, sending full text`);
+                    }
+                }
+            } else {
+                // Fallback: content-addressed scan across all slots (legacy path)
+                cachedHash = await getHashIfCached(compactText);
+            }
+
             if (cachedHash && preamble.includes(compactText)) {
                 preamble = preamble.replaceAll(compactText, '{{PROFILE}}');
                 profileHashForWorker = cachedHash;
-                console.info(`[ProfileCache] Using cached profile (hash ${cachedHash.substring(0, 12)}…) — profile text stripped from preamble`);
+                console.info(`[ProfileCache] Using cached profile for slot ${slotId?.slice(0, 8) ?? 'unknown'} (hash ${cachedHash.substring(0, 12)}…) — profile text stripped from preamble`);
             }
         } catch { /* non-critical */ }
 
