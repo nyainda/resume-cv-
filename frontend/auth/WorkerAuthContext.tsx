@@ -35,6 +35,59 @@ import {
 } from '../services/authService';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import { getDeviceId } from '../services/userDataCloudService';
+import {
+    clearUserScopedStorage,
+    ACCOUNT_HASH_KEY,
+    LAST_REAL_HASH_KEY,
+    SIGNED_OUT_SENTINEL,
+    DELETED_CLEAN_SENTINEL,
+} from '../utils/clearUserStorage';
+
+// ─── Account switch helpers ───────────────────────────────────────────────────
+// These run BEFORE applySession so the new user's data is never mixed with
+// the previous user's data in React state.
+
+const _PENDING_SESSION_KEY = 'procv:pending_session';
+
+/** FNV-32 hash of an email address (must match the version in App.tsx). */
+function _hashEmail(email: string): string {
+    let h = 2166136261;
+    for (let i = 0; i < email.length; i++) {
+        h ^= email.charCodeAt(i);
+        h = (h * 16777619) >>> 0;
+    }
+    return h.toString(16);
+}
+
+/**
+ * Returns true when signing in as `email` would require wiping the previous
+ * user's data — i.e. a genuinely different account is taking over this device.
+ */
+function _needsAccountWipe(email: string): boolean {
+    const newHash    = _hashEmail(email);
+    const storedHash = localStorage.getItem(ACCOUNT_HASH_KEY);
+    if (!storedHash || storedHash === newHash) return false;
+    if (storedHash === DELETED_CLEAN_SENTINEL)  return false; // already wiped cleanly
+    if (storedHash === SIGNED_OUT_SENTINEL) {
+        // Same user returning after sign-out → no wipe
+        const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);
+        if (lastRealHash && lastRealHash === newHash) return false;
+    }
+    return true;
+}
+
+/**
+ * Wipe the previous user's data and save the new user's session in
+ * sessionStorage so it can be restored after the reload — no second sign-in.
+ */
+function _wipeAndHandoff(token: string, user: WorkerUser): void {
+    try {
+        sessionStorage.setItem(_PENDING_SESSION_KEY, JSON.stringify({ token, user }));
+    } catch { /* storage full — non-fatal, user will just need to sign in again */ }
+    clearUserScopedStorage({ clearAppData: true });
+    localStorage.setItem(ACCOUNT_HASH_KEY, _hashEmail(user.email));
+    window.location.reload();
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +206,25 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         let cancelled = false;
 
         async function init() {
+            // 0. Restore a pending session saved before a wipe+reload.
+            //    This happens when a different user signs in: we wipe the previous
+            //    user's data, save the new session to sessionStorage, reload, then
+            //    pick it up here — so the user is signed in immediately without a
+            //    second sign-in attempt.
+            const pendingRaw = sessionStorage.getItem(_PENDING_SESSION_KEY);
+            if (pendingRaw) {
+                sessionStorage.removeItem(_PENDING_SESSION_KEY);
+                try {
+                    const pending = JSON.parse(pendingRaw) as { token: string; user: WorkerUser };
+                    if (pending?.token && pending?.user?.email && !cancelled) {
+                        await clearQueueForAccount();
+                        applySession(pending.token, pending.user);
+                        setIsLoading(false);
+                        return;
+                    }
+                } catch { /* malformed — fall through to normal init */ }
+            }
+
             // 1. Check for ?magic=TOKEN in URL first
             const params = new URLSearchParams(window.location.search);
             const magicToken = params.get('magic');
@@ -166,6 +238,14 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
                 const result = await verifyMagicLink(magicToken);
                 if (result && !cancelled) {
+                    // If a DIFFERENT user's data is in localStorage, wipe it
+                    // BEFORE applying the new session so they never see each
+                    // other's data. The new session is handed off via sessionStorage
+                    // and restored at the top of the next init() call.
+                    if (_needsAccountWipe(result.user.email)) {
+                        _wipeAndHandoff(result.token, result.user);
+                        return; // page is reloading — don't do anything else
+                    }
                     // Fresh sign-in via magic link — wipe any stale queue items
                     // that may have been left by a previous account on this device.
                     await clearQueueForAccount();
@@ -312,6 +392,13 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // ── Auth modal callbacks ──────────────────────────────────────────────────
 
     const onAuthSuccess = useCallback((token: string, user: WorkerUser, isNew = false) => {
+        // If a DIFFERENT user's data is in localStorage, wipe it BEFORE applying
+        // the new session so accounts never see each other's data.
+        // The new session is saved to sessionStorage and restored after the reload.
+        if (_needsAccountWipe(user.email)) {
+            _wipeAndHandoff(token, user);
+            return; // page is reloading
+        }
         // Fresh sign-in from the auth modal — clear any stale queue items
         // that may have been left by a previous account on this device.
         clearQueueForAccount().catch(() => {});

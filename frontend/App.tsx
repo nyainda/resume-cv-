@@ -276,45 +276,36 @@ const AppInner: React.FC = () => {
   // Keep the D1 sync service's module-level token in sync with the worker session
   useEffect(() => { setUserSessionToken(sessionToken ?? null); }, [sessionToken]);
 
-  // ── Account-switch guard ──────────────────────────────────────────────────
-  // When a different email signs in on this device, clear the previous user's
-  // app data so they cannot see each other's CVs and profiles.
-  // We reload after clearing so React state re-initialises from clean storage.
+  // ── Account-switch guard (backup layer) ──────────────────────────────────
+  // The primary guard lives in WorkerAuthContext.onAuthSuccess / init() and
+  // fires BEFORE applySession, so accounts never share React state.
+  // This secondary guard is a belt-and-suspenders safety net that catches
+  // edge cases (e.g. Google OAuth completes while a different worker session
+  // is already active).  When it triggers it immediately shows a blank
+  // "Switching accounts…" screen so no old data is visible during the wipe.
+  const [isAccountSwitching, setIsAccountSwitching] = useState(false);
+
   useEffect(() => {
-    // Use whichever auth resolves first — Google is faster (~100 ms) than the
-    // worker session validation (~1-2 s). Watching both prevents the guard from
-    // silently failing when worker auth is slow or unreachable.
     const email = workerUser?.email ?? user?.email;
     if (!email) return;
     const newHash    = _fnv32(email);
     const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
-    // Wipe when a DIFFERENT user signs in.
-    //  (a) Different real hash stored → wipe immediately.
-    //  (b) SIGNED_OUT_SENTINEL stored → check LAST_REAL_HASH_KEY:
-    //        same user returning  → skip wipe (double-login fix)
-    //        different/unknown    → wipe
-    //  (c) DELETED_CLEAN_SENTINEL → data was already fully wiped with awaited
-    //        IDB clears before the reload; no second wipe needed for any email.
-    //        Delete → re-register is a single click, same as first-time sign-up.
     if (storedHash && storedHash !== newHash) {
       if (storedHash === DELETED_CLEAN_SENTINEL) {
-        // Account was properly deleted; local slate is guaranteed empty.
-        // Proceed straight in — no wipe, no reload.
         localStorage.removeItem(LAST_REAL_HASH_KEY);
         localStorage.setItem(_ACCT_HASH_KEY, newHash);
         return;
       }
       if (storedHash === SIGNED_OUT_SENTINEL) {
-        // Someone signed out.  Compare against who signed out.
         const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);
-        localStorage.removeItem(LAST_REAL_HASH_KEY); // consume — one-time use
+        localStorage.removeItem(LAST_REAL_HASH_KEY);
         if (lastRealHash && lastRealHash === newHash) {
-          // Same user coming back — their data is their own, no wipe needed.
           localStorage.setItem(_ACCT_HASH_KEY, newHash);
           return;
         }
-        // Different user (or no prior record) after sign-out → wipe.
       }
+      // Show blank screen immediately — no old data visible during wipe.
+      setIsAccountSwitching(true);
       _wipePending = true;
       clearUserScopedStorage({ clearAppData: true });
       localStorage.setItem(_ACCT_HASH_KEY, newHash);
@@ -2000,6 +1991,20 @@ const AppInner: React.FC = () => {
       setShowLanding(true);
     }
   }, [isAuthLoading, isWorkerAuthenticated]);
+
+  // Show a blank switching screen while account data is being wiped.
+  // This ensures zero flash of the previous user's data.
+  if (isAccountSwitching) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#F8F7F4' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 bg-[#1B2B4B] rounded-xl flex items-center justify-center text-white font-black text-sm">CV</div>
+          <div className="w-6 h-6 border-2 border-[#1B2B4B]/20 border-t-[#1B2B4B] rounded-full animate-spin" />
+          <p className="text-sm text-[#1B2B4B]/60">Switching accounts…</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show a loading screen while we validate the stored session on mount.
   // This prevents a flash of the main app for users whose session has expired.
