@@ -137,12 +137,19 @@ class WriteThroughDriveService implements IStorageService {
     }
 }
 
+// Drive is only active when the user has explicitly granted drive.appdata scope
+const DRIVE_SCOPE_KEY = 'procv:drive_scope_granted';
+
+function hasDriveScope(): boolean {
+    return localStorage.getItem(DRIVE_SCOPE_KEY) === '1';
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 export function getStorageService(): IStorageService {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
-    if (token && Date.now() < expiry) {
+    if (token && Date.now() < expiry && hasDriveScope()) {
         const drive = getDriveService(token);
         const local = getCacheService();
         return new WriteThroughDriveService(drive, local);
@@ -154,7 +161,7 @@ export function getStorageService(): IStorageService {
 export function getDriveRouter(): WriteThroughDriveService | null {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
-    if (token && Date.now() < expiry) {
+    if (token && Date.now() < expiry && hasDriveScope()) {
         const drive = getDriveService(token);
         const local = getCacheService();
         return new WriteThroughDriveService(drive, local);
@@ -165,7 +172,7 @@ export function getDriveRouter(): WriteThroughDriveService | null {
 export function isDriveActive(): boolean {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
-    return !!(token && Date.now() < (expiry + 300000)); // +5 min buffer
+    return !!(token && Date.now() < (expiry + 300000) && hasDriveScope()); // +5 min buffer
 }
 
 /**

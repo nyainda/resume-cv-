@@ -5,14 +5,23 @@
 //
 // Returns a new { accessToken, expiresIn } or throws if the user's
 // Google session is gone (requires user to click "Sign In" again).
+//
+// NOTE: Only identity scopes are requested here (email + profile).
+// Drive scope is requested separately via requestDriveAccess() when
+// the user explicitly connects Drive storage.
 
-const SCOPES = [
-    'https://www.googleapis.com/auth/drive.appdata',
+const IDENTITY_SCOPES = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
 
-export function silentRefresh(hint?: string): Promise<{ accessToken: string; expiresIn: number }> {
+const DRIVE_SCOPES = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/drive.appdata',
+].join(' ');
+
+export function silentRefresh(hint?: string, includeDrive = false): Promise<{ accessToken: string; expiresIn: number }> {
     return new Promise((resolve, reject) => {
         const clientId = (import.meta as { env: Record<string, string> }).env.VITE_GOOGLE_CLIENT_ID;
         if (!clientId) {
@@ -20,13 +29,14 @@ export function silentRefresh(hint?: string): Promise<{ accessToken: string; exp
             return;
         }
 
+        const scopes = includeDrive ? DRIVE_SCOPES : IDENTITY_SCOPES;
         const redirectUri = `${window.location.origin}/oauth-callback.html`;
         const url =
             `https://accounts.google.com/o/oauth2/v2/auth` +
             `?client_id=${encodeURIComponent(clientId)}` +
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
             `&response_type=token` +
-            `&scope=${encodeURIComponent(SCOPES)}` +
+            `&scope=${encodeURIComponent(scopes)}` +
             `&prompt=none` +  // ← key flag: no UI, fails fast if not logged in
             (hint ? `&login_hint=${encodeURIComponent(hint)}` : '');
 

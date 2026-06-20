@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
-import { getStorageService, isDriveActive, migrateLocalToDrive } from '../services/storage/StorageRouter';
+import { getStorageService, migrateLocalToDrive } from '../services/storage/StorageRouter';
 
 interface FileEntry {
     key: string;
@@ -56,16 +56,15 @@ function formatLastSync(iso: string | null): string {
 }
 
 export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }) => {
-    const { user, isAuthenticated, signIn } = useGoogleAuth();
+    const { user, isAuthenticated, signIn, driveConnected, requestDriveAccess, disconnectDrive } = useGoogleAuth();
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [restoring, setRestoring] = useState<string | null>(null);
     const [syncMsg, setSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [migrationProgress, setMigrationProgress] = useState<{ done: number; total: number } | null>(null);
+    const [connectingDrive, setConnectingDrive] = useState(false);
     const lastSync = useLastSync();
-
-    const driveActive = isDriveActive();
 
     const loadFiles = async () => {
         setLoading(true);
@@ -83,15 +82,28 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
     useEffect(() => {
         if (!loading) loadFiles();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAuthenticated]);
+    }, [isAuthenticated, driveConnected]);
+
+    const handleConnectDrive = async () => {
+        setConnectingDrive(true);
+        setSyncMsg(null);
+        try {
+            await requestDriveAccess();
+            setSyncMsg({ type: 'success', text: '✓ Google Drive connected! Your data will sync automatically.' });
+            await loadFiles();
+        } catch (e) {
+            setSyncMsg({ type: 'error', text: (e as Error).message ?? 'Drive connection failed' });
+        } finally {
+            setConnectingDrive(false);
+        }
+    };
 
     const handleSyncNow = async () => {
-        if (!driveActive) return;
+        if (!driveConnected) return;
         setSyncing(true);
         setSyncMsg(null);
         setMigrationProgress(null);
         try {
-            // Reset migration flag to force re-sync
             localStorage.removeItem('cv_builder:gdrive_migrated');
             await migrateLocalToDrive((done, total) => {
                 setMigrationProgress({ done, total });
@@ -107,13 +119,12 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
     };
 
     const handleRestoreKey = async (key: string) => {
-        if (!driveActive) return;
+        if (!driveConnected) return;
         setRestoring(key);
         try {
             const svc = getStorageService();
             const data = await svc.load(key);
             if (data !== null) {
-                // Write back to localStorage so hooks pick it up
                 localStorage.setItem(`cv_builder:${key}`, JSON.stringify(data));
                 setSyncMsg({ type: 'success', text: `✓ "${formatKey(key).label}" restored from Drive.` });
                 onDataRestored?.();
@@ -128,7 +139,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
     };
 
     const handleRestoreAll = async () => {
-        if (!driveActive) return;
+        if (!driveConnected) return;
         setSyncing(true);
         setSyncMsg(null);
         try {
@@ -149,18 +160,19 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
         }
     };
 
+    // Not signed in at all
     if (!isAuthenticated) {
         return (
             <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">☁️ Drive Data</h3>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">☁️ Drive Backup</h3>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Sign in with Google to view, save and restore your data from Google Drive.
+                    Sign in with Google to back up and sync your CVs across devices.
                 </p>
                 <button
                     onClick={signIn}
                     className="w-full py-2 px-4 text-sm font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                 >
-                    Connect Google Drive
+                    Sign in with Google
                 </button>
             </div>
         );
@@ -170,12 +182,13 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
         <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">☁️ Drive Data</h3>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${driveActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400'}`}>
-                    {driveActive ? '● Drive Active' : '○ Local Only'}
+                <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">☁️ Drive Backup</h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${driveConnected ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-zinc-100 text-zinc-500 dark:bg-neutral-700 dark:text-zinc-400'}`}>
+                    {driveConnected ? '● Drive Active' : '○ Local Only'}
                 </span>
             </div>
-            {driveActive && (
+
+            {driveConnected && (
                 <p className="text-[10px] text-zinc-400 dark:text-zinc-500 -mt-1">
                     Last synced: <span className="font-semibold text-zinc-500 dark:text-zinc-400">{formatLastSync(lastSync)}</span>
                     <span className="mx-1.5">·</span>
@@ -191,10 +204,33 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                     ) : (
                         <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[9px] text-white font-bold">{user.name[0]}</div>
                     )}
-                    <div>
+                    <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">{user.name}</p>
-                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">{user.email}</p>
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono truncate">{user.email}</p>
                     </div>
+                </div>
+            )}
+
+            {/* Signed in but Drive not yet connected — show one-click connect */}
+            {!driveConnected && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                        ☁️ Enable Google Drive backup
+                    </p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                        One click to sync your CVs across all your devices. You can disconnect anytime.
+                    </p>
+                    <button
+                        onClick={handleConnectDrive}
+                        disabled={connectingDrive}
+                        className="w-full py-2 px-3 text-xs font-bold rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+                    >
+                        {connectingDrive ? (
+                            <><span className="animate-spin">⟳</span> Connecting…</>
+                        ) : (
+                            '+ Connect Google Drive'
+                        )}
+                    </button>
                 </div>
             )}
 
@@ -218,57 +254,69 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                 </div>
             )}
 
-            {/* Bulk actions */}
-            <div className="grid grid-cols-2 gap-2">
-                <button
-                    onClick={handleSyncNow}
-                    disabled={syncing || !driveActive}
-                    className="py-2 px-3 text-xs font-bold rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
-                >
-                    {syncing ? (
-                        <span className="animate-spin text-sm">⟳</span>
-                    ) : '☁️'} Save All to Drive
-                </button>
-                <button
-                    onClick={handleRestoreAll}
-                    disabled={syncing || !driveActive}
-                    className="py-2 px-3 text-xs font-bold rounded-lg border border-zinc-300 dark:border-neutral-600 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
-                >
-                    ⬇️ Restore All
-                </button>
-            </div>
+            {/* Bulk actions — only when Drive is connected */}
+            {driveConnected && (
+                <>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={handleSyncNow}
+                            disabled={syncing}
+                            className="py-2 px-3 text-xs font-bold rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
+                        >
+                            {syncing ? (
+                                <span className="animate-spin text-sm">⟳</span>
+                            ) : '☁️'} Save All to Drive
+                        </button>
+                        <button
+                            onClick={handleRestoreAll}
+                            disabled={syncing}
+                            className="py-2 px-3 text-xs font-bold rounded-lg border border-zinc-300 dark:border-neutral-600 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1"
+                        >
+                            ⬇️ Restore All
+                        </button>
+                    </div>
 
-            {/* File list — show only human-labelled entries, hide raw cache keys */}
-            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                {loading ? (
-                    <div className="py-6 text-center text-xs text-zinc-400 animate-pulse">Loading Drive files…</div>
-                ) : files.filter(f => KEY_META[f.key]).length === 0 ? (
-                    <div className="py-6 text-center text-xs text-zinc-400">No data found in Drive yet.<br />Click "Save All to Drive" to back up your data.</div>
-                ) : (
-                    files.filter(f => KEY_META[f.key]).map(f => (
-                        <div key={f.key} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 group">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-base leading-none">{f.icon}</span>
-                                <span className="text-xs text-zinc-600 dark:text-zinc-300 truncate font-medium">{f.label}</span>
-                            </div>
-                            <button
-                                onClick={() => handleRestoreKey(f.key)}
-                                disabled={restoring === f.key || !driveActive}
-                                className="text-[10px] font-bold text-[#C9A84C] dark:text-[#C9A84C] opacity-0 group-hover:opacity-100 transition-opacity hover:underline disabled:opacity-50 flex-shrink-0 ml-2"
-                            >
-                                {restoring === f.key ? '…' : 'Restore'}
-                            </button>
-                        </div>
-                    ))
-                )}
-            </div>
+                    {/* File list */}
+                    <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                        {loading ? (
+                            <div className="py-6 text-center text-xs text-zinc-400 animate-pulse">Loading Drive files…</div>
+                        ) : files.filter(f => KEY_META[f.key]).length === 0 ? (
+                            <div className="py-6 text-center text-xs text-zinc-400">No data in Drive yet.<br />Click "Save All to Drive" to back up.</div>
+                        ) : (
+                            files.filter(f => KEY_META[f.key]).map(f => (
+                                <div key={f.key} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 group">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-base leading-none">{f.icon}</span>
+                                        <span className="text-xs text-zinc-600 dark:text-zinc-300 truncate font-medium">{f.label}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => handleRestoreKey(f.key)}
+                                        disabled={restoring === f.key}
+                                        className="text-[10px] font-bold text-[#C9A84C] dark:text-[#C9A84C] opacity-0 group-hover:opacity-100 transition-opacity hover:underline disabled:opacity-50 flex-shrink-0 ml-2"
+                                    >
+                                        {restoring === f.key ? '…' : 'Restore'}
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
 
-            <button
-                onClick={loadFiles}
-                className="w-full text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-            >
-                ↻ Refresh file list
-            </button>
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={loadFiles}
+                            className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                        >
+                            ↻ Refresh file list
+                        </button>
+                        <button
+                            onClick={disconnectDrive}
+                            className="text-[10px] font-bold text-zinc-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        >
+                            Disconnect Drive
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

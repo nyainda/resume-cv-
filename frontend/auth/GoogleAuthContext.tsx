@@ -54,20 +54,35 @@ interface AuthContextValue {
     isAuthenticated: boolean;
     /** true while a silent token refresh is running in the background */
     silentRefreshing: boolean;
+    /** true if the user has granted Google Drive access */
+    driveConnected: boolean;
+    /** Opens a one-click Drive permission popup — call when user wants cloud backup */
+    requestDriveAccess: () => Promise<void>;
+    /** Disconnect Drive (revoke local token; user stays signed in) */
+    disconnectDrive: () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const SCOPES = [
-    'https://www.googleapis.com/auth/drive.appdata',
+// Sign-in only asks for identity. Drive is granted lazily via requestDriveAccess().
+const IDENTITY_SCOPES = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
 
+const DRIVE_SCOPES = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/drive.appdata',
+].join(' ');
+
+// Persisted flag — tells StorageRouter that the user has granted Drive access
+const DRIVE_SCOPE_KEY = 'procv:drive_scope_granted';
+
 // Key used by the oauth-callback.html localStorage fallback (iOS PWA path)
 const OAUTH_CALLBACK_KEY = 'procv:oauth_callback';
 
-function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
+function openOAuthPopup(scopes: string, prompt = 'select_account'): Promise<{ accessToken: string; expiresIn: number }> {
     return new Promise((resolve, reject) => {
         const clientId = (import.meta as { env: Record<string, string> }).env.VITE_GOOGLE_CLIENT_ID;
         if (!clientId) {
@@ -84,8 +99,8 @@ function openOAuthPopup(): Promise<{ accessToken: string; expiresIn: number }> {
             `?client_id=${encodeURIComponent(clientId)}` +
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
             `&response_type=token` +
-            `&scope=${encodeURIComponent(SCOPES)}` +
-            `&prompt=select_account`;
+            `&scope=${encodeURIComponent(scopes)}` +
+            `&prompt=${prompt}`;
 
         const popup = window.open(url, 'google_auth', 'width=520,height=640,left=200,top=100');
         if (!popup) {
@@ -205,6 +220,9 @@ const GoogleAuthContext = createContext<AuthContextValue>({
     signOut: () => { },
     isAuthenticated: false,
     silentRefreshing: false,
+    driveConnected: false,
+    requestDriveAccess: async () => { },
+    disconnectDrive: () => { },
 });
 
 // ── Provider ──────────────────────────────────────────────────────────────
@@ -214,6 +232,9 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [silentRefreshing, setSilentRefreshing] = useState(false);
+    const [driveConnected, setDriveConnected] = useState<boolean>(
+        () => localStorage.getItem(DRIVE_SCOPE_KEY) === '1'
+    );
     const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ── Schedule a proactive token refresh 5 min before expiry ──────────────
@@ -224,7 +245,8 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
 
         refreshTimerRef.current = setTimeout(async () => {
             try {
-                const { accessToken, expiresIn } = await silentRefresh(email);
+                const hadDrive = localStorage.getItem(DRIVE_SCOPE_KEY) === '1';
+                const { accessToken, expiresIn } = await silentRefresh(email, hadDrive);
                 const newExpiresAt = Date.now() + expiresIn * 1000 - 60_000;
                 await updateToken(accessToken, newExpiresAt);
                 setUser(prev => prev ? { ...prev, accessToken, expiresAt: newExpiresAt } : null);
@@ -259,7 +281,8 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
                     }
 
                     try {
-                        const { accessToken, expiresIn } = await silentRefresh(stored.email);
+                        const hadDrive = localStorage.getItem(DRIVE_SCOPE_KEY) === '1';
+                        const { accessToken, expiresIn } = await silentRefresh(stored.email, hadDrive);
                         const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
                         const refreshed: PersistedAuthState = {
                             ...stored,
@@ -303,13 +326,13 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     }, []);
 
-    // ── Sign in (manual popup flow) ──────────────────────────────────────────
+    // ── Sign in (identity only — no Drive scope) ─────────────────────────────
     const signIn = useCallback(async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const { accessToken, expiresIn } = await openOAuthPopup();
+            const { accessToken, expiresIn } = await openOAuthPopup(IDENTITY_SCOPES);
             const profile = await fetchGoogleProfile(accessToken);
             const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
 
@@ -331,12 +354,50 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [scheduleRefresh]);
 
+    // ── Request Drive access (one-click, lazy) ───────────────────────────────
+    // Opens a popup asking for drive.appdata scope.
+    // After grant, the new token (which includes Drive) replaces the stored one
+    // so StorageRouter picks it up automatically.
+    const requestDriveAccess = useCallback(async () => {
+        if (!user) throw new Error('Must be signed in to connect Drive');
+        try {
+            // Use consent prompt so Google shows the Drive permission screen
+            const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'consent');
+            const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
+            const updated: PersistedAuthState = {
+                accessToken,
+                expiresAt,
+                email: user.email,
+                name: user.name,
+                picture: user.picture,
+            };
+            await saveAuthState(updated);
+            setUser(stateToUser(updated));
+            localStorage.setItem(DRIVE_SCOPE_KEY, '1');
+            setDriveConnected(true);
+            scheduleRefresh(expiresAt, user.email);
+        } catch (err) {
+            throw new Error((err as Error).message ?? 'Drive connection failed');
+        }
+    }, [user, scheduleRefresh]);
+
+    // ── Disconnect Drive (keeps identity sign-in) ────────────────────────────
+    const disconnectDrive = useCallback(() => {
+        localStorage.removeItem(DRIVE_SCOPE_KEY);
+        // Also clear the Drive token keys used by StorageRouter
+        localStorage.removeItem('cv_gdrive_token');
+        localStorage.removeItem('cv_gdrive_expiry');
+        setDriveConnected(false);
+    }, []);
+
     // ── Sign out ─────────────────────────────────────────────────────────────
     const signOut = useCallback(async () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         await clearAuthState(); // clears IDB + localStorage
+        localStorage.removeItem(DRIVE_SCOPE_KEY);
         setUser(null);
         setError(null);
+        setDriveConnected(false);
     }, []);
 
     return (
@@ -348,6 +409,9 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
             signOut: () => void signOut(),
             isAuthenticated: !!(user?.accessToken),
             silentRefreshing,
+            driveConnected,
+            requestDriveAccess,
+            disconnectDrive,
         }}>
             {children}
         </GoogleAuthContext.Provider>
