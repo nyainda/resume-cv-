@@ -134,6 +134,7 @@ export async function clearAllIdbAsync(): Promise<void> {
     await Promise.allSettled([
         _clearGoogleAuthIdbAsync(),
         _clearCvDataIdbAsync(),
+        _clearAppDataIdbAsync(),
     ]);
 }
 
@@ -247,6 +248,7 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
         // ── Async IDB wipes (fire-and-forget; sentinels above are the safety net) ──
         _clearCvDataIdb();
         _clearGoogleAuthIdb();
+        _clearAppDataIdb();
     }
 }
 
@@ -312,6 +314,39 @@ function _clearCvDataIdbAsync(): Promise<void> {
                     tx.onerror    = () => { db.close(); resolve(); }; // non-fatal
                 } catch { db.close(); resolve(); }
             };
+        } catch {
+            resolve(); // IndexedDB unavailable — non-fatal
+        }
+    });
+}
+
+/**
+ * Delete the cv_builder_appdata IndexedDB entirely (non-fatal, fire-and-forget).
+ *
+ * This is the database used by AppDataPersistence.ts to mirror ALL app data
+ * (profiles, CVs, settings) so they survive "Clear cache" in the browser.
+ * On a full account-switch or delete-account wipe this database MUST be
+ * deleted outright — not just cleared — so no stale entries can be restored
+ * to localStorage by restoreLocalStorageFromIDB() on the next boot.
+ */
+function _clearAppDataIdb(): void {
+    try {
+        const req = indexedDB.deleteDatabase('cv_builder_appdata');
+        req.onerror = () => {};   // non-fatal
+        req.onsuccess = () => {}; // non-fatal
+    } catch {
+        // IndexedDB unavailable — safe to ignore
+    }
+}
+
+/** Awaitable version of _clearAppDataIdb — resolves when the database is deleted. */
+function _clearAppDataIdbAsync(): Promise<void> {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.deleteDatabase('cv_builder_appdata');
+            req.onsuccess = () => resolve();
+            req.onerror   = () => resolve(); // non-fatal — always resolve
+            req.onblocked = () => resolve();
         } catch {
             resolve(); // IndexedDB unavailable — non-fatal
         }
