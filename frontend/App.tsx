@@ -1452,9 +1452,13 @@ const AppInner: React.FC = () => {
       await new Promise(r => setTimeout(r, 3500));
     } else {
       toast.success('Account deleted', 'Your account and all data have been removed.');
+      // Brief pause so the success toast is visible.
+      await new Promise(r => setTimeout(r, 1200));
     }
 
-    window.location.reload();
+    // Navigate with ?auth=1 so WorkerAuthContext auto-opens the sign-in modal
+    // instead of dumping the user on the plain landing page.
+    window.location.href = window.location.origin + '?auth=1';
   }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);
 
   // ── Clear all browser data (emergency reset — no account deletion) ──────

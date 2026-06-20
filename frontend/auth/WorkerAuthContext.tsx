@@ -176,13 +176,34 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 }
             }
 
+            // 1b. Check for ?auth=1 — written by handleDeleteAccount before reload
+            //     so we land directly on the sign-in modal instead of a blank landing page.
+            const openAuthParam = params.get('auth');
+            if (openAuthParam === '1') {
+                const clean = new URL(window.location.href);
+                clean.searchParams.delete('auth');
+                window.history.replaceState({}, '', clean.toString());
+                if (!cancelled) {
+                    setIsLoading(false);
+                    setAuthModalOpen(true);
+                }
+                return;
+            }
+
             // 2. Restore stored session and re-validate with worker
             const stored = getStoredSession();
             if (stored?.token) {
+                // Preserve the Google-session flag that was written at sign-in time.
+                // applySession() defaults viaGoogle=false which would erase the flag,
+                // causing the "Bug 5 fix" effect to never fire for Google sessions.
+                // By reading it here and forwarding it we keep the flag intact
+                // across page reloads without any second network call.
+                const wasViaGoogle = localStorage.getItem(SESSION_VIA_GOOGLE_KEY) === '1';
+
                 const result = await validateSession(stored.token);
                 if (result.user && !cancelled) {
                     // Happy path: server returned fresh user data.
-                    applySession(stored.token, result.user);
+                    applySession(stored.token, result.user, wasViaGoogle);
                     setIsLoading(false);
                     return;
                 }
@@ -196,7 +217,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                     // Apply the session OPTIMISTICALLY from localStorage so the
                     // user is not kicked to the landing page on every PWA cold open.
                     // The token will be re-validated on the next real API call.
-                    applySession(stored.token, stored.user);
+                    applySession(stored.token, stored.user, wasViaGoogle);
                     setIsLoading(false);
                     return;
                 }
