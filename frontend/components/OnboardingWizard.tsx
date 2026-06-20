@@ -1,12 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { UserProfile, ApiSettings } from '../types';
 import { setTier } from '../services/accountTierService';
 import { setSelectedProvider } from '../services/groqService';
 import { extractTextFromDocx, parseWordTextToProfile } from '../services/wordImportService';
 
-// ─── localStorage key ────────────────────────────────────────────────────────
 export const ONBOARDING_DONE_KEY = 'procv:onboardingDone';
-
 export function hasCompletedOnboarding(): boolean {
     try { return localStorage.getItem(ONBOARDING_DONE_KEY) === '1'; } catch { return false; }
 }
@@ -14,105 +12,110 @@ export function markOnboardingDone(): void {
     try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch { }
 }
 
-// ─── Helpers to read `validateAndNormaliseProfile` logic ────────────────────
-// We parse JSON locally — same logic as the WordImportPanel JSON mode.
 function tryParseProfileJson(text: string): UserProfile | null {
     try {
         const raw = JSON.parse(text) as Record<string, unknown>;
-        // Unwrap common wrappers: {profile:{...}}, {cv:{...}}, {data:{...}}, etc.
         let obj = raw;
         for (const key of ['profile', 'cv', 'resume', 'data', 'user', 'output', 'result']) {
             const inner = raw[key];
             if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
                 const i = inner as Record<string, unknown>;
-                if (i.personalInfo || i.workExperience || i.experience || i.name) {
-                    obj = i;
-                    break;
-                }
+                if (i.personalInfo || i.workExperience || i.experience || i.name) { obj = i; break; }
             }
         }
-        // Minimal check — must have some profile-like shape
         if (!obj.personalInfo && !obj.name && !obj.workExperience && !obj.experience) return null;
         return obj as unknown as UserProfile;
-    } catch {
-        return null;
-    }
+    } catch { return null; }
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 type Plan = 'premium' | 'free';
 type Step = 'plan' | 'import' | 'keys';
+export type PendingImportType = 'docx' | 'pdf' | 'image';
 
 interface Props {
     onComplete: (opts: {
         plan: Plan;
         pendingDocxFile?: File;
+        pendingImportFile?: File;
+        pendingImportType?: PendingImportType;
         importedProfile?: UserProfile;
         apiSettings: ApiSettings;
     }) => void;
 }
 
-// ─── Step indicator ──────────────────────────────────────────────────────────
 function StepDots({ total, current }: { total: number; current: number }) {
     return (
-        <div className="flex items-center justify-center gap-2 py-3">
+        <div className="flex items-center justify-center gap-2 py-4">
             {Array.from({ length: total }).map((_, i) => (
-                <span key={i} className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${i < current ? 'bg-violet-500' : i === current ? 'bg-violet-400 ring-2 ring-violet-300' : 'bg-zinc-200 dark:bg-zinc-700'}`} />
+                <span key={i} className="transition-all duration-300" style={{
+                    display: 'inline-block',
+                    width: i === current ? 20 : 8,
+                    height: 8,
+                    borderRadius: 4,
+                    background: i < current ? '#C9A84C' : i === current ? '#1B2B4B' : '#D1D5DB',
+                }} />
             ))}
         </div>
     );
 }
 
-// ─── Main wizard ─────────────────────────────────────────────────────────────
+const FORMAT_BADGES = [
+    { label: 'PDF', color: '#EF4444', bg: '#FEF2F2' },
+    { label: 'Word .docx', color: '#2563EB', bg: '#EFF6FF' },
+    { label: 'Image', color: '#7C3AED', bg: '#F5F3FF' },
+    { label: 'JSON', color: '#D97706', bg: '#FFFBEB' },
+];
+
 export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
     const [step, setStep] = useState<Step>('plan');
     const [plan, setPlan] = useState<Plan>('free');
-
-    // Import state
     const [importedProfile, setImportedProfile] = useState<UserProfile | null>(null);
     const [pendingDocxFile, setPendingDocxFile] = useState<File | null>(null);
+    const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+    const [pendingImportType, setPendingImportType] = useState<PendingImportType | null>(null);
     const [importFileName, setImportFileName] = useState<string | null>(null);
     const [importLoading, setImportLoading] = useState(false);
     const [importError, setImportError] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Keys state (free plan only)
     const [geminiKey, setGeminiKey] = useState('');
     const [claudeKey, setClaudeKey] = useState('');
     const [finishing, setFinishing] = useState(false);
+    const [dragOver, setDragOver] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const isPremium = plan === 'premium';
-    // Premium: 2 steps (plan → import). Free: 3 steps (plan → import → keys).
     const totalSteps = isPremium ? 2 : 3;
     const stepIndex = step === 'plan' ? 0 : step === 'import' ? 1 : 2;
 
-    // ── File handling ─────────────────────────────────────────────────────
     const handleFile = useCallback(async (file: File) => {
         setImportError(null);
         setImportLoading(true);
         setImportFileName(file.name);
         setImportedProfile(null);
         setPendingDocxFile(null);
+        setPendingImportFile(null);
+        setPendingImportType(null);
 
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 
         try {
             if (ext === 'json') {
                 const text = await file.text();
                 const profile = tryParseProfileJson(text);
-                if (!profile) throw new Error('This JSON file doesn\'t look like a ProCV profile export.');
+                if (!profile) throw new Error("This JSON file doesn't look like a ProCV profile export.");
                 setImportedProfile(profile);
             } else if (ext === 'docx') {
-                // Docx needs AI parsing — we'll process it after the wizard finishes
-                // (when we have an API key). Store the file for the parent to handle.
-                // For Premium users the worker will do it; for free we need a key first.
                 setPendingDocxFile(file);
             } else if (ext === 'doc') {
                 throw new Error('.doc files are not supported — please save as .docx first.');
             } else if (ext === 'pdf') {
-                throw new Error('PDF import is available from the Profile page after setup. Use Word (.docx) or JSON here.');
+                setPendingImportFile(file);
+                setPendingImportType('pdf');
+            } else if (imageExts.includes(ext)) {
+                setPendingImportFile(file);
+                setPendingImportType('image');
             } else {
-                throw new Error('Unsupported file. Please use .docx or .json.');
+                throw new Error('Unsupported file. Please use PDF, Word (.docx), an image, or JSON.');
             }
         } catch (e: any) {
             setImportError(e?.message ?? 'Could not read this file.');
@@ -124,26 +127,17 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
+        setDragOver(false);
         const file = e.dataTransfer.files[0];
         if (file) handleFile(file);
     }, [handleFile]);
 
-    const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) handleFile(file);
-        e.target.value = '';
-    }, [handleFile]);
+    const hasFileSelected = !!(importedProfile || pendingDocxFile || pendingImportFile);
 
-    // ── Finish ────────────────────────────────────────────────────────────
     const finish = useCallback(() => {
         setFinishing(true);
-        if (isPremium) {
-            setTier('premium');
-            setSelectedProvider('workers-ai');
-        } else {
-            setTier('free');
-            setSelectedProvider(claudeKey.trim() ? 'claude' : 'gemini');
-        }
+        if (isPremium) { setTier('premium'); setSelectedProvider('workers-ai'); }
+        else { setTier('free'); setSelectedProvider(claudeKey.trim() ? 'claude' : 'gemini'); }
         const apiSettings: ApiSettings = {
             provider: 'gemini',
             aiProvider: isPremium ? 'workers-ai' : (claudeKey.trim() ? 'claude' : 'gemini'),
@@ -155,131 +149,185 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
         onComplete({
             plan,
             pendingDocxFile: pendingDocxFile ?? undefined,
+            pendingImportFile: pendingImportFile ?? undefined,
+            pendingImportType: pendingImportType ?? undefined,
             importedProfile: importedProfile ?? undefined,
             apiSettings,
         });
-    }, [isPremium, plan, geminiKey, claudeKey, importedProfile, pendingDocxFile, onComplete]);
+    }, [isPremium, plan, geminiKey, claudeKey, importedProfile, pendingDocxFile, pendingImportFile, pendingImportType, onComplete]);
 
-    const goToImport = useCallback((p: Plan) => {
-        setPlan(p);
-        setStep('import');
-    }, []);
-
-    const goToKeys = useCallback(() => setStep('keys'), []);
-
-    const hasFileSelected = !!(importedProfile || pendingDocxFile);
-
-    // ─── Render ───────────────────────────────────────────────────────────
     return (
-        <div className="fixed inset-0 z-[200] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+             style={{ background: 'rgba(10,16,30,0.82)', backdropFilter: 'blur(6px)' }}>
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+                 style={{ maxHeight: '92vh' }}>
+
+                {/* Header bar */}
+                <div className="flex items-center gap-2.5 px-6 pt-5 pb-2">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                         style={{ background: '#1B2B4B' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#C9A84C" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                    </div>
+                    <span className="text-sm font-black tracking-tight" style={{ color: '#1B2B4B', fontFamily: "'DM Sans', sans-serif" }}>ProCV</span>
+                    <span className="text-xs text-zinc-400 ml-auto">Setup</span>
+                </div>
+
                 <StepDots total={totalSteps} current={stepIndex} />
 
                 <div className="flex-1 overflow-y-auto">
 
-                    {/* ── STEP 1: Choose plan ───────────────────────────── */}
+                    {/* ── STEP 1: Choose plan ─────────────────────────────── */}
                     {step === 'plan' && (
                         <div className="px-6 pb-7 pt-1 space-y-5">
-                            <div className="text-center space-y-1">
-                                <div className="text-4xl">👋</div>
-                                <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100">Welcome to ProCV</h2>
-                                <p className="text-sm text-zinc-500 dark:text-zinc-400">Your AI career consultant. Let's get you set up in two minutes.</p>
+                            <div className="text-center space-y-1.5">
+                                <h2 className="text-2xl font-black text-zinc-900 dark:text-zinc-100"
+                                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                                    Welcome to ProCV
+                                </h2>
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                    Your AI career consultant. Let's get you set up — takes about two minutes.
+                                </p>
                             </div>
 
-                            <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider text-center">Choose how you'd like to use AI</p>
+                            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest text-center">Choose how you'd like to use AI</p>
 
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 {/* Premium */}
                                 <button
-                                    onClick={() => goToImport('premium')}
-                                    className="relative flex flex-col gap-2 rounded-xl border-2 border-violet-400 bg-gradient-to-b from-violet-50 to-white dark:from-violet-900/20 dark:to-neutral-900 p-4 text-left hover:border-violet-500 hover:shadow-lg transition-all"
+                                    onClick={() => { setPlan('premium'); setStep('import'); }}
+                                    className="relative flex flex-col gap-2 rounded-xl border-2 p-4 text-left transition-all hover:shadow-lg"
+                                    style={{ borderColor: '#C9A84C', background: 'linear-gradient(135deg, #FDFBF5 0%, #FFF8E7 100%)' }}
                                 >
-                                    <span className="absolute -top-2.5 left-4 bg-violet-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full tracking-wide">PREMIUM ✨</span>
-                                    <div className="mt-2">
-                                        <p className="text-sm font-bold text-violet-700 dark:text-violet-300">AI Included</p>
-                                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">No API keys needed. Powered by Cloudflare Workers AI — just start building.</p>
+                                    <span className="absolute -top-2.5 left-4 text-[10px] font-black px-2.5 py-0.5 rounded-full tracking-wide text-white"
+                                          style={{ background: '#1B2B4B' }}>AI INCLUDED ✦</span>
+                                    <div className="mt-2 flex items-start gap-2">
+                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                                             style={{ background: '#1B2B4B' }}>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                                <circle cx="12" cy="12" r="10" stroke="#C9A84C" strokeWidth="2"/>
+                                                <path d="M12 6v6l4 2" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round"/>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black" style={{ color: '#1B2B4B' }}>Premium — AI Ready</p>
+                                            <p className="text-[11px] text-zinc-500 mt-0.5 leading-snug">No API keys needed. Powered by Cloudflare Workers AI.</p>
+                                        </div>
                                     </div>
-                                    <ul className="text-[11px] text-violet-600 dark:text-violet-400 space-y-0.5 mt-1">
+                                    <ul className="text-[11px] text-zinc-600 space-y-0.5 pl-10">
                                         <li>✓ CV generation &amp; ATS scoring</li>
                                         <li>✓ Cover letters &amp; interview prep</li>
                                         <li>✓ CV Doctor &amp; humanizer</li>
                                     </ul>
-                                    <span className="mt-1 text-[10px] font-bold text-violet-500">Select →</span>
+                                    <span className="text-[11px] font-bold pl-10" style={{ color: '#C9A84C' }}>Select →</span>
                                 </button>
 
-                                {/* Free / BYOK */}
+                                {/* Free */}
                                 <button
-                                    onClick={() => goToImport('free')}
+                                    onClick={() => { setPlan('free'); setStep('import'); }}
                                     className="flex flex-col gap-2 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-900 p-4 text-left hover:border-zinc-400 hover:shadow-md transition-all"
                                 >
-                                    <div className="mt-2">
-                                        <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">🔑 Free — Bring Your Key</p>
-                                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug">Use your own free Google Gemini or Anthropic Claude key.</p>
+                                    <div className="mt-2 flex items-start gap-2">
+                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-zinc-100 dark:bg-zinc-800">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                                <rect x="3" y="11" width="18" height="11" rx="2" stroke="#6B7280" strokeWidth="2"/>
+                                                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"/>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black text-zinc-700 dark:text-zinc-300">Free — Bring Your Key</p>
+                                            <p className="text-[11px] text-zinc-500 mt-0.5 leading-snug">Use your own free Google Gemini or Claude key.</p>
+                                        </div>
                                     </div>
-                                    <ul className="text-[11px] text-zinc-500 dark:text-zinc-400 space-y-0.5 mt-1">
-                                        <li>✓ All core features</li>
+                                    <ul className="text-[11px] text-zinc-500 space-y-0.5 pl-10">
+                                        <li>✓ All core features included</li>
                                         <li>✓ Free keys from Google / Anthropic</li>
                                         <li>✓ Upgrade to Premium any time</li>
                                     </ul>
-                                    <span className="mt-1 text-[10px] font-bold text-zinc-400">Select →</span>
+                                    <span className="text-[11px] font-bold text-zinc-400 pl-10">Select →</span>
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* ── STEP 2: Import profile ────────────────────────── */}
+                    {/* ── STEP 2: Import profile ──────────────────────────── */}
                     {step === 'import' && (
                         <div className="px-6 pb-7 pt-1 space-y-4">
                             <div className="text-center space-y-1">
-                                <div className="text-4xl">📄</div>
-                                <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100">Import your existing CV</h2>
-                                <p className="text-sm text-zinc-500 dark:text-zinc-400">Pre-fill your profile in seconds. Supports Word and JSON exports.</p>
+                                <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100"
+                                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                                    Import your existing CV
+                                </h2>
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                    Pre-fill your profile in seconds — or skip and type manually.
+                                </p>
+                            </div>
+
+                            {/* Supported formats */}
+                            <div className="flex flex-wrap gap-1.5 justify-center">
+                                {FORMAT_BADGES.map(b => (
+                                    <span key={b.label}
+                                          className="text-[10px] font-bold px-2.5 py-1 rounded-full"
+                                          style={{ background: b.bg, color: b.color }}>
+                                        {b.label}
+                                    </span>
+                                ))}
                             </div>
 
                             {/* Drop zone */}
                             <div
                                 onDrop={handleDrop}
-                                onDragOver={(e) => e.preventDefault()}
+                                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                                onDragLeave={() => setDragOver(false)}
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-colors duration-200 ${
-                                    hasFileSelected
-                                        ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
-                                        : importError
-                                            ? 'border-red-300 bg-red-50 dark:bg-red-900/10'
-                                            : 'border-zinc-200 dark:border-zinc-700 hover:border-violet-400 bg-zinc-50 dark:bg-neutral-800/60'
-                                }`}
+                                className="cursor-pointer rounded-xl border-2 border-dashed p-7 text-center transition-all duration-200"
+                                style={{
+                                    borderColor: hasFileSelected ? '#22C55E' : dragOver ? '#1B2B4B' : importError ? '#F87171' : '#D1D5DB',
+                                    background: hasFileSelected ? '#F0FDF4' : dragOver ? '#F0F4FF' : importError ? '#FFF5F5' : '#FAFAFA',
+                                }}
                             >
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept=".docx,.json"
+                                    accept=".docx,.json,.pdf,.jpg,.jpeg,.png,.webp"
                                     className="hidden"
-                                    onChange={handleFileInput}
+                                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }}
                                 />
                                 {importLoading ? (
                                     <div className="flex flex-col items-center gap-2">
-                                        <span className="inline-block w-7 h-7 rounded-full border-[3px] border-violet-400 border-t-transparent animate-spin" />
+                                        <span className="inline-block w-7 h-7 rounded-full border-[3px] border-t-transparent animate-spin"
+                                              style={{ borderColor: '#1B2B4B', borderTopColor: 'transparent' }} />
                                         <p className="text-sm text-zinc-500">Reading {importFileName}…</p>
                                     </div>
                                 ) : hasFileSelected ? (
-                                    <div className="flex flex-col items-center gap-1">
-                                        <span className="text-3xl">✅</span>
-                                        <p className="text-sm font-semibold text-green-700 dark:text-green-300">
+                                    <div className="flex flex-col items-center gap-1.5">
+                                        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"/>
+                                            </svg>
+                                        </div>
+                                        <p className="text-sm font-bold text-green-700 dark:text-green-400">
                                             {importedProfile
-                                                ? `${importedProfile.personalInfo?.name || 'Profile'} — ready to import`
-                                                : `${importFileName} — will import after setup`}
+                                                ? `${importedProfile.personalInfo?.name || 'Profile'} — ready`
+                                                : `${importFileName} — will process after setup`}
                                         </p>
                                         <p className="text-[11px] text-zinc-400">Click to change file</p>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center gap-2">
-                                        <span className="text-3xl">⬆️</span>
-                                        <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                                            Drop your CV or <span className="text-violet-500 underline">browse</span>
-                                        </p>
-                                        <div className="flex gap-2 mt-1">
-                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium">Word .docx</span>
-                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">JSON export</span>
+                                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                <polyline points="17 8 12 3 7 8"/>
+                                                <line x1="12" y1="3" x2="12" y2="15"/>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
+                                                Drop your CV or <span className="underline" style={{ color: '#1B2B4B' }}>browse files</span>
+                                            </p>
+                                            <p className="text-[11px] text-zinc-400 mt-0.5">PDF · Word · Image · JSON export</p>
                                         </div>
                                     </div>
                                 )}
@@ -289,48 +337,58 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                 <p className="text-xs text-red-600 dark:text-red-400 text-center -mt-1">{importError}</p>
                             )}
 
-                            {pendingDocxFile && (
-                                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400">
-                                    <strong>Note:</strong> Word import uses AI parsing — it will run automatically after setup completes.
+                            {(pendingDocxFile || pendingImportFile) && (
+                                <div className="rounded-lg px-3 py-2 text-[11px] flex items-start gap-2"
+                                     style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+                                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                    </svg>
+                                    <span>
+                                        {pendingImportType === 'pdf' && 'PDF will be extracted by AI after setup completes.'}
+                                        {pendingImportType === 'image' && 'Image will be scanned by AI vision after setup completes.'}
+                                        {pendingDocxFile && 'Word document will be parsed by AI after setup completes.'}
+                                    </span>
                                 </div>
                             )}
 
                             <div className="space-y-2 pt-1">
                                 <button
-                                    onClick={isPremium ? finish : goToKeys}
+                                    onClick={isPremium ? finish : () => setStep('keys')}
                                     disabled={importLoading || finishing}
-                                    className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
+                                    className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                                    style={{ background: '#1B2B4B' }}
                                 >
-                                    {finishing ? 'Setting up…' : hasFileSelected ? 'Continue →' : "Skip — I'll fill it in manually →"}
+                                    {finishing ? 'Setting up…' : hasFileSelected ? 'Continue →' : "Skip — I'll fill in manually →"}
                                 </button>
-                                <button onClick={() => setStep('plan')} className="w-full text-xs text-zinc-400 hover:text-zinc-600 py-1">← Back</button>
+                                <button onClick={() => setStep('plan')}
+                                        className="w-full text-xs text-zinc-400 hover:text-zinc-600 py-1.5 transition-colors">
+                                    ← Back
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    {/* ── STEP 3: API Keys (free plan only) ────────────── */}
+                    {/* ── STEP 3: API Keys (free plan only) ─────────────── */}
                     {step === 'keys' && (
                         <div className="px-6 pb-7 pt-1 space-y-4">
                             <div className="text-center space-y-1">
-                                <div className="text-4xl">🔑</div>
-                                <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100">Add your API key</h2>
+                                <h2 className="text-xl font-black text-zinc-900 dark:text-zinc-100"
+                                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                                    Add your API key
+                                </h2>
                                 <p className="text-sm text-zinc-500 dark:text-zinc-400">Get a free key from Google (Gemini) — takes about 30 seconds.</p>
                             </div>
 
                             {/* Gemini */}
-                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-2">
+                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-2.5">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Google Gemini</p>
-                                        <p className="text-[10px] text-green-600 dark:text-green-400 font-semibold">Recommended · Free</p>
+                                        <p className="text-xs font-black text-zinc-800 dark:text-zinc-200">Google Gemini</p>
+                                        <p className="text-[10px] font-bold" style={{ color: '#16A34A' }}>Recommended · Free</p>
                                     </div>
-                                    <a
-                                        href="https://aistudio.google.com/app/apikey"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[11px] text-violet-500 hover:text-violet-700 hover:underline font-medium"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
+                                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
+                                       className="text-[11px] font-bold hover:underline" style={{ color: '#1B2B4B' }}
+                                       onClick={(e) => e.stopPropagation()}>
                                         Get free key →
                                     </a>
                                 </div>
@@ -339,24 +397,21 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                     placeholder="AIza…"
                                     value={geminiKey}
                                     onChange={(e) => setGeminiKey(e.target.value)}
-                                    className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                    className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2"
+                                    style={{ '--tw-ring-color': '#1B2B4B' } as React.CSSProperties}
                                 />
                             </div>
 
-                            {/* Claude (optional) */}
-                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-2">
+                            {/* Claude optional */}
+                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-2.5">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Anthropic Claude</p>
+                                        <p className="text-xs font-black text-zinc-800 dark:text-zinc-200">Anthropic Claude</p>
                                         <p className="text-[10px] text-zinc-400 font-medium">Optional</p>
                                     </div>
-                                    <a
-                                        href="https://console.anthropic.com/keys"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[11px] text-violet-500 hover:text-violet-700 hover:underline font-medium"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
+                                    <a href="https://console.anthropic.com/keys" target="_blank" rel="noreferrer"
+                                       className="text-[11px] font-bold hover:underline" style={{ color: '#1B2B4B' }}
+                                       onClick={(e) => e.stopPropagation()}>
                                         Get key →
                                     </a>
                                 </div>
@@ -365,23 +420,28 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                     placeholder="sk-ant-…"
                                     value={claudeKey}
                                     onChange={(e) => setClaudeKey(e.target.value)}
-                                    className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                    className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-neutral-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2"
+                                    style={{ '--tw-ring-color': '#1B2B4B' } as React.CSSProperties}
                                 />
                             </div>
 
                             <p className="text-[10px] text-zinc-400 text-center px-4">
-                                Your keys are encrypted in your browser and never sent to our servers.
+                                Your keys are stored only in your browser and never sent to our servers.
                             </p>
 
                             <div className="space-y-2 pt-1">
                                 <button
                                     onClick={finish}
                                     disabled={finishing}
-                                    className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
+                                    className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                                    style={{ background: '#1B2B4B' }}
                                 >
                                     {finishing ? 'Setting up…' : geminiKey || claudeKey ? "Let's go →" : 'Skip for now →'}
                                 </button>
-                                <button onClick={() => setStep('import')} className="w-full text-xs text-zinc-400 hover:text-zinc-600 py-1">← Back</button>
+                                <button onClick={() => setStep('import')}
+                                        className="w-full text-xs text-zinc-400 hover:text-zinc-600 py-1.5 transition-colors">
+                                    ← Back
+                                </button>
                             </div>
                         </div>
                     )}

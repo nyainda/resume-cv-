@@ -64,8 +64,9 @@ import LandingPage from "./components/LandingPage";
 import AccountPage from "./components/AccountPage";
 import { deleteAccountWorker } from "./services/authService";
 import DriveConflictModal from "./components/DriveConflictModal";
-import { OnboardingWizard, hasCompletedOnboarding } from "./components/OnboardingWizard";
+import { OnboardingWizard, hasCompletedOnboarding, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx, parseWordTextToProfile } from "./services/wordImportService";
+import { generateProfileFromFileWithGemini } from "./services/geminiService";
 import OfflineBanner from "./components/OfflineBanner";
 import LinkedInGenerator from "./components/LinkedInGenerator";
 import InterviewPrep from "./components/InterviewPrep";
@@ -909,7 +910,7 @@ const AppInner: React.FC = () => {
     let lastErrorTime = 0;
     const handleDriveError = (e: Event) => {
       const now = Date.now();
-      if (now - lastErrorTime < 15000) return; // throttle to once per 15s
+      if (now - lastErrorTime < 5 * 60 * 1000) return; // throttle to once per 5 min
       lastErrorTime = now;
       const detail = (e as CustomEvent).detail;
       const msg = detail?.error?.message || "Unknown error";
@@ -1803,6 +1804,8 @@ const AppInner: React.FC = () => {
     async (opts: {
       plan: 'premium' | 'free';
       pendingDocxFile?: File;
+      pendingImportFile?: File;
+      pendingImportType?: PendingImportType;
       importedProfile?: UserProfile;
       apiSettings: ApiSettings;
     }) => {
@@ -1818,6 +1821,23 @@ const AppInner: React.FC = () => {
           handleWordProfileImported(profile);
         } catch (e: any) {
           toast.error('Word Import Failed', e?.message ?? 'Could not parse the Word document. Try again from your Profile page.');
+        }
+      }
+      if (opts.pendingImportFile && opts.pendingImportType) {
+        try {
+          const file = opts.pendingImportFile;
+          const mimeType = file.type || (opts.pendingImportType === 'pdf' ? 'application/pdf' : 'image/jpeg');
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const profile = await generateProfileFromFileWithGemini(base64, mimeType);
+          handleWordProfileImported(profile);
+        } catch (e: any) {
+          const label = opts.pendingImportType === 'pdf' ? 'PDF' : 'Image';
+          toast.error(`${label} Import Failed`, e?.message ?? `Could not extract your profile from this ${label.toLowerCase()}. Try again from your Profile page.`);
         }
       }
     },

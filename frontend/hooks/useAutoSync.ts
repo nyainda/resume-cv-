@@ -4,7 +4,7 @@
 // so the AutoSaveIndicator can show "Saving…".
 
 import { useEffect, useRef } from 'react';
-import { isDriveActive, migrateLocalToDrive, resetMigrationFlag } from '../services/storage/StorageRouter';
+import { isDriveActive, migrateLocalToDrive } from '../services/storage/StorageRouter';
 import { useGoogleAuth } from '../auth/GoogleAuthContext';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -26,11 +26,13 @@ export function useAutoSync(isAuthenticated: boolean) {
             if (!isDriveActive()) return;
             try {
                 window.dispatchEvent(new CustomEvent('drive-save-start'));
-                // Force a re-sync by resetting the migration flag so every key is pushed
-                resetMigrationFlag(user?.email);
+                // Do NOT reset the migration flag — migrateLocalToDrive is a one-time
+                // initial upload. Ongoing saves go through StorageRouter.save() which
+                // already writes to Drive on every change. Resetting the flag here caused
+                // a full re-upload of all keys every 5 min, generating Drive API errors
+                // and repeated "Cloud Sync Failed" toasts.
                 await migrateLocalToDrive(undefined, user?.email);
                 window.dispatchEvent(new CustomEvent('drive-save-success', { detail: { key: '__auto_sync__' } }));
-                // Store timestamp for "last synced" display
                 localStorage.setItem('cv_drive_last_sync', new Date().toISOString());
             } catch (err) {
                 window.dispatchEvent(new CustomEvent('drive-save-error', { detail: { error: err } }));
