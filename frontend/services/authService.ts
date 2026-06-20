@@ -169,13 +169,24 @@ export async function signOutWorker(sessionToken: string): Promise<void> {
 
 /**
  * Delete account — removes the user's session and all server-side data.
+ * Sends device_id in the request body so the worker can wipe ALL legacy
+ * device_id-keyed tables (saved_cvs, tracked_applications, star_stories,
+ * saved_cover_letters, user_preferences, custom_templates) in addition to
+ * the user_id-scoped tables.  Without this, those rows survive deletion and
+ * reappear when the same device re-registers with the same Google account.
  * Returns true on success, false on any error (caller should still clear local data).
  */
-export async function deleteAccountWorker(sessionToken: string): Promise<boolean> {
+export async function deleteAccountWorker(sessionToken: string, deviceId?: string): Promise<boolean> {
     try {
+        const body: Record<string, string> = {};
+        if (deviceId) body.device_id = deviceId;
         const res = await fetch(`${ENGINE}/api/auth/account`, {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${sessionToken}` },
+            headers: {
+                Authorization: `Bearer ${sessionToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
             signal: AbortSignal.timeout(10_000),
         });
         return res.ok;

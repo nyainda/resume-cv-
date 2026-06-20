@@ -24,8 +24,8 @@ import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
-import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud } from "./services/userDataCloudService";
-import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
+import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
+import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, rotateDeviceId, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import {
@@ -1328,18 +1328,31 @@ const AppInner: React.FC = () => {
     }
 
     // Step 2: Best-effort server-side session / account removal.
-    // Wrapped in its own try-catch so a 401/network error doesn't abort the
-    // local wipe that follows.
+    // We send the device_id in the request body so the worker can also wipe
+    // all legacy device_id-keyed tables (saved_cvs, tracked_applications,
+    // star_stories, saved_cover_letters, user_preferences, custom_templates).
+    // Without this, those rows survive deletion and reappear when the same
+    // device re-registers with the same Google account.
+    const currentDeviceId = getDeviceId();
     try {
       const token = sessionToken
         || localStorage.getItem('procv:worker_session')
         || sessionStorage.getItem('procv:worker_session_temp')
         || '';
-      if (token) await deleteAccountWorker(token);
+      if (token) await deleteAccountWorker(token, currentDeviceId);
     } catch { /* non-fatal */ }
 
     // Step 3: LOCAL wipe — runs unconditionally even if server calls failed.
     clearUserScopedStorage({ clearAppData: true });
+
+    // Step 4: Rotate device_id to a fresh UUID.
+    // The device_id intentionally survives account deletion for anonymous/offline
+    // use, but rotating it ensures that even if any D1 rows were missed during
+    // server-side cleanup, the new account starts with a device_id that has
+    // zero rows in any D1 table.  This is the last line of defence against
+    // data leakage on same-device re-registration.
+    rotateDeviceId();
+
     // Use stampDeletedAccount (not stampSignedOut) so LAST_REAL_HASH_KEY is NOT
     // preserved. This means even if the same email re-registers one second later,
     // the account-switch guard fires a second full wipe — "new account = new slate."

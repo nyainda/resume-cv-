@@ -612,13 +612,26 @@ export async function handleAuthSignout(
 /**
  * DELETE /api/auth/account  (Authorization: Bearer <token>)
  *
- * Permanently deletes the authenticated user's account:
+ * Permanently deletes the authenticated user's account and ALL data
+ * associated with their user_id AND their device_id:
  *  - All sessions
- *  - All user_slots (cloud-synced CV profiles)
+ *  - All user_slots (user_id-scoped AND orphan device_id-only rows)
  *  - All profile_cache entries
+ *  - All device_id-keyed tables: saved_cvs, tracked_applications,
+ *    star_stories, saved_cover_letters, user_preferences, custom_templates
  *  - The user_identities row itself
- * Magic-link tokens and LLM cache entries are keyed by hash/content, not
- * by user, so they age out naturally and are not removed here.
+ *
+ * Why device_id cleanup matters:
+ *   Legacy tables (saved_cvs, tracked_applications, star_stories,
+ *   saved_cover_letters, user_preferences, custom_templates) are keyed
+ *   by device_id only — they have no user_id column.  If these rows are
+ *   not deleted, a user who deletes their account and re-registers with
+ *   the same Google account (same device, same device_id) will see all
+ *   their old data return.  user_identities.device_id holds the value
+ *   written at signup, so we fetch it before deleting that row.
+ *
+ * Magic-link tokens and LLM cache entries are keyed by hash/content,
+ * not by user, so they age out naturally and are not removed here.
  */
 export async function handleAuthDeleteAccount(
     request: Request,
@@ -633,38 +646,79 @@ export async function handleAuthDeleteAccount(
     // Audit log before deletion so we have a record even if later steps fail
     await auditLog(uid, "account_deleted", "delete_account", request, env);
 
-    // Delete user-scoped data in dependency order.
-    // profile_cache has no user_id; delete by slot_id matching the user's slots first.
+    // ── Step 1: Fetch device_id BEFORE deleting user_identities ──────────────
+    // This is the key that scopes all legacy tables.  We also accept it from the
+    // request body as a fallback for clients that send it explicitly.
+    let bodyDeviceId = '';
+    try {
+        const body: any = await request.clone().json().catch(() => ({}));
+        bodyDeviceId = typeof body?.device_id === 'string' ? body.device_id.trim().substring(0, 64) : '';
+    } catch { /* non-fatal */ }
+
+    const identityRow = await env.CV_DB.prepare(
+        `SELECT device_id FROM user_identities WHERE id = ?`
+    ).bind(uid).first<{ device_id: string | null }>();
+    const deviceId = identityRow?.device_id ?? bodyDeviceId;
+
+    // ── Step 2: profile_cache (keyed by slot_id, not user_id) ────────────────
     await env.CV_DB.prepare(
         `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`,
-    )
-        .bind(uid)
-        .run()
-        .catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_slots        WHERE user_id = ?`)
-        .bind(uid)
-        .run()
-        .catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_sessions     WHERE user_id = ?`)
-        .bind(uid)
-        .run()
-        .catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM public_profiles   WHERE user_id = ?`)
-        .bind(uid)
-        .run()
-        .catch(() => {});
+    ).bind(uid).run().catch(() => {});
+
+    // Also clean profile_cache entries for orphan device-only user_slots rows.
+    if (deviceId) {
+        await env.CV_DB.prepare(
+            `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE device_id = ? AND user_id IS NULL)`,
+        ).bind(deviceId).run().catch(() => {});
+    }
+
+    // ── Step 3: user_slots — authenticated rows and orphan device-only rows ──
+    await env.CV_DB.prepare(`DELETE FROM user_slots WHERE user_id = ?`)
+        .bind(uid).run().catch(() => {});
+    if (deviceId) {
+        await env.CV_DB.prepare(`DELETE FROM user_slots WHERE device_id = ? AND user_id IS NULL`)
+            .bind(deviceId).run().catch(() => {});
+    }
+
+    // ── Step 4: Device_id-keyed tables (no user_id column) ───────────────────
+    // These tables were created before authentication was added and are keyed
+    // entirely by device_id.  They MUST be wiped here or they survive deletion
+    // and return when the same device_id re-registers.
+    if (deviceId) {
+        await env.CV_DB.prepare(`DELETE FROM saved_cvs            WHERE device_id = ?`)
+            .bind(deviceId).run().catch(() => {});
+        await env.CV_DB.prepare(`DELETE FROM tracked_applications WHERE device_id = ?`)
+            .bind(deviceId).run().catch(() => {});
+        await env.CV_DB.prepare(`DELETE FROM star_stories         WHERE device_id = ?`)
+            .bind(deviceId).run().catch(() => {});
+        await env.CV_DB.prepare(`DELETE FROM saved_cover_letters  WHERE device_id = ?`)
+            .bind(deviceId).run().catch(() => {});
+        // user_preferences has device_id as PRIMARY KEY (legacy) + user_id column (mig 026).
+        // Delete both the user_id-scoped row AND the legacy device_id-keyed row.
+        await env.CV_DB.prepare(`DELETE FROM user_preferences WHERE device_id = ?`)
+            .bind(deviceId).run().catch(() => {});
+        // custom_templates.user_id stores device_id (see migration 016 comment).
+        await env.CV_DB.prepare(`DELETE FROM custom_templates WHERE user_id = ?`)
+            .bind(deviceId).run().catch(() => {});
+    }
+
+    // user_preferences by user_id (the migration 026 row, if device_id was empty)
+    await env.CV_DB.prepare(`DELETE FROM user_preferences WHERE user_id = ?`)
+        .bind(uid).run().catch(() => {});
+
+    // ── Step 5: Auth tables ───────────────────────────────────────────────────
+    await env.CV_DB.prepare(`DELETE FROM user_sessions   WHERE user_id = ?`)
+        .bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM public_profiles WHERE user_id = ?`)
+        .bind(uid).run().catch(() => {});
     // Bug 2 fix: auth_audit_log.user_id has no ON DELETE CASCADE, so we must delete
     // audit rows first — otherwise the user_identities DELETE throws a FK violation.
-    await env.CV_DB.prepare(`DELETE FROM auth_audit_log    WHERE user_id = ?`)
-        .bind(uid)
-        .run()
-        .catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_identities   WHERE id = ?`)
-        .bind(uid)
-        .run()
-        .catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM auth_audit_log  WHERE user_id = ?`)
+        .bind(uid).run().catch(() => {});
+    await env.CV_DB.prepare(`DELETE FROM user_identities WHERE id = ?`)
+        .bind(uid).run().catch(() => {});
 
-    return json({ ok: true }, request, env);
+    return json({ ok: true, device_id_wiped: !!deviceId }, request, env);
 }
 
 // ─── Email template ───────────────────────────────────────────────────────────

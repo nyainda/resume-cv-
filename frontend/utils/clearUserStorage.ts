@@ -74,6 +74,28 @@ export function stampSignedOut(): void {
 }
 
 /**
+ * Rotate the device_id to a brand-new UUID.
+ *
+ * Call this after a full account deletion.  The device_id persists across
+ * account deletion by design (anonymous/offline mode needs it), but legacy
+ * D1 tables (saved_cvs, tracked_applications, star_stories, etc.) are keyed
+ * by device_id only.  Even after the server-side wipe, any data that slipped
+ * through would reappear if the same device_id is re-used on re-registration.
+ * Rotating ensures the new account always starts with a fresh device_id that
+ * has zero rows in any D1 table.
+ */
+export function rotateDeviceId(): void {
+    try {
+        const newId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem('cv_builder:deviceId', newId);
+    } catch {
+        // localStorage unavailable — non-fatal
+    }
+}
+
+/**
  * Write the deleted-clean sentinel after a full account deletion.
  *
  * Call this AFTER clearUserScopedStorage({ clearAppData: true }) AND after
