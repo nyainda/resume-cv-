@@ -135,6 +135,8 @@ export async function clearAllIdbAsync(): Promise<void> {
         _clearGoogleAuthIdbAsync(),
         _clearCvDataIdbAsync(),
         _clearAppDataIdbAsync(),
+        _clearSyncQueueIdbAsync(),
+        _clearKeyVaultIdbAsync(),
     ]);
 }
 
@@ -175,11 +177,18 @@ export async function clearAllBrowserStorage(): Promise<void> {
     // 4. Wipe sessionStorage.
     try { sessionStorage.clear(); } catch { /* non-fatal */ }
 
-    // 5. Delete all three IndexedDB databases — awaited so they finish before reload.
+    // 5. Delete all five IndexedDB databases — awaited so they finish before reload.
+    //    cv_builder_sync holds the pending optimistic sync queue; pending items must
+    //    be deleted (not just cleared) so they cannot replay old profile writes on
+    //    the next boot under a different session token.
+    //    cv_builder_keyvault holds the AES-GCM master key used to encrypt API keys;
+    //    deleting it forces a fresh key to be generated for the next account.
     await Promise.allSettled([
         _clearGoogleAuthIdbAsync(),
         _clearCvDataIdbAsync(),
         _clearAppDataIdbAsync(),
+        _clearSyncQueueIdbAsync(),
+        _clearKeyVaultIdbAsync(),
     ]);
 
     // 6. Delete all Cache API entries (service-worker / Workbox caches).
@@ -414,6 +423,51 @@ function _clearAppDataIdbAsync(): Promise<void> {
             req.onblocked = () => resolve();
         } catch {
             resolve(); // IndexedDB unavailable — non-fatal
+        }
+    });
+}
+
+/**
+ * Delete the cv_builder_sync IndexedDB (sync queue).
+ *
+ * The sync queue persists pending profile/slot writes across page reloads.
+ * On account deletion this database MUST be deleted (not just cleared) so no
+ * enqueued item can replay old profile data to D1 on the next boot under a
+ * fresh or re-registered session token.
+ *
+ * clearQueueForAccount() (called earlier in the delete flow) already clears
+ * the in-memory queue items; this is the belt-and-suspenders hard IDB delete.
+ */
+function _clearSyncQueueIdbAsync(): Promise<void> {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.deleteDatabase('cv_builder_sync');
+            req.onsuccess = () => resolve();
+            req.onerror   = () => resolve();
+            req.onblocked = () => resolve();
+        } catch {
+            resolve();
+        }
+    });
+}
+
+/**
+ * Delete the cv_builder_keyvault IndexedDB.
+ *
+ * The keyvault holds the AES-GCM 256-bit master key used to encrypt API keys
+ * in localStorage.  Deleting it on account wipe ensures the next account
+ * starts with a freshly generated key — old encrypted blobs (already erased
+ * from localStorage) cannot be decrypted by a mismatched key on re-login.
+ */
+function _clearKeyVaultIdbAsync(): Promise<void> {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.deleteDatabase('cv_builder_keyvault');
+            req.onsuccess = () => resolve();
+            req.onerror   = () => resolve();
+            req.onblocked = () => resolve();
+        } catch {
+            resolve();
         }
     });
 }
