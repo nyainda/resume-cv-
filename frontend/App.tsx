@@ -1385,20 +1385,21 @@ const AppInner: React.FC = () => {
       await deleteAllDriveData(user.accessToken).catch(() => {});
     }
 
-    // Step 2: Best-effort server-side session / account removal.
-    // We send the device_id in the request body so the worker can also wipe
-    // all legacy device_id-keyed tables (saved_cvs, tracked_applications,
-    // star_stories, saved_cover_letters, user_preferences, custom_templates).
-    // Without this, those rows survive deletion and reappear when the same
-    // device re-registers with the same Google account.
+    // Step 2: Server-side session / account removal.
+    // We send the device_id so the worker can wipe all legacy device_id-keyed
+    // tables (saved_cvs, tracked_applications, star_stories, saved_cover_letters,
+    // user_preferences, custom_templates) in addition to the user_id-scoped ones.
+    // The worker uses a D1 batch for the FK chain so the identity row is
+    // guaranteed gone — if the batch fails the worker returns ok:false.
     const currentDeviceId = getDeviceId();
+    let serverDeleteOk = false;
     try {
       const token = sessionToken
         || localStorage.getItem('procv:worker_session')
         || sessionStorage.getItem('procv:worker_session_temp')
         || '';
-      if (token) await deleteAccountWorker(token, currentDeviceId);
-    } catch { /* non-fatal */ }
+      if (token) serverDeleteOk = await deleteAccountWorker(token, currentDeviceId);
+    } catch { /* non-fatal — local wipe continues regardless */ }
 
     // Step 3: Clear pending sync queue — no stale writes after account wipe.
     await clearQueueForAccount().catch(() => {});
@@ -1406,25 +1407,40 @@ const AppInner: React.FC = () => {
     // Step 4: LOCAL wipe — runs unconditionally even if server calls failed.
     clearUserScopedStorage({ clearAppData: true });
 
-    // Step 4: Rotate device_id to a fresh UUID.
-    // The device_id intentionally survives account deletion for anonymous/offline
-    // use, but rotating it ensures that even if any D1 rows were missed during
-    // server-side cleanup, the new account starts with a device_id that has
-    // zero rows in any D1 table.  This is the last line of defence against
-    // data leakage on same-device re-registration.
+    // Step 5: Rotate device_id to a fresh UUID.
+    // Even if D1 cleanup was perfect, rotating ensures a brand-new device_id
+    // with zero rows in any D1 table for the next account.
     rotateDeviceId();
 
-    // Use stampDeletedAccount (not stampSignedOut) so LAST_REAL_HASH_KEY is NOT
-    // preserved. This means even if the same email re-registers one second later,
-    // the account-switch guard fires a second full wipe — "new account = new slate."
-    stampDeletedAccount();
     try { await signOut(); }  catch { /* non-fatal */ }
-    try { googleSignOut(); }  catch { /* non-fatal */ }  // void-returning wrapper
-    toast.success('Account deleted', 'Your account and all data have been removed.');
-    // Nuclear browser-data wipe: clears all localStorage, sessionStorage, all
-    // three IDB databases, the Cache API, and first-party cookies — ensuring a
-    // truly clean slate on the next load with no stale data from the old account.
+    try { googleSignOut(); }  catch { /* non-fatal */ }
+
+    // Step 6: Nuclear browser-data wipe — clears all localStorage (including
+    // the rotated device_id and any sentinels written above), sessionStorage,
+    // all three IDB databases, Cache API, and first-party cookies.
     await clearAllBrowserStorage().catch(() => {});
+
+    // Step 7: Re-stamp DELETED_CLEAN_SENTINEL *after* the nuclear wipe so the
+    // account-switch guard on the next boot knows the slate is already clean and
+    // won't trigger a redundant second wipe+reload on sign-in.
+    // (stampDeletedAccount() called before clearAllBrowserStorage() would be
+    // erased by the wipe — so it must be re-written here.)
+    stampDeletedAccount();
+
+    if (!serverDeleteOk) {
+      // Server-side deletion failed (D1 batch error). Local data is wiped, but
+      // the cloud record may still exist. Warn the user BEFORE reload so the
+      // message is visible briefly.
+      toast.error(
+        'Partial account deletion',
+        'Your local data was cleared but the server could not fully remove your account. If old data appears after signing back in, please try deleting again or contact support.',
+      );
+      // Short delay so the toast is readable before the page reloads.
+      await new Promise(r => setTimeout(r, 3500));
+    } else {
+      toast.success('Account deleted', 'Your account and all data have been removed.');
+    }
+
     window.location.reload();
   }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);
 

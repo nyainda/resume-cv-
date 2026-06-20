@@ -643,12 +643,10 @@ export async function handleAuthDeleteAccount(
 
     const uid = session.userId;
 
-    // Audit log before deletion so we have a record even if later steps fail
-    await auditLog(uid, "account_deleted", "delete_account", request, env);
-
     // ── Step 1: Fetch device_id BEFORE deleting user_identities ──────────────
-    // This is the key that scopes all legacy tables.  We also accept it from the
-    // request body as a fallback for clients that send it explicitly.
+    // Accept device_id from the request body as the primary source (always sent
+    // by the client since v2026-06).  Fall back to user_identities.device_id
+    // for accounts where it was stored at signup (Google sign-up only).
     let bodyDeviceId = '';
     try {
         const body: any = await request.clone().json().catch(() => ({}));
@@ -658,65 +656,113 @@ export async function handleAuthDeleteAccount(
     const identityRow = await env.CV_DB.prepare(
         `SELECT device_id FROM user_identities WHERE id = ?`
     ).bind(uid).first<{ device_id: string | null }>();
-    const deviceId = identityRow?.device_id ?? bodyDeviceId;
+    // Prefer the body device_id (always the live browser value); fall back to
+    // the one stored at signup in case the client didn't send it.
+    const deviceId = bodyDeviceId || identityRow?.device_id || '';
 
-    // ── Step 2: profile_cache (keyed by slot_id, not user_id) ────────────────
+    // ── Step 2: Non-FK tables — best-effort, never block the identity delete ──
+    // profile_cache, saved_cvs, etc. have no FK to user_identities so these
+    // cannot cause a FK violation on the identity row. Run them first and
+    // individually so a partial failure here doesn't abort the critical chain.
+
+    // profile_cache — keyed by slot_id via user_slots
     await env.CV_DB.prepare(
         `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`,
     ).bind(uid).run().catch(() => {});
 
-    // Also clean profile_cache entries for orphan device-only user_slots rows.
     if (deviceId) {
         await env.CV_DB.prepare(
             `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE device_id = ? AND user_id IS NULL)`,
         ).bind(deviceId).run().catch(() => {});
+
+        // Device-keyed tables (no FK to user_identities)
+        await env.CV_DB.prepare(`DELETE FROM saved_cvs            WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
+        await env.CV_DB.prepare(`DELETE FROM tracked_applications WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
+        await env.CV_DB.prepare(`DELETE FROM star_stories         WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
+        await env.CV_DB.prepare(`DELETE FROM saved_cover_letters  WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
+        // custom_templates.user_id column stores device_id (see migration 016).
+        await env.CV_DB.prepare(`DELETE FROM custom_templates     WHERE user_id   = ?`).bind(deviceId).run().catch(() => {});
     }
 
-    // ── Step 3: user_slots — authenticated rows and orphan device-only rows ──
-    await env.CV_DB.prepare(`DELETE FROM user_slots WHERE user_id = ?`)
-        .bind(uid).run().catch(() => {});
+    // ── Step 3: Atomic FK-chain deletion via D1 batch ─────────────────────────
+    //
+    // WHY BATCH: Cloudflare D1 enforces FK constraints by default.  The old
+    // approach used individual `await ... .catch(() => {})` statements —
+    // meaning if ANY step failed silently, the later `DELETE FROM user_identities`
+    // also failed silently (FK violation from surviving child rows), leaving the
+    // identity row alive in D1.  On the next sign-in with the same email,
+    // handleAuthGoogle Path 2 (email match) would find the old row, reuse the
+    // same user_id, and serve all the "deleted" profile data back.
+    //
+    // The batch executes all statements as a single atomic unit.  If any
+    // statement fails the whole batch fails — we catch it, return ok:false, and
+    // the frontend shows a visible warning instead of silently leaking data.
+    //
+    // ORDER within the batch MATTERS for FK safety:
+    //   user_slots       → references user_identities(id)  [mig 026]
+    //   user_preferences → references user_identities(id)  [mig 026]
+    //   user_sessions    → references user_identities(id)  [mig 024]
+    //   public_profiles  → references user_identities(id)  [mig 027]
+    //   auth_audit_log   → references user_identities(id)  [mig 025]
+    //   user_identities  → must be last (all FKs cleared above)
+    //
+    // The audit log row written at the START (before batch) is also deleted
+    // here so that user_identities can be deleted without FK violation.
+
+    // Write the audit log BEFORE the batch — we want a record even if the
+    // batch fails, and the batch itself deletes all audit rows for this user.
+    await auditLog(uid, "account_deleted", "delete_account", request, env);
+
+    const fkBatch = [
+        // user_slots (FK → user_identities)
+        env.CV_DB.prepare(`DELETE FROM user_slots WHERE user_id = ?`).bind(uid),
+        // user_preferences by user_id (FK → user_identities, mig 026 row)
+        env.CV_DB.prepare(`DELETE FROM user_preferences WHERE user_id = ?`).bind(uid),
+        // user_sessions (FK → user_identities)
+        env.CV_DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(uid),
+        // public_profiles (FK → user_identities, mig 027)
+        env.CV_DB.prepare(`DELETE FROM public_profiles WHERE user_id = ?`).bind(uid),
+        // auth_audit_log (FK → user_identities, mig 025) — includes the row
+        // written above by auditLog(), so must come before user_identities.
+        env.CV_DB.prepare(`DELETE FROM auth_audit_log WHERE user_id = ?`).bind(uid),
+        // LAST: user_identities — only reachable once all FK children are gone.
+        env.CV_DB.prepare(`DELETE FROM user_identities WHERE id = ?`).bind(uid),
+    ];
+
+    // Also wipe orphan device-only user_slots and legacy device-keyed prefs.
     if (deviceId) {
-        await env.CV_DB.prepare(`DELETE FROM user_slots WHERE device_id = ? AND user_id IS NULL`)
-            .bind(deviceId).run().catch(() => {});
+        fkBatch.unshift(
+            env.CV_DB.prepare(`DELETE FROM user_slots WHERE device_id = ? AND user_id IS NULL`).bind(deviceId),
+            env.CV_DB.prepare(`DELETE FROM user_preferences WHERE device_id = ?`).bind(deviceId),
+        );
     }
 
-    // ── Step 4: Device_id-keyed tables (no user_id column) ───────────────────
-    // These tables were created before authentication was added and are keyed
-    // entirely by device_id.  They MUST be wiped here or they survive deletion
-    // and return when the same device_id re-registers.
-    if (deviceId) {
-        await env.CV_DB.prepare(`DELETE FROM saved_cvs            WHERE device_id = ?`)
-            .bind(deviceId).run().catch(() => {});
-        await env.CV_DB.prepare(`DELETE FROM tracked_applications WHERE device_id = ?`)
-            .bind(deviceId).run().catch(() => {});
-        await env.CV_DB.prepare(`DELETE FROM star_stories         WHERE device_id = ?`)
-            .bind(deviceId).run().catch(() => {});
-        await env.CV_DB.prepare(`DELETE FROM saved_cover_letters  WHERE device_id = ?`)
-            .bind(deviceId).run().catch(() => {});
-        // user_preferences has device_id as PRIMARY KEY (legacy) + user_id column (mig 026).
-        // Delete both the user_id-scoped row AND the legacy device_id-keyed row.
-        await env.CV_DB.prepare(`DELETE FROM user_preferences WHERE device_id = ?`)
-            .bind(deviceId).run().catch(() => {});
-        // custom_templates.user_id stores device_id (see migration 016 comment).
-        await env.CV_DB.prepare(`DELETE FROM custom_templates WHERE user_id = ?`)
-            .bind(deviceId).run().catch(() => {});
+    try {
+        await env.CV_DB.batch(fkBatch);
+    } catch (batchErr: any) {
+        // The batch failed — user_identities may still exist in D1.
+        // Log for diagnostics and return a real error so the frontend can warn
+        // the user that server-side cleanup is incomplete.
+        console.error('[DeleteAccount] FK-chain batch failed:', batchErr?.message ?? batchErr);
+
+        // Last-resort: attempt to delete user_identities directly (e.g. if FK
+        // enforcement is momentarily disabled or the batch error was transient).
+        await env.CV_DB.prepare(`DELETE FROM user_identities WHERE id = ?`)
+            .bind(uid).run().catch(() => {});
+
+        // Verify whether the identity row is actually gone.
+        const stillExists = await env.CV_DB.prepare(
+            `SELECT id FROM user_identities WHERE id = ?`
+        ).bind(uid).first<{ id: number }>();
+
+        if (stillExists) {
+            return json(
+                { ok: false, error: 'deletion_incomplete', detail: batchErr?.message ?? 'batch_failed' },
+                request, env, 500,
+            );
+        }
+        // Identity gone despite batch error — return success (data IS cleaned).
     }
-
-    // user_preferences by user_id (the migration 026 row, if device_id was empty)
-    await env.CV_DB.prepare(`DELETE FROM user_preferences WHERE user_id = ?`)
-        .bind(uid).run().catch(() => {});
-
-    // ── Step 5: Auth tables ───────────────────────────────────────────────────
-    await env.CV_DB.prepare(`DELETE FROM user_sessions   WHERE user_id = ?`)
-        .bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM public_profiles WHERE user_id = ?`)
-        .bind(uid).run().catch(() => {});
-    // Bug 2 fix: auth_audit_log.user_id has no ON DELETE CASCADE, so we must delete
-    // audit rows first — otherwise the user_identities DELETE throws a FK violation.
-    await env.CV_DB.prepare(`DELETE FROM auth_audit_log  WHERE user_id = ?`)
-        .bind(uid).run().catch(() => {});
-    await env.CV_DB.prepare(`DELETE FROM user_identities WHERE id = ?`)
-        .bind(uid).run().catch(() => {});
 
     return json({ ok: true, device_id_wiped: !!deviceId }, request, env);
 }
