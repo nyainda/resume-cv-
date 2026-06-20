@@ -1170,3 +1170,514 @@ describe('Scenario M — Edge cases', () => {
         expect(userDataKeys).toHaveLength(0);
     });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCENARIO N — Cross-tab storage-event propagation
+//
+// When a user signs out or switches accounts in Tab A, all other open tabs
+// must receive the wipe signal and clear their own in-memory + localStorage
+// state before the new user can sign in.
+//
+// The mechanism: writing to localStorage in one tab fires a `storage` event
+// in EVERY OTHER tab on the same origin.  The app's cross-tab handler reads
+// the event's key + newValue and decides whether to wipe.
+//
+// Event shape:
+//   { key: string, oldValue: string|null, newValue: string|null }
+//
+// Relevant triggers (key → newValue):
+//   ACCOUNT_HASH_KEY → SIGNED_OUT_SENTINEL     sign-out in another tab
+//   ACCOUNT_HASH_KEY → DELETED_CLEAN_SENTINEL  delete in another tab
+//   ACCOUNT_HASH_KEY → fnv32(email)            account-switch (new user)
+//   LS_AUTH_CLEARED  → '1'                     auth IDB wipe started elsewhere
+//   LS_APPDATA_CLEARED → '1'                   app IDB wipe started elsewhere
+//
+// Unrelated key changes MUST NOT trigger a wipe.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Cross-tab handler (mirrors what a production useEffect would do) ──────────
+//
+// Returns a string describing the action taken so tests can assert on it.
+// In production this is a window.addEventListener('storage', ...) handler
+// that calls clearAppData + window.location.reload() as needed.
+
+type CrossTabAction =
+    | 'wipe-and-reload'      // full data wipe + page reload
+    | 'write-auth-sentinel'  // write LS_AUTH_CLEARED so next boot skips IDB
+    | 'write-appdata-sentinel' // write LS_APPDATA_CLEARED so next boot skips IDB
+    | 'no-op';               // unrelated event — ignore
+
+function simulateCrossTabStorageEvent(
+    tabBls: LS,
+    event: { key: string | null; oldValue: string | null; newValue: string | null },
+): CrossTabAction {
+    if (!event.key || event.newValue === null) return 'no-op';
+
+    // Primary trigger: ACCOUNT_HASH_KEY changed to a wipe-sentinel in another tab
+    if (event.key === ACCOUNT_HASH_KEY) {
+        if (
+            event.newValue === SIGNED_OUT_SENTINEL ||
+            event.newValue === DELETED_CLEAN_SENTINEL
+        ) {
+            // Wipe this tab's data so the new user cannot see it
+            clearAppData(tabBls);
+            // In production: window.location.reload()
+            return 'wipe-and-reload';
+        }
+        // A new email hash (account-switch) also triggers a wipe
+        if (
+            event.newValue !== event.oldValue &&
+            event.newValue !== SIGNED_OUT_SENTINEL &&
+            event.newValue !== DELETED_CLEAN_SENTINEL
+        ) {
+            // Only wipe if there was a previous user (oldValue is a real hash)
+            if (
+                event.oldValue &&
+                event.oldValue !== SIGNED_OUT_SENTINEL &&
+                event.oldValue !== DELETED_CLEAN_SENTINEL &&
+                event.oldValue !== event.newValue
+            ) {
+                clearAppData(tabBls);
+                return 'wipe-and-reload';
+            }
+        }
+        return 'no-op';
+    }
+
+    // Secondary triggers: IDB wipe sentinels — propagate to this tab so its
+    // next boot does not restore stale data from IDB
+    if (event.key === LS_AUTH_CLEARED && event.newValue === '1') {
+        tabBls.setItem(LS_AUTH_CLEARED, '1');
+        return 'write-auth-sentinel';
+    }
+    if (event.key === LS_APPDATA_CLEARED && event.newValue === '1') {
+        tabBls.setItem(LS_APPDATA_CLEARED, '1');
+        return 'write-appdata-sentinel';
+    }
+
+    return 'no-op';
+}
+
+describe('Scenario N — Cross-tab storage-event propagation', () => {
+    let tabA: LS;
+    let tabB: LS;
+
+    beforeEach(() => {
+        // Two tabs sharing the same conceptual localStorage state
+        tabA = makeLS();
+        seedUserA(tabA);
+        // Tab B is a mirror of Tab A's state at the time both tabs were open
+        tabB = makeLS();
+        Object.entries(tabA._store).forEach(([k, v]) => tabB.setItem(k, v));
+    });
+
+    // ── N1: Storage event payload contract ────────────────────────────────────
+
+    it('N1a: SIGNED_OUT_SENTINEL on ACCOUNT_HASH_KEY triggers wipe-and-reload', () => {
+        stampSignedOut(tabA);
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        expect(action).toBe('wipe-and-reload');
+    });
+
+    it('N1b: DELETED_CLEAN_SENTINEL on ACCOUNT_HASH_KEY triggers wipe-and-reload', () => {
+        stampDeletedAccount(tabA);
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: DELETED_CLEAN_SENTINEL,
+        });
+        expect(action).toBe('wipe-and-reload');
+    });
+
+    it('N1c: LS_AUTH_CLEARED sentinel propagation → Tab B writes its own copy', () => {
+        clearAppData(tabA);
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: LS_AUTH_CLEARED,
+            oldValue: null,
+            newValue: '1',
+        });
+        expect(action).toBe('write-auth-sentinel');
+        expect(tabB.getItem(LS_AUTH_CLEARED)).toBe('1');
+    });
+
+    it('N1d: LS_APPDATA_CLEARED sentinel propagation → Tab B writes its own copy', () => {
+        clearAppData(tabA);
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: LS_APPDATA_CLEARED,
+            oldValue: null,
+            newValue: '1',
+        });
+        expect(action).toBe('write-appdata-sentinel');
+        expect(tabB.getItem(LS_APPDATA_CLEARED)).toBe('1');
+    });
+
+    it('N1e: account-switch (Tab A gets new user) triggers wipe in Tab B', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: fnv32(USER_B),
+        });
+        expect(action).toBe('wipe-and-reload');
+    });
+
+    // ── N2: False-negative guard — unrelated events must NOT trigger a wipe ──
+
+    it('N2a: unrelated key change does NOT trigger wipe', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: 'cv_builder:darkMode',
+            oldValue: 'false',
+            newValue: 'true',
+        });
+        expect(action).toBe('no-op');
+    });
+
+    it('N2b: null newValue (key deleted) does NOT trigger wipe', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: null,
+        });
+        expect(action).toBe('no-op');
+    });
+
+    it('N2c: null key does NOT trigger wipe', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: null,
+            oldValue: null,
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        expect(action).toBe('no-op');
+    });
+
+    it('N2d: ACCOUNT_HASH_KEY written with same value (no change) does NOT trigger wipe', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: fnv32(USER_A), // same user, no switch
+        });
+        expect(action).toBe('no-op');
+    });
+
+    it('N2e: procv:worker_session change does NOT trigger wipe', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: 'procv:worker_session',
+            oldValue: 'old-token',
+            newValue: 'new-token',
+        });
+        expect(action).toBe('no-op');
+    });
+
+    it('N2f: LS_AUTH_CLEARED set to a value other than "1" does NOT propagate', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: LS_AUTH_CLEARED,
+            oldValue: null,
+            newValue: 'true', // wrong value — production always writes '1'
+        });
+        // The '1' check is strict — any other truthy value is ignored
+        expect(action).toBe('no-op');
+        expect(tabB.getItem(LS_AUTH_CLEARED)).toBeNull();
+    });
+
+    // ── N3: Post-wipe state — Tab B must be fully clean ──────────────────────
+
+    it('N3a: after sign-out cross-tab event, Tab B has no User A CV data', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        expect(tabB.getItem('cv_builder:profiles')).toBeNull();
+        expect(tabB.getItem('cv_builder:activeProfileId')).toBeNull();
+        expect(tabB.getItem('cv_builder:apiSettings')).toBeNull();
+    });
+
+    it('N3b: after sign-out cross-tab event, Tab B has no Drive tokens', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        AUTH_KEYS.forEach(k => expect(tabB.getItem(k)).toBeNull());
+    });
+
+    it('N3c: after sign-out cross-tab event, Tab B has no legacy bare keys', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        LEGACY_APP_KEYS.forEach(k => expect(tabB.getItem(k)).toBeNull());
+    });
+
+    it('N3d: after sign-out cross-tab event, Tab B has no profile-room keys', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        const pKeys = tabB.keys().filter(k => k.startsWith('p:'));
+        expect(pKeys).toHaveLength(0);
+    });
+
+    it('N3e: after sign-out cross-tab event, Tab B IDB sentinels are set', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        // clearAppData writes both sentinels — Tab B's next boot is protected
+        expect(tabB.getItem(LS_AUTH_CLEARED)).toBe('1');
+        expect(tabB.getItem(LS_APPDATA_CLEARED)).toBe('1');
+    });
+
+    it('N3f: after delete cross-tab event, Tab B has no User A data', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: DELETED_CLEAN_SENTINEL,
+        });
+        const cvKeys = tabB.keys().filter(k =>
+            k.startsWith('cv_builder:') && k !== DEVICE_ID_KEY
+        );
+        expect(cvKeys).toHaveLength(0);
+    });
+
+    it('N3g: after delete cross-tab event, device_id is preserved in Tab B', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: DELETED_CLEAN_SENTINEL,
+        });
+        // device_id is device-scoped — must NOT be wiped
+        expect(tabB.getItem(DEVICE_ID_KEY)).toBe('device-original-abc');
+    });
+
+    // ── N4: Multiple tabs all receive the wipe ─────────────────────────────────
+
+    it('N4a: three open tabs all wipe when Tab A signs out', () => {
+        const tabC = makeLS();
+        const tabD = makeLS();
+        Object.entries(tabA._store).forEach(([k, v]) => {
+            tabC.setItem(k, v);
+            tabD.setItem(k, v);
+        });
+        seedUserA(tabC);
+        seedUserA(tabD);
+
+        const event = {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        };
+
+        // All three non-originating tabs receive the event
+        const actionB = simulateCrossTabStorageEvent(tabB, event);
+        const actionC = simulateCrossTabStorageEvent(tabC, event);
+        const actionD = simulateCrossTabStorageEvent(tabD, event);
+
+        expect(actionB).toBe('wipe-and-reload');
+        expect(actionC).toBe('wipe-and-reload');
+        expect(actionD).toBe('wipe-and-reload');
+
+        // All wiped
+        [tabB, tabC, tabD].forEach(tab => {
+            expect(tab.getItem('cv_builder:profiles')).toBeNull();
+            LEGACY_APP_KEYS.forEach(k => expect(tab.getItem(k)).toBeNull());
+        });
+    });
+
+    it('N4b: sentinel propagation reaches all other tabs simultaneously', () => {
+        const tabC = makeLS();
+        Object.entries(tabA._store).forEach(([k, v]) => tabC.setItem(k, v));
+
+        const event = { key: LS_APPDATA_CLEARED, oldValue: null, newValue: '1' };
+
+        simulateCrossTabStorageEvent(tabB, event);
+        simulateCrossTabStorageEvent(tabC, event);
+
+        expect(tabB.getItem(LS_APPDATA_CLEARED)).toBe('1');
+        expect(tabC.getItem(LS_APPDATA_CLEARED)).toBe('1');
+    });
+
+    // ── N5: Boot sequence safety after cross-tab wipe ─────────────────────────
+
+    it('N5a: Tab B with IDB sentinel set → restoreFromIDB is blocked on next boot', () => {
+        // Tab A fires sign-out → Tab B wipes and writes sentinels
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+
+        // Tab B reloads — on boot, restoreFromIDB runs first
+        const idbSnapshot = {
+            'cv_builder:profiles': JSON.stringify([{ email: USER_A }]),
+            'cv_builder:apiSettings': '{"key":"sk-alice"}',
+        };
+        const skipped = restoreFromIDB(tabB, idbSnapshot);
+        expect(skipped).toBe(true); // sentinel blocked the restore
+        // User A's IDB data did not re-enter Tab B's localStorage
+        expect(tabB.getItem('cv_builder:profiles')).toBeNull();
+    });
+
+    it('N5b: Tab B with auth sentinel set → loadAuthState is blocked on next boot', () => {
+        // LS_AUTH_CLEARED propagated from Tab A
+        simulateCrossTabStorageEvent(tabB, {
+            key: LS_AUTH_CLEARED,
+            oldValue: null,
+            newValue: '1',
+        });
+
+        // Tab B reloads — on boot, loadAuthState runs
+        const staleIdbToken = { email: USER_A, accessToken: 'alice-stale-token' };
+        const loaded = loadAuthState(tabB, staleIdbToken);
+        expect(loaded).toBeNull(); // stale token blocked
+    });
+
+    it('N5c: after cross-tab wipe + blocked restore, zero User A data in Tab B', () => {
+        // Full cross-tab account-switch flow
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+
+        // Tab B reloads — both restore paths are blocked
+        restoreFromIDB(tabB, {
+            'cv_builder:profiles': JSON.stringify([{ email: USER_A }]),
+        });
+        loadAuthState(tabB, { email: USER_A, accessToken: 'alice-old' });
+
+        // Complete isolation: zero User A data survives in Tab B.
+        // deviceId is intentionally preserved (device-level, not user-level).
+        const dataKeys = tabB.keys().filter(k =>
+            k !== DEVICE_ID_KEY && (
+                k.startsWith('cv_builder:') ||
+                k.startsWith('p:') ||
+                k.startsWith('cv:') ||
+                (LEGACY_APP_KEYS as readonly string[]).includes(k)
+            )
+        );
+        expect(dataKeys).toHaveLength(0);
+    });
+
+    // ── N6: Account-switch cross-tab (no explicit sign-out) ───────────────────
+
+    it('N6a: Tab A switches accounts (A→B) → Tab B is wiped', () => {
+        // Tab A's guard runs, detects new user, writes new hash and wipes
+        runGuard(tabA, USER_B);   // guard writes fnv32(USER_B) to ACCOUNT_HASH_KEY
+
+        // Storage event fires in Tab B
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: fnv32(USER_B),
+        });
+        expect(action).toBe('wipe-and-reload');
+    });
+
+    it('N6b: after account-switch cross-tab wipe, Tab B cannot see User A profile-room keys', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: fnv32(USER_B),
+        });
+        expect(tabB.getItem('p:slot-1:jd')).toBeNull();
+        expect(tabB.getItem('p:slot-1:company')).toBeNull();
+    });
+
+    it('N6c: first-time sign-in (no previous user) does NOT wipe Tab B', () => {
+        // Tab B has no previous user (oldValue is null)
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: null,
+            newValue: fnv32(USER_A),
+        });
+        expect(action).toBe('no-op'); // no previous user → no wipe needed
+    });
+
+    // ── N7: Race condition — Tab B was idle while Tab A wiped ─────────────────
+
+    it('N7a: Tab B idle mid-write when wipe fires — sentinel prevents its IDB restore', () => {
+        // Tab B was in the middle of writing some data before the wipe arrived
+        tabB.setItem('cv_builder:draftCV', JSON.stringify({ summary: 'Draft for Alice' }));
+
+        // Wipe event arrives (from Tab A signing out)
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+
+        // The mid-write draft is gone too (wipe is complete)
+        expect(tabB.getItem('cv_builder:draftCV')).toBeNull();
+    });
+
+    it('N7b: both IDB sentinels are present after wipe — boot sequence safe regardless of order', () => {
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        // Both sentinels set by clearAppData (called inside simulateCrossTabStorageEvent)
+        expect(tabB.getItem(LS_AUTH_CLEARED)).toBe('1');
+        expect(tabB.getItem(LS_APPDATA_CLEARED)).toBe('1');
+        // Sentinels are consumed on first read (one-time-use)
+        restoreFromIDB(tabB, {}); // consumes LS_APPDATA_CLEARED
+        loadAuthState(tabB, null); // consumes LS_AUTH_CLEARED
+        expect(tabB.getItem(LS_APPDATA_CLEARED)).toBeNull();
+        expect(tabB.getItem(LS_AUTH_CLEARED)).toBeNull();
+    });
+
+    // ── N8: Event key specificity ─────────────────────────────────────────────
+
+    it('N8a: a key that starts with ACCOUNT_HASH_KEY but is longer does NOT trigger wipe', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY + '_extra',
+            oldValue: null,
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+        expect(action).toBe('no-op');
+    });
+
+    it('N8b: a key that contains LS_APPDATA_CLEARED as a substring does NOT propagate sentinel', () => {
+        const action = simulateCrossTabStorageEvent(tabB, {
+            key: 'prefix_' + LS_APPDATA_CLEARED,
+            oldValue: null,
+            newValue: '1',
+        });
+        expect(action).toBe('no-op');
+        expect(tabB.getItem(LS_APPDATA_CLEARED)).toBeNull();
+    });
+
+    // ── N9: Complete cross-tab lifecycle ─────────────────────────────────────
+
+    it('N9: full cross-tab lifecycle — sign-out → wipe → new user signs in → no data leak', () => {
+        // Tab A: User A signs out
+        stampSignedOut(tabA);
+
+        // Storage event fires → Tab B wipes
+        simulateCrossTabStorageEvent(tabB, {
+            key: ACCOUNT_HASH_KEY,
+            oldValue: fnv32(USER_A),
+            newValue: SIGNED_OUT_SENTINEL,
+        });
+
+        // Tab B reloads — boot sequence runs
+        restoreFromIDB(tabB, { 'cv_builder:profiles': JSON.stringify([{ email: USER_A }]) });
+        loadAuthState(tabB, { email: USER_A, accessToken: 'stale' });
+
+        // User B signs into Tab B
+        runGuard(tabB, USER_B);
+
+        // Assert: Tab B shows User B's session with zero User A data
+        expect(tabB.getItem(ACCOUNT_HASH_KEY)).toBe(fnv32(USER_B));
+        expect(tabB.getItem('cv_builder:profiles')).toBeNull(); // B has no profiles yet
+        expect(tabB.getItem('procv:worker_session')).toBeNull(); // Alice's session gone
+        LEGACY_APP_KEYS.forEach(k => expect(tabB.getItem(k)).toBeNull());
+    });
+});
