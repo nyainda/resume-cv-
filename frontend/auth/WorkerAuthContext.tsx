@@ -204,23 +204,43 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
         const deviceId = getDeviceId();
 
-        linkGoogleSession(googleUser.accessToken, deviceId).then(result => {
+        // Keep the Google access token in a local variable so the retry closure
+        // can reference it even if googleUser has changed by the time it fires.
+        const accessToken = googleUser.accessToken;
+
+        (async () => {
+            let result = await linkGoogleSession(accessToken, deviceId);
+
+            // Auto-retry up to 2 more times with short backoff.
+            // Handles cold Cloudflare Workers (first request after inactivity can
+            // take 3-5 s) and transient network blips that cause the first attempt
+            // to time out or return a 502.  The Google access token stays valid for
+            // ~1 h, so reusing it is safe.
+            if (!result) {
+                await new Promise(r => setTimeout(r, 1800));
+                result = await linkGoogleSession(accessToken, deviceId);
+            }
+            if (!result) {
+                await new Promise(r => setTimeout(r, 3500));
+                result = await linkGoogleSession(accessToken, deviceId);
+            }
+
             if (result) {
                 applySession(result.token, result.user);
                 if (result.is_new_user) setIsNewUser(true);
             } else {
-                // Linkage failed (network error, rate limit, or worker down).
-                // Reset the ref so the NEXT sign-in attempt will retry instead
-                // of hitting the early-return guard (`linkedGoogleId.current === googleSub`).
+                // All 3 attempts failed.  Reset the ref so the next popup attempt
+                // can retry rather than hitting the early-return guard.
                 linkedGoogleId.current = null;
-                console.warn('[WorkerAuth] Google session linkage failed — will retry on next sign-in.');
+                console.warn('[WorkerAuth] Google session linkage failed after 3 attempts.');
             }
+
             // Resolve pending requireAuth() promises — true because Google auth
-            // succeeded (even if worker linkage failed, the Google session is live).
+            // succeeded even if worker linkage failed (Google session is live).
             const queue = pendingResolvers.current.splice(0);
             queue.forEach(r => r(true));
             setAuthModalOpen(false);
-        });
+        })();
     }, [isGoogleAuthed, googleUser, applySession]);
 
     // ── Auth modal callbacks ──────────────────────────────────────────────────

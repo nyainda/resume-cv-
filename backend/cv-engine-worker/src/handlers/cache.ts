@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env, kvd } from '../types';
 import { json } from '../utils';
+import { verifySession } from './auth';
 
 // ─── LLM cache constants ──────────────────────────────────────────────────────
 const LLM_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -255,9 +256,49 @@ export async function handleCVExamplesPost(request: Request, env: Env): Promise<
     return json({ ok: true, fingerprint, stored: true }, request, env);
 }
 
+/**
+ * Extract the Bearer token from an Authorization header, or return null.
+ */
+function bearerToken(request: Request): string | null {
+    const h = request.headers.get('Authorization') ?? '';
+    return h.startsWith('Bearer ') ? h.slice(7).trim() : null;
+}
+
+/**
+ * Return true when the given slot_id is owned by the authenticated user.
+ * A slot is "owned" when a user_slots row exists with matching slot_id AND user_id.
+ */
+async function slotOwnedByUser(slotId: string, userId: number, env: Env): Promise<boolean> {
+    const row = await env.CV_DB.prepare(
+        `SELECT 1 FROM user_slots WHERE slot_id = ? AND user_id = ? LIMIT 1`
+    ).bind(slotId, userId).first<{ 1: number }>();
+    return !!row;
+}
+
 export async function handleProfileCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
     const hash = (url.searchParams.get('hash') ?? '').trim();
     if (!hash || hash.length < 16) return json({ error: 'invalid_hash' }, request, env, 400);
+
+    // ── Optional auth guard (Finding 3) ───────────────────────────────────────
+    // Authenticated callers must present a valid session token AND must own the
+    // slot that the requested hash belongs to.  Anonymous callers (no header)
+    // continue to use hash-only access so offline / device-only mode keeps working.
+    const token = bearerToken(request);
+    if (token) {
+        const session = await verifySession(token, env);
+        if (!session) return json({ error: 'invalid_session' }, request, env, 401);
+
+        // Peek at the slot_id stored for this hash — we need it for ownership check.
+        const slotRow = await env.CV_DB.prepare(
+            `SELECT slot_id FROM profile_cache WHERE hash = ?`
+        ).bind(hash).first<{ slot_id: string }>();
+
+        if (slotRow) {
+            const owned = await slotOwnedByUser(slotRow.slot_id, session.userId, env);
+            if (!owned) return json({ error: 'forbidden' }, request, env, 403);
+        }
+        // If no row → fall through to the normal 404 response below.
+    }
 
     const row = await env.CV_DB.prepare(
         `SELECT compact_json, slot_id, slot_name FROM profile_cache WHERE hash = ?`
@@ -286,6 +327,18 @@ export async function handleProfileCachePost(request: Request, env: Env, ctx: Ex
     if (!slotId)                    return json({ error: 'missing_slot_id' }, request, env, 400);
     if (!compactJson)               return json({ error: 'missing_compact_json' }, request, env, 400);
     if (compactJson.length > 65536) return json({ error: 'compact_json_too_large', max: 65536 }, request, env, 413);
+
+    // ── Optional auth guard for POST ──────────────────────────────────────────
+    // Authenticated callers must own the slot they're caching data for.
+    // This prevents cross-user cache poisoning: an attacker who knows a slot_id
+    // cannot overwrite another user's cached profile with malicious content.
+    const token = bearerToken(request);
+    if (token) {
+        const session = await verifySession(token, env);
+        if (!session) return json({ error: 'invalid_session' }, request, env, 401);
+        const owned = await slotOwnedByUser(slotId, session.userId, env);
+        if (!owned) return json({ error: 'forbidden' }, request, env, 403);
+    }
 
     const now = Math.floor(Date.now() / 1000);
 

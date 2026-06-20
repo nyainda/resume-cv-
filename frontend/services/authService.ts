@@ -77,7 +77,10 @@ export async function linkGoogleSession(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ access_token: accessToken, device_id: deviceId }),
-            signal: AbortSignal.timeout(10_000),
+            // 18 s — generous for cold CF Worker + Google userinfo round-trip.
+            // The auto-retry in WorkerAuthContext fires at 1.8 s and 5.3 s, so
+            // each individual attempt still completes well within the modal wait.
+            signal: AbortSignal.timeout(18_000),
         });
         if (!res.ok) return null;
         const data = await res.json() as any;
