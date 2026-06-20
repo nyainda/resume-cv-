@@ -4102,6 +4102,25 @@ Return ONLY a JSON array of 10 objects:
 const _JD_CACHE_ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
 const _JD_CACHE_TIMEOUT_MS = 3500;
 
+/**
+ * Collision-resistant SHA-256 hash for D1 cache keys.
+ * Returns the first 16 hex chars of the digest — 64-bit key space, negligible
+ * collision risk vs the 32-bit djb2 quickHash previously used here.
+ * Falls back to quickHash if SubtleCrypto is unavailable (SSR / very old browsers).
+ */
+async function sha256CacheKey(input: string): Promise<string> {
+    try {
+        const encoded = new TextEncoder().encode(input);
+        const hashBuf = await crypto.subtle.digest('SHA-256', encoded);
+        const hex = Array.from(new Uint8Array(hashBuf))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        return hex.slice(0, 16);
+    } catch {
+        return quickHash(input);
+    }
+}
+
 /** Check D1 cache for a prior JD analysis result. Returns null on miss or any error. */
 async function checkJdAnalysisCache(jdHash: string): Promise<JobAnalysisResult | null> {
     if (!_JD_CACHE_ENGINE_URL) return null;
@@ -4251,8 +4270,11 @@ MANDATORY RULES — every rule is non-negotiable:
 export const analyzeJobDescriptionForKeywords = async (jobDescription: string): Promise<JobAnalysisResult> => {
     // Check D1 cache first — same JD text always produces the same result so
     // we can skip the AI call entirely on repeated generations.
+    // SHA-256 (first 16 hex chars) is used instead of quickHash (djb2 32-bit)
+    // to eliminate collision risk — two different JDs mapping to the same key
+    // would return a cached analysis for the wrong job.
     const jdSnippet = jobDescription.substring(0, 1500);
-    const jdHash = quickHash(jdSnippet.replace(/\s+/g, ' ').trim());
+    const jdHash = await sha256CacheKey(jdSnippet.replace(/\s+/g, ' ').trim());
     const cached = await checkJdAnalysisCache(jdHash);
     if (cached) return cached;
 
