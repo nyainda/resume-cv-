@@ -25,7 +25,7 @@ import { prefetchVersions as prefetchPromptVersions } from "./services/promptReg
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
-import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount } from "./services/storage/syncQueue";
+import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
 import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, clearAllBrowserStorage, rotateDeviceId, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
@@ -444,6 +444,12 @@ const AppInner: React.FC = () => {
   // Download-PDF click no longer pays the ~2-5s Google Fonts fetch latency.
   // Safe to call once on mount — internal memo prevents duplicate work.
   useEffect(() => {
+    // Self-healing: wipe any sync queue items left behind by a previous
+    // account deletion that didn't clean IDB properly. Any item older than
+    // 20 minutes is stale (max normal retry window is ~13 min). This runs
+    // before the first flush timer fires, so stale items never reach D1.
+    sanitiseStaleQueue();
+
     prewarmFontEmbedCache();
     // S4: pre-fetch active prompt version numbers so the generation trace
     // can tag them without a network round-trip on the critical path.

@@ -311,3 +311,42 @@ export async function clearQueueForAccount(): Promise<void> {
     try { localStorage.removeItem(LAST_FLUSH_KEY); } catch { /* ignore */ }
     try { localStorage.removeItem(LAST_VIS_FLUSH_KEY); } catch { /* ignore */ }
 }
+
+/**
+ * Boot-time self-healing check.
+ *
+ * Any queue item older than STALE_THRESHOLD_MS is definitely stale:
+ * the max normal retry lifetime is ~13 minutes (30s + 2min + 10min).
+ * Items surviving longer than that were left behind by a previous
+ * account deletion or sign-out that didn't clean the IDB properly.
+ *
+ * Wipes the entire queue if any stale item is found — a partial queue
+ * of mixed-age items is more dangerous than a clean slate, because the
+ * fresh-looking items may still belong to the old account.
+ *
+ * Safe to call unconditionally at app boot before any flush runs.
+ */
+const STALE_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
+
+export async function sanitiseStaleQueue(): Promise<void> {
+    try {
+        const items = await idbGetAll();
+        if (items.length === 0) return;
+
+        const now = Date.now();
+        const hasStale = items.some(i => now - i.enqueuedAt > STALE_THRESHOLD_MS);
+        if (!hasStale) return;
+
+        // At least one item is dangerously old — wipe everything.
+        if (import.meta.env.DEV) {
+            console.warn(
+                '[syncQueue] sanitiseStaleQueue: found stale item(s), wiping queue.',
+                items.map(i => ({
+                    key: i.itemKey,
+                    ageMin: Math.round((now - i.enqueuedAt) / 60_000),
+                })),
+            );
+        }
+        await clearQueueForAccount();
+    } catch { /* never block boot */ }
+}

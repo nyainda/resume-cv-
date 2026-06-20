@@ -33,6 +33,7 @@ import {
     validateSession,
     signOutWorker,
 } from '../services/authService';
+import { clearQueueForAccount } from '../services/storage/syncQueue';
 import { getDeviceId } from '../services/userDataCloudService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -143,6 +144,9 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
                 const result = await verifyMagicLink(magicToken);
                 if (result && !cancelled) {
+                    // Fresh sign-in via magic link — wipe any stale queue items
+                    // that may have been left by a previous account on this device.
+                    await clearQueueForAccount();
                     applySession(result.token, result.user);
                     if (result.is_new_user) setIsNewUser(true);
                     setIsLoading(false);
@@ -232,6 +236,9 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             }
 
             if (result && result.ok) {
+                // Fresh Google sign-in — wipe any stale queue items left by
+                // a previous account on this device before starting the session.
+                await clearQueueForAccount();
                 applySession(result.token, result.user);
                 if (result.is_new_user) setIsNewUser(true);
                 setGoogleRateLimited(null);
@@ -257,6 +264,9 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // ── Auth modal callbacks ──────────────────────────────────────────────────
 
     const onAuthSuccess = useCallback((token: string, user: WorkerUser, isNew = false) => {
+        // Fresh sign-in from the auth modal — clear any stale queue items
+        // that may have been left by a previous account on this device.
+        clearQueueForAccount().catch(() => {});
         applySession(token, user);
         if (isNew) setIsNewUser(true);
         setAuthModalOpen(false);
