@@ -25,6 +25,7 @@ import { prefetchVersions as prefetchPromptVersions } from "./services/promptReg
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
+import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount } from "./services/storage/syncQueue";
 import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, rotateDeviceId, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
@@ -832,7 +833,7 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     if (!isWorkerAuthenticated) return;
     const timer = setTimeout(() => {
-      syncPrefs({
+      enqueuePrefsSync({
         aiProvider: localStorage.getItem("cv_builder:aiProvider") ?? undefined,
         cvPurpose: localStorage.getItem("cv:purpose") ?? undefined,
         targetCompany: localStorage.getItem("cv:targetCompany") ?? undefined,
@@ -846,6 +847,26 @@ const AppInner: React.FC = () => {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [darkMode, isWorkerAuthenticated]);
+
+  // ── Sync-queue flush triggers ────────────────────────────────────────────
+  // Flush the IDB sync queue when the browser comes back online or the tab
+  // returns to the foreground. No polling — purely event-driven.
+  // flushSyncQueue is rate-limited internally (30 s for 'online', 5 min for
+  // 'visibility') so these handlers never hammer the CF worker KV tier.
+  useEffect(() => {
+    const onOnline = () => { flushSyncQueue('online').catch(() => {}); };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        flushSyncQueue('visibility').catch(() => {});
+      }
+    };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   // Drive save error notifications
   useEffect(() => {
@@ -1083,7 +1104,7 @@ const AppInner: React.FC = () => {
         // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
         syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
         if (isWorkerAuthenticated)
-          syncSlot({ ...activeSlot, profile }).catch(() => {});
+          enqueueSlotSync({ ...activeSlot, profile }).catch(() => {});
       } else {
         // First-time: auto-create a slot
         const id = Date.now().toString();
@@ -1099,7 +1120,7 @@ const AppInner: React.FC = () => {
         setIsEditingProfile(false);
         // Sync new profile to D1 cache + user_slots table (fire-and-forget).
         syncProfileToCache(slot).catch(() => {});
-        syncSlot(slot).catch(() => {});
+        enqueueSlotSync(slot).catch(() => {});
       }
 
       // Immediately sync ALL profile fields into the current CV so the preview
@@ -1287,7 +1308,7 @@ const AppInner: React.FC = () => {
       setUserProfile(updated);
       syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
       if (isWorkerAuthenticated)
-        syncSlot({ ...activeSlot, profile: updated }).catch(() => {});
+        enqueueSlotSync({ ...activeSlot, profile: updated }).catch(() => {});
     },
     [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated],
   );
@@ -1299,7 +1320,7 @@ const AppInner: React.FC = () => {
     setUserProfile(updated);
     syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
     if (isWorkerAuthenticated)
-      syncSlot({ ...activeSlot, profile: updated }).catch(() => {});
+      enqueueSlotSync({ ...activeSlot, profile: updated }).catch(() => {});
   }, [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated]);
 
   // ── Per-slot state sync callback (room isolation) ──────────────────────
@@ -1342,7 +1363,10 @@ const AppInner: React.FC = () => {
       if (token) await deleteAccountWorker(token, currentDeviceId);
     } catch { /* non-fatal */ }
 
-    // Step 3: LOCAL wipe — runs unconditionally even if server calls failed.
+    // Step 3: Clear pending sync queue — no stale writes after account wipe.
+    await clearQueueForAccount().catch(() => {});
+
+    // Step 4: LOCAL wipe — runs unconditionally even if server calls failed.
     clearUserScopedStorage({ clearAppData: true });
 
     // Step 4: Rotate device_id to a fresh UUID.
@@ -1619,7 +1643,7 @@ const AppInner: React.FC = () => {
         );
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
-        if (isWorkerAuthenticated) syncSlot(updatedSlot).catch(() => {});
+        if (isWorkerAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
         toast.success(
           "Profile Imported!",
           `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
@@ -1642,7 +1666,7 @@ const AppInner: React.FC = () => {
           `Your CV has been imported.${extrasMsg} Edit your profile or go to the Generator.`,
         );
         syncProfileToCache(slot).catch(() => {});
-        if (isWorkerAuthenticated) syncSlot(slot).catch(() => {});
+        if (isWorkerAuthenticated) enqueueSlotSync(slot).catch(() => {});
       }
     },
     [activeSlot, setProfiles, setActiveProfileId, toast, isWorkerAuthenticated],
@@ -1668,7 +1692,7 @@ const AppInner: React.FC = () => {
         );
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
-        if (isWorkerAuthenticated) syncSlot(updatedSlot).catch(() => {});
+        if (isWorkerAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
         toast.success(
           "Profile Updated!",
           "Your CV is ready — all templates are populated. Check your quality report below.",
@@ -1686,7 +1710,7 @@ const AppInner: React.FC = () => {
         setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
         setActiveProfileId(id);
         syncProfileToCache(slot).catch(() => {});
-        if (isWorkerAuthenticated) syncSlot(slot).catch(() => {});
+        if (isWorkerAuthenticated) enqueueSlotSync(slot).catch(() => {});
         toast.success(
           "Profile Imported!",
           "Your CV is ready — all templates are populated. Check your quality report below.",
@@ -2166,6 +2190,7 @@ const AppInner: React.FC = () => {
                       <button
                         onClick={async () => {
                           setShowUserMenu(false);
+                          await clearQueueForAccount().catch(() => {});
                           await signOut();
                           await googleSignOut();
                           clearUserScopedStorage();
@@ -2371,6 +2396,7 @@ const AppInner: React.FC = () => {
                       <button
                         onClick={async () => {
                           setShowMobileMenu(false);
+                          await clearQueueForAccount().catch(() => {});
                           await signOut();
                           await googleSignOut();
                           clearUserScopedStorage();
@@ -2791,6 +2817,7 @@ const AppInner: React.FC = () => {
                     workerUser={workerUser}
                     profiles={profiles}
                     onSignOut={async () => {
+                      await clearQueueForAccount().catch(() => {});
                       await signOut();
                       await googleSignOut();
                       clearUserScopedStorage();

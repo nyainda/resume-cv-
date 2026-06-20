@@ -11,3 +11,4 @@
 - [S6 profession ontology](s6-profession-ontology.md) — 30-node tree in fieldOntology.ts; resolver in fieldOntologyResolver.ts; UserProfile.preferredField bypasses keyword scoring in detectField; "Industry / Field" dropdown in ProfileForm personal info tab (FLAT_ONTOLOGY module-level const to avoid hooks-in-callbacks violation).
 - [Account deletion data isolation](account-deletion-isolation.md) — handleAuthDeleteAccount must wipe ALL device_id-keyed tables; rotateDeviceId() added as last line of defence; device_id sent in DELETE body as fallback.
 - [Sign-in retry pattern](sign-in-retry.md) — linkGoogleSession auto-retries up to 3× (0s, 1.8s, 5.3s backoff) in WorkerAuthContext; timeout raised 10s→18s; profile cache sends Bearer token so backend auth guard can enforce slot ownership.
+- [Optimistic sync queue](optimistic-sync-queue.md) — IDB-backed rate-limited queue for CF KV saves; max 1 flush/30s; clearQueueForAccount must be called before every sign-out/delete.
