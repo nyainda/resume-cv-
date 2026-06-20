@@ -53,6 +53,7 @@ import SavedCVs from "./components/SavedCVs";
 import CVHistory from "./components/CVHistory";
 import ScholarshipEssayWriter from "./components/ScholarshipEssayWriter";
 import SettingsModal from "./components/SettingsModal";
+import InactivityWarningModal from "./components/InactivityWarningModal";
 import Tracker from "./components/Tracker";
 import CVToolkit from "./components/CVToolkit";
 import EmailApply from "./components/EmailApply";
@@ -768,6 +769,41 @@ const AppInner: React.FC = () => {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Inactivity warning ───────────────────────────────────────────────────
+  // On shared devices, if the user stops interacting for 30 minutes while
+  // signed in, show a modal warning them they'll be signed out in 2 minutes.
+  // Resets on any real user interaction. Disabled when not signed in.
+  const INACTIVITY_MS = 30 * 60 * 1000;
+  useEffect(() => {
+    const isLoggedIn = !!(workerUser?.email ?? user?.email);
+    if (!isLoggedIn) {
+      setShowInactivityWarning(false);
+      if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
+      return;
+    }
+    function resetActivity() {
+      lastActivityRef.current = Date.now();
+      setShowInactivityWarning(prev => prev ? false : prev);
+    }
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    events.forEach(ev => window.addEventListener(ev, resetActivity, { passive: true }));
+    inactivityTimerRef.current = setInterval(() => {
+      const idle = Date.now() - lastActivityRef.current;
+      if (idle >= INACTIVITY_MS) {
+        setShowInactivityWarning(true);
+      }
+    }, 60_000);
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetActivity));
+      if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workerUser?.email, user?.email]);
+
   const [showProfileManager, setShowProfileManager] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -2853,6 +2889,22 @@ const AppInner: React.FC = () => {
         currentApiSettings={apiSettings}
         onSignOut={() => { setIsSettingsOpen(false); setShowLanding(true); }}
         onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
+      />
+      <InactivityWarningModal
+        isOpen={showInactivityWarning}
+        onStay={() => {
+          lastActivityRef.current = Date.now();
+          setShowInactivityWarning(false);
+        }}
+        onSignOut={async () => {
+          setShowInactivityWarning(false);
+          await clearQueueForAccount().catch(() => {});
+          await signOut().catch(() => {});
+          await googleSignOut().catch(() => {});
+          clearUserScopedStorage();
+          stampSignedOut();
+          setShowLanding(true);
+        }}
       />
       <PricingModal
         isOpen={isPricingOpen}
