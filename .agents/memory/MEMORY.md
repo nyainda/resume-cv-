@@ -4,6 +4,7 @@
 - [D1 migration tracking gap](d1-migration-tracking.md) — migrations applied manually (outside wrangler) are not tracked; INSERT into d1_migrations to unblock future runs.
 - [Auth system deployment](auth-system.md) — sessions in D1 (024+025), Google OAuth + magic link, rate limiting, audit log; BREVO_API_KEY needed as CF secret for magic link email.
 - [Auth account isolation bugs](auth-account-isolation-bugs.md) — 4 root-cause bugs fixed: popup-closed hang, IDB token surviving wipe, stale in-memory cache/Drive singleton, syncProfileToCache firing after wipe.
+- [Custom templates removed](custom-templates-removed.md) — feature deleted entirely (5 files + backend routes); TemplateName no longer has 'custom'; atsScores map in TemplateGallery cleaned; D1 table left orphaned.
 - [Auth device ID key mismatch](auth-device-id.md) — WorkerAuthContext used 'procv:device_id' but getDeviceId() writes 'cv_builder:deviceId'; fixed to use getDeviceId() from userDataCloudService.
 - [Profile room isolation](profile-room-isolation.md) — each profile slot has its own localStorage keys (p:${id}:jd/company/jobTitle/mode/purpose/keywords); CVGenerator remounts via key={activeSlot.id}; onSlotUpdate callback debounces slot writes back to profiles array.
 - [S3 confidence-tagged fields](s3-confidence-tagged.md) — TaggedValue<T>/ConfidenceLevel in types.ts; lockRealNumbers extracts certifications/awardsAndHonors/leadershipSignals; buildPromptAnchorBlock emits 3-tier S3 block; ruleUngroundedCertifications (warn, 25 patterns) wired via opts.certifications in geminiService.

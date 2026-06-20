@@ -32,9 +32,6 @@ import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
 import { Save, Download, RefreshCw, Edit, FileText, Sparkles, UploadCloud, CheckCircle, AlertTriangle, BookOpen, Briefcase, Globe, Wand2 } from './icons';
-import CustomTemplateUploader from './CustomTemplateUploader';
-import { loadCustomTemplates, saveCustomTemplate } from '../utils/customTemplateStorage';
-import type { CustomTemplateEntry, CustomTemplateCustomizations } from '../types';
 import CVGenerationProgress, { type GenerationStageId } from './CVGenerationProgress';
 import DownloadProgressModal from './DownloadProgressModal';
 import CVDoctorPanel from './CVDoctorPanel';
@@ -335,9 +332,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
-  const [customTemplateId, setCustomTemplateId] = useState<string | null>(null);
-  const [showTemplateUploader, setShowTemplateUploader] = useState(false);
-  const [customTemplates, setCustomTemplates] = useState<CustomTemplateEntry[]>(() => loadCustomTemplates());
   // Sidebar Section Picker — persists user's choice of which auto-generated
   // sidebar fillers (Key Achievements, Selected Projects, References) are
   // visible. Only takes effect for templates listed in SIDEBAR_TEMPLATES.
@@ -2157,105 +2151,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
           <TemplateGallery
             selectedTemplate={template}
-            onSelect={(t) => { setTemplate(t); setCustomTemplateId(null); }}
+            onSelect={setTemplate}
             cvData={currentCV ?? undefined}
             personalInfo={userProfile.personalInfo}
-            customTemplates={customTemplates}
-            customTemplateId={customTemplateId ?? undefined}
-            onSelectCustom={(id) => { setCustomTemplateId(id); setTemplate('custom'); }}
-            onOpenUploader={() => setShowTemplateUploader(true)}
-            onRenameCustom={() => setCustomTemplates(loadCustomTemplates())}
           />
-
-          {/* ── Custom Template Style Panel ── */}
-          {template === 'custom' && customTemplateId && (() => {
-            const ct = customTemplates.find(t => t.id === customTemplateId);
-            if (!ct) return null;
-            const cust: CustomTemplateCustomizations = ct.customizations ?? {};
-
-            const updateCustomizations = (patch: Partial<CustomTemplateCustomizations>) => {
-              const updated: CustomTemplateEntry = { ...ct, customizations: { ...cust, ...patch } };
-              saveCustomTemplate(updated);
-              setCustomTemplates(loadCustomTemplates());
-            };
-
-            const TEMPLATE_COLORS = [
-              { hex: '#1B2B4B', label: 'Navy' }, { hex: '#1e293b', label: 'Slate' },
-              { hex: '#374151', label: 'Charcoal' }, { hex: '#166534', label: 'Forest' },
-              { hex: '#1e40af', label: 'Blue' }, { hex: '#7c3aed', label: 'Violet' },
-              { hex: '#be123c', label: 'Crimson' }, { hex: '#92400e', label: 'Amber' },
-              { hex: '#0f766e', label: 'Teal' }, { hex: '#334155', label: 'Steel' },
-            ];
-
-            const activeColor = cust.primaryColor ?? ct.spec.colorScheme.primary;
-            const activeSidebar = cust.sidebarColor ?? ct.spec.colorScheme.sidebarBackground ?? ct.spec.colorScheme.primary;
-            const activeFont = cust.fontFamily ?? ct.spec.typography.fontFamily ?? 'sans-serif';
-            const hasSidebar = ct.spec.layout.columns !== 'single';
-
-            return (
-              <div className="mt-3 p-3.5 bg-sky-50 dark:bg-sky-900/20 rounded-xl border border-sky-200 dark:border-sky-800 space-y-3">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 uppercase tracking-widest">Custom Template Style</span>
-                  <span className="text-[9px] text-sky-500 dark:text-sky-500">Editing: {ct.name}</span>
-                </div>
-
-                {/* Accent colour */}
-                <div>
-                  <span className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1.5">Accent Colour</span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {TEMPLATE_COLORS.map(({ hex: h, label }) => (
-                      <button
-                        key={h}
-                        title={label}
-                        onClick={() => updateCustomizations({ primaryColor: h, ...(hasSidebar ? { sidebarColor: h } : {}) })}
-                        className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${activeColor === h ? 'border-zinc-900 dark:border-white scale-110 ring-2 ring-offset-1 ring-zinc-300' : 'border-transparent'}`}
-                        style={{ backgroundColor: h }}
-                      />
-                    ))}
-                    <label title="Custom colour" className="relative w-6 h-6 rounded-full border-2 border-dashed border-zinc-400 dark:border-zinc-500 overflow-hidden cursor-pointer hover:scale-110 transition-all flex items-center justify-center bg-white dark:bg-neutral-700">
-                      <span className="text-[10px] text-zinc-400 font-bold select-none">+</span>
-                      <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={activeColor} onChange={e => updateCustomizations({ primaryColor: e.target.value, ...(hasSidebar ? { sidebarColor: e.target.value } : {}) })} />
-                    </label>
-                    {cust.primaryColor && (
-                      <button onClick={() => updateCustomizations({ primaryColor: undefined, sidebarColor: undefined })} className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline">Reset</button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sidebar colour override (only for two-column templates) */}
-                {hasSidebar && (
-                  <div>
-                    <span className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1.5">Sidebar Colour</span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {TEMPLATE_COLORS.map(({ hex: h, label }) => (
-                        <button key={h} title={label} onClick={() => updateCustomizations({ sidebarColor: h })}
-                          className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${activeSidebar === h ? 'border-zinc-900 dark:border-white scale-110 ring-2 ring-offset-1 ring-zinc-300' : 'border-transparent'}`}
-                          style={{ backgroundColor: h }} />
-                      ))}
-                      <label className="relative w-6 h-6 rounded-full border-2 border-dashed border-zinc-400 dark:border-zinc-500 overflow-hidden cursor-pointer hover:scale-110 transition-all flex items-center justify-center bg-white dark:bg-neutral-700">
-                        <span className="text-[10px] text-zinc-400 font-bold select-none">+</span>
-                        <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={activeSidebar ?? '#1B2B4B'} onChange={e => updateCustomizations({ sidebarColor: e.target.value })} />
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {/* Font */}
-                <div>
-                  <span className="text-[9px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-1.5">Font Style</span>
-                  <div className="flex gap-1.5">
-                    {(['sans-serif', 'serif', 'monospace'] as const).map(f => (
-                      <button key={f} onClick={() => updateCustomizations({ fontFamily: f })}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${activeFont === f ? 'bg-sky-700 text-white shadow-sm' : 'bg-white dark:bg-neutral-700 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-neutral-600 hover:bg-zinc-100'}`}
-                        style={{ fontFamily: f === 'serif' ? 'Georgia,serif' : f === 'monospace' ? 'monospace' : 'Inter,sans-serif' }}>
-                        {f === 'sans-serif' ? 'Sans' : f === 'serif' ? 'Serif' : 'Mono'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {/* ── Customisation Panel: Font + Accent Colour ── */}
           <div className="mt-5 p-4 bg-zinc-50 dark:bg-neutral-800/60 rounded-xl border border-zinc-200 dark:border-neutral-700 space-y-4">
@@ -2546,7 +2445,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 jobDescriptionForATS={jobDescription}
                 template={template}
                 sidebarSections={sidebarSections}
-                customTemplateId={customTemplateId ?? undefined}
               />
             </div>
             {/* Generation Trace Panel — S5 Phase 2. Shows only when the CV
@@ -2579,20 +2477,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             />
           )}
         </div>
-      )}
-
-      {showTemplateUploader && (
-        <CustomTemplateUploader
-          cvData={currentCV ?? undefined}
-          personalInfo={userProfile.personalInfo}
-          onSaved={(entry) => {
-            setCustomTemplates(loadCustomTemplates());
-            setCustomTemplateId(entry.id);
-            setTemplate('custom');
-            setShowTemplateUploader(false);
-          }}
-          onClose={() => setShowTemplateUploader(false)}
-        />
       )}
 
       {showShareModal && currentCV && (

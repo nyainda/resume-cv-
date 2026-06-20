@@ -26,11 +26,6 @@ import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud } from "./services/userDataCloudService";
 import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
-import { bootstrapTemplatesFromCloud } from "./services/customTemplateCloudService";
-import {
-  loadCustomTemplates,
-  saveCustomTemplate,
-} from "./utils/customTemplateStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import {
@@ -452,18 +447,6 @@ const AppInner: React.FC = () => {
     prefetchPromptVersions();
     // S1: pre-fetch rule registry configs so the evaluator runs from cache.
     prefetchRuleConfigs();
-  }, []);
-
-  // Boot-time custom template cloud sync: pull any templates stored in D1 that
-  // aren't in localStorage yet (e.g. after a browser clear). Fire-and-forget —
-  // runs 4 seconds after mount so it never races with critical startup work.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      bootstrapTemplatesFromCloud(loadCustomTemplates, (entries) => {
-        entries.forEach((e) => saveCustomTemplate(e));
-      }).catch(() => {});
-    }, 4000);
-    return () => clearTimeout(t);
   }, []);
 
   // ── Drive restore-on-new-device ──────────────────────────────────────────

@@ -62,8 +62,6 @@ import {
     handleShareGet, handleSharePost,
     handleJobCacheGet, handleJobCachePost,
     handleEventPost,
-    handleCustomTemplatesGet, handleCustomTemplatesPost,
-    handleCustomTemplatesDelete, handleCustomTemplatesPatch,
     handleUserSlotsPost, handleUserSlotsDelete, handleUserPrefsPost, handleUserDataGet,
 } from './handlers/user';
 
@@ -251,12 +249,6 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
 
     // ── Anonymous events ──────────────────────────────────────────────────────
     if (p === '/api/cv/event'          && m === 'POST')                     return handleEventPost(request, env, ctx);
-
-    // ── Custom templates ──────────────────────────────────────────────────────
-    if (p === '/api/cv/custom-templates'    && m === 'GET')                 return handleCustomTemplatesGet(request, env, url);
-    if (p === '/api/cv/custom-templates'    && m === 'POST')                return handleCustomTemplatesPost(request, env, ctx);
-    if (/^\/api\/cv\/custom-templates\/[^/]+$/.test(p) && m === 'DELETE')   return handleCustomTemplatesDelete(request, env, url);
-    if (/^\/api\/cv\/custom-templates\/[^/]+$/.test(p) && m === 'PATCH')    return handleCustomTemplatesPatch(request, env, url);
 
     // ── User data sync ────────────────────────────────────────────────────────
     if (p === '/api/cv/user-slots'     && m === 'POST')                     return handleUserSlotsPost(request, env, ctx);

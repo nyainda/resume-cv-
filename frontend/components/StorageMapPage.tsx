@@ -111,9 +111,6 @@ function classify(rawKey: string, val: string): { category: Category; syncDest: 
   // Account tier cache
   if (k === 'procv:cf_account_tier')      return { category: 'temp-cache', syncDest: 'evictable' };
 
-  // Custom templates (already synced to D1 via custom_templates table)
-  if (k === 'cv_builder:customTemplates') return { category: 'core-user', syncDest: 'cf-d1-exists' };
-
   // Device ID
   if (k === 'cv_builder:deviceId')        return { category: 'cloud-sync', syncDest: 'cf-d1-exists' };
 
@@ -162,7 +159,6 @@ const D1_EXISTING: D1TableRow[] = [
   { name: 'cv_shares',            description: 'Shareable CV links (short-code → compressed payload)',                  key: 'cv_shares',            isNew: false, rowEstimate: 'grows' },
   { name: 'job_search_cache',     description: 'Job search API results cached by query hash',                           key: 'job_search_cache',     isNew: false, rowEstimate: 'grows' },
   { name: 'cv_events',            description: 'CV generation event stream for analytics dashboard',                    key: 'cv_events',            isNew: false, rowEstimate: 'grows' },
-  { name: 'custom_templates',     description: 'User-created custom CV templates (per device_id)',                       key: 'custom_templates',     isNew: false, rowEstimate: 'varies', lsKey: 'cv_builder:customTemplates' },
 ];
 
 const D1_NEW: D1TableRow[] = [

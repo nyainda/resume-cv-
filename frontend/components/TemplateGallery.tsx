@@ -1,22 +1,14 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { TemplateName, templateDisplayNames, CVData, PersonalInfo, CustomTemplateEntry } from '../types';
+import React, { useState, useMemo } from 'react';
+import { TemplateName, templateDisplayNames, CVData, PersonalInfo } from '../types';
 import TemplateThumbnail from './TemplateThumbnail';
-import TemplateCustomGenerated from './templates/TemplateCustomGenerated';
 import { Label } from './ui/Label';
-import { CheckCircle, Eye, FileText, Search, Wand2, Trash, Upload, Edit, RefreshCw, Loader2 } from './icons';
-import { deleteCustomTemplate, renameCustomTemplate, saveCustomTemplate } from '../utils/customTemplateStorage';
-import { analyzeAndGenerateTemplate } from '../services/templateAnalyzerService';
+import { CheckCircle, Eye, FileText, Search } from './icons';
 
 interface TemplateGalleryProps {
   selectedTemplate: TemplateName;
   onSelect: (template: TemplateName) => void;
   cvData?: CVData;
   personalInfo?: PersonalInfo;
-  customTemplates?: CustomTemplateEntry[];
-  customTemplateId?: string;
-  onSelectCustom?: (id: string) => void;
-  onOpenUploader?: () => void;
-  onRenameCustom?: (id: string, name: string) => void;
 }
 
 // ─── Category definitions ─────────────────────────────────────────────────────
@@ -82,7 +74,7 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'berlin-design': 'low', 'sydney-creative': 'low', 'swe-neon': 'low',
   'swe-vivid': 'low', 'photo-sidebar': 'low', 'executive-sidebar': 'low',
   'compact-slate': 'medium', 'compact-sage': 'medium', 'compact-charcoal': 'medium',
-  'prestige': 'medium', 'custom': 'medium',
+  'prestige': 'medium',
   'v2-classic-pro': 'high', 'v2-standard-black': 'high',
   'v2-pro': 'high', 'v2-navy': 'high', 'v2-minimal': 'high',
   'v2-photo': 'medium', 'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium',
@@ -173,54 +165,9 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
 
 const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   selectedTemplate, onSelect, cvData, personalInfo,
-  customTemplates = [], customTemplateId, onSelectCustom, onOpenUploader, onRenameCustom,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('Featured');
   const [searchQuery, setSearchQuery]       = useState('');
-  const [, forceUpdate]                     = useState(0);
-  const [renamingId, setRenamingId]         = useState<string | null>(null);
-  const [reanalyzingId, setReanalyzingId]   = useState<string | null>(null);
-  const [reanalyzeError, setReanalyzeError] = useState<Record<string, string>>({});
-  const [renameValue, setRenameValue]       = useState('');
-  const renameInputRef                      = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (renamingId && renameInputRef.current) {
-      renameInputRef.current.focus();
-      renameInputRef.current.select();
-    }
-  }, [renamingId]);
-
-  const commitRename = (id: string) => {
-    const trimmed = renameValue.trim();
-    if (trimmed && trimmed !== customTemplates.find(t => t.id === id)?.name) {
-      renameCustomTemplate(id, trimmed);
-      onRenameCustom?.(id, trimmed);
-    }
-    setRenamingId(null);
-  };
-
-  const handleReanalyze = async (ct: CustomTemplateEntry) => {
-    if (!ct.thumbnail) {
-      setReanalyzeError(prev => ({ ...prev, [ct.id]: 'No source image stored — please delete and re-upload.' }));
-      return;
-    }
-    setReanalyzeError(prev => { const n = { ...prev }; delete n[ct.id]; return n; });
-    setReanalyzingId(ct.id);
-    try {
-      const match = ct.thumbnail.match(/^data:([^;]+);base64,(.+)$/);
-      if (!match) throw new Error('Could not read stored image.');
-      const [, mimeType, base64] = match;
-      const result = await analyzeAndGenerateTemplate(base64, mimeType, ct.name);
-      saveCustomTemplate({ ...ct, spec: result.spec });
-      onRenameCustom?.(ct.id, ct.name);
-      forceUpdate(n => n + 1);
-    } catch (err) {
-      setReanalyzeError(prev => ({ ...prev, [ct.id]: err instanceof Error ? err.message : String(err) }));
-    } finally {
-      setReanalyzingId(null);
-    }
-  };
 
   const allTemplates = Object.keys(templateDisplayNames) as TemplateName[];
 
@@ -312,34 +259,6 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
             </button>
           ))}
 
-          {/* My Templates tab */}
-          {customTemplates.length > 0 && (
-            <button
-              onClick={() => setActiveCategory('My Templates')}
-              className={`
-                flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150
-                ${activeCategory === 'My Templates'
-                  ? 'bg-[#C9A84C] text-white shadow-md shadow-[#C9A84C]/30'
-                  : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100'
-                }
-              `}
-            >
-              <span>✨</span>
-              <span>My Templates</span>
-              <span className={`text-[10px] ${activeCategory === 'My Templates' ? 'text-white/80' : 'text-amber-500'}`}>
-                {customTemplates.length}
-              </span>
-            </button>
-          )}
-
-          {/* Analyze & Clone */}
-          <button
-            onClick={onOpenUploader}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-all duration-150 border border-dashed border-zinc-300 dark:border-neutral-600 hover:border-[#C9A84C]"
-          >
-            <Wand2 className="h-3 w-3" />
-            <span>Analyze & Clone</span>
-          </button>
         </div>
       )}
 
@@ -442,119 +361,6 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           {categoryTemplates.length === 0 && (
             <div className="text-center py-10">
               <p className="text-zinc-500 text-sm">No templates in this category.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── My Templates view ──────────────────────────────────────────────── */}
-      {!searchQuery && activeCategory === 'My Templates' && (
-        <div>
-          {customTemplates.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-zinc-500 dark:text-zinc-400 text-sm">No custom templates yet.</p>
-              <button onClick={onOpenUploader} className="mt-2 text-sm text-[#C9A84C] hover:underline flex items-center gap-1 mx-auto">
-                <Wand2 className="h-3.5 w-3.5" /> Analyze & Clone a template
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-              {customTemplates.map((ct) => {
-                const isSelected  = customTemplateId === ct.id;
-                const isRenaming  = renamingId === ct.id;
-                return (
-                  <div key={ct.id} className="cursor-pointer group relative">
-                    <div
-                      onClick={() => onSelectCustom?.(ct.id)}
-                      className={`relative rounded-xl overflow-hidden transition-all duration-200
-                        ${isSelected
-                          ? 'ring-[3px] ring-[#C9A84C] shadow-xl shadow-[#1B2B4B]/15 scale-[1.03]'
-                          : 'ring-1 ring-zinc-200 dark:ring-neutral-700 hover:ring-[#C9A84C]/50 hover:shadow-lg hover:scale-[1.01]'
-                        }
-                      `}
-                    >
-                      {isSelected && (
-                        <div className="absolute top-1.5 right-1.5 z-10 bg-[#C9A84C] text-white rounded-full p-0.5 shadow-md">
-                          <CheckCircle className="h-3 w-3" />
-                        </div>
-                      )}
-                      {/* Action buttons */}
-                      <div className="absolute top-1.5 left-1.5 z-10 flex gap-0.5">
-                        <button onClick={(e) => { e.stopPropagation(); deleteCustomTemplate(ct.id); onRenameCustom?.(ct.id, ''); forceUpdate(n => n + 1); }}
-                          className="bg-white/80 hover:bg-red-50 text-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" title="Delete">
-                          <Trash className="h-2.5 w-2.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setRenamingId(ct.id); setRenameValue(ct.name); }}
-                          className="bg-white/80 hover:bg-amber-50 text-amber-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm" title="Rename">
-                          <Edit className="h-2.5 w-2.5" />
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); if (reanalyzingId !== ct.id) handleReanalyze(ct); }}
-                          disabled={reanalyzingId === ct.id}
-                          className="bg-white/80 hover:bg-sky-50 text-sky-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm disabled:cursor-not-allowed" title="Re-analyze">
-                          {reanalyzingId === ct.id
-                            ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                            : <RefreshCw className="h-2.5 w-2.5" />
-                          }
-                        </button>
-                      </div>
-                      {/* Loading overlay */}
-                      {reanalyzingId === ct.id && (
-                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 dark:bg-neutral-900/80 gap-1.5">
-                          <Loader2 className="h-5 w-5 animate-spin text-[#C9A84C]" />
-                          <span className="text-[9px] font-semibold text-zinc-600 dark:text-zinc-300">Re-analyzing…</span>
-                        </div>
-                      )}
-                      <div className="bg-white h-36 overflow-hidden flex items-start justify-center pointer-events-none">
-                        <div style={{ transform: 'scale(0.25)', transformOrigin: 'top center', width: '400%', height: '400%' }}>
-                          <TemplateCustomGenerated
-                            cvData={cvData ?? { summary: '', skills: [], experience: [], education: [] }}
-                            personalInfo={personalInfo ?? { name: 'Preview', email: '', phone: '', location: '' }}
-                            spec={ct.spec}
-                            customizations={ct.customizations}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-center px-1">
-                      {isRenaming ? (
-                        <input
-                          ref={renameInputRef}
-                          value={renameValue}
-                          onChange={e => setRenameValue(e.target.value)}
-                          onBlur={() => commitRename(ct.id)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitRename(ct.id); } if (e.key === 'Escape') setRenamingId(null); }}
-                          onClick={e => e.stopPropagation()}
-                          maxLength={50}
-                          className="w-full text-xs font-semibold text-center rounded border border-[#C9A84C] bg-amber-50 dark:bg-amber-900/20 text-zinc-900 dark:text-zinc-100 px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                        />
-                      ) : (
-                        <p
-                          className={`text-xs font-semibold leading-tight ${isSelected ? 'text-[#C9A84C]' : 'text-zinc-700 dark:text-zinc-300'}`}
-                          onDoubleClick={(e) => { e.stopPropagation(); setRenamingId(ct.id); setRenameValue(ct.name); }}
-                          title="Double-click to rename"
-                        >
-                          {ct.name}
-                        </p>
-                      )}
-                      <span className="inline-flex items-center gap-0.5 text-[9px] font-medium mt-0.5 text-amber-700 dark:text-amber-400">
-                        <span className="w-1 h-1 rounded-full bg-amber-400" />
-                        AI Cloned
-                      </span>
-                      {reanalyzeError[ct.id] && (
-                        <p className="text-[8.5px] text-red-500 mt-0.5 leading-tight">{reanalyzeError[ct.id]}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Add another */}
-              <div
-                onClick={onOpenUploader}
-                className="cursor-pointer group flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 dark:border-neutral-600 hover:border-[#C9A84C] hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all duration-200 h-36"
-              >
-                <Upload className="h-5 w-5 text-zinc-400 group-hover:text-[#C9A84C] mb-1.5 transition-colors" />
-                <span className="text-[10px] font-semibold text-zinc-400 group-hover:text-[#C9A84C] transition-colors">Add Template</span>
-              </div>
             </div>
           )}
         </div>

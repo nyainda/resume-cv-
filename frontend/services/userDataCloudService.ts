@@ -2,7 +2,7 @@
  * userDataCloudService.ts
  *
  * Fire-and-forget sync of user data to Cloudflare D1 (migration 019 tables).
- * Uses the same device_id pattern as customTemplateCloudService.ts.
+ * Uses a stable per-browser device_id (UUID in localStorage) for anonymous ops.
  *
  * Design principles (resource-conscious on free CF tier):
  *   • Hash-gated: never writes to D1 if data hasn't changed since last sync
