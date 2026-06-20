@@ -77,7 +77,7 @@ import StorageMapPage from "./components/StorageMapPage";
 import ScoreMyCVPage from "./components/ScoreMyCVPage";
 import CareerPivotPage from "./components/CareerPivotPage";
 import { useAutoSync } from "./hooks/useAutoSync";
-import { getDriveRouter } from "./services/storage/StorageRouter";
+import { getDriveRouter, isDriveActive } from "./services/storage/StorageRouter";
 import { deleteAllDriveData } from "./services/storage/DriveStorageService";
 import {
   Edit,
@@ -912,9 +912,16 @@ const AppInner: React.FC = () => {
   }, []);
 
   // Drive save error notifications
+  // Only show when Drive is actually active — suppresses false alarms on new
+  // accounts or after sign-out where stale Drive events may still fire.
   useEffect(() => {
     let lastErrorTime = 0;
     const handleDriveError = (e: Event) => {
+      // Silently ignore if Drive sync is not enabled on this account.
+      // This prevents the toast from showing on fresh accounts or after sign-out
+      // when a queued Drive write from the previous session fires late.
+      if (!isDriveActive()) return;
+
       const now = Date.now();
       if (now - lastErrorTime < 5 * 60 * 1000) return; // throttle to once per 5 min
       lastErrorTime = now;
