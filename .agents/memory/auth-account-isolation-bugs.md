@@ -1,6 +1,6 @@
 ---
 name: Auth account isolation bugs
-description: Four root-cause bugs in the ProCV account-switch / cross-account isolation flow and the exact fixes applied.
+description: Root-cause bugs in the ProCV account-switch / cross-account isolation flow and the exact fixes applied.
 ---
 
 # Auth account isolation bugs — root causes and fixes
@@ -32,5 +32,15 @@ description: Four root-cause bugs in the ProCV account-switch / cross-account is
 **Files**: `frontend/utils/clearUserStorage.ts`, `frontend/App.tsx`  
 **Root cause**: `stampSignedOut()` wrote the sentinel to `ACCOUNT_HASH_KEY` but never recorded WHO signed out. The account-switch guard in `App.tsx` compares `storedHash !== newHash`. Since `sentinel !== any_real_hash` is always true, the guard triggered a wipe+reload every single time any user signed back in after sign-out — even if it was the same person. The user had to click "Sign in" twice: first click caused a wipe+reload, second click succeeded.  
 **Fix**: `stampSignedOut()` now writes the current user's hash to a new `LAST_REAL_HASH_KEY` (`procv:last_real_email_hash`) before writing the sentinel. The guard checks: when sentinel is present, compare `LAST_REAL_HASH_KEY` against `newHash`. If they match → same user returning → skip the wipe, just clear the sentinel and proceed. If they differ → different user → wipe. `LAST_REAL_HASH_KEY` is preserved by `clearUserScopedStorage({ clearAppData: true })` so it survives the delete-account flow too.
+
+## Bug 6 — Legacy bare localStorage keys not cleared by wipe (data leak to next user)
+**File**: `frontend/utils/clearUserStorage.ts`  
+**Root cause**: `clearUserScopedStorage({ clearAppData: true })` only cleared keys starting with `cv_builder:`, `procv:`, `p:`, and `cv:`. But `useStorage()` and migration effects in `App.tsx` also read bare unprefixed legacy keys (`profiles`, `currentCV`, `savedCVs`, `savedCoverLetters`, `trackedApps`, `starStories`, `template`) as fallbacks. These survived the wipe and the next user would inherit them.  
+**Fix**: Added `LEGACY_APP_KEYS` list inside the `clearAppData` block — explicitly removes all seven bare keys on every full wipe.
+
+## Bug 7 — IDB app-data store survives account-switch via restoreLocalStorageFromIDB race
+**Files**: `frontend/services/storage/AppDataPersistence.ts`, `frontend/utils/clearUserStorage.ts`  
+**Root cause**: `restoreLocalStorageFromIDB()` runs at boot (before React mounts) and copies ALL `cv_builder_appdata` IDB entries back to localStorage. The account-switch wipe calls `_clearCvDataIdb()` fire-and-forget then immediately reloads. If the IDB clear didn't finish before the reload, the old user's `cv_builder:profiles` and other entries were restored on the next boot — giving the new user the previous user's data.  
+**Fix**: Added `LS_APPDATA_CLEARED = 'cv_appdata_cleared'` sentinel (exported from `clearUserStorage.ts`, written synchronously alongside `LS_AUTH_CLEARED` before every reload). `restoreLocalStorageFromIDB()` now checks for and consumes this sentinel first — if present, it skips the restore entirely and clears the IDB store instead.
 
 **Why these matter**: On a shared device (or phone with multiple Google accounts), these bugs together could cause User B to see User A's CVs, silently log User A back in after User B tries to start fresh, or force every user to click "Sign in" twice after every sign-out.

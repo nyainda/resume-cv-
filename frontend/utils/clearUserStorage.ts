@@ -3,6 +3,17 @@ import { clearCVDataStore } from '../services/storage/cvDataStore';
 import { resetStorageRouter } from '../services/storage/StorageRouter';
 
 /**
+ * Sentinel written synchronously to localStorage before window.location.reload()
+ * when a full app-data wipe is in progress.  On the next boot, restoreLocalStorageFromIDB()
+ * checks for this key and skips its restore — preventing stale IDB app data (from the
+ * previous user) from being re-loaded into localStorage before React mounts.
+ *
+ * This is the parallel of LS_AUTH_CLEARED (which guards the Google auth IDB) but
+ * covers the cv_builder_appdata IDB store used for profiles, CVs, etc.
+ */
+export const LS_APPDATA_CLEARED = 'cv_appdata_cleared';
+
+/**
  * clearUserScopedStorage — call as part of every sign-out sequence.
  *
  * Clears all per-user tokens, Drive conflict baselines, D1 sync hashes,
@@ -201,6 +212,21 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
         // cv:* per-session state (cv:purpose, cv:jdKeywords, cv:targetCompany, cv:targetJobTitle)
         allKeys.filter(k => k.startsWith('cv:')).forEach(k => localStorage.removeItem(k));
 
+        // ── Legacy unprefixed keys (written before cv_builder: prefix was added) ──
+        // These are NOT caught by the prefix filters above but are read as fallbacks
+        // by useStorage() and the migration effects in App.tsx. If left behind, the
+        // next user on this device inherits the previous user's CVs, profiles, and data.
+        const LEGACY_APP_KEYS = [
+            'profiles',
+            'currentCV',
+            'savedCVs',
+            'savedCoverLetters',
+            'trackedApps',
+            'starStories',
+            'template',
+        ];
+        LEGACY_APP_KEYS.forEach(k => localStorage.removeItem(k));
+
         // ── Synchronous in-memory resets ─────────────────────────────────────────
         // These MUST happen before window.location.reload() so async effects that
         // fire between the wipe and the reload cannot read or write stale data.
@@ -211,12 +237,14 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
         // 2. Clear the CV data in-memory cache and close its IDB connection.
         try { clearCVDataStore(); } catch { /* non-fatal */ }
 
-        // 3. Write the IDB-skip sentinel SYNCHRONOUSLY so that on the next page load
-        //    loadAuthState() ignores any stale Google auth entry that the async IDB
-        //    deletion (below) may not have finished removing before the reload.
+        // 3. Write IDB-skip sentinels SYNCHRONOUSLY so that on the next page load
+        //    both loadAuthState() and restoreLocalStorageFromIDB() skip any stale
+        //    IDB entries that the async wipes below may not have finished removing
+        //    before the reload fires.
         try { localStorage.setItem(LS_AUTH_CLEARED, '1'); } catch { /* quota — non-fatal */ }
+        try { localStorage.setItem(LS_APPDATA_CLEARED, '1'); } catch { /* quota — non-fatal */ }
 
-        // ── Async IDB wipes (fire-and-forget; sentinel above is the safety net) ──
+        // ── Async IDB wipes (fire-and-forget; sentinels above are the safety net) ──
         _clearCvDataIdb();
         _clearGoogleAuthIdb();
     }

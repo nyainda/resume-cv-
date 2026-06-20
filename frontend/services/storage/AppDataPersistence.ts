@@ -188,14 +188,40 @@ export async function idbAppGetAll(): Promise<Record<string, unknown>> {
 
 let _restored = false;
 
+// Sentinel key written by clearUserScopedStorage({ clearAppData: true }) BEFORE
+// window.location.reload(). The async IDB wipe may not finish before the page
+// reloads, so on the next boot we must NOT restore stale IDB data to localStorage.
+// Importing the constant would create a circular dependency, so we inline it here.
+const _LS_APPDATA_CLEARED = 'cv_appdata_cleared';
+
 /**
  * Call this ONCE at app startup (before any useLocalStorage reads).
  * If localStorage appears empty (cache cleared) but IDB has data,
  * we refill localStorage from IDB so all hooks get their data back.
+ *
+ * Skip entirely when cv_appdata_cleared sentinel is present — this means a
+ * full wipe is in progress and the IDB data belongs to the previous user.
  */
 export async function restoreLocalStorageFromIDB(): Promise<void> {
     if (_restored) return;
     _restored = true;
+
+    // Account-switch / delete-account guard: if a wipe+reload fired on the
+    // previous page load, the async IDB deletion may not have completed before
+    // the reload. Consuming this sentinel prevents the old user's IDB data from
+    // being written back into localStorage and shown to the next user.
+    try {
+        if (localStorage.getItem(_LS_APPDATA_CLEARED)) {
+            localStorage.removeItem(_LS_APPDATA_CLEARED);
+            // Best-effort: clear the IDB store now that we're safely on the new load.
+            const db = await openDB().catch(() => null);
+            if (db) {
+                const tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).clear();
+            }
+            return;
+        }
+    } catch { /* localStorage unavailable — proceed as normal */ }
 
     const idbData = await idbAppGetAll();
     const entries = Object.entries(idbData);
