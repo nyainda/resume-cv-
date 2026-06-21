@@ -26,7 +26,7 @@ import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
-import { clearAllBrowserStorage, rotateDeviceId } from "./utils/clearUserStorage";
+import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import {
@@ -1346,51 +1346,56 @@ const AppInner: React.FC = () => {
 
   // ── Delete account handler ─────────────────────────────────────────────
   const handleDeleteAccount = useCallback(async () => {
-    // Step 1: Best-effort Drive cleanup — never blocks the local wipe.
-    if (user?.accessToken) {
-      await deleteAllDriveData(user.accessToken).catch(() => {});
-    }
-
-    // Step 2: Server-side session / account removal.
-    // We send the device_id so the worker can wipe all legacy device_id-keyed
-    // tables (saved_cvs, tracked_applications, star_stories, saved_cover_letters,
-    // user_preferences, custom_templates) in addition to the user_id-scoped ones.
-    // The worker uses a D1 batch for the FK chain so the identity row is
-    // guaranteed gone — if the batch fails the worker returns ok:false.
+    // ── Step 1: Server-side delete FIRST — hard stop if it fails ────────────
+    //
+    // The old logic continued wiping local data even when the CF batch failed,
+    // leaving the identity row alive in D1. On re-login with the same email
+    // the worker matched by email, reused the old user_id, and served back
+    // all the "deleted" data.
+    //
+    // New rule: server must confirm ok:true before we touch anything local.
+    // If it doesn't, the user sees a clear error and can try again. Their
+    // local data stays intact.
     const currentDeviceId = getDeviceId();
     let serverDeleteOk = false;
     try {
       serverDeleteOk = await _deleteAccount(currentDeviceId);
-    } catch { /* non-fatal — local wipe continues regardless */ }
-
-    // Step 3: Clear pending sync queue — no stale writes after account wipe.
-    await clearQueueForAccount().catch(() => {});
-
-    // Step 4: Sign out (clears CF session cookie), rotate device ID, full wipe.
-    try { await signOut(); } catch { /* non-fatal */ }
-    rotateDeviceId();
-    await clearAllBrowserStorage().catch(() => {});
+    } catch { /* serverDeleteOk stays false */ }
 
     if (!serverDeleteOk) {
-      // Server-side deletion failed (D1 batch error). Local data is wiped, but
-      // the cloud record may still exist. Warn the user BEFORE reload so the
-      // message is visible briefly.
       toast.error(
-        'Partial account deletion',
-        'Your local data was cleared but the server could not fully remove your account. If old data appears after signing back in, please try deleting again or contact support.',
+        'Deletion failed',
+        'Your account could not be removed from the server. Check your connection and try again — nothing has been deleted yet.',
       );
-      // Short delay so the toast is readable before the page reloads.
-      await new Promise(r => setTimeout(r, 3500));
-    } else {
-      toast.success('Account deleted', 'Your account and all data have been removed.');
-      // Brief pause so the success toast is visible.
-      await new Promise(r => setTimeout(r, 1200));
+      return; // ← hard stop, local data untouched, user can retry
     }
 
-    // Navigate with ?auth=1 so WorkerAuthContext auto-opens the sign-in modal
-    // instead of dumping the user on the plain landing page.
-    window.location.href = window.location.origin + '?auth=1';
-  }, [user?.accessToken, signOut, toast]);
+    // ── Step 2: Server confirmed deletion — clean up locally ────────────────
+    //
+    // Order matters:
+    //  a) Cancel pending sync writes FIRST so no stale items fire after the wipe
+    //  b) Wipe all local storage (localStorage + every IDB database, awaited)
+    //  c) Write DELETED_CLEAN_SENTINEL after the wipe — the account-switch guard
+    //     reads this on next boot and skips a second wipe+reload so the user
+    //     can sign straight into a fresh account without an extra reload cycle
+    //  d) Rotate device ID so the next account starts with a virgin device_id
+    //  e) Best-effort Drive cleanup last (account is already gone server-side)
+
+    await clearQueueForAccount().catch(() => {});
+
+    await clearAllBrowserStorage();     // awaited — all 5 IDB databases deleted
+
+    stampDeletedAccount();              // write sentinel AFTER wipe so it survives
+
+    rotateDeviceId();                   // fresh device_id for the next account
+
+    if (user?.accessToken) {
+      await deleteAllDriveData(user.accessToken).catch(() => {});
+    }
+
+    // ── Step 3: Hard-navigate to landing — no browser-history entry ─────────
+    window.location.replace(window.location.origin);
+  }, [_deleteAccount, user?.accessToken, toast]);
 
   // ── Clear all browser data (emergency reset — no account deletion) ──────
   const handleClearAllData = useCallback(async () => {

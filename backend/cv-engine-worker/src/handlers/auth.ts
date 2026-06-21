@@ -795,7 +795,21 @@ export async function handleAuthDeleteAccount(
         // Identity gone despite batch error — return success (data IS cleaned).
     }
 
-    return json({ ok: true, device_id_wiped: !!deviceId }, request, env);
+    // Expire the session cookie so the browser doesn't hold a stale HttpOnly
+    // token after the account is gone from D1.  Without this, the browser keeps
+    // sending the cookie on the next load; verifySession returns 401 (session
+    // row deleted above) but the cookie persists until it naturally expires.
+    return new Response(
+        JSON.stringify({ ok: true, device_id_wiped: !!deviceId }),
+        {
+            status: 200,
+            headers: {
+                ...corsHeaders(request, env),
+                'Content-Type': 'application/json',
+                'Set-Cookie': clearSessionCookieHeader(),
+            },
+        },
+    );
 }
 
 // ─── Email template ───────────────────────────────────────────────────────────
