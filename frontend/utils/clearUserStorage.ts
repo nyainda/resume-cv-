@@ -200,8 +200,11 @@ export async function clearAllBrowserStorage(): Promise<void> {
     } catch { /* caches API unavailable or blocked — non-fatal */ }
 
     // 7. Expire all first-party cookies visible to JavaScript.
-    //    HttpOnly cookies (set by a server) are not reachable here, but this app
-    //    does not set any — every session token lives in localStorage / IDB.
+    //    HttpOnly cookies (set by a server, such as procv_session) cannot be
+    //    cleared from JavaScript — the browser sends a credential-bearing request
+    //    to the sign-out endpoint which responds with Set-Cookie: Max-Age=0 to
+    //    clear the HttpOnly cookie server-side.  This loop only catches any
+    //    non-HttpOnly cookies that JavaScript can see.
     try {
         document.cookie.split(';').forEach(cookie => {
             const name = cookie.trim().split('=')[0];

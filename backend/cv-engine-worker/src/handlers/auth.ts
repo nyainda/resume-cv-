@@ -661,18 +661,12 @@ export async function handleAuthSignout(
  *  - All sessions
  *  - All user_slots (user_id-scoped AND orphan device_id-only rows)
  *  - All profile_cache entries
- *  - All device_id-keyed tables: saved_cvs, tracked_applications,
- *    star_stories, saved_cover_letters, user_preferences, custom_templates
  *  - The user_identities row itself
  *
- * Why device_id cleanup matters:
- *   Legacy tables (saved_cvs, tracked_applications, star_stories,
- *   saved_cover_letters, user_preferences, custom_templates) are keyed
- *   by device_id only — they have no user_id column.  If these rows are
- *   not deleted, a user who deletes their account and re-registers with
- *   the same Google account (same device, same device_id) will see all
- *   their old data return.  user_identities.device_id holds the value
- *   written at signup, so we fetch it before deleting that row.
+ * Note: the five legacy device_id-keyed tables (saved_cvs, tracked_applications,
+ * star_stories, saved_cover_letters, custom_templates) were dropped in migration
+ * 032 (2026-06-21) after being confirmed empty. Their DELETE statements have been
+ * removed accordingly.
  *
  * Magic-link tokens and LLM cache entries are keyed by hash/content,
  * not by user, so they age out naturally and are not removed here.
@@ -715,17 +709,10 @@ export async function handleAuthDeleteAccount(
     ).bind(uid).run().catch(() => {});
 
     if (deviceId) {
+        // Orphaned profile_cache rows for anonymous (device_id-only) slots
         await env.CV_DB.prepare(
             `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE device_id = ? AND user_id IS NULL)`,
         ).bind(deviceId).run().catch(() => {});
-
-        // Device-keyed tables (no FK to user_identities)
-        await env.CV_DB.prepare(`DELETE FROM saved_cvs            WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
-        await env.CV_DB.prepare(`DELETE FROM tracked_applications WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
-        await env.CV_DB.prepare(`DELETE FROM star_stories         WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
-        await env.CV_DB.prepare(`DELETE FROM saved_cover_letters  WHERE device_id = ?`).bind(deviceId).run().catch(() => {});
-        // custom_templates.user_id column stores device_id (see migration 016).
-        await env.CV_DB.prepare(`DELETE FROM custom_templates     WHERE user_id   = ?`).bind(deviceId).run().catch(() => {});
     }
 
     // ── Step 3: Atomic FK-chain deletion via D1 batch ─────────────────────────

@@ -38,6 +38,36 @@ export interface StoredSession {
     user: WorkerUser;
 }
 
+// ─── One-time startup migration ───────────────────────────────────────────────
+// Removes old `procv:worker_session` / `procv:worker_session_temp` entries
+// that stored the raw session token.  After Rule 6 (HttpOnly cookie), only the
+// non-sensitive WorkerUser object should live in local/session storage.
+// This IIFE runs once when the module is first imported (app boot) and is
+// idempotent — if the old key is absent it does nothing.
+(function migrateSessionStorage() {
+    try {
+        const lsRaw = localStorage.getItem(SESSION_KEY);
+        if (lsRaw) {
+            const parsed = JSON.parse(lsRaw) as { token?: string; user?: { email?: string } };
+            if (parsed?.user?.email) {
+                // Preserve the user object; discard the raw token
+                localStorage.setItem(USER_KEY, JSON.stringify(parsed.user));
+            }
+            localStorage.removeItem(SESSION_KEY);
+        }
+        const ssRaw = sessionStorage.getItem(SESSION_TEMP_KEY);
+        if (ssRaw) {
+            const parsed = JSON.parse(ssRaw) as { token?: string; user?: { email?: string } };
+            if (parsed?.user?.email) {
+                // Overwrite with a token-free copy
+                sessionStorage.setItem(SESSION_TEMP_KEY, JSON.stringify({ user: parsed.user }));
+            } else {
+                sessionStorage.removeItem(SESSION_TEMP_KEY);
+            }
+        }
+    } catch { /* non-fatal */ }
+})();
+
 // ─── Local storage ────────────────────────────────────────────────────────────
 
 export function getStoredSession(): StoredSession | null {
