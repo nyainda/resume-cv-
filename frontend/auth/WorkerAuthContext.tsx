@@ -74,9 +74,14 @@ function _needsAccountWipe(email: string): boolean {
     if (!storedHash || storedHash === newHash) return false;
     if (storedHash === DELETED_CLEAN_SENTINEL)  return false; // already wiped cleanly
     if (storedHash === SIGNED_OUT_SENTINEL) {
-        // Same user returning after sign-out → no wipe
         const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);
-        if (lastRealHash && lastRealHash === newHash) return false;
+        // No prior hash preserved → device has never fully committed an account hash,
+        // so we cannot know if this is a different user. Treat as "no prior user" — no wipe.
+        if (!lastRealHash) return false;
+        // Same user returning after sign-out → no wipe
+        if (lastRealHash === newHash) return false;
+        // A real different email was the last user → wipe needed
+        return true;
     }
     return true;
 }

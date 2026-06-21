@@ -286,7 +286,10 @@ const AppInner: React.FC = () => {
   const [isAccountSwitching, setIsAccountSwitching] = useState(false);
 
   useEffect(() => {
-    const email = workerUser?.email ?? user?.email;
+    // Only trigger the account-switch guard when the WORKER session is established.
+    // Using user?.email (Google token) here would race against linkGoogleSession and
+    // cause false wipes — the Google user is set before the server session is confirmed.
+    const email = workerUser?.email;
     if (!email) return;
     const newHash    = _fnv32(email);
     const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
@@ -299,10 +302,19 @@ const AppInner: React.FC = () => {
       if (storedHash === SIGNED_OUT_SENTINEL) {
         const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);
         localStorage.removeItem(LAST_REAL_HASH_KEY);
-        if (lastRealHash && lastRealHash === newHash) {
+        if (!lastRealHash) {
+          // No prior hash was preserved (e.g. first sign-in on this device, or
+          // user signed out before Bug 1b fix stamped a real hash).  We cannot
+          // determine if this is a different user, so treat as "no prior user"
+          // and skip the wipe to avoid the false "Switching accounts…" flash.
           localStorage.setItem(_ACCT_HASH_KEY, newHash);
           return;
         }
+        if (lastRealHash === newHash) {
+          localStorage.setItem(_ACCT_HASH_KEY, newHash);
+          return;
+        }
+        // LAST_REAL_HASH exists and belongs to a different email — genuine switch.
       }
       // Show blank screen immediately — no old data visible during wipe.
       setIsAccountSwitching(true);
@@ -314,7 +326,7 @@ const AppInner: React.FC = () => {
     }
     localStorage.setItem(_ACCT_HASH_KEY, newHash);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerUser?.email, user?.email]);
+  }, [workerUser?.email]);
 
   // ── Cross-tab account-switch guard ─────────────────────────────────────
   // When another browser tab signs in as a different user (or signs out),
