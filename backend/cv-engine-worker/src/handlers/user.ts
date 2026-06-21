@@ -195,49 +195,25 @@ export async function handleUserSlotsPost(request: Request, env: Env, ctx: Execu
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Strategy: attempt the user-scoped upsert first (requires migration 026 — adds
-    // user_id column + partial unique index on (user_id, slot_id)).
-    // If that fails for any reason (column missing, index missing, D1 error) fall back
-    // to the original device-scoped upsert using the always-present PRIMARY KEY.
-    // Wrapping in try-catch prevents any D1 error from surfacing as an unhandled
-    // exception → 500.
-    let upsertOk = false;
-    let upsertErr = '';
+    // Single user-scoped upsert — no fallback branch.
+    // Rule 3 (Identity & Ownership Directive): once authenticated, every write is
+    // scoped by user_id alone. The old device-scoped fallback was the root cause of
+    // the cross-account data leak and has been removed permanently. If this insert
+    // fails it is a real error (bad data, DB outage) and must surface as such.
+    const result = await env.CV_DB.prepare(
+        `INSERT INTO user_slots (user_id, device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, slot_id) DO UPDATE SET
+           slot_name    = excluded.slot_name,
+           color        = excluded.color,
+           profile_json = excluded.profile_json,
+           current_cv   = excluded.current_cv,
+           device_id    = excluded.device_id,
+           updated_at   = excluded.updated_at`
+    ).bind(userId, deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
 
-    try {
-        await env.CV_DB.prepare(
-            `INSERT INTO user_slots (user_id, device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(user_id, slot_id) DO UPDATE SET
-               slot_name    = excluded.slot_name,
-               color        = excluded.color,
-               profile_json = excluded.profile_json,
-               current_cv   = excluded.current_cv,
-               updated_at   = excluded.updated_at`
-        ).bind(userId, deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
-        upsertOk = true;
-    } catch (e: any) {
-        upsertErr = String(e?.message ?? e);
-    }
-
-    // Fallback: device-scoped upsert on the original PRIMARY KEY (device_id, slot_id).
-    // Also handles the case where migration 026 hasn't been applied yet.
-    if (!upsertOk) {
-        try {
-            await env.CV_DB.prepare(
-                `INSERT INTO user_slots (device_id, slot_id, slot_name, color, profile_json, current_cv, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(device_id, slot_id) DO UPDATE SET
-                   slot_name    = excluded.slot_name,
-                   color        = excluded.color,
-                   profile_json = excluded.profile_json,
-                   current_cv   = excluded.current_cv,
-                   updated_at   = excluded.updated_at`
-            ).bind(deviceId, slotId, slotName, color, profileJson, currentCv, now).run();
-            upsertOk = true;
-        } catch (e2: any) {
-            return json({ error: 'db_write_failed', detail: upsertErr }, request, env, 500);
-        }
+    if (!result.success) {
+        return json({ error: 'db_write_failed' }, request, env, 500);
     }
 
     // Trim old slots — fire-and-forget, never blocks the response.
@@ -263,11 +239,19 @@ export async function handleUserSlotsDelete(request: Request, env: Env): Promise
     const slotId = typeof body?.slot_id === 'string' ? body.slot_id.trim().substring(0, 64) : '';
     if (!slotId) return json({ error: 'missing_slot_id' }, request, env, 400);
 
-    await env.CV_DB.prepare(
+    // Rule 5 (Identity & Ownership Directive): never swallow the result of a
+    // D1 mutation that determines ownership/correctness. Check meta.changes so
+    // a delete that matched 0 rows is distinguishable from a real deletion.
+    const deleteResult = await env.CV_DB.prepare(
         `DELETE FROM user_slots WHERE user_id = ? AND slot_id = ?`
     ).bind(userId, slotId).run();
 
-    return json({ ok: true, slot_id: slotId }, request, env);
+    if (!deleteResult.success) {
+        return json({ error: 'db_delete_failed' }, request, env, 500);
+    }
+
+    const deleted = (deleteResult.meta?.changes ?? 0) >= 1;
+    return json({ ok: true, slot_id: slotId, deleted }, request, env);
 }
 
 // ─── User preferences ─────────────────────────────────────────────────────────

@@ -1149,7 +1149,7 @@ const AppInner: React.FC = () => {
           enqueueSlotSync({ ...activeSlot, profile }).catch(() => {});
       } else {
         // First-time: auto-create a slot
-        const id = Date.now().toString();
+        const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
           name: profile.personalInfo.name || "My Profile",
@@ -1261,7 +1261,7 @@ const AppInner: React.FC = () => {
 
   const handleCreateProfile = useCallback(
     (name: string, color: ProfileColor, cloneFrom?: UserProfile) => {
-      const id = Date.now().toString();
+      const id = crypto.randomUUID();
       const emptyProfile: UserProfile = {
         personalInfo: {
           name: "",
@@ -1721,7 +1721,7 @@ const AppInner: React.FC = () => {
           `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
         );
       } else {
-        const id = Date.now().toString();
+        const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
           name: profile.personalInfo.name || "Imported Profile",
@@ -1770,7 +1770,7 @@ const AppInner: React.FC = () => {
           "Your CV is ready — all templates are populated. Check your quality report below.",
         );
       } else {
-        const id = Date.now().toString();
+        const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
           name: profile.personalInfo.name || "Imported Profile",
