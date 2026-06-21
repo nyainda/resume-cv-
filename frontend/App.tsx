@@ -26,7 +26,7 @@ import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
-import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, clearAllBrowserStorage, rotateDeviceId, ACCOUNT_HASH_KEY, LAST_REAL_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
+import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, clearAllBrowserStorage, rotateDeviceId, ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import {
@@ -253,12 +253,16 @@ function navTimeAgo(iso?: string): string {
 // flag and abort to prevent pushing the previous user's data to D1.
 let _wipePending = false;
 
-// FNV-1a 32-bit hash — fast, non-crypto, sufficient for equality detection.
+// FNV-1a 32-bit hash — must match _hashEmail() in WorkerAuthContext.tsx exactly.
+// Uses (h * 16777619) >>> 0 (not Math.imul) so both functions produce the
+// same bit pattern for every email address, including those whose intermediate
+// products exceed Number.MAX_SAFE_INTEGER.  Consistency matters more than
+// strict integer correctness here — both sides must agree on the hash value.
 function _fnv32(s: string): string {
-  let h = 0x811c9dc5 >>> 0;
+  let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
+    h = (h * 16777619) >>> 0;
   }
   return h.toString(16);
 }
@@ -275,58 +279,6 @@ const AppInner: React.FC = () => {
 
   // Keep the D1 sync service's module-level token in sync with the worker session
   useEffect(() => { setUserSessionToken(sessionToken ?? null); }, [sessionToken]);
-
-  // ── Account-switch guard (backup layer) ──────────────────────────────────
-  // The primary guard lives in WorkerAuthContext.onAuthSuccess / init() and
-  // fires BEFORE applySession, so accounts never share React state.
-  // This secondary guard is a belt-and-suspenders safety net that catches
-  // edge cases (e.g. Google OAuth completes while a different worker session
-  // is already active).  When it triggers it immediately shows a blank
-  // "Switching accounts…" screen so no old data is visible during the wipe.
-  const [isAccountSwitching, setIsAccountSwitching] = useState(false);
-
-  useEffect(() => {
-    // Only trigger the account-switch guard when the WORKER session is established.
-    // Using user?.email (Google token) here would race against linkGoogleSession and
-    // cause false wipes — the Google user is set before the server session is confirmed.
-    const email = workerUser?.email;
-    if (!email) return;
-    const newHash    = _fnv32(email);
-    const storedHash = localStorage.getItem(_ACCT_HASH_KEY);
-    if (storedHash && storedHash !== newHash) {
-      if (storedHash === DELETED_CLEAN_SENTINEL) {
-        localStorage.removeItem(LAST_REAL_HASH_KEY);
-        localStorage.setItem(_ACCT_HASH_KEY, newHash);
-        return;
-      }
-      if (storedHash === SIGNED_OUT_SENTINEL) {
-        const lastRealHash = localStorage.getItem(LAST_REAL_HASH_KEY);
-        localStorage.removeItem(LAST_REAL_HASH_KEY);
-        if (!lastRealHash) {
-          // No prior hash was preserved (e.g. first sign-in on this device, or
-          // user signed out before Bug 1b fix stamped a real hash).  We cannot
-          // determine if this is a different user, so treat as "no prior user"
-          // and skip the wipe to avoid the false "Switching accounts…" flash.
-          localStorage.setItem(_ACCT_HASH_KEY, newHash);
-          return;
-        }
-        if (lastRealHash === newHash) {
-          localStorage.setItem(_ACCT_HASH_KEY, newHash);
-          return;
-        }
-        // LAST_REAL_HASH exists and belongs to a different email — genuine switch.
-      }
-      // Show blank screen immediately — no old data visible during wipe.
-      setIsAccountSwitching(true);
-      _wipePending = true;
-      clearUserScopedStorage({ clearAppData: true });
-      localStorage.setItem(_ACCT_HASH_KEY, newHash);
-      window.location.reload();
-      return;
-    }
-    localStorage.setItem(_ACCT_HASH_KEY, newHash);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerUser?.email]);
 
   // ── Cross-tab account-switch guard ─────────────────────────────────────
   // When another browser tab signs in as a different user (or signs out),
@@ -2020,20 +1972,6 @@ const AppInner: React.FC = () => {
       setShowLanding(true);
     }
   }, [isAuthLoading, isWorkerAuthenticated]);
-
-  // Show a blank switching screen while account data is being wiped.
-  // This ensures zero flash of the previous user's data.
-  if (isAccountSwitching) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#F8F7F4' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 bg-[#1B2B4B] rounded-xl flex items-center justify-center text-white font-black text-sm">CV</div>
-          <div className="w-6 h-6 border-2 border-[#1B2B4B]/20 border-t-[#1B2B4B] rounded-full animate-spin" />
-          <p className="text-sm text-[#1B2B4B]/60">Switching accounts…</p>
-        </div>
-      </div>
-    );
-  }
 
   // Show a loading screen while we validate the stored session on mount.
   // This prevents a flash of the main app for users whose session has expired.
