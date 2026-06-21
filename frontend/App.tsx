@@ -2240,14 +2240,14 @@ const AppInner: React.FC = () => {
                       <Settings className="h-4 w-4 text-zinc-400 flex-shrink-0" />
                       Settings &amp; API Keys
                     </button>
-                    {/* Edit profile */}
-                    {profileExists && (
+                    {/* Edit / Create Profile — always shown when authenticated */}
+                    {isWorkerAuthenticated && (
                       <button
                         onClick={() => { setShowUserMenu(false); setIsEditingProfile(true); }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
                       >
                         <User className="h-4 w-4 text-zinc-400 flex-shrink-0" />
-                        Edit Profile
+                        {profileExists ? 'Edit Profile' : 'Create Profile'}
                       </button>
                     )}
                     {/* Account */}
@@ -2898,6 +2898,9 @@ const AppInner: React.FC = () => {
                     onClearAllData={handleClearAllData}
                     onBack={() => setCurrentView("generator")}
                     onUpgrade={() => setIsPricingOpen(true)}
+                    onEditProfile={() => setIsEditingProfile(true)}
+                    driveConnected={driveConnected}
+                    onConnectDrive={requestDriveAccess}
                   />
                 )}
               </div>

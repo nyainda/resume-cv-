@@ -15,6 +15,9 @@ interface AccountPageProps {
     onClearAllData: () => Promise<void>;
     onBack: () => void;
     onUpgrade?: () => void;
+    onEditProfile?: () => void;
+    driveConnected?: boolean;
+    onConnectDrive?: () => Promise<void>;
 }
 
 const PLAN_CONFIG: Record<string, { label: string; color: string; bg: string; darkBg: string; ring: string; darkRing: string; desc: string; icon: string }> = {
@@ -49,12 +52,13 @@ function Avatar({ name, picture, size = 'lg' }: { name: string; picture?: string
     );
 }
 
-export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onClearAllData, onBack, onUpgrade }: AccountPageProps) {
+export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteAccount, onClearAllData, onBack, onUpgrade, onEditProfile, driveConnected, onConnectDrive }: AccountPageProps) {
     const [deletingStep, setDeletingStep] = useState<'idle' | 'confirm' | 'typing' | 'deleting'>('idle');
     const [confirmText, setConfirmText] = useState('');
     const [signingOut, setSigningOut] = useState(false);
     const [provider, setProvider] = useState<string>('workers-ai');
     const [clearDataStep, setClearDataStep] = useState<'idle' | 'confirm' | 'clearing'>('idle');
+    const [driveConnecting, setDriveConnecting] = useState(false);
 
     useEffect(() => { setProvider(getSelectedProvider()); }, []);
 
@@ -93,16 +97,38 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
             <div className="bg-white dark:bg-neutral-900 border-b border-zinc-200 dark:border-neutral-800">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-5 pb-6">
 
-                    {/* Back link */}
-                    <button
-                        onClick={onBack}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors mb-5"
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M19 12H5M12 5l-7 7 7 7"/>
-                        </svg>
-                        Back to app
-                    </button>
+                    {/* Top bar: back link + quick sign-out */}
+                    <div className="flex items-center justify-between mb-5">
+                        <button
+                            onClick={onBack}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M19 12H5M12 5l-7 7 7 7"/>
+                            </svg>
+                            Back to app
+                        </button>
+                        {/* Sign out — always visible at the top */}
+                        <button
+                            onClick={handleSignOut}
+                            disabled={signingOut}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all disabled:opacity-50"
+                        >
+                            {signingOut ? (
+                                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity=".25" strokeWidth="3"/>
+                                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                                </svg>
+                            ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                            )}
+                            {signingOut ? 'Signing out…' : 'Sign out'}
+                        </button>
+                    </div>
 
                     {/* User row */}
                     <div className="flex items-center gap-4">
@@ -129,6 +155,19 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border transition-all hover:opacity-90 active:scale-95"
                                         style={{ background: '#1B2B4B', color: '#C9A84C', borderColor: '#1B2B4B' }}>
                                         ↑ Upgrade to Pro
+                                    </button>
+                                )}
+                                {/* Edit profile shortcut */}
+                                {onEditProfile && (
+                                    <button
+                                        onClick={() => { onBack(); onEditProfile(); }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border border-zinc-200 dark:border-neutral-700 bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-all"
+                                    >
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                        </svg>
+                                        Edit Profile
                                     </button>
                                 )}
                             </div>
@@ -231,6 +270,63 @@ export default function AccountPage({ workerUser, profiles, onSignOut, onDeleteA
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Google Drive */}
+                {onConnectDrive !== undefined && (
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+                        <div className="px-5 py-4 border-b border-zinc-100 dark:border-neutral-800 flex items-center justify-between">
+                            <h2 className="text-sm font-black text-zinc-700 dark:text-zinc-200 uppercase tracking-wide">Google Drive Backup</h2>
+                            {driveConnected && (
+                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    Connected
+                                </span>
+                            )}
+                        </div>
+                        <div className="p-5">
+                            {driveConnected ? (
+                                <>
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3 leading-relaxed">
+                                        Your CVs and profiles are backed up to Google Drive. They're safe even if you clear your browser data.
+                                    </p>
+                                    <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                                            <polyline points="20 6 9 17 4 12"/>
+                                        </svg>
+                                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Drive backup is active</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">
+                                        Connect Google Drive to automatically back up your CVs and profiles. Your data stays private — we only access a ProCV folder.
+                                    </p>
+                                    <button
+                                        onClick={async () => {
+                                            setDriveConnecting(true);
+                                            try { await onConnectDrive?.(); } finally { setDriveConnecting(false); }
+                                        }}
+                                        disabled={driveConnecting}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-60"
+                                        style={{ background: '#1B2B4B', color: '#C9A84C' }}
+                                    >
+                                        {driveConnecting ? (
+                                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity=".25" strokeWidth="3"/>
+                                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                                            </svg>
+                                        ) : (
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                            </svg>
+                                        )}
+                                        {driveConnecting ? 'Connecting…' : 'Connect Google Drive'}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
