@@ -47,7 +47,11 @@ import {
 // These run BEFORE applySession so the new user's data is never mixed with
 // the previous user's data in React state.
 
-const _PENDING_SESSION_KEY = 'procv:pending_session';
+// Bug 3 fix: only the non-sensitive user object crosses the reload boundary.
+// The raw session token is never written to sessionStorage — the HttpOnly cookie
+// the worker already set survives the reload by itself and is re-validated via
+// validateSession() (credentials: 'include') when the page comes back up.
+const _PENDING_USER_KEY = 'procv:pending_user';
 
 /** FNV-32 hash of an email address (must match the version in App.tsx). */
 function _hashEmail(email: string): string {
@@ -77,13 +81,19 @@ function _needsAccountWipe(email: string): boolean {
 }
 
 /**
- * Wipe the previous user's data and save the new user's session in
- * sessionStorage so it can be restored after the reload — no second sign-in.
+ * Wipe the previous user's data and hand off to the incoming user after reload.
+ *
+ * Bug 3 fix: only the non-sensitive WorkerUser object is stashed in
+ * sessionStorage. The raw session token is NOT stored here — the HttpOnly
+ * cookie the worker already set on this sign-in survives the reload and is
+ * re-validated via validateSession() (cookie-only, no token needed) at the
+ * top of the next init() call. If the cookie is gone (edge case), the user
+ * falls through to a normal sign-in prompt — no silent data exposure.
  */
-function _wipeAndHandoff(token: string, user: WorkerUser): void {
+function _wipeAndHandoff(user: WorkerUser): void {
     try {
-        sessionStorage.setItem(_PENDING_SESSION_KEY, JSON.stringify({ token, user }));
-    } catch { /* storage full — non-fatal, user will just need to sign in again */ }
+        sessionStorage.setItem(_PENDING_USER_KEY, JSON.stringify({ user }));
+    } catch { /* storage full — non-fatal, user will just re-authenticate normally */ }
     clearUserScopedStorage({ clearAppData: true });
     localStorage.setItem(ACCOUNT_HASH_KEY, _hashEmail(user.email));
     window.location.reload();
@@ -206,21 +216,31 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         let cancelled = false;
 
         async function init() {
-            // 0. Restore a pending session saved before a wipe+reload.
+            // 0. Restore a pending user saved before a wipe+reload.
             //    This happens when a different user signs in: we wipe the previous
-            //    user's data, save the new session to sessionStorage, reload, then
-            //    pick it up here — so the user is signed in immediately without a
-            //    second sign-in attempt.
-            const pendingRaw = sessionStorage.getItem(_PENDING_SESSION_KEY);
+            //    user's data, stash only the WorkerUser object to sessionStorage,
+            //    reload, then pick it up here.
+            //
+            //    Bug 3 fix: the raw token is NOT stashed — instead we call
+            //    validateSession() which re-validates via the HttpOnly cookie the
+            //    worker already set.  If the cookie is gone we fall through to a
+            //    normal sign-in prompt (safe: no data exposure, just an extra click).
+            const pendingRaw = sessionStorage.getItem(_PENDING_USER_KEY);
             if (pendingRaw) {
-                sessionStorage.removeItem(_PENDING_SESSION_KEY);
+                sessionStorage.removeItem(_PENDING_USER_KEY);
                 try {
-                    const pending = JSON.parse(pendingRaw) as { token: string; user: WorkerUser };
-                    if (pending?.token && pending?.user?.email && !cancelled) {
-                        await clearQueueForAccount();
-                        applySession(pending.token, pending.user);
-                        setIsLoading(false);
-                        return;
+                    const pending = JSON.parse(pendingRaw) as { user: WorkerUser };
+                    if (pending?.user?.email && !cancelled) {
+                        const sessionResult = await validateSession();
+                        if (sessionResult.user && !cancelled) {
+                            await clearQueueForAccount();
+                            // No token in the response — session is cookie-based.
+                            applySession('', sessionResult.user);
+                            setIsLoading(false);
+                            return;
+                        }
+                        // Cookie gone / worker unreachable — fall through to normal init.
+                        // The user will be prompted to sign in again (acceptable edge case).
                     }
                 } catch { /* malformed — fall through to normal init */ }
             }
@@ -243,7 +263,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                     // other's data. The new session is handed off via sessionStorage
                     // and restored at the top of the next init() call.
                     if (_needsAccountWipe(result.user.email)) {
-                        _wipeAndHandoff(result.token, result.user);
+                        _wipeAndHandoff(result.user);
                         return; // page is reloading — don't do anything else
                     }
                     // Fresh sign-in via magic link — wipe any stale queue items
@@ -365,8 +385,23 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             }
 
             if (result && result.ok) {
-                // Fresh Google sign-in — wipe any stale queue items left by
-                // a previous account on this device before starting the session.
+                // Bug 1 fix: check whether this Google account is different from
+                // whoever was previously signed in.  Without this check, signing
+                // in as User B on a device where User A was active skips the wipe
+                // and loads User B's session on top of User A's data.
+                if (_needsAccountWipe(result.user.email)) {
+                    // Wipe first, restore after the reload via validateSession().
+                    // pendingResolvers are resolved here so any requireAuth() caller
+                    // doesn't hang forever waiting for a promise that won't fire
+                    // after the reload.
+                    _wipeAndHandoff(result.user);
+                    const queue = pendingResolvers.current.splice(0);
+                    queue.forEach(r => r(true));
+                    setAuthModalOpen(false);
+                    return; // page is reloading
+                }
+                // Same user (or fresh device) — clear any stale queue items and
+                // apply the session immediately.
                 await clearQueueForAccount();
                 applySession(result.token, result.user, true); // viaGoogle = true
                 if (result.is_new_user) setIsNewUser(true);
@@ -397,7 +432,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         // the new session so accounts never see each other's data.
         // The new session is saved to sessionStorage and restored after the reload.
         if (_needsAccountWipe(user.email)) {
-            _wipeAndHandoff(token, user);
+            _wipeAndHandoff(user);
             return; // page is reloading
         }
         // Fresh sign-in from the auth modal — clear any stale queue items

@@ -247,18 +247,22 @@ export async function fetchUserData(): Promise<UserDataSnapshot | null> {
 
 /**
  * Deletes a single slot from D1 and clears its local sync hash.
- * Fire-and-forget safe — call without await.
+ *
+ * Bug 2 fix: now returns a boolean so the caller can detect and revert on
+ * failure instead of silently showing "Deleted" when the server refused.
+ * Returns true if the server confirmed deletion (or the row was already gone).
+ * Returns false on network failure, auth error, or unexpected server error.
  */
-export async function deleteSlotFromCloud(slotId: string): Promise<void> {
+export async function deleteSlotFromCloud(slotId: string): Promise<boolean> {
     // Always clear the local hash so a future slot with the same ID starts fresh
     try { localStorage.removeItem(SLOT_HASH_PREFIX + slotId); } catch { /* ignore */ }
-    if (!ENGINE_URL || !_isAuthenticated) return;
+    if (!ENGINE_URL || !_isAuthenticated) return false;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (_sessionToken) headers['Authorization'] = `Bearer ${_sessionToken}`;
-        await fetch(`${ENGINE_URL}/api/cv/user-slots`, {
+        const res = await fetch(`${ENGINE_URL}/api/cv/user-slots`, {
             method: 'DELETE',
             headers,
             credentials: 'include',
@@ -266,7 +270,14 @@ export async function deleteSlotFromCloud(slotId: string): Promise<void> {
             signal: ac.signal,
         });
         clearTimeout(timer);
-    } catch { /* fire-and-forget — silently swallow */ }
+        if (!res.ok) return false;
+        // Server returns { ok: true, deleted: bool } — deleted:false means the
+        // row wasn't found, but that's still success from our perspective.
+        const body = await res.json().catch(() => null) as { ok?: boolean } | null;
+        return body?.ok === true;
+    } catch {
+        return false;
+    }
 }
 
 /**

@@ -1316,18 +1316,34 @@ const AppInner: React.FC = () => {
   );
 
   const handleDeleteProfile = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      // Save the slot in case we need to revert (Bug 2 fix).
+      const removed = profiles.find((p) => p.id === id);
+
+      // Optimistic local remove — fast UX.
       setProfiles((prev) => {
         const next = prev.filter((p) => p.id !== id);
         if (activeProfileId === id && next.length > 0)
           setActiveProfileId(next[0].id);
         return next;
       });
-      // Remove from D1 so it doesn't resurface on next login (fire-and-forget)
-      deleteSlotFromCloud(id).catch(() => {});
+
+      // Bug 2 fix: await the result and revert + error on failure instead of
+      // silently lying to the user. Data was never deleted if we return false.
+      const ok = await deleteSlotFromCloud(id);
+      if (!ok) {
+        if (removed) setProfiles((prev) => [...prev, removed]);
+        toast.error(
+          "Delete failed",
+          "Could not remove this profile from the server. Please try again.",
+        );
+        return;
+      }
+
       toast.success("Profile Deleted", "Profile removed.");
     },
-    [setProfiles, activeProfileId, setActiveProfileId, toast, deleteSlotFromCloud],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profiles, setProfiles, activeProfileId, setActiveProfileId, toast],
   );
 
   const handleRenameProfile = useCallback(
