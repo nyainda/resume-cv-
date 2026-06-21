@@ -748,8 +748,10 @@ const AppInner: React.FC = () => {
   // isAuthLoading going false and the effect setting showLanding = true.
   const [showLanding, setShowLanding] = useState<boolean>(() => {
     try {
-      // No session token → always start on landing (avoids flash of main app)
-      const hasSession = !!localStorage.getItem('procv:worker_session');
+      // No user stored → always start on landing (avoids flash of main app).
+      // Rule 6: raw tokens are no longer stored — check for the user object instead.
+      const hasSession = !!localStorage.getItem('procv:worker_user')
+        || !!localStorage.getItem('procv:worker_session'); // legacy key fallback
       if (!hasSession) return true;
 
       const raw =
@@ -1399,11 +1401,9 @@ const AppInner: React.FC = () => {
     const currentDeviceId = getDeviceId();
     let serverDeleteOk = false;
     try {
-      const token = sessionToken
-        || localStorage.getItem('procv:worker_session')
-        || sessionStorage.getItem('procv:worker_session_temp')
-        || '';
-      if (token) serverDeleteOk = await deleteAccountWorker(token, currentDeviceId);
+      // Rule 6: raw tokens no longer stored in localStorage — cookie handles auth.
+      // Pass the in-memory sessionToken as a Bearer fallback during migration.
+      serverDeleteOk = await deleteAccountWorker(sessionToken || '', currentDeviceId);
     } catch { /* non-fatal — local wipe continues regardless */ }
 
     // Step 3: Clear pending sync queue — no stale writes after account wipe.

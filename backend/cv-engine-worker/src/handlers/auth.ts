@@ -30,6 +30,39 @@ const MAGIC_RATE_WINDOW_S = 15 * 60; // window to count sends
 const MAGIC_RATE_MAX = 3; // max sends per window per email
 const SESSION_CAP = 10; // max concurrent sessions per user
 
+// ─── Cookie helpers ───────────────────────────────────────────────────────────
+//
+// The session token is delivered to the browser as an HttpOnly; Secure;
+// SameSite=None cookie so it is invisible to JavaScript (XSS-safe).
+// SameSite=None is required because the worker lives on a different origin
+// than the React frontend.
+
+const COOKIE_NAME = 'procv_session';
+
+/** Build a Set-Cookie header value that stores the session token securely. */
+function sessionCookieHeader(token: string, maxAge = SESSION_TTL_S): string {
+    return `${COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${maxAge}`;
+}
+
+/** Build a Set-Cookie header value that immediately expires the cookie (sign-out). */
+function clearSessionCookieHeader(): string {
+    return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0`;
+}
+
+/** Extract the session token from the Cookie header (returns '' if absent). */
+function sessionCookieFromRequest(request: Request): string {
+    const cookieHeader = request.headers.get('Cookie') || '';
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]+)`));
+    return match ? match[1].trim() : '';
+}
+
+/** Clone a Response and attach a single Set-Cookie header to it. */
+function withCookie(base: Response, cookieValue: string): Response {
+    const headers = new Headers(base.headers);
+    headers.set('Set-Cookie', cookieValue);
+    return new Response(base.body, { status: base.status, headers });
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function randomHex(bytes = 32): string {
@@ -201,6 +234,10 @@ export async function verifySession(
 }
 
 function sessionTokenFromRequest(request: Request): string {
+    // Cookie first (HttpOnly — invisible to JS, XSS-safe).
+    // Bearer header accepted as a migration fallback for existing in-memory tokens.
+    const fromCookie = sessionCookieFromRequest(request);
+    if (fromCookie) return fromCookie;
     const h = request.headers.get("Authorization") || "";
     return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
 }
@@ -335,21 +372,24 @@ export async function handleAuthGoogle(
     const sessionToken = await createSession(user.id, env);
     await auditLog(user.id, "signin_google", "google", request, env);
 
-    return json(
-        {
-            ok: true,
-            session_token: sessionToken,
-            is_new_user: isNewInsert,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                picture: user.picture,
-                plan: user.plan,
+    return withCookie(
+        json(
+            {
+                ok: true,
+                session_token: sessionToken,
+                is_new_user: isNewInsert,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    picture: user.picture,
+                    plan: user.plan,
+                },
             },
-        },
-        request,
-        env,
+            request,
+            env,
+        ),
+        sessionCookieHeader(sessionToken),
     );
 }
 
@@ -530,21 +570,24 @@ export async function handleAuthMagicVerify(
     const sessionToken = await createSession(user.id, env);
     await auditLog(user.id, "signin_magic", "magic_link", request, env);
 
-    return json(
-        {
-            ok: true,
-            session_token: sessionToken,
-            is_new_user: isNewInsert,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name || "",
-                picture: user.picture || "",
-                plan: user.plan,
+    return withCookie(
+        json(
+            {
+                ok: true,
+                session_token: sessionToken,
+                is_new_user: isNewInsert,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name || "",
+                    picture: user.picture || "",
+                    plan: user.plan,
+                },
             },
-        },
-        request,
-        env,
+            request,
+            env,
+        ),
+        sessionCookieHeader(sessionToken),
     );
 }
 
@@ -583,7 +626,7 @@ export async function handleAuthSession(
     );
 }
 
-/** POST /api/auth/signout  (Authorization: Bearer <token>) */
+/** POST /api/auth/signout  (Authorization: Bearer <token> OR cookie) */
 export async function handleAuthSignout(
     request: Request,
     env: Env,
@@ -607,7 +650,8 @@ export async function handleAuthSignout(
         }
     }
 
-    return json({ ok: true }, request, env);
+    // Always clear the HttpOnly cookie regardless of whether a Bearer token was present.
+    return withCookie(json({ ok: true }, request, env), clearSessionCookieHeader());
 }
 /**
  * DELETE /api/auth/account  (Authorization: Bearer <token>)

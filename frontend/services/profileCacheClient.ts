@@ -23,26 +23,10 @@ const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 const LS_PREFIX = 'cv_builder:profile_cache_hash:';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Session token helper — read directly from localStorage to avoid circular
-// imports with authService.  This file has no React dependency.
+// Auth — Rule 6: raw session tokens are no longer stored in localStorage.
+// All worker calls use `credentials: 'include'` so the browser sends the
+// HttpOnly cookie automatically.  No Bearer header is constructed here.
 // ─────────────────────────────────────────────────────────────────────────────
-function getSessionToken(): string | null {
-    try {
-        const raw = localStorage.getItem('procv:worker_session')
-            || sessionStorage.getItem('procv:worker_session_temp');
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as { token?: string };
-        return parsed.token ?? null;
-    } catch {
-        return null;
-    }
-}
-
-/** Build auth headers if the user is authenticated; otherwise return empty. */
-function authHeaders(): Record<string, string> {
-    const token = getSessionToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compact profile — mirrors the client-side compactProfile() in geminiService.ts
@@ -190,7 +174,8 @@ export async function syncProfileToCache(slot: UserProfileSlot): Promise<string 
 
         const res = await fetch(`${ENGINE_URL}/api/cv/profile`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // HttpOnly cookie carries the session
             body: JSON.stringify({
                 hash,
                 slot_id:      slot.id,
@@ -228,7 +213,7 @@ export async function ensureProfileCached(slot: UserProfileSlot): Promise<string
         try {
             const check = await fetch(
                 `${ENGINE_URL}/api/cv/profile?hash=${encodeURIComponent(storedHash)}`,
-                { headers: authHeaders(), signal: AbortSignal.timeout(3000) }
+                { credentials: 'include', signal: AbortSignal.timeout(3000) }
             );
             if (check.ok) {
                 const data = await check.json() as { found?: boolean };

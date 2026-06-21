@@ -270,34 +270,35 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            // 2. Restore stored session and re-validate with worker
+            // 2. Restore stored session and re-validate with worker.
+            //    Rule 6: the raw token is no longer persisted to localStorage.
+            //    We check for a stored WorkerUser object instead and validate via
+            //    the HttpOnly cookie (credentials: 'include').  If the user also
+            //    has an in-memory legacy token (stored.token non-empty) it is
+            //    forwarded as a Bearer fallback during the migration period.
             const stored = getStoredSession();
-            if (stored?.token) {
+            if (stored?.user?.email) {
                 // Preserve the Google-session flag that was written at sign-in time.
-                // applySession() defaults viaGoogle=false which would erase the flag,
-                // causing the "Bug 5 fix" effect to never fire for Google sessions.
-                // By reading it here and forwarding it we keep the flag intact
-                // across page reloads without any second network call.
                 const wasViaGoogle = localStorage.getItem(SESSION_VIA_GOOGLE_KEY) === '1';
 
-                const result = await validateSession(stored.token);
+                // Pass the legacy token only when it is non-empty (migration fallback).
+                const result = await validateSession(stored.token || undefined);
                 if (result.user && !cancelled) {
-                    // Happy path: server returned fresh user data.
-                    applySession(stored.token, result.user, wasViaGoogle);
+                    // Happy path: server confirmed session via cookie (or Bearer fallback).
+                    applySession(stored.token || '', result.user, wasViaGoogle);
                     setIsLoading(false);
                     return;
                 }
                 if (result.invalid) {
-                    // Server definitively rejected the token (HTTP 401).
+                    // Server definitively rejected the session (HTTP 401).
                     // Clear and fall through to show the landing page.
                     clearStoredSession();
-                } else if (stored.user && !cancelled) {
+                } else if (!cancelled) {
                     // Network error / cold CF worker / mobile signal drop —
-                    // the token is not confirmed bad, just unreachable right now.
-                    // Apply the session OPTIMISTICALLY from localStorage so the
-                    // user is not kicked to the landing page on every PWA cold open.
-                    // The token will be re-validated on the next real API call.
-                    applySession(stored.token, stored.user, wasViaGoogle);
+                    // session is not confirmed bad, just unreachable right now.
+                    // Apply OPTIMISTICALLY from localStorage so the user is not
+                    // kicked to the landing page on every PWA cold open.
+                    applySession(stored.token || '', stored.user, wasViaGoogle);
                     setIsLoading(false);
                     return;
                 }
@@ -419,12 +420,14 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // ── requireAuth ───────────────────────────────────────────────────────────
 
     const requireAuth = useCallback((): Promise<boolean> => {
-        if (sessionToken && workerUser) return Promise.resolve(true);
+        // Cookie-based sessions: authenticated when workerUser exists,
+        // regardless of whether an in-memory token is present.
+        if (workerUser) return Promise.resolve(true);
         return new Promise<boolean>(resolve => {
             pendingResolvers.current.push(resolve);
             setAuthModalOpen(true);
         });
-    }, [sessionToken, workerUser]);
+    }, [workerUser]);
 
     const showSignIn = useCallback(() => setAuthModalOpen(true), []);
 
@@ -433,7 +436,9 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     // ── Sign out ──────────────────────────────────────────────────────────────
 
     const signOut = useCallback(async () => {
-        if (sessionToken) await signOutWorker(sessionToken);
+        // Always attempt sign-out; the HttpOnly cookie is the primary credential.
+        // Pass the in-memory token as a Bearer fallback during migration.
+        await signOutWorker(sessionToken || undefined);
         clearSession();
         linkedGoogleId.current = null;
     }, [sessionToken, clearSession]);
@@ -442,7 +447,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
 
     const value: WorkerAuthContextValue = {
         workerUser,
-        isWorkerAuthenticated: !!sessionToken && !!workerUser,
+        isWorkerAuthenticated: !!workerUser,
         sessionToken,
         isLoading,
         isNewUser,

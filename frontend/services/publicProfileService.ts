@@ -45,8 +45,9 @@ export async function publishPublicProfile(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${sessionToken}`,
+                ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}),
             },
+            credentials: 'include',
             body: JSON.stringify({ payload: compressed }),
         });
         return res.ok;
@@ -64,7 +65,8 @@ export async function unpublishPublicProfile(sessionToken: string): Promise<bool
         if (!ENGINE_BASE) return false;
         const res = await fetchWithTimeout(`${ENGINE_BASE}/api/cv/public-profile`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${sessionToken}` },
+            headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+            credentials: 'include',
         });
         return res.ok;
     } catch {

@@ -156,12 +156,24 @@ export async function handleEventPost(request: Request, env: Env, ctx: Execution
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
 /**
- * Extracts user_id from the Bearer session token in the Authorization header.
+ * Extracts user_id from the request session.
+ * Reads the HttpOnly cookie first (XSS-safe); falls back to Authorization: Bearer
+ * for clients that haven't received the cookie yet (migration grace period).
  * Returns null if the token is missing, invalid, or expired.
  */
 async function getUserIdFromRequest(request: Request, env: Env): Promise<number | null> {
-    const authHeader = request.headers.get('Authorization') ?? '';
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    // 1. Try HttpOnly cookie (preferred — JS-invisible).
+    let token = '';
+    const cookieHeader = request.headers.get('Cookie') || '';
+    const cookieMatch = cookieHeader.match(/(?:^|;\s*)procv_session=([^;]+)/);
+    if (cookieMatch) token = cookieMatch[1].trim();
+
+    // 2. Fall back to Bearer header during the migration period.
+    if (!token) {
+        const authHeader = request.headers.get('Authorization') ?? '';
+        token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    }
+
     if (!token) return null;
     const hash = await hashToken(token); // sessions stored as SHA-256 hashes (Bug 8 fix)
     const now = Math.floor(Date.now() / 1000);

@@ -25,11 +25,13 @@ export function isAllowedOrigin(origin: string, env: Env): boolean {
 export function corsHeaders(request: Request, env: Env): HeadersInit {
     const origin = request.headers.get('Origin') || '';
     const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-    const allow = isAllowedOrigin(origin, env) ? origin : (allowed[0] || '*');
+    // With credentials:include the browser requires a specific origin, never '*'.
+    const allow = isAllowedOrigin(origin, env) ? origin : (allowed[0] || '');
     return {
         'Access-Control-Allow-Origin': allow,
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, PATCH, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token, Authorization, X-Device-ID',
+        'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Max-Age': '86400',
         'Vary': 'Origin',
     };
