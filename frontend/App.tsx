@@ -249,7 +249,7 @@ function navTimeAgo(iso?: string): string {
 const AppInner: React.FC = () => {
   const { user, isAuthenticated } = useGoogleAuth();
   const { workerUser, isWorkerAuthenticated, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
-  const { deleteAccount: _deleteAccount } = useAuth();
+  const { deleteAccount: _deleteAccount, driveConnected, requestDriveAccess } = useAuth();
   useAutoSync(isAuthenticated);
 
   // ── Auth modal mode (signup vs sign-in copy) ────────────────────────────
@@ -673,6 +673,43 @@ const AppInner: React.FC = () => {
 
   // Onboarding wizard — shown once to new users after they pass the landing page
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // ── Drive storage-full prompt ─────────────────────────────────────────────
+  // Appears automatically when the browser's storage is >70% full and the user
+  // has not yet connected Google Drive. Dismissed permanently per session.
+  const [showDrivePrompt, setShowDrivePrompt] = useState(false);
+  const [drivePromptDismissed, setDrivePromptDismissed] = useState(false);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+
+  useEffect(() => {
+    if (driveConnected || drivePromptDismissed) return;
+    if (!isWorkerAuthenticated) return;
+    const check = async () => {
+      try {
+        const est = await navigator.storage.estimate();
+        const used = est.usage ?? 0;
+        const quota = est.quota ?? 0;
+        if (quota > 0 && used / quota > 0.70) {
+          setShowDrivePrompt(true);
+        }
+      } catch { /* non-fatal */ }
+    };
+    // Run once 10 seconds after the user is authenticated
+    const t = setTimeout(check, 10_000);
+    return () => clearTimeout(t);
+  }, [driveConnected, drivePromptDismissed, isWorkerAuthenticated]);
+
+  const handleConnectDrive = async () => {
+    setDriveConnecting(true);
+    try {
+      await requestDriveAccess();
+      setShowDrivePrompt(false);
+    } catch {
+      // User closed popup or denied — dismiss prompt without connecting
+    } finally {
+      setDriveConnecting(false);
+    }
+  };
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
@@ -1924,10 +1961,9 @@ const AppInner: React.FC = () => {
             const ok = await requireAuth();
             if (ok) {
               setShowLanding(false);
-              // Show onboarding wizard for brand-new users
-              if (!hasCompletedOnboarding()) {
-                setShowOnboarding(true);
-              }
+              // Onboarding is handled by the isNewUser effect (CF flag only).
+              // Do NOT trigger it here — returning users on new devices would
+              // incorrectly get onboarding because their localStorage is empty.
             }
           }}
           onSignIn={async () => {
@@ -1962,6 +1998,48 @@ const AppInner: React.FC = () => {
     <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       {showOnboarding && (
         <OnboardingWizard onComplete={handleOnboardingComplete} />
+      )}
+
+      {/* ── Drive storage-full prompt ─────────────────────────────────────── */}
+      {showDrivePrompt && !driveConnected && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm mx-auto px-4">
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-[#C9A84C]/40 p-4 flex items-start gap-3 animate-in slide-in-from-bottom-2 duration-300">
+            <div className="w-9 h-9 rounded-xl bg-[#1B2B4B]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B2B4B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-snug">Your device storage is getting full</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                Back up your CVs and profiles to Google Drive so nothing is lost.
+              </p>
+              <div className="flex items-center gap-2 mt-2.5">
+                <button
+                  onClick={handleConnectDrive}
+                  disabled={driveConnecting}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#1B2B4B] text-white hover:bg-[#1B2B4B]/90 disabled:opacity-60 transition-colors"
+                >
+                  {driveConnecting ? 'Connecting…' : 'Connect Drive'}
+                </button>
+                <button
+                  onClick={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                >
+                  Not now
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
+              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors flex-shrink-0 mt-0.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
       {sharedCVPayload && (
         <SharedCVView
@@ -2833,7 +2911,6 @@ const AppInner: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         onSave={handleApiSettingsSave}
         currentApiSettings={apiSettings}
-        onSignOut={() => { setIsSettingsOpen(false); setShowLanding(true); }}
         onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
       />
       <InactivityWarningModal

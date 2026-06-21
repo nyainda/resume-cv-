@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
-import { ApiSettings, UserProfileSlot } from '../types';
-import { GoogleSignInButton } from './GoogleSignInButton';
-import { DriveDataPanel } from './DriveDataPanel';
+import { ApiSettings } from '../types';
 import { Shield } from './icons';
-import { useGoogleAuth, useWorkerAuth } from '../auth/AuthContext';
+import { useWorkerAuth } from '../auth/AuthContext';
 import { clearAllBrowserStorage } from '../utils/clearUserStorage';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import {
@@ -21,11 +19,10 @@ interface SettingsModalProps {
   onClose: () => void;
   onSave: (settings: ApiSettings) => void;
   currentApiSettings: ApiSettings;
-  onSignOut?: () => void;
   onOpenOnboarding?: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onSignOut, onOpenOnboarding }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, currentApiSettings, onOpenOnboarding }) => {
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
@@ -46,15 +43,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setSelectedAiProvider(id);
   }, [canUseWorkersAI, openWorkersAiUpgrade]);
 
-  const { user: googleUser, isAuthenticated } = useGoogleAuth();
-  const { workerUser, isWorkerAuthenticated, signOut: workerSignOut } = useWorkerAuth();
-
-  const handleSignOut = async () => {
-    await clearQueueForAccount().catch(() => {});
-    await workerSignOut();
-    onClose();
-    onSignOut?.();
-  };
+  const { workerUser, isWorkerAuthenticated } = useWorkerAuth();
 
   // Emergency browser data reset — for PWA users who can't access DevTools
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -177,21 +166,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
         >
 
           {/* ── Signed-in profile card ── */}
-          {(() => {
-            const profile = isWorkerAuthenticated && workerUser
-              ? { name: workerUser.name, email: workerUser.email, picture: workerUser.picture, via: 'ProCV Account' }
-              : isAuthenticated && googleUser
-              ? { name: googleUser.name, email: googleUser.email, picture: googleUser.picture, via: 'Google' }
-              : null;
-            if (!profile) return null;
-            const initials = (profile.name || profile.email || '?').charAt(0).toUpperCase();
+          {isWorkerAuthenticated && workerUser && (() => {
+            const initials = (workerUser.name || workerUser.email || '?').charAt(0).toUpperCase();
             return (
               <div className="rounded-2xl border border-[#C9A84C]/30 bg-gradient-to-br from-[#1B2B4B]/5 to-[#C9A84C]/5 dark:from-[#1B2B4B]/30 dark:to-[#C9A84C]/10 p-4 flex items-center gap-4">
-                {/* Avatar */}
-                {profile.picture ? (
+                {workerUser.picture ? (
                   <img
-                    src={profile.picture}
-                    alt={profile.name || ''}
+                    src={workerUser.picture}
+                    alt={workerUser.name || ''}
                     referrerPolicy="no-referrer"
                     className="w-14 h-14 rounded-full ring-2 ring-[#C9A84C]/60 shadow-md flex-shrink-0"
                   />
@@ -200,17 +182,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                     {initials}
                   </div>
                 )}
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-extrabold text-zinc-900 dark:text-zinc-50 truncate leading-snug">
-                    {profile.name || 'Signed in'}
+                    {workerUser.name || 'Signed in'}
                   </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{profile.email}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{workerUser.email}</p>
                   <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#C9A84C]/15 text-[#8B6B2E] dark:text-[#C9A84C]">
-                    ✓ {profile.via}
+                    ✓ ProCV Account
                   </span>
                 </div>
-                {/* Re-run setup */}
                 {onOpenOnboarding && (
                   <button
                     onClick={onOpenOnboarding}
@@ -223,40 +203,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                     Setup
                   </button>
                 )}
-                {/* Sign out */}
-                {isWorkerAuthenticated && (
-                  <button
-                    onClick={handleSignOut}
-                    className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-zinc-500 dark:text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:hover:text-red-400 border border-zinc-200 dark:border-neutral-700 hover:border-red-300 dark:hover:border-red-700 transition-all"
-                    title="Sign out"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                    Sign out
-                  </button>
-                )}
               </div>
             );
           })()}
-
-
-          {/* ── Google Drive Backup ── */}
-          <div className="rounded-2xl border-2 border-[#1B2B4B]/20 bg-[#F8F7F4]/30 dark:bg-[#1B2B4B]/5 p-4 shadow-sm space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#1B2B4B] rounded-lg flex-shrink-0">
-                <Shield className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 leading-none">Cloud Synchronization</h3>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 font-bold uppercase tracking-widest">Powered by Google Drive</p>
-              </div>
-            </div>
-            <GoogleSignInButton onSignedIn={() => { }} onSignedOut={() => { }} />
-          </div>
-
-          {/* ── Google Drive Data Panel ── */}
-          <DriveDataPanel onDataRestored={() => window.location.reload()} />
 
           {/* ── Emergency browser data reset ── */}
           <div className="rounded-xl border border-red-200 dark:border-red-900/40 p-4 space-y-2 bg-red-50/30 dark:bg-red-900/5">
