@@ -205,6 +205,12 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         setStoredSession(token, user, rememberDeviceRef.current);
         setSessionToken(token);
         setWorkerUser(user);
+        // Bug 1b fix: stamp ACCOUNT_HASH_KEY on every successful sign-in so
+        // stampSignedOut() always has a real hash to preserve into LAST_REAL_HASH_KEY.
+        // Without this, _needsAccountWipe fires spuriously for returning users and
+        // new-account creation because the guard sees a sign-out sentinel but no real
+        // hash to compare against.
+        try { localStorage.setItem(ACCOUNT_HASH_KEY, _hashEmail(user.email)); } catch { /* non-fatal */ }
         if (viaGoogle) {
             try { localStorage.setItem(SESSION_VIA_GOOGLE_KEY, '1'); } catch { /* non-fatal */ }
             setSessionViaGoogle(true);
@@ -431,7 +437,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 if (result.is_new_user && !_postWipeReload.current) setIsNewUser(true);
                 _postWipeReload.current = false; // consume the flag either way
                 setGoogleRateLimited(null);
-            } else if (result && !result.ok && result.error === 'rate_limited') {
+            } else if (result && result.ok === false && result.error === 'rate_limited') {
                 // IP rate-limited (20 sign-in attempts/IP/hour) — surface to UI.
                 linkedGoogleId.current = null;
                 setGoogleRateLimited({ retryAfter: result.retry_after });
