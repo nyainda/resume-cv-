@@ -37,6 +37,7 @@ import { clearQueueForAccount } from '../services/storage/syncQueue';
 import { getDeviceId } from '../services/userDataCloudService';
 import {
     clearUserScopedStorage,
+    rotateDeviceId,
     ACCOUNT_HASH_KEY,
     LAST_REAL_HASH_KEY,
     SIGNED_OUT_SENTINEL,
@@ -90,10 +91,19 @@ function _needsAccountWipe(email: string): boolean {
  * top of the next init() call. If the cookie is gone (edge case), the user
  * falls through to a normal sign-in prompt — no silent data exposure.
  */
-function _wipeAndHandoff(user: WorkerUser): void {
+function _wipeAndHandoff(user: WorkerUser, isNewUser = false): void {
     try {
-        sessionStorage.setItem(_PENDING_USER_KEY, JSON.stringify({ user }));
+        // Persist the new user + new-account flag so the boot path can restore
+        // the session (via cookie) and show onboarding if needed.
+        // NO raw token is stored here — see Bug 3 comment above.
+        sessionStorage.setItem(_PENDING_USER_KEY, JSON.stringify({ user, isNewUser }));
     } catch { /* storage full — non-fatal, user will just re-authenticate normally */ }
+    // Rotate the device_id so the incoming user gets a fresh identifier.
+    // This prevents the server from associating the new user with legacy
+    // device_id-keyed rows that belong to the previous account.
+    // IMPORTANT: call this BEFORE clearUserScopedStorage — the new id is
+    // preserved through the wipe because cv_builder:deviceId is device-level.
+    rotateDeviceId();
     clearUserScopedStorage({ clearAppData: true });
     localStorage.setItem(ACCOUNT_HASH_KEY, _hashEmail(user.email));
     window.location.reload();
@@ -164,6 +174,11 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
     const [rememberDevice, setRememberDevice] = useState(true);
     const [googleRateLimited, setGoogleRateLimited] = useState<{ retryAfter?: number } | null>(null);
 
+    // True for the lifetime of the first render-cycle after a wipe+reload.
+    // Prevents a duplicate Google auto-link from overwriting the isNewUser value
+    // that was already correctly set from the _PENDING_USER_KEY payload.
+    const _postWipeReload = useRef(false);
+
     // Queue of resolvers waiting for auth to complete.
     // Resolves with true on success, false if dismissed without signing in.
     const pendingResolvers = useRef<Array<(success: boolean) => void>>([]);
@@ -229,13 +244,19 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             if (pendingRaw) {
                 sessionStorage.removeItem(_PENDING_USER_KEY);
                 try {
-                    const pending = JSON.parse(pendingRaw) as { user: WorkerUser };
+                    const pending = JSON.parse(pendingRaw) as { user: WorkerUser; isNewUser?: boolean };
                     if (pending?.user?.email && !cancelled) {
                         const sessionResult = await validateSession();
                         if (sessionResult.user && !cancelled) {
                             await clearQueueForAccount();
                             // No token in the response — session is cookie-based.
                             applySession('', sessionResult.user);
+                            // Restore the new-account flag so the app can show
+                            // onboarding if this was a genuine first-time sign-in.
+                            if (pending.isNewUser) setIsNewUser(true);
+                            // Mark that this is a post-wipe reload so the Google
+                            // auto-link that fires next does not overwrite isNewUser.
+                            _postWipeReload.current = true;
                             setIsLoading(false);
                             return;
                         }
@@ -263,7 +284,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                     // other's data. The new session is handed off via sessionStorage
                     // and restored at the top of the next init() call.
                     if (_needsAccountWipe(result.user.email)) {
-                        _wipeAndHandoff(result.user);
+                        _wipeAndHandoff(result.user, result.is_new_user);
                         return; // page is reloading — don't do anything else
                     }
                     // Fresh sign-in via magic link — wipe any stale queue items
@@ -394,7 +415,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                     // pendingResolvers are resolved here so any requireAuth() caller
                     // doesn't hang forever waiting for a promise that won't fire
                     // after the reload.
-                    _wipeAndHandoff(result.user);
+                    _wipeAndHandoff(result.user, result.is_new_user);
                     const queue = pendingResolvers.current.splice(0);
                     queue.forEach(r => r(true));
                     setAuthModalOpen(false);
@@ -404,7 +425,11 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 // apply the session immediately.
                 await clearQueueForAccount();
                 applySession(result.token, result.user, true); // viaGoogle = true
-                if (result.is_new_user) setIsNewUser(true);
+                // Only set isNewUser here if this is NOT a post-wipe-reload
+                // re-link — in that case the correct value was already applied
+                // from the _PENDING_USER_KEY payload in the boot path.
+                if (result.is_new_user && !_postWipeReload.current) setIsNewUser(true);
+                _postWipeReload.current = false; // consume the flag either way
                 setGoogleRateLimited(null);
             } else if (result && !result.ok && result.error === 'rate_limited') {
                 // IP rate-limited (20 sign-in attempts/IP/hour) — surface to UI.
@@ -432,7 +457,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         // the new session so accounts never see each other's data.
         // The new session is saved to sessionStorage and restored after the reload.
         if (_needsAccountWipe(user.email)) {
-            _wipeAndHandoff(user);
+            _wipeAndHandoff(user, isNew);
             return; // page is reloading
         }
         // Fresh sign-in from the auth modal — clear any stale queue items

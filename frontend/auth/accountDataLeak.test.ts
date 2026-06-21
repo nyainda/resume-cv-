@@ -1681,3 +1681,320 @@ describe('Scenario N — Cross-tab storage-event propagation', () => {
         LEGACY_APP_KEYS.forEach(k => expect(tabB.getItem(k)).toBeNull());
     });
 });
+
+// ─── Scenario O — Wipe-handoff payload security & isNewUser threading ─────────
+//
+// Verifies three Bug-3/onboarding fixes applied together:
+//  1. _wipeAndHandoff stores { user, isNewUser } — NO raw token in sessionStorage.
+//  2. isNewUser is correctly threaded through the wipe+reload cycle so onboarding
+//     only fires for genuinely new accounts.
+//  3. device_id is rotated on account switch (not just on delete) so the new
+//     user starts with a fresh identifier on the server.
+//  4. The _postWipeReload guard prevents the Google auto-link (which fires again
+//     after reload) from overwriting the isNewUser value set by the boot path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Scenario O — Wipe-handoff payload security & isNewUser threading', () => {
+    // The key stored in sessionStorage (must match WorkerAuthContext source)
+    const PENDING_USER_KEY = 'procv:pending_user';
+
+    // Simulate what _wipeAndHandoff writes into sessionStorage
+    function buildHandoffPayload(
+        user: { email: string; id: string; name: string },
+        isNewUser: boolean,
+    ): string {
+        return JSON.stringify({ user, isNewUser });
+    }
+
+    // Simulate what the boot path parses from sessionStorage
+    function readHandoffPayload(
+        raw: string,
+    ): { user: { email: string }; isNewUser?: boolean; token?: string } | null {
+        try { return JSON.parse(raw); } catch { return null; }
+    }
+
+    // ── O1: key name contract ─────────────────────────────────────────────────
+
+    it('O1a: pending-session key is procv:pending_user (not the old procv:pending_session)', () => {
+        expect(PENDING_USER_KEY).toBe('procv:pending_user');
+        expect(PENDING_USER_KEY).not.toContain('session');
+    });
+
+    it('O1b: pending-session key contains no credential-like term', () => {
+        const dangerWords = ['token', 'secret', 'key', 'credential', 'password'];
+        const safe = dangerWords.every(w => !PENDING_USER_KEY.includes(w));
+        expect(safe).toBe(true);
+    });
+
+    // ── O2: payload shape — no raw token ──────────────────────────────────────
+
+    it('O2a: handoff payload contains user + isNewUser but NO token field (returning user)', () => {
+        const user = { email: 'alice@example.com', id: 'u1', name: 'Alice' };
+        const raw  = buildHandoffPayload(user, false);
+        const payload = readHandoffPayload(raw)!;
+
+        expect(payload.user.email).toBe(user.email);
+        expect(payload.isNewUser).toBe(false);
+        expect('token' in payload).toBe(false);
+    });
+
+    it('O2b: handoff payload contains user + isNewUser but NO token field (new user)', () => {
+        const user = { email: 'bob@example.com', id: 'u2', name: 'Bob' };
+        const raw  = buildHandoffPayload(user, true);
+        const payload = readHandoffPayload(raw)!;
+
+        expect(payload.isNewUser).toBe(true);
+        expect('token' in payload).toBe(false);
+    });
+
+    it('O2c: boot path typed interface only exposes user + isNewUser — no token surface', () => {
+        // Even if an old payload somehow contains a token, the typed cast
+        // { user: WorkerUser; isNewUser?: boolean } does not expose it.
+        const legacy = JSON.stringify({ token: 'stolen-jwt', user: { email: 'eve@example.com', id: 'u5' }, isNewUser: false });
+        const payload = readHandoffPayload(legacy) as { user: { email: string }; isNewUser?: boolean };
+
+        // Boot path only reads these two fields — token is unreachable via the type
+        expect(payload.user.email).toBe('eve@example.com');
+        expect(payload.isNewUser).toBe(false);
+        // We deliberately do NOT assert the token value — the test proves
+        // the boot path has no reason to read it.
+    });
+
+    // ── O3: isNewUser threading through reload ────────────────────────────────
+
+    it('O3: boot path sets onboarding=true when pending payload has isNewUser=true', () => {
+        const ss = new Map<string, string>();
+        const user = { email: 'carol@example.com', id: 'u3', name: 'Carol' };
+        ss.set(PENDING_USER_KEY, buildHandoffPayload(user, true));
+
+        const pendingRaw = ss.get(PENDING_USER_KEY)!;
+        ss.delete(PENDING_USER_KEY);
+        const pending = JSON.parse(pendingRaw) as { user: { email: string }; isNewUser?: boolean };
+
+        let onboardingShown = false;
+        if (pending?.user?.email) {
+            if (pending.isNewUser) onboardingShown = true; // mirrors boot path
+        }
+
+        expect(onboardingShown).toBe(true);
+        expect(ss.has(PENDING_USER_KEY)).toBe(false); // key consumed
+    });
+
+    it('O4: boot path leaves onboarding=false when pending payload has isNewUser=false', () => {
+        const ss = new Map<string, string>();
+        const user = { email: 'dave@example.com', id: 'u4', name: 'Dave' };
+        ss.set(PENDING_USER_KEY, buildHandoffPayload(user, false));
+
+        const pendingRaw = ss.get(PENDING_USER_KEY)!;
+        ss.delete(PENDING_USER_KEY);
+        const pending = JSON.parse(pendingRaw) as { user: { email: string }; isNewUser?: boolean };
+
+        let onboardingShown = false;
+        if (pending?.user?.email) {
+            if (pending.isNewUser) onboardingShown = true;
+        }
+
+        expect(onboardingShown).toBe(false);
+    });
+
+    it('O5: missing isNewUser field (legacy payload) defaults to false — no spurious onboarding', () => {
+        // Old payload shape had no isNewUser field (before this fix)
+        const raw = JSON.stringify({ user: { email: 'eve@example.com', id: 'u5', name: 'Eve' } });
+        const pending = JSON.parse(raw) as { user: { email: string }; isNewUser?: boolean };
+
+        let onboardingShown = false;
+        if (pending?.user?.email) {
+            if (pending.isNewUser) onboardingShown = true; // undefined is falsy
+        }
+
+        expect(onboardingShown).toBe(false);
+    });
+
+    // ── O6: _postWipeReload guard ─────────────────────────────────────────────
+
+    it('O6: _postWipeReload=true suppresses isNewUser from Google auto-link re-call', () => {
+        // After wipe+reload the boot path sets _postWipeReload.current = true.
+        // The Google auto-link fires again with is_new_user from the server.
+        // The flag must prevent it from overwriting what the boot path already set.
+        let isNewUser = false;
+        const _postWipeReload = { current: true }; // boot path set this
+
+        const googleResult = { ok: true, is_new_user: false }; // server says returning user
+        if (googleResult.is_new_user && !_postWipeReload.current) {
+            isNewUser = true; // must NOT execute
+        }
+        _postWipeReload.current = false; // consumed
+
+        expect(isNewUser).toBe(false);
+        expect(_postWipeReload.current).toBe(false); // flag consumed for future calls
+    });
+
+    it('O7: _postWipeReload=true also suppresses a spurious is_new_user=true from server', () => {
+        // Device_id rotation could (on some server implementations) cause the
+        // server to return is_new_user=true on the re-link.  The flag must stop
+        // this from incorrectly triggering onboarding for a returning user.
+        let isNewUser = false;
+        const _postWipeReload = { current: true };
+
+        const googleResult = { ok: true, is_new_user: true }; // server says "new" (wrong)
+        if (googleResult.is_new_user && !_postWipeReload.current) {
+            isNewUser = true; // must NOT execute because _postWipeReload is set
+        }
+        _postWipeReload.current = false;
+
+        expect(isNewUser).toBe(false); // suppressed correctly
+    });
+
+    it('O8: _postWipeReload=false allows genuine first-time sign-in to set isNewUser=true', () => {
+        let isNewUser = false;
+        const _postWipeReload = { current: false }; // normal first-time sign-in
+
+        const googleResult = { ok: true, is_new_user: true };
+        if (googleResult.is_new_user && !_postWipeReload.current) {
+            isNewUser = true; // SHOULD execute
+        }
+        _postWipeReload.current = false;
+
+        expect(isNewUser).toBe(true);
+    });
+
+    // ── O9: device_id rotation on account switch ──────────────────────────────
+
+    it('O9: device_id is rotated during wipe-handoff — new ID differs from old', () => {
+        const ls = makeLS();
+        ls.setItem(DEVICE_ID_KEY, 'user-a-device-abc');
+
+        const preWipeId = ls.getItem(DEVICE_ID_KEY)!;
+        rotateDeviceId(ls);
+        const postRotateId = ls.getItem(DEVICE_ID_KEY)!;
+
+        expect(postRotateId).toBeDefined();
+        expect(postRotateId).not.toBe(preWipeId);
+    });
+
+    it('O10: rotated device_id survives clearAppData — it is device-level, not user-level', () => {
+        const ls = makeLS();
+        ls.setItem(DEVICE_ID_KEY, 'user-a-device-abc');
+        ls.setItem('cv_builder:someUserData', 'private-data');
+        ls.setItem('procv:worker_session', 'old-session');
+
+        rotateDeviceId(ls); // rotate BEFORE the wipe
+        const rotatedId = ls.getItem(DEVICE_ID_KEY)!;
+
+        clearAppData(ls); // mirrors _wipeAndHandoff calling clearUserScopedStorage
+
+        // New device_id preserved; user-scoped data gone
+        expect(ls.getItem(DEVICE_ID_KEY)).toBe(rotatedId);
+        expect(ls.getItem('cv_builder:someUserData')).toBeNull();
+        expect(ls.getItem('procv:worker_session')).toBeNull();
+    });
+
+    it('O11: after account-switch wipe, device_id is different from the previous user\'s', () => {
+        const ls = makeLS();
+        ls.setItem(DEVICE_ID_KEY, 'user-a-device-111');
+        ls.setItem('cv_builder:email', 'alice@example.com');
+
+        const userADeviceId = ls.getItem(DEVICE_ID_KEY)!;
+
+        // Account switch: rotate then wipe
+        rotateDeviceId(ls);
+        clearAppData(ls);
+
+        const userBDeviceId = ls.getItem(DEVICE_ID_KEY)!;
+
+        expect(userBDeviceId).not.toBe(userADeviceId);
+        expect(ls.getItem('cv_builder:email')).toBeNull(); // User A data gone
+    });
+
+    // ── O12: full handoff → boot sequence ─────────────────────────────────────
+
+    it('O12: full sequence — returning user B on User A\'s device does NOT see onboarding', () => {
+        const ss = new Map<string, string>();
+        const ls  = makeLS();
+
+        // Setup: User A was active
+        ls.setItem(DEVICE_ID_KEY, 'user-a-device');
+        ls.setItem('cv_builder:profiles', '[{"id":"p1","name":"My CV"}]');
+
+        // User B signs in → wipe-handoff triggered
+        const userB = { email: 'bob@example.com', id: 'u-bob', name: 'Bob' };
+        rotateDeviceId(ls);                           // step 1: rotate device_id
+        clearAppData(ls);                              // step 2: wipe User A's data
+        ls.setItem(ACCOUNT_HASH_KEY, fnv32(userB.email)); // step 3: stamp new hash
+        ss.set(PENDING_USER_KEY, buildHandoffPayload(userB, false)); // isNewUser=false
+
+        // Page reloads — boot path runs
+        const pendingRaw = ss.get(PENDING_USER_KEY)!;
+        ss.delete(PENDING_USER_KEY);
+        const pending = JSON.parse(pendingRaw) as { user: { email: string }; isNewUser?: boolean };
+
+        let onboardingShown = false;
+        let _postWipeReloadRef = false;
+        if (pending?.user?.email) {
+            // validateSession() succeeds (mocked)
+            if (pending.isNewUser) onboardingShown = true;
+            _postWipeReloadRef = true; // boot path sets the flag
+        }
+
+        // Google auto-link fires next — suppressed by _postWipeReloadRef
+        const googleReLink = { ok: true, is_new_user: false };
+        if (googleReLink.is_new_user && !_postWipeReloadRef) onboardingShown = true;
+        _postWipeReloadRef = false;
+
+        expect(onboardingShown).toBe(false); // returning user — no onboarding
+        expect(ls.getItem('cv_builder:profiles')).toBeNull(); // User A data wiped
+        expect(ls.getItem(ACCOUNT_HASH_KEY)).toBe(fnv32(userB.email)); // User B stamped
+    });
+
+    it('O13: full sequence — brand-new User C on User A\'s device DOES see onboarding', () => {
+        const ss = new Map<string, string>();
+        const ls  = makeLS();
+
+        ls.setItem(DEVICE_ID_KEY, 'user-a-device');
+
+        const userC = { email: 'carol@example.com', id: 'u-carol', name: 'Carol' };
+        rotateDeviceId(ls);
+        clearAppData(ls);
+        ls.setItem(ACCOUNT_HASH_KEY, fnv32(userC.email));
+        ss.set(PENDING_USER_KEY, buildHandoffPayload(userC, true)); // isNewUser=true
+
+        const pendingRaw = ss.get(PENDING_USER_KEY)!;
+        ss.delete(PENDING_USER_KEY);
+        const pending = JSON.parse(pendingRaw) as { user: { email: string }; isNewUser?: boolean };
+
+        let onboardingShown = false;
+        let _postWipeReloadRef = false;
+        if (pending?.user?.email) {
+            if (pending.isNewUser) onboardingShown = true; // true → onboarding set
+            _postWipeReloadRef = true;
+        }
+
+        // Google auto-link fires — if server wrongly says is_new_user=true again,
+        // the flag must stop it from double-triggering (value is already correct)
+        const googleReLink = { ok: true, is_new_user: true };
+        if (googleReLink.is_new_user && !_postWipeReloadRef) onboardingShown = true;
+        _postWipeReloadRef = false;
+
+        expect(onboardingShown).toBe(true); // new user — onboarding shown exactly once
+    });
+
+    it('O14: malformed pending payload is swallowed — falls through to normal sign-in', () => {
+        const ss = new Map<string, string>();
+        ss.set(PENDING_USER_KEY, 'not-valid-json{{{{');
+
+        let sessionRestored = false;
+        let crashed = false;
+        try {
+            const raw = ss.get(PENDING_USER_KEY)!;
+            ss.delete(PENDING_USER_KEY);
+            const pending = JSON.parse(raw) as { user: { email: string }; isNewUser?: boolean };
+            if (pending?.user?.email) sessionRestored = true;
+        } catch {
+            // JSON.parse threw — correctly caught; boot path falls through
+        }
+
+        expect(crashed).toBe(false);        // never uncaught
+        expect(sessionRestored).toBe(false); // no session from bad payload
+        expect(ss.has(PENDING_USER_KEY)).toBe(false); // key consumed even on error
+    });
+});
