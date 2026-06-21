@@ -85,7 +85,9 @@ const OAUTH_CALLBACK_KEY = 'procv:oauth_callback';
 function openOAuthPopup(scopes: string, prompt = 'select_account'): Promise<{ accessToken: string; expiresIn: number }> {
     return new Promise((resolve, reject) => {
         const clientId = (import.meta as { env: Record<string, string> }).env.VITE_GOOGLE_CLIENT_ID;
+        console.log('[GoogleAuth] openOAuthPopup — clientId present:', !!clientId, '| prompt:', prompt);
         if (!clientId) {
+            console.error('[GoogleAuth] VITE_GOOGLE_CLIENT_ID is not set — cannot open OAuth popup');
             reject(new Error('VITE_GOOGLE_CLIENT_ID is not set in .env'));
             return;
         }
@@ -102,11 +104,15 @@ function openOAuthPopup(scopes: string, prompt = 'select_account'): Promise<{ ac
             `&scope=${encodeURIComponent(scopes)}` +
             `&prompt=${prompt}`;
 
+        console.log('[GoogleAuth] Opening popup — redirectUri:', redirectUri);
+
         const popup = window.open(url, 'google_auth', 'width=520,height=640,left=200,top=100');
         if (!popup) {
+            console.error('[GoogleAuth] Popup was blocked by the browser');
             reject(new Error('Popup was blocked. Please allow popups for this site and try again.'));
             return;
         }
+        console.log('[GoogleAuth] Popup opened — waiting for token via postMessage or localStorage…');
 
         let settled = false;
 
@@ -118,6 +124,7 @@ function openOAuthPopup(scopes: string, prompt = 'select_account'): Promise<{ ac
             window.removeEventListener('message', messageHandler);
             window.removeEventListener('storage', storageHandler);
             try { localStorage.removeItem(OAUTH_CALLBACK_KEY); } catch { /* ignore */ }
+            console.log('[GoogleAuth] Token received ✓ — expiresIn:', expiresIn, 's');
             resolve({ accessToken, expiresIn });
         }
 
@@ -128,15 +135,17 @@ function openOAuthPopup(scopes: string, prompt = 'select_account'): Promise<{ ac
             clearInterval(closedPoller);
             window.removeEventListener('message', messageHandler);
             window.removeEventListener('storage', storageHandler);
+            console.warn('[GoogleAuth] Popup failed:', msg);
             reject(new Error(msg));
         }
 
         // Detect popup closed early (user clicks ✕ or navigates away in the popup).
-        // Without this the promise hangs for 5 minutes, locking the UI in loading state
-        // and leaving dangling event listeners that can consume subsequent sign-in tokens.
         const closedPoller = setInterval(() => {
             try {
-                if (popup.closed) fail('Sign-in cancelled. Please try again.');
+                if (popup.closed) {
+                    console.warn('[GoogleAuth] Popup was closed by the user before completing sign-in');
+                    fail('Sign-in cancelled. Please try again.');
+                }
             } catch {
                 // cross-origin access throws in some browsers — safe to ignore
             }
@@ -146,35 +155,44 @@ function openOAuthPopup(scopes: string, prompt = 'select_account'): Promise<{ ac
 
         // Primary path: postMessage from the popup (desktop + Android PWA)
         function messageHandler(event: MessageEvent) {
-            if (event.origin !== window.location.origin) return;
+            console.log('[GoogleAuth] postMessage received — origin:', event.origin, '| type:', event.data?.type);
+            if (event.origin !== window.location.origin) {
+                console.log('[GoogleAuth] postMessage ignored — wrong origin (expected:', window.location.origin, ')');
+                return;
+            }
             if (event.data?.type !== 'gdrive_token') return;
             const { access_token, expires_in, error } = event.data;
             if (error || !access_token) {
+                console.error('[GoogleAuth] postMessage token error:', error ?? 'no access_token');
                 fail(error ?? 'No access token received');
             } else {
+                console.log('[GoogleAuth] postMessage path — token received ✓');
                 settle(access_token, Number(expires_in ?? 3600));
             }
         }
 
         // Fallback path: localStorage storage event (iOS PWA standalone mode)
-        // On iOS the popup opens as a new Safari tab where window.opener is null,
-        // so postMessage never fires. The callback page writes to localStorage
-        // instead, which triggers a 'storage' event in this tab.
         function storageHandler(event: StorageEvent) {
             if (event.key !== OAUTH_CALLBACK_KEY || !event.newValue) return;
+            console.log('[GoogleAuth] localStorage fallback path triggered');
             try {
                 const data = JSON.parse(event.newValue) as {
                     type: string; access_token: string; expires_in: string; ts: number;
                 };
                 if (data.type !== 'gdrive_token') return;
-                // Ignore stale entries (older than 60 s)
-                if (Date.now() - (data.ts ?? 0) > 60_000) return;
+                if (Date.now() - (data.ts ?? 0) > 60_000) {
+                    console.warn('[GoogleAuth] localStorage callback stale — ignoring');
+                    return;
+                }
                 if (!data.access_token) {
+                    console.error('[GoogleAuth] localStorage callback — no access_token');
                     fail('No access token received');
                 } else {
+                    console.log('[GoogleAuth] localStorage path — token received ✓');
                     settle(data.access_token, Number(data.expires_in ?? 3600));
                 }
             } catch {
+                console.error('[GoogleAuth] localStorage callback could not be parsed');
                 fail('Sign-in callback could not be parsed. Please try again.');
             }
         }
@@ -328,12 +346,16 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
 
     // ── Sign in (identity only — no Drive scope) ─────────────────────────────
     const signIn = useCallback(async () => {
+        console.log('[GoogleAuth] signIn() called');
         setLoading(true);
         setError(null);
 
         try {
+            console.log('[GoogleAuth] Opening OAuth popup…');
             const { accessToken, expiresIn } = await openOAuthPopup(IDENTITY_SCOPES);
+            console.log('[GoogleAuth] Popup resolved — fetching Google profile…');
             const profile = await fetchGoogleProfile(accessToken);
+            console.log('[GoogleAuth] Profile fetched ✓ — email:', profile.email);
             const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
 
             const state: PersistedAuthState = {
@@ -347,7 +369,9 @@ export const GoogleAuthProvider = ({ children }: { children: ReactNode }) => {
             await saveAuthState(state); // saves to IDB + localStorage
             setUser(stateToUser(state));
             scheduleRefresh(expiresAt, profile.email);
+            console.log('[GoogleAuth] signIn() complete ✓ — user set, WorkerAuthContext will auto-link');
         } catch (err) {
+            console.error('[GoogleAuth] signIn() failed:', (err as Error).message ?? err);
             setError((err as Error).message ?? 'Sign-in failed');
         } finally {
             setLoading(false);

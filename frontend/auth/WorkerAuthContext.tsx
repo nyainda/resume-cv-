@@ -389,12 +389,14 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
         linkedGoogleId.current = googleSub;
 
         const deviceId = getDeviceId();
+        console.log('[WorkerAuth] Google user detected — linking to worker | email:', googleUser.email, '| deviceId:', deviceId);
 
         // Keep the Google access token in a local variable so the retry closure
         // can reference it even if googleUser has changed by the time it fires.
         const accessToken = googleUser.accessToken;
 
         (async () => {
+            console.log('[WorkerAuth] Attempt 1 — linkGoogleSession…');
             let result = await linkGoogleSession(accessToken, deviceId);
 
             // Auto-retry up to 2 more times with short backoff.
@@ -403,24 +405,25 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
             // to time out or return a 502.  The Google access token stays valid for
             // ~1 h, so reusing it is safe.
             if (!result) {
+                console.warn('[WorkerAuth] Attempt 1 failed — retrying in 1.8 s…');
                 await new Promise(r => setTimeout(r, 1800));
+                console.log('[WorkerAuth] Attempt 2 — linkGoogleSession…');
                 result = await linkGoogleSession(accessToken, deviceId);
             }
             if (!result) {
+                console.warn('[WorkerAuth] Attempt 2 failed — retrying in 3.5 s…');
                 await new Promise(r => setTimeout(r, 3500));
+                console.log('[WorkerAuth] Attempt 3 — linkGoogleSession…');
                 result = await linkGoogleSession(accessToken, deviceId);
             }
 
+            console.log('[WorkerAuth] Final result:', result ? JSON.stringify(result).slice(0, 200) : 'null (all attempts failed)');
+
             if (result && result.ok) {
-                // Bug 1 fix: check whether this Google account is different from
-                // whoever was previously signed in.  Without this check, signing
-                // in as User B on a device where User A was active skips the wipe
-                // and loads User B's session on top of User A's data.
-                if (_needsAccountWipe(result.user.email)) {
-                    // Wipe first, restore after the reload via validateSession().
-                    // pendingResolvers are resolved here so any requireAuth() caller
-                    // doesn't hang forever waiting for a promise that won't fire
-                    // after the reload.
+                const needsWipe = _needsAccountWipe(result.user.email);
+                console.log('[WorkerAuth] Session OK ✓ | email:', result.user.email, '| is_new_user:', result.is_new_user, '| needsAccountWipe:', needsWipe);
+                if (needsWipe) {
+                    console.log('[WorkerAuth] Different account detected — wiping old data and reloading…');
                     _wipeAndHandoff(result.user, result.is_new_user);
                     const queue = pendingResolvers.current.splice(0);
                     queue.forEach(r => r(true));
@@ -431,9 +434,7 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 // apply the session immediately.
                 await clearQueueForAccount();
                 applySession(result.token, result.user, true); // viaGoogle = true
-                // Only set isNewUser here if this is NOT a post-wipe-reload
-                // re-link — in that case the correct value was already applied
-                // from the _PENDING_USER_KEY payload in the boot path.
+                console.log('[WorkerAuth] applySession() called ✓ — user is now signed in');
                 if (result.is_new_user && !_postWipeReload.current) setIsNewUser(true);
                 _postWipeReload.current = false; // consume the flag either way
                 setGoogleRateLimited(null);
@@ -441,11 +442,11 @@ export function WorkerAuthProvider({ children }: { children: ReactNode }) {
                 // IP rate-limited (20 sign-in attempts/IP/hour) — surface to UI.
                 linkedGoogleId.current = null;
                 setGoogleRateLimited({ retryAfter: result.retry_after });
-                console.warn('[WorkerAuth] Google sign-in rate-limited.');
+                console.warn('[WorkerAuth] Google sign-in rate-limited — retry_after:', result.retry_after);
             } else {
                 // null = network failure / timeout — reset so the user can retry.
                 linkedGoogleId.current = null;
-                console.warn('[WorkerAuth] Google session linkage failed after 3 attempts.');
+                console.error('[WorkerAuth] Google session linkage failed after 3 attempts — result was null');
             }
 
             // Resolve pending requireAuth() promises — true because Google auth

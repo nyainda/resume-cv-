@@ -134,27 +134,36 @@ export async function linkGoogleSession(
     accessToken: string,
     deviceId: string,
 ): Promise<LinkGoogleResult> {
+    console.log('[AuthService] linkGoogleSession → POST', `${ENGINE}/api/auth/google`);
     try {
         const res = await fetch(`${ENGINE}/api/auth/google`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ access_token: accessToken, device_id: deviceId }),
             credentials: 'include', // worker sets HttpOnly cookie in the response
-            // 18 s — generous for cold CF Worker + Google userinfo round-trip.
-            // The auto-retry in WorkerAuthContext fires at 1.8 s and 5.3 s, so
-            // each individual attempt still completes well within the modal wait.
             signal: AbortSignal.timeout(18_000),
         });
+        console.log('[AuthService] linkGoogleSession HTTP', res.status);
         if (res.status === 429) {
             const data = await res.json().catch(() => ({})) as any;
+            console.warn('[AuthService] linkGoogleSession — rate limited, retry_after:', data?.retry_after);
             return { ok: false, error: 'rate_limited', retry_after: data?.retry_after };
         }
-        if (!res.ok) return null;
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            console.error('[AuthService] linkGoogleSession — non-OK response:', res.status, body);
+            return null;
+        }
         const data = await res.json() as any;
-        if (!data.ok) return null;
+        console.log('[AuthService] linkGoogleSession response body:', JSON.stringify(data));
+        if (!data.ok) {
+            console.warn('[AuthService] linkGoogleSession — server returned ok:false', data);
+            return null;
+        }
+        console.log('[AuthService] linkGoogleSession ✓ — user:', data.user?.email, '| is_new_user:', data.is_new_user);
         return { ok: true, token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
-        console.warn('[AuthService] linkGoogleSession failed:', e);
+        console.error('[AuthService] linkGoogleSession threw:', (e as Error).message ?? e);
         return null;
     }
 }
