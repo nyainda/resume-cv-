@@ -9,10 +9,9 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useGoogleAuth, useWorkerAuth } from '../auth/AuthContext';
 import { sendMagicLink } from '../services/authService';
 import type { WorkerUser } from '../services/authService';
-import { useWorkerAuth } from '../auth/WorkerAuthContext';
 
 interface AuthModalProps {
     open: boolean;

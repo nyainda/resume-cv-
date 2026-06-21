@@ -1,6 +1,7 @@
-import { LS_AUTH_CLEARED } from '../auth/AuthPersistence';
 import { clearCVDataStore } from '../services/storage/cvDataStore';
 import { resetStorageRouter } from '../services/storage/StorageRouter';
+
+const LS_AUTH_CLEARED = 'procv:google_auth_cleared';
 
 /**
  * Sentinel written synchronously to localStorage before window.location.reload()

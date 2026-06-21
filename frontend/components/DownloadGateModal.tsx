@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useGoogleAuth } from '../auth/AuthContext';
 
 const STORAGE_KEY = 'procv:download_count';
 const FREE_DOWNLOADS = 2;

@@ -38,8 +38,7 @@ import CVDoctorPanel from './CVDoctorPanel';
 import GenerationTracePanel from './GenerationTracePanel';
 import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
-import { useWorkerAuth } from '../auth/WorkerAuthContext';
+import { useGoogleAuth, useWorkerAuth } from '../auth/AuthContext';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },

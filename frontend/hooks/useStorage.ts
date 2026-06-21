@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getStorageService } from '../services/storage/StorageRouter';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useGoogleAuth } from '../auth/AuthContext';
 import { idbAppGet } from '../services/storage/AppDataPersistence';
 
 type Setter<T> = (newValue: T | ((prev: T) => T)) => Promise<void>;

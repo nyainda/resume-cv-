@@ -17,12 +17,6 @@
 
 const ENGINE = import.meta.env.VITE_CV_ENGINE_URL as string;
 
-// ─── Storage keys ─────────────────────────────────────────────────────────────
-
-const SESSION_KEY      = 'procv:worker_session';      // localStorage (persistent)
-const SESSION_TEMP_KEY = 'procv:worker_session_temp'; // sessionStorage (tab-only)
-const USER_KEY         = 'procv:worker_user';
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WorkerUser {
@@ -33,94 +27,21 @@ export interface WorkerUser {
     plan: 'free' | 'byok' | 'pro';
 }
 
-export interface StoredSession {
-    token: string;
-    user: WorkerUser;
-}
-
-// ─── One-time startup migration ───────────────────────────────────────────────
-// Removes old `procv:worker_session` / `procv:worker_session_temp` entries
-// that stored the raw session token.  After Rule 6 (HttpOnly cookie), only the
-// non-sensitive WorkerUser object should live in local/session storage.
-// This IIFE runs once when the module is first imported (app boot) and is
-// idempotent — if the old key is absent it does nothing.
-(function migrateSessionStorage() {
-    try {
-        const lsRaw = localStorage.getItem(SESSION_KEY);
-        if (lsRaw) {
-            const parsed = JSON.parse(lsRaw) as { token?: string; user?: { email?: string } };
-            if (parsed?.user?.email) {
-                // Preserve the user object; discard the raw token
-                localStorage.setItem(USER_KEY, JSON.stringify(parsed.user));
-            }
-            localStorage.removeItem(SESSION_KEY);
+// One-time migration: remove legacy session keys that stored the raw token.
+// Idempotent — safe to run on every import.
+try {
+    ['procv:worker_session', 'procv:worker_session_temp'].forEach(k => {
+        const raw = localStorage.getItem(k) ?? sessionStorage.getItem(k);
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw) as { user?: WorkerUser };
+                if (parsed?.user?.email) localStorage.setItem('procv:worker_user', JSON.stringify(parsed.user));
+            } catch { /* ignore */ }
+            localStorage.removeItem(k);
+            sessionStorage.removeItem(k);
         }
-        const ssRaw = sessionStorage.getItem(SESSION_TEMP_KEY);
-        if (ssRaw) {
-            const parsed = JSON.parse(ssRaw) as { token?: string; user?: { email?: string } };
-            if (parsed?.user?.email) {
-                // Overwrite with a token-free copy
-                sessionStorage.setItem(SESSION_TEMP_KEY, JSON.stringify({ user: parsed.user }));
-            } else {
-                sessionStorage.removeItem(SESSION_TEMP_KEY);
-            }
-        }
-    } catch { /* non-fatal */ }
-})();
-
-// ─── Local storage ────────────────────────────────────────────────────────────
-
-export function getStoredSession(): StoredSession | null {
-    try {
-        // Only the non-sensitive WorkerUser is stored locally — never the raw token.
-        // Prefer persistent localStorage; fall back to tab-only sessionStorage.
-        const userRaw = localStorage.getItem(USER_KEY);
-        if (userRaw) {
-            const user = JSON.parse(userRaw) as WorkerUser;
-            if (user?.email) return { token: '', user };
-        }
-        // Legacy: some clients may still have the old combined SESSION_KEY object.
-        // Read it once so they don't get kicked out, but don't write it again.
-        const legacyRaw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_TEMP_KEY);
-        if (legacyRaw) {
-            const parsed = JSON.parse(legacyRaw) as StoredSession;
-            if (parsed?.user?.email) return { token: parsed.token || '', user: parsed.user };
-        }
-        return null;
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Persist a session.
- * Rule 6: the raw token is NEVER written to localStorage or sessionStorage.
- * Only the non-sensitive WorkerUser object is persisted so the UI can restore
- * the signed-in display state on reload.  The browser's HttpOnly cookie carries
- * the actual authentication credential automatically.
- *
- * @param persist true → localStorage (survives browser close)
- *                false → sessionStorage (cleared when the tab is closed)
- */
-export function setStoredSession(token: string, user: WorkerUser, persist = true): void {
-    if (persist) {
-        // Store only the user object — not the token.
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
-        // Remove legacy combined-object keys so they can't be re-read as "old" sessions.
-        localStorage.removeItem(SESSION_KEY);
-        sessionStorage.removeItem(SESSION_TEMP_KEY);
-    } else {
-        // Tab-only: still only the user object, not the token.
-        sessionStorage.setItem(SESSION_TEMP_KEY, JSON.stringify({ user }));
-        // Do not write to localStorage so the device isn't "remembered".
-    }
-}
-
-export function clearStoredSession(): void {
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(USER_KEY);
-    sessionStorage.removeItem(SESSION_TEMP_KEY);
-}
+    });
+} catch { /* non-fatal */ }
 
 // ─── Network calls ────────────────────────────────────────────────────────────
 

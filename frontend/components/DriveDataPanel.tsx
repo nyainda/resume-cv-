@@ -3,7 +3,7 @@
 // the user to explicitly save, retrieve, or refresh their data.
 
 import React, { useState, useEffect } from 'react';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useGoogleAuth } from '../auth/AuthContext';
 import { getStorageService, migrateLocalToDrive } from '../services/storage/StorageRouter';
 
 interface FileEntry {

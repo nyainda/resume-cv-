@@ -5,9 +5,8 @@ import { ApiSettings, UserProfileSlot } from '../types';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { DriveDataPanel } from './DriveDataPanel';
 import { Shield } from './icons';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
-import { useWorkerAuth } from '../auth/WorkerAuthContext';
-import { clearUserScopedStorage, stampSignedOut, clearAllBrowserStorage } from '../utils/clearUserStorage';
+import { useGoogleAuth, useWorkerAuth } from '../auth/AuthContext';
+import { clearAllBrowserStorage } from '../utils/clearUserStorage';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import {
   testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
@@ -47,16 +46,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setSelectedAiProvider(id);
   }, [canUseWorkersAI, openWorkersAiUpgrade]);
 
-  const { user: googleUser, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
+  const { user: googleUser, isAuthenticated } = useGoogleAuth();
   const { workerUser, isWorkerAuthenticated, signOut: workerSignOut } = useWorkerAuth();
 
   const handleSignOut = async () => {
-    // Clear the IDB sync queue first so no stale writes replay under a new account
     await clearQueueForAccount().catch(() => {});
     await workerSignOut();
-    await googleSignOut();
-    clearUserScopedStorage();
-    stampSignedOut();
     onClose();
     onSignOut?.();
   };

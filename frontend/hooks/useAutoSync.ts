@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { isDriveActive, migrateLocalToDrive } from '../services/storage/StorageRouter';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
+import { useGoogleAuth } from '../auth/AuthContext';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 

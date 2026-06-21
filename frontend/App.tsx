@@ -24,9 +24,9 @@ import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncProfileToCache } from "./services/profileCacheClient";
-import { syncSlot, syncPrefs, setUserSessionToken, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
+import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
-import { clearUserScopedStorage, stampSignedOut, stampDeletedAccount, clearAllIdbAsync, clearAllBrowserStorage, rotateDeviceId, ACCOUNT_HASH_KEY, SIGNED_OUT_SENTINEL, DELETED_CLEAN_SENTINEL } from "./utils/clearUserStorage";
+import { clearAllBrowserStorage, rotateDeviceId } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import {
@@ -36,8 +36,7 @@ import {
   migrateToIDB,
   pruneOrphanedCVData,
 } from "./services/storage/cvDataStore";
-import { GoogleAuthProvider, useGoogleAuth } from "./auth/GoogleAuthContext";
-import { WorkerAuthProvider, useWorkerAuth } from "./auth/WorkerAuthContext";
+import { AuthProvider, useAuth, useGoogleAuth, useWorkerAuth } from "./auth/AuthContext";
 import AuthModal from "./components/AuthModal";
 import WelcomeModal from "./components/WelcomeModal";
 import { useToast } from "./hooks/useToast";
@@ -62,7 +61,7 @@ import NegotiationCoach from "./components/NegotiationCoach";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import LandingPage from "./components/LandingPage";
 import AccountPage from "./components/AccountPage";
-import { deleteAccountWorker } from "./services/authService";
+
 import DriveConflictModal from "./components/DriveConflictModal";
 import { OnboardingWizard, hasCompletedOnboarding, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx, parseWordTextToProfile } from "./services/wordImportService";
@@ -246,71 +245,15 @@ function navTimeAgo(iso?: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// ── Account isolation helpers ────────────────────────────────────────────────
-// Flag set to true the moment a wipe+reload is scheduled.
-// Any async effect (e.g. syncProfileToCache) that fires in the gap between
-// clearUserScopedStorage() and the actual page navigation must check this
-// flag and abort to prevent pushing the previous user's data to D1.
-let _wipePending = false;
-
-// FNV-1a 32-bit hash — must match _hashEmail() in WorkerAuthContext.tsx exactly.
-// Uses (h * 16777619) >>> 0 (not Math.imul) so both functions produce the
-// same bit pattern for every email address, including those whose intermediate
-// products exceed Number.MAX_SAFE_INTEGER.  Consistency matters more than
-// strict integer correctness here — both sides must agree on the hash value.
-function _fnv32(s: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = (h * 16777619) >>> 0;
-  }
-  return h.toString(16);
-}
-const _ACCT_HASH_KEY = ACCOUNT_HASH_KEY;
-
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
-  const { user, isAuthenticated, signOut: googleSignOut } = useGoogleAuth();
-  const { workerUser, isWorkerAuthenticated, sessionToken, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
+  const { user, isAuthenticated } = useGoogleAuth();
+  const { workerUser, isWorkerAuthenticated, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
+  const { deleteAccount: _deleteAccount } = useAuth();
   useAutoSync(isAuthenticated);
 
   // ── Auth modal mode (signup vs sign-in copy) ────────────────────────────
   const [authModalMode, setAuthModalMode] = useState<'signup' | 'signin'>('signup');
-
-  // Keep the D1 sync service's module-level token in sync with the worker session
-  useEffect(() => { setUserSessionToken(sessionToken ?? null); }, [sessionToken]);
-
-  // ── Cross-tab account-switch guard ─────────────────────────────────────
-  // When another browser tab signs in as a different user (or signs out),
-  // it writes a new account_email_hash to localStorage. The `storage` event
-  // fires in every OTHER tab. If the new hash differs from this tab's active
-  // user, wipe app data and reload so this tab doesn't show stale data from
-  // the previous account or allow writes that overwrite the new account's data.
-  useEffect(() => {
-    function onStorage(e: StorageEvent) {
-      if (e.key !== _ACCT_HASH_KEY) return;
-      const newHash = e.newValue;
-      if (!newHash) return; // key was deleted — not our concern
-      if (newHash === SIGNED_OUT_SENTINEL) {
-        // Another tab signed out — reload this tab to a clean unauthenticated state
-        _wipePending = true;
-        clearUserScopedStorage({ clearAppData: true });
-        window.location.reload();
-        return;
-      }
-      const email = workerUser?.email ?? user?.email;
-      const ourHash = email ? _fnv32(email) : null;
-      if (ourHash && newHash === ourHash) return; // same user, no action needed
-      // A different user signed in on another tab — wipe and reload
-      _wipePending = true;
-      clearUserScopedStorage({ clearAppData: true });
-      localStorage.setItem(_ACCT_HASH_KEY, newHash);
-      window.location.reload();
-    }
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerUser?.email, user?.email]);
 
   // ── Drive restore-on-new-device flow ───────────────────────────────────
   // When a user signs in on a device with no local profiles, silently check
@@ -486,7 +429,6 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     if (!activeSlot) return;
     const t = setTimeout(() => {
-      if (_wipePending) return;
       syncProfileToCache(activeSlot).catch(() => {});
     }, 3000);
     return () => clearTimeout(t);
@@ -1381,36 +1323,16 @@ const AppInner: React.FC = () => {
     const currentDeviceId = getDeviceId();
     let serverDeleteOk = false;
     try {
-      // Rule 6: raw tokens no longer stored in localStorage — cookie handles auth.
-      // Pass the in-memory sessionToken as a Bearer fallback during migration.
-      serverDeleteOk = await deleteAccountWorker(sessionToken || '', currentDeviceId);
+      serverDeleteOk = await _deleteAccount(currentDeviceId);
     } catch { /* non-fatal — local wipe continues regardless */ }
 
     // Step 3: Clear pending sync queue — no stale writes after account wipe.
     await clearQueueForAccount().catch(() => {});
 
-    // Step 4: LOCAL wipe — runs unconditionally even if server calls failed.
-    clearUserScopedStorage({ clearAppData: true });
-
-    // Step 5: Rotate device_id to a fresh UUID.
-    // Even if D1 cleanup was perfect, rotating ensures a brand-new device_id
-    // with zero rows in any D1 table for the next account.
+    // Step 4: Sign out (clears CF session cookie), rotate device ID, full wipe.
+    try { await signOut(); } catch { /* non-fatal */ }
     rotateDeviceId();
-
-    try { await signOut(); }  catch { /* non-fatal */ }
-    try { googleSignOut(); }  catch { /* non-fatal */ }
-
-    // Step 6: Nuclear browser-data wipe — clears all localStorage (including
-    // the rotated device_id and any sentinels written above), sessionStorage,
-    // all three IDB databases, Cache API, and first-party cookies.
     await clearAllBrowserStorage().catch(() => {});
-
-    // Step 7: Re-stamp DELETED_CLEAN_SENTINEL *after* the nuclear wipe so the
-    // account-switch guard on the next boot knows the slate is already clean and
-    // won't trigger a redundant second wipe+reload on sign-in.
-    // (stampDeletedAccount() called before clearAllBrowserStorage() would be
-    // erased by the wipe — so it must be re-written here.)
-    stampDeletedAccount();
 
     if (!serverDeleteOk) {
       // Server-side deletion failed (D1 batch error). Local data is wiped, but
@@ -1431,7 +1353,7 @@ const AppInner: React.FC = () => {
     // Navigate with ?auth=1 so WorkerAuthContext auto-opens the sign-in modal
     // instead of dumping the user on the plain landing page.
     window.location.href = window.location.origin + '?auth=1';
-  }, [user?.accessToken, sessionToken, signOut, googleSignOut, toast]);
+  }, [user?.accessToken, signOut, toast]);
 
   // ── Clear all browser data (emergency reset — no account deletion) ──────
   const handleClearAllData = useCallback(async () => {
@@ -2271,9 +2193,6 @@ const AppInner: React.FC = () => {
                           setShowUserMenu(false);
                           await clearQueueForAccount().catch(() => {});
                           await signOut();
-                          await googleSignOut();
-                          clearUserScopedStorage();
-                          stampSignedOut();
                           setShowLanding(true);
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
@@ -2477,9 +2396,6 @@ const AppInner: React.FC = () => {
                           setShowMobileMenu(false);
                           await clearQueueForAccount().catch(() => {});
                           await signOut();
-                          await googleSignOut();
-                          clearUserScopedStorage();
-                          stampSignedOut();
                           setShowLanding(true);
                         }}
                         className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
@@ -2898,9 +2814,6 @@ const AppInner: React.FC = () => {
                     onSignOut={async () => {
                       await clearQueueForAccount().catch(() => {});
                       await signOut();
-                      await googleSignOut();
-                      clearUserScopedStorage();
-                      stampSignedOut();
                       setShowLanding(true);
                     }}
                     onDeleteAccount={handleDeleteAccount}
@@ -2933,9 +2846,6 @@ const AppInner: React.FC = () => {
           setShowInactivityWarning(false);
           await clearQueueForAccount().catch(() => {});
           await signOut().catch(() => {});
-          await googleSignOut().catch(() => {});
-          clearUserScopedStorage();
-          stampSignedOut();
           setShowLanding(true);
         }}
       />
@@ -3109,17 +3019,15 @@ const AppInner: React.FC = () => {
   );
 };
 
-// ── Root App — wraps everything in GoogleAuthProvider + WorkerAuthProvider ──
+// ── Root App — single AuthProvider wraps everything ───────────────────────────
 const App: React.FC = () => {
   if (window.location.pathname.startsWith('/admin')) {
     return <AdminApp />;
   }
   return (
-    <GoogleAuthProvider>
-      <WorkerAuthProvider>
-        <AppInner />
-      </WorkerAuthProvider>
-    </GoogleAuthProvider>
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 };
 

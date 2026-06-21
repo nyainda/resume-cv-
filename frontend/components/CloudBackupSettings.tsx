@@ -3,10 +3,8 @@
 // source of truth for auth state (same as GoogleSignInButton).
 
 import React, { useState, useEffect } from 'react';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
-import { useWorkerAuth } from '../auth/WorkerAuthContext';
+import { useGoogleAuth } from '../auth/AuthContext';
 import { migrateLocalToDrive, isDriveActive, hasMigratedToDrive } from '../services/storage/StorageRouter';
-import { clearUserScopedStorage, stampSignedOut } from '../utils/clearUserStorage';
 
 type Status = 'idle' | 'connecting' | 'migrating' | 'active' | 'error';
 
@@ -17,7 +15,6 @@ interface MigrationProgress {
 
 export const CloudBackupSettings: React.FC = () => {
     const { user, loading, error, signIn, signOut, isAuthenticated } = useGoogleAuth();
-    const { signOut: workerSignOut } = useWorkerAuth();
 
     const [status, setStatus] = useState<Status>('idle');
     const [errorMsg, setErrorMsg] = useState('');
@@ -55,9 +52,6 @@ export const CloudBackupSettings: React.FC = () => {
 
     const handleDisconnect = async () => {
         await signOut();
-        await workerSignOut();
-        clearUserScopedStorage();
-        stampSignedOut();
         setStatus('idle');
         setMigration(null);
         setErrorMsg('');

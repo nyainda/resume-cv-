@@ -2,10 +2,8 @@
 // A premium, high-aesthetic Google Sign In button and user card.
 
 import React, { useEffect } from 'react';
-import { useGoogleAuth } from '../auth/GoogleAuthContext';
-import { useWorkerAuth } from '../auth/WorkerAuthContext';
+import { useGoogleAuth } from '../auth/AuthContext';
 import { migrateLocalToDrive, hasMigratedToDrive } from '../services/storage/StorageRouter';
-import { clearUserScopedStorage, stampSignedOut } from '../utils/clearUserStorage';
 import { Shield, CheckCircle, AlertCircle } from './icons';
 
 interface Props {
@@ -15,7 +13,6 @@ interface Props {
 
 export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut }) => {
     const { user, loading, error, signIn, signOut, isAuthenticated } = useGoogleAuth();
-    const { signOut: workerSignOut } = useWorkerAuth();
 
     // Run the one-time local→Drive migration silently on every sign-in.
     // No UI is shown — the migration is a background best-effort operation.
@@ -42,9 +39,6 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
 
     const handleSignOut = async () => {
         await signOut();
-        await workerSignOut();
-        clearUserScopedStorage();
-        stampSignedOut();
         onSignedOut?.();
     };
 

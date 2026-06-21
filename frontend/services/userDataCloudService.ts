@@ -55,35 +55,31 @@ async function sha256hex(text: string): Promise<string> {
     }
 }
 
-// ─── Session state (set by App.tsx via setUserSessionToken) ──────────────────
-// Using module-level variables avoids threading auth state through every caller.
-// Rule 6: the raw token is kept in-memory only (never written to localStorage).
-// All fetch calls use `credentials: 'include'` so the browser attaches the
-// HttpOnly cookie automatically; the token is forwarded as a Bearer header too
-// during the migration period for clients without a cookie yet.
+// ─── Auth guard ───────────────────────────────────────────────────────────────
+// Session is managed by an HttpOnly cookie (set by the CF worker).
+// We check whether the user is signed in by reading the display-cache key
+// that AuthContext writes on every successful sign-in.
 
-let _sessionToken: string | null = null;
-let _isAuthenticated = false;
-
-/** Call this from App.tsx whenever workerAuth.sessionToken changes. */
-export function setUserSessionToken(token: string | null): void {
-    _sessionToken = token;
-    _isAuthenticated = token !== null; // empty string also counts as "authenticated"
+function _isSignedIn(): boolean {
+    try { return !!localStorage.getItem('procv:worker_user'); } catch { return false; }
 }
+
+/**
+ * @deprecated No longer needed — session is cookie-based.
+ * Kept as a no-op so call sites that haven't been updated yet don't crash.
+ */
+export function setUserSessionToken(_token: string | null): void { /* no-op */ }
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 async function post(path: string, body: object): Promise<boolean> {
-    if (!ENGINE_URL || !_isAuthenticated) return false;
+    if (!ENGINE_URL || !_isSignedIn()) return false;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        // Forward Bearer token during migration; cookie is the primary credential.
-        if (_sessionToken) headers['Authorization'] = `Bearer ${_sessionToken}`;
         const res = await fetch(`${ENGINE_URL}${path}`, {
             method: 'POST',
-            headers,
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(body),
             signal: ac.signal,
@@ -96,14 +92,11 @@ async function post(path: string, body: object): Promise<boolean> {
 }
 
 async function get(path: string): Promise<any | null> {
-    if (!ENGINE_URL || !_isAuthenticated) return null;
+    if (!ENGINE_URL || !_isSignedIn()) return null;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-        const headers: Record<string, string> = {};
-        if (_sessionToken) headers['Authorization'] = `Bearer ${_sessionToken}`;
         const res = await fetch(`${ENGINE_URL}${path}`, {
-            headers,
             credentials: 'include',
             signal: ac.signal,
         });
@@ -256,15 +249,13 @@ export async function fetchUserData(): Promise<UserDataSnapshot | null> {
 export async function deleteSlotFromCloud(slotId: string): Promise<boolean> {
     // Always clear the local hash so a future slot with the same ID starts fresh
     try { localStorage.removeItem(SLOT_HASH_PREFIX + slotId); } catch { /* ignore */ }
-    if (!ENGINE_URL || !_isAuthenticated) return false;
+    if (!ENGINE_URL || !_isSignedIn()) return false;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (_sessionToken) headers['Authorization'] = `Bearer ${_sessionToken}`;
         const res = await fetch(`${ENGINE_URL}/api/cv/user-slots`, {
             method: 'DELETE',
-            headers,
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ slot_id: slotId }),
             signal: ac.signal,
