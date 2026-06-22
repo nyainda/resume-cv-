@@ -3,7 +3,7 @@
 // the user to explicitly save, retrieve, or refresh their data.
 
 import React, { useState, useEffect } from 'react';
-import { useGoogleAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { getStorageService, migrateLocalToDrive } from '../services/storage/StorageRouter';
 
 interface FileEntry {
@@ -56,7 +56,7 @@ function formatLastSync(iso: string | null): string {
 }
 
 export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }) => {
-    const { user, isAuthenticated, signIn, driveConnected, requestDriveAccess, disconnectDrive } = useGoogleAuth();
+    const { user, isAuthenticated, googleSignIn: signIn, driveConnected, requestDriveAccess, disconnectDrive } = useAuth();
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useGoogleAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 
 const STORAGE_KEY = 'procv:download_count';
 const FREE_DOWNLOADS = 2;
@@ -38,7 +38,8 @@ const GoogleLogo = () => (
 );
 
 export const DownloadGateModal: React.FC<Props> = ({ open, onClose, onContinue }) => {
-  const { signIn, loading, error } = useGoogleAuth();
+  const { googleSignIn: signIn, isLoading: loading } = useAuth();
+  const error: string | null = null;
   const [signingIn, setSigningIn] = useState(false);
 
   if (!open) return null;

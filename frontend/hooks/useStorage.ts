@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getStorageService } from '../services/storage/StorageRouter';
-import { useGoogleAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { idbAppGet } from '../services/storage/AppDataPersistence';
 
 type Setter<T> = (newValue: T | ((prev: T) => T)) => Promise<void>;
@@ -50,7 +50,7 @@ function readLocalSync<T>(key: string, fallback: T): T {
 }
 
 export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
-    const { isAuthenticated, loading: authLoading } = useGoogleAuth();
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
 
     // ── Synchronous initialisation from localStorage ─────────────────────────
     // This ensures the first render already has the correct persisted value

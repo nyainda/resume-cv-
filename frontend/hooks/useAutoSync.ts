@@ -5,13 +5,13 @@
 
 import { useEffect, useRef } from 'react';
 import { isDriveActive, migrateLocalToDrive } from '../services/storage/StorageRouter';
-import { useGoogleAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useAutoSync(isAuthenticated: boolean) {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const { user } = useGoogleAuth();
+    const { user } = useAuth();
 
     useEffect(() => {
         if (!isAuthenticated) {

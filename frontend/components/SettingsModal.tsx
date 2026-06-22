@@ -3,7 +3,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { ApiSettings } from '../types';
 import { Shield } from './icons';
-import { useWorkerAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { clearAllBrowserStorage } from '../utils/clearUserStorage';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
 import {
@@ -43,7 +43,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setSelectedAiProvider(id);
   }, [canUseWorkersAI, openWorkersAiUpgrade]);
 
-  const { workerUser, isWorkerAuthenticated } = useWorkerAuth();
+  const { user: workerUser, isAuthenticated: isWorkerAuthenticated } = useAuth();
 
   // Emergency browser data reset — for PWA users who can't access DevTools
   const [resetConfirm, setResetConfirm] = useState(false);

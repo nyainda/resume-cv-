@@ -1,9 +1,9 @@
 // components/CloudBackupSettings.tsx
-// Cloud backup settings panel — uses GoogleAuthContext as the single
-// source of truth for auth state (same as GoogleSignInButton).
+// Cloud backup settings panel — uses AuthContext as the single
+// source of truth for auth state.
 
 import React, { useState, useEffect } from 'react';
-import { useGoogleAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { migrateLocalToDrive, isDriveActive, hasMigratedToDrive } from '../services/storage/StorageRouter';
 
 type Status = 'idle' | 'connecting' | 'migrating' | 'active' | 'error';
@@ -14,7 +14,8 @@ interface MigrationProgress {
 }
 
 export const CloudBackupSettings: React.FC = () => {
-    const { user, loading, error, signIn, signOut, isAuthenticated } = useGoogleAuth();
+    const { user, isLoading: loading, googleSignIn: signIn, signOut, isAuthenticated } = useAuth();
+    const error: string | null = null;
 
     const [status, setStatus] = useState<Status>('idle');
     const [errorMsg, setErrorMsg] = useState('');

@@ -38,7 +38,7 @@ import CVDoctorPanel from './CVDoctorPanel';
 import GenerationTracePanel from './GenerationTracePanel';
 import { diffCV, CVDiff } from '../services/cvDoctorService';
 import { DownloadGateModal, shouldGateDownload, incrementDownloadCount } from './DownloadGateModal';
-import { useGoogleAuth, useWorkerAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 
 const ACCENT_COLORS = [
   { hex: '#4f46e5', label: 'Indigo' },
@@ -239,8 +239,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField,
 }) => {
-  const { isAuthenticated } = useGoogleAuth();
-  const { requireAuth, sessionToken, workerUser } = useWorkerAuth();
+  const { isAuthenticated, requireAuth, user: workerUser } = useAuth();
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
   // Profile-isolated "room" state — each profileId gets its own localStorage keys
@@ -2485,7 +2484,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           template={template}
           coverLetterText={coverLetter ?? undefined}
           onClose={() => setShowShareModal(false)}
-          sessionToken={sessionToken ?? undefined}
+          sessionToken={undefined}
           userId={workerUser?.id}
         />
       )}

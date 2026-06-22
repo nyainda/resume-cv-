@@ -1,5 +1,5 @@
 // services/storage/DriveStorageService.ts
-// Token is injected from GoogleAuthContext — no popup logic here.
+// Token is injected from AuthContext — no popup logic here.
 //
 // Optimistic Locking:
 //   Every save() reads the remote file's modifiedTime first.

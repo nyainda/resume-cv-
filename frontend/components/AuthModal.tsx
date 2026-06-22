@@ -2,14 +2,14 @@
  * AuthModal — "Sign in to continue" modal.
  *
  * Two paths:
- *   1. Continue with Google (uses existing GoogleAuthContext popup flow)
+ *   1. Continue with Google (GoogleSignIn via AuthContext)
  *   2. Email magic link (calls /api/auth/magic-link/send)
  *
  * Design: ProCV brand — Navy #1B2B4B, Gold #C9A84C, Off-white #F8F7F4.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useGoogleAuth, useWorkerAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { sendMagicLink } from '../services/authService';
 import type { WorkerUser } from '../services/authService';
 
@@ -30,8 +30,9 @@ const SIGNUP_FEATURES = [
 ];
 
 export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMode = 'signup' }: AuthModalProps) {
-    const { signIn: googleSignIn, isAuthenticated: isGoogleAuthed } = useGoogleAuth();
-    const { isWorkerAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit } = useWorkerAuth();
+    const { googleSignIn, isAuthenticated, rememberDevice, setRememberDevice, googleRateLimited, clearGoogleRateLimit } = useAuth();
+    const isGoogleAuthed       = isAuthenticated;
+    const isWorkerAuthenticated = isAuthenticated;
 
     const [mode, setMode]              = useState<'signup' | 'signin'>(initialMode);
     const [screen, setScreen]         = useState<Screen>('main');
