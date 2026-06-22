@@ -1,13 +1,37 @@
 // hooks/useAutoSync.ts
 // Automatically syncs local data to Google Drive every N minutes
-// when the user is signed in. Fires drive-save-start before each sync
-// so the AutoSaveIndicator can show "Saving…".
+// when the user is signed in AND auto-backup is enabled.
+//
+// The user can turn auto-backup off via the toggle in CloudBackupSettings.
+// The preference is stored under AUTO_SYNC_PREF_KEY in localStorage.
+// Default when the key is absent: enabled (true).
 
 import { useEffect, useRef } from 'react';
 import { isDriveActive, migrateLocalToDrive } from '../services/storage/StorageRouter';
 import { useAuth } from '../auth/AuthContext';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+/** localStorage key for the user's auto-backup preference. */
+export const AUTO_SYNC_PREF_KEY = 'procv:autoSync:enabled';
+
+/** Returns true when auto-backup is enabled (default: true when key absent). */
+export function isAutoSyncEnabled(): boolean {
+    try {
+        const raw = localStorage.getItem(AUTO_SYNC_PREF_KEY);
+        return raw === null ? true : raw === 'true';
+    } catch {
+        return true;
+    }
+}
+
+/** Persist the auto-backup preference and notify listeners. */
+export function setAutoSyncEnabled(enabled: boolean): void {
+    try {
+        localStorage.setItem(AUTO_SYNC_PREF_KEY, String(enabled));
+    } catch { /* ignore */ }
+    window.dispatchEvent(new CustomEvent('procv:autoSyncPrefChanged', { detail: { enabled } }));
+}
 
 export function useAutoSync(isAuthenticated: boolean) {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -24,6 +48,8 @@ export function useAutoSync(isAuthenticated: boolean) {
 
         const sync = async () => {
             if (!isDriveActive()) return;
+            // Respect the user's auto-backup preference.
+            if (!isAutoSyncEnabled()) return;
             try {
                 window.dispatchEvent(new CustomEvent('drive-save-start'));
                 // Do NOT reset the migration flag — migrateLocalToDrive is a one-time

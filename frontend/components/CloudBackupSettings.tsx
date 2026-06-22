@@ -5,11 +5,12 @@
 //   1. Not signed in → "Sign in with Google" (identity + Drive scope in one flow)
 //   2. Signed in, Drive NOT connected → "Connect Drive" (one tap — adds Drive
 //      scope to existing session, then migrates all local data to Drive)
-//   3. Signed in AND Drive connected → shows account + "Disconnect"
+//   3. Signed in AND Drive connected → shows account + auto-backup toggle + "Disconnect"
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { migrateLocalToDrive, hasMigratedToDrive } from '../services/storage/StorageRouter';
+import { AUTO_SYNC_PREF_KEY, isAutoSyncEnabled, setAutoSyncEnabled } from '../hooks/useAutoSync';
 
 interface MigrationProgress {
     uploaded: number;
@@ -17,6 +18,22 @@ interface MigrationProgress {
 }
 
 type Step = 'idle' | 'signing-in' | 'connecting' | 'migrating' | 'done' | 'error';
+
+function formatLastSync(iso: string | null): string {
+    if (!iso) return 'Never';
+    try {
+        const d = new Date(iso);
+        const diffMs = Date.now() - d.getTime();
+        const diffMin = Math.floor(diffMs / 60_000);
+        if (diffMin < 1)  return 'Just now';
+        if (diffMin < 60) return `${diffMin} min ago`;
+        const diffH = Math.floor(diffMin / 60);
+        if (diffH < 24)   return `${diffH}h ago`;
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+        return 'Unknown';
+    }
+}
 
 export const CloudBackupSettings: React.FC = () => {
     const {
@@ -29,11 +46,30 @@ export const CloudBackupSettings: React.FC = () => {
         requestDriveAccess,
     } = useAuth();
 
-    const [step, setStep]                     = useState<Step>('idle');
-    const [errorMsg, setErrorMsg]             = useState('');
-    const [migration, setMigration]           = useState<MigrationProgress | null>(null);
+    const [step, setStep]         = useState<Step>('idle');
+    const [errorMsg, setErrorMsg] = useState('');
+    const [migration, setMigration] = useState<MigrationProgress | null>(null);
 
-    // Keep step in sync whenever auth / drive state changes from outside
+    // Auto-backup toggle state — reads from localStorage, stays in sync.
+    const [autoSync, setAutoSync] = useState(() => isAutoSyncEnabled());
+    const [lastSync, setLastSync] = useState<string | null>(() => {
+        try { return localStorage.getItem('cv_drive_last_sync'); } catch { return null; }
+    });
+
+    // Refresh last-sync time every minute while panel is open.
+    useEffect(() => {
+        const id = setInterval(() => {
+            try { setLastSync(localStorage.getItem('cv_drive_last_sync')); } catch { /* ignore */ }
+        }, 60_000);
+        // Also listen for real-time sync events.
+        const onSuccess = () => {
+            try { setLastSync(localStorage.getItem('cv_drive_last_sync')); } catch { /* ignore */ }
+        };
+        window.addEventListener('drive-save-success', onSuccess);
+        return () => { clearInterval(id); window.removeEventListener('drive-save-success', onSuccess); };
+    }, []);
+
+    // Keep step in sync whenever auth / drive state changes from outside.
     useEffect(() => {
         if (isLoading) return;
         if (!isAuthenticated) { setStep('idle'); return; }
@@ -42,14 +78,21 @@ export const CloudBackupSettings: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated, driveConnected, isLoading]);
 
+    // Sync autoSync state if preference changes from another component.
+    useEffect(() => {
+        const onPref = (e: Event) => {
+            setAutoSync((e as CustomEvent<{ enabled: boolean }>).detail.enabled);
+        };
+        window.addEventListener('procv:autoSyncPrefChanged', onPref);
+        return () => window.removeEventListener('procv:autoSyncPrefChanged', onPref);
+    }, []);
+
     // ── Sign in (not yet authenticated) ─────────────────────────────────────
     const handleSignIn = async () => {
         setErrorMsg('');
         setStep('signing-in');
         try {
             await googleSignIn();
-            // After sign-in, check if Drive scope is already granted
-            // (it will be if the user previously connected Drive)
         } catch (err) {
             setStep('error');
             setErrorMsg((err as Error).message ?? 'Sign-in failed. Please try again.');
@@ -61,19 +104,14 @@ export const CloudBackupSettings: React.FC = () => {
         setErrorMsg('');
         setStep('connecting');
         try {
-            // One tap — adds drive.appdata scope to the existing Google session.
-            // Google shows a popup pre-filled with the signed-in account.
             await requestDriveAccess();
             setStep('migrating');
-
-            // Migrate all existing localStorage + IDB data to Drive
             if (!hasMigratedToDrive(user?.email)) {
                 await migrateLocalToDrive((uploaded, total) => {
                     setMigration({ uploaded, total });
                 }, user?.email ?? undefined);
                 setMigration(null);
             }
-
             setStep('done');
         } catch (err) {
             setStep('error');
@@ -86,6 +124,11 @@ export const CloudBackupSettings: React.FC = () => {
         setStep('idle');
         setMigration(null);
         setErrorMsg('');
+    };
+
+    const handleToggleAutoSync = (enabled: boolean) => {
+        setAutoSync(enabled);
+        setAutoSyncEnabled(enabled);
     };
 
     if (isLoading) {
@@ -124,9 +167,9 @@ export const CloudBackupSettings: React.FC = () => {
                         : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                 }`}>
                     {(driveConnected && isAuthenticated) && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />
+                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${autoSync ? 'bg-green-500 animate-pulse' : 'bg-zinc-400'}`} />
                     )}
-                    {(driveConnected && isAuthenticated) ? 'Drive active ✓'
+                    {(driveConnected && isAuthenticated) ? (autoSync ? 'Auto-backup on' : 'Drive connected')
                         : step === 'connecting'  ? 'Connecting…'
                         : step === 'migrating'   ? 'Syncing…'
                         : step === 'error'       ? 'Error'
@@ -155,31 +198,64 @@ export const CloudBackupSettings: React.FC = () => {
 
             {/* ── State: Drive already connected ── */}
             {isAuthenticated && driveConnected && user ? (
-                <div className="flex items-center justify-between p-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
-                    <div className="flex items-center gap-3">
-                        {user.picture ? (
-                            <img
-                                src={user.picture}
-                                alt={user.name}
-                                referrerPolicy="no-referrer"
-                                className="w-8 h-8 rounded-full ring-2 ring-green-300 dark:ring-green-700"
-                            />
-                        ) : (
-                            <div className="w-8 h-8 rounded-full bg-[#1B2B4B] flex items-center justify-center text-white text-xs font-bold">
-                                {(user.name || user.email || '?').charAt(0).toUpperCase()}
+                <div className="space-y-3">
+                    {/* Account row */}
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">
+                        <div className="flex items-center gap-3">
+                            {user.picture ? (
+                                <img
+                                    src={user.picture}
+                                    alt={user.name}
+                                    referrerPolicy="no-referrer"
+                                    className="w-8 h-8 rounded-full ring-2 ring-green-300 dark:ring-green-700"
+                                />
+                            ) : (
+                                <div className="w-8 h-8 rounded-full bg-[#1B2B4B] flex items-center justify-center text-white text-xs font-bold">
+                                    {(user.name || user.email || '?').charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-xs font-medium text-green-800 dark:text-green-300">{user.name}</p>
+                                <p className="text-[11px] text-green-700 dark:text-green-400 font-mono">{user.email}</p>
                             </div>
-                        )}
-                        <div>
-                            <p className="text-xs font-medium text-green-800 dark:text-green-300">{user.name}</p>
-                            <p className="text-[11px] text-green-700 dark:text-green-400 font-mono">{user.email}</p>
                         </div>
+                        <button
+                            onClick={handleDisconnect}
+                            className="text-xs text-red-600 dark:text-red-400 hover:underline ml-4 flex-shrink-0"
+                        >
+                            Disconnect
+                        </button>
                     </div>
-                    <button
-                        onClick={handleDisconnect}
-                        className="text-xs text-red-600 dark:text-red-400 hover:underline ml-4 flex-shrink-0"
-                    >
-                        Disconnect
-                    </button>
+
+                    {/* Auto-backup toggle */}
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-neutral-800/50">
+                        <div>
+                            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                                Auto-backup every 5 minutes
+                            </p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                {autoSync
+                                    ? <>Last synced: <span className="font-medium">{formatLastSync(lastSync)}</span></>
+                                    : 'Drive is connected but auto-backup is paused.'}
+                            </p>
+                        </div>
+                        {/* Toggle switch */}
+                        <button
+                            role="switch"
+                            aria-checked={autoSync}
+                            onClick={() => handleToggleAutoSync(!autoSync)}
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#C9A84C] focus:ring-offset-1 ${
+                                autoSync ? 'bg-[#1B2B4B]' : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                            title={autoSync ? 'Turn off auto-backup' : 'Turn on auto-backup'}
+                        >
+                            <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                                    autoSync ? 'translate-x-4' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
                 </div>
 
             ) : isAuthenticated && !driveConnected ? (

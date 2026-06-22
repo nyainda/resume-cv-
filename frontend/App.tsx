@@ -804,6 +804,14 @@ const AppInner: React.FC = () => {
     window.addEventListener('procv:openPricing', handler);
     return () => window.removeEventListener('procv:openPricing', handler);
   }, []);
+
+  // Allow any component to open the settings modal via a custom event
+  // (e.g. FreePlanNudge "Connect Drive" button).
+  useEffect(() => {
+    const handler = () => setIsSettingsOpen(true);
+    window.addEventListener('procv:openSettings', handler);
+    return () => window.removeEventListener('procv:openSettings', handler);
+  }, []);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
