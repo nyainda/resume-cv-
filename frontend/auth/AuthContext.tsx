@@ -269,6 +269,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pendingResolvers  = useRef<Array<(ok: boolean) => void>>([]);
     const driveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Ref that always holds the current user — lets _applySession read the
+    // live email for account-switch detection without being called inside a
+    // setUser updater (which would cause React to discard the inner setState).
+    const userRef = useRef<WorkerUser | null>(user);
+    useEffect(() => { userRef.current = user; }, [user]);
+
     // ── Persist / clear the display cache ────────────────────────────────────
 
     const _saveUser = useCallback((u: WorkerUser | null) => {
@@ -411,10 +417,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw new Error('Too many sign-in attempts. Please try again shortly.');
         }
         setGoogleRateLimited(null);
-        setUser(current => {
-            _applySession(linked.user, linked.is_new_user, current?.email ?? null);
-            return current;
-        });
+        // Call _applySession directly — NOT inside a setUser updater.
+        // Calling setState inside another setState updater causes React to
+        // discard the inner call (outer updater's return value wins), which
+        // means user stays null and isAuthenticated stays false until reload.
+        _applySession(linked.user, linked.is_new_user, userRef.current?.email ?? null);
     }, [_applySession]);
 
     // ── Drive ─────────────────────────────────────────────────────────────────
@@ -458,10 +465,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Auth modal ────────────────────────────────────────────────────────────
 
     const onAuthSuccess = useCallback((incoming: WorkerUser, isNew = false) => {
-        setUser(current => {
-            _applySession(incoming, isNew, current?.email ?? null);
-            return current;
-        });
+        _applySession(incoming, isNew, userRef.current?.email ?? null);
     }, [_applySession]);
 
     const showSignIn = useCallback((mode: 'signup' | 'signin' = 'signup') => {
