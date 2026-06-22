@@ -4,8 +4,6 @@ import { Input } from './ui/Input';
 import { ApiSettings } from '../types';
 import { Shield } from './icons';
 import { useAuth } from '../auth/AuthContext';
-import { clearAllBrowserStorage } from '../utils/clearUserStorage';
-import { clearQueueForAccount } from '../services/storage/syncQueue';
 import {
   testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
   getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
@@ -44,18 +42,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   }, [canUseWorkersAI, openWorkersAiUpgrade]);
 
   const { user: workerUser, isAuthenticated: isWorkerAuthenticated } = useAuth();
-
-  // Emergency browser data reset — for PWA users who can't access DevTools
-  const [resetConfirm, setResetConfirm] = useState(false);
-  const [resetDone, setResetDone]       = useState(false);
-
-  const handleEmergencyReset = async () => {
-    if (!resetConfirm) { setResetConfirm(true); return; }
-    await clearQueueForAccount().catch(() => {});
-    await clearAllBrowserStorage();
-    setResetDone(true);
-    setTimeout(() => window.location.reload(), 1500);
-  };
 
   // ── Session token usage (live-updating via custom event) ─────────────
   const [tokenUsage, setTokenUsage] = useState<SessionTokenUsage>(() => getSessionTokenUsage());
@@ -206,47 +192,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
               </div>
             );
           })()}
-
-          {/* ── Emergency browser data reset ── */}
-          <div className="rounded-xl border border-red-200 dark:border-red-900/40 p-4 space-y-2 bg-red-50/30 dark:bg-red-900/5">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🧹</span>
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400">Reset Browser Data</h3>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                  Clears all local storage, cache and IndexedDB on this device. Use if you see stale data after switching accounts.
-                </p>
-              </div>
-            </div>
-            {resetDone ? (
-              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">✓ Done — reloading…</p>
-            ) : resetConfirm ? (
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex-1">
-                  This will sign you out and wipe all local data. Are you sure?
-                </p>
-                <button
-                  onClick={handleEmergencyReset}
-                  className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition-colors"
-                >
-                  Yes, wipe it
-                </button>
-                <button
-                  onClick={() => setResetConfirm(false)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleEmergencyReset}
-                className="text-xs font-semibold text-red-600 dark:text-red-400 underline hover:no-underline transition-all"
-              >
-                Reset all browser data on this device →
-              </button>
-            )}
-          </div>
 
           {/* ── AI Provider Selection ── */}
           <div className="rounded-xl border-2 border-[#1B2B4B]/20 dark:border-zinc-700 p-4 space-y-4 bg-zinc-50/50 dark:bg-neutral-800/30">
