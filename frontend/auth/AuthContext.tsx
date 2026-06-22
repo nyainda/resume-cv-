@@ -212,11 +212,24 @@ function openOAuthPopup(
 }
 
 // ─── Account-switch wipe ──────────────────────────────────────────────────────
-// Simple prefix-based localStorage wipe. No FNV hashing. No sentinels.
-// No IDB nuclear wipe. Just clears user-scoped keys and reloads.
+// Called whenever a different email signs in on the same device.
+// Clears ALL user-scoped localStorage keys, sets IDB-skip sentinels (so
+// restoreLocalStorageFromIDB cannot re-inject the old user's data on next
+// boot), and fires fire-and-forget IDB deletes for belt-and-suspenders safety.
 
 export function wipeLocalAppData(): void {
     try {
+        // ── 1. IDB-skip sentinels — written SYNCHRONOUSLY before any async work ──
+        // restoreLocalStorageFromIDB() checks 'cv_appdata_cleared' on boot and
+        // skips the restore if set, preventing old IDB data from coming back.
+        // loadAuthState() checks 'procv:google_auth_cleared' and skips the
+        // stale Google auth token, preventing silent re-auth as the old user.
+        try { localStorage.setItem('cv_appdata_cleared', '1'); }       catch { /* non-fatal */ }
+        try { localStorage.setItem('procv:google_auth_cleared', '1'); } catch { /* non-fatal */ }
+
+        // ── 2. Clear user-scoped localStorage keys ────────────────────────────────
+        // Collect all keys first — mutating localStorage while iterating its numeric
+        // indices shifts subsequent indices and silently skips keys.
         const allKeys: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
@@ -237,6 +250,21 @@ export function wipeLocalAppData(): void {
             ) {
                 localStorage.removeItem(k);
             }
+        });
+
+        // ── 3. Fire-and-forget IDB deletes ────────────────────────────────────────
+        // The sentinels above are the real safety net (synchronous). These deletes
+        // ensure that even after the sentinels are consumed on first boot, the IDB
+        // stores are genuinely empty — old user's profiles can never come back.
+        const IDB_STORES = [
+            'cv_builder_auth',      // Google auth tokens
+            'cv_builder_cvdata',    // CV content
+            'cv_builder_appdata',   // mirrored localStorage (profiles, settings)
+            'cv_builder_sync',      // pending sync queue items
+            'cv_builder_keyvault',  // AES-GCM encryption key for API keys
+        ];
+        IDB_STORES.forEach(name => {
+            try { indexedDB.deleteDatabase(name); } catch { /* non-fatal */ }
         });
     } catch { /* non-fatal */ }
 }
@@ -269,11 +297,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pendingResolvers  = useRef<Array<(ok: boolean) => void>>([]);
     const driveRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Ref that always holds the current user — lets _applySession read the
-    // live email for account-switch detection without being called inside a
-    // setUser updater (which would cause React to discard the inner setState).
-    const userRef = useRef<WorkerUser | null>(user);
-    useEffect(() => { userRef.current = user; }, [user]);
+    // Tracks the most recently authenticated email — even after sign-out.
+    // Unlike userRef (which becomes null on sign-out), this ref retains the
+    // last real email so _applySession can detect "User A signed out, User B
+    // is now signing in" and trigger the account-switch wipe.
+    // Seeded at mount from the localStorage display cache (still present at init).
+    const lastKnownEmailRef = useRef<string | null>(user?.email ?? null);
 
     // ── Persist / clear the display cache ────────────────────────────────────
 
@@ -286,23 +315,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // ── Core: apply a confirmed session ──────────────────────────────────────
-    // Handles account-switch detection inline without any hashing or sentinels.
+    // Reads lastKnownEmailRef to detect account switches without needing any
+    // hashing, sentinels, or reading from React state inside a setState call.
 
-    const _applySession = useCallback((
-        incoming: WorkerUser,
-        isNew = false,
-        currentEmail?: string | null,
-    ) => {
-        if (currentEmail && incoming.email && currentEmail !== incoming.email) {
-            // Different user on the same device → wipe and reload.
-            // Store the new user so we can restore after reload.
+    const _applySession = useCallback((incoming: WorkerUser, isNew = false) => {
+        const prevEmail = lastKnownEmailRef.current;
+        if (prevEmail && incoming.email && prevEmail !== incoming.email) {
+            // Different user on the same device → wipe ALL local data and reload.
+            // wipeLocalAppData now sets IDB sentinels + fires IDB deletes so the
+            // old user's data cannot return via restoreLocalStorageFromIDB on boot.
+            clearQueueForAccount().catch(() => {});
             wipeLocalAppData();
             try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(incoming)); } catch { /* non-fatal */ }
             if (isNew) { try { sessionStorage.setItem('procv:pending_new_user', '1'); } catch { /* non-fatal */ } }
             window.location.reload();
             return;
         }
+        // Same user (or first sign-in on this device) — apply without reload.
         clearQueueForAccount().catch(() => {});
+        lastKnownEmailRef.current = incoming.email ?? null; // update BEFORE _saveUser
         _saveUser(incoming);
         if (isNew) setIsNewUser(true);
         setAuthModalOpen(false);
@@ -335,9 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 const result = await verifyMagicLink(magicToken);
                 if (result && !cancelled) {
-                    let currentEmail: string | null = null;
-                    try { currentEmail = (JSON.parse(localStorage.getItem(USER_CACHE_KEY) ?? 'null') as WorkerUser | null)?.email ?? null; } catch { /* ignore */ }
-                    _applySession(result.user, result.is_new_user, currentEmail);
+                    _applySession(result.user, result.is_new_user);
                 }
                 if (!cancelled) setIsLoading(false);
                 return;
@@ -373,26 +402,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // ── Cross-tab account-switch guard ────────────────────────────────────────
+    // When another tab signs in as a different user, this tab wipes its local
+    // data and reloads so the two tabs never share data from different accounts.
 
     useEffect(() => {
         function onStorage(e: StorageEvent) {
             if (e.key !== USER_CACHE_KEY) return;
             if (!e.newValue) {
-                // Another tab signed out
+                // Another tab signed out — mirror the sign-out here.
                 setUser(null);
                 return;
             }
             try {
                 const incoming = JSON.parse(e.newValue) as WorkerUser;
                 if (!incoming?.email) return;
-                setUser(current => {
-                    if (current?.email && incoming.email !== current.email) {
-                        // Different user signed in on another tab
-                        wipeLocalAppData();
-                        window.location.reload();
-                    }
-                    return current;
-                });
+                // Use lastKnownEmailRef (not React state) — avoids setState-inside-setState.
+                const prevEmail = lastKnownEmailRef.current;
+                if (prevEmail && incoming.email !== prevEmail) {
+                    // Different user signed in on another tab → wipe and reload.
+                    wipeLocalAppData();
+                    window.location.reload();
+                }
             } catch { /* malformed — ignore */ }
         }
         window.addEventListener('storage', onStorage);
@@ -417,11 +447,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw new Error('Too many sign-in attempts. Please try again shortly.');
         }
         setGoogleRateLimited(null);
-        // Call _applySession directly — NOT inside a setUser updater.
-        // Calling setState inside another setState updater causes React to
-        // discard the inner call (outer updater's return value wins), which
-        // means user stays null and isAuthenticated stays false until reload.
-        _applySession(linked.user, linked.is_new_user, userRef.current?.email ?? null);
+        _applySession(linked.user, linked.is_new_user);
     }, [_applySession]);
 
     // ── Drive ─────────────────────────────────────────────────────────────────
@@ -465,7 +491,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Auth modal ────────────────────────────────────────────────────────────
 
     const onAuthSuccess = useCallback((incoming: WorkerUser, isNew = false) => {
-        _applySession(incoming, isNew, userRef.current?.email ?? null);
+        _applySession(incoming, isNew);
     }, [_applySession]);
 
     const showSignIn = useCallback((mode: 'signup' | 'signin' = 'signup') => {
