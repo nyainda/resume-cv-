@@ -1114,7 +1114,7 @@ const AppInner: React.FC = () => {
         const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
-          name: profile.personalInfo.name || "My Profile",
+          name: profile.personalInfo?.name || "My Profile",
           color: "indigo",
           createdAt: new Date().toISOString(),
           profile,
@@ -1685,7 +1685,7 @@ const AppInner: React.FC = () => {
         const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
-          name: profile.personalInfo.name || "Imported Profile",
+          name: profile.personalInfo?.name || "Imported Profile",
           color: "violet",
           createdAt: new Date().toISOString(),
           profile,
@@ -1734,7 +1734,7 @@ const AppInner: React.FC = () => {
         const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
-          name: profile.personalInfo.name || "Imported Profile",
+          name: profile.personalInfo?.name || "Imported Profile",
           color: "indigo",
           createdAt: new Date().toISOString(),
           profile,
@@ -2134,7 +2134,7 @@ const AppInner: React.FC = () => {
                     className={`w-7 h-7 rounded-full ${colorBg(slotColor)} flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0`}
                   >
                     {(
-                      activeSlot?.profile.personalInfo.name ||
+                      activeSlot?.profile?.personalInfo?.name ||
                       activeSlot?.name ||
                       "?"
                     )
@@ -2546,7 +2546,7 @@ const AppInner: React.FC = () => {
                             <div
                               className={`w-5 h-5 rounded-full ${colorBg(slot.color)} flex-shrink-0 flex items-center justify-center text-[9px] text-white font-bold`}
                             >
-                              {(slot.profile.personalInfo?.name || slot.name || '?')
+                              {(slot.profile?.personalInfo?.name || slot.name || '?')
                                 .charAt(0)
                                 .toUpperCase()}
                             </div>
@@ -3013,7 +3013,7 @@ const AppInner: React.FC = () => {
               >
                 <p className="font-semibold text-zinc-800 dark:text-zinc-100 group-hover:text-violet-700 dark:group-hover:text-violet-300">
                   Create new profile — "
-                  {pendingJsonImport.profile.personalInfo.name ||
+                  {pendingJsonImport.profile?.personalInfo?.name ||
                     "Imported Profile"}
                   "
                 </p>
