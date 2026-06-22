@@ -37,7 +37,8 @@ import {
   pruneOrphanedCVData,
 } from "./services/storage/cvDataStore";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
-import type { WorkerUser } from "./services/authService";
+import type { WorkerUser, RawSlot } from "./services/authService";
+import { drainPendingSlots } from "./services/authService";
 import AuthModal from "./components/AuthModal";
 import WelcomeModal from "./components/WelcomeModal";
 import { useToast } from "./hooks/useToast";
@@ -246,6 +247,32 @@ function navTimeAgo(iso?: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// ── Slot data parser ────────────────────────────────────────────────────────
+// profile_json in D1 is either a plain UserProfile OR a full slotPayload:
+//   { profile: UserProfile, savedCVs: [], savedCoverLetters: [], ... }
+// syncSlot() stores the latter (all saved data) when payload ≤ 512KB,
+// and falls back to profile-only when it's too large.
+// This helper detects which shape arrived and unpacks both correctly.
+function parseSlotData(s: RawSlot | { slot_id: string; slot_name: string; color: string; profile_json: string }): UserProfileSlot | null {
+    try {
+        const parsed = JSON.parse(s.profile_json);
+        if (!parsed || typeof parsed !== 'object') return null;
+        const isPayload = 'profile' in parsed && ('savedCVs' in parsed || 'savedCoverLetters' in parsed);
+        return {
+            id:                s.slot_id,
+            name:              s.slot_name,
+            color:             s.color ?? 'indigo',
+            profile:           isPayload ? (parsed.profile ?? {}) : parsed,
+            savedCVs:          isPayload ? (parsed.savedCVs          ?? []) : [],
+            savedCoverLetters: isPayload ? (parsed.savedCoverLetters ?? []) : [],
+            trackedApps:       isPayload ? (parsed.trackedApps       ?? []) : [],
+            starStories:       isPayload ? (parsed.starStories       ?? []) : [],
+        } as UserProfileSlot;
+    } catch {
+        return null;
+    }
+}
+
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const {
@@ -393,48 +420,39 @@ const AppInner: React.FC = () => {
   }, [isAuthenticated]);
 
   // ── D1 auto-restore ───────────────────────────────────────────────────────
-  // D1 is the primary cloud source of truth. When a user signs in with no local
-  // profiles (fresh device, cleared browser, or account switch), we fetch from D1
-  // and apply automatically — no popup, no confirmation needed.
-  // Fires 800 ms after worker auth to give the session token time to propagate.
+  // CF D1 is the single source of truth. On sign-in the auth response now
+  // includes the user's slots directly (zero extra round trip). On a page
+  // refresh the session-validation call does the same. If neither path
+  // supplies slots we fall back to an explicit fetchUserData() call.
+  // HttpOnly cookie is set in the same response as auth — no delay needed.
   useEffect(() => {
     if (!isAuthenticated) return;
     if (profiles.length > 0) return;
     if (d1RestoreCheckedRef.current) return;
     d1RestoreCheckedRef.current = true;
 
-    const t = setTimeout(() => {
-      fetchUserData()
-        .then(data => {
-          if (!data?.slots?.length) return;
-          const restored = data.slots.flatMap(s => {
-            try {
-              const profile = JSON.parse(s.profile_json);
-              return [{
-                id:   s.slot_id,
-                name: s.slot_name,
-                color: s.color ?? '#1B2B4B',
-                profile,
-                savedCVs: [],
-                savedCoverLetters: [],
-                trackedApps: [],
-                starStories: [],
-              } as UserProfileSlot];
-            } catch { return []; }
-          });
-          if (restored.length > 0) {
-            setProfiles(restored);
-            setActiveProfileId(restored[0]?.id ?? null);
-            toast.success(
-              'Profiles restored',
-              `${restored.length} profile${restored.length !== 1 ? 's' : ''} restored from your cloud backup.`,
-            );
-          }
-        })
-        .catch(() => {});
-    }, 800);
+    function applySlots(rawSlots: Array<{ slot_id: string; slot_name: string; color: string; profile_json: string }>, source: string) {
+      const restored = rawSlots.flatMap(s => { const r = parseSlotData(s); return r ? [r] : []; });
+      if (restored.length > 0) {
+        setProfiles(restored);
+        setActiveProfileId(restored[0].id);
+        toast.success('Profiles restored', `${restored.length} profile${restored.length !== 1 ? 's' : ''} loaded from your account.`);
+        console.log(`[D1Restore] ${restored.length} slot(s) restored from ${source}`);
+      }
+    }
 
-    return () => clearTimeout(t);
+    // 1. Try slots that arrived with the auth/session response (instant — no network call).
+    const pending = drainPendingSlots();
+    if (pending?.length) {
+      applySlots(pending, 'auth response');
+      return;
+    }
+
+    // 2. Fallback: explicit fetch from D1 (covers browser refresh where the
+    //    pendingSlots buffer was already drained by a prior render cycle).
+    fetchUserData()
+      .then(data => { if (data?.slots?.length) applySlots(data.slots, 'D1 fetch'); })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, profiles.length]);
 

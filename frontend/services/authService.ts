@@ -34,6 +34,27 @@ export interface WorkerUser {
     plan: 'free' | 'byok' | 'pro';
 }
 
+/** Lightweight slot shape returned alongside every auth response. */
+export interface RawSlot {
+    slot_id: string;
+    slot_name: string;
+    color: string;
+    profile_json: string;
+}
+
+// Slots returned with the most recent auth/session response.
+// Drained once by App.tsx on the first isAuthenticated=true render so
+// profiles load instantly with no extra round trip.
+let _pendingSlots: RawSlot[] | null = null;
+
+/** Drain and return the slots that arrived with the last auth response.
+ *  Returns null if none were present. Clears the buffer on read. */
+export function drainPendingSlots(): RawSlot[] | null {
+    const s = _pendingSlots;
+    _pendingSlots = null;
+    return s;
+}
+
 // ─── Session token fallback ───────────────────────────────────────────────────
 // Used when SameSite=None HttpOnly cookies are blocked by browser privacy settings.
 // Not a security regression: the server still validates the token against D1, and
@@ -111,7 +132,9 @@ export async function linkGoogleSession(
         // Store the session token as a fallback for browsers that block
         // third-party SameSite=None cookies (Safari ITP, Chrome Incognito, etc.).
         if (data.session_token) saveSessionFallback(data.session_token);
-        console.log('[AuthService] linkGoogleSession ✓ — user:', data.user?.email, '| is_new_user:', data.is_new_user);
+        // Cache slots so App.tsx can restore profiles instantly with no extra round trip.
+        if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
+        console.log('[AuthService] linkGoogleSession ✓ — user:', data.user?.email, '| is_new_user:', data.is_new_user, '| slots:', data.slots?.length ?? 0);
         return { ok: true, token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.error('[AuthService] linkGoogleSession threw:', (e as Error).message ?? e);
@@ -157,6 +180,7 @@ export async function verifyMagicLink(
         if (!data.ok) return null;
         // Store fallback token so the session survives if the cookie is blocked
         if (data.session_token) saveSessionFallback(data.session_token);
+        if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
         return { token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.warn('[AuthService] verifyMagicLink failed:', e);
@@ -188,7 +212,10 @@ export async function validateSession(): Promise<{ user: WorkerUser | null; inva
         if (res1.ok) {
             const data = await res1.json() as any;
             const user = data.ok ? (data.user as WorkerUser) : null;
-            if (user) return { user, invalid: false };
+            if (user) {
+                if (Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
+                return { user, invalid: false };
+            }
         }
         if (res1.status !== 401) {
             // 502 / server down — keep display cache, don't log out
@@ -219,6 +246,7 @@ export async function validateSession(): Promise<{ user: WorkerUser | null; inva
         if (!res2.ok) return { user: null, invalid: false }; // server error — keep cache
         const data = await res2.json() as any;
         const user = data.ok ? (data.user as WorkerUser) : null;
+        if (user && Array.isArray(data.slots) && data.slots.length > 0) _pendingSlots = data.slots as RawSlot[];
         return { user, invalid: !user };
     } catch {
         return { user: null, invalid: false };

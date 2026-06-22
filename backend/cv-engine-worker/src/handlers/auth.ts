@@ -94,6 +94,23 @@ function clientUa(request: Request): string {
     return (request.headers.get("User-Agent") || "").slice(0, 256);
 }
 
+/** Fetch the user's profile slots from D1 — included in every auth response so the
+ *  client can restore profiles instantly without a second round trip. */
+async function fetchUserSlots(userId: number, env: Env): Promise<Array<{
+    slot_id: string; slot_name: string; color: string; profile_json: string;
+}>> {
+    try {
+        const result = await env.CV_DB.prepare(
+            `SELECT slot_id, slot_name, color, profile_json
+             FROM user_slots WHERE user_id = ?
+             ORDER BY created_at ASC LIMIT 20`,
+        ).bind(userId).all<{ slot_id: string; slot_name: string; color: string; profile_json: string }>();
+        return result.results ?? [];
+    } catch {
+        return [];
+    }
+}
+
 interface GoogleUserInfo {
     sub: string;
     email: string;
@@ -372,6 +389,7 @@ export async function handleAuthGoogle(
     const sessionToken = await createSession(user.id, env);
     await auditLog(user.id, "signin_google", "google", request, env);
 
+    const slots = await fetchUserSlots(user.id, env);
     return withCookie(
         json(
             {
@@ -385,6 +403,7 @@ export async function handleAuthGoogle(
                     picture: user.picture,
                     plan: user.plan,
                 },
+                slots,
             },
             request,
             env,
@@ -570,6 +589,7 @@ export async function handleAuthMagicVerify(
     const sessionToken = await createSession(user.id, env);
     await auditLog(user.id, "signin_magic", "magic_link", request, env);
 
+    const slots = await fetchUserSlots(user.id, env);
     return withCookie(
         json(
             {
@@ -583,6 +603,7 @@ export async function handleAuthMagicVerify(
                     picture: user.picture || "",
                     plan: user.plan,
                 },
+                slots,
             },
             request,
             env,
@@ -610,6 +631,7 @@ export async function handleAuthSession(
         .run()
         .catch(() => {});
 
+    const slots = await fetchUserSlots(session.userId, env);
     return json(
         {
             ok: true,
@@ -620,6 +642,7 @@ export async function handleAuthSession(
                 picture: session.picture,
                 plan: session.plan,
             },
+            slots,
         },
         request,
         env,

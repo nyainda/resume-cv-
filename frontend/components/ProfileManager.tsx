@@ -274,7 +274,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                         </p>
                                     ) : (
                                         <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
-                                            {displayName !== slot.name ? displayName : `${slot.profile.workExperience.length} roles · ${slot.profile.skills.length} skills`}
+                                            {displayName !== slot.name ? displayName : `${slot.profile?.workExperience?.length ?? 0} roles · ${slot.profile?.skills?.length ?? 0} skills`}
                                         </p>
                                     )}
 
