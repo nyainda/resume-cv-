@@ -36,3 +36,23 @@ The previous global key scheme let two accounts on the same device share storage
 **Why:** Pre-existing "account switch guard" (FNV hash sentinels, `stampSignedOut`) was duct tape on a structural problem. This solves it structurally.
 
 **How to apply:** Any new persistent state that is user-specific must use `useLocalStorage` or `LocalStorageService` (both auto-prefix). Never write raw `localStorage.setItem('cv_builder:...')` — always go through the service layer.
+
+## Critical bugs fixed in clearUserStorage.ts (Jun 2026)
+
+### Bug 1 (CRITICAL): IDB wipes targeted wrong database names
+`clearAllIdbAsync()` and `clearAllBrowserStorage()` used hardcoded OLD base names (`cv_builder_sync`, `cv_builder_appdata`, `cv_builder_cvdata`). After the namespace refactor those DBs no longer exist — the real names are `cv_builder_sync_u_<uid>` etc. All wipes were silent no-ops; user data remained in IDB after account deletion and emergency reset.
+
+**Fix**: Replaced per-function helpers with a shared `_deleteAllVariantsAsync(base)` that:
+1. Deletes the base name (backward compat)
+2. Calls `indexedDB.databases()` to enumerate all live `${base}_u_*` and `${base}_anon` variants
+
+This is the same pattern `wipeLocalAppData()` in `AuthContext.tsx` already used correctly.
+
+### Bug 2 (MEDIUM): clearUserScopedStorage prefix scans missed user-scoped keys
+Drive mtime scan: `k.startsWith('cv_drv_mtime:')` — missed `u_<uid>:cv_drv_mtime:...`
+D1 hash scan: `k.startsWith('cv_builder:usync_')` — missed `u_<uid>:cv_builder:usync_...`
+
+**Fix**: Both scans now match both old and new forms: `k.startsWith('cv_drv_mtime:') || k.includes(':cv_drv_mtime:')` (same pattern for usync_).
+
+## WorkerAuthContext.tsx is a compatibility shim (not a parallel system)
+`AuthContext.tsx` re-exports `useWorkerAuth()` and `useGoogleAuth()` as backward-compat aliases. All components import from `AuthContext.tsx`. The actual auth system is entirely in `AuthContext.tsx` with one `_applySession` entry point.

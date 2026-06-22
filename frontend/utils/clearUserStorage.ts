@@ -230,18 +230,24 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
     sessionStorage.removeItem('procv:worker_session_temp');
 
     // ── Drive conflict baselines (mtime) ──────────────────────────────────────
+    // After user-namespace refactor, mtime keys are prefixed: u_<uid>:cv_drv_mtime:*
+    // Match both the old unprefixed form and the new user-scoped form.
     const mtimeKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k?.startsWith('cv_drv_mtime:')) mtimeKeys.push(k);
+        if (!k) continue;
+        if (k.startsWith('cv_drv_mtime:') || k.includes(':cv_drv_mtime:')) mtimeKeys.push(k);
     }
     mtimeKeys.forEach(k => localStorage.removeItem(k));
 
     // ── D1 sync hashes (forces fresh writes on next login) ────────────────────
+    // After user-namespace refactor, hash keys are prefixed: u_<uid>:cv_builder:usync_*
+    // Match both the old unprefixed form and the new user-scoped form.
     const hashKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k?.startsWith('cv_builder:usync_')) hashKeys.push(k);
+        if (!k) continue;
+        if (k.startsWith('cv_builder:usync_') || k.includes(':cv_builder:usync_')) hashKeys.push(k);
     }
     hashKeys.forEach(k => localStorage.removeItem(k));
 
@@ -335,148 +341,112 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
     }
 }
 
-/** Delete the Google auth IDB entirely so a stale token cannot silently re-auth the old user. */
-function _clearGoogleAuthIdb(): void {
-    try {
-        const req = indexedDB.deleteDatabase('cv_builder_auth');
-        req.onerror = () => {};    // non-fatal
-        req.onsuccess = () => {};  // non-fatal
-    } catch {
-        // IndexedDB unavailable — safe to ignore
+// ─── IDB helpers ────────────────────────────────────────────────────────────
+//
+// After the user-partitioned storage refactor (May 2026), IDB database names
+// are user-scoped: e.g. `cv_builder_sync_u_12345` or `cv_builder_sync_anon`.
+// The un-suffixed base names (e.g. `cv_builder_sync`) no longer exist for
+// users who have signed in at least once since the refactor.
+//
+// Every delete helper therefore:
+//   1. Deletes the base name (backward compat for pre-refactor browsers).
+//   2. Uses indexedDB.databases() — where available — to enumerate and delete
+//      every `${base}_u_*` and `${base}_anon` variant.
+//
+// This matches the pattern used by wipeLocalAppData() in AuthContext.tsx.
+
+/**
+ * Delete one IDB database by exact name (awaitable, non-fatal).
+ */
+function _deleteDbAsync(name: string): Promise<void> {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.deleteDatabase(name);
+            req.onsuccess = () => resolve();
+            req.onerror   = () => resolve();
+            req.onblocked = () => resolve();
+        } catch {
+            resolve();
+        }
+    });
+}
+
+/**
+ * Delete a database and ALL user-scoped variants of it.
+ *
+ * Deletes `base`, `base_u_*`, and `base_anon` — covering both the old
+ * un-namespaced name (pre-refactor) and every per-user name (post-refactor).
+ *
+ * Falls back gracefully on browsers that don't support indexedDB.databases().
+ */
+async function _deleteAllVariantsAsync(base: string): Promise<void> {
+    // Always delete the base name (pre-refactor browsers / first-time users)
+    await _deleteDbAsync(base);
+
+    // Enumerate live databases and delete every variant that matches this base
+    if (typeof indexedDB.databases === 'function') {
+        try {
+            const all = await indexedDB.databases();
+            await Promise.all(
+                all
+                    .map(d => d.name ?? '')
+                    .filter(n =>
+                        n === base ||
+                        n.startsWith(`${base}_u_`) ||
+                        n.startsWith(`${base}_anon`),
+                    )
+                    .map(_deleteDbAsync),
+            );
+        } catch { /* indexedDB.databases() unavailable or blocked — already handled above */ }
     }
 }
 
-/** Awaitable version of _clearGoogleAuthIdb — resolves when the database is deleted. */
+// ── Named helpers (called by clearAllIdbAsync / clearAllBrowserStorage) ─────
+
 function _clearGoogleAuthIdbAsync(): Promise<void> {
-    return new Promise((resolve) => {
-        try {
-            const req = indexedDB.deleteDatabase('cv_builder_auth');
-            req.onsuccess = () => resolve();
-            req.onerror   = () => resolve(); // non-fatal — always resolve
-            req.onblocked = () => resolve();
-        } catch {
-            resolve(); // IndexedDB unavailable — non-fatal
-        }
-    });
+    // Google auth DB is not user-scoped (it's device-level via Google's own IDB).
+    // Delete only the base name.
+    return _deleteDbAsync('cv_builder_auth');
 }
 
-/** Wipe the cv_builder_cvdata IndexedDB store (non-fatal, fire-and-forget). */
-function _clearCvDataIdb(): void {
-    try {
-        const req = indexedDB.open('cv_builder_cvdata');
-        req.onsuccess = () => {
-            const db = req.result;
-            const stores = Array.from(db.objectStoreNames);
-            if (stores.length === 0) { db.close(); return; }
-            try {
-                const tx = db.transaction(stores, 'readwrite');
-                stores.forEach(s => tx.objectStore(s).clear());
-                tx.oncomplete = () => db.close();
-                tx.onerror   = () => db.close();
-            } catch { db.close(); }
-        };
-    } catch {
-        // IndexedDB unavailable — safe to ignore
-    }
-}
-
-/** Awaitable version of _clearCvDataIdb — resolves when all stores are cleared. */
 function _clearCvDataIdbAsync(): Promise<void> {
-    return new Promise((resolve) => {
-        try {
-            const req = indexedDB.open('cv_builder_cvdata');
-            req.onerror = () => resolve(); // DB may not exist — non-fatal
-            req.onsuccess = () => {
-                const db = req.result;
-                const stores = Array.from(db.objectStoreNames);
-                if (stores.length === 0) { db.close(); resolve(); return; }
-                try {
-                    const tx = db.transaction(stores, 'readwrite');
-                    stores.forEach(s => tx.objectStore(s).clear());
-                    tx.oncomplete = () => { db.close(); resolve(); };
-                    tx.onerror    = () => { db.close(); resolve(); }; // non-fatal
-                } catch { db.close(); resolve(); }
-            };
-        } catch {
-            resolve(); // IndexedDB unavailable — non-fatal
-        }
-    });
+    // cv_builder_cvdata holds per-user CV HTML content.
+    // After namespace refactor: cv_builder_cvdata_u_<uid>.
+    return _deleteAllVariantsAsync('cv_builder_cvdata');
 }
 
-/**
- * Delete the cv_builder_appdata IndexedDB entirely (non-fatal, fire-and-forget).
- *
- * This is the database used by AppDataPersistence.ts to mirror ALL app data
- * (profiles, CVs, settings) so they survive "Clear cache" in the browser.
- * On a full account-switch or delete-account wipe this database MUST be
- * deleted outright — not just cleared — so no stale entries can be restored
- * to localStorage by restoreLocalStorageFromIDB() on the next boot.
- */
-function _clearAppDataIdb(): void {
-    try {
-        const req = indexedDB.deleteDatabase('cv_builder_appdata');
-        req.onerror = () => {};   // non-fatal
-        req.onsuccess = () => {}; // non-fatal
-    } catch {
-        // IndexedDB unavailable — safe to ignore
-    }
-}
-
-/** Awaitable version of _clearAppDataIdb — resolves when the database is deleted. */
 function _clearAppDataIdbAsync(): Promise<void> {
-    return new Promise((resolve) => {
-        try {
-            const req = indexedDB.deleteDatabase('cv_builder_appdata');
-            req.onsuccess = () => resolve();
-            req.onerror   = () => resolve(); // non-fatal — always resolve
-            req.onblocked = () => resolve();
-        } catch {
-            resolve(); // IndexedDB unavailable — non-fatal
-        }
-    });
+    // cv_builder_appdata mirrors ALL app data so it survives "Clear cache".
+    // After namespace refactor: cv_builder_appdata_u_<uid>.
+    // Must be DELETED (not cleared) so restoreLocalStorageFromIDB() doesn't
+    // reload stale entries on the next boot.
+    return _deleteAllVariantsAsync('cv_builder_appdata');
 }
 
-/**
- * Delete the cv_builder_sync IndexedDB (sync queue).
- *
- * The sync queue persists pending profile/slot writes across page reloads.
- * On account deletion this database MUST be deleted (not just cleared) so no
- * enqueued item can replay old profile data to D1 on the next boot under a
- * fresh or re-registered session token.
- *
- * clearQueueForAccount() (called earlier in the delete flow) already clears
- * the in-memory queue items; this is the belt-and-suspenders hard IDB delete.
- */
 function _clearSyncQueueIdbAsync(): Promise<void> {
-    return new Promise((resolve) => {
-        try {
-            const req = indexedDB.deleteDatabase('cv_builder_sync');
-            req.onsuccess = () => resolve();
-            req.onerror   = () => resolve();
-            req.onblocked = () => resolve();
-        } catch {
-            resolve();
-        }
-    });
+    // cv_builder_sync holds pending optimistic profile/slot writes.
+    // After namespace refactor: cv_builder_sync_u_<uid>.
+    // Must be deleted so no stale item replays under a new session.
+    return _deleteAllVariantsAsync('cv_builder_sync');
 }
 
-/**
- * Delete the cv_builder_keyvault IndexedDB.
- *
- * The keyvault holds the AES-GCM 256-bit master key used to encrypt API keys
- * in localStorage.  Deleting it on account wipe ensures the next account
- * starts with a freshly generated key — old encrypted blobs (already erased
- * from localStorage) cannot be decrypted by a mismatched key on re-login.
- */
 function _clearKeyVaultIdbAsync(): Promise<void> {
-    return new Promise((resolve) => {
-        try {
-            const req = indexedDB.deleteDatabase('cv_builder_keyvault');
-            req.onsuccess = () => resolve();
-            req.onerror   = () => resolve();
-            req.onblocked = () => resolve();
-        } catch {
-            resolve();
-        }
-    });
+    // cv_builder_keyvault holds the AES-GCM master key for encrypting API keys.
+    // Not user-scoped (key is device-level) but must be wiped on account delete
+    // so the new account generates a fresh key.
+    return _deleteDbAsync('cv_builder_keyvault');
+}
+
+// ── Fire-and-forget sync variants (used by clearUserScopedStorage) ──────────
+
+function _clearGoogleAuthIdb(): void {
+    _deleteDbAsync('cv_builder_auth').catch(() => {});
+}
+
+function _clearCvDataIdb(): void {
+    _deleteAllVariantsAsync('cv_builder_cvdata').catch(() => {});
+}
+
+function _clearAppDataIdb(): void {
+    _deleteAllVariantsAsync('cv_builder_appdata').catch(() => {});
 }
