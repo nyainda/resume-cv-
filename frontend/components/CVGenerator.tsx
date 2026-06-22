@@ -1282,66 +1282,82 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center"
              style={{ background: 'rgba(10,16,30,0.75)', backdropFilter: 'blur(6px)' }}>
           <div className="bg-white dark:bg-neutral-900 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-md shadow-2xl overflow-hidden">
+            {/* Bottom-sheet drag handle (mobile only) */}
             <div className="flex justify-center pt-3 pb-1 sm:hidden">
               <div className="w-10 h-1 rounded-full bg-zinc-200 dark:bg-zinc-700" />
             </div>
-            <div className="px-6 pb-8 pt-5 space-y-4">
-              {/* Icon + heading */}
+            <div className="px-6 pb-8 pt-5 space-y-5">
+              {/* Heading */}
               <div className="flex items-start gap-3">
                 <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl"
-                     style={{ background: 'linear-gradient(135deg,#FFF8E7,#FDFBF5)', border: '1.5px solid #C9A84C' }}>
+                     style={{ background: 'linear-gradient(135deg,#F0F4FF,#FAFBFF)', border: '1.5px solid #93C5FD' }}>
                   🔑
                 </div>
                 <div>
                   <h2 className="text-base font-black text-zinc-900 dark:text-zinc-100 leading-snug"
                       style={{ fontFamily: "'Playfair Display', serif" }}>
-                    Free trial used
+                    Add your own AI key to continue
                   </h2>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    You've used your 1 free Workers AI generation.
+                    Your free trial generation is used. Pick either key below — both work for everything.
                   </p>
                 </div>
               </div>
 
-              {/* Options */}
-              <div className="space-y-2.5">
-                {/* Option A — add Gemini key */}
-                <div className="rounded-xl border-2 border-blue-200 dark:border-blue-800 p-3.5 bg-blue-50/40 dark:bg-blue-900/10 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-black text-blue-800 dark:text-blue-300">🔍 Add a free Gemini key</p>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Recommended · Free</span>
+              {/* Two key options side by side */}
+              <div className="grid grid-cols-1 gap-2.5">
+
+                {/* Claude */}
+                <div className="rounded-xl border border-purple-200 dark:border-purple-800/60 p-4 bg-purple-50/40 dark:bg-purple-900/10 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🧠</span>
+                    <p className="text-sm font-black text-purple-900 dark:text-purple-200">Claude (Anthropic)</p>
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">Free — your key</span>
                   </div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    Get a free API key from Google AI Studio — takes 30 seconds. No credit card needed.
+                    Claude Haiku via secure server proxy. Fast, 200K context. Prompt caching active — repeated generations cost 90% less.
                   </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
-                       className="text-xs font-bold underline" style={{ color: '#1B2B4B' }}>
-                      Get free Gemini key →
-                    </a>
-                    <span className="text-zinc-300 dark:text-zinc-600">·</span>
-                    <button
-                      onClick={() => { setShowByokPrompt(false); openSettings(); }}
-                      className="text-xs font-bold underline text-blue-600 dark:text-blue-400">
-                      Add key in Settings →
-                    </button>
-                  </div>
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer"
+                     className="inline-flex items-center gap-1 text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline">
+                    Get Claude API key →
+                  </a>
                 </div>
 
-                {/* Option B — upgrade to Premium */}
-                <div className="rounded-xl border border-[#C9A84C]/40 p-3.5 bg-amber-50/40 dark:bg-amber-900/10 space-y-1.5">
-                  <p className="text-sm font-black" style={{ color: '#1B2B4B' }}>✨ Upgrade to Premium</p>
+                {/* Gemini */}
+                <div className="rounded-xl border border-blue-200 dark:border-blue-800/60 p-4 bg-blue-50/40 dark:bg-blue-900/10 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔍</span>
+                    <p className="text-sm font-black text-blue-900 dark:text-blue-200">Gemini (Google)</p>
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Free — your key</span>
+                  </div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    Unlimited generations on Workers AI — better models, faster, no key management.
+                    Gemini 2.0 Flash via secure server proxy. 1M context. Also needed for PDF/image CV upload.
                   </p>
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
+                     className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline">
+                    Get Gemini API key →
+                  </a>
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowByokPrompt(false)}
-                className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-1.5 transition-colors font-medium">
-                Close
-              </button>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
+                Once you have a key, paste it in <strong className="text-zinc-600 dark:text-zinc-300">Settings → AI Provider</strong> and switch to that provider.
+              </p>
+
+              {/* CTA */}
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => { setShowByokPrompt(false); openSettings(); }}
+                  className="w-full py-2.5 rounded-xl text-sm font-black text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(135deg,#1B2B4B,#2d4070)' }}>
+                  Open Settings to add key →
+                </button>
+                <button
+                  onClick={() => setShowByokPrompt(false)}
+                  className="w-full text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 py-1.5 transition-colors font-medium">
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

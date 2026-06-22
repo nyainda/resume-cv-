@@ -149,6 +149,108 @@ const PAID_UPGRADE_MAP: Record<string, string> = {
     cvSummary:      '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
 };
 
+// ── Model deprecation fallback chains ────────────────────────────────────────
+// When a model is retired or returns empty (HTTP 200 + no text, or throws),
+// the worker automatically tries the next model in the chain — zero redeploy.
+// Rules: first entry should match TIERED_MODEL_MAP; subsequent entries are
+// same-capability alternatives ordered by preference.
+// KV override (see resolveModel below) takes precedence over everything.
+const MODEL_FALLBACK_CHAIN: Record<string, string[]> = {
+    // Tier 2 — Mistral Small 3.1 24B → fallback to Llama 3.1 8B → Llama 3.2 3B
+    cvGenerate:           ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    cvGenerateLong:       ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    cvExperience:         ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    cvProjects:           ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    cvAudit:              ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    cvSummary:            ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.2-3b-instruct'],
+    parser:               ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    humanize:             ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    coverLetter:          ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    multilingualGenerate: ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    rhythmSelection:      ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    corpusCrawl:          ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    cvFallback:           ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    // IBM Granite tasks → fallback to Llama 3.2 3B
+    cvSkills:             ['@cf/ibm-granite/granite-4.0-h-micro',          '@cf/meta/llama-3.2-3b-instruct'],
+    cvEducation:          ['@cf/ibm-granite/granite-4.0-h-micro',          '@cf/meta/llama-3.2-3b-instruct'],
+    verbRepeatCheck:      ['@cf/ibm-granite/granite-4.0-h-micro',          '@cf/meta/llama-3.2-3b-instruct'],
+    rhythmCheck:          ['@cf/ibm-granite/granite-4.0-h-micro',          '@cf/meta/llama-3.2-3b-instruct'],
+    jdParse:              ['@cf/ibm-granite/granite-4.0-h-micro',          '@cf/meta/llama-3.2-3b-instruct'],
+    // Llama 3.3 70B (tier 1) → fallback to Mistral Small
+    voiceScoring:         ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/mistralai/mistral-small-3.1-24b-instruct'],
+    jdKeywords:           ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/mistralai/mistral-small-3.1-24b-instruct'],
+    // DeepSeek R1 (tier 1) → fallback to Llama 70B → Mistral
+    jdDeepAnalysis:       ['@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/mistralai/mistral-small-3.1-24b-instruct'],
+    gapAnalysis:          ['@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/mistralai/mistral-small-3.1-24b-instruct'],
+    corpusConfidence:     ['@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/mistralai/mistral-small-3.1-24b-instruct'],
+};
+
+/**
+ * Resolve the model to use for a task, applying (in priority order):
+ *   1. KV override key  `model:override:{taskKey}`  — set via admin to hotfix a retired model
+ *   2. paidUpgrade model from PAID_UPGRADE_MAP
+ *   3. Primary model from TIERED_MODEL_MAP
+ *
+ * Returns the resolved primary model AND the remaining fallback chain for
+ * that task (excluding the resolved primary so we don't retry it first).
+ */
+async function resolveModel(
+    taskKey: string,
+    paidUpgrade: boolean,
+    env: Env,
+): Promise<{ primary: string; chain: string[] }> {
+    // Check KV for a live override (allows hotfix without redeploy)
+    let kvOverride: string | null = null;
+    try {
+        kvOverride = await env.CV_KV.get(`model:override:${taskKey}`);
+    } catch { /* KV miss or unavailable — continue */ }
+
+    if (kvOverride?.trim()) {
+        // KV override wins — use it as the only model (admin has explicit control)
+        return { primary: kvOverride.trim(), chain: [] };
+    }
+
+    const baseMapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
+    const upgradedModel = paidUpgrade ? PAID_UPGRADE_MAP[taskKey] : undefined;
+    const primary = upgradedModel ?? baseMapping.model;
+
+    // Build fallback chain: skip the primary model (already being tried)
+    const rawChain = MODEL_FALLBACK_CHAIN[taskKey] ?? [];
+    // For paid upgrade, the upgrade model is primary so fallback through the base chain
+    const chain = rawChain.filter(m => m !== primary);
+
+    return { primary, chain };
+}
+
+/**
+ * Run a single non-streaming AI.run call, returning the text or throwing.
+ * Extracted so the retry loop in handleTieredLLM can call it per model.
+ */
+async function runAIModel(
+    model: string,
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    temperature: number,
+    maxTokens: number,
+    wantsJson: boolean,
+    env: Env,
+): Promise<string> {
+    const payload: Record<string, unknown> = { messages, temperature, max_tokens: maxTokens };
+    const supports70bJsonFormat = model.includes('llama-3.3-70b') || model.includes('llama-3.1-70b');
+    if (wantsJson && supports70bJsonFormat) payload.response_format = { type: 'json_object' };
+
+    const res: any = await env.AI.run(model as any, payload as any);
+
+    let text = '';
+    if (typeof res === 'string') text = res;
+    else if (typeof res?.response === 'string') text = res.response;
+    else if (typeof res?.result?.response === 'string') text = res.result.response;
+    else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
+
+    if (text) text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    if (!text) throw new Error(`llm_empty:${model}`);
+    return text;
+}
+
 export const TIERED_LLM_MAX_PROMPT_CHARS  = 100000;
 export const TIERED_LLM_MAX_SYSTEM_CHARS  = 6000;
 export const TIERED_LLM_DEFAULT_MAX_TOKENS = 2048;
@@ -176,11 +278,11 @@ export async function handleTieredLLM(request: Request, env: Env): Promise<Respo
     const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
 
+    const { primary: model, chain: fallbackChain } = await resolveModel(taskKey, paidUpgrade, env);
     const baseMapping = TIERED_MODEL_MAP[taskKey] ?? TIERED_MODEL_MAP['general'];
     const upgradedModel = paidUpgrade ? PAID_UPGRADE_MAP[taskKey] : undefined;
-    const model       = upgradedModel ?? baseMapping.model;
     const { tier, free: baseFree, description } = baseMapping;
-    const free        = upgradedModel ? false : baseFree;
+    const free = upgradedModel ? false : baseFree;
 
     const wantsJson  = body?.json === true;
     const wantStream = body?.stream === true;
@@ -200,7 +302,7 @@ export async function handleTieredLLM(request: Request, env: Env): Promise<Respo
     if (effectiveSystem) messages.push({ role: 'system', content: effectiveSystem });
     messages.push({ role: 'user', content: prompt });
 
-    // ── Streaming path ────────────────────────────────────────────────────────
+    // ── Streaming path (no fallback — streams can't be retried mid-flight) ───
     if (wantStream) {
         try {
             const payload: Record<string, unknown> = { messages, temperature, max_tokens: maxTokens, stream: true };
@@ -254,26 +356,44 @@ export async function handleTieredLLM(request: Request, env: Env): Promise<Respo
         }
     }
 
-    // ── Non-streaming path ────────────────────────────────────────────────────
-    try {
-        const payload: Record<string, unknown> = { messages, temperature, max_tokens: maxTokens };
-        const supports70bJsonFormat = model.includes('llama-3.3-70b') || model.includes('llama-3.1-70b');
-        if (wantsJson && supports70bJsonFormat) payload.response_format = { type: 'json_object' };
+    // ── Non-streaming path — with automatic model fallback chain ─────────────
+    // Try primary model first, then each fallback in order.
+    // A model is skipped (and the next tried) when it:
+    //   • throws any exception (network error, "model not found", quota exceeded)
+    //   • returns HTTP 200 but produces empty text (retired model cold-returns nothing)
+    const modelsToTry = [model, ...fallbackChain];
+    let lastError = '';
+    const attempted: string[] = [];
 
-        const res: any = await env.AI.run(model as any, payload as any);
-
-        let text = '';
-        if (typeof res === 'string') text = res;
-        else if (typeof res?.response === 'string') text = res.response;
-        else if (typeof res?.result?.response === 'string') text = res.result.response;
-        else if (typeof res?.choices?.[0]?.message?.content === 'string') text = res.choices[0].message.content;
-
-        if (text) text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-        if (!text) return json({ error: 'llm_empty', model, task: taskKey, tier, free }, request, env, 502);
-        return json({ text, model, task: taskKey, tier, free, description }, request, env);
-    } catch (e: any) {
-        return json({ error: 'llm_failed', message: String(e?.message || e), model, task: taskKey, tier, free }, request, env, 502);
+    for (const candidate of modelsToTry) {
+        try {
+            const text = await runAIModel(candidate, messages, temperature, maxTokens, wantsJson, env);
+            const usedFallback = candidate !== model;
+            return json({
+                text,
+                model: candidate,
+                task: taskKey,
+                tier,
+                free,
+                description,
+                ...(usedFallback ? { fallback: true, primaryModel: model, attempted } : {}),
+            }, request, env);
+        } catch (e: any) {
+            lastError = String(e?.message || e);
+            attempted.push(candidate);
+            // Continue to next model in chain
+        }
     }
+
+    // All models exhausted
+    return json({
+        error: 'llm_all_failed',
+        task: taskKey,
+        attempted,
+        lastError,
+        tier,
+        free,
+    }, request, env, 502);
 }
 
 // ─── Race LLM ─────────────────────────────────────────────────────────────────
