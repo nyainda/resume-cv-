@@ -168,6 +168,12 @@ function _rateLimitId(request: Request): string {
     }`;
 }
 
+// Module-level in-memory rate-limit counter cache.
+// Reduces KV reads: the counter is kept in memory per-isolate and only a single
+// KV read occurs on the FIRST request per (prefix, id, window-slot) — subsequent
+// requests in the same isolate/slot read from memory.
+const _rlMem = new Map<string, { count: number; slot: number }>();
+
 export async function rateLimitRequest(
     env: Env,
     request: Request,
@@ -181,16 +187,30 @@ export async function rateLimitRequest(
         const slot  = Math.floor(now / windowSec);
         const kvKey = `rl:${prefix}:${id}:${slot}`;
 
-        const current = parseInt(await env.CV_KV.get(kvKey) ?? '0', 10);
+        const mem = _rlMem.get(kvKey);
+        let current: number;
+        if (mem && mem.slot === slot) {
+            // Warm — skip KV read
+            current = mem.count;
+        } else {
+            // Cold — read from KV once, then keep in memory
+            current = parseInt(await env.CV_KV.get(kvKey) ?? '0', 10);
+            _rlMem.set(kvKey, { count: current, slot });
+        }
+
         if (current >= limit) {
             const retryAfter = (slot + 1) * windowSec - now;
             return { allowed: false, retryAfter, remaining: 0 };
         }
 
-        // Non-blocking increment — a race may allow a few extra requests;
-        // correctness > strict precision for rate limiting.
-        env.CV_KV.put(kvKey, String(current + 1), { expirationTtl: windowSec * 2 }).catch(() => {});
-        return { allowed: true, retryAfter: 0, remaining: limit - current - 1 };
+        // Increment in memory immediately so parallel requests in the same isolate
+        // see an up-to-date count without waiting for KV round-trips.
+        const next = current + 1;
+        _rlMem.set(kvKey, { count: next, slot });
+
+        // Persist to KV non-blocking — a small race is acceptable for rate limiting.
+        env.CV_KV.put(kvKey, String(next), { expirationTtl: windowSec * 2 }).catch(() => {});
+        return { allowed: true, retryAfter: 0, remaining: limit - next };
     } catch {
         // KV unavailable — fail open rather than blocking all traffic
         return { allowed: true, retryAfter: 0, remaining: limit };

@@ -2,7 +2,8 @@
 - [CV examples pool diversity](cv-examples-pool-diversity.md) — NarrativeAngle type in cvExamplesClient.ts; D1 migration 017 adds narrative_angle + voice_name columns; worker ignores gracefully until deployed.
 - [Seniority fix path format](seniority-fix-path.md) — seniority coherence uses dot-notation paths; parseAuditPath and applyFixToCv now handle both formats.
 - [D1 migration tracking gap](d1-migration-tracking.md) — migrations applied manually (outside wrangler) are not tracked; INSERT into d1_migrations to unblock future runs.
-- [Unified AuthContext migration](auth-unified-context.md) — single AuthContext.tsx replaced GoogleAuthContext+WorkerAuthContext+AuthPersistence+SilentRefresh; cookie-based; shims preserve consumer APIs.
+- [Unified AuthContext migration](auth-unified-context.md) — single AuthContext.tsx replaced GoogleAuthContext+WorkerAuthContext+AuthPersistence+SilentRefresh; cookie-based; shims preserved then removed from App.tsx (now uses single useAuth() call).
+- [CF Worker KV caching](cf-worker-kv-cache.md) — module-level Map cache in data.ts (5-10min TTL) for banned phrases/verbs/rhythm; same cache shared via getCachedBannedPhrases() in validation.ts; rate-limit mem cache in utils.ts skips KV on warm slot; invalidateKVCache() called after admin sync.
 - [Auth system deployment](auth-system.md) — sessions in D1 (024+025), Google OAuth + magic link, rate limiting, audit log; BREVO_API_KEY needed as CF secret for magic link email.
 - [Custom templates removed](custom-templates-removed.md) — feature deleted entirely (5 files + backend routes); TemplateName no longer has 'custom'; atsScores map in TemplateGallery cleaned; D1 table left orphaned.
 - [Profile room isolation](profile-room-isolation.md) — each profile slot has its own localStorage keys (p:${id}:jd/company/jobTitle/mode/purpose/keywords); CVGenerator remounts via key={activeSlot.id}; onSlotUpdate callback debounces slot writes back to profiles array.

@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
-import { Env, kvd } from '../types';
+import { Env } from '../types';
 import { json, safeJson, clamp, sanitizeStringArray, dotSim, escapeRegex } from '../utils';
+import { getCachedBannedPhrases } from './data';
 
 // ─── Semantic match constants ─────────────────────────────────────────────────
 const SEMANTIC_MATCH_MODEL = '@cf/baai/bge-large-en-v1.5';
@@ -23,7 +24,7 @@ export async function handleClean(request: Request, env: Env): Promise<Response>
     let cleaned = rawText;
 
     // 1. Banned phrase replacement (longest first so multi-word phrases hit before single words)
-    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
+    const banned = await getCachedBannedPhrases(env);
     for (const { phrase, replacement } of banned) {
         if (!phrase) continue;
         const re = new RegExp(`\\b${escapeRegex(phrase)}\\b`, 'gi');
@@ -99,8 +100,8 @@ export async function handleValidate(request: Request, env: Env): Promise<Respon
         }
     });
 
-    // 3. Banned phrases
-    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
+    // 3. Banned phrases — use module-level cache shared with data.ts handleBanned
+    const banned = await getCachedBannedPhrases(env);
     bullets.forEach((bullet, i) => {
         const lower = (bullet || '').toLowerCase();
         for (const { phrase, replacement, severity } of banned) {

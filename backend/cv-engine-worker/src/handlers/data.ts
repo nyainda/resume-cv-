@@ -2,6 +2,27 @@
 import { Env, kvd, WORKER_DATA_VERSION, VERB_CATEGORIES } from '../types';
 import { json, safeJson, safeParse, clamp, shuffle, verifyAdminAuth, unauthorized } from '../utils';
 
+// ─── Module-level KV cache ────────────────────────────────────────────────────
+// Survives across requests within the same CF Worker isolate.
+// Reduces KV reads for static/rarely-changing data (banned phrases, verbs, etc.)
+const TTL_5M  = 5 * 60 * 1000;
+const TTL_10M = 10 * 60 * 1000;
+
+interface KVEntry<T> { data: T; expires: number }
+const _kvMem = new Map<string, KVEntry<unknown>>();
+
+function kvMemGet<T>(key: string): T | null {
+    const e = _kvMem.get(key);
+    if (e && Date.now() < e.expires) return e.data as T;
+    _kvMem.delete(key);
+    return null;
+}
+function kvMemSet<T>(key: string, data: T, ttl: number): void {
+    _kvMem.set(key, { data, expires: Date.now() + ttl });
+}
+/** Call this whenever KV data is refreshed (e.g. after admin sync) */
+export function invalidateKVCache(): void { _kvMem.clear(); }
+
 export async function handleHealth(request: Request, env: Env): Promise<Response> {
     const counts = await env.CV_DB.prepare(
         `SELECT
@@ -57,16 +78,25 @@ export async function handleWords(request: Request, env: Env, url: URL): Promise
     return json({ category, tense, count: out.length, words: out, source: 'kv' }, request, env);
 }
 
-export async function handleBanned(request: Request, env: Env): Promise<Response> {
-    let rows = await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' });
-    let source = 'kv';
+/** Shared cached KV read for banned phrases — used by handleBanned AND validation handlers */
+export async function getCachedBannedPhrases(env: Env): Promise<any[]> {
+    const MEM_KEY = 'banned:all';
+    let rows = kvMemGet<any[]>(MEM_KEY);
+    if (rows) return rows;
+    rows = await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' });
     if (!rows) {
         const r = await env.CV_DB.prepare(
             `SELECT phrase, replacement, severity FROM cv_banned_phrases ORDER BY LENGTH(phrase) DESC`
         ).all();
         rows = (r.results as any[]) || [];
-        source = 'd1';
     }
+    kvMemSet(MEM_KEY, rows, TTL_5M);
+    return rows;
+}
+
+export async function handleBanned(request: Request, env: Env): Promise<Response> {
+    const rows = await getCachedBannedPhrases(env);
+    const source = kvMemGet('banned:all') ? 'mem' : 'kv';
     return json({ count: rows.length, banned: rows, source }, request, env);
 }
 
@@ -76,13 +106,23 @@ export async function handleStructures(request: Request, env: Env, url: URL): Pr
     if (!allowed.includes(label)) {
         return json({ error: 'invalid_label', allowed }, request, env, 400);
     }
-    const rows = await env.CV_KV.get<any[]>(kvd(`cv:structures:${label}`), { type: 'json' }) || [];
+    const MEM_KEY = `structures:${label}`;
+    let rows = kvMemGet<any[]>(MEM_KEY);
+    if (!rows) {
+        rows = await env.CV_KV.get<any[]>(kvd(`cv:structures:${label}`), { type: 'json' }) || [];
+        kvMemSet(MEM_KEY, rows, TTL_10M);
+    }
     return json({ label, count: rows.length, structures: rows }, request, env);
 }
 
 export async function handleRhythm(request: Request, env: Env, url: URL): Promise<Response> {
     const section = (url.searchParams.get('section') || '').toLowerCase();
-    const all = await env.CV_KV.get<any[]>(kvd('cv:rhythm:all'), { type: 'json' }) || [];
+    const MEM_KEY = 'rhythm:all';
+    let all = kvMemGet<any[]>(MEM_KEY);
+    if (!all) {
+        all = await env.CV_KV.get<any[]>(kvd('cv:rhythm:all'), { type: 'json' }) || [];
+        kvMemSet(MEM_KEY, all, TTL_10M);
+    }
     const filtered = section ? all.filter(r => String(r.section || '').toLowerCase() === section) : all;
     return json({ section: section || 'all', count: filtered.length, patterns: filtered }, request, env);
 }
@@ -198,5 +238,7 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
 
     await env.CV_KV.put('cv:meta:last_sync', String(Date.now()));
     await env.CV_KV.put('cv:meta:data_version', WORKER_DATA_VERSION);
+    // Clear module-level KV cache so next requests pick up the freshly-synced data
+    invalidateKVCache();
     return json({ ok: true, written, total_keys: written.length, synced_at: Date.now(), data_version: WORKER_DATA_VERSION }, request, env);
 }

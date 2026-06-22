@@ -36,7 +36,8 @@ import {
   migrateToIDB,
   pruneOrphanedCVData,
 } from "./services/storage/cvDataStore";
-import { AuthProvider, useAuth, useGoogleAuth, useWorkerAuth } from "./auth/AuthContext";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
+import type { WorkerUser } from "./services/authService";
 import AuthModal from "./components/AuthModal";
 import WelcomeModal from "./components/WelcomeModal";
 import { useToast } from "./hooks/useToast";
@@ -247,9 +248,25 @@ function navTimeAgo(iso?: string): string {
 
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
-  const { user, isAuthenticated } = useGoogleAuth();
-  const { workerUser, isWorkerAuthenticated, isLoading: isAuthLoading, authModalOpen, onAuthSuccess, onAuthDismiss, showSignIn, signOut, requireAuth, isNewUser, clearNewUser } = useWorkerAuth();
-  const { deleteAccount: _deleteAccount, driveConnected, requestDriveAccess } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    authModalOpen,
+    onAuthSuccess: _rawOnAuthSuccess,
+    dismissAuth: onAuthDismiss,
+    showSignIn,
+    signOut,
+    requireAuth,
+    isNewUser,
+    clearNewUser,
+    deleteAccount: _deleteAccount,
+    driveConnected,
+    requestDriveAccess,
+    driveToken,
+  } = useAuth();
+  // AuthModal calls onSuccess(token, user) — adapt to useAuth's (user, isNew?) shape
+  const onAuthSuccess = useCallback((_token: string, u: WorkerUser) => _rawOnAuthSuccess(u), [_rawOnAuthSuccess]);
   useAutoSync(isAuthenticated);
 
   // ── Auth modal mode (signup vs sign-in copy) ────────────────────────────
@@ -381,7 +398,7 @@ const AppInner: React.FC = () => {
   // and apply automatically — no popup, no confirmation needed.
   // Fires 800 ms after worker auth to give the session token time to propagate.
   useEffect(() => {
-    if (!isWorkerAuthenticated) return;
+    if (!isAuthenticated) return;
     if (profiles.length > 0) return;
     if (d1RestoreCheckedRef.current) return;
     d1RestoreCheckedRef.current = true;
@@ -419,7 +436,7 @@ const AppInner: React.FC = () => {
 
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWorkerAuthenticated, profiles.length]);
+  }, [isAuthenticated, profiles.length]);
 
   // Boot-time profile cache sync — runs whenever the active slot changes.
   // Uploads the profile to D1 if it hasn't been synced yet (or has changed
@@ -683,7 +700,7 @@ const AppInner: React.FC = () => {
 
   useEffect(() => {
     if (driveConnected || drivePromptDismissed) return;
-    if (!isWorkerAuthenticated) return;
+    if (!isAuthenticated) return;
     const check = async () => {
       try {
         const est = await navigator.storage.estimate();
@@ -697,7 +714,7 @@ const AppInner: React.FC = () => {
     // Run once 10 seconds after the user is authenticated
     const t = setTimeout(check, 10_000);
     return () => clearTimeout(t);
-  }, [driveConnected, drivePromptDismissed, isWorkerAuthenticated]);
+  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
 
   const handleConnectDrive = async () => {
     setDriveConnecting(true);
@@ -723,7 +740,7 @@ const AppInner: React.FC = () => {
   // Resets on any real user interaction. Disabled when not signed in.
   const INACTIVITY_MS = 30 * 60 * 1000;
   useEffect(() => {
-    const isLoggedIn = !!(workerUser?.email ?? user?.email);
+    const isLoggedIn = !!user?.email;
     if (!isLoggedIn) {
       setShowInactivityWarning(false);
       if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
@@ -746,7 +763,7 @@ const AppInner: React.FC = () => {
       if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerUser?.email, user?.email]);
+  }, [user?.email]);
 
   const [showProfileManager, setShowProfileManager] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -811,7 +828,7 @@ const AppInner: React.FC = () => {
 
   // Sync user preferences to CF D1 — only when worker-authenticated (has session token)
   useEffect(() => {
-    if (!isWorkerAuthenticated) return;
+    if (!isAuthenticated) return;
     const timer = setTimeout(() => {
       enqueuePrefsSync({
         aiProvider: localStorage.getItem("cv_builder:aiProvider") ?? undefined,
@@ -826,7 +843,7 @@ const AppInner: React.FC = () => {
     }, 4000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [darkMode, isWorkerAuthenticated]);
+  }, [darkMode, isAuthenticated]);
 
   // ── Sync-queue flush triggers ────────────────────────────────────────────
   // Flush the IDB sync queue when the browser comes back online or the tab
@@ -1090,7 +1107,7 @@ const AppInner: React.FC = () => {
         setIsEditingProfile(false);
         // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
         syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
-        if (isWorkerAuthenticated)
+        if (isAuthenticated)
           enqueueSlotSync({ ...activeSlot, profile }).catch(() => {});
       } else {
         // First-time: auto-create a slot
@@ -1310,10 +1327,10 @@ const AppInner: React.FC = () => {
       const updated: UserProfile = { ...userProfile, preferredField: field };
       setUserProfile(updated);
       syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
-      if (isWorkerAuthenticated)
+      if (isAuthenticated)
         enqueueSlotSync({ ...activeSlot, profile: updated }).catch(() => {});
     },
-    [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated],
+    [userProfile, activeSlot, setUserProfile, isAuthenticated],
   );
 
   const handleUnpinField = useCallback(() => {
@@ -1322,9 +1339,9 @@ const AppInner: React.FC = () => {
     const updated = rest as UserProfile;
     setUserProfile(updated);
     syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
-    if (isWorkerAuthenticated)
+    if (isAuthenticated)
       enqueueSlotSync({ ...activeSlot, profile: updated }).catch(() => {});
-  }, [userProfile, activeSlot, setUserProfile, isWorkerAuthenticated]);
+  }, [userProfile, activeSlot, setUserProfile, isAuthenticated]);
 
   // ── Per-slot state sync callback (room isolation) ──────────────────────
   // CVGenerator calls this (debounced 1s) whenever JD, targeting, or generation
@@ -1389,13 +1406,13 @@ const AppInner: React.FC = () => {
 
     rotateDeviceId();                   // fresh device_id for the next account
 
-    if (user?.accessToken) {
-      await deleteAllDriveData(user.accessToken).catch(() => {});
+    if (driveToken?.accessToken) {
+      await deleteAllDriveData(driveToken.accessToken).catch(() => {});
     }
 
     // ── Step 3: Hard-navigate to landing — no browser-history entry ─────────
     window.location.replace(window.location.origin);
-  }, [_deleteAccount, user?.accessToken, toast]);
+  }, [_deleteAccount, driveToken?.accessToken, toast]);
 
   // ── Clear all browser data (emergency reset — no account deletion) ──────
   const handleClearAllData = useCallback(async () => {
@@ -1659,7 +1676,7 @@ const AppInner: React.FC = () => {
         );
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
-        if (isWorkerAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
+        if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
         toast.success(
           "Profile Imported!",
           `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
@@ -1682,10 +1699,10 @@ const AppInner: React.FC = () => {
           `Your CV has been imported.${extrasMsg} Edit your profile or go to the Generator.`,
         );
         syncProfileToCache(slot).catch(() => {});
-        if (isWorkerAuthenticated) enqueueSlotSync(slot).catch(() => {});
+        if (isAuthenticated) enqueueSlotSync(slot).catch(() => {});
       }
     },
-    [activeSlot, setProfiles, setActiveProfileId, toast, isWorkerAuthenticated],
+    [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated],
   );
 
   // ── JSON profile import — asks user whether to update or create new ──────
@@ -1708,7 +1725,7 @@ const AppInner: React.FC = () => {
         );
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
-        if (isWorkerAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
+        if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
         toast.success(
           "Profile Updated!",
           "Your CV is ready — all templates are populated. Check your quality report below.",
@@ -1726,7 +1743,7 @@ const AppInner: React.FC = () => {
         setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
         setActiveProfileId(id);
         syncProfileToCache(slot).catch(() => {});
-        if (isWorkerAuthenticated) enqueueSlotSync(slot).catch(() => {});
+        if (isAuthenticated) enqueueSlotSync(slot).catch(() => {});
         toast.success(
           "Profile Imported!",
           "Your CV is ready — all templates are populated. Check your quality report below.",
@@ -1921,21 +1938,21 @@ const AppInner: React.FC = () => {
   // Onboarding is only shown for genuinely NEW accounts (server confirms is_new_user=true).
   // Returning users on a fresh device get their profiles from D1 auto-restore instead.
   useEffect(() => {
-    if (isWorkerAuthenticated) {
+    if (isAuthenticated) {
       setShowLanding(false);
       if (isNewUser) {
         setShowOnboarding(true);
       }
     }
-  }, [isWorkerAuthenticated, isNewUser]);
+  }, [isAuthenticated, isNewUser]);
 
   // When auth validation completes and no valid session exists, return to landing
   // so returning users with expired sessions must sign in again.
   useEffect(() => {
-    if (!isAuthLoading && !isWorkerAuthenticated) {
+    if (!isAuthLoading && !isAuthenticated) {
       setShowLanding(true);
     }
-  }, [isAuthLoading, isWorkerAuthenticated]);
+  }, [isAuthLoading, isAuthenticated]);
 
   // Show a loading screen while we validate the stored session on mount.
   // This prevents a flash of the main app for users whose session has expired.
@@ -1957,7 +1974,7 @@ const AppInner: React.FC = () => {
         <LandingPage
           onGetStarted={async () => {
             // If the user already has a profile and is authenticated, go straight in.
-            if (profileExists && isWorkerAuthenticated) {
+            if (profileExists && isAuthenticated) {
               setShowLanding(false);
               return;
             }
@@ -1979,9 +1996,9 @@ const AppInner: React.FC = () => {
           }}
           darkMode={!!darkMode}
           onToggleDark={() => setDarkMode((d) => !d)}
-          hasProfile={profileExists && isWorkerAuthenticated}
+          hasProfile={profileExists && isAuthenticated}
           onGoToApp={async () => {
-            if (isWorkerAuthenticated) {
+            if (isAuthenticated) {
               setShowLanding(false);
             } else {
               const ok = await requireAuth();
@@ -2077,7 +2094,7 @@ const AppInner: React.FC = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
           <button
             onClick={() => {
-              if (isWorkerAuthenticated || isAuthenticated) {
+              if (isAuthenticated || isAuthenticated) {
                 setCurrentView("generator");
               } else {
                 setShowLanding(true);
@@ -2201,21 +2218,21 @@ const AppInner: React.FC = () => {
                 aria-label="User menu"
               >
                 {/* Avatar */}
-                {(isWorkerAuthenticated && workerUser?.picture) ? (
-                  <img src={workerUser.picture} alt={workerUser.name} referrerPolicy="no-referrer"
+                {(isAuthenticated && user?.picture) ? (
+                  <img src={user.picture} alt={user.name} referrerPolicy="no-referrer"
                        className="w-7 h-7 rounded-full ring-2 ring-[#C9A84C]/50 shadow-sm flex-shrink-0" />
                 ) : (isAuthenticated && user?.picture) ? (
                   <img src={user.picture} alt={user.name} referrerPolicy="no-referrer"
                        className="w-7 h-7 rounded-full ring-2 ring-[#C9A84C]/50 shadow-sm flex-shrink-0" />
                 ) : (
                   <div className="w-7 h-7 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] flex items-center justify-center text-[11px] text-white dark:text-[#1B2B4B] font-black flex-shrink-0">
-                    {((isWorkerAuthenticated && workerUser ? (workerUser.name || workerUser.email) : isAuthenticated && user ? user.name : '') || 'U').charAt(0).toUpperCase()}
+                    {((isAuthenticated && user ? (user.name || user.email) : isAuthenticated && user ? user.name : '') || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
                 {/* Name — hidden on mobile, shown sm+ */}
                 <span className="hidden sm:inline text-xs font-bold text-zinc-700 dark:text-zinc-200 max-w-[90px] truncate">
-                  {isWorkerAuthenticated && workerUser
-                    ? (workerUser.name || workerUser.email || '').split(' ')[0]
+                  {isAuthenticated && user
+                    ? (user.name || user.email || '').split(' ')[0]
                     : isAuthenticated && user
                       ? user.name.split(' ')[0]
                       : 'Menu'}
@@ -2230,10 +2247,10 @@ const AppInner: React.FC = () => {
               {showUserMenu && (
                 <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden z-50 animate-nav-slide-down">
                   {/* User header */}
-                  {(isWorkerAuthenticated && workerUser) && (
+                  {(isAuthenticated && user) && (
                     <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900/50">
-                      <p className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{workerUser.name || workerUser.email?.split('@')[0]}</p>
-                      <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{workerUser.email}</p>
+                      <p className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{user.name || user.email?.split('@')[0]}</p>
+                      <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{user.email}</p>
                     </div>
                   )}
                   <div className="p-1.5 space-y-0.5">
@@ -2246,7 +2263,7 @@ const AppInner: React.FC = () => {
                       Settings &amp; API Keys
                     </button>
                     {/* Edit / Create Profile — always shown when authenticated */}
-                    {isWorkerAuthenticated && (
+                    {isAuthenticated && (
                       <button
                         onClick={() => { setShowUserMenu(false); setIsEditingProfile(true); }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
@@ -2256,7 +2273,7 @@ const AppInner: React.FC = () => {
                       </button>
                     )}
                     {/* Account */}
-                    {isWorkerAuthenticated && (
+                    {isAuthenticated && (
                       <button
                         onClick={() => { setShowUserMenu(false); setCurrentView("account" as any); }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
@@ -2269,7 +2286,7 @@ const AppInner: React.FC = () => {
                     )}
                   </div>
                   {/* Sign out — separated at bottom */}
-                  {isWorkerAuthenticated && (
+                  {isAuthenticated && (
                     <div className="p-1.5 border-t border-zinc-100 dark:border-neutral-700">
                       <button
                         onClick={async () => {
@@ -2288,7 +2305,7 @@ const AppInner: React.FC = () => {
                     </div>
                   )}
                   {/* Unauthenticated: just cloud sync label */}
-                  {!isWorkerAuthenticated && !isAuthenticated && (
+                  {!isAuthenticated && !isAuthenticated && (
                     <div className="p-1.5">
                       <button
                         onClick={() => { setShowUserMenu(false); setIsSettingsOpen(true); }}
@@ -2457,7 +2474,7 @@ const AppInner: React.FC = () => {
                   ))}
 
                   {/* ── Mobile account/sign-out row ── */}
-                  {isWorkerAuthenticated && (
+                  {isAuthenticated && (
                     <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-neutral-700 px-1 space-y-0.5">
                       <button
                         onClick={() => {
@@ -2470,8 +2487,8 @@ const AppInner: React.FC = () => {
                           <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                         </svg>
                         My Account
-                        {workerUser?.email && (
-                          <span className="ml-auto text-[10px] font-normal text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{workerUser.email}</span>
+                        {user?.email && (
+                          <span className="ml-auto text-[10px] font-normal text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{user.email}</span>
                         )}
                       </button>
                       <button
@@ -2892,7 +2909,7 @@ const AppInner: React.FC = () => {
                 )}
                 {currentView === "account" && (
                   <AccountPage
-                    workerUser={workerUser}
+                    workerUser={user}
                     profiles={profiles}
                     onSignOut={async () => {
                       await clearQueueForAccount().catch(() => {});
@@ -2937,8 +2954,8 @@ const AppInner: React.FC = () => {
       <PricingModal
         isOpen={isPricingOpen}
         onClose={() => setIsPricingOpen(false)}
-        currentPlan={workerUser?.plan ?? 'free'}
-        userEmail={workerUser?.email}
+        currentPlan={user?.plan ?? 'free'}
+        userEmail={user?.email}
       />
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
@@ -3073,10 +3090,10 @@ const AppInner: React.FC = () => {
       />
 
       {/* ── Welcome modal (new user first sign-in) ─────────────────────── */}
-      {isNewUser && workerUser && (
+      {isNewUser && user && (
         <WelcomeModal
-          name={workerUser.name}
-          email={workerUser.email}
+          name={user.name}
+          email={user.email}
           onClose={() => {
             clearNewUser();
             if (!profileExists) setIsEditingProfile(true);
