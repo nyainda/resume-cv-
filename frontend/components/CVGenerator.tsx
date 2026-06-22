@@ -152,6 +152,8 @@ interface CVGeneratorProps {
   onPinField?: (field: string) => void;
   /** Called when user removes a pinned field from the Generation Trace panel */
   onUnpinField?: () => void;
+  /** Opens the pricing / upgrade modal — called when the free cap is hit */
+  onUpgrade?: () => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -621,15 +623,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     if (!authed) return;
 
     // ── Free tier limit gate ───────────────────────────────────────────────────
-    // Free users get 1 trial generation on Workers AI.
-    // After that, they must add a Gemini or Claude key to continue.
+    // Free users get 2 trial generations total (any provider).
+    // On the 3rd attempt, show the pricing/upgrade modal.
     const FREE_GEN_KEY = 'procv:freeGenCount';
     const currentTier = getTier();
-    const currentProvider = getSelectedProvider();
-    if (currentTier === 'free' && currentProvider === 'workers-ai') {
+    if (currentTier === 'free') {
       const usedCount = parseInt(localStorage.getItem(FREE_GEN_KEY) || '0', 10);
-      if (usedCount >= 1) {
-        setShowByokPrompt(true);
+      if (usedCount >= 2) {
+        onUpgrade?.();
         return;
       }
     }
@@ -872,9 +873,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       setCurrentCV(generatedData);
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
-      // Increment free-tier trial counter so the gate fires on the next run
+      // Increment free-tier trial counter so the gate fires after 2 generations
       const FREE_GEN_KEY = 'procv:freeGenCount';
-      if (getTier() === 'free' && getSelectedProvider() === 'workers-ai') {
+      if (getTier() === 'free') {
         const used = parseInt(localStorage.getItem(FREE_GEN_KEY) || '0', 10);
         localStorage.setItem(FREE_GEN_KEY, String(used + 1));
       }

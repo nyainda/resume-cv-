@@ -2926,6 +2926,7 @@ const AppInner: React.FC = () => {
                     onSlotUpdate={handleSlotUpdate}
                     onPinField={handlePinField}
                     onUnpinField={handleUnpinField}
+                    onUpgrade={() => setIsPricingOpen(true)}
                   />
                 )}
                 {currentView === "linkedin" && (

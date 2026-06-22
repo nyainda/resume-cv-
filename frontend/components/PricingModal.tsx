@@ -271,23 +271,52 @@ export default function PricingModal({ isOpen, onClose, currentPlan = 'free', us
                             {/* PAY-PER-DOWNLOAD */}
                             <div className="flex flex-col rounded-2xl border-2 border-amber-300 dark:border-amber-800 overflow-hidden">
                                 <div className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest py-1 text-center">
-                                    No subscription
+                                    No subscription needed
                                 </div>
                                 <div className="p-5 flex flex-col flex-1">
                                     <div className="text-2xl mb-1">💳</div>
                                     <h3 className="text-base font-black text-zinc-900 dark:text-white">Pay-per-Download</h3>
-                                    <div className="flex items-baseline gap-1 mt-1 mb-1">
-                                        <span className="text-3xl font-black text-amber-600">$2.99</span>
-                                        <span className="text-xs text-zinc-400">per download</span>
+                                    <div className="flex items-baseline gap-1 mt-1 mb-0.5">
+                                        <span className="text-3xl font-black text-amber-600">from $3.49</span>
                                     </div>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">One credit = one premium-quality CV generation + WYSIWYG PDF download. No monthly commitment.</p>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 leading-relaxed">
+                                        One credit = one Llama 3.3 70B generation + WYSIWYG PDF. Buy as many as you need — credits never expire.
+                                    </p>
+
+                                    {/* Credit bundle picker */}
+                                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 overflow-hidden mb-4 text-xs">
+                                        {[
+                                            { qty: 1,  price: '$3.49',  each: '$3.49', tag: '',              popular: false },
+                                            { qty: 4,  price: '$10.99', each: '$2.75', tag: 'Save 21%',      popular: false },
+                                            { qty: 8,  price: '$18.99', each: '$2.37', tag: 'Most popular ★', popular: true  },
+                                            { qty: 15, price: '$29.99', each: '$2.00', tag: 'Save 43%',      popular: false },
+                                        ].map(b => (
+                                            <div key={b.qty}
+                                                className={`flex items-center justify-between px-3 py-2 border-b last:border-b-0 border-amber-100 dark:border-amber-900 ${b.popular ? 'bg-amber-50 dark:bg-amber-900/30' : ''}`}>
+                                                <span className={`font-bold ${b.popular ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                                                    {b.qty} credit{b.qty > 1 ? 's' : ''}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    {b.tag && (
+                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${b.popular ? 'bg-amber-500 text-white' : 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'}`}>
+                                                            {b.tag}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-zinc-400 dark:text-zinc-500">{b.each}/ea</span>
+                                                    <span className={`font-black ${b.popular ? 'text-amber-600' : 'text-zinc-800 dark:text-zinc-200'}`}>{b.price}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
                                     <button onClick={() => handleUpgrade('ppd')}
                                         className="w-full py-2.5 rounded-xl text-sm font-black bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 transition-colors mb-4">
                                         Buy credits — coming soon
                                     </button>
+
                                     <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300 flex-1">
                                         {[
-                                            'Llama 3.3 70B (best quality)',
+                                            'Llama 3.3 70B (premium quality)',
                                             'All 35+ templates',
                                             'Honest + Boosted modes',
                                             'ATS gap pinning',
@@ -310,9 +339,6 @@ export default function PricingModal({ isOpen, onClose, currentPlan = 'free', us
                                             </li>
                                         ))}
                                     </ul>
-                                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
-                                        Credits never expire. Perfect for one-off high-stakes applications.
-                                    </p>
                                 </div>
                             </div>
 
