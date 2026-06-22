@@ -202,7 +202,7 @@ export const DriveDataPanel: React.FC<DriveDataPanelProps> = ({ onDataRestored }
                     {user.picture ? (
                         <img src={user.picture} alt={user.name} referrerPolicy="no-referrer" className="w-6 h-6 rounded-full ring-1 ring-emerald-400" />
                     ) : (
-                        <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[9px] text-white font-bold">{user.name[0]}</div>
+                        <div className="w-6 h-6 rounded-full bg-[#1B2B4B] flex items-center justify-center text-[9px] text-white font-bold">{(user.name || user.email || '?')[0]}</div>
                     )}
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">{user.name}</p>

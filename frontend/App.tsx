@@ -2546,7 +2546,7 @@ const AppInner: React.FC = () => {
                             <div
                               className={`w-5 h-5 rounded-full ${colorBg(slot.color)} flex-shrink-0 flex items-center justify-center text-[9px] text-white font-bold`}
                             >
-                              {(slot.profile.personalInfo.name || slot.name)
+                              {(slot.profile.personalInfo?.name || slot.name || '?')
                                 .charAt(0)
                                 .toUpperCase()}
                             </div>
@@ -2575,7 +2575,7 @@ const AppInner: React.FC = () => {
                             Name
                           </span>
                           <span className="text-sm font-semibold">
-                            {userProfile?.personalInfo.name}
+                            {userProfile?.personalInfo?.name}
                           </span>
                         </div>
                         <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-2">

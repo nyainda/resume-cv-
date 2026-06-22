@@ -71,7 +71,7 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSignedIn, onSignedOut })
                                 />
                             ) : (
                                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#F8F7F4]0 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                                    {user.name.charAt(0).toUpperCase()}
+                                    {(user.name || user.email || '?').charAt(0).toUpperCase()}
                                 </div>
                             )}
                             <div className="absolute -bottom-1 -right-1 p-0.5 bg-white dark:bg-neutral-800 rounded-full">
