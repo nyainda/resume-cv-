@@ -1,7 +1,11 @@
 /**
- * PricingModal — Billing preparation component.
- * Shows Free / Pro / Business tiers with feature lists and CTAs.
- * Wired up and ready for a payment processor (Stripe / Whop) to be attached later.
+ * PricingModal — ProCV pricing tiers.
+ *
+ * 4 tiers:
+ *   Free            — 2 CV generations, hard-capped, no payment.
+ *   BYOK            — Unlimited with the user's own API keys, no payment.
+ *   Pay-per-Download — $2.99 per credit (Stripe), Llama 3.3 70B, no subscription.
+ *   Pro             — $19/mo or $149/yr, full suite, Llama 3.3 70B.
  */
 
 import React, { useState } from 'react';
@@ -15,121 +19,114 @@ interface PricingModalProps {
 }
 
 const CHECK = (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
         <polyline points="20 6 9 17 4 12" />
     </svg>
 );
 
 const CROSS = (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5 opacity-30">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5 opacity-25">
         <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
     </svg>
 );
 
-interface Plan {
-    id: string;
-    name: string;
-    price: { monthly: number; annual: number };
-    badge?: string;
-    accentColor: string;
-    accentBg: string;
-    description: string;
-    features: Array<{ label: string; included: boolean }>;
-    cta: string;
+const PARTIAL = (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5 opacity-60">
+        <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+);
+
+interface FeatureRow {
+    label: string;
+    free: 'yes' | 'no' | 'partial' | string;
+    byok: 'yes' | 'no' | 'partial' | string;
+    ppd: 'yes' | 'no' | 'partial' | string;
+    pro: 'yes' | 'no' | 'partial' | string;
 }
 
-const PLANS: Plan[] = [
+interface FeatureSection {
+    title: string;
+    rows: FeatureRow[];
+}
+
+const FEATURE_SECTIONS: FeatureSection[] = [
     {
-        id: 'free',
-        name: 'Free',
-        price: { monthly: 0, annual: 0 },
-        accentColor: '#6b7280',
-        accentBg: '#f3f4f6',
-        description: 'Everything you need to start your job search.',
-        features: [
-            { label: '1 career profile', included: true },
-            { label: 'All 35+ CV templates', included: true },
-            { label: 'AI CV generation (community quota)', included: true },
-            { label: 'PDF download', included: true },
-            { label: 'ATS score checker', included: true },
-            { label: 'Interview prep tool', included: true },
-            { label: 'Multiple profiles (rooms)', included: false },
-            { label: 'Priority AI models (GPT-4o, Claude 3.5)', included: false },
-            { label: 'Unlimited generations', included: false },
-            { label: 'Cloud sync across devices', included: false },
-            { label: 'Cover letter generator', included: false },
+        title: 'Usage',
+        rows: [
+            { label: 'CV generations',         free: '2 total',      byok: 'Unlimited',     ppd: '1 per credit',  pro: 'Unlimited' },
+            { label: 'Profile rooms',           free: '1',            byok: '3',             ppd: '1',             pro: '5' },
+            { label: 'PDF downloads',           free: '2 max',        byok: 'Unlimited',     ppd: '1 per credit',  pro: 'Unlimited' },
+            { label: 'AI model',                free: 'Mistral 24B',  byok: 'Your own keys', ppd: 'Llama 3.3 70B', pro: 'Llama 3.3 70B' },
         ],
-        cta: 'Current plan',
     },
     {
-        id: 'pro',
-        name: 'Pro',
-        badge: 'Most popular',
-        price: { monthly: 9, annual: 7 },
-        accentColor: '#1B2B4B',
-        accentBg: '#e8edf5',
-        description: 'For active job seekers targeting multiple roles.',
-        features: [
-            { label: 'Everything in Free', included: true },
-            { label: 'Up to 5 career profiles', included: true },
-            { label: 'Priority AI models (GPT-4o, Claude 3.5)', included: true },
-            { label: 'Unlimited CV generations', included: true },
-            { label: 'Cloud sync across devices', included: true },
-            { label: 'Cover letter generator', included: true },
-            { label: 'LinkedIn optimizer', included: true },
-            { label: 'Salary research & negotiation coach', included: true },
-            { label: 'Job pipeline tracker', included: true },
-            { label: 'Email reply writer', included: false },
-            { label: 'Team seats', included: false },
+        title: 'CV Builder',
+        rows: [
+            { label: 'All 35+ templates',           free: 'yes', byok: 'yes',     ppd: 'yes',     pro: 'yes' },
+            { label: 'Generation modes',            free: 'Honest only', byok: 'All 3',  ppd: 'Honest + Boosted', pro: 'All 3 incl. Aggressive' },
+            { label: 'ATS gap pinning',             free: 'no',  byok: 'yes',     ppd: 'yes',     pro: 'yes' },
+            { label: 'Smart bullets rewrite',       free: 'no',  byok: 'yes',     ppd: 'yes',     pro: 'yes' },
+            { label: 'CV Checker (full ATS score)', free: 'partial', byok: 'yes', ppd: 'yes',     pro: 'yes' },
+            { label: 'HR Detector',                 free: 'no',  byok: 'yes',     ppd: 'no',      pro: 'yes' },
+            { label: 'Paraphraser',                 free: 'no',  byok: 'yes',     ppd: 'yes',     pro: 'yes' },
+            { label: 'Market research',             free: 'partial', byok: 'yes', ppd: 'yes',     pro: 'yes' },
         ],
-        cta: 'Upgrade to Pro',
     },
     {
-        id: 'business',
-        name: 'Business',
-        badge: 'Coming soon',
-        price: { monthly: 29, annual: 22 },
-        accentColor: '#92400e',
-        accentBg: '#fef3c7',
-        description: 'For career coaches, agencies, and power users.',
-        features: [
-            { label: 'Everything in Pro', included: true },
-            { label: 'Unlimited career profiles', included: true },
-            { label: 'Up to 5 team seats', included: true },
-            { label: 'Email reply writer', included: true },
-            { label: 'White-label CV export', included: true },
-            { label: 'Bulk generate for clients', included: true },
-            { label: 'Priority support', included: true },
-            { label: 'API access (beta)', included: true },
-            { label: 'Custom templates (beta)', included: true },
-            { label: 'Dedicated account manager', included: false },
-            { label: 'SLA guarantee', included: false },
+        title: 'Career Suite',
+        rows: [
+            { label: 'LinkedIn Optimizer',           free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
+            { label: 'Interview Prep',               free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
+            { label: 'Salary Negotiation Coach',     free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
+            { label: 'Portal Scanner',               free: 'partial', byok: 'yes', ppd: 'partial', pro: 'yes' },
+            { label: 'Scholarship Essay Writer',     free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
+            { label: 'Application Tracker',          free: 'yes', byok: 'yes', ppd: 'yes', pro: 'yes' },
+            { label: 'Analytics Dashboard',          free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
         ],
-        cta: 'Join waitlist',
+    },
+    {
+        title: 'Import & Export',
+        rows: [
+            { label: 'Word (.docx) import',     free: 'yes', byok: 'yes', ppd: 'yes', pro: 'yes' },
+            { label: 'PDF import',              free: 'no',  byok: 'yes', ppd: 'yes', pro: 'yes' },
+            { label: 'GitHub import',           free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
+            { label: 'WYSIWYG PDF download',    free: 'partial', byok: 'yes', ppd: 'yes', pro: 'yes' },
+            { label: 'CV sharing links',        free: 'yes', byok: 'yes', ppd: 'yes', pro: 'yes' },
+            { label: 'Google Drive / OneDrive', free: 'no',  byok: 'yes', ppd: 'no',  pro: 'yes' },
+        ],
     },
 ];
 
-export default function PricingModal({ isOpen, onClose, currentPlan = 'free', userEmail }: PricingModalProps) {
+const TIER_COLORS = {
+    free: { accent: '#6b7280', light: '#f3f4f6', text: '#374151' },
+    byok: { accent: '#2563eb', light: '#eff6ff', text: '#1d4ed8' },
+    ppd:  { accent: '#d97706', light: '#fffbeb', text: '#92400e' },
+    pro:  { accent: '#1B2B4B', light: '#e8edf5', text: '#1B2B4B' },
+};
+
+function CellValue({ value, accent }: { value: FeatureRow['free']; accent: string }) {
+    if (value === 'yes')     return <span style={{ color: accent }}>{CHECK}</span>;
+    if (value === 'no')      return <span className="text-zinc-300 dark:text-zinc-600">{CROSS}</span>;
+    if (value === 'partial') return <span style={{ color: accent, opacity: 0.7 }}>{PARTIAL}</span>;
+    return <span className="text-[10px] font-semibold leading-tight" style={{ color: accent }}>{value}</span>;
+}
+
+export default function PricingModal({ isOpen, onClose, currentPlan = 'free', userEmail: _userEmail }: PricingModalProps) {
     const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
-    const [loading, setLoading] = useState<string | null>(null);
+    const [view, setView] = useState<'cards' | 'compare'>('cards');
 
     if (!isOpen) return null;
 
-    function handleCta(plan: Plan) {
-        if (plan.id === 'free' || plan.id === currentPlan) return;
-        if (plan.id === 'business') {
-            window.open(
-                `https://procv.app/waitlist?plan=business${userEmail ? `&email=${encodeURIComponent(userEmail)}` : ''}`,
-                '_blank',
-                'noopener,noreferrer'
-            );
-            return;
+    const proMonthly = 19;
+    const proAnnual  = Math.round(149 / 12);
+
+    function handleUpgrade(tier: string) {
+        if (tier === 'pro') {
+            // TODO: wire Stripe checkout — setTier('premium') after payment confirmed
+            alert("Pro payments are launching soon! You'll be emailed when it's live.");
+        } else if (tier === 'ppd') {
+            alert("Pay-per-download credits are coming soon via Stripe. Each credit = 1 premium-quality CV generation + download.");
         }
-        setLoading(plan.id);
-        setTimeout(() => {
-            setLoading(null);
-            alert('Payments are coming soon! You\'ll be notified when Pro launches.');
-        }, 800);
     }
 
     return createPortal(
@@ -139,139 +136,300 @@ export default function PricingModal({ isOpen, onClose, currentPlan = 'free', us
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div
-                className="relative w-full sm:max-w-5xl bg-white dark:bg-neutral-900 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+                className="relative w-full sm:max-w-6xl bg-white dark:bg-neutral-900 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
                 style={{ maxHeight: '95dvh' }}
                 onClick={e => e.stopPropagation()}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
+                {/* ── Header ── */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-neutral-800 flex-shrink-0">
                     <div>
                         <h2 className="text-xl font-black text-zinc-900 dark:text-white">Choose your plan</h2>
                         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            Upgrade to unlock more profiles, unlimited AI, and cloud sync.
+                            Start free — pay only when you need more.
                         </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        {/* Billing toggle */}
-                        <div className="hidden sm:flex items-center gap-2 bg-zinc-100 dark:bg-neutral-800 rounded-xl p-1">
-                            {(['monthly', 'annual'] as const).map(b => (
-                                <button
-                                    key={b}
-                                    onClick={() => setBilling(b)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${billing === b
-                                        ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-white shadow-sm'
-                                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                                    }`}
-                                >
-                                    {b === 'annual' ? 'Annual (save 20%)' : 'Monthly'}
+                    <div className="flex items-center gap-3">
+                        {/* Cards / Compare toggle */}
+                        <div className="hidden sm:flex items-center gap-1 bg-zinc-100 dark:bg-neutral-800 rounded-lg p-1 text-xs">
+                            {(['cards', 'compare'] as const).map(v => (
+                                <button key={v} onClick={() => setView(v)}
+                                    className={`px-3 py-1.5 rounded-md font-bold transition-all capitalize ${
+                                        view === v
+                                            ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-white shadow-sm'
+                                            : 'text-zinc-500 dark:text-zinc-400'
+                                    }`}>
+                                    {v}
                                 </button>
                             ))}
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="w-9 h-9 flex items-center justify-center rounded-full bg-zinc-100 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors text-lg font-bold flex-shrink-0"
-                        >
+                        {/* Monthly / Annual toggle — only relevant for Pro */}
+                        <div className="hidden sm:flex items-center gap-1 bg-zinc-100 dark:bg-neutral-800 rounded-lg p-1 text-xs">
+                            {(['monthly', 'annual'] as const).map(b => (
+                                <button key={b} onClick={() => setBilling(b)}
+                                    className={`px-3 py-1.5 rounded-md font-bold transition-all ${
+                                        billing === b
+                                            ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-white shadow-sm'
+                                            : 'text-zinc-500 dark:text-zinc-400'
+                                    }`}>
+                                    {b === 'annual' ? 'Annual (save 35%)' : 'Monthly'}
+                                </button>
+                            ))}
+                        </div>
+                        <button onClick={onClose}
+                            className="w-9 h-9 flex items-center justify-center rounded-full bg-zinc-100 dark:bg-neutral-800 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors text-lg font-bold flex-shrink-0">
                             ×
                         </button>
                     </div>
                 </div>
 
-                {/* Plans */}
-                <div className="flex-1 overflow-y-auto p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {PLANS.map(plan => {
-                            const price = billing === 'annual' ? plan.price.annual : plan.price.monthly;
-                            const isCurrentPlan = plan.id === currentPlan;
-                            const isPro = plan.id === 'pro';
+                <div className="flex-1 overflow-y-auto">
+                    {view === 'cards' ? (
+                        /* ── Cards view ── */
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-                            return (
-                                <div
-                                    key={plan.id}
-                                    className={`relative flex flex-col rounded-2xl border-2 overflow-hidden transition-all ${
-                                        isPro
-                                            ? 'border-[#1B2B4B] shadow-lg shadow-[#1B2B4B]/10'
-                                            : 'border-zinc-200 dark:border-neutral-700'
-                                    }`}
-                                >
-                                    {/* Badge */}
-                                    {plan.badge && (
-                                        <div
-                                            className="absolute top-0 left-0 right-0 text-center text-[10px] font-black uppercase tracking-widest py-1"
-                                            style={{
-                                                background: isPro ? '#1B2B4B' : '#f59e0b',
-                                                color: '#fff',
-                                            }}
-                                        >
-                                            {plan.badge}
+                            {/* FREE */}
+                            <div className="flex flex-col rounded-2xl border-2 border-zinc-200 dark:border-neutral-700 overflow-hidden">
+                                <div className="p-5 flex flex-col flex-1">
+                                    <div className="text-2xl mb-1">🆓</div>
+                                    <h3 className="text-base font-black text-zinc-900 dark:text-white">Free</h3>
+                                    <div className="flex items-baseline gap-1 mt-1 mb-1">
+                                        <span className="text-3xl font-black text-zinc-500">$0</span>
+                                        <span className="text-xs text-zinc-400">forever</span>
+                                    </div>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">Try it out. 2 full AI-powered CVs, no card needed.</p>
+                                    <button disabled className="w-full py-2.5 rounded-xl text-sm font-black bg-zinc-100 dark:bg-neutral-800 text-zinc-400 cursor-default mb-4">
+                                        {currentPlan === 'free' ? '✓ Current plan' : 'Free forever'}
+                                    </button>
+                                    <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300 flex-1">
+                                        {[
+                                            '2 CV generations total',
+                                            '1 profile room',
+                                            'All 35+ templates',
+                                            'ATS score checker (basic)',
+                                            'Application tracker',
+                                            'CV sharing links',
+                                        ].map(f => (
+                                            <li key={f} className="flex items-start gap-2">
+                                                <span className="text-zinc-400 mt-0.5 flex-shrink-0">{CHECK}</span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                        {[
+                                            'Boosted / Aggressive modes',
+                                            'Career suite tools',
+                                            'Cloud backup',
+                                        ].map(f => (
+                                            <li key={f} className="flex items-start gap-2 opacity-35">
+                                                <span className="flex-shrink-0 mt-0.5">{CROSS}</span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+
+                            {/* BYOK */}
+                            <div className="flex flex-col rounded-2xl border-2 border-blue-200 dark:border-blue-900 overflow-hidden">
+                                <div className="p-5 flex flex-col flex-1">
+                                    <div className="text-2xl mb-1">🔑</div>
+                                    <h3 className="text-base font-black text-zinc-900 dark:text-white">BYOK</h3>
+                                    <div className="flex items-baseline gap-1 mt-1 mb-1">
+                                        <span className="text-3xl font-black text-blue-600">$0</span>
+                                        <span className="text-xs text-zinc-400">your own API keys</span>
+                                    </div>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">Bring your Groq or Gemini key. Full features, unlimited generations — your quota.</p>
+                                    <a href="#settings" onClick={onClose}
+                                        className="w-full py-2.5 rounded-xl text-sm font-black text-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors mb-4 block">
+                                        Add keys in Settings →
+                                    </a>
+                                    <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300 flex-1">
+                                        {[
+                                            'Unlimited generations (your quota)',
+                                            '3 profile rooms',
+                                            'All 35+ templates',
+                                            'All 3 generation modes',
+                                            'Full career suite',
+                                            'Google Drive / OneDrive backup',
+                                            'GitHub import',
+                                        ].map(f => (
+                                            <li key={f} className="flex items-start gap-2">
+                                                <span className="text-blue-600 mt-0.5 flex-shrink-0">{CHECK}</span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                        <li className="flex items-start gap-2 opacity-50">
+                                            <span className="flex-shrink-0 mt-0.5">{CROSS}</span>
+                                            Llama 3.3 70B (managed)
+                                        </li>
+                                    </ul>
+                                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
+                                        Requires: <span className="font-bold">Groq</span> (free tier) or <span className="font-bold">Gemini</span> API key. Add in Settings → API Keys.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* PAY-PER-DOWNLOAD */}
+                            <div className="flex flex-col rounded-2xl border-2 border-amber-300 dark:border-amber-800 overflow-hidden">
+                                <div className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest py-1 text-center">
+                                    No subscription
+                                </div>
+                                <div className="p-5 flex flex-col flex-1">
+                                    <div className="text-2xl mb-1">💳</div>
+                                    <h3 className="text-base font-black text-zinc-900 dark:text-white">Pay-per-Download</h3>
+                                    <div className="flex items-baseline gap-1 mt-1 mb-1">
+                                        <span className="text-3xl font-black text-amber-600">$2.99</span>
+                                        <span className="text-xs text-zinc-400">per download</span>
+                                    </div>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">One credit = one premium-quality CV generation + WYSIWYG PDF download. No monthly commitment.</p>
+                                    <button onClick={() => handleUpgrade('ppd')}
+                                        className="w-full py-2.5 rounded-xl text-sm font-black bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 transition-colors mb-4">
+                                        Buy credits — coming soon
+                                    </button>
+                                    <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300 flex-1">
+                                        {[
+                                            'Llama 3.3 70B (best quality)',
+                                            'All 35+ templates',
+                                            'Honest + Boosted modes',
+                                            'ATS gap pinning',
+                                            'Full ATS score checker',
+                                            'WYSIWYG PDF download',
+                                            'CV sharing link',
+                                        ].map(f => (
+                                            <li key={f} className="flex items-start gap-2">
+                                                <span className="text-amber-600 mt-0.5 flex-shrink-0">{CHECK}</span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                        {[
+                                            'Career suite (LinkedIn, Interview…)',
+                                            'Cloud backup',
+                                        ].map(f => (
+                                            <li key={f} className="flex items-start gap-2 opacity-35">
+                                                <span className="flex-shrink-0 mt-0.5">{CROSS}</span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-3 leading-relaxed">
+                                        Credits never expire. Perfect for one-off high-stakes applications.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* PRO */}
+                            <div className="flex flex-col rounded-2xl border-2 overflow-hidden"
+                                style={{ borderColor: '#1B2B4B', boxShadow: '0 8px 32px rgba(27,43,75,0.12)' }}>
+                                <div className="text-[10px] font-black uppercase tracking-widest py-1 text-center text-white"
+                                    style={{ background: '#1B2B4B' }}>
+                                    Most popular
+                                </div>
+                                <div className="p-5 flex flex-col flex-1">
+                                    <div className="text-2xl mb-1">⭐</div>
+                                    <h3 className="text-base font-black text-zinc-900 dark:text-white">Pro</h3>
+                                    <div className="flex items-baseline gap-1 mt-1 mb-1">
+                                        <span className="text-3xl font-black" style={{ color: '#1B2B4B' }}>
+                                            ${billing === 'annual' ? proAnnual : proMonthly}
+                                        </span>
+                                        <span className="text-xs text-zinc-400">
+                                            /mo{billing === 'annual' ? ', billed $149/yr' : ''}
+                                        </span>
+                                    </div>
+                                    {billing === 'annual' && (
+                                        <div className="text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-900/30 rounded-md px-2 py-0.5 inline-block mb-1">
+                                            Save 35% vs monthly
                                         </div>
                                     )}
-
-                                    <div className={`flex flex-col flex-1 p-5 ${plan.badge ? 'pt-8' : ''}`}>
-                                        {/* Plan name + price */}
-                                        <div className="mb-4">
-                                            <h3 className="text-base font-black text-zinc-900 dark:text-white">{plan.name}</h3>
-                                            <div className="flex items-baseline gap-1 mt-1">
-                                                <span className="text-3xl font-black" style={{ color: plan.accentColor }}>
-                                                    {price === 0 ? 'Free' : `$${price}`}
-                                                </span>
-                                                {price > 0 && (
-                                                    <span className="text-sm text-zinc-400 dark:text-zinc-500">
-                                                        /mo{billing === 'annual' ? ', billed annually' : ''}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
-                                                {plan.description}
-                                            </p>
-                                        </div>
-
-                                        {/* CTA */}
-                                        <button
-                                            onClick={() => handleCta(plan)}
-                                            disabled={isCurrentPlan || plan.id === 'business'}
-                                            className={`w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5 ${
-                                                isCurrentPlan
-                                                    ? 'bg-zinc-100 dark:bg-neutral-800 text-zinc-400 dark:text-zinc-500 cursor-default'
-                                                    : isPro
-                                                        ? 'bg-[#1B2B4B] hover:bg-[#152238] text-white shadow-lg shadow-[#1B2B4B]/20'
-                                                        : plan.id === 'business'
-                                                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 cursor-not-allowed opacity-70'
-                                                            : 'bg-zinc-100 dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700'
-                                            }`}
-                                        >
-                                            {loading === plan.id ? (
-                                                <span className="flex items-center justify-center gap-2">
-                                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                                                        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/>
-                                                        <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round"/>
-                                                    </svg>
-                                                    Redirecting…
-                                                </span>
-                                            ) : isCurrentPlan ? '✓ Current plan' : plan.cta}
-                                        </button>
-
-                                        {/* Feature list */}
-                                        <div className="space-y-2.5 flex-1">
-                                            {plan.features.map(f => (
-                                                <div key={f.label} className={`flex items-start gap-2.5 ${!f.included ? 'opacity-40' : ''}`}>
-                                                    <span style={{ color: f.included ? plan.accentColor : undefined }}>
-                                                        {f.included ? CHECK : CROSS}
-                                                    </span>
-                                                    <span className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">{f.label}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">Everything, unlimited. For serious job seekers.</p>
+                                    <button onClick={() => handleUpgrade('pro')}
+                                        className="w-full py-2.5 rounded-xl text-sm font-black text-white transition-colors mb-4 shadow-lg"
+                                        style={{ background: '#1B2B4B' }}>
+                                        Upgrade to Pro — coming soon
+                                    </button>
+                                    <ul className="space-y-2 text-xs text-zinc-600 dark:text-zinc-300 flex-1">
+                                        {[
+                                            'Llama 3.3 70B (fastest, best)',
+                                            'Unlimited generations',
+                                            '5 profile rooms',
+                                            'All 3 modes incl. Aggressive',
+                                            'Full career suite (12 tools)',
+                                            'Google Drive / OneDrive sync',
+                                            'GitHub import',
+                                            'HR Detector + Analytics',
+                                            'Priority support',
+                                        ].map(f => (
+                                            <li key={f} className="flex items-start gap-2">
+                                                <span style={{ color: '#1B2B4B' }} className="mt-0.5 flex-shrink-0">{CHECK}</span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                    </ul>
                                 </div>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        </div>
+                    ) : (
+                        /* ── Comparison table view ── */
+                        <div className="p-5 overflow-x-auto">
+                            <table className="w-full text-xs border-collapse min-w-[640px]">
+                                <thead>
+                                    <tr>
+                                        <th className="text-left py-3 pr-4 text-zinc-500 dark:text-zinc-400 font-semibold w-48">Feature</th>
+                                        {[
+                                            { id: 'free', label: '🆓 Free',              sub: '$0',           color: TIER_COLORS.free.accent },
+                                            { id: 'byok', label: '🔑 BYOK',              sub: '$0 + your keys', color: TIER_COLORS.byok.accent },
+                                            { id: 'ppd',  label: '💳 Pay-per-Download',  sub: '$2.99 / DL',   color: TIER_COLORS.ppd.accent  },
+                                            { id: 'pro',  label: '⭐ Pro',               sub: `$${billing === 'annual' ? proAnnual : proMonthly}/mo`, color: TIER_COLORS.pro.accent  },
+                                        ].map(t => (
+                                            <th key={t.id} className="text-center py-3 px-3 font-black" style={{ color: t.color }}>
+                                                <div>{t.label}</div>
+                                                <div className="text-[10px] font-semibold text-zinc-400 mt-0.5">{t.sub}</div>
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {FEATURE_SECTIONS.map(section => (
+                                        <React.Fragment key={section.title}>
+                                            <tr>
+                                                <td colSpan={5} className="pt-4 pb-1">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                                                        {section.title}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            {section.rows.map((row, i) => (
+                                                <tr key={row.label}
+                                                    className={`border-t ${i === 0 ? 'border-zinc-200 dark:border-neutral-700' : 'border-zinc-100 dark:border-neutral-800'}`}>
+                                                    <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-300 font-medium">{row.label}</td>
+                                                    {([
+                                                        { val: row.free, color: TIER_COLORS.free.accent },
+                                                        { val: row.byok, color: TIER_COLORS.byok.accent },
+                                                        { val: row.ppd,  color: TIER_COLORS.ppd.accent  },
+                                                        { val: row.pro,  color: TIER_COLORS.pro.accent  },
+                                                    ] as const).map((cell, ci) => (
+                                                        <td key={ci} className="py-2 px-3 text-center align-middle">
+                                                            <div className="flex items-center justify-center">
+                                                                <CellValue value={cell.val} accent={cell.color} />
+                                                            </div>
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
-                    {/* Footer note */}
-                    <p className="text-center text-xs text-zinc-400 dark:text-zinc-600 mt-6 pb-2">
-                        All plans include 100% private data storage. No CV data is ever shared or sold.
-                        Cancel anytime.
-                    </p>
+                    {/* ── Footer ── */}
+                    <div className="px-6 pb-5 pt-1 text-center space-y-1">
+                        <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                            All plans store data 100% privately in your browser. No CV data is ever shared or sold.
+                        </p>
+                        <p className="text-xs text-zinc-400 dark:text-zinc-600">
+                            Cancel Pro anytime. Pay-per-download credits never expire.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>,

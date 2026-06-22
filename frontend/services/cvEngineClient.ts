@@ -11,6 +11,7 @@
  */
 
 import { getDeviceId } from './userDataCloudService';
+import { getTier } from './accountTierService';
 
 // IMPORTANT: access `import.meta.env.X` directly. The `(import.meta as any)`
 // cast pattern defeats Vite's static replacement at build time, leaving the
@@ -800,7 +801,7 @@ export async function workerTieredLLM(
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
                     maxTokens: opts.maxTokens ?? 2048,
-                    paidUpgrade: _cachedTier === 'paid',
+                    paidUpgrade: _cachedTier === 'paid' || getTier() === 'premium',
                 }),
             },
             opts.timeoutMs ?? WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS,
@@ -876,7 +877,7 @@ export async function workerRaceLLM(
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
                     maxTokens: opts.maxTokens ?? 2048,
-                    paidUpgrade: _cachedTier === 'paid',
+                    paidUpgrade: _cachedTier === 'paid' || getTier() === 'premium',
                 }),
             },
             opts.timeoutMs ?? WORKER_RACE_LLM_DEFAULT_TIMEOUT_MS,
@@ -1286,6 +1287,7 @@ export async function workerParallelSections(
             preamble: opts.preamble ?? '',
             fallbackTask: opts.fallbackTask ?? 'cvFallback',
             sections,
+            paidUpgrade: _cachedTier === 'paid' || getTier() === 'premium',
         };
         if (opts.profileHash) bodyObj.profile_hash = opts.profileHash;
         const r = await fetchWithTimeout(
