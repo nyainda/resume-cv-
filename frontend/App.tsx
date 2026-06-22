@@ -94,7 +94,7 @@ import {
   Briefcase,
 } from "./components/icons";
 import { isCVEngineConfigured } from "./services/cvEngineClient";
-import { isPureFreeTier } from "./services/accountTierService";
+import { isPureFreeTier, getTier } from "./services/accountTierService";
 
 // ── Mail icon (inline, no dep needed) ──────────────────────────────────────
 const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -2385,6 +2385,23 @@ const AppInner: React.FC = () => {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* ── Upgrade / Plans button — visible for non-premium users ── */}
+            {getTier() !== 'premium' && (
+              <button
+                onClick={() => setIsPricingOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border transition-all flex-shrink-0"
+                style={{ background: 'rgba(201,168,76,0.08)', borderColor: 'rgba(201,168,76,0.35)', color: '#C9A84C' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(201,168,76,0.16)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(201,168,76,0.08)'; }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                  <polyline points="17 6 23 6 23 12"/>
+                </svg>
+                Plans
+              </button>
             )}
 
             {/* ── Dark mode toggle ──────────────────────────────────── */}

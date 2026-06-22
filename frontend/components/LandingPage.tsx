@@ -2245,113 +2245,165 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             </p>
           </div>
 
-          {/* Plan cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 20, maxWidth: 960, margin: '0 auto' }}>
+          {/* Plan cards — 4 tiers */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4,1fr)', gap: 16, maxWidth: 1100, margin: '0 auto' }}>
 
-            {/* Free */}
-            <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: muted, marginBottom: 12 }}>Free</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', color: text }}>$0</span>
-                <span style={{ fontSize: 13, color: muted }}>forever</span>
+            {/* ── Free ── */}
+            <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '28px 22px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, marginBottom: 10 }}>Free</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+                <span style={{ fontSize: 38, fontWeight: 900, letterSpacing: '-0.04em', color: text }}>$0</span>
+                <span style={{ fontSize: 12, color: muted }}>forever</span>
               </div>
-              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: '0 0 28px' }}>
-                Full access to every tool — CV builder, ATS checker, interview prep, job tracker, and more. Always.
+              <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, margin: '0 0 20px' }}>
+                Try it out. 2 full AI-powered CVs, no card needed.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, flex: 1 }}>
                 {[
-                  'All 14 career tools',
-                  'AI CV generation',
-                  'ATS scoring & analysis',
-                  'Cover letter builder',
-                  'Interview prep & coaching',
-                  'Unlimited profile slots',
-                  'Job application tracker',
+                  '2 AI CV generations',
+                  '5 PDF downloads max',
+                  '1 profile room',
+                  'All 35+ templates',
+                  'ATS score checker (basic)',
+                  'Application tracker',
+                  'CV sharing links',
                 ].map(f => (
-                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: text }}>
-                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: text }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     {f}
                   </div>
                 ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: muted }}>
-                  <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  CV download (pay per download)
-                </div>
+                {['Boosted / Aggressive modes', 'Career suite tools', 'Cloud backup'].map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: muted, opacity: 0.5 }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    {f}
+                  </div>
+                ))}
               </div>
-              <button onClick={onGetStarted} style={{ padding: '12px 20px', fontSize: 14, fontWeight: 800, borderRadius: 10, background: elevated, border: `1.5px solid ${border}`, cursor: 'pointer', color: text, transition: 'border-color 0.15s' }}
+              <button onClick={onGetStarted} style={{ padding: '11px 18px', fontSize: 13, fontWeight: 800, borderRadius: 10, background: elevated, border: `1.5px solid ${border}`, cursor: 'pointer', color: text, transition: 'border-color 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = border)}>
                 Start for free
               </button>
             </div>
 
-            {/* Pay-per-download — highlighted */}
-            <div style={{ background: '#1B2B4B', borderRadius: 18, border: `2px solid #C9A84C`, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', pointerEvents: 'none' }} />
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#C9A84C', marginBottom: 12 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', display: 'inline-block' }} />
-                Most popular
+            {/* ── BYOK ── */}
+            <div style={{ background: surface, borderRadius: 18, border: `1.5px solid #2563eb40`, padding: '28px 22px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#2563eb', marginBottom: 10 }}>🔑 BYOK</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+                <span style={{ fontSize: 38, fontWeight: 900, letterSpacing: '-0.04em', color: '#2563eb' }}>$0</span>
+                <span style={{ fontSize: 12, color: muted }}>+ your API key</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>$2</span>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>per CV download</span>
-              </div>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 28px' }}>
-                Only pay when you download. No subscription, no commitment. Download the CVs you need, when you need them.
+              <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, margin: '0 0 20px' }}>
+                Bring your own Groq or Gemini key. Full features, unlimited — your quota.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, flex: 1 }}>
                 {[
-                  'Everything in Free',
-                  'High-quality PDF download',
-                  'WYSIWYG — exactly what you see',
-                  '35+ professional templates',
-                  'ATS-optimised output',
-                  'Each download = one credit',
-                  'Credits never expire',
+                  'Unlimited generations & downloads',
+                  '3 profile rooms',
+                  'All 3 generation modes',
+                  'Full career suite (12 tools)',
+                  'Google Drive / OneDrive backup',
+                  'GitHub import',
                 ].map(f => (
-                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#fff' }}>
-                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: text }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     {f}
                   </div>
                 ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: muted, opacity: 0.5 }}>
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  Managed AI (uses your own quota)
+                </div>
               </div>
-              <button onClick={onGetStarted} style={{ padding: '12px 20px', fontSize: 14, fontWeight: 800, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', transition: 'transform 0.15s, box-shadow 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(235,255,56,0.4)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
-                Get started — it's free
+              <button onClick={onGetStarted} style={{ padding: '11px 18px', fontSize: 13, fontWeight: 800, borderRadius: 10, background: '#eff6ff', border: '1.5px solid #93c5fd', cursor: 'pointer', color: '#1d4ed8', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#dbeafe')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#eff6ff')}>
+                Set up BYOK →
               </button>
             </div>
 
-            {/* BYOK */}
-            <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.16em', color: muted, marginBottom: 12 }}>BYOK — Power User</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', color: text }}>$0</span>
-                <span style={{ fontSize: 13, color: muted }}>+ your API key</span>
+            {/* ── Pay-per-Download — highlighted ── */}
+            <div style={{ background: '#1B2B4B', borderRadius: 18, border: `2px solid #C9A84C`, padding: '28px 22px', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -28, right: -28, width: 110, height: 110, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', pointerEvents: 'none' }} />
+              <div style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', background: '#C9A84C', color: '#111', borderRadius: 99, padding: '3px 10px', display: 'inline-flex', alignItems: 'center', marginBottom: 10, width: 'fit-content' }}>
+                No subscription
               </div>
-              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, margin: '0 0 28px' }}>
-                Bring Your Own Key. Connect your own AI API keys and pay only the AI provider's cost — typically a few cents per CV.
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+                <span style={{ fontSize: 38, fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>$3.49</span>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>/ credit</span>
+              </div>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, margin: '0 0 14px' }}>
+                One credit = one Llama 3.3 70B CV + PDF download. Credits never expire.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32, flex: 1 }}>
+              {/* Bundle table */}
+              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(201,168,76,0.3)', marginBottom: 16, fontSize: 11 }}>
                 {[
-                  'Everything in Free',
-                  'CV downloads at AI provider cost',
-                  'Use your own Groq / Gemini key',
-                  'Typically a few cents per CV',
-                  'Full pipeline — no limits',
-                  'Priority generation speed',
-                  'Advanced model selection',
-                ].map(f => (
-                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: text }}>
-                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  { qty: 1,  price: '$3.49',  each: '$3.49', tag: '',               pop: false },
+                  { qty: 4,  price: '$10.99', each: '$2.75', tag: 'Save 21%',       pop: false },
+                  { qty: 8,  price: '$18.99', each: '$2.37', tag: '★ Most popular', pop: true  },
+                  { qty: 15, price: '$29.99', each: '$2.00', tag: 'Save 43%',       pop: false },
+                ].map(b => (
+                  <div key={b.qty} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid rgba(201,168,76,0.15)', background: b.pop ? 'rgba(201,168,76,0.12)' : 'transparent' }}>
+                    <span style={{ fontWeight: 700, color: b.pop ? '#C9A84C' : 'rgba(255,255,255,0.8)' }}>{b.qty} credit{b.qty > 1 ? 's' : ''}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {b.tag && <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: b.pop ? '#C9A84C' : 'rgba(201,168,76,0.2)', color: b.pop ? '#111' : '#C9A84C' }}>{b.tag}</span>}
+                      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>{b.each}/ea</span>
+                      <span style={{ fontWeight: 900, color: b.pop ? '#C9A84C' : '#fff' }}>{b.price}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 20, flex: 1 }}>
+                {['Llama 3.3 70B (premium quality)', 'Honest + Boosted modes', 'ATS gap pinning', 'Full ATS score checker', 'WYSIWYG PDF download'].map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: '#fff' }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     {f}
                   </div>
                 ))}
               </div>
-              <button onClick={onGetStarted} style={{ padding: '12px 20px', fontSize: 14, fontWeight: 800, borderRadius: 10, background: elevated, border: `1.5px solid ${border}`, cursor: 'pointer', color: text, transition: 'border-color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#C9A84C')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = border)}>
-                Set up BYOK
+              <button onClick={onGetStarted} style={{ padding: '11px 18px', fontSize: 13, fontWeight: 800, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(235,255,56,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
+                Get started free →
+              </button>
+            </div>
+
+            {/* ── Pro ── */}
+            <div style={{ background: surface, borderRadius: 18, border: `2px solid #1B2B4B`, padding: '28px 22px', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(27,43,75,0.10)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#1B2B4B' }}>⭐ Pro</div>
+                <span style={{ fontSize: 9, fontWeight: 900, background: '#1B2B4B', color: '#C9A84C', borderRadius: 99, padding: '3px 9px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Most popular</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 2 }}>
+                <span style={{ fontSize: 38, fontWeight: 900, letterSpacing: '-0.04em', color: '#1B2B4B' }}>$19</span>
+                <span style={{ fontSize: 12, color: muted }}>/mo</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 800, marginBottom: 4 }}>or $149/yr — save 35%</div>
+              <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, margin: '0 0 20px' }}>
+                Everything, unlimited. For serious job seekers.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, flex: 1 }}>
+                {[
+                  'Managed Llama 3.3 70B (no key)',
+                  'Unlimited generations & downloads',
+                  '5 profile rooms',
+                  'All 3 modes incl. Aggressive',
+                  'Full career suite (12 tools)',
+                  'Google Drive / OneDrive sync',
+                  'HR Detector + Analytics',
+                  'Priority support',
+                ].map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12, color: text }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#1B2B4B" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={onGetStarted} style={{ padding: '11px 18px', fontSize: 13, fontWeight: 800, borderRadius: 10, background: '#1B2B4B', border: 'none', cursor: 'pointer', color: '#C9A84C', transition: 'opacity 0.15s', opacity: 0.85 }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '0.85')}>
+                Upgrade to Pro — coming soon
               </button>
             </div>
 
