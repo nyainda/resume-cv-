@@ -20,7 +20,7 @@
  */
 
 import { Env } from "../types";
-import { json, safeJson, ipRateLimit } from "../utils";
+import { corsHeaders, json, safeJson, ipRateLimit } from "../utils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
