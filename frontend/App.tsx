@@ -441,7 +441,16 @@ const AppInner: React.FC = () => {
       const restored = rawSlots.flatMap(s => { const r = parseSlotData(s); return r ? [r] : []; });
       if (restored.length > 0) {
         setProfiles(restored);
-        setActiveProfileId(restored[0].id);
+        // Honour the last-used profile if it still exists in the restored set;
+        // only fall back to the first slot when no prior selection was recorded.
+        try {
+          const storedId = localStorage.getItem('activeProfileId');
+          const parsed = storedId ? JSON.parse(storedId) : null;
+          const stillExists = parsed && restored.some(p => p.id === parsed);
+          setActiveProfileId(stillExists ? parsed : restored[0].id);
+        } catch {
+          setActiveProfileId(restored[0].id);
+        }
         setIsEditingProfile(false);
         toast.success('Profiles restored', `${restored.length} profile${restored.length !== 1 ? 's' : ''} loaded from your account.`);
         console.log(`[D1Restore] ${restored.length} slot(s) restored from ${source}`);
