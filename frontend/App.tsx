@@ -46,6 +46,7 @@ import { ToastContainer } from "./components/ui/Toast";
 import ProfileForm from "./components/ProfileForm";
 import CVGenerator from "./components/CVGenerator";
 import PricingModal from "./components/PricingModal";
+import FreePlanNudge from "./components/FreePlanNudge";
 import SharedCVView from "./components/SharedCVView";
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
@@ -2698,6 +2699,9 @@ const AppInner: React.FC = () => {
           </div>
         )}
       </header>
+
+      {/* Free-tier PDF download nudge — only visible to pure-free users after their first download */}
+      <FreePlanNudge />
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
