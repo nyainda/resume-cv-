@@ -311,6 +311,11 @@ const AppInner: React.FC = () => {
   // ── D1 auto-restore ref (fires once per session) ───────────────────────
   const d1RestoreCheckedRef = useRef(false);
 
+  // ── Return-to-last-view after sign-out/sign-in ─────────────────────────
+  // Tracks the previous auth state so we can save the current view on
+  // sign-out and restore it on the next sign-in within the same tab session.
+  const prevAuthenticatedRef = useRef(false);
+
   // ── Multi-profile storage ──────────────────────────────────────────────
   const [profiles, setProfiles] = useStorage<UserProfileSlot[]>("profiles", []);
   const [activeProfileId, setActiveProfileId] = useStorage<string | null>(
@@ -1974,17 +1979,38 @@ const AppInner: React.FC = () => {
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? "indigo";
 
+  // Save currentView to sessionStorage so it survives the sign-out → sign-in cycle.
+  useEffect(() => {
+    try { sessionStorage.setItem('procv:lastView', currentView); } catch { /* non-fatal */ }
+  }, [currentView]);
+
   // Hide landing whenever authenticated — profiles are optional.
   // This prevents the refresh bug where a valid session + no profiles = landing page.
-  // Onboarding is only shown for genuinely NEW accounts (server confirms is_new_user=true).
+  // Onboarding is only shown for genuinely NEW accounts (server confirms is_new_user=true)
+  // AND only if the user hasn't already completed onboarding before (local flag).
   // Returning users on a fresh device get their profiles from D1 auto-restore instead.
   useEffect(() => {
+    const wasAuthenticated = prevAuthenticatedRef.current;
+    prevAuthenticatedRef.current = isAuthenticated;
+
     if (isAuthenticated) {
       setShowLanding(false);
-      if (isNewUser) {
+      // Only show onboarding for brand-new accounts that haven't completed setup yet.
+      if (isNewUser && !hasCompletedOnboarding()) {
         setShowOnboarding(true);
       }
+      // Restore the view the user was on before they signed out (same tab session).
+      if (!wasAuthenticated) {
+        try {
+          const saved = sessionStorage.getItem('procv:lastView');
+          const RESTORABLE = ['generator','linkedin','interview','jobs','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
+          if (saved && (RESTORABLE as readonly string[]).includes(saved)) {
+            setCurrentView(saved as typeof RESTORABLE[number]);
+          }
+        } catch { /* non-fatal */ }
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isNewUser]);
 
   // When auth validation completes and no valid session exists, return to landing
