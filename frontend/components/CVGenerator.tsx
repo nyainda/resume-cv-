@@ -13,7 +13,7 @@ import { getCachedBannedPhrases } from '../services/cvEngineClient';
 import type { BannedEntry } from '../services/cvEngineClient';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT, getSelectedProvider } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
-import { getTier } from '../services/accountTierService';
+import { getTier, canUsePremiumModes } from '../services/accountTierService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCV } from '../services/cvDownloadService';
@@ -1193,6 +1193,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         onStatus: (m) => setDownloadStatus(m),
       });
 
+      if (result.blocked) {
+        setDownloadStatus(null);
+        onUpgrade?.();
+        return;
+      }
       if (result.ok) {
         setAtsDataEmbedded(jdTier1Keywords.length > 0);
         onAutoTrack({
@@ -1678,10 +1683,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 const colors = modeColorMap[mode.id];
                 const intensity = mode.id === 'honest' ? 1 : mode.id === 'boosted' ? 2 : 3;
                 const riskLabel = mode.id === 'boosted' ? 'Review output' : mode.id === 'aggressive' ? 'Review carefully' : null;
+                const isLocked = mode.id !== 'honest' && !canUsePremiumModes();
                 return (
                   <button
                     key={mode.id}
-                    onClick={() => setGenerationMode(mode.id)}
+                    onClick={() => {
+                      if (isLocked) { onUpgrade?.(); return; }
+                      setGenerationMode(mode.id);
+                    }}
                     className={`
                       w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-200 cursor-pointer group
                       ${isSelected
@@ -1719,7 +1728,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isSelected ? `${colors.badgeBg} ${colors.badge}` : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400'}`}>
                               {mode.shortDesc}
                             </span>
-                            {riskLabel && (
+                            {isLocked && (
+                              <span className="ml-auto text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 flex items-center gap-0.5 flex-shrink-0">
+                                🔒 BYOK / PRO
+                              </span>
+                            )}
+                            {!isLocked && riskLabel && (
                               <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${mode.id === 'aggressive' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
                                 ⚠ {riskLabel}
                               </span>

@@ -93,6 +93,7 @@ import {
   Briefcase,
 } from "./components/icons";
 import { isCVEngineConfigured } from "./services/cvEngineClient";
+import { isPureFreeTier } from "./services/accountTierService";
 
 // ── Mail icon (inline, no dep needed) ──────────────────────────────────────
 const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -1988,6 +1989,19 @@ const AppInner: React.FC = () => {
   const allMoreItems = moreNavGroups.flatMap((g) => g.items);
   const isMoreActive = allMoreItems.some((item) => item.id === currentView);
 
+  // ── Feature gate: views locked for pure free users (no API keys, no premium) ──
+  const GATED_VIEWS = new Set(['interview', 'linkedin', 'email', 'negotiation', 'pivot', 'essays']);
+  const handleNavClick = useCallback((id: string) => {
+    if (isPureFreeTier() && GATED_VIEWS.has(id)) {
+      setIsPricingOpen(true);
+      return;
+    }
+    setCurrentView(id as any);
+    setShowMoreMenu(false);
+    setShowMobileMenu(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? "indigo";
 
@@ -2477,13 +2491,12 @@ const AppInner: React.FC = () => {
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
               {/* ── Desktop nav ── */}
               <div className="hidden sm:flex items-center gap-0.5 py-1">
-                {primaryNav.map((item) => (
+                {primaryNav.map((item) => {
+                  const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
+                  return (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setCurrentView(item.id as any);
-                      setShowMoreMenu(false);
-                    }}
+                    onClick={() => handleNavClick(item.id)}
                     title={item.label}
                     className={`flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-lg text-xs lg:text-sm font-semibold transition-all duration-150 whitespace-nowrap ${
                       currentView === item.id
@@ -2493,8 +2506,10 @@ const AppInner: React.FC = () => {
                   >
                     <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
                     <span>{item.label}</span>
+                    {gated && <span className="ml-0.5 text-[8px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
                   </button>
-                ))}
+                  );
+                })}
 
                 {/* ── More dropdown ── */}
                 <div className="relative ml-1" ref={moreMenuRef}>
@@ -2525,13 +2540,12 @@ const AppInner: React.FC = () => {
                           <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
                             {group.label}
                           </p>
-                          {group.items.map((item) => (
+                          {group.items.map((item) => {
+                            const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
+                            return (
                             <button
                               key={item.id}
-                              onClick={() => {
-                                setCurrentView(item.id as any);
-                                setShowMoreMenu(false);
-                              }}
+                              onClick={() => handleNavClick(item.id)}
                               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
                                 currentView === item.id
                                   ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
@@ -2539,9 +2553,11 @@ const AppInner: React.FC = () => {
                               }`}
                             >
                               <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                              {item.label}
+                              <span className="flex-1">{item.label}</span>
+                              {gated && <span className="text-[8px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
                             </button>
-                          ))}
+                            );
+                          })}
                         </div>
                       ))}
                     </div>
@@ -2552,13 +2568,12 @@ const AppInner: React.FC = () => {
               {/* ── Mobile nav: hamburger + slide-down ── */}
               <div className="sm:hidden flex items-center justify-between py-1.5">
                 <div className="flex gap-0.5 overflow-x-auto no-scrollbar">
-                  {primaryNav.slice(0, 3).map((item) => (
+                  {primaryNav.slice(0, 3).map((item) => {
+                    const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
+                    return (
                     <button
                       key={item.id}
-                      onClick={() => {
-                        setCurrentView(item.id as any);
-                        setShowMobileMenu(false);
-                      }}
+                      onClick={() => handleNavClick(item.id)}
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                         currentView === item.id
                           ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
@@ -2567,8 +2582,10 @@ const AppInner: React.FC = () => {
                     >
                       <item.icon className="h-3 w-3 flex-shrink-0" />
                       <span>{item.label}</span>
+                      {gated && <span className="ml-0.5 text-[7px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
                 <button
                   onClick={() => setShowMobileMenu((v) => !v)}
@@ -2601,23 +2618,24 @@ const AppInner: React.FC = () => {
                         {group.label}
                       </p>
                       <div className="grid grid-cols-2 gap-1">
-                        {group.items.map((item) => (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setCurrentView(item.id as any);
-                              setShowMobileMenu(false);
-                            }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
-                              currentView === item.id
-                                ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
-                                : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
-                            }`}
-                          >
-                            <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                            {item.label}
-                          </button>
-                        ))}
+                        {group.items.map((item) => {
+                          const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => handleNavClick(item.id)}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+                                currentView === item.id
+                                  ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
+                                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
+                              }`}
+                            >
+                              <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                              <span className="flex-1">{item.label}</span>
+                              {gated && <span className="text-[7px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

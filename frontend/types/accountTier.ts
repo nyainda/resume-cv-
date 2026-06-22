@@ -6,7 +6,7 @@
  * UI components import from here rather than duplicating strings.
  */
 
-/** The two tiers the app currently supports. */
+/** The tiers the app currently supports (stored in localStorage). */
 export type AccountTier = 'free' | 'premium';
 
 /**
@@ -15,9 +15,21 @@ export type AccountTier = 'free' | 'premium';
  * you wire the feature into TIER_FEATURES in accountTierService.ts.
  */
 export type TierFeature =
-  | 'workers-ai'       // Cloudflare Workers AI provider (no BYOK key needed)
-  | 'bulk-export'      // Export multiple CVs at once (roadmap)
-  | 'custom-domain';   // Shareable CV on a custom domain (roadmap)
+  | 'workers-ai'         // Cloudflare Workers AI provider (no BYOK key needed)
+  | 'boosted-mode'       // Boosted / Aggressive writing modes
+  | 'ats-gap-pinning'    // ATS keyword gap analysis in generation
+  | 'clean-pdf'          // PDF without ProCV watermark
+  | 'unlimited-pdf'      // No per-lifetime PDF download cap
+  | 'interview-prep'     // Interview Prep tool
+  | 'linkedin-optimizer' // LinkedIn Profile Optimizer
+  | 'salary-negotiation' // Salary Negotiation Coach
+  | 'email-apply'        // Email Apply tool
+  | 'career-pivot'       // Career Pivot Advisor
+  | 'scholarship'        // Scholarship Essays tool
+  | 'career-suite'       // Full career suite (all tools above)
+  | 'unlimited-tracker'  // Unlimited job application tracking (>5)
+  | 'bulk-export'        // Export multiple CVs as ZIP
+  | 'custom-domain';     // Shareable CV on a custom domain
 
 /** Per-feature metadata shown in the upgrade modal. */
 export interface TierFeatureConfig {

@@ -32,6 +32,12 @@ import {
   renderHtmlToPdfBytesViaCF,
 } from './cloudflareWorkerService';
 import { getCVHtml } from './getCVHtml';
+import {
+  canDownloadPdf,
+  needsWatermark,
+  isPureFreeTier,
+  incrementPdfDownloadCount,
+} from './accountTierService';
 import CVPreview from '../components/CVPreview';
 import type { CVData, PersonalInfo, TemplateName } from '../types';
 import { buildCoverLetterHtml, type CoverLetterTemplate } from './coverLetterHtmlService';
@@ -101,13 +107,19 @@ export interface DownloadCVResult {
   totalMs?: number;
   /** Stage-level timings — undefined keys = stage was skipped. */
   timing?: {
-    /** Health probe(s). */
     probeMs?: number;
-    /** getCVHtml() — base64-fontified template HTML. */
     htmlMs?: number;
-    /** Network + headless-Chrome render + download trigger. */
     renderMs?: number;
   };
+  /**
+   * True when the download was blocked before any render attempt.
+   * Callers should open the pricing/upgrade modal when this is set.
+   */
+  blocked?: boolean;
+  /** Why the download was blocked — used to show the right upgrade message. */
+  blockedReason?: 'pdf_limit';
+  /** True when the PDF includes a ProCV watermark (free / BYOK users). */
+  watermarked?: boolean;
 }
 
 // ── Health probe cache ───────────────────────────────────────────────────────
@@ -151,6 +163,23 @@ async function probeCloudflare(): Promise<boolean> {
 export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVResult> {
   const { fileName, containerEl, onStatus } = opts;
 
+  // ── Free-tier PDF gate ────────────────────────────────────────────────────
+  // Pure free users (no BYOK keys, no premium) are capped at FREE_PDF_LIMIT
+  // lifetime downloads. BYOK and premium users always proceed.
+  if (!canDownloadPdf()) {
+    return {
+      ok: false,
+      blocked: true,
+      blockedReason: 'pdf_limit',
+      error: 'Free PDF download limit reached. Upgrade to download more.',
+      totalMs: 0,
+    };
+  }
+
+  // Determine if a watermark footer should be added to this PDF.
+  // true for free + BYOK; false for premium (Pro) users.
+  const watermark = needsWatermark();
+
   // ── Telemetry: capture per-stage timings so we can show "PDF ready in X.Xs"
   // in the UI and surface a structured log entry for debugging slow downloads.
   // Times are in ms, derived from performance.now() to avoid clock drift.
@@ -189,7 +218,10 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
       const tRender = performance.now();
       const r = await downloadViaPlaywright(fileName, containerEl);
       timing.renderMs = Math.round(performance.now() - tRender);
-      if (r.success) return finish({ ok: true, via: 'playwright' });
+      if (r.success) {
+        if (isPureFreeTier()) incrementPdfDownloadCount();
+        return finish({ ok: true, via: 'playwright', watermarked: watermark });
+      }
       console.warn('[cvDownloadService] Playwright failed:', r.error);
       // Invalidate cache — server may have crashed mid-request.
       playwrightHealthCache = null;
@@ -216,6 +248,7 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body { margin: 0; padding: 0; }
         `,
+        watermark,
       });
       timing.htmlMs = Math.round(performance.now() - tHtml);
       if (html) {
@@ -227,7 +260,10 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
           onStatus,
         });
         timing.renderMs = Math.round(performance.now() - tRender2);
-        if (r.ok) return finish({ ok: true, via: 'cloudflare' });
+        if (r.ok) {
+          if (isPureFreeTier()) incrementPdfDownloadCount();
+          return finish({ ok: true, via: 'cloudflare', watermarked: watermark });
+        }
         console.warn('[cvDownloadService] Cloudflare failed:', r.error);
         cfHealthCache = null;
       }

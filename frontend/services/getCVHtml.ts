@@ -25,6 +25,11 @@ export interface GetCVHtmlOptions {
    * accidentally capture the editor preview that's still mounted behind them.
    */
   containerEl?: HTMLElement | null;
+  /**
+   * When true, injects a ProCV branding footer strip into the exported HTML.
+   * Applied to free-tier and BYOK users; removed for Pro (premium) users.
+   */
+  watermark?: boolean;
 }
 
 /** Convert an ArrayBuffer to a base64 string without stack-overflow risk. */
@@ -168,6 +173,7 @@ export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | n
     selector = "[data-cv-preview-active], [data-cv-preview], #cv-preview-area",
     extraStyles = "",
     containerEl = null,
+    watermark = false,
   } = opts;
 
   const container =
@@ -219,7 +225,16 @@ export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | n
 
   const inlinedCSS = inlineCssBlocks.join("\n");
 
-  return `<!DOCTYPE html>
+  const watermarkHtml = watermark ? `
+  <div data-procv-watermark style="position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#1B2B4B 0%,#2d4070 100%);padding:5px 16px;display:flex;align-items:center;justify-content:center;gap:8px;z-index:99999;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <span style="color:#C9A84C;font-size:8.5px;font-family:Arial,Helvetica,sans-serif;font-weight:800;letter-spacing:0.1em;">PROCV.APP</span>
+    <span style="color:rgba(201,168,76,0.5);font-size:8px;font-family:Arial,Helvetica,sans-serif;">·</span>
+    <span style="color:rgba(255,255,255,0.72);font-size:8px;font-family:Arial,Helvetica,sans-serif;">Upgrade for a clean PDF without watermark</span>
+    <span style="color:rgba(201,168,76,0.5);font-size:8px;font-family:Arial,Helvetica,sans-serif;">·</span>
+    <span style="color:#C9A84C;font-size:8.5px;font-family:Arial,Helvetica,sans-serif;font-weight:700;">procv.app</span>
+  </div>` : '';
+
+return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -258,6 +273,7 @@ ${linkTags}
 </head>
 <body>
   ${clone.outerHTML}
+  ${watermarkHtml}
 </body>
 </html>`;
 }

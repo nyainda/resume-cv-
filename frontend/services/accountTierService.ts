@@ -100,6 +100,85 @@ export function getFeatureMeta(feature: TierFeature): TierFeatureConfig {
   return TIER_FEATURES[feature].meta;
 }
 
+// ─── BYOK detection ──────────────────────────────────────────────────────────
+
+/**
+ * Returns true when the user has configured at least one third-party AI key
+ * (Groq / Claude / Gemini). These are "BYOK" users — unlimited AI generations
+ * on their own quota, but PDFs are still watermarked until they upgrade to Pro.
+ */
+export function hasByokKeys(): boolean {
+  try {
+    const raw =
+      localStorage.getItem('cv_builder:apiSettings') ||
+      localStorage.getItem('apiSettings');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    return !!(s?.apiKey || s?.claudeApiKey || s?.geminiApiKey);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pure free user: no API keys AND not on premium.
+ * Tightest limits: 2 AI generations lifetime, 2 PDF downloads, watermarked.
+ */
+export function isPureFreeTier(): boolean {
+  return getTier() === 'free' && !hasByokKeys();
+}
+
+/**
+ * True if the CV PDF must include the ProCV watermark.
+ * Only Pro (premium) users receive clean PDFs.
+ */
+export function needsWatermark(): boolean {
+  return getTier() !== 'premium';
+}
+
+/**
+ * True if the user may use Boosted / Aggressive generation modes.
+ * Pure free users (no API keys) are limited to Honest mode only.
+ */
+export function canUsePremiumModes(): boolean {
+  return getTier() === 'premium' || hasByokKeys();
+}
+
+// ─── PDF download counter (pure free tier only) ────────────────────────────
+
+const PDF_DOWNLOAD_KEY = 'procv:pdfDownloadCount';
+
+/** Lifetime PDF downloads allowed on the pure free tier. */
+export const FREE_PDF_LIMIT = 2;
+
+/** Returns how many PDFs the user has downloaded on the free tier. */
+export function getPdfDownloadCount(): number {
+  try {
+    return parseInt(localStorage.getItem(PDF_DOWNLOAD_KEY) || '0', 10);
+  } catch {
+    return 0;
+  }
+}
+
+/** Increments the lifetime PDF download counter. */
+export function incrementPdfDownloadCount(): void {
+  try {
+    localStorage.setItem(PDF_DOWNLOAD_KEY, String(getPdfDownloadCount() + 1));
+  } catch { /* ignore */ }
+}
+
+/**
+ * Returns true if the user is allowed to start a PDF download.
+ * - Premium → always true (clean PDF, unlimited).
+ * - BYOK    → always true (watermarked, unlimited).
+ * - Free    → true until FREE_PDF_LIMIT lifetime downloads.
+ */
+export function canDownloadPdf(): boolean {
+  if (getTier() === 'premium') return true;
+  if (hasByokKeys()) return true;
+  return getPdfDownloadCount() < FREE_PDF_LIMIT;
+}
+
 // ─── Phase 2 stub ────────────────────────────────────────────────────────────
 
 /**
