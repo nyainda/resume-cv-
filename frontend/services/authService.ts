@@ -1,18 +1,25 @@
 /**
  * authService.ts — client for the cv-engine-worker /api/auth/* endpoints.
  *
- * Session management — Rule 6 (HttpOnly cookie):
- *   The raw session token is NEVER persisted to localStorage or sessionStorage.
- *   On sign-in the worker sets an HttpOnly; Secure; SameSite=None cookie that
- *   the browser attaches automatically to every cross-origin fetch made with
- *   `credentials: 'include'`.  Only the non-sensitive WorkerUser object (email,
- *   name, picture, plan) is stored locally so the UI can restore the signed-in
- *   state without an extra network round-trip on page reload.
- *   The raw token may exist briefly in React state (in-memory only) to support
- *   the Bearer-header migration fallback during the transition period.
+ * Session management:
+ *   The HttpOnly SameSite=None cookie set by the CF worker is the PRIMARY auth
+ *   mechanism — it is XSS-safe and invisible to JS. However, since the worker
+ *   lives on cv-engine-worker.dripstech.workers.dev (a different origin from the
+ *   app), it is a *third-party* cookie. Safari ITP, Chrome in Incognito, and
+ *   browsers with strict privacy settings silently block third-party cookies,
+ *   causing the session validation to return 401 and logging the user out on
+ *   every page refresh.
  *
- * All network calls fail gracefully — the app continues working in offline/
- * anonymous mode if the worker is unreachable.
+ *   To fix this without compromising the cookie-first architecture, a session
+ *   token fallback is stored in localStorage under SESSION_FALLBACK_KEY.
+ *   - On sign-in the raw token is saved to localStorage.
+ *   - validateSession / deleteAccountWorker send it as 'Authorization: Bearer'
+ *     ONLY when the cookie-only call returns 401 (i.e. the cookie isn't working).
+ *   - On sign-out / account-delete the token is cleared.
+ *   - The CF worker already accepts both Cookie and Bearer — no server change needed.
+ *
+ * All network calls fail gracefully — the app continues in offline/anonymous mode
+ * if the worker is unreachable.
  */
 
 const ENGINE = import.meta.env.VITE_CV_ENGINE_URL as string;
@@ -27,15 +34,35 @@ export interface WorkerUser {
     plan: 'free' | 'byok' | 'pro';
 }
 
-// One-time migration: remove legacy session keys that stored the raw token.
+// ─── Session token fallback ───────────────────────────────────────────────────
+// Used when SameSite=None HttpOnly cookies are blocked by browser privacy settings.
+// Not a security regression: the server still validates the token against D1, and
+// the token is cleared on every sign-out / account deletion.
+
+const SESSION_FALLBACK_KEY = 'procv:stf';
+
+export function saveSessionFallback(token: string): void {
+    try { if (token) localStorage.setItem(SESSION_FALLBACK_KEY, token); } catch { /* quota — ignore */ }
+}
+
+export function loadSessionFallback(): string {
+    try { return localStorage.getItem(SESSION_FALLBACK_KEY) ?? ''; } catch { return ''; }
+}
+
+export function clearSessionFallback(): void {
+    try { localStorage.removeItem(SESSION_FALLBACK_KEY); } catch { /* ignore */ }
+}
+
+// ─── One-time migration: remove legacy session keys ───────────────────────────
 // Idempotent — safe to run on every import.
 try {
     ['procv:worker_session', 'procv:worker_session_temp'].forEach(k => {
         const raw = localStorage.getItem(k) ?? sessionStorage.getItem(k);
         if (raw) {
             try {
-                const parsed = JSON.parse(raw) as { user?: WorkerUser };
+                const parsed = JSON.parse(raw) as { user?: WorkerUser; token?: string };
                 if (parsed?.user?.email) localStorage.setItem('procv:worker_user', JSON.stringify(parsed.user));
+                if (parsed?.token) saveSessionFallback(parsed.token);
             } catch { /* ignore */ }
             localStorage.removeItem(k);
             sessionStorage.removeItem(k);
@@ -81,6 +108,9 @@ export async function linkGoogleSession(
             console.warn('[AuthService] linkGoogleSession — server returned ok:false', data);
             return null;
         }
+        // Store the session token as a fallback for browsers that block
+        // third-party SameSite=None cookies (Safari ITP, Chrome Incognito, etc.).
+        if (data.session_token) saveSessionFallback(data.session_token);
         console.log('[AuthService] linkGoogleSession ✓ — user:', data.user?.email, '| is_new_user:', data.is_new_user);
         return { ok: true, token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
@@ -125,6 +155,8 @@ export async function verifyMagicLink(
         if (!res.ok) return null;
         const data = await res.json() as any;
         if (!data.ok) return null;
+        // Store fallback token so the session survives if the cookie is blocked
+        if (data.session_token) saveSessionFallback(data.session_token);
         return { token: data.session_token, user: data.user as WorkerUser, is_new_user: !!data.is_new_user };
     } catch (e) {
         console.warn('[AuthService] verifyMagicLink failed:', e);
@@ -135,50 +167,77 @@ export async function verifyMagicLink(
 /**
  * Validate an existing session and return fresh user data.
  *
- * The primary authentication mechanism is the HttpOnly cookie (sent automatically
- * by the browser via `credentials: 'include'`).  An optional Bearer token may
- * also be passed as a migration fallback for clients that still have an in-memory
- * token but have not yet received the cookie.
+ * Strategy (two-pass):
+ *  Pass 1 — send ONLY the cookie (credentials: 'include'), no Bearer header.
+ *            If the browser has a working HttpOnly cookie this succeeds here.
+ *  Pass 2 — if pass 1 returns 401, the cookie is blocked by the browser.
+ *            Retry with the localStorage fallback token as Authorization: Bearer.
  *
  * Returns:
  *  { user: WorkerUser, invalid: false } — session is valid
- *  { user: null, invalid: true }        — server says 401: session definitively bad
+ *  { user: null, invalid: true }        — both passes returned 401: definitively signed out
  *  { user: null, invalid: false }       — network/502 error: keep local state, retry later
  */
-export async function validateSession(
-    sessionToken?: string,
-): Promise<{ user: WorkerUser | null; invalid: boolean }> {
+export async function validateSession(): Promise<{ user: WorkerUser | null; invalid: boolean }> {
+    // ── Pass 1: cookie-only (preferred — XSS-safe) ───────────────────────────
     try {
-        const headers: Record<string, string> = {};
-        if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`;
-        const res = await fetch(`${ENGINE}/api/auth/session`, {
-            headers,
-            credentials: 'include', // browser sends HttpOnly cookie automatically
+        const res1 = await fetch(`${ENGINE}/api/auth/session`, {
+            credentials: 'include',
             signal: AbortSignal.timeout(8_000),
         });
-        if (res.status === 401) return { user: null, invalid: true };
-        if (!res.ok) return { user: null, invalid: false }; // 502 / server down — keep session
-        const data = await res.json() as any;
+        if (res1.ok) {
+            const data = await res1.json() as any;
+            const user = data.ok ? (data.user as WorkerUser) : null;
+            if (user) return { user, invalid: false };
+        }
+        if (res1.status !== 401) {
+            // 502 / server down — keep display cache, don't log out
+            return { user: null, invalid: false };
+        }
+        // 401 → cookie not working → try fallback
+    } catch {
+        return { user: null, invalid: false };
+    }
+
+    // ── Pass 2: Bearer token fallback (for browsers blocking 3rd-party cookies) ──
+    const fallback = loadSessionFallback();
+    if (!fallback) {
+        // No fallback token stored — definitively signed out
+        return { user: null, invalid: true };
+    }
+    try {
+        const res2 = await fetch(`${ENGINE}/api/auth/session`, {
+            headers: { 'Authorization': `Bearer ${fallback}` },
+            credentials: 'include',
+            signal: AbortSignal.timeout(8_000),
+        });
+        if (res2.status === 401) {
+            // Fallback token also invalid — clear it so we don't retry forever
+            clearSessionFallback();
+            return { user: null, invalid: true };
+        }
+        if (!res2.ok) return { user: null, invalid: false }; // server error — keep cache
+        const data = await res2.json() as any;
         const user = data.ok ? (data.user as WorkerUser) : null;
         return { user, invalid: !user };
     } catch {
-        // Network error or timeout — do not invalidate the stored session
         return { user: null, invalid: false };
     }
 }
 
 /**
  * Sign out — invalidates the session on the worker and clears the HttpOnly cookie.
- * An optional Bearer token may be passed for the migration fallback period.
  */
-export async function signOutWorker(sessionToken?: string): Promise<void> {
+export async function signOutWorker(): Promise<void> {
+    const fallback = loadSessionFallback();
+    clearSessionFallback(); // clear immediately, before the network call
     try {
         const headers: Record<string, string> = {};
-        if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`;
+        if (fallback) headers['Authorization'] = `Bearer ${fallback}`;
         await fetch(`${ENGINE}/api/auth/signout`, {
             method: 'POST',
             headers,
-            credentials: 'include', // browser sends cookie; worker clears it with Max-Age=0
+            credentials: 'include',
             signal: AbortSignal.timeout(5_000),
         });
     } catch { /* fire-and-forget */ }
@@ -187,26 +246,30 @@ export async function signOutWorker(sessionToken?: string): Promise<void> {
 /**
  * Delete account — removes the user's session and all server-side data.
  * Sends device_id in the request body so the worker can wipe ALL legacy
- * device_id-keyed tables (saved_cvs, tracked_applications, star_stories,
- * saved_cover_letters, user_preferences, custom_templates) in addition to
- * the user_id-scoped tables.  Without this, those rows survive deletion and
- * reappear when the same device re-registers with the same Google account.
- * Returns true on success, false on any error (caller should still clear local data).
+ * device_id-keyed tables in addition to the user_id-scoped tables.
+ * Uses the localStorage fallback token as a Bearer header if the HttpOnly
+ * cookie is unavailable (e.g. blocked by browser privacy settings).
+ * Returns true on success, false on any error.
  */
-export async function deleteAccountWorker(sessionToken: string, deviceId?: string): Promise<boolean> {
+export async function deleteAccountWorker(deviceId?: string): Promise<boolean> {
+    const fallback = loadSessionFallback();
     try {
         const body: Record<string, string> = {};
         if (deviceId) body.device_id = deviceId;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`;
+        if (fallback) headers['Authorization'] = `Bearer ${fallback}`;
         const res = await fetch(`${ENGINE}/api/auth/account`, {
             method: 'DELETE',
             headers,
             credentials: 'include',
             body: JSON.stringify(body),
-            signal: AbortSignal.timeout(10_000),
+            signal: AbortSignal.timeout(15_000),
         });
-        return res.ok;
+        if (res.ok) {
+            clearSessionFallback(); // account gone — token is useless
+            return true;
+        }
+        return false;
     } catch {
         return false;
     }

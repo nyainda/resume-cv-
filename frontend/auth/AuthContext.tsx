@@ -41,6 +41,7 @@ import {
     verifyMagicLink,
     signOutWorker,
     deleteAccountWorker,
+    clearSessionFallback,
 } from '../services/authService';
 import { getDeviceId } from '../services/userDataCloudService';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
@@ -405,7 +406,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!result) throw new Error('Could not connect to ProCV server. Please try again.');
         const linked = result; // narrow out null for TypeScript flow analysis
         if (!linked.ok) {
-            setGoogleRateLimited({ retryAfter: linked.retry_after });
+            const rateLimitedResult = linked as { ok: false; error: 'rate_limited'; retry_after?: number };
+            setGoogleRateLimited({ retryAfter: rateLimitedResult.retry_after });
             throw new Error('Too many sign-in attempts. Please try again shortly.');
         }
         setGoogleRateLimited(null);
@@ -484,7 +486,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Sign out ──────────────────────────────────────────────────────────────
 
     const signOut = useCallback(async () => {
-        await signOutWorker().catch(() => {});
+        await signOutWorker().catch(() => {}); // also clears the fallback token internally
+        clearSessionFallback(); // belt-and-suspenders clear in case signOutWorker threw
         _saveUser(null);
         setDriveToken(null);
         setDriveConnected(false);
@@ -496,7 +499,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Delete account ────────────────────────────────────────────────────────
 
     const deleteAccount = useCallback(async (deviceId?: string): Promise<boolean> => {
-        return deleteAccountWorker('', deviceId);
+        // deleteAccountWorker now reads the localStorage fallback token internally,
+        // so no sessionToken parameter is needed here.
+        return deleteAccountWorker(deviceId);
     }, []);
 
     // ─────────────────────────────────────────────────────────────────────────
