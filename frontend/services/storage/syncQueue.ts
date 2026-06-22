@@ -33,11 +33,13 @@ import { syncSlot, syncPrefs } from '../userDataCloudService';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const DB_NAME           = 'cv_builder_sync';
+import { getScopedDbName, getUserPrefix } from './userStorageNamespace';
+
+const BASE_DB_NAME      = 'cv_builder_sync';
 const DB_VERSION        = 1;
 const STORE             = 'queue';
-const LAST_FLUSH_KEY    = 'cv_builder:sq_last_flush';
-const LAST_VIS_FLUSH_KEY = 'cv_builder:sq_last_vis_flush';
+const _LAST_FLUSH_SUFFIX    = 'sq_last_flush';
+const _LAST_VIS_FLUSH_SUFFIX = 'sq_last_vis_flush';
 const MIN_FLUSH_MS      = 30_000;   // 30 s between automatic flushes
 const MIN_VIS_FLUSH_MS  = 300_000;  // 5 min between visibilitychange flushes
 const MAX_RETRIES       = 3;
@@ -65,19 +67,26 @@ interface QueueEntry {
 
 // ─── IDB helpers ─────────────────────────────────────────────────────────────
 
-let _db: IDBDatabase | null = null;
+// Per-user DB connection cache (DB name changes per user)
+const _dbCache = new Map<string, IDBDatabase>();
+
+function getDbName(): string { return getScopedDbName(BASE_DB_NAME); }
+function getLastFlushKey(): string { return getUserPrefix() + 'cv_builder:' + _LAST_FLUSH_SUFFIX; }
+function getLastVisFlushKey(): string { return getUserPrefix() + 'cv_builder:' + _LAST_VIS_FLUSH_SUFFIX; }
 
 function openDB(): Promise<IDBDatabase> {
-    if (_db) return Promise.resolve(_db);
+    const name = getDbName();
+    const cached = _dbCache.get(name);
+    if (cached) return Promise.resolve(cached);
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        const req = indexedDB.open(name, DB_VERSION);
         req.onupgradeneeded = () => {
             const db = req.result;
             if (!db.objectStoreNames.contains(STORE)) {
                 db.createObjectStore(STORE, { keyPath: 'itemKey' });
             }
         };
-        req.onsuccess = () => { _db = req.result; resolve(_db); };
+        req.onsuccess = () => { _dbCache.set(name, req.result); resolve(req.result); };
         req.onerror   = () => reject(req.error);
     });
 }
@@ -158,7 +167,7 @@ function scheduleFlush(): void {
         _flushTimer = null;
     }
 
-    const lastFlush = parseInt(localStorage.getItem(LAST_FLUSH_KEY) ?? '0', 10);
+    const lastFlush = parseInt(localStorage.getItem(getLastFlushKey()) ?? '0', 10);
     const sinceLastMs = Date.now() - lastFlush;
     const delayMs = sinceLastMs >= MIN_FLUSH_MS ? 0 : MIN_FLUSH_MS - sinceLastMs;
 
@@ -182,7 +191,7 @@ async function _doFlush(): Promise<void> {
         if (ready.length === 0) return;
 
         // Record flush time BEFORE sending to prevent thundering-herd on errors
-        try { localStorage.setItem(LAST_FLUSH_KEY, String(now)); } catch { /* ignore */ }
+        try { localStorage.setItem(getLastFlushKey(), String(now)); } catch { /* ignore */ }
 
         for (const item of ready) {
             let ok = false;
@@ -286,9 +295,9 @@ export async function enqueuePrefsSync(prefs: UserPrefsPayload): Promise<void> {
  */
 export async function flushSyncQueue(trigger: 'online' | 'visibility' | 'force' = 'force'): Promise<void> {
     if (trigger === 'visibility') {
-        const last = parseInt(localStorage.getItem(LAST_VIS_FLUSH_KEY) ?? '0', 10);
+        const last = parseInt(localStorage.getItem(getLastVisFlushKey()) ?? '0', 10);
         if (Date.now() - last < MIN_VIS_FLUSH_MS) return;
-        try { localStorage.setItem(LAST_VIS_FLUSH_KEY, String(Date.now())); } catch { /* ignore */ }
+        try { localStorage.setItem(getLastVisFlushKey(), String(Date.now())); } catch { /* ignore */ }
     }
     if (_flushTimer !== null) {
         clearTimeout(_flushTimer);
@@ -308,8 +317,8 @@ export async function clearQueueForAccount(): Promise<void> {
         clearTimeout(_flushTimer);
         _flushTimer = null;
     }
-    try { localStorage.removeItem(LAST_FLUSH_KEY); } catch { /* ignore */ }
-    try { localStorage.removeItem(LAST_VIS_FLUSH_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(getLastFlushKey()); } catch { /* ignore */ }
+    try { localStorage.removeItem(getLastVisFlushKey()); } catch { /* ignore */ }
 }
 
 /**

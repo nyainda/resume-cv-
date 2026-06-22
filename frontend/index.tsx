@@ -4,6 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { restoreLocalStorageFromIDB } from './services/storage/AppDataPersistence';
+import { initStorageNamespace } from './services/storage/userStorageNamespace';
 import { warmCVEngine, prewarmCVEngineModels } from './services/cvEngineClient';
 import { runWorkerStatusDiagnostic } from './services/workerStatusDiagnostic';
 import { startAutoProbe } from './services/providerHealth';
@@ -77,6 +78,10 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
+
+// Init namespace FIRST — so restoreLocalStorageFromIDB reads from the
+// correct user-scoped IDB DB, not the anonymous one.
+initStorageNamespace();
 
 restoreLocalStorageFromIDB().finally(() => {
   const root = ReactDOM.createRoot(rootElement);

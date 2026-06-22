@@ -2,16 +2,24 @@
 // Drop-in replacement for the old hook.
 // Now ALSO writes every value to IndexedDB so data survives "Clear cache".
 // Reads from localStorage first (instant), with IDB as the durable backup.
+//
+// Keys are user-scoped via getUserPrefix() to prevent cross-account contamination.
 
 import { useState, useEffect, useCallback, Dispatch, SetStateAction } from 'react';
 import { idbAppSet, idbAppGet } from '../services/storage/AppDataPersistence';
+import { getUserPrefix } from '../services/storage/userStorageNamespace';
 
-const CV_PREFIX = 'cv_builder:';
+const CV_BASE = 'cv_builder:';
+
+function getFullKey(key: string): string {
+  return getUserPrefix() + CV_BASE + key;
+}
 
 function lsGet<T>(key: string, initialValue: T): T {
   if (typeof window === 'undefined') return initialValue;
   try {
-    const item = window.localStorage.getItem(CV_PREFIX + key) || window.localStorage.getItem(key);
+    const fullKey = getFullKey(key);
+    const item = window.localStorage.getItem(fullKey);
     return item !== null ? (JSON.parse(item) as T) : initialValue;
   } catch {
     return initialValue;
@@ -20,7 +28,7 @@ function lsGet<T>(key: string, initialValue: T): T {
 
 function lsSet<T>(key: string, value: T): void {
   try {
-    window.localStorage.setItem(CV_PREFIX + key, JSON.stringify(value));
+    window.localStorage.setItem(getFullKey(key), JSON.stringify(value));
   } catch {
     // quota exceeded — IDB copy will still be there
   }
@@ -30,18 +38,15 @@ export function useLocalStorage<T>(
   key: string,
   initialValue: T
 ): [T, Dispatch<SetStateAction<T>>] {
-  // Initialise from localStorage immediately (synchronous — no flash)
   const [storedValue, setStoredValue] = useState<T>(() => lsGet(key, initialValue));
 
-  // On mount: if localStorage returned the default, try IDB (it may have the real value)
   useEffect(() => {
     const lsVal = lsGet(key, undefined as unknown as T);
-    // If localStorage already has a non-default value don't bother hitting IDB
     if (lsVal !== undefined && JSON.stringify(lsVal) !== JSON.stringify(initialValue)) return;
 
-    idbAppGet<T>(CV_PREFIX + key).then(idbVal => {
+    const fullKey = getFullKey(key);
+    idbAppGet<T>(fullKey).then(idbVal => {
       if (idbVal !== null) {
-        // Re-hydrate localStorage from IDB
         lsSet(key, idbVal);
         setStoredValue(idbVal);
       }
@@ -57,11 +62,9 @@ export function useLocalStorage<T>(
             ? (valueOrUpdater as (p: T) => T)(prev)
             : valueOrUpdater;
 
-        // Write to localStorage synchronously
         lsSet(key, next);
-
-        // Write to IndexedDB asynchronously (fire-and-forget)
-        idbAppSet(CV_PREFIX + key, next).catch(() => { /* silent */ });
+        const fullKey = getFullKey(key);
+        idbAppSet(fullKey, next).catch(() => { /* silent */ });
 
         return next;
       });

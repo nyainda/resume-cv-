@@ -45,6 +45,11 @@ import {
 } from '../services/authService';
 import { getDeviceId } from '../services/userDataCloudService';
 import { clearQueueForAccount } from '../services/storage/syncQueue';
+import {
+    setStorageUser,
+    clearStorageUser,
+    migrateToUserNamespace,
+} from '../services/storage/userStorageNamespace';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -242,10 +247,14 @@ export function wipeLocalAppData(): void {
         ];
         allKeys.forEach(k => {
             if (
+                // Unprefixed legacy keys (old namespace)
                 (k.startsWith('cv_builder:') && k !== 'cv_builder:deviceId') ||
                 (k.startsWith('procv:')      && k !== USER_CACHE_KEY)         ||
                 k.startsWith('p:') ||
                 k.startsWith('cv:') ||
+                // New user-scoped keys (u_<uid>:* and anon:*)
+                k.startsWith('u_') ||
+                k.startsWith('anon:') ||
                 LEGACY.includes(k)
             ) {
                 localStorage.removeItem(k);
@@ -253,19 +262,35 @@ export function wipeLocalAppData(): void {
         });
 
         // ── 3. Fire-and-forget IDB deletes ────────────────────────────────────────
-        // The sentinels above are the real safety net (synchronous). These deletes
-        // ensure that even after the sentinels are consumed on first boot, the IDB
-        // stores are genuinely empty — old user's profiles can never come back.
-        const IDB_STORES = [
-            'cv_builder_auth',      // Google auth tokens
-            'cv_builder_cvdata',    // CV content
-            'cv_builder_appdata',   // mirrored localStorage (profiles, settings)
-            'cv_builder_sync',      // pending sync queue items
-            'cv_builder_keyvault',  // AES-GCM encryption key for API keys
+        // Delete base DB names AND all known user-scoped variants.
+        // Since we don't know all user IDs, we enumerate the existing databases
+        // and delete any that match our naming pattern.
+        const BASE_IDB = [
+            'cv_builder_auth',
+            'cv_builder_cvdata',
+            'cv_builder_appdata',
+            'cv_builder_sync',
+            'cv_builder_keyvault',
         ];
-        IDB_STORES.forEach(name => {
+        BASE_IDB.forEach(name => {
             try { indexedDB.deleteDatabase(name); } catch { /* non-fatal */ }
         });
+        // Also delete user-scoped databases by enumerating all IDB databases
+        if (typeof indexedDB.databases === 'function') {
+            indexedDB.databases().then(dbs => {
+                dbs.forEach(db => {
+                    if (!db.name) return;
+                    const isOurs = BASE_IDB.some(base =>
+                        db.name === base ||
+                        db.name!.startsWith(base + '_u_') ||
+                        db.name!.startsWith(base + '_anon'),
+                    );
+                    if (isOurs) {
+                        try { indexedDB.deleteDatabase(db.name!); } catch { /* non-fatal */ }
+                    }
+                });
+            }).catch(() => { /* browsers without indexedDB.databases() — already handled above */ });
+        }
     } catch { /* non-fatal */ }
 }
 
@@ -322,18 +347,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const prevEmail = lastKnownEmailRef.current;
         if (prevEmail && incoming.email && prevEmail !== incoming.email) {
             // Different user on the same device → wipe ALL local data and reload.
-            // wipeLocalAppData now sets IDB sentinels + fires IDB deletes so the
-            // old user's data cannot return via restoreLocalStorageFromIDB on boot.
+            clearStorageUser(); // clear namespace BEFORE wipe so sentinels go to global keys
             clearQueueForAccount().catch(() => {});
             wipeLocalAppData();
+            // Set new user's namespace + cache their display so it's ready after reload
+            if (incoming.id) setStorageUser(String(incoming.id));
             try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(incoming)); } catch { /* non-fatal */ }
             if (isNew) { try { sessionStorage.setItem('procv:pending_new_user', '1'); } catch { /* non-fatal */ } }
             window.location.reload();
             return;
         }
         // Same user (or first sign-in on this device) — apply without reload.
+        // Set namespace immediately so all subsequent storage reads use the right prefix.
+        if (incoming.id) {
+            setStorageUser(String(incoming.id));
+            // One-time migration: copy any old unprefixed keys to user-scoped namespace.
+            migrateToUserNamespace(String(incoming.id)).catch(() => {});
+        }
         clearQueueForAccount().catch(() => {});
-        lastKnownEmailRef.current = incoming.email ?? null; // update BEFORE _saveUser
+        lastKnownEmailRef.current = incoming.email ?? null;
         _saveUser(incoming);
         if (isNew) setIsNewUser(true);
         setAuthModalOpen(false);
@@ -386,6 +418,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (cancelled) return;
 
             if (result.user) {
+                // Restore the storage namespace so all hooks use the correct prefix.
+                if (result.user.id) setStorageUser(String(result.user.id));
                 _saveUser(result.user);
             } else if (result.invalid) {
                 // Server says definitively signed out
@@ -518,6 +552,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signOut = useCallback(async () => {
         await signOutWorker().catch(() => {}); // also clears the fallback token internally
         clearSessionFallback(); // belt-and-suspenders clear in case signOutWorker threw
+        clearStorageUser();     // remove user namespace so next user starts clean
         _saveUser(null);
         setDriveToken(null);
         setDriveConnected(false);

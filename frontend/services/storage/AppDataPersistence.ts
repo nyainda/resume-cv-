@@ -9,23 +9,22 @@
 //   - Every read tries localStorage first (instant), falls back to IndexedDB.
 //   - On load, if localStorage is empty (cache cleared) we restore from IndexedDB.
 //
-// Quota handling:
-//   - If IDB write fails with QuotaExceededError, we evict the largest
-//     non-critical entries and retry once. If it still fails we log a warning
-//     but never crash — localStorage still has the data.
+// User isolation:
+//   - IDB DB name is user-scoped: `cv_builder_appdata_u_<userId>` or `cv_builder_appdata_anon`
+//   - This prevents a second account on the same device from reading IDB data
+//     written by the first account (even after localStorage is wiped).
 
-const DB_NAME = 'cv_builder_appdata';
+import { getScopedDbName } from './userStorageNamespace';
+
+const BASE_DB_NAME = 'cv_builder_appdata';
 const DB_VERSION = 1;
 const STORE = 'kv';
 
-// Keys we can safely evict from IDB when quota is hit
-// Note: jb_jsResults and jb_searchResults are now useState-only — no longer in IDB.
-const EVICTABLE_IDB_KEYS = [
-    'cv_builder:jb_pageCache',
-    'cv_builder:jb_seenIds',
+const EVICTABLE_IDB_KEYS_SUFFIX = [
+    'jb_pageCache',
+    'jb_seenIds',
 ];
 
-// Keys that must never be auto-evicted
 const PROTECTED_SUFFIXES = [
     'userProfile', 'savedCVs', 'profiles', 'trackedApps', 'currentCV',
     'apiSettings', 'activeProfileId',
@@ -38,18 +37,34 @@ function isQuotaError(err: unknown): boolean {
     return false;
 }
 
-// ── IndexedDB helpers ─────────────────────────────────────────────────────────
+// ── Per-user DB connection cache ──────────────────────────────────────────────
 
-let _db: IDBDatabase | null = null;
+const _dbCache = new Map<string, IDBDatabase>();
+
+function getDbName(): string {
+    return getScopedDbName(BASE_DB_NAME);
+}
 
 function openDB(): Promise<IDBDatabase> {
-    if (_db) return Promise.resolve(_db);
+    const name = getDbName();
+    const cached = _dbCache.get(name);
+    if (cached) return Promise.resolve(cached);
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        const req = indexedDB.open(name, DB_VERSION);
         req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-        req.onsuccess = () => { _db = req.result; resolve(_db!); };
+        req.onsuccess = () => { _dbCache.set(name, req.result); resolve(req.result); };
         req.onerror = () => reject(req.error);
     });
+}
+
+/** Close and remove the cached DB connection for the current user (call on logout). */
+export function closeAppDataDb(): void {
+    const name = getDbName();
+    const db = _dbCache.get(name);
+    if (db) {
+        try { db.close(); } catch { /* ignore */ }
+        _dbCache.delete(name);
+    }
 }
 
 async function idbPut(key: string, value: unknown): Promise<void> {
@@ -75,8 +90,25 @@ async function idbDelete(key: string): Promise<void> {
 }
 
 async function evictIDBCacheKeys(): Promise<void> {
-    for (const key of EVICTABLE_IDB_KEYS) {
-        await idbDelete(key);
+    for (const suffix of EVICTABLE_IDB_KEYS_SUFFIX) {
+        // Match any key ending with the suffix (regardless of user prefix)
+        try {
+            const db = await openDB();
+            await new Promise<void>((resolve) => {
+                const tx = db.transaction(STORE, 'readwrite');
+                const req = tx.objectStore(STORE).openCursor();
+                req.onsuccess = () => {
+                    const cursor = req.result;
+                    if (cursor) {
+                        if ((cursor.key as string).endsWith(suffix)) {
+                            cursor.delete();
+                        }
+                        cursor.continue();
+                    } else { resolve(); }
+                };
+                req.onerror = () => resolve();
+            });
+        } catch { /* best-effort */ }
     }
 }
 
@@ -97,13 +129,10 @@ async function evictLargestIDBEntries(): Promise<void> {
                         entries.push({ key: k, size });
                     }
                     cursor.continue();
-                } else {
-                    resolve();
-                }
+                } else { resolve(); }
             };
             req.onerror = () => reject(req.error);
         });
-        // Evict the 5 largest non-protected entries
         entries.sort((a, b) => b.size - a.size);
         for (const e of entries.slice(0, 5)) {
             await idbDelete(e.key);
@@ -116,26 +145,20 @@ export async function idbAppSet(key: string, value: unknown): Promise<void> {
         await idbPut(key, value);
     } catch (err) {
         if (!isQuotaError(err)) {
-            // Non-quota error — log but don't crash (localStorage is our primary)
             console.warn('[AppDataPersistence] IDB write failed (non-quota):', err);
             return;
         }
-
-        // Quota hit — try to free space
         try {
             await evictIDBCacheKeys();
             await idbPut(key, value);
             return;
         } catch (err2) {
-            if (!isQuotaError(err2)) return; // still non-quota, give up
+            if (!isQuotaError(err2)) return;
         }
-
-        // Second eviction round: remove largest non-protected
         try {
             await evictLargestIDBEntries();
             await idbPut(key, value);
         } catch {
-            // IDB is critically full — localStorage still has the data, just warn
             console.warn(`[AppDataPersistence] IDB quota full — key "${key}" only saved to localStorage.`);
         }
     }
@@ -173,9 +196,7 @@ export async function idbAppGetAll(): Promise<Record<string, unknown>> {
                 if (cursor) {
                     try { result[cursor.key as string] = JSON.parse(cursor.value as string); } catch { /* skip */ }
                     cursor.continue();
-                } else {
-                    resolve(result);
-                }
+                } else { resolve(result); }
             };
             req.onerror = () => reject(req.error);
         });
@@ -188,32 +209,21 @@ export async function idbAppGetAll(): Promise<Record<string, unknown>> {
 
 let _restored = false;
 
-// Sentinel key written by clearUserScopedStorage({ clearAppData: true }) BEFORE
-// window.location.reload(). The async IDB wipe may not finish before the page
-// reloads, so on the next boot we must NOT restore stale IDB data to localStorage.
-// Importing the constant would create a circular dependency, so we inline it here.
 const _LS_APPDATA_CLEARED = 'cv_appdata_cleared';
 
 /**
  * Call this ONCE at app startup (before any useLocalStorage reads).
  * If localStorage appears empty (cache cleared) but IDB has data,
  * we refill localStorage from IDB so all hooks get their data back.
- *
- * Skip entirely when cv_appdata_cleared sentinel is present — this means a
- * full wipe is in progress and the IDB data belongs to the previous user.
  */
 export async function restoreLocalStorageFromIDB(): Promise<void> {
     if (_restored) return;
     _restored = true;
 
-    // Account-switch / delete-account guard: if a wipe+reload fired on the
-    // previous page load, the async IDB deletion may not have completed before
-    // the reload. Consuming this sentinel prevents the old user's IDB data from
-    // being written back into localStorage and shown to the next user.
     try {
         if (localStorage.getItem(_LS_APPDATA_CLEARED)) {
             localStorage.removeItem(_LS_APPDATA_CLEARED);
-            // Best-effort: clear the IDB store now that we're safely on the new load.
+            // Clear the current user's IDB store
             const db = await openDB().catch(() => null);
             if (db) {
                 const tx = db.transaction(STORE, 'readwrite');
@@ -232,13 +242,16 @@ export async function restoreLocalStorageFromIDB(): Promise<void> {
             try {
                 localStorage.setItem(key, JSON.stringify(value));
             } catch (err) {
-                // localStorage is full even on restore — skip non-critical keys
                 const isProtected = PROTECTED_SUFFIXES.some(s => key.endsWith(s));
                 if (isProtected) {
                     console.warn(`[AppDataPersistence] Restore failed for critical key ${key}:`, err);
                 }
-                // Non-critical keys are fine to skip
             }
         }
     }
+}
+
+/** Reset the _restored flag — used in tests and after account switches. */
+export function resetRestoredFlag(): void {
+    _restored = false;
 }

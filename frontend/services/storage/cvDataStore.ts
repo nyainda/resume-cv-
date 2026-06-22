@@ -26,23 +26,27 @@
 
 import type { CVData, UserProfileSlot } from '../../types';
 
-const DB_NAME    = 'cv_builder_cvdata';
-const DB_VERSION = 1;
-const STORE      = 'cv_data';
+import { getScopedDbName } from './userStorageNamespace';
+
+const BASE_DB_NAME = 'cv_builder_cvdata';
+const DB_VERSION   = 1;
+const STORE        = 'cv_data';
 
 // ── In-memory cache (populated at boot via preloadAllCVData) ─────────────────
 const _cache = new Map<string, CVData>();
 
 // ── IDB helpers ───────────────────────────────────────────────────────────────
 
-let _db: IDBDatabase | null = null;
+const _dbCache = new Map<string, IDBDatabase>();
 
 function openDB(): Promise<IDBDatabase> {
-    if (_db) return Promise.resolve(_db);
+    const name = getScopedDbName(BASE_DB_NAME);
+    const cached = _dbCache.get(name);
+    if (cached) return Promise.resolve(cached);
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        const req = indexedDB.open(name, DB_VERSION);
         req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-        req.onsuccess  = () => { _db = req.result; resolve(_db!); };
+        req.onsuccess  = () => { _dbCache.set(name, req.result); resolve(req.result); };
         req.onerror    = () => reject(req.error);
     });
 }
@@ -177,9 +181,10 @@ export async function migrateToIDB(slots: UserProfileSlot[]): Promise<{ slots: U
  */
 export function clearCVDataStore(): void {
     _cache.clear();
-    if (_db) {
-        try { _db.close(); } catch { /* ignore */ }
-        _db = null;
+    // Close all cached DB connections (one per user namespace)
+    for (const [name, db] of _dbCache.entries()) {
+        try { db.close(); } catch { /* ignore */ }
+        _dbCache.delete(name);
     }
 }
 

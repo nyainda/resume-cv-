@@ -13,6 +13,7 @@
 
 import { IStorageService } from './IStorageService';
 import { DriveConflictError } from './storageErrors';
+import { getUserPrefix } from './userStorageNamespace';
 
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -31,14 +32,12 @@ export class DriveStorageService implements IStorageService {
     readonly currentToken: string;
     private readonly mtimePrefix: string;
 
-    constructor(token: string, userEmail?: string) {
+    constructor(token: string, _userEmail?: string) {
         this.currentToken = token;
-        if (userEmail) {
-            const safe = btoa(userEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-            this.mtimePrefix = `cv_drv_mtime:${safe}:`;
-        } else {
-            this.mtimePrefix = GLOBAL_MTIME_PREFIX;
-        }
+        // mtime keys are user-scoped via the namespace prefix so Drive conflict
+        // timestamps are fully isolated between accounts on the same device.
+        // getUserPrefix() is synchronous (reads in-memory cache set at login).
+        this.mtimePrefix = `${getUserPrefix()}cv_drv_mtime:`;
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────

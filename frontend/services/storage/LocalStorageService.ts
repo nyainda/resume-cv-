@@ -1,6 +1,10 @@
 // services/storage/LocalStorageService.ts
 // Wraps window.localStorage with the IStorageService contract.
-// All keys are namespaced under CV_PREFIX to avoid collisions.
+// All keys are namespaced under a user-scoped prefix to prevent cross-account
+// contamination on shared devices.
+//
+// Key format: `u_<userId>:cv_builder:<key>`  (logged in)
+//             `anon:cv_builder:<key>`         (not logged in)
 //
 // Quota handling:
 //   - If localStorage is full, we evict large non-critical keys (job caches)
@@ -12,32 +16,34 @@
 import { IStorageService } from './IStorageService';
 import { idbAppSet, idbAppGet, idbAppGetAll } from './AppDataPersistence';
 import { dispatchQuotaWarning } from './storageErrors';
-
-const CV_PREFIX = 'cv_builder:';
+import { getUserPrefix } from './userStorageNamespace';
 
 // Keys we can safely evict when quota is full (ordered by eviction priority: biggest/least important first)
-// Note: jb_jsResults and jb_searchResults were moved to useState (session only) — no longer persisted.
 const EVICTABLE_KEYS = [
-    'jb_pageCache',        // JSearch page cache — largest, fully re-fetchable
-    'jb_seenIds',          // Seen job IDs — large, resettable
+    'jb_pageCache',
+    'jb_seenIds',
     'jb_jsRole',
     'jb_jsCategory',
 ];
 
-// Keys that must never be auto-evicted (critical user data)
-const PROTECTED_PREFIXES = ['cv_builder:userProfile', 'cv_builder:savedCVs', 'cv_builder:profiles',
-    'cv_builder:trackedApps', 'cv_builder:currentCV', 'cv_builder:apiSettings',
-    'cv_builder:activeProfileId'];
+// Key suffixes that must never be auto-evicted (critical user data)
+const PROTECTED_SUFFIXES = ['userProfile', 'savedCVs', 'profiles',
+    'trackedApps', 'currentCV', 'apiSettings',
+    'activeProfileId'];
 
 function isQuotaError(err: unknown): boolean {
     if (!(err instanceof DOMException)) return false;
     return err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED';
 }
 
-function evictCacheKeys(): string[] {
+function getFullKey(key: string): string {
+    return getUserPrefix() + 'cv_builder:' + key;
+}
+
+function evictCacheKeys(userPrefix: string): string[] {
     const evicted: string[] = [];
     for (const key of EVICTABLE_KEYS) {
-        const fullKey = CV_PREFIX + key;
+        const fullKey = userPrefix + 'cv_builder:' + key;
         if (localStorage.getItem(fullKey) !== null) {
             localStorage.removeItem(fullKey);
             evicted.push(key);
@@ -46,22 +52,20 @@ function evictCacheKeys(): string[] {
     return evicted;
 }
 
-function evictLargestNonProtected(): string[] {
-    // Collect all non-protected keys and their sizes
+function evictLargestNonProtected(userPrefix: string): string[] {
     const candidates: { key: string; size: number }[] = [];
+    const namespacedCvPrefix = userPrefix + 'cv_builder:';
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (!k) continue;
-        const isProtected = PROTECTED_PREFIXES.some(p => k.startsWith(p));
-        if (!isProtected && k.startsWith(CV_PREFIX)) {
+        const isProtected = PROTECTED_SUFFIXES.some(s => k.endsWith(s));
+        if (!isProtected && k.startsWith(namespacedCvPrefix)) {
             const val = localStorage.getItem(k) ?? '';
             candidates.push({ key: k, size: val.length });
         }
     }
-    // Sort largest first
     candidates.sort((a, b) => b.size - a.size);
     const evicted: string[] = [];
-    // Remove top 3 largest non-protected
     for (const c of candidates.slice(0, 3)) {
         localStorage.removeItem(c.key);
         evicted.push(c.key);
@@ -74,10 +78,10 @@ export class LocalStorageService implements IStorageService {
     readonly label = 'Browser cache';
 
     async save(key: string, data: unknown): Promise<void> {
-        const fullKey = CV_PREFIX + key;
+        const fullKey = getFullKey(key);
         const serialised = JSON.stringify(data);
+        const userPrefix = getUserPrefix();
 
-        // 1. Try localStorage — with up to 2 eviction rounds on quota error
         let lsSaved = false;
         let allEvicted: string[] = [];
 
@@ -87,36 +91,30 @@ export class LocalStorageService implements IStorageService {
                 lsSaved = true;
                 break;
             } catch (err) {
-                if (!isQuotaError(err)) throw err; // non-quota error — re-throw immediately
+                if (!isQuotaError(err)) throw err;
 
-                // First pass: evict known large cache keys
                 if (attempt === 0) {
-                    const evicted = evictCacheKeys();
+                    const evicted = evictCacheKeys(userPrefix);
                     allEvicted = [...allEvicted, ...evicted];
                 }
-                // Second pass: evict largest non-protected keys
                 if (attempt === 1) {
-                    const evicted = evictLargestNonProtected();
+                    const evicted = evictLargestNonProtected(userPrefix);
                     allEvicted = [...allEvicted, ...evicted];
                 }
-                // Third pass: give up on localStorage, fall through to IDB-only
             }
         }
 
         if (!lsSaved) {
-            // localStorage is full even after eviction — warn user
             dispatchQuotaWarning({ key, evicted: allEvicted });
             console.warn(`[LocalStorageService] localStorage full — falling back to IDB-only for key "${key}". Evicted:`, allEvicted);
         }
 
-        // 2. IndexedDB (async, durable — survives "Clear cache")
         await idbAppSet(fullKey, data);
     }
 
     async load<T = unknown>(key: string): Promise<T | null> {
-        const fullKey = CV_PREFIX + key;
+        const fullKey = getFullKey(key);
 
-        // Try localStorage first (instant)
         const raw = localStorage.getItem(fullKey);
         if (raw !== null) {
             try { return JSON.parse(raw) as T; } catch {
@@ -124,11 +122,9 @@ export class LocalStorageService implements IStorageService {
             }
         }
 
-        // Fallback: IndexedDB (called when localStorage was cleared)
         const idbVal = await idbAppGet<T>(fullKey);
         if (idbVal !== null) {
-            // Re-populate localStorage so subsequent reads are fast
-            try { localStorage.setItem(fullKey, JSON.stringify(idbVal)); } catch { /* quota — IDB is our fallback */ }
+            try { localStorage.setItem(fullKey, JSON.stringify(idbVal)); } catch { /* quota */ }
             return idbVal;
         }
 
@@ -136,18 +132,17 @@ export class LocalStorageService implements IStorageService {
     }
 
     async list(): Promise<string[]> {
-        // Collect from localStorage
+        const namespacedCvPrefix = getUserPrefix() + 'cv_builder:';
         const lsKeys = new Set<string>();
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k?.startsWith(CV_PREFIX)) lsKeys.add(k.slice(CV_PREFIX.length));
+            if (k?.startsWith(namespacedCvPrefix)) lsKeys.add(k.slice(namespacedCvPrefix.length));
         }
 
-        // If localStorage is empty, gather from IDB as well
         if (lsKeys.size === 0) {
             const all = await idbAppGetAll();
             for (const k of Object.keys(all)) {
-                if (k.startsWith(CV_PREFIX)) lsKeys.add(k.slice(CV_PREFIX.length));
+                if (k.startsWith(namespacedCvPrefix)) lsKeys.add(k.slice(namespacedCvPrefix.length));
             }
         }
 
@@ -155,25 +150,18 @@ export class LocalStorageService implements IStorageService {
     }
 
     async delete(key: string): Promise<void> {
-        const fullKey = CV_PREFIX + key;
+        const fullKey = getFullKey(key);
         localStorage.removeItem(fullKey);
-        // Bug 6 fix: also remove from IDB so explicitly deleted slots don't
-        // resurrect when restoreLocalStorageFromIDB() runs after a cache clear.
         try {
             const { idbAppDel } = await import('./AppDataPersistence');
             await idbAppDel(fullKey);
         } catch { /* best-effort */ }
     }
 
-    async sync(): Promise<void> {
-        // Nothing to do — browser storage is always "synced"
-    }
+    async sync(): Promise<void> { }
 
-    /** Dump all data as a plain object — used by Drive migration. */
     async dumpAll(): Promise<Record<string, unknown>> {
         const result: Record<string, unknown> = {};
-
-        // Gather all keys (from localStorage, falling back to IDB)
         const keys = await this.list();
         await Promise.all(
             keys.map(async (k) => {
@@ -183,7 +171,6 @@ export class LocalStorageService implements IStorageService {
         return result;
     }
 
-    /** Returns how much of the estimated ~5MB quota is used (0–1). */
     static estimateUsage(): number {
         try {
             let total = 0;
@@ -191,7 +178,7 @@ export class LocalStorageService implements IStorageService {
                 const k = localStorage.key(i) ?? '';
                 total += k.length + (localStorage.getItem(k)?.length ?? 0);
             }
-            return total / (5 * 1024 * 1024); // 5MB estimate
+            return total / (5 * 1024 * 1024);
         } catch {
             return 0;
         }

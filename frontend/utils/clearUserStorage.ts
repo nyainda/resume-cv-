@@ -291,6 +291,11 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
         // cv:* per-session state (cv:purpose, cv:jdKeywords, cv:targetCompany, cv:targetJobTitle)
         allKeys.filter(k => k.startsWith('cv:')).forEach(k => localStorage.removeItem(k));
 
+        // New user-scoped namespace keys: u_<userId>:* and anon:*
+        allKeys
+            .filter(k => k.startsWith('u_') || k.startsWith('anon:'))
+            .forEach(k => localStorage.removeItem(k));
+
         // ── Legacy unprefixed keys (written before cv_builder: prefix was added) ──
         // These are NOT caught by the prefix filters above but are read as fallbacks
         // by useStorage() and the migration effects in App.tsx. If left behind, the
