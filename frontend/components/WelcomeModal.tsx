@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 interface WelcomeModalProps {
-  name: string;
-  email: string;
+  name: string | null | undefined;
+  email: string | null | undefined;
   onClose: () => void;
 }
 
