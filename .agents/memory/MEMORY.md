@@ -3,6 +3,7 @@
 - [Seniority fix path format](seniority-fix-path.md) — seniority coherence uses dot-notation paths; parseAuditPath and applyFixToCv now handle both formats.
 - [D1 migration tracking gap](d1-migration-tracking.md) — migrations applied manually (outside wrangler) are not tracked; INSERT into d1_migrations to unblock future runs.
 - [Unified AuthContext migration](auth-unified-context.md) — single AuthContext.tsx replaced GoogleAuthContext+WorkerAuthContext+AuthPersistence+SilentRefresh; cookie-based; shims preserved then removed from App.tsx (now uses single useAuth() call).
+- [Auth pipeline security hardening](auth-pipeline-hardening.md) — 3 fixes: token fallback 7-day expiry (JSON+savedAt), plan forced to 'free' on cache seed, Drive token written to localStorage on requestDriveAccess/refresh (was silently broken).
 - [CF Worker KV caching](cf-worker-kv-cache.md) — module-level Map cache in data.ts (5-10min TTL) for banned phrases/verbs/rhythm; same cache shared via getCachedBannedPhrases() in validation.ts; rate-limit mem cache in utils.ts skips KV on warm slot; invalidateKVCache() called after admin sync.
 - [Auth system deployment](auth-system.md) — sessions in D1 (024+025), Google OAuth + magic link, rate limiting, audit log; BREVO_API_KEY needed as CF secret for magic link email.
 - [Auth account-switch isolation](auth-account-switch-isolation.md) — lastKnownEmailRef survives sign-out; wipeLocalAppData sets IDB sentinels + deletes 5 IDB stores; _applySession needs no email param.

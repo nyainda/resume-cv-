@@ -55,6 +55,10 @@ import {
 
 export const USER_CACHE_KEY  = 'procv:worker_user';
 const DRIVE_SCOPE_KEY        = 'procv:drive_scope_granted';
+// StorageRouter reads these to decide whether Drive sync is active.
+// Must stay in sync with StorageRouter.ts TOKEN_KEY / EXPIRY_KEY.
+const DRIVE_TOKEN_KEY        = 'cv_gdrive_token';
+const DRIVE_EXPIRY_KEY       = 'cv_gdrive_expiry';
 const OAUTH_CALLBACK_KEY     = 'procv:oauth_callback';
 
 const IDENTITY_SCOPES = [
@@ -299,10 +303,15 @@ export function wipeLocalAppData(): void {
 export function AuthProvider({ children }: { children: ReactNode }) {
     // Seed from localStorage so the UI shows the user immediately on boot
     // without waiting for the session-validation round-trip.
+    // Security: always force plan to 'free' from the cache — the real plan
+    // is confirmed by the server during session validation (~8s). This prevents
+    // a DevTools localStorage edit from permanently unlocking premium features.
     const [user, setUser] = useState<WorkerUser | null>(() => {
         try {
             const raw = localStorage.getItem(USER_CACHE_KEY);
-            return raw ? (JSON.parse(raw) as WorkerUser) : null;
+            if (!raw) return null;
+            const cached = JSON.parse(raw) as WorkerUser;
+            return { ...cached, plan: 'free' };
         } catch { return null; }
     });
 
@@ -495,6 +504,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'none');
                 const newExpiry = Date.now() + expiresIn * 1000 - 60_000;
                 setDriveToken({ accessToken, expiresAt: newExpiry });
+                // Keep localStorage in sync so StorageRouter sees the refreshed token
+                try { localStorage.setItem(DRIVE_TOKEN_KEY, accessToken); }   catch { /* quota */ }
+                try { localStorage.setItem(DRIVE_EXPIRY_KEY, String(newExpiry)); } catch { /* quota */ }
                 _scheduleDriveRefresh(newExpiry);
             } catch { /* silently expired — user will be prompted on next Drive action */ }
         }, Math.max(ms, 0));
@@ -508,6 +520,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'consent');
         const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
         setDriveToken({ accessToken, expiresAt });
+        // Write to localStorage so StorageRouter can pick up the token immediately.
+        // StorageRouter reads cv_gdrive_token / cv_gdrive_expiry on every save/load
+        // call — without these writes Drive sync was silently broken.
+        try { localStorage.setItem(DRIVE_TOKEN_KEY, accessToken); }        catch { /* quota */ }
+        try { localStorage.setItem(DRIVE_EXPIRY_KEY, String(expiresAt)); } catch { /* quota */ }
         localStorage.setItem(DRIVE_SCOPE_KEY, '1');
         setDriveConnected(true);
         _scheduleDriveRefresh(expiresAt);

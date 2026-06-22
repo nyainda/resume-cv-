@@ -59,15 +59,47 @@ export function drainPendingSlots(): RawSlot[] | null {
 // Used when SameSite=None HttpOnly cookies are blocked by browser privacy settings.
 // Not a security regression: the server still validates the token against D1, and
 // the token is cleared on every sign-out / account deletion.
+//
+// Security hardening: tokens are stored with a `savedAt` timestamp and
+// auto-expired client-side after 7 days, reducing the XSS exposure window
+// from the server's full 30-day TTL down to 7 days.
 
-const SESSION_FALLBACK_KEY = 'procv:stf';
+const SESSION_FALLBACK_KEY  = 'procv:stf';
+const TOKEN_MAX_AGE_MS       = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export function saveSessionFallback(token: string): void {
-    try { if (token) localStorage.setItem(SESSION_FALLBACK_KEY, token); } catch { /* quota — ignore */ }
+    try {
+        if (token) {
+            const payload = JSON.stringify({ token, savedAt: Date.now() });
+            localStorage.setItem(SESSION_FALLBACK_KEY, payload);
+        }
+    } catch { /* quota — ignore */ }
 }
 
 export function loadSessionFallback(): string {
-    try { return localStorage.getItem(SESSION_FALLBACK_KEY) ?? ''; } catch { return ''; }
+    try {
+        const raw = localStorage.getItem(SESSION_FALLBACK_KEY);
+        if (!raw) return '';
+
+        // New JSON format: { token, savedAt }
+        try {
+            const parsed = JSON.parse(raw) as { token?: string; savedAt?: number };
+            if (typeof parsed?.token === 'string') {
+                if (parsed.savedAt && Date.now() - parsed.savedAt > TOKEN_MAX_AGE_MS) {
+                    // Token too old — clear it and force re-authentication
+                    localStorage.removeItem(SESSION_FALLBACK_KEY);
+                    return '';
+                }
+                return parsed.token;
+            }
+        } catch { /* not JSON — must be a legacy plain hex string */ }
+
+        // Legacy format: plain hex string written by older code.
+        // Migrate it to the new timestamped format immediately so it will
+        // expire correctly on a future page load.
+        saveSessionFallback(raw);
+        return raw;
+    } catch { return ''; }
 }
 
 export function clearSessionFallback(): void {
