@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
+import { canAddProfileSlot, getProfileSlotLimit, isPureFreeTier, hasByokKeys } from '../services/accountTierService';
 
 const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string; hex: string }[] = [
     { id: 'indigo',  bg: 'bg-[#1B2B4B]',    ring: 'ring-[#C9A84C]',     text: 'text-[#1B2B4B] dark:text-[#C9A84C]',           border: 'border-[#C9A84C]/40',         lightBg: 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20',    hex: '#1B2B4B' },
@@ -185,12 +186,22 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={openCreate}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1B2B4B] text-white hover:bg-[#152238] transition-colors shadow-sm"
-                    >
-                        <span className="text-sm leading-none">+</span> New Room
-                    </button>
+                    {canAddProfileSlot(profiles.length) ? (
+                        <button
+                            onClick={openCreate}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1B2B4B] text-white hover:bg-[#152238] transition-colors shadow-sm"
+                        >
+                            <span className="text-sm leading-none">+</span> New Room
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
+                            title={`Your plan allows ${getProfileSlotLimit()} profile${getProfileSlotLimit() !== 1 ? 's' : ''}. Upgrade for more.`}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#C9A84C] text-white hover:bg-[#b8963f] transition-colors shadow-sm"
+                        >
+                            <span className="text-sm leading-none">🔒</span> Upgrade for more rooms
+                        </button>
+                    )}
                     {onClose && (
                         <button
                             onClick={onClose}

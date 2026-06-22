@@ -795,6 +795,14 @@ const AppInner: React.FC = () => {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
+
+  // Allow any component to open the pricing modal via a custom event
+  // (e.g. Tracker "Upgrade to track more" button, ProfileManager slot limit).
+  useEffect(() => {
+    const handler = () => setIsPricingOpen(true);
+    window.addEventListener('procv:openPricing', handler);
+    return () => window.removeEventListener('procv:openPricing', handler);
+  }, []);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2000,7 +2008,7 @@ const AppInner: React.FC = () => {
   const isMoreActive = allMoreItems.some((item) => item.id === currentView);
 
   // ── Feature gate: views locked for pure free users (no API keys, no premium) ──
-  const GATED_VIEWS = new Set(['interview', 'linkedin', 'email', 'negotiation', 'pivot', 'essays']);
+  const GATED_VIEWS = new Set(['interview', 'linkedin', 'email', 'negotiation', 'pivot', 'essays', 'analytics']);
   const handleNavClick = useCallback((id: string) => {
     if (isPureFreeTier() && GATED_VIEWS.has(id)) {
       setIsPricingOpen(true);

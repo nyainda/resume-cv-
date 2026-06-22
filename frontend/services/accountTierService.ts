@@ -20,6 +20,21 @@ const STORAGE_KEY = 'cv_builder:accountTier';
  */
 export const TIER_CHANGED_EVENT = 'procv:tierChanged';
 
+// ─── Limits (defined before TIER_FEATURES so they can be referenced in descriptions) ──
+
+/** Lifetime PDF downloads allowed on the pure free tier. */
+export const FREE_PDF_LIMIT = 5;
+/** Max tracked applications for free (non-BYOK, non-premium) users. */
+export const FREE_TRACKER_LIMIT = 15;
+/** Max saved CVs visible in CV History for pure free users. */
+export const FREE_HISTORY_LIMIT = 5;
+/** Max profile slots per tier. */
+export const SLOT_LIMITS: Record<'free' | 'byok' | 'premium', number> = {
+  free:    1,
+  byok:    3,
+  premium: 5,
+};
+
 // ─── Feature map ────────────────────────────────────────────────────────────
 
 /**
@@ -35,6 +50,102 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: Ti
       icon: '✨',
       description:
         'Cloudflare-powered AI with no API key required. Runs the full CV pipeline server-side — generation, audit, humanization, and more.',
+    },
+  },
+  'boosted-mode': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Boosted & Aggressive Modes',
+      icon: '🚀',
+      description: 'Unlock higher-intensity writing modes that punch up language and impact for competitive roles.',
+    },
+  },
+  'ats-gap-pinning': {
+    tiers: ['premium'],
+    meta: {
+      label: 'ATS Gap Pinning',
+      icon: '🎯',
+      description: 'Automatically detects missing keywords from the job description and pins them into your CV during generation.',
+    },
+  },
+  'clean-pdf': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Watermark-Free PDF',
+      icon: '📄',
+      description: 'Download clean, professional PDFs with no ProCV branding.',
+    },
+  },
+  'unlimited-pdf': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Unlimited PDF Downloads',
+      icon: '📥',
+      description: 'No cap on how many CVs you can download.',
+    },
+  },
+  'interview-prep': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Interview Prep',
+      icon: '🎤',
+      description: 'AI-generated behavioural, technical, and situational questions tailored to your role and experience.',
+    },
+  },
+  'linkedin-optimizer': {
+    tiers: ['premium'],
+    meta: {
+      label: 'LinkedIn Optimizer',
+      icon: '💼',
+      description: 'Rewrite your LinkedIn headline, summary, and experience sections to match top-performing profiles.',
+    },
+  },
+  'salary-negotiation': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Salary Negotiation Coach',
+      icon: '💰',
+      description: 'Research market rates, build your case, and get scripts for negotiating your offer.',
+    },
+  },
+  'email-apply': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Email Apply',
+      icon: '✉️',
+      description: 'Draft personalised application emails and follow-ups in one click.',
+    },
+  },
+  'career-pivot': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Career Pivot Advisor',
+      icon: '🔄',
+      description: 'Map your transferable skills to new industries and roles with an AI-guided pivot roadmap.',
+    },
+  },
+  'scholarship': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Scholarship Essay Writer',
+      icon: '🎓',
+      description: 'Generate compelling scholarship, fellowship, and research grant essays from your profile.',
+    },
+  },
+  'career-suite': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Full Career Suite',
+      icon: '🧰',
+      description: 'Unlimited access to every ProCV tool — Interview Prep, LinkedIn, Negotiation, Email Apply, Career Pivot, and more.',
+    },
+  },
+  'unlimited-tracker': {
+    tiers: ['premium'],
+    meta: {
+      label: 'Unlimited Job Tracking',
+      icon: '📊',
+      description: `Track more than ${FREE_TRACKER_LIMIT} active job applications with full kanban and analytics.`,
     },
   },
   'bulk-export': {
@@ -122,7 +233,7 @@ export function hasByokKeys(): boolean {
 
 /**
  * Pure free user: no API keys AND not on premium.
- * Tightest limits: 2 AI generations lifetime, 2 PDF downloads, watermarked.
+ * Tightest limits apply: capped generations, capped downloads, watermarked.
  */
 export function isPureFreeTier(): boolean {
   return getTier() === 'free' && !hasByokKeys();
@@ -147,9 +258,6 @@ export function canUsePremiumModes(): boolean {
 // ─── PDF download counter (pure free tier only) ────────────────────────────
 
 const PDF_DOWNLOAD_KEY = 'procv:pdfDownloadCount';
-
-/** Lifetime PDF downloads allowed on the pure free tier. */
-export const FREE_PDF_LIMIT = 2;
 
 /** Returns how many PDFs the user has downloaded on the free tier. */
 export function getPdfDownloadCount(): number {
@@ -179,25 +287,54 @@ export function canDownloadPdf(): boolean {
   return getPdfDownloadCount() < FREE_PDF_LIMIT;
 }
 
+// ─── Job tracker limit ────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the user can add another tracked application.
+ * BYOK users get unlimited tracking. Premium too.
+ */
+export function canAddTrackedApp(currentCount: number): boolean {
+  if (getTier() === 'premium') return true;
+  if (hasByokKeys()) return true;
+  return currentCount < FREE_TRACKER_LIMIT;
+}
+
+// ─── CV history limit ─────────────────────────────────────────────────────────
+
+/**
+ * Returns how many saved CVs the user can see in CV History.
+ * Free users see the 5 most recent; premium/BYOK see all.
+ */
+export function getHistoryLimit(): number {
+  if (getTier() === 'premium') return Infinity;
+  if (hasByokKeys()) return Infinity;
+  return FREE_HISTORY_LIMIT;
+}
+
+// ─── Profile slot limit ───────────────────────────────────────────────────────
+
+/**
+ * Returns the maximum number of profile slots the user can have.
+ */
+export function getProfileSlotLimit(): number {
+  if (getTier() === 'premium') return SLOT_LIMITS.premium;
+  if (hasByokKeys()) return SLOT_LIMITS.byok;
+  return SLOT_LIMITS.free;
+}
+
+/**
+ * Returns true if the user can create another profile slot.
+ */
+export function canAddProfileSlot(currentCount: number): boolean {
+  return currentCount < getProfileSlotLimit();
+}
+
 // ─── Phase 2 stub ────────────────────────────────────────────────────────────
 
 /**
  * (Phase 2) Fetch the canonical tier from the cv-engine-worker D1 database
  * and sync it to localStorage. Called after the user authenticates.
- *
- * Implementation checklist for Phase 2:
- *   1. Add GET /api/account/tier to cv-engine-worker (handlers/accountTier.ts).
- *   2. The worker reads the `account_tier` column from the `users` D1 table.
- *   3. Call syncTierFromServer() inside WorkerAuthContext after sign-in.
- *   4. Add requirePremium middleware to /api/cv/tiered-llm for workers-ai tasks.
  */
 export async function syncTierFromServer(_authToken: string): Promise<void> {
   // TODO Phase 2: implement server sync
-  // const res = await fetch(`${CV_ENGINE_URL}/api/account/tier`, {
-  //   headers: { Authorization: `Bearer ${authToken}` },
-  // });
-  // if (res.ok) {
-  //   const { tier } = await res.json();
-  //   setTier(tier);
-  // }
 }

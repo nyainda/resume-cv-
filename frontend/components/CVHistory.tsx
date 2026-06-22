@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { SavedCV, CVData, TemplateName, UserProfile, templateDisplayNames } from '../types';
+import { getHistoryLimit, FREE_HISTORY_LIMIT, isPureFreeTier } from '../services/accountTierService';
 import { Button } from './ui/Button';
 import { Trash, Eye, Download, FileText, BookOpen, Briefcase, Globe, RefreshCw, X } from './icons';
 import TemplateThumbnail from './TemplateThumbnail';
@@ -173,7 +174,13 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
     const [previewCV, setPreviewCV] = useState<SavedCV | null>(null);
     const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
 
-    const filtered = savedCVs
+    const historyLimit = getHistoryLimit();
+    const isLimited = isPureFreeTier() && savedCVs.length > historyLimit;
+    const visibleCVs = isLimited
+        ? [...savedCVs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, historyLimit)
+        : savedCVs;
+
+    const filtered = visibleCVs
         .filter(cv => filter === 'all' || cv.purpose === filter)
         .sort((a, b) => {
             const da = new Date(a.createdAt).getTime();
@@ -214,6 +221,21 @@ const CVHistory: React.FC<CVHistoryProps> = ({ savedCVs, onLoad, onDelete, userP
                         </button>
                     </div>
                 </div>
+
+                {/* Free tier limit banner */}
+                {isLimited && (
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                        <p className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
+                            Showing your {FREE_HISTORY_LIMIT} most recent CVs. Upgrade to see all {savedCVs.length}.
+                        </p>
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('procv:openPricing'))}
+                            className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#C9A84C] hover:bg-[#b8963f] text-white transition-colors"
+                        >
+                            Upgrade
+                        </button>
+                    </div>
+                )}
 
                 {/* Filter Pills */}
                 <div className="flex flex-wrap gap-2">

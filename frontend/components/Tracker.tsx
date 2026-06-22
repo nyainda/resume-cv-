@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrackedApplication, SavedCV, ApplicationStatus, ApplicationPriority, STARStory } from '../types';
 import { Plus, Trash, Search, Calendar, Building, Briefcase, ExternalLink, CheckCircle, Clock, XCircle, AlertCircle, Bookmark, Filter } from './icons';
+import { canAddTrackedApp, FREE_TRACKER_LIMIT, isPureFreeTier } from '../services/accountTierService';
 
 interface TrackerProps {
   trackedApps: TrackedApplication[];
@@ -347,12 +348,29 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
             </button>
           )}
           {mainTab === 'applications' && (
-            <button
-              onClick={() => openModal()}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] hover:bg-[#152238] text-white shadow-md shadow-[#1B2B4B]/20 transition-all active:scale-95"
-            >
-              <Plus className="h-3.5 w-3.5" />Track Job
-            </button>
+            canAddTrackedApp(trackedApps.length) ? (
+              <button
+                onClick={() => openModal()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] hover:bg-[#152238] text-white shadow-md shadow-[#1B2B4B]/20 transition-all active:scale-95"
+              >
+                <Plus className="h-3.5 w-3.5" />Track Job
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
+                  {FREE_TRACKER_LIMIT}/{FREE_TRACKER_LIMIT} free slots used
+                </span>
+                <button
+                  onClick={() => {
+                    const e = new CustomEvent('procv:openPricing');
+                    window.dispatchEvent(e);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#C9A84C] hover:bg-[#b8963f] text-white shadow-md transition-all active:scale-95"
+                >
+                  Upgrade to track more
+                </button>
+              </div>
+            )
           )}
         </div>
       </div>
