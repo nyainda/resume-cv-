@@ -442,6 +442,7 @@ const AppInner: React.FC = () => {
       if (restored.length > 0) {
         setProfiles(restored);
         setActiveProfileId(restored[0].id);
+        setIsEditingProfile(false);
         toast.success('Profiles restored', `${restored.length} profile${restored.length !== 1 ? 's' : ''} loaded from your account.`);
         console.log(`[D1Restore] ${restored.length} slot(s) restored from ${source}`);
       }
@@ -3234,6 +3235,7 @@ const AppInner: React.FC = () => {
                 onClick={() => {
                   setProfiles(driveRestoreSlots);
                   setActiveProfileId(driveRestoreSlots[0]?.id ?? null);
+                  setIsEditingProfile(false);
                   setDriveRestoreSlots(null);
                   toast.success('Profiles restored', `${driveRestoreSlots.length} profile${driveRestoreSlots.length !== 1 ? 's' : ''} restored from Google Drive.`);
                 }}
