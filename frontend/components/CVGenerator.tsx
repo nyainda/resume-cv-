@@ -11,8 +11,9 @@ import type { PurifyLeak } from '../services/cvPurificationPipeline';
 import { auditStyleGovernance } from '../services/cvStyleGovernance';
 import { getCachedBannedPhrases } from '../services/cvEngineClient';
 import type { BannedEntry } from '../services/cvEngineClient';
-import { getLastAiEngine, PROVIDER_TRYING_EVENT } from '../services/groqService';
+import { getLastAiEngine, PROVIDER_TRYING_EVENT, getSelectedProvider } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
+import { getTier } from '../services/accountTierService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { downloadCV } from '../services/cvDownloadService';
@@ -327,6 +328,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     }
   }, []);
   const [error, setError] = useState<string | null>(null);
+  const [showByokPrompt, setShowByokPrompt] = useState(false);
   const [isAssembling, setIsAssembling] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [template, setTemplate] = useLocalStorage<TemplateName>('template', 'professional');
@@ -618,6 +620,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     const authed = await requireAuth();
     if (!authed) return;
 
+    // ── Free tier limit gate ───────────────────────────────────────────────────
+    // Free users get 1 trial generation on Workers AI.
+    // After that, they must add a Gemini or Claude key to continue.
+    const FREE_GEN_KEY = 'procv:freeGenCount';
+    const currentTier = getTier();
+    const currentProvider = getSelectedProvider();
+    if (currentTier === 'free' && currentProvider === 'workers-ai') {
+      const usedCount = parseInt(localStorage.getItem(FREE_GEN_KEY) || '0', 10);
+      if (usedCount >= 1) {
+        setShowByokPrompt(true);
+        return;
+      }
+    }
+
     setIsLoading(true);
     setDraftCV(null);
     setError(null);
@@ -856,6 +872,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       setCurrentCV(generatedData);
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
+      // Increment free-tier trial counter so the gate fires on the next run
+      const FREE_GEN_KEY = 'procv:freeGenCount';
+      if (getTier() === 'free' && getSelectedProvider() === 'workers-ai') {
+        const used = parseInt(localStorage.getItem(FREE_GEN_KEY) || '0', 10);
+        localStorage.setItem(FREE_GEN_KEY, String(used + 1));
+      }
       setJustGenerated(true);
       // Record field confidence history entry for the trace panel trend
       if (generatedData._trace?.fieldSource) {
@@ -1254,6 +1276,77 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
   return (
     <div className="space-y-8">
+
+      {/* ── Free-tier BYOK prompt ─────────────────────────────────────────── */}
+      {showByokPrompt && (
+        <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center"
+             style={{ background: 'rgba(10,16,30,0.75)', backdropFilter: 'blur(6px)' }}>
+          <div className="bg-white dark:bg-neutral-900 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-md shadow-2xl overflow-hidden">
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+            </div>
+            <div className="px-6 pb-8 pt-5 space-y-4">
+              {/* Icon + heading */}
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 text-xl"
+                     style={{ background: 'linear-gradient(135deg,#FFF8E7,#FDFBF5)', border: '1.5px solid #C9A84C' }}>
+                  🔑
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-zinc-900 dark:text-zinc-100 leading-snug"
+                      style={{ fontFamily: "'Playfair Display', serif" }}>
+                    Free trial used
+                  </h2>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    You've used your 1 free Workers AI generation.
+                  </p>
+                </div>
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2.5">
+                {/* Option A — add Gemini key */}
+                <div className="rounded-xl border-2 border-blue-200 dark:border-blue-800 p-3.5 bg-blue-50/40 dark:bg-blue-900/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-black text-blue-800 dark:text-blue-300">🔍 Add a free Gemini key</p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Recommended · Free</span>
+                  </div>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    Get a free API key from Google AI Studio — takes 30 seconds. No credit card needed.
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
+                       className="text-xs font-bold underline" style={{ color: '#1B2B4B' }}>
+                      Get free Gemini key →
+                    </a>
+                    <span className="text-zinc-300 dark:text-zinc-600">·</span>
+                    <button
+                      onClick={() => { setShowByokPrompt(false); openSettings(); }}
+                      className="text-xs font-bold underline text-blue-600 dark:text-blue-400">
+                      Add key in Settings →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Option B — upgrade to Premium */}
+                <div className="rounded-xl border border-[#C9A84C]/40 p-3.5 bg-amber-50/40 dark:bg-amber-900/10 space-y-1.5">
+                  <p className="text-sm font-black" style={{ color: '#1B2B4B' }}>✨ Upgrade to Premium</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    Unlimited generations on Workers AI — better models, faster, no key management.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowByokPrompt(false)}
+                className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-1.5 transition-colors font-medium">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Generation progress overlay (modal, only while generating) ── */}
       <CVGenerationProgress
         isOpen={isLoading && progressActiveIds.length > 0}

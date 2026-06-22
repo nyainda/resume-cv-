@@ -210,9 +210,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                   id: 'workers-ai' as AiProvider,
                   icon: '✨',
                   label: 'Workers AI',
-                  badge: 'Premium',
-                  badgeColor: 'bg-[#C9A84C]/20 text-[#7a620e] dark:bg-yellow-900/30 dark:text-yellow-300',
-                  desc: 'Cloudflare Workers AI — Llama, Mistral & more. No API key needed. Full pipeline runs server-side.',
+                  badge: canUseWorkersAI ? 'Premium · Best quality' : 'Free · 1 trial included',
+                  badgeColor: canUseWorkersAI
+                    ? 'bg-[#C9A84C]/20 text-[#7a620e] dark:bg-yellow-900/30 dark:text-yellow-300'
+                    : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
+                  desc: canUseWorkersAI
+                    ? 'Cloudflare Workers AI — full pipeline, best models. No API key needed.'
+                    : 'Try 1 free generation. After that, add a Gemini or Claude key to continue.',
                   keyNeeded: false,
                   borderColor: 'border-[#C9A84C]/60 dark:border-yellow-700/60',
                   activeBg: 'bg-amber-50 dark:bg-amber-900/20',

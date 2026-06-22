@@ -1876,6 +1876,10 @@ const AppInner: React.FC = () => {
     [handleApiSettingsSave, handleWordProfileImported, toast],
   );
 
+  const VIEW_KEY = 'procv:lastView';
+  const RESTORABLE_VIEWS = ['generator','linkedin','interview','jobs','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
+  type RestorableView = typeof RESTORABLE_VIEWS[number];
+
   const [currentView, setCurrentView] = useState<
     | "generator"
     | "linkedin"
@@ -1894,7 +1898,15 @@ const AppInner: React.FC = () => {
     | "admin-leaks"
     | "admin-cv-engine"
     | "storage-map"
-  >("generator");
+  >(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved && (RESTORABLE_VIEWS as readonly string[]).includes(saved)) {
+        return saved as RestorableView;
+      }
+    } catch { /* non-fatal */ }
+    return 'generator';
+  });
 
   // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
   // from the main nav so they don't clutter the user-facing UI; these are
@@ -1979,9 +1991,12 @@ const AppInner: React.FC = () => {
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? "indigo";
 
-  // Save currentView to sessionStorage so it survives the sign-out → sign-in cycle.
+  // Persist currentView to localStorage so it survives page refreshes and sign-out → sign-in.
   useEffect(() => {
-    try { sessionStorage.setItem('procv:lastView', currentView); } catch { /* non-fatal */ }
+    try {
+      localStorage.setItem(VIEW_KEY, currentView);
+      sessionStorage.setItem(VIEW_KEY, currentView); // keep sessionStorage in sync for sign-out cycle
+    } catch { /* non-fatal */ }
   }, [currentView]);
 
   // Hide landing whenever authenticated — profiles are optional.
@@ -1999,13 +2014,13 @@ const AppInner: React.FC = () => {
       if (isNewUser && !hasCompletedOnboarding()) {
         setShowOnboarding(true);
       }
-      // Restore the view the user was on before they signed out (same tab session).
+      // Restore the view the user was on before they signed out.
+      // sessionStorage is preferred (same tab), localStorage is the fallback (cross-tab/refresh).
       if (!wasAuthenticated) {
         try {
-          const saved = sessionStorage.getItem('procv:lastView');
-          const RESTORABLE = ['generator','linkedin','interview','jobs','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
-          if (saved && (RESTORABLE as readonly string[]).includes(saved)) {
-            setCurrentView(saved as typeof RESTORABLE[number]);
+          const saved = sessionStorage.getItem(VIEW_KEY) || localStorage.getItem(VIEW_KEY);
+          if (saved && (RESTORABLE_VIEWS as readonly string[]).includes(saved)) {
+            setCurrentView(saved as RestorableView);
           }
         } catch { /* non-fatal */ }
       }

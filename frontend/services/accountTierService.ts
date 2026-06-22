@@ -29,7 +29,7 @@ export const TIER_CHANGED_EVENT = 'procv:tierChanged';
  */
 export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: TierFeatureConfig }> = {
   'workers-ai': {
-    tiers: ['premium'],
+    tiers: ['free', 'premium'],
     meta: {
       label: 'Workers AI',
       icon: '✨',
