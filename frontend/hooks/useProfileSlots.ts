@@ -11,6 +11,7 @@ import {
 import { useStorage } from './useStorage';
 import { invalidateCVCache } from '../services/geminiService';
 import { syncProfileToCache } from '../services/profileCacheClient';
+import { normalizeCVData } from '../utils/cvDataUtils';
 import {
   migrateToIDB,
   preloadAllCVData,
@@ -60,8 +61,8 @@ export function useProfileSlots() {
       setProfiles((prev) =>
         prev.map((p) => {
           if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved =
-            typeof next === 'function' ? next(p.currentCV ?? null) : next;
+          const raw = typeof next === 'function' ? next(p.currentCV ?? null) : next;
+          const resolved = raw ? (normalizeCVData(raw) ?? raw) : raw;
           return { ...p, currentCV: resolved };
         }),
       );

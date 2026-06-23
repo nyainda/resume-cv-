@@ -1,5 +1,6 @@
 import type { ProfileColor, UserProfileSlot } from '../types';
 import type { RawSlot } from '../services/authService';
+import { normalizeUserProfile, normalizeCVData } from './cvDataUtils';
 
 export const PROFILE_COLORS: ProfileColor[] = [
   'indigo',
@@ -40,11 +41,18 @@ export function parseSlotData(
     if (!parsed || typeof parsed !== 'object') return null;
     const isPayload =
       'profile' in parsed && ('savedCVs' in parsed || 'savedCoverLetters' in parsed);
+    const rawProfile = isPayload ? (parsed.profile ?? {}) : parsed;
+    const profile = normalizeUserProfile(rawProfile) ?? rawProfile;
+
+    const rawCV = isPayload ? parsed.currentCV : undefined;
+    const currentCV = rawCV ? (normalizeCVData(rawCV) ?? undefined) : undefined;
+
     return {
       id:                s.slot_id,
       name:              s.slot_name,
       color:             (s as any).color ?? 'indigo',
-      profile:           isPayload ? (parsed.profile ?? {}) : parsed,
+      profile,
+      ...(currentCV !== undefined && { currentCV }),
       savedCVs:          isPayload ? (parsed.savedCVs          ?? []) : [],
       savedCoverLetters: isPayload ? (parsed.savedCoverLetters ?? []) : [],
       trackedApps:       isPayload ? (parsed.trackedApps       ?? []) : [],

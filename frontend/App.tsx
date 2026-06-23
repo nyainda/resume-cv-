@@ -789,7 +789,7 @@ const AppInner: React.FC = () => {
             (e) =>
               e.company === newExp.company &&
               e.jobTitle === newExp.jobTitle &&
-              e.responsibilities.length > 0,
+              (e.responsibilities ?? []).length > 0,
           );
           if (!prevCVExp) {
             // New or renamed role — use fresh profile bullets
@@ -832,11 +832,11 @@ const AppInner: React.FC = () => {
           experience:
             mergedExperience.length > 0 ? mergedExperience : prev.experience,
           education:
-            fromProfile.education.length > 0
+            (fromProfile.education ?? []).length > 0
               ? fromProfile.education
               : prev.education,
           // User-controlled data — prefer profile when non-empty
-          skills: profile.skills.length > 0 ? profile.skills : prev.skills,
+          skills: (profile.skills ?? []).length > 0 ? profile.skills : prev.skills,
           projects:
             fromProfile.projects && fromProfile.projects.length > 0
               ? fromProfile.projects
@@ -2262,13 +2262,13 @@ const AppInner: React.FC = () => {
                         <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-2">
                           <span>Skills</span>
                           <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                            {userProfile?.skills.length}
+                            {(userProfile?.skills ?? []).length}
                           </span>
                         </div>
                         <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
                           <span>Experience</span>
                           <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                            {userProfile?.workExperience.length} roles
+                            {(userProfile?.workExperience ?? []).length} roles
                           </span>
                         </div>
                       </div>

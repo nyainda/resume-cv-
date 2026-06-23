@@ -112,7 +112,7 @@ const AIImprovementPanel: React.FC<AIImprovementPanelProps> = ({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: `Hi! I've read your CV. I can help you improve it — ask me anything or use a quick action below.\n\nCurrent CV: ${cvData.experience.length} roles, ${cvData.skills.length} skills, ${cvData.education.length} education entries.`,
+      content: `Hi! I've read your CV. I can help you improve it — ask me anything or use a quick action below.\n\nCurrent CV: ${(cvData.experience ?? []).length} roles, ${(cvData.skills ?? []).length} skills, ${(cvData.education ?? []).length} education entries.`,
     },
   ]);
   const [input, setInput] = useState('');
