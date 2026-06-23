@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
+import { normalizeCVData } from '../utils/cvDataUtils';
 import TemplateV2 from './templates/engine/TemplateV2';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import TemplateModern from './templates/TemplateModern';
@@ -57,13 +58,21 @@ interface CVPreviewProps {
 const CVPreview: React.FC<CVPreviewProps> = (props) => {
   const {
     template,
-    cvData,
+    cvData: rawCvData,
     personalInfo,
     isEditing = false,
     onDataChange = () => {},
     jobDescriptionForATS = '',
     sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
   } = props;
+
+  // Guarantee all array fields are proper arrays before ANY template sees the data.
+  // This is the single choke-point for all 35+ templates — no template component
+  // needs its own null-guards on skills/experience/education/.length calls.
+  const cvData: CVData = useMemo(
+    () => (normalizeCVData(rawCvData) ?? rawCvData),
+    [rawCvData],
+  );
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
   // Sidebar templates additionally receive sidebarSections; spreading
