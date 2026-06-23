@@ -23,19 +23,26 @@ import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
-import { syncProfileToCache } from "./services/profileCacheClient";
 import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from "./utils/clearUserStorage";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
+import { saveCVData, deleteCVData } from "./services/storage/cvDataStore";
+import { syncProfileToCache } from "./services/profileCacheClient";
+import { useProfileSlots } from "./hooks/useProfileSlots";
+import { colorBg, navTimeAgo, parseSlotData, PROFILE_COLORS } from "./utils/profileUtils";
 import {
-  saveCVData,
-  deleteCVData,
-  preloadAllCVData,
-  migrateToIDB,
-  pruneOrphanedCVData,
-} from "./services/storage/cvDataStore";
+  MailIcon,
+  PivotNavIcon,
+  ScoreNavIcon,
+  LinkedInNavIcon,
+  InterviewNavIcon,
+  NegotiationNavIcon,
+  AnalyticsNavIcon,
+  UsersIcon,
+} from "./components/nav/NavIcons";
+import DriveBackupPrompt from "./components/DriveBackupPrompt";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import type { WorkerUser, RawSlot } from "./services/authService";
 import { drainPendingSlots } from "./services/authService";
@@ -96,185 +103,6 @@ import {
 import { isCVEngineConfigured } from "./services/cvEngineClient";
 import { isPureFreeTier, getTier } from "./services/accountTierService";
 
-// ── Mail icon (inline, no dep needed) ──────────────────────────────────────
-const MailIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="2" y="4" width="20" height="16" rx="2" />
-    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-  </svg>
-);
-
-const PivotNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M17 3l4 4-4 4" />
-    <path d="M3 7h18" />
-    <path d="M7 21l-4-4 4-4" />
-    <path d="M21 17H3" />
-  </svg>
-);
-
-const ScoreNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="3" y="3" width="18" height="18" rx="2" />
-    <path d="M8 17v-6" />
-    <path d="M12 17v-4" />
-    <path d="M16 17v-9" />
-  </svg>
-);
-
-const LinkedInNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-  </svg>
-);
-
-const InterviewNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-    <line x1="12" x2="12" y1="19" y2="22" />
-    <line x1="8" x2="16" y1="22" y2="22" />
-  </svg>
-);
-
-const NegotiationNavIcon: React.FC<{ className?: string }> = ({
-  className,
-}) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-  </svg>
-);
-
-const AnalyticsNavIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 3v18h18" />
-    <path d="m19 9-5 5-4-4-3 3" />
-  </svg>
-);
-
-// ── UsersIcon (for profile switcher) ───────────────────────────────────────
-const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);
-
-const PROFILE_COLORS: ProfileColor[] = [
-  "indigo",
-  "violet",
-  "emerald",
-  "amber",
-  "rose",
-  "sky",
-];
-
-function colorBg(c: ProfileColor) {
-  const map: Record<ProfileColor, string> = {
-    indigo: "bg-[#1B2B4B]",
-    violet: "bg-violet-600",
-    emerald: "bg-emerald-500",
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
-    sky: "bg-sky-500",
-  };
-  return map[c];
-}
-
-function navTimeAgo(iso?: string): string {
-  if (!iso) return "";
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60)        return "just now";
-  if (s < 3600)      return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400)     return `${Math.floor(s / 3600)}h ago`;
-  if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-// ── Slot data parser ────────────────────────────────────────────────────────
-// profile_json in D1 is either a plain UserProfile OR a full slotPayload:
-//   { profile: UserProfile, savedCVs: [], savedCoverLetters: [], ... }
-// syncSlot() stores the latter (all saved data) when payload ≤ 512KB,
-// and falls back to profile-only when it's too large.
-// This helper detects which shape arrived and unpacks both correctly.
-function parseSlotData(s: RawSlot | { slot_id: string; slot_name: string; color: string; profile_json: string }): UserProfileSlot | null {
-    try {
-        const parsed = JSON.parse(s.profile_json);
-        if (!parsed || typeof parsed !== 'object') return null;
-        const isPayload = 'profile' in parsed && ('savedCVs' in parsed || 'savedCoverLetters' in parsed);
-        return {
-            id:                s.slot_id,
-            name:              s.slot_name,
-            color:             s.color ?? 'indigo',
-            profile:           isPayload ? (parsed.profile ?? {}) : parsed,
-            savedCVs:          isPayload ? (parsed.savedCVs          ?? []) : [],
-            savedCoverLetters: isPayload ? (parsed.savedCoverLetters ?? []) : [],
-            trackedApps:       isPayload ? (parsed.trackedApps       ?? []) : [],
-            starStories:       isPayload ? (parsed.starStories       ?? []) : [],
-        } as UserProfileSlot;
-    } catch {
-        return null;
-    }
-}
-
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
   const {
@@ -318,95 +146,42 @@ const AppInner: React.FC = () => {
   // sign-out and restore it on the next sign-in within the same tab session.
   const prevAuthenticatedRef = useRef(false);
 
-  // ── Multi-profile storage ──────────────────────────────────────────────
-  const [profiles, setProfiles] = useStorage<UserProfileSlot[]>("profiles", []);
-  const [activeProfileId, setActiveProfileId] = useStorage<string | null>(
-    "activeProfileId",
-    null,
-  );
+  // ── Multi-profile state (profiles, slots, per-profile CV/saved data) ──
+  // All slot state + one-time migrations live in useProfileSlots.
+  const {
+    profiles,
+    setProfiles,
+    activeProfileId,
+    setActiveProfileId,
+    activeSlot,
+    userProfile,
+    setUserProfile,
+    currentCV,
+    setCurrentCV,
+    savedCVs,
+    setSavedCVs,
+    savedCoverLetters,
+    setSavedCoverLetters,
+    trackedApps,
+    setTrackedApps,
+    starStories,
+    setStarStories,
+  } = useProfileSlots();
 
-  // ── Derive active user profile from slot ──────────────────────────────
-  // Only fall back to profiles[0] when no room has ever been explicitly chosen.
-  // If an activeProfileId is set but not found (e.g. after cloud restore), stay
-  // null rather than silently jumping to Room 1 and overwriting the wrong room.
-  const activeSlot = useMemo(
-    () =>
-      profiles.find((p) => p.id === activeProfileId) ??
-      (activeProfileId ? null : profiles[0] ?? null),
-    [profiles, activeProfileId],
-  );
-  const userProfile: UserProfile | null = activeSlot?.profile ?? null;
-
-  // Wrap setUserProfile so it writes back into the active slot.
-  // Also clears the CV cache so the next generation uses the updated profile.
-  const setUserProfile = useCallback(
-    (
-      next:
-        | UserProfile
-        | null
-        | ((prev: UserProfile | null) => UserProfile | null),
-    ) => {
-      if (!next) return;
-      invalidateCVCache();
-      setProfiles((prev) =>
-        prev.map((p) => {
-          if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved = typeof next === "function" ? next(p.profile) : next;
-          return { ...p, profile: resolved ?? p.profile };
-        }),
-      );
-    },
-    [activeSlot, setProfiles],
-  );
-
-  // ── currentCV is stored per-profile inside the slot ───────────────────
-  // Derive the current CV directly from the active slot so switching profiles
-  // automatically shows that profile's CV (or nothing for a brand-new profile).
-  const currentCV: CVData | null = activeSlot?.currentCV ?? null;
-
-  const setCurrentCV = useCallback(
-    (next: CVData | null | ((prev: CVData | null) => CVData | null)) => {
-      setProfiles((prev) =>
-        prev.map((p) => {
-          if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved =
-            typeof next === "function" ? next(p.currentCV ?? null) : next;
-          return { ...p, currentCV: resolved };
-        }),
-      );
-    },
-    [activeSlot, setProfiles],
-  );
-
-  // Fetch CV pipeline rules from the CF Worker at boot so they are ready
-  // before the user clicks Generate. The rules (system prompts, humanizer,
-  // validator instructions) live server-side and are never in the JS bundle.
+  // Fetch CV pipeline rules from the CF Worker at boot.
   useEffect(() => {
     loadRules().catch(() => {});
   }, []);
 
-  // Pre-warm the PDF font embed cache during browser idle time so the first
-  // Download-PDF click no longer pays the ~2-5s Google Fonts fetch latency.
-  // Safe to call once on mount — internal memo prevents duplicate work.
+  // Boot-time pre-warming (fonts, prompt versions, rule configs).
   useEffect(() => {
-    // Self-healing: wipe any sync queue items left behind by a previous
-    // account deletion that didn't clean IDB properly. Any item older than
-    // 20 minutes is stale (max normal retry window is ~13 min). This runs
-    // before the first flush timer fires, so stale items never reach D1.
     sanitiseStaleQueue();
-
     prewarmFontEmbedCache();
-    // S4: pre-fetch active prompt version numbers so the generation trace
-    // can tag them without a network round-trip on the critical path.
     prefetchPromptVersions();
-    // S1: pre-fetch rule registry configs so the evaluator runs from cache.
     prefetchRuleConfigs();
   }, []);
 
   // ── Drive restore-on-new-device ──────────────────────────────────────────
-  // When the user signs in and has NO local profiles (fresh device / cleared
-  // browser), silently probe Drive for a backup and offer a one-tap restore.
-  // Fires at most once per browser session to avoid repeated prompts.
   useEffect(() => {
     if (!isAuthenticated || driveRestoreCheckedRef.current) return;
     if (profiles.length > 0) { driveRestoreCheckedRef.current = true; return; }
@@ -427,11 +202,6 @@ const AppInner: React.FC = () => {
   }, [isAuthenticated]);
 
   // ── D1 auto-restore ───────────────────────────────────────────────────────
-  // CF D1 is the single source of truth. On sign-in the auth response now
-  // includes the user's slots directly (zero extra round trip). On a page
-  // refresh the session-validation call does the same. If neither path
-  // supplies slots we fall back to an explicit fetchUserData() call.
-  // HttpOnly cookie is set in the same response as auth — no delay needed.
   useEffect(() => {
     if (!isAuthenticated) return;
     if (profiles.length > 0) return;
@@ -442,8 +212,6 @@ const AppInner: React.FC = () => {
       const restored = rawSlots.flatMap(s => { const r = parseSlotData(s); return r ? [r] : []; });
       if (restored.length > 0) {
         setProfiles(restored);
-        // Honour the last-used profile if it still exists in the restored set;
-        // only fall back to the first slot when no prior selection was recorded.
         try {
           const storedId = localStorage.getItem('activeProfileId');
           const parsed = storedId ? JSON.parse(storedId) : null;
@@ -458,225 +226,18 @@ const AppInner: React.FC = () => {
       }
     }
 
-    // 1. Try slots that arrived with the auth/session response (instant — no network call).
     const pending = drainPendingSlots();
     if (pending?.length) {
       applySlots(pending, 'auth response');
       return;
     }
 
-    // 2. Fallback: explicit fetch from D1 (covers browser refresh where the
-    //    pendingSlots buffer was already drained by a prior render cycle).
     fetchUserData()
       .then(data => { if (data?.slots?.length) applySlots(data.slots, 'D1 fetch'); })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, profiles.length]);
 
-  // Boot-time profile cache sync — runs whenever the active slot changes.
-  // Uploads the profile to D1 if it hasn't been synced yet (or has changed
-  // since the last upload). Best-effort; a failure is silent.
-  // Guard: if a wipe+reload is in progress, skip the sync entirely so we
-  // never push the previous user's profile to D1 under the new user's session.
-  useEffect(() => {
-    if (!activeSlot) return;
-    const t = setTimeout(() => {
-      syncProfileToCache(activeSlot).catch(() => {});
-    }, 3000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSlot?.id]);
-
-  // One-time migration: move any existing global currentCV into the active slot
-  useEffect(() => {
-    if (!activeSlot) return;
-    if (activeSlot.currentCV !== undefined) return; // already migrated
-    try {
-      const raw =
-        localStorage.getItem("cv_builder:currentCV") ||
-        localStorage.getItem("currentCV");
-      if (raw) {
-        const cv = JSON.parse(raw) as CVData;
-        setProfiles((prev) =>
-          prev.map((p) =>
-            p.id === activeSlot.id ? { ...p, currentCV: cv } : p,
-          ),
-        );
-        localStorage.removeItem("cv_builder:currentCV");
-        localStorage.removeItem("currentCV");
-      }
-    } catch {
-      /* ignore parse errors */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSlot?.id]);
-
-  // One-time migration: move global savedCVs/trackedApps/etc into the active slot
-  useEffect(() => {
-    if (!activeSlot) return;
-    if (activeSlot.savedCVs !== undefined) return; // already initialised for this slot
-
-    let savedCVsMig: SavedCV[] | undefined;
-    let savedCLsMig: SavedCoverLetter[] | undefined;
-    let trackedAppsMig: TrackedApplication[] | undefined;
-    let starStoriesMig: STARStory[] | undefined;
-
-    try {
-      const r =
-        localStorage.getItem("cv_builder:savedCVs") ||
-        localStorage.getItem("savedCVs");
-      if (r) savedCVsMig = JSON.parse(r);
-    } catch {}
-    try {
-      const r =
-        localStorage.getItem("cv_builder:savedCoverLetters") ||
-        localStorage.getItem("savedCoverLetters");
-      if (r) savedCLsMig = JSON.parse(r);
-    } catch {}
-    try {
-      const r =
-        localStorage.getItem("cv_builder:trackedApps") ||
-        localStorage.getItem("trackedApps");
-      if (r) trackedAppsMig = JSON.parse(r);
-    } catch {}
-    try {
-      const r =
-        localStorage.getItem("cv_builder:starStories") ||
-        localStorage.getItem("starStories");
-      if (r) starStoriesMig = JSON.parse(r);
-    } catch {}
-
-    setProfiles((prev) =>
-      prev.map((p) =>
-        p.id === activeSlot.id
-          ? {
-              ...p,
-              savedCVs: savedCVsMig ?? [],
-              savedCoverLetters: savedCLsMig ?? [],
-              trackedApps: trackedAppsMig ?? [],
-              starStories: starStoriesMig ?? [],
-            }
-          : p,
-      ),
-    );
-
-    // Clear global keys so they don't get migrated to other profiles
-    [
-      "cv_builder:savedCVs",
-      "savedCVs",
-      "cv_builder:savedCoverLetters",
-      "savedCoverLetters",
-      "cv_builder:trackedApps",
-      "trackedApps",
-      "cv_builder:starStories",
-      "starStories",
-    ].forEach((k) => localStorage.removeItem(k));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSlot?.id]);
-
-  // IDB CV data migration + preload
-  // 1. Move any inline SavedCV.data still sitting in the slot → dedicated IDB database.
-  //    This runs once per device (guarded by the 'cvdata_migrated_v1' flag).
-  // 2. Preload all CV IDs into the in-memory cache so getCVDataCached() works
-  //    synchronously throughout the app (CVHistory, CVCompareModal, etc.).
-  // 3. Prune IDB orphans — entries with no matching slot item.
-  useEffect(() => {
-    if (!profiles.length) return;
-
-    (async () => {
-      // Step 1 — one-time migration
-      if (!localStorage.getItem('cv_builder:cvdata_migrated_v1')) {
-        try {
-          const { slots: migratedSlots, migrated } = await migrateToIDB(profiles);
-          if (migrated > 0) {
-            setProfiles(migratedSlots);
-          }
-          localStorage.setItem('cv_builder:cvdata_migrated_v1', '1');
-        } catch (err) {
-          console.warn('[cvDataStore] Migration failed (non-fatal):', err);
-        }
-      }
-
-      // Step 2 — warm in-memory cache for all current CV ids
-      const allIds = profiles.flatMap(s => (s.savedCVs ?? []).map(c => c.id));
-      await preloadAllCVData(allIds).catch(() => {});
-
-      // Step 3 — prune orphaned IDB entries (fire-and-forget)
-      pruneOrphanedCVData(new Set(allIds)).catch(() => {});
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profiles.length]);
-
-  // ── Per-profile isolated state (each profile has its own data) ────────
-  // Derived from the active slot — switching profiles gives a clean slate.
-  const savedCVs: SavedCV[] = activeSlot?.savedCVs ?? [];
-  const setSavedCVs = useCallback(
-    (next: SavedCV[] | ((prev: SavedCV[]) => SavedCV[])) => {
-      setProfiles((prev) =>
-        prev.map((p) => {
-          if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved =
-            typeof next === "function" ? next(p.savedCVs ?? []) : next;
-          return { ...p, savedCVs: resolved };
-        }),
-      );
-    },
-    [activeSlot, setProfiles],
-  );
-
-  const savedCoverLetters: SavedCoverLetter[] =
-    activeSlot?.savedCoverLetters ?? [];
-  const setSavedCoverLetters = useCallback(
-    (
-      next:
-        | SavedCoverLetter[]
-        | ((prev: SavedCoverLetter[]) => SavedCoverLetter[]),
-    ) => {
-      setProfiles((prev) =>
-        prev.map((p) => {
-          if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved =
-            typeof next === "function" ? next(p.savedCoverLetters ?? []) : next;
-          return { ...p, savedCoverLetters: resolved };
-        }),
-      );
-    },
-    [activeSlot, setProfiles],
-  );
-
-  const trackedApps: TrackedApplication[] = activeSlot?.trackedApps ?? [];
-  const setTrackedApps = useCallback(
-    (
-      next:
-        | TrackedApplication[]
-        | ((prev: TrackedApplication[]) => TrackedApplication[]),
-    ) => {
-      setProfiles((prev) =>
-        prev.map((p) => {
-          if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved =
-            typeof next === "function" ? next(p.trackedApps ?? []) : next;
-          return { ...p, trackedApps: resolved };
-        }),
-      );
-    },
-    [activeSlot, setProfiles],
-  );
-
-  const starStories: STARStory[] = activeSlot?.starStories ?? [];
-  const setStarStories = useCallback(
-    (next: STARStory[] | ((prev: STARStory[]) => STARStory[])) => {
-      setProfiles((prev) =>
-        prev.map((p) => {
-          if (p.id !== (activeSlot?.id ?? null)) return p;
-          const resolved =
-            typeof next === "function" ? next(p.starStories ?? []) : next;
-          return { ...p, starStories: resolved };
-        }),
-      );
-    },
-    [activeSlot, setProfiles],
-  );
   // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>(
     "apiSettings",
@@ -2148,114 +1709,17 @@ const AppInner: React.FC = () => {
         <OnboardingWizard onComplete={handleOnboardingComplete} />
       )}
 
-      {/* ── Drive backup prompt ────────────────────────────────────────────── */}
-      {/* Slides up when storage is full or user manually triggers it.        */}
-      {/* Three inner states: idle → connecting → migrating → done.           */}
-      {showDrivePrompt && !driveConnected && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
-          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-[#C9A84C]/40 p-4 animate-in slide-in-from-bottom-2 duration-300">
-
-            {/* ── Success state ── */}
-            {driveMigrationDone ? (
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">All backed up to Drive ✓</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Your CVs and profiles are now safe in Google Drive.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-3">
-                {/* Google Drive icon */}
-                <div className="w-9 h-9 rounded-xl bg-[#1B2B4B]/8 flex items-center justify-center flex-shrink-0 mt-0.5 pt-1">
-                  <svg width="20" height="18" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-                    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
-                    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                  </svg>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  {/* Heading — changes by state */}
-                  {driveMigrating ? (
-                    <>
-                      <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-snug">Uploading your data…</p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                        {driveMigrationProgress
-                          ? `${driveMigrationProgress.uploaded} of ${driveMigrationProgress.total} items saved`
-                          : 'Preparing…'}
-                      </p>
-                      {/* Progress bar */}
-                      {driveMigrationProgress && driveMigrationProgress.total > 0 && (
-                        <div className="mt-2 w-full bg-zinc-100 dark:bg-zinc-700 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-[#1B2B4B] h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.round((driveMigrationProgress.uploaded / driveMigrationProgress.total) * 100)}%` }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-snug">
-                        {driveConnecting ? 'Waiting for Google…' : 'Back up to Google Drive'}
-                      </p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
-                        {driveConnecting
-                          ? 'Approve Drive access in the popup to continue.'
-                          : "You're already signed in — one tap to back up all your CVs and profiles."}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2.5">
-                        <button
-                          onClick={handleConnectDrive}
-                          disabled={driveConnecting}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#1B2B4B] text-white hover:bg-[#1B2B4B]/90 disabled:opacity-60 flex items-center gap-1.5 transition-colors"
-                        >
-                          {driveConnecting && (
-                            <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                            </svg>
-                          )}
-                          {driveConnecting ? 'Connecting…' : 'Connect Drive'}
-                        </button>
-                        {!driveConnecting && (
-                          <button
-                            onClick={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-                          >
-                            Not now
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Dismiss X — hidden while connecting/migrating */}
-                {!driveConnecting && !driveMigrating && (
-                  <button
-                    onClick={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
-                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors flex-shrink-0 mt-0.5"
-                    aria-label="Dismiss"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* ── Drive backup prompt ─────────────────────────────────────────────── */}
+      <DriveBackupPrompt
+        show={showDrivePrompt}
+        driveConnected={driveConnected}
+        driveMigrationDone={driveMigrationDone}
+        driveConnecting={driveConnecting}
+        driveMigrating={driveMigrating}
+        driveMigrationProgress={driveMigrationProgress}
+        onConnect={handleConnectDrive}
+        onDismiss={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
+      />
       {sharedCVPayload && (
         <SharedCVView
           cvData={sharedCVPayload.cvData}
