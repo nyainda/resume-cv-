@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getStorageService } from '../services/storage/StorageRouter';
 import { useAuth } from '../auth/AuthContext';
 import { idbAppGet } from '../services/storage/AppDataPersistence';
+import { getUserPrefix } from '../services/storage/userStorageNamespace';
 
 type Setter<T> = (newValue: T | ((prev: T) => T)) => Promise<void>;
 
@@ -26,11 +27,22 @@ function isCompatibleType<T>(parsed: unknown, fallback: T): boolean {
 /**
  * Read from localStorage synchronously so the very first render already has
  * the persisted value — no flash of empty / default state on refresh.
+ *
+ * Tries keys in this order:
+ *  1. User-namespaced: `u_<userId>:cv_builder:<key>`  ← where data lives post-migration
+ *  2. Legacy prefixed:  `cv_builder:<key>`             ← pre-namespace-migration data
+ *  3. Bare key:         `<key>`                        ← very old format
+ *
+ * The user namespace is read from `procv:storage_ns` (set by initStorageNamespace()
+ * at app boot), so the correct prefix is available before the first render even
+ * when the auth session request is still in flight.
  */
 function readLocalSync<T>(key: string, fallback: T): T {
     if (typeof window === 'undefined') return fallback;
     try {
+        const userPrefix = getUserPrefix(); // 'u_<userId>:' or 'anon:'
         const raw =
+            window.localStorage.getItem(userPrefix + CV_PREFIX + key) ??
             window.localStorage.getItem(CV_PREFIX + key) ??
             window.localStorage.getItem(key);
         if (raw !== null) {
