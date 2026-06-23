@@ -867,6 +867,9 @@ const AppInner: React.FC = () => {
     null,
   );
 
+  // Imperatively open the Toolkit to a specific tab (e.g. Quality Audit from Generator)
+  const [toolkitForceTab, setToolkitForceTab] = useState<string | undefined>(undefined);
+
   // Detect mobile for ProfileManager overlay
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -2992,6 +2995,11 @@ const AppInner: React.FC = () => {
                     onPinField={handlePinField}
                     onUnpinField={handleUnpinField}
                     onUpgrade={() => setIsPricingOpen(true)}
+                    openToolkitAtQualityAudit={() => {
+                      setToolkitForceTab('hr-detector');
+                      setCurrentView('toolkit');
+                      setTimeout(() => setToolkitForceTab(undefined), 200);
+                    }}
                   />
                 )}
                 {currentView === "linkedin" && (
@@ -3042,6 +3050,7 @@ const AppInner: React.FC = () => {
                       onProfileImported={handleWordProfileImported}
                       onGitHubCVGenerated={handleGitHubCVGenerated}
                       currentCV={currentCV}
+                      forceTab={toolkitForceTab as any}
                     />
                   </div>
                 )}

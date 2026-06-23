@@ -154,6 +154,8 @@ interface CVGeneratorProps {
   onUnpinField?: () => void;
   /** Opens the pricing / upgrade modal — called when the free cap is hit */
   onUpgrade?: () => void;
+  /** Navigates to Toolkit → Quality Audit (HR Detector) tab */
+  openToolkitAtQualityAudit?: () => void;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -241,6 +243,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField,
+  onUpgrade, openToolkitAtQualityAudit,
 }) => {
   const { isAuthenticated, requireAuth, user: workerUser } = useAuth();
   const [showDownloadGate, setShowDownloadGate] = useState(false);
@@ -1552,9 +1555,20 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               <Label className="text-xl font-semibold">
                 {cvPurpose === 'job' ? 'Job Description' : 'Grant / Scholarship Description'}
               </Label>
-              {jdOptional && (
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">Optional — leave blank for a general academic CV</span>
-              )}
+              <div className="flex items-center gap-2">
+                {jdOptional && (
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">Optional — leave blank for a general academic CV</span>
+                )}
+                {cvPurpose === 'job' && !jobDescription.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setJobDescription(`Senior Product Manager — Fintech Platform\n\nWe are looking for a Senior Product Manager to join our Payments team at a fast-growing fintech company. You will own the roadmap for our merchant-facing payments platform, used by 50,000+ businesses across Europe.\n\nResponsibilities:\n• Define and deliver the product vision and strategy for our core payments products\n• Work cross-functionally with Engineering, Design, Data, and Commercial teams\n• Translate customer research and market insights into clear product requirements\n• Own quarterly OKRs and track key metrics (conversion, throughput, error rates)\n• Present roadmap updates to senior leadership and external stakeholders\n• Coordinate beta launches, A/B tests, and phased rollouts\n\nRequirements:\n• 4+ years of product management experience, ideally in fintech, payments, or B2B SaaS\n• Proven track record of shipping products at scale\n• Strong analytical skills — comfortable with SQL, dashboards, and experimentation\n• Excellent communication and stakeholder management skills\n• Experience with APIs, webhooks, or developer-facing products is a plus\n\nNice to Have:\n• Experience with Stripe, Adyen, or similar payment processors\n• Familiarity with PCI-DSS, SCA, or open banking regulations\n\nWe offer competitive salary (£80K–£110K), equity, remote-first culture, and 30 days annual leave.`)}
+                    className="text-xs font-bold px-2 py-1 rounded-lg bg-zinc-100 dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors border border-zinc-200 dark:border-neutral-700 flex-shrink-0"
+                  >
+                    Load example JD
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="mt-2 border-b border-zinc-200 dark:border-neutral-700">
@@ -1569,19 +1583,59 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             </div>
 
             {inputMode === 'text' ? (
-              <Textarea
-                id="job-description"
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                placeholder={
-                  cvPurpose === 'job'
-                    ? 'Paste the full job description here — the AI will auto-run a 6-block analysis: Match Score, Skill Gaps, Level Strategy, Salary Research & Interview Prep...'
-                    : 'Paste the scholarship/grant call, requirements, or criteria here (or leave blank for general academic CV)...'
-                }
-                rows={10}
-                className="mt-4"
-                disabled={isLoading || isGeneratingCoverLetter}
-              />
+              <>
+                <Textarea
+                  id="job-description"
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder={
+                    cvPurpose === 'job'
+                      ? 'Paste the full job description here — the AI will auto-run a 6-block analysis: Match Score, Skill Gaps, Level Strategy, Salary Research & Interview Prep...'
+                      : 'Paste the scholarship/grant call, requirements, or criteria here (or leave blank for general academic CV)...'
+                  }
+                  rows={10}
+                  className="mt-4"
+                  disabled={isLoading || isGeneratingCoverLetter}
+                />
+                {/* ── JD word/char count + soft warnings ── */}
+                {(() => {
+                  const trimmed = jobDescription.trim();
+                  if (!trimmed) return null;
+                  const words = trimmed.split(/\s+/).length;
+                  const chars = jobDescription.length;
+                  const hasNewlines = (jobDescription.match(/\n/g) || []).length >= 2;
+                  const tooShort = words < 80;
+                  const wallOfText = words >= 30 && !hasNewlines;
+                  const barPct = Math.min(100, Math.round((words / 200) * 100));
+                  const barColor = tooShort ? '#f59e0b' : '#22c55e';
+                  return (
+                    <div className="mt-2 space-y-1.5">
+                      {/* Count row */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-1 rounded-full bg-zinc-100 dark:bg-neutral-800 overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${barPct}%`, background: barColor }} />
+                        </div>
+                        <span className={`text-xs font-semibold tabular-nums flex-shrink-0 ${tooShort ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                          {words.toLocaleString()} words · {chars.toLocaleString()} chars
+                        </span>
+                      </div>
+                      {/* Warnings */}
+                      {tooShort && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 mt-px" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                          Short JD ({words} words). More detail helps the AI target the right keywords — aim for at least 80 words.
+                        </p>
+                      )}
+                      {wallOfText && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 mt-px" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                          Looks like one block of text with no line breaks — paste the full formatted JD for better keyword extraction.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </>
             ) : (
               <div className="mt-4 flex items-center justify-center w-full">
                 <label htmlFor="file-upload" className={`flex flex-col items-center justify-center w-full h-48 border-2 border-zinc-300 border-dashed rounded-xl bg-zinc-50 dark:bg-neutral-800 dark:border-neutral-600 ${!apiKeySet ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
@@ -2089,6 +2143,17 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                   className="bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/40"
                 >
                   🎤 Interview Prep
+                </Button>
+              )}
+              {openToolkitAtQualityAudit && currentCV && (
+                <Button
+                  onClick={openToolkitAtQualityAudit}
+                  disabled={isEditing}
+                  size="sm"
+                  variant="secondary"
+                  className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                >
+                  🔬 Check Quality
                 </Button>
               )}
             </div>

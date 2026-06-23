@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { UserProfile, ScrapedJob, CVData } from '../types';
 import {
     checkCVAgainstJob, CVCheckResult,
@@ -34,6 +34,8 @@ interface CVToolkitProps {
     onProfileImported?: (profile: UserProfile) => void;
     /** Called when AI generates a CV from GitHub repos — navigate to generator */
     onGitHubCVGenerated?: (cv: CVData) => void;
+    /** When set, imperatively switches to this tab. Reset to undefined after use. */
+    forceTab?: ToolTab;
 }
 
 type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import' | 'github-import' | 'hr-detector';
@@ -95,9 +97,14 @@ const WordDocIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const CVToolkit: React.FC<CVToolkitProps> = ({
     userProfile, apiKeySet, tavilyApiKey, openSettings, selectedJob, currentCV,
-    onGoToGenerator, onProfileImported, onGitHubCVGenerated,
+    onGoToGenerator, onProfileImported, onGitHubCVGenerated, forceTab,
 }) => {
     const [activeTab, setActiveTab] = useLocalStorage<ToolTab>('toolkit_tab', 'checker');
+
+    // Imperatively switch tab when parent requests it (e.g. "Check Quality" from Generator)
+    useEffect(() => {
+        if (forceTab) setActiveTab(forceTab);
+    }, [forceTab, setActiveTab]);
 
     // ── HR Detector — pure-JS, zero LLM tokens, recomputes when CV changes ──
     const hrResult: HRDetectionResult | null = useMemo(() => {
