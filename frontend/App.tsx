@@ -2522,6 +2522,7 @@ const AppInner: React.FC = () => {
                       onProfileImported={handleWordProfileImported}
                       onGitHubCVGenerated={handleGitHubCVGenerated}
                       currentCV={currentCV}
+                      onCurrentCVUpdated={(cv) => setCurrentCV(cv)}
                       forceTab={toolkitForceTab as any}
                     />
                   </div>

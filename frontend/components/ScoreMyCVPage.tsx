@@ -40,6 +40,7 @@ import { scoreVerbVariety } from '../services/cvVerbVariety';
 import type { VerbVarietyReport, OverusedVerb } from '../services/cvVerbVariety';
 import { fixVerbVariety, fixAiIsms } from '../services/cvAutoFixer';
 import type { FixChange } from '../services/cvAutoFixer';
+import { fixBulletsForSignal, fixSummaryForSignal, fixVerbSaturation } from '../services/geminiService';
 
 // Brand tokens
 const NAV   = '#1B2B4B';
@@ -876,6 +877,9 @@ interface ScoreResults {
   cfEnriched: boolean;
 }
 
+const BULLET_FIX_SIGNALS = new Set(['verb_saturation','banned_opener','repeated_opener','pronoun_leak','passive_voice','length_uniformity']);
+const SUMMARY_FIX_SIGNALS = new Set(['summary_cliches','generic_opener']);
+
 const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerator, onCVUpdate }) => {
   const [jd, setJd]                     = useState('');
   const [jdExpanded, setJdExpanded]     = useState(false);
@@ -883,6 +887,46 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const [results, setResults]           = useState<ScoreResults | null>(null);
   const [cfPhrases, setCfPhrases]       = useState<{ openers: string[]; aiisms: string[] } | null>(null);
   const [cfStatus, setCfStatus]         = useState<'loading' | 'live' | 'offline'>('loading');
+
+  // ── One-click AI fixes inside Score My CV ──────────────────────────────
+  const [fixingSignalId, setFixingSignalId] = useState<string | null>(null);
+  const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(new Set());
+  const [fixErrors, setFixErrors]           = useState<Record<string, string>>({});
+
+  const handleScorePageFix = useCallback(async (sigId: string) => {
+    if (!currentCV || !onCVUpdate) return;
+    setFixingSignalId(sigId);
+    setFixErrors(prev => { const n = { ...prev }; delete n[sigId]; return n; });
+    try {
+      let updated = { ...currentCV };
+      if (BULLET_FIX_SIGNALS.has(sigId)) {
+        const bullets = currentCV.experience.flatMap(exp => exp.responsibilities || []);
+        if (bullets.length === 0) throw new Error('No bullets found.');
+        const fixed = sigId === 'verb_saturation'
+          ? await fixVerbSaturation(bullets)
+          : await fixBulletsForSignal(bullets, sigId);
+        let cursor = 0;
+        const updatedExp = currentCV.experience.map(exp => {
+          const count = (exp.responsibilities || []).length;
+          const slice = fixed.slice(cursor, cursor + count);
+          cursor += count;
+          return { ...exp, responsibilities: slice };
+        });
+        updated = { ...updated, experience: updatedExp };
+      } else if (SUMMARY_FIX_SIGNALS.has(sigId)) {
+        const fixed = await fixSummaryForSignal(currentCV.summary || '', sigId);
+        updated = { ...updated, summary: fixed };
+      }
+      onCVUpdate(updated);
+      setFixedSignalIds(prev => new Set([...prev, sigId]));
+      setTimeout(() => setFixedSignalIds(prev => { const n = new Set(prev); n.delete(sigId); return n; }), 5000);
+    } catch (e) {
+      setFixErrors(prev => ({ ...prev, [sigId]: e instanceof Error ? e.message : 'Fix failed.' }));
+    } finally {
+      setFixingSignalId(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCV, onCVUpdate]);
 
   // Fetch CF banned phrases on mount — Score My CV is now data-driven
   useEffect(() => {
@@ -1058,6 +1102,85 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
             </div>
           </div>
         </div>
+
+        {/* ── Priority Actions — AI fix buttons for the worst issues ── */}
+        {onCVUpdate && (() => {
+          // Build a list of fixable signals with their severity & score
+          const actions: { sigId: string; label: string; desc: string; score: number }[] = [];
+          const hvSignals = results.humanVoice.signals.filter(s => s.severity !== 'pass' && s.riskPts > 0);
+          hvSignals.forEach(s => {
+            if (SUMMARY_FIX_SIGNALS.has(s.id)) actions.push({ sigId: s.id, label: s.label, desc: s.fix || s.detail, score: results.humanVoice.humanScore });
+            if (BULLET_FIX_SIGNALS.has(s.id)) actions.push({ sigId: s.id, label: s.label, desc: s.fix || s.detail, score: results.humanVoice.humanScore });
+          });
+          // Also add verb_saturation if verb variety < 70
+          if (results.verbVariety.score < 70 && results.verbVariety.overusedVerbs.length > 0 && !actions.find(a => a.sigId === 'verb_saturation')) {
+            actions.push({ sigId: 'verb_saturation', label: 'Verb Saturation', desc: `Overused verbs detected (${results.verbVariety.overusedVerbs.map(v => v.verb).slice(0,3).join(', ')}). Rotate for variety.`, score: results.verbVariety.score });
+          }
+          // Bullet quality signals
+          if (results.bulletQuality.score < 75) {
+            const bqSigs: { sigId: string; label: string; desc: string }[] = [
+              { sigId: 'banned_opener',    label: 'Banned Opener Words',      desc: 'Rewrite "Spearheaded/Leveraged/Utilized" → direct action verbs.' },
+              { sigId: 'repeated_opener',  label: 'Repeated Opener Verb',     desc: 'Multiple bullets start with the same verb — rotate for variety.' },
+              { sigId: 'passive_voice',    label: 'Passive Voice Bullets',    desc: 'Convert passive "was managed by" → active "Led / Delivered".' },
+              { sigId: 'pronoun_leak',     label: 'First-Person Pronouns',    desc: 'Remove I/my/we from bullets — implied subject is standard.' },
+              { sigId: 'length_uniformity',label: 'Bullet Length Uniformity', desc: 'All bullets same length signals AI — mix short + detailed.' },
+            ];
+            bqSigs.forEach(s => { if (!actions.find(a => a.sigId === s.sigId)) actions.push({ ...s, score: results.bulletQuality.score }); });
+          }
+          if (actions.length === 0) return null;
+          const top = actions.slice(0, 5);
+          return (
+            <div className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: GOLD + '40', background: GOLD + '08' }}>
+              <div className="px-4 py-3 flex items-center gap-2" style={{ background: GOLD + '15' }}>
+                <span className="text-lg">⚡</span>
+                <div>
+                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Fix in CV — One Click</p>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">AI rewrites the relevant section instantly. The CV template updates live.</p>
+                </div>
+              </div>
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                {top.map(action => (
+                  <div key={action.sigId} className="px-4 py-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{action.label}</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug">{action.desc}</p>
+                      {fixErrors[action.sigId] && <p className="text-[11px] text-rose-500 mt-1">{fixErrors[action.sigId]}</p>}
+                    </div>
+                    <button
+                      onClick={() => handleScorePageFix(action.sigId)}
+                      disabled={fixingSignalId !== null}
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg text-white disabled:opacity-50 transition-colors"
+                      style={{ background: fixedSignalIds.has(action.sigId) ? '#059669' : NAV }}
+                    >
+                      {fixingSignalId === action.sigId ? (
+                        <><svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Fixing…</>
+                      ) : fixedSignalIds.has(action.sigId) ? (
+                        <>✓ Fixed — Re-score</>
+                      ) : (
+                        <>✦ Fix in CV</>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {fixedSignalIds.size > 0 && (
+                <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-100 dark:border-emerald-900/30 flex items-center justify-between gap-3">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
+                    ✅ {fixedSignalIds.size} fix{fixedSignalIds.size > 1 ? 'es' : ''} applied to your CV
+                  </p>
+                  <button
+                    onClick={runScore}
+                    disabled={scoring}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ background: GOLD }}
+                  >
+                    📊 Re-score now
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Dimension cards */}
         <div className="space-y-2.5">
