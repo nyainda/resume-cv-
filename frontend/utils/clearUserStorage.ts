@@ -241,13 +241,23 @@ export function clearUserScopedStorage(opts?: { clearAppData?: boolean }): void 
     mtimeKeys.forEach(k => localStorage.removeItem(k));
 
     // ── D1 sync hashes (forces fresh writes on next login) ────────────────────
-    // After user-namespace refactor, hash keys are prefixed: u_<uid>:cv_builder:usync_*
-    // Match both the old unprefixed form and the new user-scoped form.
+    // IMPORTANT: Only clear the *hash* (dedup) keys — NOT the timestamp keys.
+    // Timestamp keys (`usync_slot_ts:*`) are merge-conflict markers: if they are
+    // cleared, `getLastSyncTimestamp()` returns 0 on the next sign-in, making
+    // `d1Slot.updated_at > 0 + 10_000` always true → D1 always wins → local
+    // edits made in the last 30 s before sign-out are silently overwritten.
+    // Timestamps contain no auth credentials, so they are safe to keep across
+    // sign-out cycles. Slot UUIDs ensure they never leak between users.
     const hashKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (!k) continue;
-        if (k.startsWith('cv_builder:usync_') || k.includes(':cv_builder:usync_')) hashKeys.push(k);
+        const isHashKey =
+            k.startsWith('cv_builder:usync_slot_hash:') ||
+            k.includes(':cv_builder:usync_slot_hash:') ||
+            k === 'cv_builder:usync_prefs_hash' ||
+            k.includes(':cv_builder:usync_prefs_hash');
+        if (isHashKey) hashKeys.push(k);
     }
     hashKeys.forEach(k => localStorage.removeItem(k));
 

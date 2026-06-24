@@ -1044,12 +1044,16 @@ const AppInner: React.FC = () => {
 
   const handleRenameProfile = useCallback(
     (id: string, name: string, color: ProfileColor) => {
-      setProfiles((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, name, color } : p)),
-      );
+      setProfiles((prev) => {
+        const next = prev.map((p) => (p.id === id ? { ...p, name, color } : p));
+        // Sync the renamed slot to D1 so the new name persists across devices / sign-outs.
+        const updated = next.find((p) => p.id === id);
+        if (updated && isAuthenticated) enqueueSlotSync(updated).catch(() => {});
+        return next;
+      });
       toast.success("Profile Updated", `Renamed to "${name}".`);
     },
-    [setProfiles, toast],
+    [setProfiles, toast, isAuthenticated],
   );
 
   // ── Pin-field shortcut from the Generation Trace panel ────────────────
@@ -1489,7 +1493,7 @@ const AppInner: React.FC = () => {
       setIsEditingProfile(false);
       setJsonImportTimestamp(new Date().toISOString());
     },
-    [setProfiles, setActiveProfileId, toast],
+    [setProfiles, setActiveProfileId, toast, isAuthenticated],
   );
 
   const handleJsonProfileImported = useCallback(

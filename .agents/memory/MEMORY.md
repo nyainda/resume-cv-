@@ -15,3 +15,4 @@
 - [Account deletion FK batch](account-deletion-fk-batch.md) — D1 enforces FK by default; old `.catch(() => {})` chain silently left user_identities alive; replaced with env.CV_DB.batch() for atomic FK-safe deletion; DELETED_CLEAN_SENTINEL must be re-stamped AFTER clearAllBrowserStorage().
 - [Optimistic sync queue](optimistic-sync-queue.md) — IDB-backed rate-limited queue for CF KV saves; max 1 flush/30s; clearQueueForAccount must be called before every sign-out/delete.
 - [User-partitioned storage](user-partitioned-storage.md) — all keys prefixed `u_<userId>:` via userStorageNamespace.ts; IDB DBs namespaced too; wired into AuthContext + index.tsx boot.
+- [D1 sync timestamp must survive sign-out](d1-sync-timestamp-signout.md) — clearUserScopedStorage must ONLY clear hash keys (usync_slot_hash:*), NOT timestamp keys (usync_slot_ts:*); clearing timestamps zeros localPushTs → D1 always wins merge → local edits lost.
