@@ -766,7 +766,9 @@ export interface SemanticMatchEntry {
     status: SemanticMatchStatus;
 }
 
-export interface SemanticMatchResult {
+/** Raw response shape returned by the /api/cv/semantic-match worker endpoint.
+ *  Distinct from the adapted SemanticMatchResult used by runFullValidation. */
+export interface SemanticMatchRawResult {
     results: SemanticMatchEntry[];
     model?: string;
     thresholds?: { matched: number; partial: number };
@@ -779,7 +781,7 @@ const SEMANTIC_MATCH_TIMEOUT_MS = 18000;
 export async function semanticMatch(
     keywords: string[],
     profileTexts: string[],
-): Promise<SemanticMatchResult | null> {
+): Promise<SemanticMatchRawResult | null> {
     if (!isCVEngineConfigured()) return null;
     if (!keywords?.length || !profileTexts?.length) return null;
     const u = new URL('/api/cv/semantic-match', ENGINE_URL);
@@ -794,7 +796,7 @@ export async function semanticMatch(
             SEMANTIC_MATCH_TIMEOUT_MS,
         );
         if (!r.ok) return null;
-        return (await r.json()) as SemanticMatchResult;
+        return (await r.json()) as SemanticMatchRawResult;
     } catch (e) {
         if (import.meta.env.DEV) console.warn('[cvEngineClient] semanticMatch failed:', e);
         return null;

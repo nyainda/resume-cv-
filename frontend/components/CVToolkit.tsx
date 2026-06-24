@@ -564,6 +564,31 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                                         <span className="font-semibold">Fix: </span>{sig.fix}
                                                     </p>
                                                 )}
+                                                {/* One-click AI fix for verb saturation */}
+                                                {sig.id === 'verb_saturation' && sig.severity !== 'pass' && onCurrentCVUpdated && currentCV && (
+                                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                                        <button
+                                                            onClick={handleFixVerbSaturation}
+                                                            disabled={isFixingVerbs}
+                                                            className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {isFixingVerbs ? (
+                                                                <><svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Fixing…</>
+                                                            ) : (
+                                                                <>✦ Fix in CV</>
+                                                            )}
+                                                        </button>
+                                                        {fixVerbsSuccess && (
+                                                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                                                                CV updated
+                                                            </span>
+                                                        )}
+                                                        {fixVerbsError && (
+                                                            <span className="text-[11px] text-rose-500">{fixVerbsError}</span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                             {/* Mini progress bar */}
                                             <div className="w-16 flex-shrink-0 mt-1.5">
@@ -649,7 +674,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                             {/* Semantic */}
                                             <div className={`rounded-xl border p-3 text-center ${(fullValidation.semantic?.score ?? 0) >= 70 ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20' : (fullValidation.semantic?.score ?? 0) >= 50 ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20' : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'}`}>
                                                 <p className="text-lg font-black" style={{ color: (fullValidation.semantic?.score ?? 0) >= 70 ? '#10b981' : (fullValidation.semantic?.score ?? 0) >= 50 ? '#f59e0b' : '#ef4444' }}>
-                                                    {fullValidation.semantic ? `${fullValidation.semantic.score}%` : '—'}
+                                                    {fullValidation.semantic != null ? `${fullValidation.semantic.score ?? 0}%` : '—'}
                                                 </p>
                                                 <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Semantic</p>
                                                 {fullValidation.semantic && (
