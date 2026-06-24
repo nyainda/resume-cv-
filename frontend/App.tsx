@@ -808,8 +808,17 @@ const AppInner: React.FC = () => {
         // Fallback: save without encryption rather than silently fail
         setRawApiSettings(plaintext);
       }
+      // Sync non-key preferences to D1 immediately — doesn't include API keys
+      // (those are encrypted locally, never sent to D1 for security reasons).
+      if (isAuthenticated) {
+        enqueuePrefsSync({
+          aiProvider:    localStorage.getItem("cv_builder:aiProvider") ?? undefined,
+          sidebarSections: localStorage.getItem("cv_builder:sidebarSections") ?? undefined,
+          darkMode:      !!darkMode,
+        }).catch(() => {});
+      }
     },
-    [setRawApiSettings],
+    [setRawApiSettings, isAuthenticated, darkMode],
   );
 
   // ── Profile Manager handlers ───────────────────────────────────────────

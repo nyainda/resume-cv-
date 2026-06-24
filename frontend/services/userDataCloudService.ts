@@ -140,9 +140,29 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
 
         let slotJsonToSend = JSON.stringify(slotPayload);
 
-        // If too large, fall back to profile-only
+        // Progressive trimming when payload is too large — never silently drop everything.
+        // Tier 1 (>512KB): strip saved CVs, cover letters, tracked apps, star stories — keep profile only.
+        // Tier 2 (still >512KB after tier 1, e.g. extremely long work history): profile-only plain JSON.
         if (slotJsonToSend.length > MAX_SLOT_BYTES) {
-            slotJsonToSend = profileJson;
+            const profileOnlyPayload = JSON.stringify({
+                profile: profileWithoutPhoto,
+                savedCVs: [],
+                savedCoverLetters: [],
+                trackedApps: [],
+                starStories: [],
+                _truncated: true, // sentinel so restore code can warn
+            });
+            if (profileOnlyPayload.length <= MAX_SLOT_BYTES) {
+                console.warn(
+                    `[D1 sync] Slot "${slot.name}" (${slot.id}) exceeds 512 KB — ` +
+                    `savedCVs/coverLetters/trackedApps/starStories omitted from D1 backup this sync. ` +
+                    `They are still stored locally in IndexedDB and localStorage.`
+                );
+                slotJsonToSend = profileOnlyPayload;
+            } else {
+                // Absolute fallback: raw profile JSON (no photo, no collections)
+                slotJsonToSend = profileJson;
+            }
         }
 
         // Hash-gate: skip if nothing changed
