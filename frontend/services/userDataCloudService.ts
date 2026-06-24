@@ -24,6 +24,7 @@ import type { UserProfileSlot, UserProfile } from '../types';
 const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
 const DEVICE_ID_KEY      = 'cv_builder:deviceId';
 const SLOT_HASH_PREFIX   = 'cv_builder:usync_slot_hash:'; // + slotId
+const SLOT_SYNC_TS_PREFIX = 'cv_builder:usync_slot_ts:';  // + slotId → unix ms of last successful push
 const PREFS_HASH_KEY     = 'cv_builder:usync_prefs_hash';
 const MAX_SLOT_BYTES     = 512 * 1024; // 512 KB hard cap
 const FETCH_TIMEOUT_MS   = 6_000;
@@ -160,9 +161,39 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
         });
 
         if (ok) {
-            try { localStorage.setItem(hashKey, newHash); } catch { /* ignore */ }
+            try {
+                localStorage.setItem(hashKey, newHash);
+                localStorage.setItem(SLOT_SYNC_TS_PREFIX + slot.id, String(Date.now()));
+            } catch { /* ignore */ }
         }
     } catch { /* silent */ }
+}
+
+/**
+ * Returns the unix-ms timestamp of the last successful D1 push for this slot,
+ * or null if the slot has never been synced.
+ */
+export function getLastSyncTimestamp(slotId: string): number | null {
+    try {
+        const raw = localStorage.getItem(SLOT_SYNC_TS_PREFIX + slotId);
+        if (!raw) return null;
+        const ms = Number(raw);
+        return Number.isFinite(ms) ? ms : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Human-readable "synced X ago" label, or null if never synced. */
+export function getSyncTimeAgo(slotId: string): string | null {
+    const ms = getLastSyncTimestamp(slotId);
+    if (!ms) return null;
+    const diff = (Date.now() - ms) / 1000;
+    if (diff < 60)    return 'just now';
+    if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+    return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 // ─── Preferences sync ─────────────────────────────────────────────────────────
@@ -286,10 +317,19 @@ export async function syncAllSlots(slots: UserProfileSlot[]): Promise<number> {
     return ok;
 }
 
-/** Returns the UTC date string of the last sync for a given slot, or null. */
+/** @deprecated Use getLastSyncTimestamp / getSyncTimeAgo instead. */
 export function getLastSyncDate(slotId: string): string | null {
-    const hash = localStorage.getItem(SLOT_HASH_PREFIX + slotId);
-    if (!hash) return null;
-    // We only know a hash was stored, not when — use the key as a presence check
-    return hash ? new Date().toLocaleDateString() : null;
+    const ms = getLastSyncTimestamp(slotId);
+    if (!ms) return null;
+    return new Date(ms).toLocaleDateString();
+}
+
+/**
+ * Marks a slot as synced RIGHT NOW without a network call.
+ * Used when we know D1 already has the latest version (e.g. after a D1 restore).
+ */
+export function markSlotSyncedNow(slotId: string): void {
+    try {
+        localStorage.setItem(SLOT_SYNC_TS_PREFIX + slotId, String(Date.now()));
+    } catch { /* non-fatal */ }
 }

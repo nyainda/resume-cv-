@@ -23,7 +23,7 @@ import { invalidateCVCache, loadRules } from "./services/geminiService";
 import { prewarmFontEmbedCache } from "./services/getCVHtml";
 import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
 import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
-import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
+import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId, getLastSyncTimestamp, markSlotSyncedNow } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from "./utils/clearUserStorage";
 import { getUserPrefix } from "./services/storage/userStorageNamespace";
@@ -139,9 +139,6 @@ const AppInner: React.FC = () => {
   const driveRestoreSlotsRef = useRef<UserProfileSlot[] | null>(null);
   useEffect(() => { driveRestoreSlotsRef.current = driveRestoreSlots; }, [driveRestoreSlots]);
 
-  // ── D1 auto-restore ref (fires once per session) ───────────────────────
-  const d1RestoreCheckedRef = useRef(false);
-
   // ── Return-to-last-view after sign-out/sign-in ─────────────────────────
   // Tracks the previous auth state so we can save the current view on
   // sign-out and restore it on the next sign-in within the same tab session.
@@ -202,42 +199,134 @@ const AppInner: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  // ── D1 auto-restore ───────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (profiles.length > 0) return;
-    if (d1RestoreCheckedRef.current) return;
-    d1RestoreCheckedRef.current = true;
+  // ── D1 merge-sync ─────────────────────────────────────────────────────────
+  // Runs on every sign-in and whenever the tab comes back into focus.
+  // Always fetches D1, then merges: slot-by-slot we pick the newer version.
+  //   • D1 newer  → apply locally (shows data edited on another device)
+  //   • Local newer / same → keep local, re-push to D1 if dirty
+  //   • In D1 only → restore locally
+  //   • Local only → push to D1
+  const d1RestoreCheckedRef = useRef(false);
 
-    function applySlots(rawSlots: Array<{ slot_id: string; slot_name: string; color: string; profile_json: string }>, source: string) {
-      const restored = rawSlots.flatMap(s => { const r = parseSlotData(s); return r ? [r] : []; });
-      if (restored.length > 0) {
-        setProfiles(restored);
-        try {
-          const storedId = localStorage.getItem('activeProfileId');
-          const parsed = storedId ? JSON.parse(storedId) : null;
-          const stillExists = parsed && restored.some(p => p.id === parsed);
-          setActiveProfileId(stillExists ? parsed : restored[0].id);
-        } catch {
-          setActiveProfileId(restored[0].id);
-        }
-        setIsEditingProfile(false);
-        toast.success('Profiles restored', `${restored.length} profile${restored.length !== 1 ? 's' : ''} loaded from your account.`);
-        console.log(`[D1Restore] ${restored.length} slot(s) restored from ${source}`);
-      }
-    }
+  const runD1MergeSync = useCallback(async (localSlots: UserProfileSlot[], source: string) => {
+    const data = await fetchUserData().catch(() => null);
+    if (!data?.slots?.length && localSlots.length === 0) return;
 
-    const pending = drainPendingSlots();
-    if (pending?.length) {
-      applySlots(pending, 'auth response');
+    if (!data?.slots?.length) {
+      // Nothing in D1 yet — push everything local up
+      for (const slot of localSlots) void syncSlot(slot);
       return;
     }
 
-    fetchUserData()
-      .then(data => { if (data?.slots?.length) applySlots(data.slots, 'D1 fetch'); })
-      .catch(() => {});
+    const d1Map = new Map(data.slots.map(s => [s.slot_id, s]));
+    const localMap = new Map(localSlots.map(s => [s.id, s]));
+    const mergedSlots: UserProfileSlot[] = [];
+    const toPush: UserProfileSlot[] = [];
+    let anyD1Newer = false;
+
+    // Process every D1 slot
+    for (const d1Slot of data.slots) {
+      const local = localMap.get(d1Slot.slot_id);
+      if (!local) {
+        // Slot exists in D1 but not locally — restore it
+        const parsed = parseSlotData(d1Slot);
+        if (parsed) {
+          mergedSlots.push(parsed);
+          markSlotSyncedNow(d1Slot.slot_id);
+          anyD1Newer = true;
+        }
+        continue;
+      }
+      // Both exist — compare timestamps
+      const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0;
+      // Give 10s leeway for clock skew / in-flight pushes
+      if (d1Slot.updated_at > localPushTs + 10_000) {
+        // D1 is newer (edited on another device) → use D1 version
+        const parsed = parseSlotData(d1Slot);
+        if (parsed) {
+          mergedSlots.push(parsed);
+          markSlotSyncedNow(d1Slot.slot_id);
+          anyD1Newer = true;
+        } else {
+          mergedSlots.push(local); // parse failed, keep local
+        }
+      } else {
+        // Local is same-or-newer → keep local, push if dirty
+        mergedSlots.push(local);
+        toPush.push(local);
+      }
+    }
+
+    // Keep local-only slots (not in D1 yet) and push them up
+    for (const local of localSlots) {
+      if (!d1Map.has(local.id)) {
+        mergedSlots.push(local);
+        toPush.push(local);
+      }
+    }
+
+    // Push local-newer slots to D1 (fire-and-forget, hash-gated)
+    for (const slot of toPush) void syncSlot(slot);
+
+    if (anyD1Newer && mergedSlots.length > 0) {
+      setProfiles(mergedSlots);
+      try {
+        const storedId = localStorage.getItem('activeProfileId');
+        const parsed = storedId ? JSON.parse(storedId) : null;
+        const stillExists = parsed && mergedSlots.some(p => p.id === parsed);
+        if (!stillExists) setActiveProfileId(mergedSlots[0].id);
+      } catch { /* ignore */ }
+      if (localSlots.length === 0) {
+        setIsEditingProfile(false);
+        toast.success('Profiles restored', `${mergedSlots.length} profile${mergedSlots.length !== 1 ? 's' : ''} loaded from your account.`);
+      } else {
+        toast.success('Profiles synced', 'Updated from another device.');
+      }
+      console.log(`[D1Sync] Merged from ${source}: ${mergedSlots.length} slot(s), ${toPush.length} pushed up`);
+    } else if (mergedSlots.length > 0 && localSlots.length === 0) {
+      // Edge-case: all slots came from D1 but none were "newer" (e.g. first login on new device with existing D1 data)
+      setProfiles(mergedSlots);
+      setIsEditingProfile(false);
+      toast.success('Profiles restored', `${mergedSlots.length} profile${mergedSlots.length !== 1 ? 's' : ''} loaded from your account.`);
+      console.log(`[D1Sync] Restored from ${source}: ${mergedSlots.length} slot(s)`);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, profiles.length]);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (d1RestoreCheckedRef.current) return;
+    d1RestoreCheckedRef.current = true;
+
+    // Drain any slots that piggybacked on the auth response, then merge with D1
+    drainPendingSlots(); // clears the buffer — full merge below picks up D1 anyway
+
+    void runD1MergeSync(profiles, 'login');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // ── Cross-device sync on tab focus ────────────────────────────────────────
+  // When the user switches back to this tab (from another device session in
+  // another tab, or just comes back after a while) re-merge with D1 so any
+  // edits made elsewhere appear automatically. Throttled to once per 2 min.
+  const lastVisSyncRef = useRef(0);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastVisSyncRef.current < 2 * 60_000) return; // throttle 2 min
+      lastVisSyncRef.current = now;
+      // Use latest profiles via the setter callback pattern to avoid stale closure
+      setProfiles(current => {
+        void runD1MergeSync(current, 'visibility sync');
+        return current; // no change yet — runD1MergeSync will call setProfiles if needed
+      });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>(

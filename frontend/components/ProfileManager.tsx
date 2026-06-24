@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserProfileSlot, ProfileColor } from '../types';
 import { canAddProfileSlot, getProfileSlotLimit, isPureFreeTier, hasByokKeys } from '../services/accountTierService';
+import { getSyncTimeAgo } from '../services/userDataCloudService';
 
 const COLORS: { id: ProfileColor; bg: string; ring: string; text: string; border: string; lightBg: string; hex: string }[] = [
     { id: 'indigo',  bg: 'bg-[#1B2B4B]',    ring: 'ring-[#C9A84C]',     text: 'text-[#1B2B4B] dark:text-[#C9A84C]',           border: 'border-[#C9A84C]/40',         lightBg: 'bg-[#F8F7F4] dark:bg-[#1B2B4B]/20',    hex: '#1B2B4B' },
@@ -237,6 +238,7 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                     const sLabel   = strengthLabel(strength);
                     const sTips    = strengthTips(slot.profile);
                     const tipsOpen = tipsOpenId === slot.id && sTips.length > 0;
+                    const syncLabel = getSyncTimeAgo(slot.id);
 
                     return (
                         <div
@@ -338,6 +340,25 @@ export const ProfileManager: React.FC<ProfileManagerProps> = ({
                                         {lastGen && (
                                             <span className="text-[10px] text-zinc-400 dark:text-zinc-600 ml-auto">
                                                 {timeAgo(lastGen)}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Sync status row */}
+                                    <div className="flex items-center gap-1 mt-1">
+                                        {syncLabel ? (
+                                            <span className="flex items-center gap-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+                                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12"/>
+                                                </svg>
+                                                Synced {syncLabel}
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1 text-[9px] font-medium text-amber-500 dark:text-amber-400">
+                                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                                </svg>
+                                                Not yet backed up
                                             </span>
                                         )}
                                     </div>
