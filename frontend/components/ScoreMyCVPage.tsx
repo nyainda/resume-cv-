@@ -917,18 +917,43 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const [cfStatus, setCfStatus]         = useState<'loading' | 'live' | 'offline'>('loading');
 
   // ── One-click AI fixes inside Score My CV ──────────────────────────────
-  const FIXED_SESSION_KEY = `procv:fixedSignals:${currentCV?.id ?? 'default'}`;
+  /**
+   * Content-stable fingerprint of the CV.
+   * Stays constant across minor text tweaks (verb rewrites, bullet polish) so
+   * applied-fix tracking survives a browser close. Resets automatically when
+   * the user generates a brand-new CV (different summary / job titles / company).
+   */
+  const cvFingerprint = useMemo((): string => {
+    if (!currentCV) return 'empty';
+    const summarySnip  = (currentCV.summary ?? '').trim().slice(0, 40);
+    const expCount     = (currentCV.experience ?? []).length;
+    const firstRole    = currentCV.experience?.[0];
+    const roleKey      = `${firstRole?.jobTitle ?? ''}-${firstRole?.company ?? ''}`;
+    const bulletCount  = (currentCV.experience ?? []).reduce(
+      (n, e) => n + (e.responsibilities ?? []).length, 0
+    );
+    return `${summarySnip}|${expCount}|${roleKey}|${bulletCount}`;
+  }, [currentCV]);
+
+  const FIXED_LS_KEY = `procv:fixedSignals:${cvFingerprint}`;
+
   const [fixingSignalId, setFixingSignalId] = useState<string | null>(null);
-  const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(() => {
-    try {
-      const stored = sessionStorage.getItem(FIXED_SESSION_KEY);
-      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
-    } catch { return new Set<string>(); }
-  });
+  const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(new Set());
   const [fixErrors, setFixErrors]           = useState<Record<string, string>>({});
   const [isBoostingAll, setIsBoostingAll]   = useState(false);
   const [boostProgress, setBoostProgress]   = useState<{ current: number; total: number; label: string } | null>(null);
   const [boostDone, setBoostDone]           = useState(false);
+
+  // Load persisted fixes when the CV fingerprint is known (runs once per fingerprint change)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(FIXED_LS_KEY);
+      setFixedSignalIds(stored ? new Set<string>(JSON.parse(stored)) : new Set<string>());
+    } catch {
+      setFixedSignalIds(new Set<string>());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [FIXED_LS_KEY]);
 
   // ── Score History ──────────────────────────────────────────────────────────
   const [scoreHistory, setScoreHistory]     = useState<ScoreSnapshot[]>(() => loadHistory());
@@ -936,12 +961,13 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   // Pending capture: filled just before boost auto-rescores, consumed by useEffect
   const pendingCapture = useRef<{ id: string; beforeScore: number; cvName: string; fixesApplied: string[] } | null>(null);
 
-  // Persist fixedSignalIds to sessionStorage so re-scores don't re-queue already-applied fixes
+  // Persist fixedSignalIds to localStorage (keyed by CV fingerprint) so fixes survive browser closes
   useEffect(() => {
+    if (fixedSignalIds.size === 0) return;
     try {
-      sessionStorage.setItem(FIXED_SESSION_KEY, JSON.stringify([...fixedSignalIds]));
+      localStorage.setItem(FIXED_LS_KEY, JSON.stringify([...fixedSignalIds]));
     } catch { /* non-fatal */ }
-  }, [fixedSignalIds, FIXED_SESSION_KEY]);
+  }, [fixedSignalIds, FIXED_LS_KEY]);
 
   // After every rescore, check whether we have a pending history capture to save
   useEffect(() => {
