@@ -26,6 +26,7 @@ import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
 import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId } from "./services/userDataCloudService";
 import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from "./utils/clearUserStorage";
+import { getUserPrefix } from "./services/storage/userStorageNamespace";
 import { auditCvQuality } from "./services/cvNumberFidelity";
 import { profileToCV } from "./utils/profileToCV";
 import { saveCVData, deleteCVData } from "./services/storage/cvDataStore";
@@ -248,10 +249,14 @@ const AppInner: React.FC = () => {
     apiKey: null,
   });
   const [darkMode, setDarkMode] = useStorage<boolean>("darkMode", false);
-  // Synchronously check localStorage to avoid flash-to-profile on refresh
+  // Synchronously check localStorage to avoid flash-to-profile on refresh.
+  // Must check the user-namespaced key first (u_<userId>:cv_builder:profiles)
+  // because initStorageNamespace() runs before React boots in index.tsx.
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
     try {
+      const prefix = getUserPrefix();
       const raw =
+        localStorage.getItem(`${prefix}cv_builder:profiles`) ||
         localStorage.getItem("cv_builder:profiles") ||
         localStorage.getItem("profiles");
       if (!raw) return true;
@@ -273,7 +278,10 @@ const AppInner: React.FC = () => {
         || !!localStorage.getItem('procv:worker_session'); // legacy key fallback
       if (!hasSession) return true;
 
+      // Check user-namespaced key first (set by initStorageNamespace before React boots).
+      const prefix = getUserPrefix();
       const raw =
+        localStorage.getItem(`${prefix}cv_builder:profiles`) ||
         localStorage.getItem("cv_builder:profiles") ||
         localStorage.getItem("profiles");
       if (!raw) return true;
