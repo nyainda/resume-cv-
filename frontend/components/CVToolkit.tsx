@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { UserProfile, ScrapedJob, CVData } from '../types';
 import {
     checkCVAgainstJob, CVCheckResult,
+    fixVerbSaturation,
 } from '../services/geminiService';
 import { scoreHRDetection, type HRDetectionResult, type HRSignalSeverity } from '../services/hrDetectorSimulation';
 import { runFullValidation, buildBrief, type FullValidationResult } from '../services/cvEngineClient';
@@ -28,6 +29,8 @@ interface CVToolkitProps {
     onProfileImported?: (profile: UserProfile) => void;
     /** Called when AI generates a CV from GitHub repos — navigate to generator */
     onGitHubCVGenerated?: (cv: CVData) => void;
+    /** Called after a one-click Quality Audit fix rewrites bullets in-place */
+    onCurrentCVUpdated?: (cv: CVData) => void;
     /** When set, imperatively switches to this tab. Reset to undefined after use. */
     forceTab?: ToolTab;
 }
@@ -84,7 +87,7 @@ const WordDocIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const CVToolkit: React.FC<CVToolkitProps> = ({
     userProfile, apiKeySet, openSettings, selectedJob, currentCV,
-    onGoToGenerator, forceTab,
+    onGoToGenerator, onCurrentCVUpdated, forceTab,
 }) => {
     const [activeTab, setActiveTab] = useLocalStorage<ToolTab>('toolkit_tab', 'checker');
 
@@ -112,6 +115,41 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     // Paste-CV fallback — lets users check a CV even when no profile is loaded
     const [showPasteCV, setShowPasteCV] = useState(false);
     const [rawCVText, setRawCVText] = useState('');
+
+    // ── One-click verb-saturation fix ──
+    const [isFixingVerbs, setIsFixingVerbs] = useState(false);
+    const [fixVerbsError, setFixVerbsError] = useState<string | null>(null);
+    const [fixVerbsSuccess, setFixVerbsSuccess] = useState(false);
+
+    const handleFixVerbSaturation = useCallback(async () => {
+        if (!currentCV || !onCurrentCVUpdated) return;
+        setIsFixingVerbs(true);
+        setFixVerbsError(null);
+        setFixVerbsSuccess(false);
+        try {
+            const allBullets = currentCV.experience.flatMap(exp => exp.responsibilities || []);
+            if (allBullets.length === 0) { setFixVerbsError('No bullets found in this CV.'); return; }
+
+            const fixed = await fixVerbSaturation(allBullets);
+
+            // Map the flat fixed array back to the nested experience structure
+            let cursor = 0;
+            const updatedExperience = currentCV.experience.map(exp => {
+                const count = (exp.responsibilities || []).length;
+                const newResp = fixed.slice(cursor, cursor + count);
+                cursor += count;
+                return { ...exp, responsibilities: newResp };
+            });
+
+            onCurrentCVUpdated({ ...currentCV, experience: updatedExperience });
+            setFixVerbsSuccess(true);
+            setTimeout(() => setFixVerbsSuccess(false), 4000);
+        } catch (e) {
+            setFixVerbsError(e instanceof Error ? e.message : 'Fix failed — please try again.');
+        } finally {
+            setIsFixingVerbs(false);
+        }
+    }, [currentCV, onCurrentCVUpdated, fixVerbSaturation]);
 
     // Update JD when selectedJob changes
     React.useEffect(() => {

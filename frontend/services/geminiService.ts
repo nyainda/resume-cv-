@@ -4690,6 +4690,73 @@ export const paraphraseText = async (
     return groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_HUMANIZER, prompt, { temperature: tone === 'ats-friendly' ? 0.3 : 0.7 });
 };
 
+// ── Verb-Saturation One-Click Fix ─────────────────────────────────────────────
+/**
+ * Rewrites verb-led bullets to diversify openers.
+ * Targets only bullets starting with action verbs; leaves all other bullets untouched.
+ * Rewrites ~40% of verb-led bullets (the first N to stay within prompt budget).
+ * Returns the full bullets array with rewrites applied in place.
+ */
+export const fixVerbSaturation = async (bullets: string[]): Promise<string[]> => {
+    // Identify verb-led indices (reuse the same logic as hrDetectorSimulation)
+    const COMMON_VERBS = new Set([
+        'led','built','created','developed','designed','managed','delivered','launched','drove',
+        'implemented','established','improved','reduced','increased','deployed','architected',
+        'engineered','optimised','optimized','transformed','spearheaded','coordinated','executed',
+        'oversaw','directed','streamlined','accelerated','automated','negotiated','secured',
+        'generated','achieved','exceeded','mentored','trained','hired','grew','scaled','shipped',
+        'maintained','operated','monitored','analysed','analyzed','evaluated','assessed','audited',
+        'collaborated','partnered','supported','enabled','facilitated','introduced','pioneered',
+        'revamped','consolidated','migrated','integrated','configured','provisioned','resolved',
+    ]);
+    const firstWord = (b: string) => b.trim().split(/\s+/)[0]?.replace(/[^a-zA-Z]/g, '').toLowerCase() ?? '';
+    const verbLedIdxs = bullets
+        .map((b, i) => ({ i, isVerb: COMMON_VERBS.has(firstWord(b)) }))
+        .filter(x => x.isVerb)
+        .map(x => x.i);
+
+    if (verbLedIdxs.length === 0) return bullets;
+
+    // Rewrite at most 8 of them to stay within a fast prompt budget
+    const toRewrite = verbLedIdxs.slice(0, 8);
+    const subset    = toRewrite.map(i => `[${i}] ${bullets[i]}`).join('\n');
+
+    const banned = await _getBannedPhrasesForPrompt();
+
+    const prompt = `You are rewriting CV bullet points to fix verb-led opener saturation.
+Each bullet currently STARTS WITH AN ACTION VERB. Rewrite ONLY the opener so it no longer starts with a verb.
+Use one of these three opener patterns (vary them):
+  • Number/scope-led: "3 engineers mentored…", "Across 5 teams,…", "£2.1M programme delivered…"
+  • Context-led: "As sole engineer,…", "In partnership with X,…", "Under tight deadline,…"  
+  • Result-first: "Zero-downtime migration achieved by…", "40% cost reduction realised through…"
+
+RULES:
+- Preserve ALL facts: numbers, company names, dates, exact metrics. Do NOT invent figures.
+- Do NOT use these banned phrases: ${banned.slice(0, 80)}
+- Return ONLY a JSON object: { "rewrites": { "<index>": "<rewritten bullet>", ... } }
+- Indices correspond to the [N] prefix in the input.
+- Only rewrite the opener — keep the body of each bullet as close as possible.
+
+BULLETS TO REWRITE:
+${subset}`;
+
+    try {
+        const raw = await groqChat(GROQ_FAST, '', prompt, { temperature: 0.6, json: true, maxTokens: 1500 });
+        const parsed = JSON.parse(raw ?? '{}') as { rewrites?: Record<string, string> };
+        const rewrites = parsed.rewrites ?? {};
+        const result = [...bullets];
+        for (const [idxStr, text] of Object.entries(rewrites)) {
+            const idx = parseInt(idxStr, 10);
+            if (!isNaN(idx) && idx >= 0 && idx < result.length && typeof text === 'string' && text.trim()) {
+                result[idx] = text.trim();
+            }
+        }
+        return result;
+    } catch {
+        return bullets; // fallback: return unchanged
+    }
+};
+
 // ── CV Score / Match Analysis ─────────────────────────────────────────────────
 export interface CVScore {
     overall: number;

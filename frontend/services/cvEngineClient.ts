@@ -270,6 +270,42 @@ export interface SemanticMatchResult {
     total_jd_keywords: number;
 }
 
+/** Raw shape returned by the worker /api/cv/semantic-match endpoint. */
+interface _SemanticMatchRaw {
+    results?: Array<{ keyword: string; score: number; bestMatch: string | null; status: 'matched' | 'partial' | 'missing' }>;
+    reason?: string;
+}
+
+/** Extract meaningful keywords from JD text (word-frequency, no stopwords). */
+function _extractJDKeywords(jd: string, max = 25): string[] {
+    const stop = new Set([
+        'the','a','an','and','or','but','in','on','at','to','for','of','with','by','from','as',
+        'is','was','are','were','be','been','have','has','had','do','does','did','will','would',
+        'could','should','may','might','can','this','that','these','those','we','our','you','your',
+        'they','their','it','its','not','no','so','if','then','than','when','what','which','who',
+        'how','all','also','more','most','other','into','about','up','out','very','any','each',
+        'both','team','work','role','position','strong','good','new','using','must','able','great',
+    ]);
+    const freq: Record<string, number> = {};
+    const words = jd.toLowerCase().match(/\b[a-z][a-z-]{2,}\b/g) ?? [];
+    for (const w of words) {
+        if (!stop.has(w)) freq[w] = (freq[w] ?? 0) + 1;
+    }
+    return Object.entries(freq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, max)
+        .map(([w]) => w);
+}
+
+/** Split CV text into meaningful phrases for embedding comparison. */
+function _splitCVPhrases(cvText: string, max = 30): string[] {
+    return cvText
+        .split(/[\n.]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 15 && s.length < 300)
+        .slice(0, max);
+}
+
 export interface FullValidationResult {
     bullets:  ValidateResult       | null;
     voice:    ValidateVoiceResult  | null;
@@ -284,15 +320,35 @@ export async function runFullValidation(
     jdText: string,
     cvText: string,
 ): Promise<FullValidationResult> {
+    // Extract keywords + CV phrases for the semantic endpoint
+    const keywords     = _extractJDKeywords(jdText);
+    const profileTexts = _splitCVPhrases(cvText);
+
     const [bulletsRes, voiceRes, semanticRes] = await Promise.allSettled([
         validateBullets(bullets),
         validateVoice(bullets, brief),
-        postJSON<SemanticMatchResult>('/api/cv/semantic-match', { jd: jdText, cv: cvText }),
+        (keywords.length > 0 && profileTexts.length > 0)
+            ? postJSON<_SemanticMatchRaw>('/api/cv/semantic-match', { keywords, profileTexts })
+            : Promise.resolve(null as _SemanticMatchRaw | null),
     ]);
 
     const b = bulletsRes.status  === 'fulfilled' ? bulletsRes.value  : null;
     const v = voiceRes.status    === 'fulfilled' ? voiceRes.value    : null;
-    const s = semanticRes.status === 'fulfilled' ? semanticRes.value : null;
+
+    // Adapt raw semantic results → SemanticMatchResult shape used by the UI
+    let s: SemanticMatchResult | null = null;
+    if (semanticRes.status === 'fulfilled' && semanticRes.value?.results) {
+        const raw = semanticRes.value.results;
+        const matched = raw.filter(r => r.status === 'matched').map(r => r.keyword);
+        const missing = raw.filter(r => r.status === 'missing').map(r => r.keyword);
+        const total   = raw.length;
+        s = {
+            score: total > 0 ? Math.round(((matched.length + raw.filter(r => r.status === 'partial').length * 0.5) / total) * 100) : 0,
+            matched,
+            missing,
+            total_jd_keywords: total,
+        };
+    }
 
     return { bullets: b, voice: v, semantic: s, complete: b !== null && v !== null && s !== null };
 }
