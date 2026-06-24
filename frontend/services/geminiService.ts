@@ -4003,7 +4003,8 @@ ${HUMANIZATION_CHECKLIST}
 `;
 
     const text = await groqChat(GROQ_LARGE, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.5, json: true, maxTokens: 2500 });
-    const result = JSON.parse(text.trim());
+    const _stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const result = JSON.parse(_stripped);
 
     // Merge back into full experience array preserving dates etc.
     const updatedExperience = (cv.experience || []).map(exp => {
@@ -4742,7 +4743,8 @@ ${subset}`;
 
     try {
         const raw = await groqChat(GROQ_FAST, '', prompt, { temperature: 0.6, json: true, maxTokens: 1500 });
-        const parsed = JSON.parse(raw ?? '{}') as { rewrites?: Record<string, string> };
+        const _rawStripped = (raw ?? '{}').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        const parsed = JSON.parse(_rawStripped || '{}') as { rewrites?: Record<string, string> };
         const rewrites = parsed.rewrites ?? {};
         const result = [...bullets];
         for (const [idxStr, text] of Object.entries(rewrites)) {

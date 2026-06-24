@@ -917,8 +917,14 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const [cfStatus, setCfStatus]         = useState<'loading' | 'live' | 'offline'>('loading');
 
   // ── One-click AI fixes inside Score My CV ──────────────────────────────
+  const FIXED_SESSION_KEY = `procv:fixedSignals:${currentCV?.id ?? 'default'}`;
   const [fixingSignalId, setFixingSignalId] = useState<string | null>(null);
-  const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(new Set());
+  const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem(FIXED_SESSION_KEY);
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
   const [fixErrors, setFixErrors]           = useState<Record<string, string>>({});
   const [isBoostingAll, setIsBoostingAll]   = useState(false);
   const [boostProgress, setBoostProgress]   = useState<{ current: number; total: number; label: string } | null>(null);
@@ -929,6 +935,13 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const [historyExpanded, setHistoryExpanded] = useState(false);
   // Pending capture: filled just before boost auto-rescores, consumed by useEffect
   const pendingCapture = useRef<{ id: string; beforeScore: number; cvName: string; fixesApplied: string[] } | null>(null);
+
+  // Persist fixedSignalIds to sessionStorage so re-scores don't re-queue already-applied fixes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FIXED_SESSION_KEY, JSON.stringify([...fixedSignalIds]));
+    } catch { /* non-fatal */ }
+  }, [fixedSignalIds, FIXED_SESSION_KEY]);
 
   // After every rescore, check whether we have a pending history capture to save
   useEffect(() => {

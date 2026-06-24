@@ -397,7 +397,14 @@ const AppInner: React.FC = () => {
   const [driveMigrationProgress, setDriveMigrationProgress] = useState<{ uploaded: number; total: number } | null>(null);
   const [driveMigrationDone, setDriveMigrationDone]     = useState(false);
 
-  // Auto-show: check storage estimate 10 s after sign-in
+  // Auto-show: show prompt 5 s after sign-in so the user can connect with one tap
+  useEffect(() => {
+    if (driveConnected || drivePromptDismissed || !isAuthenticated) return;
+    const t = setTimeout(() => setShowDrivePrompt(true), 5_000);
+    return () => clearTimeout(t);
+  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
+
+  // Also show: check storage estimate 10 s after sign-in (storage nearly full)
   useEffect(() => {
     if (driveConnected || drivePromptDismissed || !isAuthenticated) return;
     const check = async () => {
