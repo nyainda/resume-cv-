@@ -18,26 +18,50 @@ function sessionToken(request: Request): string {
     return h.startsWith('Bearer ') ? h.slice(7).trim() : '';
 }
 
-/** GET /api/cv/public-profile?id=<userId> */
+/** Generate a random 16-char URL-safe slug for profile share links. */
+function randomSlug(): string {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, b => chars[b % chars.length]).join('');
+}
+
+/**
+ * GET /api/cv/public-profile?slug=<slug>   ← preferred (non-enumerable)
+ * GET /api/cv/public-profile?id=<userId>   ← legacy (still supported)
+ *
+ * Slug-based URLs prevent enumeration of sequential integer user IDs.
+ */
 export async function handlePublicProfileGet(
     request: Request, env: Env, url: URL,
 ): Promise<Response> {
-    const idStr = url.searchParams.get('id') ?? '';
-    const userId = parseInt(idStr, 10);
-    if (!userId || isNaN(userId)) {
-        return json({ error: 'missing_id' }, request, env, 400);
-    }
+    const slug  = (url.searchParams.get('slug') ?? '').trim();
+    const idStr = (url.searchParams.get('id')   ?? '').trim();
 
-    const row = await env.CV_DB.prepare(
-        `SELECT payload, updated_at, view_count FROM public_profiles WHERE user_id = ?`
-    ).bind(userId).first<{ payload: string; updated_at: number; view_count: number }>();
+    let row: { payload: string; updated_at: number; view_count: number; user_id: number } | null = null;
+
+    if (slug) {
+        // Preferred: lookup by random slug — not enumerable
+        row = await env.CV_DB.prepare(
+            `SELECT payload, updated_at, view_count, user_id FROM public_profiles WHERE slug = ?`
+        ).bind(slug).first<{ payload: string; updated_at: number; view_count: number; user_id: number }>();
+    } else if (idStr) {
+        // Legacy: lookup by integer user_id
+        const userId = parseInt(idStr, 10);
+        if (!userId || isNaN(userId)) return json({ error: 'missing_id' }, request, env, 400);
+        row = await env.CV_DB.prepare(
+            `SELECT payload, updated_at, view_count, user_id FROM public_profiles WHERE user_id = ?`
+        ).bind(userId).first<{ payload: string; updated_at: number; view_count: number; user_id: number }>();
+    } else {
+        return json({ error: 'missing_id_or_slug' }, request, env, 400);
+    }
 
     if (!row) return json({ error: 'not_found' }, request, env, 404);
 
     // Increment view count fire-and-forget
     env.CV_DB.prepare(
         `UPDATE public_profiles SET view_count = view_count + 1 WHERE user_id = ?`
-    ).bind(userId).run().catch(() => {});
+    ).bind(row.user_id).run().catch(() => {});
 
     return json({
         ok: true,
@@ -62,13 +86,23 @@ export async function handlePublicProfilePost(
     }
 
     const now = Math.floor(Date.now() / 1000);
-    await env.CV_DB.prepare(`
-        INSERT INTO public_profiles (user_id, payload, updated_at, view_count)
-        VALUES (?, ?, ?, 0)
-        ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at
-    `).bind(session.userId, payload, now).run();
 
-    return json({ ok: true, user_id: session.userId }, request, env);
+    // Fetch existing slug so we can reuse it on updates (keep the URL stable).
+    const existing = await env.CV_DB.prepare(
+        `SELECT slug FROM public_profiles WHERE user_id = ?`
+    ).bind(session.userId).first<{ slug: string | null }>();
+    const slug = existing?.slug ?? randomSlug();
+
+    await env.CV_DB.prepare(`
+        INSERT INTO public_profiles (user_id, payload, updated_at, view_count, slug)
+        VALUES (?, ?, ?, 0, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            payload    = excluded.payload,
+            updated_at = excluded.updated_at,
+            slug       = COALESCE(public_profiles.slug, excluded.slug)
+    `).bind(session.userId, payload, now, slug).run();
+
+    return json({ ok: true, user_id: session.userId, slug }, request, env);
 }
 
 /** DELETE /api/cv/public-profile  (Authorization: Bearer <token>) */

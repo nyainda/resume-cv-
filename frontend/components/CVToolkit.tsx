@@ -122,6 +122,9 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     const [checkResult, setCheckResult] = useState<CVCheckResult | null>(null);
     const [isChecking, setIsChecking] = useState(false);
     const [checkError, setCheckError] = useState<string | null>(null);
+    // Paste-CV fallback — lets users check a CV even when no profile is loaded
+    const [showPasteCV, setShowPasteCV] = useState(false);
+    const [rawCVText, setRawCVText] = useState('');
 
     // ── Cover Letter state ──
     const [coverLetter, setCoverLetter] = useLocalStorage<string>('toolkit_cl', '');
@@ -183,17 +186,23 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     const handleCheck = useCallback(async () => {
         if (!apiKeySet) { openSettings(); return; }
         if (!jobDescription.trim()) return;
+        // When paste mode is active, require at least some text
+        if (showPasteCV && !rawCVText.trim()) return;
         setIsChecking(true);
         setCheckError(null);
         try {
-            const result = await checkCVAgainstJob(userProfile, jobDescription);
+            const result = await checkCVAgainstJob(
+                userProfile,
+                jobDescription,
+                showPasteCV && rawCVText.trim() ? rawCVText : undefined,
+            );
             setCheckResult(result);
         } catch (e) {
             setCheckError(e instanceof Error ? e.message : 'CV check failed.');
         } finally {
             setIsChecking(false);
         }
-    }, [apiKeySet, jobDescription, userProfile, openSettings]);
+    }, [apiKeySet, jobDescription, userProfile, openSettings, showPasteCV, rawCVText]);
 
     // ── Fix & Regenerate ──
     const handleFixAndRegenerate = useCallback(() => {
@@ -353,9 +362,49 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
             {/* ══ CV CHECKER ══ */}
             {activeTab === 'checker' && (
                 <div className="space-y-4">
+                    {/* Paste CV toggle */}
+                    <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                                CV source
+                            </span>
+                            <div className="flex rounded-lg overflow-hidden border border-zinc-200 dark:border-neutral-600 text-xs">
+                                <button
+                                    className={`px-3 py-1.5 font-semibold transition-colors ${!showPasteCV
+                                        ? 'bg-violet-600 text-white'
+                                        : 'bg-transparent text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-700'}`}
+                                    onClick={() => setShowPasteCV(false)}
+                                >
+                                    My Profile
+                                </button>
+                                <button
+                                    className={`px-3 py-1.5 font-semibold transition-colors ${showPasteCV
+                                        ? 'bg-violet-600 text-white'
+                                        : 'bg-transparent text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-700'}`}
+                                    onClick={() => setShowPasteCV(true)}
+                                >
+                                    Paste CV Text
+                                </button>
+                            </div>
+                        </div>
+                        {showPasteCV ? (
+                            <textarea
+                                className="w-full rounded-xl border border-zinc-200 dark:border-neutral-600 bg-zinc-50 dark:bg-neutral-900 text-zinc-800 dark:text-zinc-100 p-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                rows={8}
+                                placeholder="Paste your CV text here… (plain text, copied from Word / PDF / any format)"
+                                value={rawCVText}
+                                onChange={e => setRawCVText(e.target.value)}
+                            />
+                        ) : (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Using your saved profile as the CV. Switch to <strong>Paste CV Text</strong> to check a CV that isn't in your profile yet.
+                            </p>
+                        )}
+                    </div>
+
                     <Button
                         onClick={handleCheck}
-                        disabled={isChecking || !jobDescription.trim()}
+                        disabled={isChecking || !jobDescription.trim() || (showPasteCV && !rawCVText.trim())}
                         className="bg-violet-600 hover:bg-violet-700 text-white border-0 shadow shadow-violet-500/20 rounded-xl px-6"
                     >
                         {isChecking

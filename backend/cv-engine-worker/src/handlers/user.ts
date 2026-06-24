@@ -130,6 +130,15 @@ export async function handleJobCachePost(request: Request, env: Env, ctx: Execut
 
 // ─── Anonymous events ─────────────────────────────────────────────────────────
 
+// Allowlist of valid event types — rejects arbitrary spam writes.
+const VALID_EVENT_TYPES = new Set([
+    'cv_generated', 'cv_downloaded', 'cv_shared', 'cv_scored',
+    'cover_letter_generated', 'linkedin_generated', 'interview_prep',
+    'template_selected', 'job_applied', 'profile_created', 'profile_updated',
+    'word_imported', 'github_imported', 'toolkit_opened', 'ats_check',
+    'page_view', 'session_start', 'app_boot',
+]);
+
 export async function handleEventPost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     let body: any;
     try { body = await request.json(); } catch { return json({ ok: true }, request, env); }
@@ -137,9 +146,10 @@ export async function handleEventPost(request: Request, env: Env, ctx: Execution
     const eventType = typeof body?.event_type === 'string' ? body.event_type.substring(0, 50).trim() : '';
     const template  = typeof body?.template   === 'string' ? body.template.substring(0, 60).trim()   : '';
     const mode      = typeof body?.mode       === 'string' ? body.mode.substring(0, 20).trim()       : '';
-    const metadata  = typeof body?.metadata   === 'string' ? body.metadata.substring(0, 1024)        : '{}';
+    const metadata  = typeof body?.metadata   === 'string' ? body.metadata.substring(0, 512)         : '{}';
 
-    if (!eventType) return json({ ok: true }, request, env);
+    // Silently accept but do not store unknown event types — prevents DB spam.
+    if (!eventType || !VALID_EVENT_TYPES.has(eventType)) return json({ ok: true }, request, env);
 
     const now = Math.floor(Date.now() / 1000);
 

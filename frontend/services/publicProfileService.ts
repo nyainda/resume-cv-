@@ -24,22 +24,28 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
     }
 }
 
-/** Build the permanent profile URL for a numeric user ID. */
-export function buildProfileUrl(userId: number): string {
+/** Build the permanent profile URL using the random slug (preferred, non-enumerable). */
+export function buildProfileUrl(slug: string): string {
+    const base = window.location.origin + window.location.pathname;
+    return `${base}#p=${slug}`;
+}
+
+/** Legacy: build URL from integer user ID. Only used as fallback. */
+export function buildProfileUrlById(userId: number): string {
     const base = window.location.origin + window.location.pathname;
     return `${base}#p=${userId}`;
 }
 
 /**
  * Publish (or update) the authenticated user's public profile.
- * Returns true on success.
+ * Returns the random slug on success (used to build the share URL), or null on failure.
  */
 export async function publishPublicProfile(
     payload: SharedCVPayload,
     sessionToken: string,
-): Promise<boolean> {
+): Promise<string | null> {
     try {
-        if (!ENGINE_BASE) return false;
+        if (!ENGINE_BASE) return null;
         const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
         const res = await fetchWithTimeout(`${ENGINE_BASE}/api/cv/public-profile`, {
             method: 'POST',
@@ -50,9 +56,12 @@ export async function publishPublicProfile(
             credentials: 'include',
             body: JSON.stringify({ payload: compressed }),
         });
-        return res.ok;
+        if (!res.ok) return null;
+        const data = await res.json() as { slug?: string; user_id?: number };
+        // Prefer slug (non-enumerable); fall back to numeric ID for legacy deployments.
+        return data.slug ?? (data.user_id ? String(data.user_id) : null);
     } catch {
-        return false;
+        return null;
     }
 }
 
@@ -75,13 +84,18 @@ export async function unpublishPublicProfile(sessionToken: string): Promise<bool
 }
 
 /**
- * Fetch a public profile by user ID. Returns the decoded SharedCVPayload or null.
+ * Fetch a public profile by slug (preferred) or legacy integer user ID.
+ * Slug-based URLs are non-enumerable; integer IDs are legacy fallback.
  */
-export async function fetchPublicProfile(userId: number): Promise<SharedCVPayload | null> {
+export async function fetchPublicProfile(slugOrId: string | number): Promise<SharedCVPayload | null> {
     try {
         if (!ENGINE_BASE) return null;
+        // Use ?slug= for string slugs; ?id= for legacy integer IDs
+        const param = typeof slugOrId === 'number' || /^\d+$/.test(String(slugOrId))
+            ? `id=${slugOrId}`
+            : `slug=${encodeURIComponent(String(slugOrId))}`;
         const res = await fetchWithTimeout(
-            `${ENGINE_BASE}/api/cv/public-profile?id=${userId}`
+            `${ENGINE_BASE}/api/cv/public-profile?${param}`
         );
         if (!res.ok) return null;
         const data = await res.json() as { payload?: string };

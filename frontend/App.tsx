@@ -571,10 +571,10 @@ const AppInner: React.FC = () => {
         });
       }
     } else if (hash.startsWith("#p=")) {
-      // Permanent public profile link — fetch latest published CV for this user
-      const userId = parseInt(hash.slice("#p=".length), 10);
-      if (userId && !isNaN(userId)) {
-        fetchPublicProfile(userId).then((payload) => {
+      // Permanent public profile link — slug (new) or integer user ID (legacy)
+      const slugOrId = hash.slice("#p=".length);
+      if (slugOrId) {
+        fetchPublicProfile(slugOrId).then((payload) => {
           if (payload) setSharedCVPayload(payload);
         });
       }

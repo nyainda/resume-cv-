@@ -58,7 +58,8 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
   const [profilePublished, setProfilePublished] = useState(false);
   const [profileError, setProfileError]   = useState('');
   const [profileCopied, setProfileCopied] = useState(false);
-  const profileUrl = userId ? buildProfileUrl(userId) : '';
+  const [profileSlug, setProfileSlug] = useState<string | null>(null);
+  const profileUrl = profileSlug ? buildProfileUrl(profileSlug) : (userId ? buildProfileUrl(String(userId)) : '');
 
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
@@ -124,9 +125,10 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({ cvData, personalInfo, templ
       cvData, personalInfo, template,
       sharedAt: new Date().toISOString(),
     };
-    const ok = await publishPublicProfile(payload, sessionToken);
+    const slug = await publishPublicProfile(payload, sessionToken);
     setProfilePublishing(false);
-    if (ok) {
+    if (slug) {
+      setProfileSlug(slug);
       setProfilePublished(true);
       logEvent({ event_type: 'profile_published' });
     } else {

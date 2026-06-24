@@ -4478,9 +4478,12 @@ export interface CVCheckResult {
 
 export const checkCVAgainstJob = async (
     profile: UserProfile,
-    jobDescription: string
+    jobDescription: string,
+    rawCVText?: string,
 ): Promise<CVCheckResult> => {
-    const profileText = JSON.stringify(profile, null, 2).substring(0, 2000);
+    const profileText = rawCVText
+        ? rawCVText.substring(0, 3000)
+        : JSON.stringify(profile, null, 2).substring(0, 2000);
     const prompt = `
         You are an elite CV reviewer and ATS expert. Analyze this CV against the job description.
 
