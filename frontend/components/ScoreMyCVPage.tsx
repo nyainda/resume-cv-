@@ -772,6 +772,199 @@ function scoreMeta(score: number): ScoreMeta {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Score Timeline Chart — SVG line chart, no external deps
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ScoreTimelineChart: React.FC<{ snapshots: ScoreSnapshot[] }> = ({ snapshots }) => {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const sorted = useMemo(() => [...snapshots].reverse(), [snapshots]);
+
+  if (sorted.length === 0) return null;
+
+  const W = 340, H = 114;
+  const PAD = { top: 16, right: 24, bottom: 28, left: 32 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top - PAD.bottom;
+
+  const afterScores  = sorted.map(s => s.afterScore);
+  const beforeScores = sorted.map(s => s.beforeScore);
+  const allNums      = [...afterScores, ...beforeScores].filter(n => !isNaN(n));
+  const rawMin = Math.min(...allNums);
+  const rawMax = Math.max(...allNums);
+  const yMin   = Math.max(0,   rawMin - 8);
+  const yMax   = Math.min(100, rawMax + 8);
+  const yRange = yMax - yMin || 1;
+
+  const xOf = (i: number) =>
+    PAD.left + (sorted.length === 1 ? cW / 2 : (i / (sorted.length - 1)) * cW);
+  const yOf = (v: number) => PAD.top + cH - ((v - yMin) / yRange) * cH;
+
+  const afterPts  = sorted.map((s, i) => ({ x: xOf(i), y: yOf(s.afterScore),  snap: s }));
+  const beforePts = sorted.map((s, i) => ({ x: xOf(i), y: yOf(s.beforeScore) }));
+
+  const linePath = afterPts.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = [
+    `M ${afterPts[0].x.toFixed(1)} ${(PAD.top + cH).toFixed(1)}`,
+    ...afterPts.map(p => `L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`),
+    `L ${afterPts[afterPts.length - 1].x.toFixed(1)} ${(PAD.top + cH).toFixed(1)}`,
+    'Z',
+  ].join(' ');
+
+  const excellentY   = yOf(85);
+  const showExcellent = 85 >= yMin && 85 <= yMax;
+
+  // Tooltip data — computed outside JSX so no IIFE needed
+  const hovPt   = hovered !== null ? afterPts[hovered]  : null;
+  const hovSnap = hovered !== null ? sorted[hovered]     : null;
+  const tipW = 94, tipH = hovSnap && hovSnap.fixesApplied.length > 0 ? 52 : 44;
+  const tipX = hovPt ? Math.min(Math.max(hovPt.x - tipW / 2, PAD.left), W - PAD.right - tipW) : 0;
+  const tipY = hovPt ? hovPt.y - tipH - 8 : 0;
+
+  const yGridVals = [Math.round(yMin), Math.round((yMin + yMax) / 2), Math.round(yMax)];
+  const showAllLabels = sorted.length <= 5;
+
+  return (
+    <div className="px-3 pt-2 pb-0.5">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ overflow: 'visible', display: 'block' }}>
+        <defs>
+          <linearGradient id="stc-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={GOLD} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={GOLD} stopOpacity="0.02" />
+          </linearGradient>
+          <clipPath id="stc-clip">
+            <rect x={PAD.left} y={PAD.top} width={cW} height={cH} />
+          </clipPath>
+        </defs>
+
+        {/* Y-grid + labels */}
+        {yGridVals.map((v, idx) => (
+          <g key={`yg${idx}`}>
+            <line x1={PAD.left} y1={yOf(v)} x2={PAD.left + cW} y2={yOf(v)}
+              stroke="#e4e4e7" strokeWidth="0.5" strokeDasharray="3 3" />
+            <text x={PAD.left - 4} y={yOf(v) + 3.5} textAnchor="end"
+              fill="#a1a1aa" fontSize="7.5" fontFamily="DM Sans,sans-serif">{v}</text>
+          </g>
+        ))}
+
+        {/* "Excellent" threshold at 85 */}
+        {showExcellent && (
+          <g>
+            <line x1={PAD.left} y1={excellentY} x2={PAD.left + cW} y2={excellentY}
+              stroke="#059669" strokeWidth="0.8" strokeDasharray="4 3" opacity="0.5" />
+            <text x={PAD.left + cW + 3} y={excellentY + 3}
+              fill="#059669" fontSize="7" fontFamily="DM Sans,sans-serif" opacity="0.8">85</text>
+          </g>
+        )}
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#stc-area)" clipPath="url(#stc-clip)" />
+
+        {/* Before-score ghost dots */}
+        {beforePts.map((p, i) => (
+          <circle key={`bg${i}`} cx={p.x} cy={p.y} r={2.5}
+            fill="none" stroke="#a1a1aa" strokeWidth="1" opacity="0.45"
+            clipPath="url(#stc-clip)" />
+        ))}
+
+        {/* Before→After lift connectors */}
+        {afterPts.map((ap, i) => {
+          const bp = beforePts[i];
+          const improved = ap.y < bp.y;
+          return (
+            <line key={`cn${i}`} x1={ap.x} y1={ap.y} x2={bp.x} y2={bp.y}
+              stroke={improved ? '#059669' : '#dc2626'}
+              strokeWidth="0.8" strokeDasharray="2 2" opacity="0.4"
+              clipPath="url(#stc-clip)" />
+          );
+        })}
+
+        {/* Score line */}
+        <path d={linePath} fill="none" stroke={GOLD} strokeWidth="2.2"
+          strokeLinejoin="round" strokeLinecap="round" clipPath="url(#stc-clip)" />
+
+        {/* After-score dots */}
+        {afterPts.map((p, i) => {
+          const meta = scoreMeta(p.snap.afterScore);
+          const isH = hovered === i;
+          return (
+            <circle key={`ad${i}`} cx={p.x} cy={p.y} r={isH ? 6 : 4}
+              fill={meta.bar} stroke="white" strokeWidth="1.5"
+              style={{ cursor: 'pointer', transition: 'r 0.1s' }}
+              clipPath="url(#stc-clip)"
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              onFocus={() => setHovered(i)}
+              onBlur={() => setHovered(null)}
+            />
+          );
+        })}
+
+        {/* Tooltip */}
+        {hovPt && hovSnap && (
+          <g style={{ pointerEvents: 'none' }}>
+            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="4" fill={NAV} opacity="0.94" />
+            <text x={tipX + tipW / 2} y={tipY + 13} textAnchor="middle"
+              fill="white" fontSize="10.5" fontWeight="bold" fontFamily="DM Sans,sans-serif">
+              {hovSnap.afterScore} pts
+            </text>
+            <text x={tipX + tipW / 2} y={tipY + 24} textAnchor="middle"
+              fill={hovSnap.delta >= 0 ? '#4ade80' : '#f87171'}
+              fontSize="8.5" fontFamily="DM Sans,sans-serif">
+              {hovSnap.delta >= 0 ? '+' : ''}{hovSnap.delta} from before
+            </text>
+            <text x={tipX + tipW / 2} y={tipY + 35} textAnchor="middle"
+              fill="#94a8c4" fontSize="7.5" fontFamily="DM Sans,sans-serif">
+              {new Date(hovSnap.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
+            </text>
+            {hovSnap.fixesApplied.length > 0 && (
+              <text x={tipX + tipW / 2} y={tipY + 46} textAnchor="middle"
+                fill="#94a8c4" fontSize="7" fontFamily="DM Sans,sans-serif">
+                {hovSnap.fixesApplied.length} fix{hovSnap.fixesApplied.length !== 1 ? 'es' : ''} applied
+              </text>
+            )}
+          </g>
+        )}
+
+        {/* X-axis date labels */}
+        {showAllLabels
+          ? afterPts.map((p, i) => (
+              <text key={`xl${i}`} x={p.x} y={H - 4} textAnchor="middle"
+                fill="#a1a1aa" fontSize="7.5" fontFamily="DM Sans,sans-serif">
+                {new Date(sorted[i].timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </text>
+            ))
+          : [0, afterPts.length - 1].map(i => (
+              <text key={`xl${i}`} x={afterPts[i].x} y={H - 4} textAnchor="middle"
+                fill="#a1a1aa" fontSize="7.5" fontFamily="DM Sans,sans-serif">
+                {new Date(sorted[i].timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </text>
+            ))
+        }
+      </svg>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 pl-8 pt-0.5 pb-1">
+        <div className="flex items-center gap-1.5">
+          <svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke={GOLD} strokeWidth="2" strokeLinecap="round"/></svg>
+          <span className="text-[9px] text-zinc-400">After fix</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="10" height="10"><circle cx="5" cy="5" r="3.5" fill="none" stroke="#a1a1aa" strokeWidth="1" opacity="0.6"/></svg>
+          <span className="text-[9px] text-zinc-400">Before fix</span>
+        </div>
+        {showExcellent && (
+          <div className="flex items-center gap-1.5">
+            <svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke="#059669" strokeWidth="1" strokeDasharray="3 2" opacity="0.7"/></svg>
+            <span className="text-[9px] text-emerald-500">Excellent (85)</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Score Gauge
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1433,24 +1626,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
             </button>
             {historyExpanded && (
               <div className="border-t border-zinc-100 dark:border-neutral-800">
-                {/* Sparkline summary row */}
-                <div className="px-4 py-3 flex items-center gap-2 overflow-x-auto">
-                  {[...scoreHistory].reverse().map((snap, i) => {
-                    const m = scoreMeta(snap.afterScore);
-                    return (
-                      <React.Fragment key={snap.id}>
-                        {i > 0 && <div className="flex-shrink-0 w-6 h-0.5 bg-zinc-200 dark:bg-neutral-700" />}
-                        <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-                               style={{ background: m.bar }}>
-                            {snap.afterScore}
-                          </div>
-                          <p className="text-[9px] text-zinc-400 whitespace-nowrap">{new Date(snap.timestamp).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}</p>
-                        </div>
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
+                <ScoreTimelineChart snapshots={scoreHistory} />
                 {/* Session detail cards */}
                 <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
                   {scoreHistory.map(snap => {
@@ -1584,23 +1760,7 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </button>
           {historyExpanded && (
             <div className="border-t border-zinc-100 dark:border-neutral-800">
-              {/* Sparkline */}
-              <div className="px-4 py-3 flex items-center gap-2 overflow-x-auto">
-                {[...scoreHistory].reverse().map((snap, i) => {
-                  const m = scoreMeta(snap.afterScore);
-                  return (
-                    <React.Fragment key={snap.id}>
-                      {i > 0 && <div className="flex-shrink-0 w-6 h-0.5 bg-zinc-200 dark:bg-neutral-700" />}
-                      <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white" style={{ background: m.bar }}>
-                          {snap.afterScore}
-                        </div>
-                        <p className="text-[9px] text-zinc-400 whitespace-nowrap">{new Date(snap.timestamp).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}</p>
-                      </div>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
+              <ScoreTimelineChart snapshots={scoreHistory} />
               <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
                 {scoreHistory.map(snap => {
                   const delta = snap.delta;
