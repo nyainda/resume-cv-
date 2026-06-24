@@ -4516,7 +4516,17 @@ export const checkCVAgainstJob = async (
     `;
 
     const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PARSER, prompt, { temperature: 0.2, json: true, maxTokens: 1024 });
-    return JSON.parse(text.trim());
+    const parsed = JSON.parse(text.trim());
+    return {
+        overallScore:    parsed.overallScore    ?? 0,
+        atsScore:        parsed.atsScore        ?? 0,
+        strengths:       Array.isArray(parsed.strengths)       ? parsed.strengths       : [],
+        weaknesses:      Array.isArray(parsed.weaknesses)      ? parsed.weaknesses      : [],
+        missingKeywords: Array.isArray(parsed.missingKeywords) ? parsed.missingKeywords : [],
+        matchedKeywords: Array.isArray(parsed.matchedKeywords) ? parsed.matchedKeywords : [],
+        suggestions:     Array.isArray(parsed.suggestions)     ? parsed.suggestions     : [],
+        summary:         parsed.summary ?? '',
+    };
 };
 
 // ─── LinkedIn Profile Generator ──────────────────────────────────────────────

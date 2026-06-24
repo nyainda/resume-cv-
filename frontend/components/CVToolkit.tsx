@@ -398,14 +398,14 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                             </div>
 
                             {/* Fix & Regenerate CTA */}
-                            {(checkResult.missingKeywords.length > 0 || checkResult.weaknesses.length > 0) && onGoToGenerator && (
+                            {((checkResult.missingKeywords?.length ?? 0) > 0 || (checkResult.weaknesses?.length ?? 0) > 0) && onGoToGenerator && (
                                 <div className="bg-gradient-to-br from-violet-50 to-[#F8F7F4] dark:from-violet-900/20 dark:to-[#1B2B4B]/10 border border-violet-200 dark:border-violet-800 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                     <div className="flex-1">
                                         <h3 className="font-bold text-violet-900 dark:text-violet-100 flex items-center gap-2">
                                             <Sparkles className="h-4 w-4 text-violet-500" /> Ready to fix these issues?
                                         </h3>
                                         <p className="text-xs text-violet-700 dark:text-violet-300 mt-1">
-                                            The AI found <strong>{checkResult.missingKeywords.length}</strong> missing keywords and <strong>{checkResult.weaknesses.length}</strong> weaknesses.
+                                            The AI found <strong>{checkResult.missingKeywords?.length ?? 0}</strong> missing keywords and <strong>{checkResult.weaknesses?.length ?? 0}</strong> weaknesses.
                                             Click below to regenerate your CV with these fixes applied automatically.
                                         </p>
                                     </div>
@@ -423,18 +423,18 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                 <h3 className="font-bold text-zinc-900 dark:text-zinc-100 mb-3">🔑 Keyword Analysis</h3>
                                 <div className="mb-3">
                                     <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1.5">
-                                        ✓ Matched ({checkResult.matchedKeywords.length})
+                                        ✓ Matched ({checkResult.matchedKeywords?.length ?? 0})
                                     </p>
                                     <div className="flex flex-wrap">
-                                        {checkResult.matchedKeywords.map(k => <KeywordPill key={k} word={k} matched />)}
+                                        {(checkResult.matchedKeywords ?? []).map(k => <KeywordPill key={k} word={k} matched />)}
                                     </div>
                                 </div>
                                 <div>
                                     <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mb-1.5">
-                                        ✗ Missing ({checkResult.missingKeywords.length}) — add these to your CV
+                                        ✗ Missing ({checkResult.missingKeywords?.length ?? 0}) — add these to your CV
                                     </p>
                                     <div className="flex flex-wrap">
-                                        {checkResult.missingKeywords.map(k => <KeywordPill key={k} word={k} matched={false} />)}
+                                        {(checkResult.missingKeywords ?? []).map(k => <KeywordPill key={k} word={k} matched={false} />)}
                                     </div>
                                 </div>
                             </div>
@@ -446,7 +446,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                         <CheckCircle className="h-4 w-4" /> Strengths
                                     </h3>
                                     <ul className="space-y-2">
-                                        {checkResult.strengths.map((s, i) => (
+                                        {(checkResult.strengths ?? []).map((s, i) => (
                                             <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-2">
                                                 <span className="text-emerald-500 mt-0.5 shrink-0">✓</span> {s}
                                             </li>
@@ -458,7 +458,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                         <AlertCircle className="h-4 w-4" /> Weaknesses
                                     </h3>
                                     <ul className="space-y-2">
-                                        {checkResult.weaknesses.map((w, i) => (
+                                        {(checkResult.weaknesses ?? []).map((w, i) => (
                                             <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-2">
                                                 <span className="text-rose-500 mt-0.5 shrink-0">✗</span> {w}
                                             </li>
@@ -473,7 +473,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                     <Sparkles className="h-4 w-4" /> Suggestions to Improve
                                 </h3>
                                 <ul className="space-y-2">
-                                    {checkResult.suggestions.map((s, i) => (
+                                    {(checkResult.suggestions ?? []).map((s, i) => (
                                         <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-2">
                                             <span className="text-violet-500 font-bold mt-0.5 shrink-0">{i + 1}.</span> {s}
                                         </li>
