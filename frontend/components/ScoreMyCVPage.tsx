@@ -892,31 +892,40 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const [fixingSignalId, setFixingSignalId] = useState<string | null>(null);
   const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(new Set());
   const [fixErrors, setFixErrors]           = useState<Record<string, string>>({});
+  const [isBoostingAll, setIsBoostingAll]   = useState(false);
+  const [boostProgress, setBoostProgress]   = useState<{ current: number; total: number; label: string } | null>(null);
+  const [boostDone, setBoostDone]           = useState(false);
+
+  /** Apply a single signal fix to `workingCV` in-place and return the updated copy. */
+  const applyOneFix = useCallback(async (sigId: string, workingCV: CVData): Promise<CVData> => {
+    if (BULLET_FIX_SIGNALS.has(sigId)) {
+      const bullets = workingCV.experience.flatMap(exp => exp.responsibilities || []);
+      if (bullets.length === 0) return workingCV;
+      const fixed = sigId === 'verb_saturation'
+        ? await fixVerbSaturation(bullets)
+        : await fixBulletsForSignal(bullets, sigId);
+      let cursor = 0;
+      const updatedExp = workingCV.experience.map(exp => {
+        const count = (exp.responsibilities || []).length;
+        const slice = fixed.slice(cursor, cursor + count);
+        cursor += count;
+        return { ...exp, responsibilities: slice };
+      });
+      return { ...workingCV, experience: updatedExp };
+    } else if (SUMMARY_FIX_SIGNALS.has(sigId)) {
+      const fixed = await fixSummaryForSignal(workingCV.summary || '', sigId);
+      return { ...workingCV, summary: fixed };
+    }
+    return workingCV;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleScorePageFix = useCallback(async (sigId: string) => {
     if (!currentCV || !onCVUpdate) return;
     setFixingSignalId(sigId);
     setFixErrors(prev => { const n = { ...prev }; delete n[sigId]; return n; });
     try {
-      let updated = { ...currentCV };
-      if (BULLET_FIX_SIGNALS.has(sigId)) {
-        const bullets = currentCV.experience.flatMap(exp => exp.responsibilities || []);
-        if (bullets.length === 0) throw new Error('No bullets found.');
-        const fixed = sigId === 'verb_saturation'
-          ? await fixVerbSaturation(bullets)
-          : await fixBulletsForSignal(bullets, sigId);
-        let cursor = 0;
-        const updatedExp = currentCV.experience.map(exp => {
-          const count = (exp.responsibilities || []).length;
-          const slice = fixed.slice(cursor, cursor + count);
-          cursor += count;
-          return { ...exp, responsibilities: slice };
-        });
-        updated = { ...updated, experience: updatedExp };
-      } else if (SUMMARY_FIX_SIGNALS.has(sigId)) {
-        const fixed = await fixSummaryForSignal(currentCV.summary || '', sigId);
-        updated = { ...updated, summary: fixed };
-      }
+      const updated = await applyOneFix(sigId, currentCV);
       onCVUpdate(updated);
       setFixedSignalIds(prev => new Set([...prev, sigId]));
       setTimeout(() => setFixedSignalIds(prev => { const n = new Set(prev); n.delete(sigId); return n; }), 5000);
@@ -925,8 +934,37 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     } finally {
       setFixingSignalId(null);
     }
+  }, [currentCV, onCVUpdate, applyOneFix]);
+
+  /** Run every unfixed action sequentially on a single working copy, update the CV live after each. */
+  const handleBoostAll = useCallback(async (actions: { sigId: string; label: string }[]) => {
+    if (!currentCV || !onCVUpdate || isBoostingAll) return;
+    const pending = actions.filter(a => !fixedSignalIds.has(a.sigId));
+    if (pending.length === 0) return;
+    setIsBoostingAll(true);
+    setBoostDone(false);
+    setBoostProgress({ current: 0, total: pending.length, label: pending[0].label });
+    let working: CVData = { ...currentCV };
+    const doneIds = new Set<string>();
+    for (let i = 0; i < pending.length; i++) {
+      const { sigId, label } = pending[i];
+      setBoostProgress({ current: i + 1, total: pending.length, label });
+      try {
+        working = await applyOneFix(sigId, working);
+        onCVUpdate(working);
+        doneIds.add(sigId);
+        setFixedSignalIds(prev => new Set([...prev, sigId]));
+      } catch {
+        // skip failed signal, continue with next
+      }
+    }
+    setIsBoostingAll(false);
+    setBoostProgress(null);
+    setBoostDone(true);
+    // Auto re-score after a short delay so the CV state has settled
+    setTimeout(() => runScore(), 400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCV, onCVUpdate]);
+  }, [currentCV, onCVUpdate, fixedSignalIds, isBoostingAll, applyOneFix]);
 
   // Fetch CF banned phrases on mount — Score My CV is now data-driven
   useEffect(() => {
@@ -1103,81 +1141,145 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </div>
         </div>
 
-        {/* ── Priority Actions — AI fix buttons for the worst issues ── */}
+        {/* ── Boost Score — Fix All + individual fixes ── */}
         {onCVUpdate && (() => {
-          // Build a list of fixable signals with their severity & score
-          const actions: { sigId: string; label: string; desc: string; score: number }[] = [];
+          // Build the fixable actions list
+          const actions: { sigId: string; label: string; desc: string }[] = [];
           const hvSignals = results.humanVoice.signals.filter(s => s.severity !== 'pass' && s.riskPts > 0);
           hvSignals.forEach(s => {
-            if (SUMMARY_FIX_SIGNALS.has(s.id)) actions.push({ sigId: s.id, label: s.label, desc: s.fix || s.detail, score: results.humanVoice.humanScore });
-            if (BULLET_FIX_SIGNALS.has(s.id)) actions.push({ sigId: s.id, label: s.label, desc: s.fix || s.detail, score: results.humanVoice.humanScore });
+            if ((SUMMARY_FIX_SIGNALS.has(s.id) || BULLET_FIX_SIGNALS.has(s.id)) && !actions.find(a => a.sigId === s.id))
+              actions.push({ sigId: s.id, label: s.label, desc: s.fix || s.detail });
           });
-          // Also add verb_saturation if verb variety < 70
-          if (results.verbVariety.score < 70 && results.verbVariety.overusedVerbs.length > 0 && !actions.find(a => a.sigId === 'verb_saturation')) {
-            actions.push({ sigId: 'verb_saturation', label: 'Verb Saturation', desc: `Overused verbs detected (${results.verbVariety.overusedVerbs.map(v => v.verb).slice(0,3).join(', ')}). Rotate for variety.`, score: results.verbVariety.score });
-          }
-          // Bullet quality signals
+          if (results.verbVariety.score < 70 && results.verbVariety.overusedVerbs.length > 0 && !actions.find(a => a.sigId === 'verb_saturation'))
+            actions.push({ sigId: 'verb_saturation', label: 'Verb Saturation', desc: `Overused verbs (${results.verbVariety.overusedVerbs.map(v => v.verb).slice(0,3).join(', ')}) — rotate for variety.` });
           if (results.bulletQuality.score < 75) {
-            const bqSigs: { sigId: string; label: string; desc: string }[] = [
+            const bqSigs = [
               { sigId: 'banned_opener',    label: 'Banned Opener Words',      desc: 'Rewrite "Spearheaded/Leveraged/Utilized" → direct action verbs.' },
               { sigId: 'repeated_opener',  label: 'Repeated Opener Verb',     desc: 'Multiple bullets start with the same verb — rotate for variety.' },
-              { sigId: 'passive_voice',    label: 'Passive Voice Bullets',    desc: 'Convert passive "was managed by" → active "Led / Delivered".' },
+              { sigId: 'passive_voice',    label: 'Passive Voice Bullets',    desc: 'Convert "was managed by" → active "Led / Delivered".' },
               { sigId: 'pronoun_leak',     label: 'First-Person Pronouns',    desc: 'Remove I/my/we from bullets — implied subject is standard.' },
               { sigId: 'length_uniformity',label: 'Bullet Length Uniformity', desc: 'All bullets same length signals AI — mix short + detailed.' },
             ];
-            bqSigs.forEach(s => { if (!actions.find(a => a.sigId === s.sigId)) actions.push({ ...s, score: results.bulletQuality.score }); });
+            bqSigs.forEach(s => { if (!actions.find(a => a.sigId === s.sigId)) actions.push(s); });
           }
           if (actions.length === 0) return null;
-          const top = actions.slice(0, 5);
+          const top = actions.slice(0, 6);
+          const pendingCount = top.filter(a => !fixedSignalIds.has(a.sigId)).length;
+          const allDone = pendingCount === 0;
+
           return (
-            <div className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: GOLD + '40', background: GOLD + '08' }}>
-              <div className="px-4 py-3 flex items-center gap-2" style={{ background: GOLD + '15' }}>
-                <span className="text-lg">⚡</span>
-                <div>
-                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Fix in CV — One Click</p>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">AI rewrites the relevant section instantly. The CV template updates live.</p>
-                </div>
-              </div>
-              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
-                {top.map(action => (
-                  <div key={action.sigId} className="px-4 py-3 flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{action.label}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug">{action.desc}</p>
-                      {fixErrors[action.sigId] && <p className="text-[11px] text-rose-500 mt-1">{fixErrors[action.sigId]}</p>}
-                    </div>
-                    <button
-                      onClick={() => handleScorePageFix(action.sigId)}
-                      disabled={fixingSignalId !== null}
-                      className="flex-shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg text-white disabled:opacity-50 transition-colors"
-                      style={{ background: fixedSignalIds.has(action.sigId) ? '#059669' : NAV }}
-                    >
-                      {fixingSignalId === action.sigId ? (
-                        <><svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Fixing…</>
-                      ) : fixedSignalIds.has(action.sigId) ? (
-                        <>✓ Fixed — Re-score</>
-                      ) : (
-                        <>✦ Fix in CV</>
-                      )}
-                    </button>
+            <div className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: GOLD + '50', background: GOLD + '06' }}>
+
+              {/* ── Header with Boost Score button ── */}
+              <div className="px-4 py-3.5 flex items-center justify-between gap-3 flex-wrap" style={{ background: NAV }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">🚀</span>
+                  <div>
+                    <p className="text-sm font-bold text-white">Boost Score — Fix All</p>
+                    <p className="text-[11px]" style={{ color: '#94a8c4' }}>
+                      {allDone ? `All ${top.length} fixes applied — re-score to see your new score.` : `${pendingCount} fix${pendingCount !== 1 ? 'es' : ''} queued · AI rewrites each section sequentially`}
+                    </p>
                   </div>
-                ))}
-              </div>
-              {fixedSignalIds.size > 0 && (
-                <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/30 border-t border-emerald-100 dark:border-emerald-900/30 flex items-center justify-between gap-3">
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">
-                    ✅ {fixedSignalIds.size} fix{fixedSignalIds.size > 1 ? 'es' : ''} applied to your CV
-                  </p>
+                </div>
+                {!allDone && (
+                  <button
+                    onClick={() => handleBoostAll(top)}
+                    disabled={isBoostingAll || fixingSignalId !== null || scoring}
+                    className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm disabled:opacity-50 transition-all"
+                    style={{ background: GOLD, color: NAV }}
+                  >
+                    {isBoostingAll ? (
+                      <><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Fixing…</>
+                    ) : (
+                      <>⚡ Fix All & Re-score</>
+                    )}
+                  </button>
+                )}
+                {allDone && (
                   <button
                     onClick={runScore}
                     disabled={scoring}
-                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-80 disabled:opacity-50"
-                    style={{ background: GOLD }}
+                    className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm disabled:opacity-50 transition-all"
+                    style={{ background: GOLD, color: NAV }}
                   >
-                    📊 Re-score now
+                    {scoring ? (
+                      <><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Scoring…</>
+                    ) : (
+                      <>📊 Re-score Now</>
+                    )}
                   </button>
+                )}
+              </div>
+
+              {/* ── Live progress bar during Boost ── */}
+              {isBoostingAll && boostProgress && (
+                <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">
+                      Fixing {boostProgress.current}/{boostProgress.total}: {boostProgress.label}
+                    </p>
+                    <span className="text-[11px] text-zinc-400 dark:text-zinc-500 flex-shrink-0 ml-2">
+                      {Math.round((boostProgress.current / boostProgress.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${(boostProgress.current / boostProgress.total) * 100}%`, background: GOLD }}
+                    />
+                  </div>
                 </div>
               )}
+
+              {/* ── Completion banner ── */}
+              {boostDone && !isBoostingAll && (
+                <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
+                  <span className="text-base">✅</span>
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                    All fixes applied — your CV template has been updated. Scoring now…
+                  </p>
+                </div>
+              )}
+
+              {/* ── Individual fix rows ── */}
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800 bg-white dark:bg-neutral-900">
+                {top.map((action, idx) => {
+                  const isDone   = fixedSignalIds.has(action.sigId);
+                  const isActive = fixingSignalId === action.sigId;
+                  const isBoostActive = isBoostingAll && boostProgress && boostProgress.current === idx + 1;
+                  return (
+                    <div key={action.sigId} className={`px-4 py-3 flex items-start gap-3 transition-colors ${isDone ? 'bg-emerald-50/50 dark:bg-emerald-950/10' : ''}`}>
+                      {/* Status indicator */}
+                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                           style={{ background: isDone ? '#059669' : isBoostActive ? GOLD : NAV + '18', color: isDone ? 'white' : isBoostActive ? NAV : NAV + '99' }}>
+                        {isDone ? '✓' : isBoostActive ? '…' : idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold ${isDone ? 'text-emerald-700 dark:text-emerald-400 line-through opacity-70' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                          {action.label}
+                        </p>
+                        {!isDone && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 leading-snug">{action.desc}</p>}
+                        {fixErrors[action.sigId] && <p className="text-[11px] text-rose-500 mt-1">{fixErrors[action.sigId]}</p>}
+                      </div>
+                      {/* Individual fix button (hidden while boost-all is running) */}
+                      {!isBoostingAll && (
+                        <button
+                          onClick={() => handleScorePageFix(action.sigId)}
+                          disabled={fixingSignalId !== null || isDone}
+                          className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-colors disabled:opacity-40"
+                          style={isDone
+                            ? { borderColor: '#059669', color: '#059669', background: 'transparent' }
+                            : { borderColor: NAV + '40', color: NAV, background: 'transparent' }}
+                        >
+                          {isActive ? (
+                            <><svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg></>
+                          ) : isDone ? '✓' : '✦'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
