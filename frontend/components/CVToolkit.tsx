@@ -3,6 +3,8 @@ import { UserProfile, ScrapedJob, CVData } from '../types';
 import {
     checkCVAgainstJob, CVCheckResult,
     fixVerbSaturation,
+    fixBulletsForSignal,
+    fixSummaryForSignal,
 } from '../services/geminiService';
 import { scoreHRDetection, type HRDetectionResult, type HRSignalSeverity } from '../services/hrDetectorSimulation';
 import { runFullValidation, buildBrief, type FullValidationResult } from '../services/cvEngineClient';
@@ -116,40 +118,53 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     const [showPasteCV, setShowPasteCV] = useState(false);
     const [rawCVText, setRawCVText] = useState('');
 
-    // ── One-click verb-saturation fix ──
-    const [isFixingVerbs, setIsFixingVerbs] = useState(false);
-    const [fixVerbsError, setFixVerbsError] = useState<string | null>(null);
-    const [fixVerbsSuccess, setFixVerbsSuccess] = useState(false);
+    // ── One-click signal fixes (unified for all 7 fixable HR signals) ──
+    // Signals whose fix operates on bullets (experience.responsibilities)
+    const BULLET_FIX_SIGNALS = new Set(['verb_saturation', 'banned_opener', 'repeated_opener', 'pronoun_leak', 'passive_voice', 'length_uniformity']);
+    // Signals whose fix operates on the summary
+    const SUMMARY_FIX_SIGNALS = new Set(['summary_cliches', 'generic_opener']);
 
-    const handleFixVerbSaturation = useCallback(async () => {
+    const [fixingSignalId, setFixingSignalId] = useState<string | null>(null);
+    const [fixedSignalIds, setFixedSignalIds] = useState<Set<string>>(new Set());
+    const [fixErrors, setFixErrors] = useState<Record<string, string>>({});
+
+    const handleFixSignal = useCallback(async (sigId: string) => {
         if (!currentCV || !onCurrentCVUpdated) return;
-        setIsFixingVerbs(true);
-        setFixVerbsError(null);
-        setFixVerbsSuccess(false);
+        setFixingSignalId(sigId);
+        setFixErrors(prev => { const n = { ...prev }; delete n[sigId]; return n; });
         try {
-            const allBullets = currentCV.experience.flatMap(exp => exp.responsibilities || []);
-            if (allBullets.length === 0) { setFixVerbsError('No bullets found in this CV.'); return; }
+            let updated = { ...currentCV };
 
-            const fixed = await fixVerbSaturation(allBullets);
+            if (BULLET_FIX_SIGNALS.has(sigId)) {
+                const bullets = currentCV.experience.flatMap(exp => exp.responsibilities || []);
+                if (bullets.length === 0) throw new Error('No bullets found in this CV.');
+                // verb_saturation uses the dedicated fixVerbSaturation (better tailored prompts)
+                const fixed = sigId === 'verb_saturation'
+                    ? await fixVerbSaturation(bullets)
+                    : await fixBulletsForSignal(bullets, sigId);
+                let cursor = 0;
+                const updatedExp = currentCV.experience.map(exp => {
+                    const count = (exp.responsibilities || []).length;
+                    const slice = fixed.slice(cursor, cursor + count);
+                    cursor += count;
+                    return { ...exp, responsibilities: slice };
+                });
+                updated = { ...updated, experience: updatedExp };
+            } else if (SUMMARY_FIX_SIGNALS.has(sigId)) {
+                const fixed = await fixSummaryForSignal(currentCV.summary || '', sigId);
+                updated = { ...updated, summary: fixed };
+            }
 
-            // Map the flat fixed array back to the nested experience structure
-            let cursor = 0;
-            const updatedExperience = currentCV.experience.map(exp => {
-                const count = (exp.responsibilities || []).length;
-                const newResp = fixed.slice(cursor, cursor + count);
-                cursor += count;
-                return { ...exp, responsibilities: newResp };
-            });
-
-            onCurrentCVUpdated({ ...currentCV, experience: updatedExperience });
-            setFixVerbsSuccess(true);
-            setTimeout(() => setFixVerbsSuccess(false), 4000);
+            onCurrentCVUpdated(updated);
+            setFixedSignalIds(prev => new Set([...prev, sigId]));
+            setTimeout(() => setFixedSignalIds(prev => { const n = new Set(prev); n.delete(sigId); return n; }), 4000);
         } catch (e) {
-            setFixVerbsError(e instanceof Error ? e.message : 'Fix failed — please try again.');
+            setFixErrors(prev => ({ ...prev, [sigId]: e instanceof Error ? e.message : 'Fix failed — please try again.' }));
         } finally {
-            setIsFixingVerbs(false);
+            setFixingSignalId(null);
         }
-    }, [currentCV, onCurrentCVUpdated, fixVerbSaturation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentCV, onCurrentCVUpdated]);
 
     // Update JD when selectedJob changes
     React.useEffect(() => {
@@ -564,28 +579,31 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                                         <span className="font-semibold">Fix: </span>{sig.fix}
                                                     </p>
                                                 )}
-                                                {/* One-click AI fix for verb saturation */}
-                                                {sig.id === 'verb_saturation' && sig.severity !== 'pass' && onCurrentCVUpdated && currentCV && (
+                                                {/* One-click AI fix — shown for all fixable signals */}
+                                                {(['verb_saturation','banned_opener','repeated_opener','pronoun_leak','passive_voice','length_uniformity','summary_cliches','generic_opener'] as const).includes(sig.id as any)
+                                                    && sig.severity !== 'pass' && onCurrentCVUpdated && currentCV && (
                                                     <div className="mt-2 flex items-center gap-2 flex-wrap">
                                                         <button
-                                                            onClick={handleFixVerbSaturation}
-                                                            disabled={isFixingVerbs}
+                                                            onClick={() => handleFixSignal(sig.id)}
+                                                            disabled={fixingSignalId !== null}
                                                             className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
                                                         >
-                                                            {isFixingVerbs ? (
+                                                            {fixingSignalId === sig.id ? (
                                                                 <><svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Fixing…</>
+                                                            ) : fixedSignalIds.has(sig.id) ? (
+                                                                <>✓ Fixed</>
                                                             ) : (
                                                                 <>✦ Fix in CV</>
                                                             )}
                                                         </button>
-                                                        {fixVerbsSuccess && (
+                                                        {fixedSignalIds.has(sig.id) && (
                                                             <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
                                                                 CV updated
                                                             </span>
                                                         )}
-                                                        {fixVerbsError && (
-                                                            <span className="text-[11px] text-rose-500">{fixVerbsError}</span>
+                                                        {fixErrors[sig.id] && (
+                                                            <span className="text-[11px] text-rose-500">{fixErrors[sig.id]}</span>
                                                         )}
                                                     </div>
                                                 )}
