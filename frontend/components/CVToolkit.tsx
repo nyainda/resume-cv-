@@ -2,21 +2,15 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { UserProfile, ScrapedJob, CVData } from '../types';
 import {
     checkCVAgainstJob, CVCheckResult,
-    generateSmartCoverLetter,
-    paraphraseText, ParaphraseTone,
 } from '../services/geminiService';
 import { scoreHRDetection, type HRDetectionResult, type HRSignalSeverity } from '../services/hrDetectorSimulation';
 import { runFullValidation, buildBrief, type FullValidationResult } from '../services/cvEngineClient';
-import { researchCompany } from '../services/tavilyService';
-import { downloadCoverLetterAsPDF } from '../services/pdfService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Button } from './ui/Button';
 import {
-    CheckCircle, AlertCircle, Sparkles, RefreshCw, Download,
+    CheckCircle, AlertCircle, Sparkles, RefreshCw,
     Target, Shield, FileText, ExternalLink,
 } from './icons';
-import WordImportPanel from './WordImportPanel';
-import GitHubImportPanel from './GitHubImportPanel';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,14 +32,7 @@ interface CVToolkitProps {
     forceTab?: ToolTab;
 }
 
-type ToolTab = 'checker' | 'cover-letter' | 'paraphrase' | 'word-import' | 'github-import' | 'hr-detector';
-
-const TONE_OPTIONS: { id: ParaphraseTone; label: string; emoji: string; desc: string }[] = [
-    { id: 'professional', label: 'Professional', emoji: '👔', desc: 'Polished, executive tone' },
-    { id: 'concise', label: 'Concise', emoji: '✂️', desc: 'Cut 30-40% filler, keep impact' },
-    { id: 'creative', label: 'Creative', emoji: '✨', desc: 'Vivid, memorable language' },
-    { id: 'ats-friendly', label: 'ATS-Friendly', emoji: '🤖', desc: 'Keyword-rich, scanner-optimized' },
-];
+type ToolTab = 'checker' | 'hr-detector';
 
 // ─── Score Ring ─────────────────────────────────────────────────────────────────
 
@@ -96,8 +83,8 @@ const WordDocIcon: React.FC<{ className?: string }> = ({ className }) => (
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 const CVToolkit: React.FC<CVToolkitProps> = ({
-    userProfile, apiKeySet, tavilyApiKey, openSettings, selectedJob, currentCV,
-    onGoToGenerator, onProfileImported, onGitHubCVGenerated, forceTab,
+    userProfile, apiKeySet, openSettings, selectedJob, currentCV,
+    onGoToGenerator, forceTab,
 }) => {
     const [activeTab, setActiveTab] = useLocalStorage<ToolTab>('toolkit_tab', 'checker');
 
@@ -125,19 +112,6 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
     // Paste-CV fallback — lets users check a CV even when no profile is loaded
     const [showPasteCV, setShowPasteCV] = useState(false);
     const [rawCVText, setRawCVText] = useState('');
-
-    // ── Cover Letter state ──
-    const [coverLetter, setCoverLetter] = useLocalStorage<string>('toolkit_cl', '');
-    const [streamingCL, setStreamingCL] = useState('');
-    const [isGeneratingCL, setIsGeneratingCL] = useState(false);
-    const [clError, setClError] = useState<string | null>(null);
-    const [useCompanyResearch, setUseCompanyResearch] = useState(true);
-
-    // ── Paraphraser state ──
-    const [inputText, setInputText] = useState('');
-    const [outputText, setOutputText] = useState('');
-    const [selectedTone, setSelectedTone] = useState<ParaphraseTone>('professional');
-    const [isParaphrasing, setIsParaphrasing] = useState(false);
 
     // Update JD when selectedJob changes
     React.useEffect(() => {
@@ -213,66 +187,10 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
         onGoToGenerator?.(instructions);
     }, [checkResult, onGoToGenerator]);
 
-    // ── Generate Cover Letter ──
-    const handleGenerateCL = useCallback(async () => {
-        if (!apiKeySet) { openSettings(); return; }
-        if (!jobDescription.trim()) return;
-        setIsGeneratingCL(true);
-        setClError(null);
-        setStreamingCL('');
-        setCoverLetter('');
-        try {
-            let companyInfo = '';
-            if (useCompanyResearch && tavilyApiKey && selectedJob?.company) {
-                try {
-                    companyInfo = await researchCompany(selectedJob.company, selectedJob.title, tavilyApiKey);
-                } catch { /* continue without research */ }
-            }
-            const letter = await generateSmartCoverLetter(
-                userProfile,
-                jobDescription,
-                companyInfo,
-                (delta) => setStreamingCL(prev => prev + delta),
-            );
-            setCoverLetter(letter);
-            setStreamingCL('');
-        } catch (e) {
-            setStreamingCL('');
-            setClError(e instanceof Error ? e.message : 'Cover letter generation failed.');
-        } finally {
-            setIsGeneratingCL(false);
-        }
-    }, [apiKeySet, jobDescription, userProfile, selectedJob, tavilyApiKey, useCompanyResearch, openSettings, setCoverLetter]);
-
-    // ── Paraphrase ──
-    const handleParaphrase = useCallback(async () => {
-        if (!apiKeySet) { openSettings(); return; }
-        if (!inputText.trim()) return;
-        setIsParaphrasing(true);
-        try {
-            const result = await paraphraseText(inputText, selectedTone, jobDescription);
-            setOutputText(result);
-        } catch {
-            setOutputText('Paraphrasing failed. Please try again.');
-        } finally {
-            setIsParaphrasing(false);
-        }
-    }, [apiKeySet, inputText, selectedTone, jobDescription, openSettings]);
-
-    const handleDownloadCL = useCallback(() => {
-        if (!coverLetter) return;
-        const fileName = `Cover_Letter_${selectedJob?.company || 'Application'}.pdf`;
-        downloadCoverLetterAsPDF(coverLetter, fileName, 'modern', userProfile.personalInfo);
-    }, [coverLetter, userProfile, selectedJob]);
-
     // ─── TABS ──
     const tabs = [
         { id: 'checker' as ToolTab, label: 'CV Checker', emoji: '🔍' },
         { id: 'hr-detector' as ToolTab, label: 'Quality Audit', emoji: '🔬' },
-        { id: 'cover-letter' as ToolTab, label: 'Cover Letter', emoji: '✉️' },
-        { id: 'paraphrase' as ToolTab, label: 'Paraphraser', emoji: '🔄' },
-        { id: 'word-import' as ToolTab, label: 'Word Import', emoji: '📄' },
-        { id: 'github-import' as ToolTab, label: 'GitHub Import', emoji: '🐙' },
     ];
 
     const hasProfile = !!(userProfile?.personalInfo?.name);
@@ -330,34 +248,22 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                 ))}
             </div>
 
-            {/* JD Input (shared across checker, cover-letter, paraphrase tabs) */}
-            {activeTab !== 'word-import' && activeTab !== 'github-import' && (
-                <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4">
-                    <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 block">
-                        📋 Job Description{' '}
-                        {selectedJob && (
-                            <span className="text-violet-500 font-normal">(from: {selectedJob.title} @ {selectedJob.company})</span>
-                        )}
-                    </label>
-                    <textarea
-                        value={jobDescription}
-                        onChange={e => setJobDescription(e.target.value)}
-                        placeholder="Paste the job description here to analyze your CV, generate a cover letter, or paraphrase content…"
-                        rows={4}
-                        className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-400 text-zinc-800 dark:text-zinc-200"
-                    />
-                    {activeTab === 'cover-letter' && jobDescription.trim() && onGoToGenerator && (
-                        <div className="mt-2 flex justify-end">
-                            <button
-                                onClick={() => onGoToGenerator()}
-                                className="text-xs text-violet-600 dark:text-violet-400 font-semibold flex items-center gap-1 hover:underline"
-                            >
-                                <ExternalLink className="h-3 w-3" /> Use this JD in CV Generator
-                            </button>
-                        </div>
+            {/* JD Input */}
+            <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4">
+                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 block">
+                    📋 Job Description{' '}
+                    {selectedJob && (
+                        <span className="text-violet-500 font-normal">(from: {selectedJob.title} @ {selectedJob.company})</span>
                     )}
-                </div>
-            )}
+                </label>
+                <textarea
+                    value={jobDescription}
+                    onChange={e => setJobDescription(e.target.value)}
+                    placeholder="Paste the job description here to analyze your CV…"
+                    rows={4}
+                    className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-400 text-zinc-800 dark:text-zinc-200"
+                />
+            </div>
 
             {/* ══ CV CHECKER ══ */}
             {activeTab === 'checker' && (
@@ -534,172 +440,6 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                 </div>
             )}
 
-            {/* ══ COVER LETTER ══ */}
-            {activeTab === 'cover-letter' && (
-                <div className="space-y-4">
-                    <div className="flex flex-wrap gap-3 items-center">
-                        <Button
-                            onClick={handleGenerateCL}
-                            disabled={isGeneratingCL || !jobDescription.trim()}
-                            className="bg-violet-600 hover:bg-violet-700 text-white border-0 shadow shadow-violet-500/20 rounded-xl px-6"
-                        >
-                            {isGeneratingCL
-                                ? <><RefreshCw className="h-4 w-4 animate-spin mr-2" />Writing…</>
-                                : <><FileText className="h-4 w-4 mr-2" />Generate Smart Cover Letter</>}
-                        </Button>
-                        {tavilyApiKey && (
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={useCompanyResearch}
-                                    onChange={e => setUseCompanyResearch(e.target.checked)}
-                                    className="rounded border-zinc-300 text-violet-600 focus:ring-violet-400"
-                                />
-                                <span className="text-zinc-600 dark:text-zinc-400">🔍 Research company with Tavily <span className="text-zinc-400 text-xs">(1 credit)</span></span>
-                            </label>
-                        )}
-                    </div>
-
-                    {clError && (
-                        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 text-sm flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4 shrink-0" /> {clError}
-                        </div>
-                    )}
-
-                    {(streamingCL || coverLetter) && (
-                        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-6 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                                    {streamingCL ? (
-                                        <>
-                                            <span className="w-2 h-2 rounded-full bg-[#C9A84C] animate-pulse inline-block" />
-                                            <span className="text-[#C9A84C]">Writing…</span>
-                                        </>
-                                    ) : '✉️ Your Cover Letter'}
-                                </h3>
-                                {!streamingCL && (
-                                    <div className="flex gap-2">
-                                        <Button
-                                            onClick={() => navigator.clipboard.writeText(coverLetter)}
-                                            className="text-xs rounded-xl border border-zinc-200 dark:border-neutral-700 px-3 h-8"
-                                        >
-                                            📋 Copy
-                                        </Button>
-                                        <Button
-                                            onClick={handleDownloadCL}
-                                            className="text-xs bg-violet-600 hover:bg-violet-700 text-white border-0 rounded-xl px-3 h-8"
-                                        >
-                                            <Download className="h-3.5 w-3.5 mr-1" /> PDF
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="bg-zinc-50 dark:bg-neutral-900 rounded-xl p-5 max-h-[500px] overflow-y-auto">
-                                <pre className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                    {streamingCL || coverLetter}
-                                </pre>
-                            </div>
-                            {onGoToGenerator && (
-                                <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-neutral-700">
-                                    <p className="text-xs text-zinc-400 flex items-center gap-1">
-                                        <Sparkles className="h-3 w-3" /> Generated with AI · Review before sending
-                                    </p>
-                                    <button
-                                        onClick={() => onGoToGenerator()}
-                                        className="text-xs text-violet-600 dark:text-violet-400 font-semibold flex items-center gap-1 hover:underline"
-                                    >
-                                        <ExternalLink className="h-3 w-3" /> Open CV Generator
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ══ PARAPHRASER ══ */}
-            {activeTab === 'paraphrase' && (
-                <div className="space-y-4">
-                    {/* Tone selector */}
-                    <div className="flex flex-wrap gap-2">
-                        {TONE_OPTIONS.map(t => (
-                            <button
-                                key={t.id}
-                                onClick={() => setSelectedTone(t.id)}
-                                title={t.desc}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${selectedTone === t.id
-                                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
-                                    : 'border-zinc-200 dark:border-neutral-700 text-zinc-500 hover:border-violet-300'
-                                    }`}>
-                                <span>{t.emoji}</span> {t.label}
-                            </button>
-                        ))}
-                    </div>
-                    <p className="text-xs text-zinc-400">
-                        {TONE_OPTIONS.find(t => t.id === selectedTone)?.desc}
-                        {jobDescription.trim() && ' · Will also consider the JD for context'}
-                    </p>
-
-                    {/* Input / Output side by side */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 block">
-                                📝 Original Text
-                            </label>
-                            <textarea
-                                value={inputText}
-                                onChange={e => setInputText(e.target.value)}
-                                placeholder="Paste a bullet point, summary paragraph, or any section of your CV here…"
-                                rows={8}
-                                className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-violet-400 text-zinc-800 dark:text-zinc-200"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2 block">
-                                ✨ Paraphrased Output
-                            </label>
-                            <div className="relative">
-                                <textarea
-                                    value={outputText}
-                                    readOnly
-                                    placeholder="Your paraphrased result will appear here…"
-                                    rows={8}
-                                    className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900 text-sm resize-y focus:outline-none text-zinc-800 dark:text-zinc-200"
-                                />
-                                {outputText && (
-                                    <button
-                                        onClick={() => navigator.clipboard.writeText(outputText)}
-                                        className="absolute top-2 right-2 text-[10px] font-bold px-2 py-1 bg-white dark:bg-neutral-700 border border-zinc-200 dark:border-neutral-600 rounded-lg text-zinc-500 hover:text-violet-600 transition-colors"
-                                    >
-                                        Copy
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 items-center flex-wrap">
-                        <Button
-                            onClick={handleParaphrase}
-                            disabled={isParaphrasing || !inputText.trim()}
-                            className="bg-violet-600 hover:bg-violet-700 text-white border-0 rounded-xl px-6 shadow shadow-violet-500/20"
-                        >
-                            {isParaphrasing
-                                ? <><RefreshCw className="h-4 w-4 animate-spin mr-2" />Paraphrasing…</>
-                                : <>✨ Paraphrase</>}
-                        </Button>
-                        {outputText && onGoToGenerator && (
-                            <button
-                                onClick={() => onGoToGenerator(`Use this improved phrasing in the CV: "${outputText.slice(0, 300)}"`)}
-                                className="text-xs text-violet-600 dark:text-violet-400 font-semibold flex items-center gap-1 hover:underline"
-                            >
-                                <ExternalLink className="h-3 w-3" /> Use in CV Generator
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
-
             {/* ══ HR EYE TEST ══ */}
             {activeTab === 'hr-detector' && (
                 <div className="space-y-4">
@@ -863,7 +603,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                                 <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Voice</p>
                                                 {fullValidation.voice && (
                                                     <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
-                                                        {fullValidation.voice.passed ? 'Passed' : `${fullValidation.voice.summary.critical + fullValidation.voice.summary.high} critical`}
+                                                        {fullValidation.voice.passed ? 'Passed' : `${(fullValidation.voice.summary?.critical ?? 0) + (fullValidation.voice.summary?.high ?? 0)} critical`}
                                                     </p>
                                                 )}
                                             </div>
@@ -876,7 +616,7 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                                                 <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 mt-0.5">Semantic</p>
                                                 {fullValidation.semantic && (
                                                     <p className="text-[10px] text-zinc-500 dark:text-zinc-500 mt-0.5">
-                                                        {fullValidation.semantic.missing.length} missing kw
+                                                        {fullValidation.semantic.missing?.length ?? 0} missing kw
                                                     </p>
                                                 )}
                                             </div>
@@ -895,41 +635,6 @@ const CVToolkit: React.FC<CVToolkitProps> = ({
                 </div>
             )}
 
-            {/* ══ WORD IMPORT ══ */}
-            {activeTab === 'word-import' && (
-                <WordImportPanel
-                    apiKeySet={apiKeySet}
-                    openSettings={openSettings}
-                    onProfileImported={(profile) => {
-                        onProfileImported?.(profile);
-                    }}
-                />
-            )}
-
-            {/* ══ GITHUB IMPORT ══ */}
-            {activeTab === 'github-import' && (
-                <GitHubImportPanel
-                    currentProfile={userProfile}
-                    apiKeySet={apiKeySet}
-                    openSettings={openSettings}
-                    jobDescription={jobDescription}
-                    onProjectsImported={(newProjects, extraSkills) => {
-                        const existingProjectIds = new Set((userProfile.projects || []).map(p => p.link));
-                        const dedupedProjects = newProjects.filter(p => !existingProjectIds.has(p.link));
-                        const existingSkills = new Set((userProfile.skills || []).map(s => s.toLowerCase()));
-                        const newSkills = extraSkills.filter(s => !existingSkills.has(s.toLowerCase()));
-                        const updatedProfile: UserProfile = {
-                            ...userProfile,
-                            projects: [...(userProfile.projects || []), ...dedupedProjects],
-                            skills: [...(userProfile.skills || []), ...newSkills],
-                        };
-                        onProfileImported?.(updatedProfile);
-                    }}
-                    onGenerateCV={(cv) => {
-                        onGitHubCVGenerated?.(cv);
-                    }}
-                />
-            )}
         </div>
     );
 };
