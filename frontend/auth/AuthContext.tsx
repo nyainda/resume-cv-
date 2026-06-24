@@ -50,6 +50,11 @@ import {
     clearStorageUser,
     migrateToUserNamespace,
 } from '../services/storage/userStorageNamespace';
+import {
+    stampSignedOut,
+    ACCOUNT_HASH_KEY,
+    SIGNED_OUT_SENTINEL,
+} from '../utils/clearUserStorage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -366,6 +371,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             window.location.reload();
             return;
         }
+        // Clear any explicit sign-out sentinel — the user is actively signing in.
+        try { localStorage.removeItem(ACCOUNT_HASH_KEY); } catch { /* non-fatal */ }
         // Same user (or first sign-in on this device) — apply without reload.
         // Set namespace immediately so all subsequent storage reads use the right prefix.
         if (incoming.id) {
@@ -427,9 +434,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (cancelled) return;
 
             if (result.user) {
-                // Restore the storage namespace so all hooks use the correct prefix.
-                if (result.user.id) setStorageUser(String(result.user.id));
-                _saveUser(result.user);
+                // If the user explicitly signed out (sentinel present), don't auto-relog
+                // even if the Cloudflare session cookie is still technically active
+                // (happens when the sign-out network request failed silently).
+                const wasExplicitSignOut =
+                    localStorage.getItem(ACCOUNT_HASH_KEY) === SIGNED_OUT_SENTINEL;
+                if (wasExplicitSignOut) {
+                    // Fire-and-forget: try to clear the stale cookie on the server
+                    signOutWorker().catch(() => {});
+                    _saveUser(null);
+                } else {
+                    // Restore the storage namespace so all hooks use the correct prefix.
+                    if (result.user.id) setStorageUser(String(result.user.id));
+                    _saveUser(result.user);
+                }
             } else if (result.invalid) {
                 // Server says definitively signed out
                 _saveUser(null);
@@ -570,6 +588,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signOutWorker().catch(() => {}); // also clears the fallback token internally
         clearSessionFallback(); // belt-and-suspenders clear in case signOutWorker threw
         clearStorageUser();     // remove user namespace so next user starts clean
+        stampSignedOut();       // write sentinel so boot does not auto-relog via stale cookie
         _saveUser(null);
         setDriveToken(null);
         setDriveConnected(false);
