@@ -21,7 +21,7 @@
  * confusing score jumps — each is always weighted equally.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { CVData } from '../types';
 import { scoreHRDetection } from '../services/hrDetectorSimulation';
 import type { HRDetectionResult } from '../services/hrDetectorSimulation';
@@ -46,6 +46,34 @@ import { fixBulletsForSignal, fixSummaryForSignal, fixVerbSaturation } from '../
 const NAV   = '#1B2B4B';
 const GOLD  = '#C9A84C';
 const CREAM = '#F8F7F4';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Score History — localStorage-backed snapshot store
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HISTORY_KEY = 'procv:scoreHistory';
+const MAX_HISTORY = 10;
+
+interface ScoreSnapshot {
+  id: string;
+  timestamp: string;       // ISO string
+  cvName: string;
+  beforeScore: number;
+  afterScore: number;
+  delta: number;
+  fixesApplied: string[];  // signal labels
+}
+
+function loadHistory(): ScoreSnapshot[] {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]'); } catch { return []; }
+}
+
+function saveSnapshot(snap: ScoreSnapshot): ScoreSnapshot[] {
+  const existing = loadHistory().filter(s => s.id !== snap.id);
+  const updated = [snap, ...existing].slice(0, MAX_HISTORY);
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(updated)); } catch { /* storage full */ }
+  return updated;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bullet Quality — inline deterministic scorer
@@ -896,6 +924,26 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const [boostProgress, setBoostProgress]   = useState<{ current: number; total: number; label: string } | null>(null);
   const [boostDone, setBoostDone]           = useState(false);
 
+  // ── Score History ──────────────────────────────────────────────────────────
+  const [scoreHistory, setScoreHistory]     = useState<ScoreSnapshot[]>(() => loadHistory());
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  // Pending capture: filled just before boost auto-rescores, consumed by useEffect
+  const pendingCapture = useRef<{ id: string; beforeScore: number; cvName: string; fixesApplied: string[] } | null>(null);
+
+  // After every rescore, check whether we have a pending history capture to save
+  useEffect(() => {
+    if (!results || !pendingCapture.current) return;
+    const { id, beforeScore, cvName, fixesApplied } = pendingCapture.current;
+    pendingCapture.current = null;
+    const snap: ScoreSnapshot = {
+      id, timestamp: new Date().toISOString(), cvName,
+      beforeScore, afterScore: results.composite,
+      delta: results.composite - beforeScore,
+      fixesApplied,
+    };
+    setScoreHistory(saveSnapshot(snap));
+  }, [results]);
+
   /** Apply a single signal fix to `workingCV` in-place and return the updated copy. */
   const applyOneFix = useCallback(async (sigId: string, workingCV: CVData): Promise<CVData> => {
     if (BULLET_FIX_SIGNALS.has(sigId)) {
@@ -941,18 +989,21 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     if (!currentCV || !onCVUpdate || isBoostingAll) return;
     const pending = actions.filter(a => !fixedSignalIds.has(a.sigId));
     if (pending.length === 0) return;
+    // Capture before-score for history (results must exist at this point)
+    const beforeScore = results?.composite ?? 0;
+    const cvName = currentCV.name || currentCV.experience?.[0]?.jobTitle || 'CV';
     setIsBoostingAll(true);
     setBoostDone(false);
     setBoostProgress({ current: 0, total: pending.length, label: pending[0].label });
     let working: CVData = { ...currentCV };
-    const doneIds = new Set<string>();
+    const appliedLabels: string[] = [];
     for (let i = 0; i < pending.length; i++) {
       const { sigId, label } = pending[i];
       setBoostProgress({ current: i + 1, total: pending.length, label });
       try {
         working = await applyOneFix(sigId, working);
         onCVUpdate(working);
-        doneIds.add(sigId);
+        appliedLabels.push(label);
         setFixedSignalIds(prev => new Set([...prev, sigId]));
       } catch {
         // skip failed signal, continue with next
@@ -961,10 +1012,17 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
     setIsBoostingAll(false);
     setBoostProgress(null);
     setBoostDone(true);
+    // Register pending history capture — useEffect will save it after results update
+    pendingCapture.current = {
+      id: `boost-${Date.now()}`,
+      beforeScore,
+      cvName,
+      fixesApplied: appliedLabels,
+    };
     // Auto re-score after a short delay so the CV state has settled
     setTimeout(() => runScore(), 400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCV, onCVUpdate, fixedSignalIds, isBoostingAll, applyOneFix]);
+  }, [currentCV, onCVUpdate, fixedSignalIds, isBoostingAll, applyOneFix, results]);
 
   // Fetch CF banned phrases on mount — Score My CV is now data-driven
   useEffect(() => {
@@ -1318,6 +1376,91 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </div>
         )}
 
+        {/* ── Score History Timeline ── */}
+        {scoreHistory.length > 0 && (
+          <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden bg-white dark:bg-neutral-900">
+            <button
+              onClick={() => setHistoryExpanded(e => !e)}
+              className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-zinc-50 dark:hover:bg-neutral-800/60 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">📈</span>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Score Improvement History</p>
+                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{scoreHistory.length} boost session{scoreHistory.length !== 1 ? 's' : ''} recorded</p>
+                </div>
+              </div>
+              <span className="text-zinc-400 text-xs">{historyExpanded ? '▲' : '▼'}</span>
+            </button>
+            {historyExpanded && (
+              <div className="border-t border-zinc-100 dark:border-neutral-800">
+                {/* Sparkline summary row */}
+                <div className="px-4 py-3 flex items-center gap-2 overflow-x-auto">
+                  {[...scoreHistory].reverse().map((snap, i) => {
+                    const m = scoreMeta(snap.afterScore);
+                    return (
+                      <React.Fragment key={snap.id}>
+                        {i > 0 && <div className="flex-shrink-0 w-6 h-0.5 bg-zinc-200 dark:bg-neutral-700" />}
+                        <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                               style={{ background: m.bar }}>
+                            {snap.afterScore}
+                          </div>
+                          <p className="text-[9px] text-zinc-400 whitespace-nowrap">{new Date(snap.timestamp).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}</p>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+                {/* Session detail cards */}
+                <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                  {scoreHistory.map(snap => {
+                    const delta = snap.delta;
+                    const deltaMeta = delta > 0 ? { color: '#059669', prefix: '+' } : delta < 0 ? { color: '#dc2626', prefix: '' } : { color: '#a1a1aa', prefix: '±' };
+                    return (
+                      <div key={snap.id} className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{snap.cvName}</p>
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                              {new Date(snap.timestamp).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                            </p>
+                            {snap.fixesApplied.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {snap.fixesApplied.map(f => (
+                                  <span key={f} className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-neutral-700 text-zinc-500 dark:text-zinc-400">{f}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0 flex items-center gap-2 text-right">
+                            <div className="text-xs text-zinc-400">
+                              <span className="line-through">{snap.beforeScore}</span>
+                              <span className="mx-1 text-zinc-300">→</span>
+                              <span className="font-bold text-zinc-700 dark:text-zinc-200">{snap.afterScore}</span>
+                            </div>
+                            <span className="text-sm font-black tabular-nums" style={{ color: deltaMeta.color }}>
+                              {deltaMeta.prefix}{delta}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="px-4 py-2.5 border-t border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-800/40 flex justify-end">
+                  <button
+                    onClick={() => { localStorage.removeItem(HISTORY_KEY); setScoreHistory([]); }}
+                    className="text-[11px] text-zinc-400 hover:text-rose-500 transition-colors"
+                  >
+                    Clear history
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Bottom CTA */}
         <div className="rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4 justify-between" style={{ background: NAV }}>
           <div>
@@ -1379,6 +1522,76 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
           </span>
         </div>
       </div>
+
+      {/* ── Past score history — visible even before scoring ── */}
+      {scoreHistory.length > 0 && (
+        <div className="rounded-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden bg-white dark:bg-neutral-900">
+          <button
+            onClick={() => setHistoryExpanded(e => !e)}
+            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-zinc-50 dark:hover:bg-neutral-800/60 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">📈</span>
+              <div className="text-left">
+                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Score Improvement History</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                  Best: <span className="font-semibold" style={{ color: GOLD }}>{Math.max(...scoreHistory.map(s => s.afterScore))}</span>
+                  {' · '}Total improvement: <span className="font-semibold text-emerald-600">+{scoreHistory.reduce((a,s) => a + Math.max(0, s.delta), 0)}</span>
+                  {' · '}{scoreHistory.length} session{scoreHistory.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+            <span className="text-zinc-400 text-xs">{historyExpanded ? '▲' : '▼'}</span>
+          </button>
+          {historyExpanded && (
+            <div className="border-t border-zinc-100 dark:border-neutral-800">
+              {/* Sparkline */}
+              <div className="px-4 py-3 flex items-center gap-2 overflow-x-auto">
+                {[...scoreHistory].reverse().map((snap, i) => {
+                  const m = scoreMeta(snap.afterScore);
+                  return (
+                    <React.Fragment key={snap.id}>
+                      {i > 0 && <div className="flex-shrink-0 w-6 h-0.5 bg-zinc-200 dark:bg-neutral-700" />}
+                      <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white" style={{ background: m.bar }}>
+                          {snap.afterScore}
+                        </div>
+                        <p className="text-[9px] text-zinc-400 whitespace-nowrap">{new Date(snap.timestamp).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}</p>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <div className="divide-y divide-zinc-100 dark:divide-neutral-800">
+                {scoreHistory.map(snap => {
+                  const delta = snap.delta;
+                  const dc = delta > 0 ? '#059669' : delta < 0 ? '#dc2626' : '#a1a1aa';
+                  const dp = delta > 0 ? '+' : '';
+                  return (
+                    <div key={snap.id} className="px-4 py-2.5 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 truncate">{snap.cvName}</p>
+                        <p className="text-[11px] text-zinc-400 mt-0.5">{new Date(snap.timestamp).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</p>
+                      </div>
+                      <div className="text-xs text-zinc-400 text-right">
+                        <span className="line-through">{snap.beforeScore}</span>
+                        <span className="mx-1">→</span>
+                        <span className="font-bold text-zinc-700 dark:text-zinc-200">{snap.afterScore}</span>
+                      </div>
+                      <span className="text-sm font-black tabular-nums w-8 text-right" style={{ color: dc }}>{dp}{delta}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="px-4 py-2.5 border-t border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-800/40 flex justify-end">
+                <button onClick={() => { localStorage.removeItem(HISTORY_KEY); setScoreHistory([]); }} className="text-[11px] text-zinc-400 hover:text-rose-500 transition-colors">
+                  Clear history
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* What we check */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
