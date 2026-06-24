@@ -71,6 +71,7 @@ import { ProfileManager } from "./components/ProfileManager";
 import NegotiationCoach from "./components/NegotiationCoach";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import LandingPage from "./components/LandingPage";
+import VideoTemplate from "./components/video/VideoTemplate";
 import AccountPage from "./components/AccountPage";
 
 import DriveConflictModal from "./components/DriveConflictModal";
@@ -2912,6 +2913,9 @@ const AppInner: React.FC = () => {
 const App: React.FC = () => {
   if (window.location.pathname.startsWith('/admin')) {
     return <AdminApp />;
+  }
+  if (window.location.pathname.startsWith('/how-it-works')) {
+    return <VideoTemplate />;
   }
   return (
     <AuthProvider>
