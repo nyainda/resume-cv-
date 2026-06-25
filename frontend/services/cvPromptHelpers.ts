@@ -27,6 +27,16 @@ export type CVField =
     | 'drought_management'
     | 'tech'
     | 'data_analytics'
+    // ── Tech specialisations ───────────────────────────────────────────────
+    | 'frontend_web'
+    | 'backend_eng'
+    | 'fullstack_eng'
+    | 'mobile_eng'
+    | 'ml_ai_eng'
+    | 'devops_infra'
+    | 'security_eng'
+    | 'qa_eng'
+    // ── Civil ─────────────────────────────────────────────────────────────
     | 'civil_engineering'
     | 'construction'
     | 'architecture'
@@ -43,6 +53,7 @@ export type CVField =
     | 'hr'
     | 'consulting'
     | 'operations'
+    | 'product_mgmt'
     | 'hospitality'
     | 'media'
     | 'general';

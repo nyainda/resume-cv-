@@ -151,3 +151,80 @@ export function findLeafByLabel(label: string): CVField | null {
 export function isKnownSlug(slug: string): boolean {
     return BY_SLUG.has(slug);
 }
+
+// ── 5. Fuzzy title resolver ────────────────────────────────────────────────
+
+/**
+ * Tokenise a string into lowercase alphabetical words of ≥ 3 characters.
+ * "React Native Developer" → ["react", "native", "developer"]
+ */
+function tokenise(text: string): Set<string> {
+    return new Set(
+        text.toLowerCase().split(/\W+/).filter(t => t.length >= 3)
+    );
+}
+
+/**
+ * Jaccard-like overlap between two token sets.
+ * Returns a value in [0, 1]. 1.0 = identical sets.
+ */
+function tokenOverlap(a: Set<string>, b: Set<string>): number {
+    if (a.size === 0 || b.size === 0) return 0;
+    let intersection = 0;
+    for (const t of a) { if (b.has(t)) intersection++; }
+    const union = a.size + b.size - intersection;
+    return intersection / union;
+}
+
+/**
+ * Fuzzy-resolve a free-text job title to the best-matching leaf slug.
+ *
+ * How it works:
+ *   1. Tokenise the title.
+ *   2. For each leaf node that has `keywords`, score each keyword phrase
+ *      against the title tokens using Jaccard overlap.
+ *   3. Return the leaf slug with the highest score above MIN_THRESHOLD.
+ *
+ * Returns `null` if no leaf scores above the threshold — the caller should
+ * fall back to the existing TITLE_FIELD_MAP / keyword scorer.
+ *
+ * @example
+ *   fuzzyResolveByTitle("React Native Developer")   // → "mobile_eng"
+ *   fuzzyResolveByTitle("Python Backend Engineer")  // → "backend_eng"
+ *   fuzzyResolveByTitle("ML/AI Research Engineer")  // → "ml_ai_eng"
+ *   fuzzyResolveByTitle("Agronomy Consultant")       // → null  (falls back)
+ */
+const MIN_THRESHOLD = 0.35;
+
+export function fuzzyResolveByTitle(title: string): string | null {
+    const titleTokens = tokenise(title);
+    if (titleTokens.size === 0) return null;
+
+    let best: { slug: string; score: number } | null = null;
+
+    for (const node of FIELD_ONTOLOGY) {
+        if (!node.isLeaf || !node.keywords || node.keywords.length === 0) continue;
+
+        let maxScore = 0;
+        for (const kw of node.keywords) {
+            const kwTokens = tokenise(kw);
+            const score = tokenOverlap(titleTokens, kwTokens);
+            if (score > maxScore) maxScore = score;
+        }
+
+        if (maxScore >= MIN_THRESHOLD && (!best || maxScore > best.score)) {
+            best = { slug: node.slug, score: maxScore };
+        }
+    }
+
+    return best?.slug ?? null;
+}
+
+/**
+ * Convenience wrapper: given a job title string, return the resolved
+ * CVField label (e.g. "Frontend / Web Engineering") or null.
+ */
+export function fuzzyResolveLabel(title: string): string | null {
+    const slug = fuzzyResolveByTitle(title);
+    return slug ? getFieldLabel(slug) : null;
+}
