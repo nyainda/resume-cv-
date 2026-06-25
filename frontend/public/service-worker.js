@@ -4,10 +4,15 @@
 // they are served fresh from the network and cached automatically on
 // first fetch. API calls (Cloudflare Worker, Drive, Google APIs) are
 // always network-first and never cached.
+//
+// ⚠️  skipWaiting() is NOT called automatically on install.
+//     A new SW sits in "waiting" state — it does NOT take over open tabs
+//     mid-session (which would cause a surprise reload and lose user work).
+//     The app shows an "Update available" banner; when the user clicks it
+//     the page sends SKIP_WAITING which triggers the swap.
 
-const CACHE_NAME = 'procv-v2';
+const CACHE_NAME = 'procv-v3';
 
-// The minimal shell we want available offline (so the app at least loads)
 const SHELL_URLS = [
   '/',
   '/index.html',
@@ -17,7 +22,7 @@ const SHELL_URLS = [
   '/logo.svg',
 ];
 
-// ── Install: cache the shell ──────────────────────────────────────────────
+// ── Install: cache shell, stay in waiting ──────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
@@ -29,54 +34,51 @@ self.addEventListener('install', event => {
         )
       )
     )
+    // No self.skipWaiting() — the new SW waits for the user to opt in.
   );
-  self.skipWaiting();
 });
 
-// ── Activate: delete old caches ───────────────────────────────────────────
+// ── On-demand: user clicked "Update" in the banner ────────────────────────
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// ── Activate: delete old caches, then claim clients ───────────────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== CACHE_NAME)
-          .map(k => caches.delete(k))
+    caches.keys()
+      .then(keys =>
+        Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
       )
-    )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // ── Fetch: network-first with shell fallback ──────────────────────────────
 self.addEventListener('fetch', event => {
   const { request } = event;
 
-  // Only handle GET requests over http(s)
   if (request.method !== 'GET') return;
   if (!request.url.startsWith('http')) return;
 
   const url = new URL(request.url);
 
-  // Never cache API calls, OAuth flows, or cross-origin resources
   const isApi = url.pathname.startsWith('/api/') ||
                 url.hostname !== self.location.hostname;
-  if (isApi) return; // let the browser handle it normally
+  if (isApi) return;
 
   event.respondWith(
     fetch(request)
       .then(networkResponse => {
-        // Cache valid same-origin responses (JS bundles, CSS, fonts, etc.)
-        if (
-          networkResponse.ok &&
-          networkResponse.type === 'basic'
-        ) {
+        if (networkResponse.ok && networkResponse.type === 'basic') {
           const clone = networkResponse.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
         return networkResponse;
       })
       .catch(() =>
-        // Network failed — serve from cache (shell / previously cached bundle)
         caches.match(request).then(cached =>
           cached ?? caches.match('/index.html')
         )

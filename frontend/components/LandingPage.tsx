@@ -800,12 +800,13 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, justifyContent: 'center' }}>
               {[
                 { label: 'Features', id: 'score-cv' },
-                { label: 'How It Works', id: 'pipe' },
+                { label: 'How It Works', id: 'pipe', href: '/how-it-works' },
                 { label: 'Templates', id: 'tpl' },
                 { label: 'Pricing', id: 'pricing' },
               ].map(item => (
                 <button key={item.label}
                   onClick={() => {
+                    if ((item as { href?: string }).href) { window.location.href = (item as { href?: string }).href!; return; }
                     const el = document.getElementById(item.id) || document.querySelector(`[data-s="${item.id}"]`);
                     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
@@ -869,12 +870,13 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           <div style={{ background: darkMode ? 'rgba(13,21,37,0.98)' : 'rgba(248,247,244,0.99)', borderTop: `1px solid ${border}`, padding: '8px 16px 16px' }}>
             {[
               { label: 'Features', id: 'score-cv' },
-              { label: 'How It Works', id: 'pipe' },
+              { label: 'How It Works', id: 'pipe', href: '/how-it-works' },
               { label: 'Templates', id: 'tpl' },
               { label: 'Pricing', id: 'pricing' },
             ].map(item => (
               <button key={item.label}
                 onClick={() => {
+                  if ((item as { href?: string }).href) { setMobileMenuOpen(false); window.location.href = (item as { href?: string }).href!; return; }
                   setMobileMenuOpen(false);
                   setTimeout(() => {
                     const el = document.getElementById(item.id) || document.querySelector(`[data-s="${item.id}"]`);
