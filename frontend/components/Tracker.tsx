@@ -217,6 +217,8 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
   const [mainTab, setMainTab] = useState<'applications' | 'stories'>('applications');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<Omit<TrackedApplication, 'id'> | TrackedApplication>(emptyForm());
+  const [pendingFeedback, setPendingFeedback] = useState<TrackedApplication | null>(null);
+  const [feedbackNote, setFeedbackNote] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'All'>('All');
   const [viewMode, setViewMode] = useState<'grid' | 'kanban'>('kanban');
@@ -300,6 +302,25 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
 
   const handleStatusChange = (id: string, status: ApplicationStatus) => {
     setTrackedApps(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+    // Trigger outcome feedback card when an app reaches a positive milestone
+    if (status === 'Interviewing' || status === 'Offer') {
+      const app = trackedApps.find(a => a.id === id);
+      if (app && !app.interviewFeedback) {
+        setPendingFeedback({ ...app, status });
+        setFeedbackNote('');
+      }
+    }
+  };
+
+  const handleRecordFeedback = (note: string) => {
+    if (!pendingFeedback) return;
+    setTrackedApps(prev => prev.map(a =>
+      a.id === pendingFeedback.id
+        ? { ...a, interviewFeedback: { gotInterview: true, note: note.trim() || undefined, recordedAt: new Date().toISOString() } }
+        : a
+    ));
+    setPendingFeedback(null);
+    setFeedbackNote('');
   };
 
   const handleDeleteStory = (id: string) => {
@@ -320,6 +341,42 @@ const Tracker: React.FC<TrackerProps> = ({ trackedApps, setTrackedApps, savedCVs
 
   return (
     <div className="space-y-6">
+
+      {/* ── Outcome feedback card ── */}
+      {pendingFeedback && (
+        <div className="rounded-xl border border-[#C9A84C]/50 bg-yellow-50 dark:bg-yellow-900/10 p-4 flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="text-2xl flex-shrink-0">🎉</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 mb-0.5">
+              {pendingFeedback.status === 'Offer' ? 'Offer received!' : 'Interview landed!'} — {pendingFeedback.roleTitle} @ {pendingFeedback.company}
+            </p>
+            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 mb-3">
+              Help us learn what works — add a quick note (optional) and we'll track this outcome.
+            </p>
+            <textarea
+              value={feedbackNote}
+              onChange={e => setFeedbackNote(e.target.value)}
+              placeholder="e.g. Used the Navy Sidebar template, focused on leadership bullets…"
+              rows={2}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40 mb-3"
+            />
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => handleRecordFeedback(feedbackNote)}
+                className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[#C9A84C] text-[#1B2B4B] hover:opacity-90 transition-opacity"
+              >
+                Save outcome
+              </button>
+              <button
+                onClick={() => setPendingFeedback(null)}
+                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-zinc-100 dark:bg-neutral-700 text-zinc-600 dark:text-zinc-300 hover:opacity-80 transition-opacity"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main tab switcher ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">

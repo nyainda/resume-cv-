@@ -398,6 +398,12 @@ export interface TrackedApplication {
   salary?: string;
   priority?: ApplicationPriority;
   notes: string;
+  /** Recorded when the user reaches Interviewing or Offer status. */
+  interviewFeedback?: {
+    gotInterview: boolean;
+    note?: string;
+    recordedAt: string;
+  };
 }
 
 

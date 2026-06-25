@@ -290,23 +290,86 @@ export function flattenCvText(cv: CVData): string {
     return parts.join(' ');
 }
 
+// ── Semantic synonym map ──────────────────────────────────────────────────────
+// Maps canonical tech terms → alternatives that mean the same thing.
+// When a JD keyword is NOT found literally in the CV, we check whether any
+// synonym IS present — these count as "semantic matches" (40% of the total score).
+// Keeps matching accurate without requiring exact keyword alignment.
+
+const SEMANTIC_SYNONYMS: Record<string, string[]> = {
+    kubernetes:                ['container orchestration', 'k8s', 'container cluster', 'helm', 'kubectl'],
+    docker:                    ['containerisation', 'containerization', 'container', 'dockerfile'],
+    aws:                       ['amazon web services', 'ec2', 's3', 'lambda', 'cloudfront', 'rds', 'cloud infrastructure'],
+    gcp:                       ['google cloud', 'google cloud platform', 'bigquery', 'cloud run', 'gke'],
+    azure:                     ['microsoft azure', 'azure devops', 'aks', 'azure functions'],
+    terraform:                 ['infrastructure as code', 'iac', 'pulumi', 'cloudformation'],
+    'ci/cd':                   ['continuous integration', 'continuous deployment', 'continuous delivery', 'pipeline', 'jenkins', 'github actions', 'gitlab ci'],
+    devops:                    ['site reliability', 'platform engineering', 'infrastructure', 'devsecops'],
+    'machine learning':        ['ml', 'deep learning', 'neural network', 'model training', 'ai/ml', 'artificial intelligence'],
+    'natural language processing': ['nlp', 'text classification', 'sentiment analysis', 'language model', 'llm'],
+    'computer vision':         ['image recognition', 'object detection', 'image classification', 'cv'],
+    python:                    ['py', 'python3', 'python 3', 'numpy', 'pandas', 'scikit'],
+    typescript:                ['ts', 'tsx', 'typed javascript'],
+    javascript:                ['js', 'es6', 'ecmascript', 'node', 'nodejs'],
+    react:                     ['reactjs', 'react.js', 'next.js', 'nextjs', 'jsx'],
+    sql:                       ['postgresql', 'mysql', 'sqlite', 'relational database', 'database queries', 'mssql'],
+    mongodb:                   ['nosql', 'document database', 'mongoose'],
+    graphql:                   ['api', 'rest api', 'gql'],
+    microservices:             ['distributed systems', 'service-oriented', 'soa', 'event-driven'],
+    agile:                     ['scrum', 'kanban', 'sprint', 'iterative', 'lean'],
+    'product management':      ['product owner', 'product roadmap', 'product strategy', 'go-to-market'],
+    'project management':      ['pmp', 'delivery management', 'programme management', 'project lead'],
+    'data science':            ['data analysis', 'analytics', 'statistical analysis', 'data mining'],
+    'data engineering':        ['etl', 'data pipeline', 'data warehouse', 'dbt', 'airflow', 'spark'],
+    'stakeholder management':  ['executive communication', 'c-suite', 'client management', 'relationship management'],
+    'technical writing':       ['documentation', 'api docs', 'runbooks', 'confluence'],
+    leadership:                ['managed team', 'led team', 'team lead', 'head of', 'director', 'people manager'],
+    figma:                     ['ui design', 'ux design', 'product design', 'prototyping', 'wireframing'],
+    salesforce:                ['crm', 'sales cloud', 'service cloud', 'sfdc'],
+    tableau:                   ['data visualisation', 'data visualization', 'powerbi', 'looker', 'dashboards'],
+    elasticsearch:             ['search', 'opensearch', 'full-text search', 'lucene'],
+    redis:                     ['caching', 'in-memory', 'cache layer'],
+    kafka:                     ['event streaming', 'message queue', 'pubsub', 'rabbitmq'],
+    linux:                     ['unix', 'bash', 'shell scripting', 'cli', 'ubuntu', 'centos'],
+    security:                  ['cybersecurity', 'infosec', 'vulnerability', 'penetration testing', 'compliance', 'soc 2', 'iso 27001'],
+    blockchain:                ['web3', 'smart contracts', 'solidity', 'ethereum', 'defi'],
+    'cross-functional':        ['cross-team', 'collaboration', 'interdepartmental', 'worked across'],
+    communication:             ['presentation', 'written communication', 'verbal', 'public speaking'],
+    mentoring:                 ['coaching', 'training', 'upskilling', 'onboarding'],
+    automation:                ['scripting', 'workflow automation', 'rpa', 'zapier', 'make'],
+    'business analysis':       ['requirements gathering', 'process improvement', 'brd', 'functional specification'],
+    'financial modelling':     ['financial analysis', 'excel modelling', 'forecasting', 'fp&a', 'valuation'],
+};
+
 // ── Coverage scoring ──────────────────────────────────────────────────────────
 
 export interface AtsKeywordReport {
     keywords: string[];
     matched: string[];
     missing: string[];
-    score: number;   // 0–100
+    score: number;          // 0-100 keyword-only (legacy field, preserved)
+    semanticScore: number;  // 0-100 composite (40% keyword + 40% semantic + 20% evidence)
     hasJd: boolean;
+    breakdown: {
+        keywordPct: number;   // % of JD keywords found literally in CV
+        semanticPct: number;  // % of missing keywords matched via synonym
+        evidencePct: number;  // % of matched keywords found in experience bullets (not just skills)
+    };
 }
 
 const EMPTY_REPORT: AtsKeywordReport = {
-    keywords: [], matched: [], missing: [], score: 100, hasJd: false,
+    keywords: [], matched: [], missing: [],
+    score: 100, semanticScore: 100, hasJd: false,
+    breakdown: { keywordPct: 100, semanticPct: 100, evidencePct: 100 },
 };
 
 /**
- * Scores how many extracted JD keywords appear in the CV text.
- * Returns an AtsKeywordReport. O(keywords × cvText).
+ * Scores how well the CV covers JD keywords — three ways:
+ *  1. Direct keyword match (literal, case-insensitive whole-word)
+ *  2. Semantic match (synonym lookup for missed keywords)
+ *  3. Evidence coverage (keywords that appear in bullets, not just skills)
+ *
+ * Final composite: 40% keyword + 40% semantic + 20% evidence.
  */
 export function scoreAtsCoverage(cv: CVData, jd: string): AtsKeywordReport {
     if (!jd || !jd.trim()) return EMPTY_REPORT;
@@ -315,17 +378,65 @@ export function scoreAtsCoverage(cv: CVData, jd: string): AtsKeywordReport {
     if (keywords.length === 0) return { ...EMPTY_REPORT, hasJd: true };
 
     const cvText = flattenCvText(cv);
+
+    // Flatten only the experience bullets for the evidence check
+    const experienceText = (cv.experience ?? [])
+        .flatMap(e => e.responsibilities ?? [])
+        .join(' ');
+
     const matched: string[] = [];
+    const semanticMatched: string[] = [];  // missing but matched via synonym
     const missing: string[] = [];
+    let evidenceCount = 0;  // matched keywords that appear in bullets
+
+    const testInText = (term: string, text: string) => {
+        const pattern = term.includes(' ')
+            ? term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            : `\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`;
+        return new RegExp(pattern, 'i').test(text);
+    };
 
     for (const kw of keywords) {
-        const pattern = kw.includes(' ')
-            ? kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            : `\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`;
-        const rx = new RegExp(pattern, 'i');
-        (rx.test(cvText) ? matched : missing).push(kw);
+        const directHit = testInText(kw, cvText);
+
+        if (directHit) {
+            matched.push(kw);
+            // Evidence: does the keyword appear in a bullet (not just skills)?
+            if (testInText(kw, experienceText)) evidenceCount++;
+        } else {
+            // Semantic fallback: check synonyms
+            const kwLower = kw.toLowerCase();
+            const synonyms = SEMANTIC_SYNONYMS[kwLower] ?? [];
+            const semanticHit = synonyms.some(syn => testInText(syn, cvText));
+            if (semanticHit) {
+                semanticMatched.push(kw);
+            } else {
+                missing.push(kw);
+            }
+        }
     }
 
-    const score = Math.round((matched.length / keywords.length) * 100);
-    return { keywords, matched, missing, score, hasJd: true };
+    const total = keywords.length;
+    const keywordPct  = Math.round((matched.length / total) * 100);
+    const semanticPct = Math.round(((matched.length + semanticMatched.length) / total) * 100);
+    const evidencePct = matched.length > 0
+        ? Math.round((evidenceCount / matched.length) * 100)
+        : 0;
+
+    // Composite: 40% keyword + 40% semantic + 20% evidence
+    const semanticScore = Math.round(
+        keywordPct  * 0.40 +
+        semanticPct * 0.40 +
+        evidencePct * 0.20
+    );
+
+    return {
+        keywords,
+        matched,
+        missing,
+        score: keywordPct,          // legacy field — keyword-only
+        semanticScore,              // recommended field to use
+        hasJd: true,
+        breakdown: { keywordPct, semanticPct, evidencePct },
+    };
 }
