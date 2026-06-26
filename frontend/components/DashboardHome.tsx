@@ -1,5 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import type { UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, CVData, UserProfile } from '../types';
+import { scoreCVCompleteness } from '../utils/cvCompleteness';
+import { profileToCV } from '../utils/profileToCV';
 function navTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -104,7 +106,15 @@ const DashboardHome: React.FC<Props> = ({
     setAudit(report);
   }, [activeSlot?.id, userProfile, currentCV]);
 
-  const profileComplete = audit?.profile_completeness ?? 0;
+  // Compute profile completeness live — never use the cached audit for this.
+  // The audit cache can be stale (computed when the profile was empty), and
+  // currentCV may be null on initial dashboard load. Deriving from profileToCV
+  // gives an accurate reading the moment the profile has any real data.
+  const profileComplete = useMemo(() => {
+    if (!userProfile) return 0;
+    const cvForScoring = currentCV ?? profileToCV(userProfile);
+    return scoreCVCompleteness(cvForScoring, userProfile).percent;
+  }, [currentCV, userProfile]);
 
   const nextSteps = useMemo(() => {
     const steps: { label: string; action: string; view?: string; isDrive?: boolean; isProfile?: boolean }[] = [];
