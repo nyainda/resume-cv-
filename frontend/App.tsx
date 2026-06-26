@@ -19,12 +19,9 @@ import {
 import { useStorage } from "./hooks/useStorage";
 import * as KeyVault from "./services/security/KeyVault";
 import { setRuntimeKeys } from "./services/security/RuntimeKeys";
-import { invalidateCVCache, loadRules } from "./services/geminiService";
-import { prewarmFontEmbedCache } from "./services/getCVHtml";
-import { prefetchVersions as prefetchPromptVersions } from "./services/promptRegistryClient";
-import { prefetchRuleConfigs } from "./services/ruleRegistryClient";
+import { invalidateCVCache } from "./services/geminiService";
 import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId, getLastSyncTimestamp, markSlotSyncedNow } from "./services/userDataCloudService";
-import { enqueueSlotSync, enqueuePrefsSync, flushSyncQueue, clearQueueForAccount, sanitiseStaleQueue } from "./services/storage/syncQueue";
+import { enqueueSlotSync, enqueuePrefsSync, clearQueueForAccount } from "./services/storage/syncQueue";
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from "./utils/clearUserStorage";
 import { getUserPrefix } from "./services/storage/userStorageNamespace";
 import { auditCvQuality } from "./services/cvNumberFidelity";
@@ -33,16 +30,7 @@ import { saveCVData, deleteCVData } from "./services/storage/cvDataStore";
 import { syncProfileToCache } from "./services/profileCacheClient";
 import { useProfileSlots } from "./hooks/useProfileSlots";
 import { colorBg, navTimeAgo, parseSlotData, PROFILE_COLORS } from "./utils/profileUtils";
-import {
-  MailIcon,
-  PivotNavIcon,
-  ScoreNavIcon,
-  LinkedInNavIcon,
-  InterviewNavIcon,
-  NegotiationNavIcon,
-  AnalyticsNavIcon,
-  UsersIcon,
-} from "./components/nav/NavIcons";
+import { UsersIcon } from "./components/nav/NavIcons";
 import DriveBackupPrompt from "./components/DriveBackupPrompt";
 import DashboardHome from "./components/DashboardHome";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
@@ -76,7 +64,7 @@ import VideoTemplate from "./components/video/VideoTemplate";
 import AccountPage from "./components/AccountPage";
 
 import DriveConflictModal from "./components/DriveConflictModal";
-import { OnboardingWizard, hasCompletedOnboarding, type PendingImportType } from "./components/OnboardingWizard";
+import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx, parseWordTextToProfile } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini } from "./services/geminiService";
 import OfflineBanner from "./components/OfflineBanner";
@@ -89,7 +77,11 @@ import StorageMapPage from "./components/StorageMapPage";
 import ScoreMyCVPage from "./components/ScoreMyCVPage";
 import CareerPivotPage from "./components/CareerPivotPage";
 import { useAutoSync } from "./hooks/useAutoSync";
-import { getDriveRouter, isDriveActive, migrateLocalToDrive } from "./services/storage/StorageRouter";
+import { useBootEffects } from "./hooks/useBootEffects";
+import { useAppNavigation } from "./hooks/useAppNavigation";
+import { useJsonImport } from "./hooks/useJsonImport";
+import JsonImportDialog from "./components/JsonImportDialog";
+import { getDriveRouter, migrateLocalToDrive } from "./services/storage/StorageRouter";
 import { deleteAllDriveData } from "./services/storage/DriveStorageService";
 import {
   Edit,
@@ -141,11 +133,6 @@ const AppInner: React.FC = () => {
   const driveRestoreSlotsRef = useRef<UserProfileSlot[] | null>(null);
   useEffect(() => { driveRestoreSlotsRef.current = driveRestoreSlots; }, [driveRestoreSlots]);
 
-  // ── Return-to-last-view after sign-out/sign-in ─────────────────────────
-  // Tracks the previous auth state so we can save the current view on
-  // sign-out and restore it on the next sign-in within the same tab session.
-  const prevAuthenticatedRef = useRef(false);
-
   // ── Multi-profile state (profiles, slots, per-profile CV/saved data) ──
   // All slot state + one-time migrations live in useProfileSlots.
   const {
@@ -167,19 +154,6 @@ const AppInner: React.FC = () => {
     starStories,
     setStarStories,
   } = useProfileSlots();
-
-  // Fetch CV pipeline rules from the CF Worker at boot.
-  useEffect(() => {
-    loadRules().catch(() => {});
-  }, []);
-
-  // Boot-time pre-warming (fonts, prompt versions, rule configs).
-  useEffect(() => {
-    sanitiseStaleQueue();
-    prewarmFontEmbedCache();
-    prefetchPromptVersions();
-    prefetchRuleConfigs();
-  }, []);
 
   // ── Drive restore-on-new-device ──────────────────────────────────────────
   useEffect(() => {
@@ -473,21 +447,9 @@ const AppInner: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
 
-  // Allow any component to open the pricing modal via a custom event
-  // (e.g. Tracker "Upgrade to track more" button, ProfileManager slot limit).
-  useEffect(() => {
-    const handler = () => setIsPricingOpen(true);
-    window.addEventListener('procv:openPricing', handler);
-    return () => window.removeEventListener('procv:openPricing', handler);
-  }, []);
+  // ── Boot-time side effects (prewarm, rules, sync, dark mode, events) ─────
+  useBootEffects({ darkMode, isAuthenticated, setIsPricingOpen, setIsSettingsOpen });
 
-  // Allow any component to open the settings modal via a custom event
-  // (e.g. FreePlanNudge "Connect Drive" button).
-  useEffect(() => {
-    const handler = () => setIsSettingsOpen(true);
-    window.addEventListener('procv:openSettings', handler);
-    return () => window.removeEventListener('procv:openSettings', handler);
-  }, []);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -526,6 +488,27 @@ const AppInner: React.FC = () => {
   const [showProfileManager, setShowProfileManager] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // ── Navigation: current view, admin hash routing, nav item definitions ──
+  const {
+    currentView,
+    setCurrentView,
+    primaryNav,
+    moreNavGroups,
+    allMoreItems,
+    isMoreActive,
+    handleNavClick,
+    GATED_VIEWS,
+  } = useAppNavigation({
+    isAuthenticated,
+    isAuthLoading,
+    isNewUser,
+    setShowLanding,
+    setShowOnboarding,
+    setIsPricingOpen,
+    setShowMoreMenu,
+    setShowMobileMenu,
+  });
   const profileManagerRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -582,82 +565,6 @@ const AppInner: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(rawApiSettings)]);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", !!darkMode);
-  }, [darkMode]);
-
-  // Sync user preferences to CF D1 — only when worker-authenticated (has session token)
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const timer = setTimeout(() => {
-      enqueuePrefsSync({
-        aiProvider: localStorage.getItem("cv_builder:aiProvider") ?? undefined,
-        cvPurpose: localStorage.getItem("cv:purpose") ?? undefined,
-        targetCompany: localStorage.getItem("cv:targetCompany") ?? undefined,
-        targetJobTitle: localStorage.getItem("cv:targetJobTitle") ?? undefined,
-        jdKeywords: localStorage.getItem("cv:jdKeywords") ?? undefined,
-        sidebarSections:
-          localStorage.getItem("cv_builder:sidebarSections") ?? undefined,
-        darkMode: !!darkMode,
-      }).catch(() => {});
-    }, 4000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [darkMode, isAuthenticated]);
-
-  // ── Sync-queue flush triggers ────────────────────────────────────────────
-  // Flush the IDB sync queue when the browser comes back online or the tab
-  // returns to the foreground. No polling — purely event-driven.
-  // flushSyncQueue is rate-limited internally (30 s for 'online', 5 min for
-  // 'visibility') so these handlers never hammer the CF worker KV tier.
-  useEffect(() => {
-    const onOnline = () => { flushSyncQueue('online').catch(() => {}); };
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        flushSyncQueue('visibility').catch(() => {});
-      }
-    };
-    window.addEventListener('online', onOnline);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('online', onOnline);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, []);
-
-  // Drive save error notifications
-  // Only show when Drive is actually active — suppresses false alarms on new
-  // accounts or after sign-out where stale Drive events may still fire.
-  useEffect(() => {
-    let lastErrorTime = 0;
-    const handleDriveError = (e: Event) => {
-      // Silently ignore if Drive sync is not enabled on this account.
-      // This prevents the toast from showing on fresh accounts or after sign-out
-      // when a queued Drive write from the previous session fires late.
-      if (!isDriveActive()) return;
-
-      const now = Date.now();
-      if (now - lastErrorTime < 5 * 60 * 1000) return; // throttle to once per 5 min
-      lastErrorTime = now;
-      const detail = (e as CustomEvent).detail;
-      const msg = detail?.error?.message || "Unknown error";
-      if (msg.includes("expired") || msg.includes("401")) {
-        toast.error(
-          "Cloud Sync Failed",
-          "Your Google session expired. Please sign in again via Cloud Sync settings.",
-        );
-      } else {
-        toast.error(
-          "Cloud Sync Failed",
-          "Could not save to Google Drive. Check your connection and sign-in status.",
-        );
-      }
-    };
-    window.addEventListener("drive-save-error", handleDriveError);
-    return () =>
-      window.removeEventListener("drive-save-error", handleDriveError);
-  }, [toast]);
 
   // ── Storage quota warning ─────────────────────────────────────────────────
   // Handled by the Drive backup prompt above (auto-shows when storage is full).
@@ -1472,84 +1379,22 @@ const AppInner: React.FC = () => {
   );
 
   // ── JSON profile import — asks user whether to update or create new ──────
-  const [jsonImportTimestamp, setJsonImportTimestamp] = useState<string>("");
-  const [pendingJsonImport, setPendingJsonImport] = useState<{
-    profile: UserProfile;
-    cvData: CVData;
-  } | null>(null);
-
-  const _applyJsonImport = useCallback(
-    (
-      profile: UserProfile,
-      cvData: CVData,
-      slotToUpdate: UserProfileSlot | null,
-    ) => {
-      if (slotToUpdate) {
-        const updatedSlot = { ...slotToUpdate, profile, currentCV: cvData };
-        setProfiles((prev) =>
-          prev.map((p) => (p.id === slotToUpdate.id ? updatedSlot : p)),
-        );
-        invalidateCVCache();
-        syncProfileToCache(updatedSlot).catch(() => {});
-        if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
-        toast.success(
-          "Profile Updated!",
-          "Your CV is ready — all templates are populated. Check your quality report below.",
-        );
-      } else {
-        const id = crypto.randomUUID();
-        const slot: UserProfileSlot = {
-          id,
-          name: profile.personalInfo?.name || "Imported Profile",
-          color: "indigo",
-          createdAt: new Date().toISOString(),
-          profile,
-          currentCV: cvData,
-        };
-        setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
-        setActiveProfileId(id);
-        syncProfileToCache(slot).catch(() => {});
-        if (isAuthenticated) enqueueSlotSync(slot).catch(() => {});
-        toast.success(
-          "Profile Imported!",
-          "Your CV is ready — all templates are populated. Check your quality report below.",
-        );
-      }
-      setCurrentView("generator");
-      setIsEditingProfile(false);
-      setJsonImportTimestamp(new Date().toISOString());
-    },
-    [setProfiles, setActiveProfileId, toast, isAuthenticated],
-  );
-
-  const handleJsonProfileImported = useCallback(
-    (profile: UserProfile) => {
-      const cvData = profileToCV(profile);
-      if (activeSlot) {
-        // Show the choice dialog — user decides to update current profile or create new.
-        setPendingJsonImport({ profile, cvData });
-      } else {
-        _applyJsonImport(profile, cvData, null);
-      }
-    },
-    [activeSlot, _applyJsonImport],
-  );
-
-  const handleConfirmUpdateCurrentProfile = useCallback(() => {
-    if (!pendingJsonImport) return;
-    _applyJsonImport(
-      pendingJsonImport.profile,
-      pendingJsonImport.cvData,
-      activeSlot,
-    );
-    setPendingJsonImport(null);
-  }, [pendingJsonImport, activeSlot, _applyJsonImport]);
-
-  const handleConfirmCreateNewProfile = useCallback(() => {
-    if (!pendingJsonImport) return;
-    _applyJsonImport(pendingJsonImport.profile, pendingJsonImport.cvData, null);
-    setPendingJsonImport(null);
-  }, [pendingJsonImport, _applyJsonImport]);
+  const {
+    jsonImportTimestamp,
+    pendingJsonImport,
+    handleJsonProfileImported,
+    handleConfirmUpdateCurrentProfile,
+    handleConfirmCreateNewProfile,
+    handleCancelJsonImport,
+  } = useJsonImport({
+    activeSlot,
+    isAuthenticated,
+    setProfiles,
+    setActiveProfileId,
+    setCurrentView,
+    setIsEditingProfile,
+    toast,
+  });
 
   // ── Onboarding wizard completion ──────────────────────────────────────────
   const handleOnboardingComplete = useCallback(
@@ -1596,54 +1441,6 @@ const AppInner: React.FC = () => {
     [handleApiSettingsSave, handleWordProfileImported, toast],
   );
 
-  const VIEW_KEY = 'procv:lastView';
-  const RESTORABLE_VIEWS = ['dashboard','generator','linkedin','interview','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
-  type RestorableView = typeof RESTORABLE_VIEWS[number];
-
-  const [currentView, setCurrentView] = useState<
-    | "dashboard"
-    | "generator"
-    | "linkedin"
-    | "interview"
-    | "essays"
-    | "history"
-    | "tracker"
-    | "toolkit"
-    | "email"
-    | "negotiation"
-    | "analytics"
-    | "score"
-    | "pivot"
-    | "account"
-    | "admin-leaks"
-    | "admin-cv-engine"
-    | "storage-map"
-  >(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_KEY);
-      if (saved && (RESTORABLE_VIEWS as readonly string[]).includes(saved)) {
-        return saved as RestorableView;
-      }
-    } catch { /* non-fatal */ }
-    return 'dashboard';
-  });
-
-  // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
-  // from the main nav so they don't clutter the user-facing UI; these are
-  // internal dashboards for managing the engine database and AI leaks.
-  useEffect(() => {
-    const sync = () => {
-      if (window.location.hash === "#admin/leaks")
-        setCurrentView("admin-leaks");
-      else if (window.location.hash === "#admin/cv-engine")
-        setCurrentView("admin-cv-engine");
-      else if (window.location.hash === "#admin/storage-map")
-        setCurrentView("storage-map");
-    };
-    sync();
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, []);
   const [sharedCVPayload, setSharedCVPayload] =
     useState<SharedCVPayload | null>(null);
 
@@ -1665,105 +1462,8 @@ const AppInner: React.FC = () => {
     () => apiSettings?.brevoApiKey || null,
     [apiSettings],
   );
-  const primaryNav = [
-    { id: "dashboard", label: "Home",         icon: FileText },
-    { id: "generator", label: "CV Generator", icon: FileText },
-    { id: "score",     label: "Score My CV",  icon: ScoreNavIcon },
-    { id: "interview", label: "Interview Prep", icon: InterviewNavIcon },
-    { id: "tracker",   label: "Job Tracker",  icon: Target },
-  ];
-
-  const moreNavGroups = [
-    {
-      label: "Apply",
-      items: [
-        { id: "email", label: "Email Apply", icon: MailIcon },
-        {
-          id: "negotiation",
-          label: "Salary Negotiation",
-          icon: NegotiationNavIcon,
-        },
-        { id: "essays", label: "Scholarship", icon: BookOpen },
-      ],
-    },
-    {
-      label: "Tools",
-      items: [
-        { id: "pivot",   label: "Career Pivot",   icon: PivotNavIcon },
-      ],
-    },
-    {
-      label: "Track",
-      items: [
-        { id: "history", label: "CV History", icon: List },
-        { id: "analytics", label: "Analytics", icon: AnalyticsNavIcon },
-      ],
-    },
-  ];
-
-  const allMoreItems = moreNavGroups.flatMap((g) => g.items);
-  const isMoreActive = allMoreItems.some((item) => item.id === currentView);
-
-  // ── Feature gate: views locked for pure free users (no API keys, no premium) ──
-  const GATED_VIEWS = new Set(['interview', 'email', 'negotiation', 'pivot', 'essays', 'analytics']);
-  const handleNavClick = useCallback((id: string) => {
-    if (isPureFreeTier() && GATED_VIEWS.has(id)) {
-      setIsPricingOpen(true);
-      return;
-    }
-    setCurrentView(id as any);
-    setShowMoreMenu(false);
-    setShowMobileMenu(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // ── Active slot color badge ────────────────────────────────────────────
   const slotColor = activeSlot?.color ?? "indigo";
-
-  // Persist currentView to localStorage so it survives page refreshes and sign-out → sign-in.
-  useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_KEY, currentView);
-      sessionStorage.setItem(VIEW_KEY, currentView); // keep sessionStorage in sync for sign-out cycle
-    } catch { /* non-fatal */ }
-  }, [currentView]);
-
-  // Hide landing whenever authenticated — profiles are optional.
-  // This prevents the refresh bug where a valid session + no profiles = landing page.
-  // Onboarding is only shown for genuinely NEW accounts (server confirms is_new_user=true)
-  // AND only if the user hasn't already completed onboarding before (local flag).
-  // Returning users on a fresh device get their profiles from D1 auto-restore instead.
-  useEffect(() => {
-    const wasAuthenticated = prevAuthenticatedRef.current;
-    prevAuthenticatedRef.current = isAuthenticated;
-
-    if (isAuthenticated) {
-      setShowLanding(false);
-      // Only show onboarding for brand-new accounts that haven't completed setup yet.
-      if (isNewUser && !hasCompletedOnboarding()) {
-        setShowOnboarding(true);
-      }
-      // Restore the view the user was on before they signed out.
-      // sessionStorage is preferred (same tab), localStorage is the fallback (cross-tab/refresh).
-      if (!wasAuthenticated) {
-        try {
-          const saved = sessionStorage.getItem(VIEW_KEY) || localStorage.getItem(VIEW_KEY);
-          if (saved && (RESTORABLE_VIEWS as readonly string[]).includes(saved)) {
-            setCurrentView(saved as RestorableView);
-          }
-        } catch { /* non-fatal */ }
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, isNewUser]);
-
-  // When auth validation completes and no valid session exists, return to landing
-  // so returning users with expired sessions must sign in again.
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      setShowLanding(true);
-    }
-  }, [isAuthLoading, isAuthenticated]);
 
   // Show a loading screen while we validate the stored session on mount.
   // This prevents a flash of the main app for users whose session has expired.
@@ -2802,64 +2502,13 @@ const AppInner: React.FC = () => {
 
       {/* ── JSON import choice dialog — update current profile or create new ── */}
       {pendingJsonImport && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
-            {/* Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-zinc-100 dark:border-neutral-800">
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                Import JSON Profile
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                You already have a profile called{" "}
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-                  "{activeSlot?.name}"
-                </span>
-                . What would you like to do?
-              </p>
-            </div>
-            {/* Options */}
-            <div className="p-4 space-y-3">
-              {/* Option A — update current */}
-              <button
-                onClick={handleConfirmUpdateCurrentProfile}
-                className="w-full text-left p-4 rounded-xl border-2 border-[#1B2B4B] dark:border-[#C9A84C] bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/5 hover:bg-[#1B2B4B]/10 dark:hover:bg-[#C9A84C]/10 transition-colors group"
-              >
-                <p className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C] group-hover:underline">
-                  Replace "{activeSlot?.name}"
-                </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  Overwrites the current profile and CV data with the imported
-                  JSON. Cannot be undone.
-                </p>
-              </button>
-              {/* Option B — create new */}
-              <button
-                onClick={handleConfirmCreateNewProfile}
-                className="w-full text-left p-4 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 hover:border-violet-400 dark:hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors group"
-              >
-                <p className="font-semibold text-zinc-800 dark:text-zinc-100 group-hover:text-violet-700 dark:group-hover:text-violet-300">
-                  Create new profile — "
-                  {pendingJsonImport.profile?.personalInfo?.name ||
-                    "Imported Profile"}
-                  "
-                </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  Keeps your existing profile and adds this as a separate
-                  profile you can switch between.
-                </p>
-              </button>
-            </div>
-            {/* Cancel */}
-            <div className="px-4 pb-4 flex justify-end">
-              <button
-                onClick={() => setPendingJsonImport(null)}
-                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <JsonImportDialog
+          pendingImport={pendingJsonImport}
+          activeSlotName={activeSlot?.name}
+          onConfirmUpdate={handleConfirmUpdateCurrentProfile}
+          onConfirmCreate={handleConfirmCreateNewProfile}
+          onCancel={handleCancelJsonImport}
+        />
       )}
 
       {/* ── Drive restore-on-new-device prompt ── */}
