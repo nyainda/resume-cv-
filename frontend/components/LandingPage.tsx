@@ -1169,6 +1169,192 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
       </section>
 
+      {/* ── How It Works ─────────────────────────────────────────────── */}
+      <section
+        ref={reg('hiw')} data-s="hiw"
+        style={{
+          background: surface,
+          padding: isMobile ? '56px 20px' : isLarge ? '96px 48px' : '72px 32px',
+          borderTop: `1px solid ${border}`,
+          opacity: v('hiw') ? 1 : 0, transform: v('hiw') ? 'none' : 'translateY(24px)',
+          transition: 'opacity 0.55s, transform 0.55s',
+        }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
+
+          {/* Section header */}
+          <div style={{ textAlign: 'center', marginBottom: isMobile ? 44 : 64 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#1B2B4B', color: '#C9A84C', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '5px 14px', borderRadius: 99, marginBottom: 18 }}>
+              ✦ 3 simple steps
+            </div>
+            <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1, color: text }}>
+              From blank page to{' '}
+              <span style={{ color: '#C9A84C' }}>interview-ready CV</span>
+            </h2>
+            <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' }}>
+              No manual formatting. No guesswork. No AI-sounding output that gets you filtered out.
+            </p>
+          </div>
+
+          {/* Steps */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)',
+            gap: isMobile ? 0 : isLarge ? 40 : 28,
+            position: 'relative',
+          }}>
+            {/* Connecting line — desktop only */}
+            {!isMobile && (
+              <div style={{
+                position: 'absolute',
+                top: isLarge ? 44 : 40,
+                left: `calc(${isLarge ? '40px' : '28px'} + 16.67%)`,
+                right: `calc(${isLarge ? '40px' : '28px'} + 16.67%)`,
+                height: 1,
+                background: `linear-gradient(90deg, ${border} 0%, #C9A84C 50%, ${border} 100%)`,
+                zIndex: 0,
+              }} />
+            )}
+
+            {[
+              {
+                n: 1,
+                icon: (
+                  <svg width={22} height={22} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                ),
+                title: 'Import your profile',
+                body: 'Paste your existing CV, upload a Word doc, or fill in a quick form. ProCV extracts your real experience, numbers, and skills — no invented context.',
+                detail: 'Supports .docx, PDF text, and plain paste',
+                color: '#3b82f6',
+              },
+              {
+                n: 2,
+                icon: (
+                  <svg width={22} height={22} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                ),
+                title: 'Generate a tailored CV',
+                body: 'Paste the job description. The 7-pass engine pins missing keywords, writes metric-dense bullets, strips AI tells, and validates every number — in under 3 minutes.',
+                detail: '7 quality checks · ATS gap pinning · human-voice output',
+                color: '#C9A84C',
+              },
+              {
+                n: 3,
+                icon: (
+                  <svg width={22} height={22} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                ),
+                title: 'Download a pixel-perfect PDF',
+                body: 'Pick from 35+ templates. The PDF is rendered by headless Chrome — what you see on screen is exactly what you get. No layout surprises, no font substitutions.',
+                detail: 'WYSIWYG · $2 per download · free to preview',
+                color: '#22c55e',
+              },
+            ].map((step, i) => (
+              <div key={i} style={{ position: 'relative', zIndex: 1 }}>
+                {/* Mobile connector */}
+                {isMobile && i < 2 && (
+                  <div style={{ position: 'absolute', left: 39, top: '100%', width: 1, height: 32, background: border, zIndex: 0 }} />
+                )}
+
+                <div style={{
+                  background: darkMode ? elevated : '#fff',
+                  border: `1px solid ${border}`,
+                  borderRadius: 18,
+                  padding: isLarge ? '36px 32px 28px' : '28px 24px 22px',
+                  height: isMobile ? 'auto' : '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0,
+                  transition: 'box-shadow 0.2s, transform 0.2s',
+                  marginBottom: isMobile ? 32 : 0,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.09)';
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.transform = 'none';
+                }}>
+                  {/* Step number + icon row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+                    <div style={{
+                      width: isLarge ? 52 : 44,
+                      height: isLarge ? 52 : 44,
+                      borderRadius: '50%',
+                      background: '#EBFF38',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 4px 16px rgba(235,255,56,0.35)',
+                    }}>
+                      <span style={{ fontSize: isLarge ? 20 : 17, fontWeight: 900, color: '#111', letterSpacing: '-0.04em', lineHeight: 1 }}>{step.n}</span>
+                    </div>
+                    <div style={{
+                      width: 40, height: 40,
+                      borderRadius: 12,
+                      background: step.color + '18',
+                      border: `1px solid ${step.color}33`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: step.color, flexShrink: 0,
+                    }}>
+                      {step.icon}
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <h3 style={{ fontSize: isLarge ? 18 : 16, fontWeight: 900, margin: '0 0 10px', color: text, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                    {step.title}
+                  </h3>
+
+                  {/* Body */}
+                  <p style={{ fontSize: isLarge ? 14 : 13, color: muted, lineHeight: 1.7, margin: '0 0 18px', flex: 1 }}>
+                    {step.body}
+                  </p>
+
+                  {/* Detail chip */}
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    fontSize: 11, color: step.color, fontWeight: 700,
+                    background: step.color + '12',
+                    border: `1px solid ${step.color}30`,
+                    borderRadius: 8, padding: '5px 10px',
+                    width: 'fit-content',
+                  }}>
+                    <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {step.detail}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom CTA */}
+          <div style={{ textAlign: 'center', marginTop: isMobile ? 12 : 48 }}>
+            <button onClick={onGetStarted} style={{
+              padding: isLarge ? '14px 32px' : '12px 28px',
+              fontSize: isLarge ? 15 : 14,
+              fontWeight: 900, borderRadius: 10,
+              background: '#1B2B4B', border: 'none', cursor: 'pointer', color: '#fff',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
+              Start with Step 1 — it's free
+              <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </button>
+            <p style={{ fontSize: 12, color: faint, marginTop: 10 }}>No credit card · No data stored on our servers · $2 per PDF when you're ready</p>
+          </div>
+
+        </div>
+      </section>
+
       {/* ── Company trust bar ────────────────────────────────────────── */}
       <section style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: isLarge ? '32px 48px' : '28px 24px', background: surface }}>
         <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
