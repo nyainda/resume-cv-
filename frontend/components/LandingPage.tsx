@@ -628,30 +628,6 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
     requestAnimationFrame(tick);
   }, [vis]);
 
-  // ── Social proof counter animation ────────────────────────────────────
-  const SOCIAL_STATS = [
-    { target: 63, suffix: ' pts', label: 'avg. ATS score lift', sub: '31 → 94 in a single generation pass' },
-    { target: 16, suffix: '',     label: 'AI-powered tools',     sub: 'Generate, analyse, coach and manage' },
-    { target: 35, suffix: '+',    label: 'professional templates', sub: 'Switch anytime — your data stays' },
-    { target: 150, suffix: '+',   label: 'company portals scanned', sub: 'Greenhouse, Lever, Ashby & more' },
-  ];
-  const [socialVals, setSocialVals] = useState(SOCIAL_STATS.map(() => 0));
-  const socialFired = useRef(false);
-  useEffect(() => {
-    if (!v('social') || socialFired.current) return;
-    socialFired.current = true;
-    const duration = 1600;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const p = Math.min((now - start) / duration, 1);
-      const ease = 1 - Math.pow(1 - p, 3);
-      setSocialVals(SOCIAL_STATS.map(s => Math.round(s.target * ease)));
-      if (p < 1) requestAnimationFrame(tick);
-      else setSocialVals(SOCIAL_STATS.map(s => s.target));
-    };
-    requestAnimationFrame(tick);
-  }, [vis]);
-
   // ── Score My CV state ──────────────────────────────────────────────────
   const [smCvText, setSmCvText] = useState('');
   const [smJdText, setSmJdText] = useState('');
@@ -1075,89 +1051,6 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 <div style={{ textAlign: 'center', fontSize: 11, color: faint }}>
                   Same person. Same experience. Different pipeline.
                 </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ── Social proof stats + testimonial ─────────────────────────── */}
-      <section
-        ref={reg('social')} data-s="social"
-        style={{ background: '#1B2B4B', padding: isMobile ? '52px 20px 44px' : isLarge ? '80px 48px 72px' : '64px 32px 56px' }}>
-        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
-
-          {/* Eyebrow */}
-          <div style={{ height: isMobile ? 36 : 52 }} />
-
-          {/* Stats row */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)',
-            gap: isMobile ? '36px 20px' : isLarge ? 0 : 0,
-          }}>
-            {SOCIAL_STATS.map((stat, i) => (
-              <div key={i} style={{
-                textAlign: 'center',
-                padding: isMobile ? '0' : isLarge ? '0 40px' : '0 24px',
-                borderRight: !isMobile && i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none',
-              }}>
-                <div style={{
-                  fontSize: isMobile ? '2.8rem' : isLarge ? '4rem' : '3.2rem',
-                  fontWeight: 900,
-                  letterSpacing: '-0.04em',
-                  color: '#EBFF38',
-                  lineHeight: 1,
-                  marginBottom: 10,
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {socialVals[i]}{stat.suffix}
-                </div>
-                <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: '#fff', marginBottom: 5 }}>
-                  {stat.label}
-                </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
-                  {stat.sub}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Divider */}
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: isMobile ? '40px 0' : '60px 0' }} />
-
-          {/* Testimonial */}
-          <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
-            {/* Stars */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 3, marginBottom: 18 }}>
-              {[...Array(5)].map((_, i) => (
-                <svg key={i} width={16} height={16} viewBox="0 0 24 24" fill="#C9A84C">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-              ))}
-            </div>
-            <p style={{
-              fontSize: isMobile ? 15 : isLarge ? 18 : 16,
-              color: 'rgba(255,255,255,0.82)',
-              lineHeight: 1.75,
-              fontStyle: 'italic',
-              margin: '0 0 24px',
-              letterSpacing: '-0.01em',
-            }}>
-              "I resubmitted to three roles I'd already been screened out of. Got interviews at two of them.
-              The only thing that changed was my CV — ProCV took my ATS score from 31 to 94."
-            </p>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: '50%',
-                background: 'linear-gradient(135deg,#C9A84C,#e8c86e)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 14, fontWeight: 900, color: '#1B2B4B', flexShrink: 0,
-              }}>SC</div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>Sarah C.</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>Senior Product Manager · London</div>
               </div>
             </div>
           </div>
