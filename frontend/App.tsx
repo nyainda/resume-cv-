@@ -8,95 +8,49 @@ import React, {
 import {
   UserProfile,
   CVData,
-  SavedCV,
-  SavedCoverLetter,
   ApiSettings,
-  TrackedApplication,
   UserProfileSlot,
-  ProfileColor,
-  STARStory,
 } from "./types";
 import { useStorage } from "./hooks/useStorage";
 import * as KeyVault from "./services/security/KeyVault";
 import { setRuntimeKeys } from "./services/security/RuntimeKeys";
-import { invalidateCVCache } from "./services/geminiService";
-import { syncSlot, syncPrefs, fetchUserData, deleteSlotFromCloud, getDeviceId, getLastSyncTimestamp, markSlotSyncedNow } from "./services/userDataCloudService";
-import { enqueueSlotSync, enqueuePrefsSync, clearQueueForAccount } from "./services/storage/syncQueue";
-import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from "./utils/clearUserStorage";
-import { getUserPrefix } from "./services/storage/userStorageNamespace";
-import { auditCvQuality } from "./services/cvNumberFidelity";
-import { profileToCV } from "./utils/profileToCV";
-import { saveCVData, deleteCVData } from "./services/storage/cvDataStore";
-import { syncProfileToCache } from "./services/profileCacheClient";
 import { useProfileSlots } from "./hooks/useProfileSlots";
-import { colorBg, navTimeAgo, parseSlotData, PROFILE_COLORS } from "./utils/profileUtils";
-import { UsersIcon } from "./components/nav/NavIcons";
-import DriveBackupPrompt from "./components/DriveBackupPrompt";
-import DashboardHome from "./components/DashboardHome";
+import { getUserPrefix } from "./services/storage/userStorageNamespace";
+import { enqueuePrefsSync, clearQueueForAccount } from "./services/storage/syncQueue";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
-import type { WorkerUser, RawSlot } from "./services/authService";
-import { drainPendingSlots } from "./services/authService";
+import type { WorkerUser } from "./services/authService";
 import AuthModal from "./components/AuthModal";
 import WelcomeModal from "./components/WelcomeModal";
 import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/ui/Toast";
-import ProfileForm from "./components/ProfileForm";
-import CVGenerator from "./components/CVGenerator";
 import PricingModal from "./components/PricingModal";
 import FreePlanNudge from "./components/FreePlanNudge";
 import SharedCVView from "./components/SharedCVView";
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
 import { fetchPublicProfile } from "./services/publicProfileService";
-import SavedCVs from "./components/SavedCVs";
-import CVHistory from "./components/CVHistory";
-import ScholarshipEssayWriter from "./components/ScholarshipEssayWriter";
 import SettingsModal from "./components/SettingsModal";
 import InactivityWarningModal from "./components/InactivityWarningModal";
-import Tracker from "./components/Tracker";
-import CVToolkit from "./components/CVToolkit";
-import EmailApply from "./components/EmailApply";
-import { ProfileManager } from "./components/ProfileManager";
-import NegotiationCoach from "./components/NegotiationCoach";
-import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import LandingPage from "./components/LandingPage";
 import VideoTemplate from "./components/video/VideoTemplate";
-import AccountPage from "./components/AccountPage";
-
+import DriveBackupPrompt from "./components/DriveBackupPrompt";
 import DriveConflictModal from "./components/DriveConflictModal";
+import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx, parseWordTextToProfile } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini } from "./services/geminiService";
-import OfflineBanner from "./components/OfflineBanner";
-import LinkedInGenerator from "./components/LinkedInGenerator";
-import InterviewPrep from "./components/InterviewPrep";
-import AdminLeaksPage from "./components/AdminLeaksPage";
-import AdminCVEnginePage from "./components/AdminCVEnginePage";
 import AdminApp from "./components/admin/AdminApp";
-import StorageMapPage from "./components/StorageMapPage";
-import ScoreMyCVPage from "./components/ScoreMyCVPage";
-import CareerPivotPage from "./components/CareerPivotPage";
+import JsonImportDialog from "./components/JsonImportDialog";
+import { migrateLocalToDrive } from "./services/storage/StorageRouter";
+import { isCVEngineConfigured } from "./services/cvEngineClient";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { useBootEffects } from "./hooks/useBootEffects";
 import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useJsonImport } from "./hooks/useJsonImport";
-import JsonImportDialog from "./components/JsonImportDialog";
-import { getDriveRouter, migrateLocalToDrive } from "./services/storage/StorageRouter";
-import { deleteAllDriveData } from "./services/storage/DriveStorageService";
-import {
-  Edit,
-  User,
-  List,
-  Settings,
-  FileText,
-  Target,
-  Moon,
-  Sun,
-  BookOpen,
-  Briefcase,
-} from "./components/icons";
-import { isCVEngineConfigured } from "./services/cvEngineClient";
-import { isPureFreeTier, getTier } from "./services/accountTierService";
+import { useProfileManager } from "./hooks/useProfileManager";
+import { useCVManager } from "./hooks/useCVManager";
+import AppNavbar from "./components/AppNavbar";
+import AppViewRouter from "./components/AppViewRouter";
 
 // ── Inner app ───────────────────────────────────────────────────────────────
 const AppInner: React.FC = () => {
@@ -107,7 +61,6 @@ const AppInner: React.FC = () => {
     authModalOpen,
     onAuthSuccess: _rawOnAuthSuccess,
     dismissAuth: onAuthDismiss,
-    showSignIn,
     signOut,
     requireAuth,
     isNewUser,
@@ -117,24 +70,16 @@ const AppInner: React.FC = () => {
     requestDriveAccess,
     driveToken,
   } = useAuth();
-  // AuthModal calls onSuccess(token, user) — adapt to useAuth's (user, isNew?) shape
-  const onAuthSuccess = useCallback((_token: string, u: WorkerUser) => _rawOnAuthSuccess(u), [_rawOnAuthSuccess]);
+  const onAuthSuccess = useCallback(
+    (_token: string, u: WorkerUser) => _rawOnAuthSuccess(u),
+    [_rawOnAuthSuccess],
+  );
   useAutoSync(isAuthenticated);
 
-  // ── Auth modal mode (signup vs sign-in copy) ────────────────────────────
-  const [authModalMode, setAuthModalMode] = useState<'signup' | 'signin'>('signup');
+  // ── Auth modal mode ─────────────────────────────────────────────────────
+  const [authModalMode, setAuthModalMode] = useState<"signup" | "signin">("signup");
 
-  // ── Drive restore-on-new-device flow ───────────────────────────────────
-  // When a user signs in on a device with no local profiles, silently check
-  // Drive for a backup and offer a one-tap restore. Only fires once per session.
-  const driveRestoreCheckedRef = useRef(false);
-  const [driveRestoreSlots, setDriveRestoreSlots] = useState<UserProfileSlot[] | null>(null);
-  // Ref so the D1 timeout callback can see the latest Drive result without stale closure
-  const driveRestoreSlotsRef = useRef<UserProfileSlot[] | null>(null);
-  useEffect(() => { driveRestoreSlotsRef.current = driveRestoreSlots; }, [driveRestoreSlots]);
-
-  // ── Multi-profile state (profiles, slots, per-profile CV/saved data) ──
-  // All slot state + one-time migrations live in useProfileSlots.
+  // ── Profile slots ────────────────────────────────────────────────────────
   const {
     profiles,
     setProfiles,
@@ -155,156 +100,7 @@ const AppInner: React.FC = () => {
     setStarStories,
   } = useProfileSlots();
 
-  // ── Drive restore-on-new-device ──────────────────────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated || driveRestoreCheckedRef.current) return;
-    if (profiles.length > 0) { driveRestoreCheckedRef.current = true; return; }
-    if (sessionStorage.getItem('procv:restore-dismissed')) { driveRestoreCheckedRef.current = true; return; }
-    driveRestoreCheckedRef.current = true;
-
-    const router = getDriveRouter();
-    if (!router) return;
-
-    router.load<UserProfileSlot[]>('profiles')
-      .then(slots => {
-        if (Array.isArray(slots) && slots.length > 0) {
-          setDriveRestoreSlots(slots);
-        }
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
-  // ── D1 merge-sync ─────────────────────────────────────────────────────────
-  // Runs on every sign-in and whenever the tab comes back into focus.
-  // Always fetches D1, then merges: slot-by-slot we pick the newer version.
-  //   • D1 newer  → apply locally (shows data edited on another device)
-  //   • Local newer / same → keep local, re-push to D1 if dirty
-  //   • In D1 only → restore locally
-  //   • Local only → push to D1
-  const d1RestoreCheckedRef = useRef(false);
-
-  const runD1MergeSync = useCallback(async (localSlots: UserProfileSlot[], source: string) => {
-    const data = await fetchUserData().catch(() => null);
-    if (!data?.slots?.length && localSlots.length === 0) return;
-
-    if (!data?.slots?.length) {
-      // Nothing in D1 yet — push everything local up
-      for (const slot of localSlots) void syncSlot(slot);
-      return;
-    }
-
-    const d1Map = new Map(data.slots.map(s => [s.slot_id, s]));
-    const localMap = new Map(localSlots.map(s => [s.id, s]));
-    const mergedSlots: UserProfileSlot[] = [];
-    const toPush: UserProfileSlot[] = [];
-    let anyD1Newer = false;
-
-    // Process every D1 slot
-    for (const d1Slot of data.slots) {
-      const local = localMap.get(d1Slot.slot_id);
-      if (!local) {
-        // Slot exists in D1 but not locally — restore it
-        const parsed = parseSlotData(d1Slot);
-        if (parsed) {
-          mergedSlots.push(parsed);
-          markSlotSyncedNow(d1Slot.slot_id);
-          anyD1Newer = true;
-        }
-        continue;
-      }
-      // Both exist — compare timestamps
-      const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0;
-      // Give 10s leeway for clock skew / in-flight pushes
-      if (d1Slot.updated_at > localPushTs + 10_000) {
-        // D1 is newer (edited on another device) → use D1 version
-        const parsed = parseSlotData(d1Slot);
-        if (parsed) {
-          mergedSlots.push(parsed);
-          markSlotSyncedNow(d1Slot.slot_id);
-          anyD1Newer = true;
-        } else {
-          mergedSlots.push(local); // parse failed, keep local
-        }
-      } else {
-        // Local is same-or-newer → keep local, push if dirty
-        mergedSlots.push(local);
-        toPush.push(local);
-      }
-    }
-
-    // Keep local-only slots (not in D1 yet) and push them up
-    for (const local of localSlots) {
-      if (!d1Map.has(local.id)) {
-        mergedSlots.push(local);
-        toPush.push(local);
-      }
-    }
-
-    // Push local-newer slots to D1 (fire-and-forget, hash-gated)
-    for (const slot of toPush) void syncSlot(slot);
-
-    if (anyD1Newer && mergedSlots.length > 0) {
-      setProfiles(mergedSlots);
-      try {
-        const storedId = localStorage.getItem('activeProfileId');
-        const parsed = storedId ? JSON.parse(storedId) : null;
-        const stillExists = parsed && mergedSlots.some(p => p.id === parsed);
-        if (!stillExists) setActiveProfileId(mergedSlots[0].id);
-      } catch { /* ignore */ }
-      if (localSlots.length === 0) {
-        setIsEditingProfile(false);
-        toast.success('Profiles restored', `${mergedSlots.length} profile${mergedSlots.length !== 1 ? 's' : ''} loaded from your account.`);
-      } else {
-        toast.success('Profiles synced', 'Updated from another device.');
-      }
-      console.log(`[D1Sync] Merged from ${source}: ${mergedSlots.length} slot(s), ${toPush.length} pushed up`);
-    } else if (mergedSlots.length > 0 && localSlots.length === 0) {
-      // Edge-case: all slots came from D1 but none were "newer" (e.g. first login on new device with existing D1 data)
-      setProfiles(mergedSlots);
-      setIsEditingProfile(false);
-      toast.success('Profiles restored', `${mergedSlots.length} profile${mergedSlots.length !== 1 ? 's' : ''} loaded from your account.`);
-      console.log(`[D1Sync] Restored from ${source}: ${mergedSlots.length} slot(s)`);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (d1RestoreCheckedRef.current) return;
-    d1RestoreCheckedRef.current = true;
-
-    // Drain any slots that piggybacked on the auth response, then merge with D1
-    drainPendingSlots(); // clears the buffer — full merge below picks up D1 anyway
-
-    void runD1MergeSync(profiles, 'login');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
-  // ── Cross-device sync on tab focus ────────────────────────────────────────
-  // When the user switches back to this tab (from another device session in
-  // another tab, or just comes back after a while) re-merge with D1 so any
-  // edits made elsewhere appear automatically. Throttled to once per 2 min.
-  const lastVisSyncRef = useRef(0);
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      const now = Date.now();
-      if (now - lastVisSyncRef.current < 2 * 60_000) return; // throttle 2 min
-      lastVisSyncRef.current = now;
-      // Use latest profiles via the setter callback pattern to avoid stale closure
-      setProfiles(current => {
-        void runD1MergeSync(current, 'visibility sync');
-        return current; // no change yet — runD1MergeSync will call setProfiles if needed
-      });
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
-  // rawApiSettings holds the encrypted blob from storage; apiSettings is the decrypted in-memory copy.
+  // ── API settings ─────────────────────────────────────────────────────────
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>(
     "apiSettings",
     { provider: "gemini", apiKey: null },
@@ -314,9 +110,65 @@ const AppInner: React.FC = () => {
     apiKey: null,
   });
   const [darkMode, setDarkMode] = useStorage<boolean>("darkMode", false);
-  // Synchronously check localStorage to avoid flash-to-profile on refresh.
-  // Must check the user-namespaced key first (u_<userId>:cv_builder:profiles)
-  // because initStorageNamespace() runs before React boots in index.tsx.
+
+  // Sync-once on mount: decrypt raw → in-memory
+  useEffect(() => {
+    let cancelled = false;
+    KeyVault.init().then(async () => {
+      try {
+        const decrypted = await KeyVault.decryptApiSettings(
+          rawApiSettings as unknown as Record<string, unknown>,
+        );
+        if (!cancelled) {
+          const s = decrypted as unknown as ApiSettings;
+          setApiSettings(s);
+          setRuntimeKeys({
+            apiKey: s.apiKey ?? null,
+            claudeApiKey: (s as any).claudeApiKey ?? null,
+            tavilyApiKey: (s as any).tavilyApiKey ?? null,
+            brevoApiKey: (s as any).brevoApiKey ?? null,
+            jsearchApiKey: (s as any).jsearchApiKey ?? null,
+          });
+        }
+      } catch {
+        if (!cancelled) setApiSettings(rawApiSettings);
+      }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(rawApiSettings)]);
+
+  const handleApiSettingsSave = useCallback(
+    async (plaintext: ApiSettings) => {
+      setApiSettings(plaintext);
+      setRuntimeKeys({
+        apiKey: plaintext.apiKey ?? null,
+        claudeApiKey: (plaintext as any).claudeApiKey ?? null,
+        tavilyApiKey: (plaintext as any).tavilyApiKey ?? null,
+        brevoApiKey: (plaintext as any).brevoApiKey ?? null,
+        jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
+      });
+      try {
+        await KeyVault.init();
+        const encrypted = await KeyVault.encryptApiSettings(
+          plaintext as unknown as Record<string, unknown>,
+        );
+        setRawApiSettings(encrypted as unknown as ApiSettings);
+      } catch {
+        setRawApiSettings(plaintext);
+      }
+      if (isAuthenticated) {
+        enqueuePrefsSync({
+          aiProvider: localStorage.getItem("cv_builder:aiProvider") ?? undefined,
+          sidebarSections: localStorage.getItem("cv_builder:sidebarSections") ?? undefined,
+          darkMode: !!darkMode,
+        }).catch(() => {});
+      }
+    },
+    [setRawApiSettings, isAuthenticated, darkMode],
+  );
+
+  // ── isEditingProfile: sync-safe init from localStorage ──────────────────
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(() => {
     try {
       const prefix = getUserPrefix();
@@ -331,19 +183,14 @@ const AppInner: React.FC = () => {
       return true;
     }
   });
-  // Show landing page when no profile has ever been created, OR when there is
-  // no stored session token.  Initialising to `true` for sessionless users
-  // eliminates the one-render flash of the main app that happened between
-  // isAuthLoading going false and the effect setting showLanding = true.
+
+  // ── showLanding: sync-safe init ──────────────────────────────────────────
   const [showLanding, setShowLanding] = useState<boolean>(() => {
     try {
-      // No user stored → always start on landing (avoids flash of main app).
-      // Rule 6: raw tokens are no longer stored — check for the user object instead.
-      const hasSession = !!localStorage.getItem('procv:worker_user')
-        || !!localStorage.getItem('procv:worker_session'); // legacy key fallback
+      const hasSession =
+        !!localStorage.getItem("procv:worker_user") ||
+        !!localStorage.getItem("procv:worker_session");
       if (!hasSession) return true;
-
-      // Check user-namespaced key first (set by initStorageNamespace before React boots).
       const prefix = getUserPrefix();
       const raw =
         localStorage.getItem(`${prefix}cv_builder:profiles`) ||
@@ -357,139 +204,14 @@ const AppInner: React.FC = () => {
     }
   });
 
-  // Onboarding wizard — shown once to new users after they pass the landing page
   const [showOnboarding, setShowOnboarding] = useState(false);
-
-  // ── Drive backup prompt ───────────────────────────────────────────────────
-  // Shown automatically when:
-  //   (a) navigator.storage estimate > 70% full, OR
-  //   (b) LocalStorageService fires a 'storage-quota-warning' event (storage
-  //       is actually full and had to fall back to IDB-only for a key).
-  // Also available manually from Settings. Dismissed per session.
-  const [showDrivePrompt, setShowDrivePrompt]         = useState(false);
-  const [drivePromptDismissed, setDrivePromptDismissed] = useState(false);
-  const [driveConnecting, setDriveConnecting]           = useState(false);
-  const [driveMigrating, setDriveMigrating]             = useState(false);
-  const [driveMigrationProgress, setDriveMigrationProgress] = useState<{ uploaded: number; total: number } | null>(null);
-  const [driveMigrationDone, setDriveMigrationDone]     = useState(false);
-
-  // Auto-show: check storage estimate 10 s after sign-in (storage nearly full)
-  useEffect(() => {
-    if (driveConnected || drivePromptDismissed || !isAuthenticated) return;
-    const check = async () => {
-      try {
-        const est = await navigator.storage.estimate();
-        const used = est.usage ?? 0;
-        const quota = est.quota ?? 0;
-        if (quota > 0 && used / quota > 0.70) setShowDrivePrompt(true);
-      } catch { /* non-fatal */ }
-    };
-    const t = setTimeout(check, 10_000);
-    return () => clearTimeout(t);
-  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
-
-  // Auto-show: 8 s after first sign-in if Drive not yet connected and not already dismissed.
-  // Only shown once per account — keyed by the user's email in sessionStorage.
-  useEffect(() => {
-    if (!isAuthenticated || driveConnected || drivePromptDismissed) return;
-    const seenKey = `procv:drive_nudge_seen:${user?.email ?? 'anon'}`;
-    if (sessionStorage.getItem(seenKey)) return;
-    const t = setTimeout(() => {
-      if (!driveConnected && !drivePromptDismissed) {
-        setShowDrivePrompt(true);
-        sessionStorage.setItem(seenKey, '1');
-      }
-    }, 8_000);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, driveConnected]);
-
-  // Auto-show: immediately when localStorage overflows (storage-quota-warning)
-  useEffect(() => {
-    const handleQuotaFull = () => {
-      if (!driveConnected && !drivePromptDismissed && isAuthenticated) {
-        setShowDrivePrompt(true);
-      }
-    };
-    window.addEventListener('storage-quota-warning', handleQuotaFull);
-    return () => window.removeEventListener('storage-quota-warning', handleQuotaFull);
-  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
-
-  const handleConnectDrive = async () => {
-    setDriveConnecting(true);
-    setDriveMigrationDone(false);
-    try {
-      // Step 1: request Drive scope (popup — user already signed in with Google,
-      // so they just tap "Allow" once. No sign-in needed again.)
-      await requestDriveAccess();
-      setDriveConnecting(false);
-
-      // Step 2: migrate all existing localStorage + IDB data to Drive
-      setDriveMigrating(true);
-      await migrateLocalToDrive(
-        (uploaded, total) => setDriveMigrationProgress({ uploaded, total }),
-        user?.email ?? undefined,
-      );
-      setDriveMigrationProgress(null);
-      setDriveMigrating(false);
-      setDriveMigrationDone(true);
-
-      // Auto-close after a brief success flash
-      setTimeout(() => setShowDrivePrompt(false), 1800);
-    } catch {
-      // User cancelled the popup or Drive was unavailable — just hide the prompt
-      setDriveConnecting(false);
-      setDriveMigrating(false);
-      setDriveMigrationProgress(null);
-    }
-  };
-
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
 
-  // ── Boot-time side effects (prewarm, rules, sync, dark mode, events) ─────
+  // ── Boot effects ─────────────────────────────────────────────────────────
   useBootEffects({ darkMode, isAuthenticated, setIsPricingOpen, setIsSettingsOpen });
 
-  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
-  const lastActivityRef = useRef(Date.now());
-  const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ── Inactivity warning ───────────────────────────────────────────────────
-  // On shared devices, if the user stops interacting for 30 minutes while
-  // signed in, show a modal warning them they'll be signed out in 2 minutes.
-  // Resets on any real user interaction. Disabled when not signed in.
-  const INACTIVITY_MS = 30 * 60 * 1000;
-  useEffect(() => {
-    const isLoggedIn = !!user?.email;
-    if (!isLoggedIn) {
-      setShowInactivityWarning(false);
-      if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
-      return;
-    }
-    function resetActivity() {
-      lastActivityRef.current = Date.now();
-      setShowInactivityWarning(prev => prev ? false : prev);
-    }
-    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
-    events.forEach(ev => window.addEventListener(ev, resetActivity, { passive: true }));
-    inactivityTimerRef.current = setInterval(() => {
-      const idle = Date.now() - lastActivityRef.current;
-      if (idle >= INACTIVITY_MS) {
-        setShowInactivityWarning(true);
-      }
-    }, 60_000);
-    return () => {
-      events.forEach(ev => window.removeEventListener(ev, resetActivity));
-      if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email]);
-
-  const [showProfileManager, setShowProfileManager] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
-
-  // ── Navigation: current view, admin hash routing, nav item definitions ──
+  // ── Navigation ───────────────────────────────────────────────────────────
   const {
     currentView,
     setCurrentView,
@@ -506,879 +228,83 @@ const AppInner: React.FC = () => {
     setShowLanding,
     setShowOnboarding,
     setIsPricingOpen,
-    setShowMoreMenu,
-    setShowMobileMenu,
+    // AppNavbar manages its own menu state now:
+    setShowMoreMenu: () => {},
+    setShowMobileMenu: () => {},
   });
-  const profileManagerRef = useRef<HTMLDivElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+
   const toast = useToast();
 
-  // Email apply pre-fill state (set by CV Generator)
-  const [emailJd, setEmailJd] = useState<string>("");
+  // ── Profile manager hook ─────────────────────────────────────────────────
+  const {
+    driveRestoreSlots,
+    setDriveRestoreSlots,
+    handleRestoreProfileBullets,
+    handleProfileSave,
+    handleCreateProfile,
+    handleSwitchProfile,
+    handleDeleteProfile,
+    handleRenameProfile,
+    handlePinField,
+    handleUnpinField,
+    handleSlotUpdate,
+    handleDeleteAccount,
+    handleClearAllData,
+  } = useProfileManager({
+    profiles,
+    setProfiles,
+    activeProfileId,
+    setActiveProfileId,
+    activeSlot,
+    userProfile,
+    setUserProfile,
+    currentCV,
+    setCurrentCV,
+    setIsEditingProfile,
+    isAuthenticated,
+    driveToken,
+    deleteAccount: _deleteAccount,
+    toast,
+  });
 
-  // Interview prep pre-fill state (set by CV Generator)
-  const [interviewPrepJd, setInterviewPrepJd] = useState<string>("");
+  // ── CV manager hook ──────────────────────────────────────────────────────
+  const {
+    emailJd,
+    interviewPrepJd,
+    toolkitSuggestions,
+    setToolkitSuggestions,
+    toolkitForceTab,
+    setToolkitForceTab,
+    handleSaveCV,
+    handleSaveCVFromPipeline,
+    handleSaveCoverLetter,
+    handleDeleteCV,
+    handleSaveStories,
+    handleLoadCV,
+    handleAutoTrack,
+    handleApplyViaEmail,
+    handleGoToInterviewPrep,
+    handleGoToGenerator,
+    handleGitHubCVGenerated,
+    handleWordProfileImported,
+  } = useCVManager({
+    savedCVs,
+    setSavedCVs,
+    setSavedCoverLetters,
+    setTrackedApps,
+    setStarStories,
+    setCurrentCV,
+    setCurrentView,
+    setIsEditingProfile,
+    activeSlot,
+    profiles,
+    setProfiles,
+    setActiveProfileId,
+    isAuthenticated,
+    toast,
+  });
 
-  // Toolkit → Generator feedback loop
-  const [toolkitSuggestions, setToolkitSuggestions] = useState<string | null>(
-    null,
-  );
-
-  // Imperatively open the Toolkit to a specific tab (e.g. Quality Audit from Generator)
-  const [toolkitForceTab, setToolkitForceTab] = useState<string | undefined>(undefined);
-
-  // Detect mobile for ProfileManager overlay
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-
-  // KeyVault: init once, then decrypt rawApiSettings → apiSettings + RuntimeKeys
-  useEffect(() => {
-    let cancelled = false;
-    KeyVault.init().then(async () => {
-      try {
-        const decrypted = await KeyVault.decryptApiSettings(
-          rawApiSettings as Record<string, unknown>,
-        );
-        if (!cancelled) {
-          const s = decrypted as ApiSettings;
-          setApiSettings(s);
-          setRuntimeKeys({
-            apiKey: s.apiKey ?? null,
-            claudeApiKey: (s as any).claudeApiKey ?? null,
-            tavilyApiKey: (s as any).tavilyApiKey ?? null,
-            brevoApiKey: (s as any).brevoApiKey ?? null,
-            jsearchApiKey: (s as any).jsearchApiKey ?? null,
-          });
-        }
-      } catch {
-        if (!cancelled) setApiSettings(rawApiSettings);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(rawApiSettings)]);
-
-  // ── Storage quota warning ─────────────────────────────────────────────────
-  // Handled by the Drive backup prompt above (auto-shows when storage is full).
-  // Falls back to a plain toast only when Drive is already connected or the
-  // user has dismissed the prompt (so it never goes completely silent).
-
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.startsWith("#s=")) {
-      // Short D1-backed share link — fetch payload from worker
-      const id = hash.slice("#s=".length);
-      if (id) {
-        fetchSharePayload(id).then((compressed) => {
-          if (compressed) {
-            const payload = decodeSharePayload(compressed);
-            if (payload) setSharedCVPayload(payload);
-          }
-        });
-      }
-    } else if (hash.startsWith("#p=")) {
-      // Permanent public profile link — slug (new) or integer user ID (legacy)
-      const slugOrId = hash.slice("#p=".length);
-      if (slugOrId) {
-        fetchPublicProfile(slugOrId).then((payload) => {
-          if (payload) setSharedCVPayload(payload);
-        });
-      }
-    } else if (hash.startsWith("#share=")) {
-      // Legacy long-hash share link
-      const encoded = hash.slice("#share=".length);
-      const payload = decodeSharePayload(encoded);
-      if (payload) {
-        setSharedCVPayload(payload);
-      }
-    }
-    if (hash === "#test-cv") {
-      fetch("/test-cv-preview.json")
-        .then((r) => (r.ok ? r.json() : Promise.reject("not found")))
-        .then((cvData: CVData) => {
-          const slotId = "test-cv-preview";
-          const testProfile: UserProfile = {
-            personalInfo: {
-              name: "Alex Morgan",
-              email: "alex@example.com",
-              phone: "+44 7700 000000",
-              location: "London, UK",
-              linkedin: "linkedin.com/in/alexmorgan",
-              website: "",
-              github: "",
-            },
-            summary: cvData.summary,
-            workExperience: (cvData.experience ?? []).map((exp, i) => ({
-              id: `exp-${i}`,
-              company: exp.company,
-              jobTitle: exp.jobTitle,
-              startDate: exp.startDate,
-              endDate: exp.endDate,
-              responsibilities: (exp.responsibilities ?? []).join("\n"),
-            })),
-            education: (cvData.education ?? []).map((edu, i) => ({
-              id: `edu-${i}`,
-              degree: edu.degree,
-              school: edu.school,
-              graduationYear: edu.year,
-            })),
-            skills: cvData.skills ?? [],
-            projects: [],
-            languages: [],
-          };
-          const testSlot: UserProfileSlot = {
-            id: slotId,
-            name: "Test CV Preview",
-            color: "amber",
-            createdAt: new Date().toISOString(),
-            profile: testProfile,
-            currentCV: cvData,
-          };
-          // Force professional template so sidebar/compact templates don't crash on minimal data
-          try {
-            localStorage.setItem("template", "professional");
-          } catch {}
-          setProfiles((prev) => {
-            const exists = prev.some((p) => p.id === slotId);
-            return exists
-              ? prev.map((p) => (p.id === slotId ? testSlot : p))
-              : [testSlot, ...prev];
-          });
-          setActiveProfileId(slotId);
-          setCurrentCV(cvData);
-          setShowLanding(false);
-          setIsEditingProfile(false);
-          window.history.replaceState(null, "", window.location.pathname);
-        })
-        .catch(() => {});
-    }
-  }, []);
-
-  // Close More menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (
-        moreMenuRef.current &&
-        !moreMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowMoreMenu(false);
-      }
-    };
-    if (showMoreMenu) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showMoreMenu]);
-
-  // Close user menu on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (
-        userMenuRef.current &&
-        !userMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowUserMenu(false);
-      }
-    };
-    if (showUserMenu) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showUserMenu]);
-
-  // Close profile manager dropdown on outside click — desktop only.
-  // On mobile the bottom-sheet has its own backdrop tap handler, so attaching a
-  // global mousedown listener would immediately close the sheet whenever the user
-  // taps any button inside it (because those elements are outside profileManagerRef).
-  useEffect(() => {
-    if (isMobile) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        profileManagerRef.current &&
-        !profileManagerRef.current.contains(e.target as Node)
-      ) {
-        setShowProfileManager(false);
-      }
-    };
-    if (showProfileManager) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showProfileManager, isMobile]);
-
-  // ── API settings save: encrypt before persisting ──────────────────────
-  const handleApiSettingsSave = useCallback(
-    async (plaintext: ApiSettings) => {
-      // Update in-memory state immediately so the UI (Job Board, etc.) sees
-      // the new keys right away — don't make the user wait for async encryption.
-      setApiSettings(plaintext);
-      setRuntimeKeys({
-        apiKey: plaintext.apiKey ?? null,
-        claudeApiKey: (plaintext as any).claudeApiKey ?? null,
-        tavilyApiKey: (plaintext as any).tavilyApiKey ?? null,
-        brevoApiKey: (plaintext as any).brevoApiKey ?? null,
-        jsearchApiKey: (plaintext as any).jsearchApiKey ?? null,
-      });
-      // Then encrypt and persist to storage in the background.
-      try {
-        await KeyVault.init();
-        const encrypted = await KeyVault.encryptApiSettings(
-          plaintext as Record<string, unknown>,
-        );
-        setRawApiSettings(encrypted as unknown as ApiSettings);
-      } catch {
-        // Fallback: save without encryption rather than silently fail
-        setRawApiSettings(plaintext);
-      }
-      // Sync non-key preferences to D1 immediately — doesn't include API keys
-      // (those are encrypted locally, never sent to D1 for security reasons).
-      if (isAuthenticated) {
-        enqueuePrefsSync({
-          aiProvider:    localStorage.getItem("cv_builder:aiProvider") ?? undefined,
-          sidebarSections: localStorage.getItem("cv_builder:sidebarSections") ?? undefined,
-          darkMode:      !!darkMode,
-        }).catch(() => {});
-      }
-    },
-    [setRawApiSettings, isAuthenticated, darkMode],
-  );
-
-  // ── Profile Manager handlers ───────────────────────────────────────────
-
-  // Restore: reset the current CV's experience bullets back to raw profile text.
-  // Useful when the user wants to start a fresh AI generation from scratch.
-  const handleRestoreProfileBullets = useCallback(() => {
-    if (!currentCV || !userProfile) return;
-    const fromProfile = profileToCV(userProfile);
-    setCurrentCV((prev) => {
-      if (!prev) return prev;
-      const restored = prev.experience.map((cvExp) => {
-        const profileExp = fromProfile.experience.find(
-          (e) => e.company === cvExp.company && e.jobTitle === cvExp.jobTitle,
-        );
-        if (!profileExp) return cvExp;
-        return { ...cvExp, responsibilities: profileExp.responsibilities };
-      });
-      return {
-        ...prev,
-        experience: restored,
-        summary: userProfile.summary || prev.summary,
-      };
-    });
-  }, [currentCV, userProfile, setCurrentCV]);
-
-  const handleProfileSave = useCallback(
-    (profile: UserProfile) => {
-      if (activeSlot) {
-        setUserProfile(profile);
-        setIsEditingProfile(false);
-        // Sync updated profile to D1 cache + user_slots table (fire-and-forget).
-        syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
-        if (isAuthenticated)
-          enqueueSlotSync({ ...activeSlot, profile }).catch(() => {});
-      } else {
-        // First-time: auto-create a slot
-        const id = crypto.randomUUID();
-        const slot: UserProfileSlot = {
-          id,
-          name: profile.personalInfo?.name || "My Profile",
-          color: "indigo",
-          createdAt: new Date().toISOString(),
-          profile,
-        };
-        setProfiles([slot]);
-        setActiveProfileId(id);
-        setIsEditingProfile(false);
-        // Sync new profile to D1 cache + user_slots table (fire-and-forget).
-        syncProfileToCache(slot).catch(() => {});
-        enqueueSlotSync(slot).catch(() => {});
-      }
-
-      // Immediately sync ALL profile fields into the current CV so the preview
-      // reflects every edit without requiring a full AI regeneration.
-      setCurrentCV((prev) => {
-        if (!prev) return prev;
-
-        // Convert the saved profile to properly-formatted CV data so we get
-        // correct date formatting, bullet splitting, etc. without duplicating logic.
-        const fromProfile = profileToCV(profile);
-
-        // Convert the OLD (pre-save) profile so we can detect which bullets the
-        // user actually changed in the form vs which were already there.
-        const oldFromProfile = profileToCV(userProfile);
-
-        // Smart experience merge:
-        // • Matched by company + jobTitle (not index) — add/remove/reorder is safe.
-        // • If the user edited the responsibilities text in the profile form the
-        //   new profile bullets win (their explicit edit must be respected).
-        // • If the responsibilities text is unchanged the AI-polished CV bullets
-        //   are preserved and only dates are refreshed.
-        const mergedExperience = fromProfile.experience.map((newExp) => {
-          const prevCVExp = prev.experience.find(
-            (e) =>
-              e.company === newExp.company &&
-              e.jobTitle === newExp.jobTitle &&
-              (e.responsibilities ?? []).length > 0,
-          );
-          if (!prevCVExp) {
-            // New or renamed role — use fresh profile bullets
-            return newExp;
-          }
-
-          // Check whether the user changed the bullet text in the profile form
-          const oldExp = oldFromProfile.experience.find(
-            (e) =>
-              e.company === newExp.company && e.jobTitle === newExp.jobTitle,
-          );
-          const bulletsChangedInForm =
-            JSON.stringify(oldExp?.responsibilities ?? []) !==
-            JSON.stringify(newExp.responsibilities);
-
-          if (bulletsChangedInForm) {
-            // User explicitly edited bullets in the profile form — honour their edit
-            return {
-              ...prevCVExp,
-              responsibilities: newExp.responsibilities,
-              dates: newExp.dates,
-              startDate: newExp.startDate,
-              endDate: newExp.endDate,
-            };
-          }
-
-          // Bullets unchanged in form — keep AI-polished version, refresh dates only
-          return {
-            ...prevCVExp,
-            dates: newExp.dates,
-            startDate: newExp.startDate,
-            endDate: newExp.endDate,
-          };
-        });
-
-        return {
-          ...prev,
-          // Core profile fields — always sync so form edits appear immediately
-          summary: profile.summary || prev.summary,
-          experience:
-            mergedExperience.length > 0 ? mergedExperience : prev.experience,
-          education:
-            (fromProfile.education ?? []).length > 0
-              ? fromProfile.education
-              : prev.education,
-          // User-controlled data — prefer profile when non-empty
-          skills: (profile.skills ?? []).length > 0 ? profile.skills : prev.skills,
-          projects:
-            fromProfile.projects && fromProfile.projects.length > 0
-              ? fromProfile.projects
-              : prev.projects,
-          languages:
-            fromProfile.languages && fromProfile.languages.length > 0
-              ? fromProfile.languages
-              : prev.languages,
-          references:
-            fromProfile.references && fromProfile.references.length > 0
-              ? fromProfile.references
-              : prev.references,
-          customSections: (profile.customSections || []).filter((s) =>
-            s.items.some((i) => i.title.trim().length > 0),
-          ),
-          sectionOrder: profile.sectionOrder,
-        };
-      });
-    },
-    [activeSlot, setUserProfile, setProfiles, setActiveProfileId, setCurrentCV],
-  );
-
-  const handleCreateProfile = useCallback(
-    (name: string, color: ProfileColor, cloneFrom?: UserProfile) => {
-      const id = crypto.randomUUID();
-      const emptyProfile: UserProfile = {
-        personalInfo: {
-          name: "",
-          email: "",
-          phone: "",
-          location: "",
-          linkedin: "",
-          website: "",
-          github: "",
-        },
-        summary: "",
-        workExperience: [],
-        education: [],
-        skills: [],
-        projects: [],
-        languages: [],
-      };
-      const slot: UserProfileSlot = {
-        id,
-        name,
-        color,
-        createdAt: new Date().toISOString(),
-        profile: cloneFrom ? { ...cloneFrom } : emptyProfile,
-        // Explicitly initialize all per-slot data arrays so migration effects
-        // see them as "already initialized" and skip reading from legacy
-        // localStorage keys (which would bleed data from previous profiles).
-        currentCV: null,
-        savedCVs: [],
-        savedCoverLetters: [],
-        trackedApps: [],
-        starStories: [],
-      };
-      setProfiles((prev) => [...prev, slot]);
-      setActiveProfileId(id);
-      setIsEditingProfile(!cloneFrom); // jump to edit if blank
-      setShowProfileManager(false);
-      toast.success("Profile Created", `"${name}" is now your active profile.`);
-    },
-    [setProfiles, setActiveProfileId, toast],
-  );
-
-  const handleSwitchProfile = useCallback(
-    (slot: UserProfileSlot) => {
-      setActiveProfileId(slot.id);
-      setIsEditingProfile(false);
-      setShowProfileManager(false);
-      toast.success("Profile Switched", `Now using "${slot.name}".`);
-    },
-    [setActiveProfileId, toast],
-  );
-
-  const handleDeleteProfile = useCallback(
-    async (id: string) => {
-      // Save the slot in case we need to revert (Bug 2 fix).
-      const removed = profiles.find((p) => p.id === id);
-
-      // Optimistic local remove — fast UX.
-      setProfiles((prev) => {
-        const next = prev.filter((p) => p.id !== id);
-        if (activeProfileId === id && next.length > 0)
-          setActiveProfileId(next[0].id);
-        return next;
-      });
-
-      // Bug 2 fix: await the result and revert + error on failure instead of
-      // silently lying to the user. Data was never deleted if we return false.
-      const ok = await deleteSlotFromCloud(id);
-      if (!ok) {
-        if (removed) setProfiles((prev) => [...prev, removed]);
-        toast.error(
-          "Delete failed",
-          "Could not remove this profile from the server. Please try again.",
-        );
-        return;
-      }
-
-      toast.success("Profile Deleted", "Profile removed.");
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [profiles, setProfiles, activeProfileId, setActiveProfileId, toast],
-  );
-
-  const handleRenameProfile = useCallback(
-    (id: string, name: string, color: ProfileColor) => {
-      setProfiles((prev) => {
-        const next = prev.map((p) => (p.id === id ? { ...p, name, color } : p));
-        // Sync the renamed slot to D1 so the new name persists across devices / sign-outs.
-        const updated = next.find((p) => p.id === id);
-        if (updated && isAuthenticated) enqueueSlotSync(updated).catch(() => {});
-        return next;
-      });
-      toast.success("Profile Updated", `Renamed to "${name}".`);
-    },
-    [setProfiles, toast, isAuthenticated],
-  );
-
-  // ── Pin-field shortcut from the Generation Trace panel ────────────────
-  // Called when the user clicks "Pin this field" inside the Why-this-field
-  // tooltip. Patches preferredField on the active profile without opening
-  // the Profile form. Fire-and-forget sync to D1 / auth backend mirrors
-  // the same path as handleProfileSave.
-  const handlePinField = useCallback(
-    (field: string) => {
-      if (!userProfile || !activeSlot) return;
-      const updated: UserProfile = { ...userProfile, preferredField: field };
-      setUserProfile(updated);
-      syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
-      if (isAuthenticated)
-        enqueueSlotSync({ ...activeSlot, profile: updated }).catch(() => {});
-    },
-    [userProfile, activeSlot, setUserProfile, isAuthenticated],
-  );
-
-  const handleUnpinField = useCallback(() => {
-    if (!userProfile || !activeSlot) return;
-    const { preferredField: _removed, ...rest } = userProfile as UserProfile & { preferredField?: string };
-    const updated = rest as UserProfile;
-    setUserProfile(updated);
-    syncProfileToCache({ ...activeSlot, profile: updated }).catch(() => {});
-    if (isAuthenticated)
-      enqueueSlotSync({ ...activeSlot, profile: updated }).catch(() => {});
-  }, [userProfile, activeSlot, setUserProfile, isAuthenticated]);
-
-  // ── Per-slot state sync callback (room isolation) ──────────────────────
-  // CVGenerator calls this (debounced 1s) whenever JD, targeting, or generation
-  // settings change so each profile slot stores its own "room" state.
-  const handleSlotUpdate = useCallback(
-    (update: Partial<{
-      jobDescription: string; targetCompany: string; targetJobTitle: string;
-      cvPurpose: 'job' | 'academic' | 'general'; generationMode: string;
-      jdKeywords: string[]; lastGeneratedAt: string; lastAtsScore: number;
-    }>) => {
-      setProfiles(prev =>
-        prev.map(p =>
-          p.id === activeSlot?.id ? { ...p, ...update } : p
-        )
-      );
-    },
-    [activeSlot, setProfiles],
-  );
-
-  // ── Delete account handler ─────────────────────────────────────────────
-  const handleDeleteAccount = useCallback(async () => {
-    // ── Step 1: Server-side delete FIRST — hard stop if it fails ────────────
-    //
-    // The old logic continued wiping local data even when the CF batch failed,
-    // leaving the identity row alive in D1. On re-login with the same email
-    // the worker matched by email, reused the old user_id, and served back
-    // all the "deleted" data.
-    //
-    // New rule: server must confirm ok:true before we touch anything local.
-    // If it doesn't, the user sees a clear error and can try again. Their
-    // local data stays intact.
-    const currentDeviceId = getDeviceId();
-    let serverDeleteOk = false;
-    try {
-      serverDeleteOk = await _deleteAccount(currentDeviceId);
-    } catch { /* serverDeleteOk stays false */ }
-
-    if (!serverDeleteOk) {
-      toast.error(
-        'Deletion failed',
-        'Your account could not be removed from the server. Check your connection and try again — nothing has been deleted yet.',
-      );
-      return; // ← hard stop, local data untouched, user can retry
-    }
-
-    // ── Step 2: Server confirmed deletion — clean up locally ────────────────
-    //
-    // Order matters:
-    //  a) Cancel pending sync writes FIRST so no stale items fire after the wipe
-    //  b) Wipe all local storage (localStorage + every IDB database, awaited)
-    //  c) Write DELETED_CLEAN_SENTINEL after the wipe — the account-switch guard
-    //     reads this on next boot and skips a second wipe+reload so the user
-    //     can sign straight into a fresh account without an extra reload cycle
-    //  d) Rotate device ID so the next account starts with a virgin device_id
-    //  e) Best-effort Drive cleanup last (account is already gone server-side)
-
-    await clearQueueForAccount().catch(() => {});
-
-    await clearAllBrowserStorage();     // awaited — all 5 IDB databases deleted
-
-    stampDeletedAccount();              // write sentinel AFTER wipe so it survives
-
-    rotateDeviceId();                   // fresh device_id for the next account
-
-    if (driveToken?.accessToken) {
-      await deleteAllDriveData(driveToken.accessToken).catch(() => {});
-    }
-
-    // ── Step 3: Hard-navigate to landing — no browser-history entry ─────────
-    window.location.replace(window.location.origin);
-  }, [_deleteAccount, driveToken?.accessToken, toast]);
-
-  // ── Clear all browser data (emergency reset — no account deletion) ──────
-  const handleClearAllData = useCallback(async () => {
-    // Wipe every byte of local storage without touching the server account.
-    // On next load the user will be signed out on this device and can sign
-    // back in to restore any cloud-synced data.
-    await clearAllBrowserStorage().catch(() => {});
-    window.location.reload();
-  }, []);
-
-  // ── CV handlers ─────────────────────────────────────────────────────────
-  // Snapshot the deterministic quality audit at save time so the saved-CV
-  // library can show a per-CV score badge and you have a record of the CV's
-  // quality at the moment it was saved (separate from any later edits).
-  const buildQualitySnapshot = (cvData: CVData) => {
-    try {
-      const r = auditCvQuality(cvData as any);
-      return {
-        score: r.score,
-        totalBullets: r.totalBullets,
-        totalIssues: r.totalIssues,
-        issues: r.issues.map((i) => ({
-          kind: i.kind,
-          where: i.where,
-          snippet: i.snippet,
-        })),
-        durationMs: r.durationMs,
-        auditedAt: new Date().toISOString(),
-      };
-    } catch {
-      return undefined;
-    }
-  };
-
-  const handleSaveCV = (
-    cvData: CVData,
-    purpose: "job" | "academic" | "general",
-  ) => {
-    const cvName = prompt(
-      "Enter a name for this CV (e.g., Software Engineer - Google):",
-      `CV for ${cvData.experience[0]?.jobTitle || "New Role"}`,
-    );
-    if (cvName) {
-      const id = Date.now().toString();
-      // Store full data in IDB; keep thin index in localStorage slot
-      saveCVData(id, cvData).catch(() => {});
-      const newSavedCV: SavedCV = {
-        id,
-        name: cvName,
-        createdAt: new Date().toISOString(),
-        purpose,
-        qualityReport: buildQualitySnapshot(cvData),
-      };
-      setSavedCVs((prev) => [newSavedCV, ...prev]);
-      toast.success(
-        "CV Saved Successfully!",
-        `"${cvName}" has been saved to your library.`,
-      );
-    }
-  };
-
-  const handleSaveCVFromPipeline = useCallback(
-    (cvData: CVData, name: string) => {
-      const id = Date.now().toString();
-      saveCVData(id, cvData).catch(() => {});
-      const newSavedCV: SavedCV = {
-        id,
-        name,
-        createdAt: new Date().toISOString(),
-        purpose: "job",
-        qualityReport: buildQualitySnapshot(cvData),
-      };
-      setSavedCVs((prev) => [newSavedCV, ...prev]);
-      toast.success("CV Saved!", `"${name}" saved to your CV library.`);
-    },
-    [setSavedCVs, toast],
-  );
-
-  const handleSaveCoverLetter = useCallback(
-    (text: string, name: string) => {
-      const newCL: SavedCoverLetter = {
-        id: Date.now().toString(),
-        name,
-        createdAt: new Date().toISOString(),
-        text,
-      };
-      setSavedCoverLetters((prev) => [newCL, ...prev]);
-      toast.success("Cover Letter Saved!", `"${name}" saved to your library.`);
-    },
-    [setSavedCoverLetters, toast],
-  );
-
-  const deleteCVTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleDeleteCV = useCallback(
-    (id: string) => {
-      const cvToDelete = savedCVs.find((cv) => cv.id === id);
-      if (!cvToDelete) return;
-      // Optimistically remove immediately
-      setSavedCVs((prev) => prev.filter((cv) => cv.id !== id));
-      // Show undo toast
-      if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
-      toast.info("CV Deleted", `"${cvToDelete.name}" removed.`, () => {
-        // Undo: restore the CV (IDB data is still there — only deleted after timer)
-        if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
-        setSavedCVs((prev) => [cvToDelete, ...prev]);
-        toast.success("Restored", `"${cvToDelete.name}" has been restored.`);
-      });
-      // After 6 seconds the deletion is final — remove from IDB too
-      deleteCVTimerRef.current = setTimeout(() => {
-        deleteCVTimerRef.current = null;
-        deleteCVData(id).catch(() => {});
-      }, 6000);
-    },
-    [setSavedCVs, savedCVs, toast],
-  );
-
-  const handleSaveStories = useCallback(
-    (newStories: STARStory[]) => {
-      setStarStories((prev) => [...newStories, ...prev]);
-      toast.success(
-        "Stories Saved!",
-        `${newStories.length} STAR+R story added to your Interview Story Bank.`,
-      );
-    },
-    [setStarStories, toast],
-  );
-
-  const handleLoadCV = useCallback(
-    (cvData: CVData) => {
-      setCurrentCV(cvData);
-      setIsEditingProfile(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    },
-    [setCurrentCV],
-  );
-
-  const handleAutoTrack = useCallback(
-    (details: { roleTitle: string; company: string; savedCvName: string }) => {
-      const normalise = (s: string) =>
-        s.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      setTrackedApps((prev) => {
-        const existingIdx = prev.findIndex((app) => {
-          const sameRole =
-            normalise(app.roleTitle) === normalise(details.roleTitle);
-          const sameCompany =
-            normalise(app.company) === normalise(details.company);
-          const recent = new Date(app.dateApplied) >= thirtyDaysAgo;
-          return sameRole && sameCompany && recent;
-        });
-
-        if (existingIdx !== -1) {
-          // Regeneration of the same job — update CV name only, don't create duplicate
-          const updated = [...prev];
-          updated[existingIdx] = {
-            ...updated[existingIdx],
-            savedCvName: details.savedCvName,
-          };
-          toast.success(
-            "CV Updated",
-            `Re-generation detected — updated CV for "${details.roleTitle}" at ${details.company}.`,
-          );
-          return updated;
-        }
-
-        const newApp: TrackedApplication = {
-          id: Date.now().toString(),
-          savedCvId: "auto-generated",
-          savedCvName: details.savedCvName,
-          roleTitle: details.roleTitle,
-          company: details.company,
-          status: "Applied",
-          dateApplied: new Date().toISOString().split("T")[0],
-          notes: `Automatically tracked after CV generation on ${new Date().toLocaleDateString()}.`,
-        };
-        toast.success(
-          "Application Tracked!",
-          `Added "${details.roleTitle}" at ${details.company} to your tracker.`,
-        );
-        return [newApp, ...prev];
-      });
-    },
-    [setTrackedApps, toast],
-  );
-
-  // Wire CV Generator → Email Apply
-  const handleApplyViaEmail = useCallback(
-    (jd: string, _cv: CVData) => {
-      setEmailJd(jd);
-      setCurrentView("email");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      toast.success(
-        "Email Apply Ready",
-        "JD pre-filled — AI will compose your email.",
-      );
-    },
-    [toast],
-  );
-
-  // Wire CV Generator → Interview Prep
-  const handleGoToInterviewPrep = useCallback(
-    (jd: string) => {
-      setInterviewPrepJd(jd);
-      setCurrentView("interview");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      toast.success(
-        "Interview Prep Ready",
-        "JD pre-filled — generating tailored questions.",
-      );
-    },
-    [toast],
-  );
-
-  // Wire CV Toolkit → CV Generator (Fix & Regenerate / Go to Generator)
-  const handleGoToGenerator = useCallback(
-    (extraInstructions?: string) => {
-      setCurrentView("generator");
-      if (extraInstructions) {
-        setToolkitSuggestions(extraInstructions);
-        toast.success(
-          "CV Toolkit Feedback Ready",
-          "Open the banner in the CV Generator to apply the fixes.",
-        );
-      }
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    },
-    [toast],
-  );
-
-  // Wire GitHub Import → CV Generator (AI-generated CV from repos)
-  const handleGitHubCVGenerated = useCallback(
-    (cv: CVData) => {
-      setCurrentCV(cv);
-      setCurrentView("generator");
-      toast.success(
-        "GitHub CV Ready!",
-        "Your AI-generated CV is loaded in the CV Generator — complete with real project links.",
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    },
-    [setCurrentCV, toast],
-  );
-
-  // Wire Word Import → Profile update
-  const handleWordProfileImported = useCallback(
-    (profile: UserProfile) => {
-      const cvData = profileToCV(profile);
-      // Build "found extras" message from custom sections
-      const extras = profile.customSections?.filter(s => s.items.length > 0) ?? [];
-      const extrasMsg = extras.length > 0
-        ? ` Found ${extras.length} extra section${extras.length > 1 ? 's' : ''}: ${extras.map(s => s.label).join(', ')}. Review them in your Profile.`
-        : '';
-
-      if (activeSlot) {
-        // Atomically update profile + CV in a single setProfiles call.
-        const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
-        setProfiles((prev) =>
-          prev.map((p) => (p.id === activeSlot.id ? updatedSlot : p)),
-        );
-        invalidateCVCache();
-        syncProfileToCache(updatedSlot).catch(() => {});
-        if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
-        toast.success(
-          "Profile Imported!",
-          `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
-        );
-      } else {
-        const id = crypto.randomUUID();
-        const slot: UserProfileSlot = {
-          id,
-          name: profile.personalInfo?.name || "Imported Profile",
-          color: "violet",
-          createdAt: new Date().toISOString(),
-          profile,
-          currentCV: cvData,
-        };
-        // Append instead of replacing — never wipe existing profiles.
-        setProfiles((prev) => (prev.length > 0 ? [...prev, slot] : [slot]));
-        setActiveProfileId(id);
-        toast.success(
-          "Profile Imported!",
-          `Your CV has been imported.${extrasMsg} Edit your profile or go to the Generator.`,
-        );
-        syncProfileToCache(slot).catch(() => {});
-        if (isAuthenticated) enqueueSlotSync(slot).catch(() => {});
-      }
-    },
-    [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated],
-  );
-
-  // ── JSON profile import — asks user whether to update or create new ──────
+  // ── JSON import ──────────────────────────────────────────────────────────
   const {
     jsonImportTimestamp,
     pendingJsonImport,
@@ -1396,10 +322,183 @@ const AppInner: React.FC = () => {
     toast,
   });
 
-  // ── Onboarding wizard completion ──────────────────────────────────────────
+  // ── Mobile detection ─────────────────────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  // ── Inactivity warning ───────────────────────────────────────────────────
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const INACTIVITY_MS = 30 * 60 * 1000;
+  useEffect(() => {
+    const isLoggedIn = !!user?.email;
+    if (!isLoggedIn) {
+      setShowInactivityWarning(false);
+      if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
+      return;
+    }
+    function resetActivity() {
+      lastActivityRef.current = Date.now();
+      setShowInactivityWarning(prev => (prev ? false : prev));
+    }
+    const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
+    events.forEach(ev => window.addEventListener(ev, resetActivity, { passive: true }));
+    inactivityTimerRef.current = setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= INACTIVITY_MS) {
+        setShowInactivityWarning(true);
+      }
+    }, 60_000);
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetActivity));
+      if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
+
+  // ── Drive backup prompt ───────────────────────────────────────────────────
+  const [showDrivePrompt, setShowDrivePrompt] = useState(false);
+  const [drivePromptDismissed, setDrivePromptDismissed] = useState(false);
+  const [driveConnecting, setDriveConnecting] = useState(false);
+  const [driveMigrating, setDriveMigrating] = useState(false);
+  const [driveMigrationProgress, setDriveMigrationProgress] = useState<{ uploaded: number; total: number } | null>(null);
+  const [driveMigrationDone, setDriveMigrationDone] = useState(false);
+
+  useEffect(() => {
+    if (driveConnected || drivePromptDismissed || !isAuthenticated) return;
+    const check = async () => {
+      try {
+        const est = await navigator.storage.estimate();
+        const used = est.usage ?? 0;
+        const quota = est.quota ?? 0;
+        if (quota > 0 && used / quota > 0.7) setShowDrivePrompt(true);
+      } catch { /* non-fatal */ }
+    };
+    const t = setTimeout(check, 10_000);
+    return () => clearTimeout(t);
+  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || driveConnected || drivePromptDismissed) return;
+    const seenKey = `procv:drive_nudge_seen:${user?.email ?? "anon"}`;
+    if (sessionStorage.getItem(seenKey)) return;
+    const t = setTimeout(() => {
+      if (!driveConnected && !drivePromptDismissed) {
+        setShowDrivePrompt(true);
+        sessionStorage.setItem(seenKey, "1");
+      }
+    }, 8_000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, driveConnected]);
+
+  useEffect(() => {
+    const handleQuotaFull = () => {
+      if (!driveConnected && !drivePromptDismissed && isAuthenticated) {
+        setShowDrivePrompt(true);
+      }
+    };
+    window.addEventListener("storage-quota-warning", handleQuotaFull);
+    return () => window.removeEventListener("storage-quota-warning", handleQuotaFull);
+  }, [driveConnected, drivePromptDismissed, isAuthenticated]);
+
+  const handleConnectDrive = async () => {
+    setDriveConnecting(true);
+    setDriveMigrationDone(false);
+    try {
+      await requestDriveAccess();
+      setDriveConnecting(false);
+      setDriveMigrating(true);
+      await migrateLocalToDrive(
+        (uploaded, total) => setDriveMigrationProgress({ uploaded, total }),
+        user?.email ?? undefined,
+      );
+      setDriveMigrationProgress(null);
+      setDriveMigrating(false);
+      setDriveMigrationDone(true);
+      setTimeout(() => setShowDrivePrompt(false), 1800);
+    } catch {
+      setDriveConnecting(false);
+      setDriveMigrating(false);
+      setDriveMigrationProgress(null);
+    }
+  };
+
+  // ── Shared CV payload (hash links) ───────────────────────────────────────
+  const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith("#s=")) {
+      const id = hash.slice("#s=".length);
+      if (id) {
+        fetchSharePayload(id).then(compressed => {
+          if (compressed) {
+            const payload = decodeSharePayload(compressed);
+            if (payload) setSharedCVPayload(payload);
+          }
+        });
+      }
+    } else if (hash.startsWith("#p=")) {
+      const slugOrId = hash.slice("#p=".length);
+      if (slugOrId) {
+        fetchPublicProfile(slugOrId).then(payload => {
+          if (payload) setSharedCVPayload(payload);
+        });
+      }
+    } else if (hash.startsWith("#share=")) {
+      const encoded = hash.slice("#share=".length);
+      const payload = decodeSharePayload(encoded);
+      if (payload) setSharedCVPayload(payload);
+    }
+    if (hash === "#test-cv") {
+      fetch("/test-cv-preview.json")
+        .then(r => (r.ok ? r.json() : Promise.reject("not found")))
+        .then((cvData: CVData) => {
+          const slotId = "test-cv-preview";
+          const testProfile: import("./types").UserProfile = {
+            personalInfo: {
+              name: "Alex Morgan", email: "alex@example.com", phone: "+44 7700 000000",
+              location: "London, UK", linkedin: "linkedin.com/in/alexmorgan", website: "", github: "",
+            },
+            summary: cvData.summary,
+            workExperience: (cvData.experience ?? []).map((exp, i) => ({
+              id: `exp-${i}`, company: exp.company, jobTitle: exp.jobTitle,
+              startDate: exp.startDate, endDate: exp.endDate,
+              responsibilities: (exp.responsibilities ?? []).join("\n"),
+            })),
+            education: (cvData.education ?? []).map((edu, i) => ({
+              id: `edu-${i}`, degree: edu.degree, school: edu.school, graduationYear: edu.year,
+            })),
+            skills: cvData.skills ?? [], projects: [], languages: [],
+          };
+          const testSlot: UserProfileSlot = {
+            id: slotId, name: "Test CV Preview", color: "amber",
+            createdAt: new Date().toISOString(), profile: testProfile, currentCV: cvData,
+          };
+          try { localStorage.setItem("template", "professional"); } catch {}
+          setProfiles(prev => {
+            const exists = prev.some(p => p.id === slotId);
+            return exists ? prev.map(p => (p.id === slotId ? testSlot : p)) : [testSlot, ...prev];
+          });
+          setActiveProfileId(slotId);
+          setCurrentCV(cvData);
+          setShowLanding(false);
+          setIsEditingProfile(false);
+          window.history.replaceState(null, "", window.location.pathname);
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Onboarding completion ─────────────────────────────────────────────────
   const handleOnboardingComplete = useCallback(
     async (opts: {
-      plan: 'premium' | 'free';
+      plan: "premium" | "free";
       pendingDocxFile?: File;
       pendingImportFile?: File;
       pendingImportType?: PendingImportType;
@@ -1417,23 +516,23 @@ const AppInner: React.FC = () => {
           const profile = await parseWordTextToProfile(text);
           handleWordProfileImported(profile);
         } catch (e: any) {
-          toast.error('Word Import Failed', e?.message ?? 'Could not parse the Word document. Try again from your Profile page.');
+          toast.error("Word Import Failed", e?.message ?? "Could not parse the Word document. Try again from your Profile page.");
         }
       }
       if (opts.pendingImportFile && opts.pendingImportType) {
         try {
           const file = opts.pendingImportFile;
-          const mimeType = file.type || (opts.pendingImportType === 'pdf' ? 'application/pdf' : 'image/jpeg');
+          const mimeType = file.type || (opts.pendingImportType === "pdf" ? "application/pdf" : "image/jpeg");
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
           const profile = await generateProfileFromFileWithGemini(base64, mimeType);
           handleWordProfileImported(profile);
         } catch (e: any) {
-          const label = opts.pendingImportType === 'pdf' ? 'PDF' : 'Image';
+          const label = opts.pendingImportType === "pdf" ? "PDF" : "Image";
           toast.error(`${label} Import Failed`, e?.message ?? `Could not extract your profile from this ${label.toLowerCase()}. Try again from your Profile page.`);
         }
       }
@@ -1441,9 +540,7 @@ const AppInner: React.FC = () => {
     [handleApiSettingsSave, handleWordProfileImported, toast],
   );
 
-  const [sharedCVPayload, setSharedCVPayload] =
-    useState<SharedCVPayload | null>(null);
-
+  // ── Computed values ───────────────────────────────────────────────────────
   const profileExists = useMemo(
     () => userProfile !== null && profiles.length > 0,
     [userProfile, profiles],
@@ -1454,22 +551,13 @@ const AppInner: React.FC = () => {
       !!(apiSettings?.apiKey || (apiSettings as any)?.claudeApiKey),
     [apiSettings],
   );
-  const tavilyApiKey = useMemo(
-    () => apiSettings?.tavilyApiKey || null,
-    [apiSettings],
-  );
-  const brevoApiKey = useMemo(
-    () => apiSettings?.brevoApiKey || null,
-    [apiSettings],
-  );
-  // ── Active slot color badge ────────────────────────────────────────────
-  const slotColor = activeSlot?.color ?? "indigo";
+  const tavilyApiKey = useMemo(() => (apiSettings as any)?.tavilyApiKey || null, [apiSettings]);
+  const brevoApiKey = useMemo(() => (apiSettings as any)?.brevoApiKey || null, [apiSettings]);
 
-  // Show a loading screen while we validate the stored session on mount.
-  // This prevents a flash of the main app for users whose session has expired.
+  // ── Loading screen ────────────────────────────────────────────────────────
   if (isAuthLoading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#F8F7F4' }}>
+      <div className="fixed inset-0 flex items-center justify-center" style={{ background: "#F8F7F4" }}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 bg-[#1B2B4B] rounded-xl flex items-center justify-center text-white font-black text-sm">CV</div>
           <div className="w-6 h-6 border-2 border-[#1B2B4B]/20 border-t-[#1B2B4B] rounded-full animate-spin" />
@@ -1478,30 +566,22 @@ const AppInner: React.FC = () => {
     );
   }
 
-  // Show landing page when requested (new users or navigated back)
+  // ── Landing page ──────────────────────────────────────────────────────────
   if (showLanding) {
     return (
       <>
         <LandingPage
           onGetStarted={async () => {
-            // If the user already has a profile and is authenticated, go straight in.
             if (profileExists && isAuthenticated) {
               setShowLanding(false);
               return;
             }
-            // New user flow — show "Create your free account" copy.
-            setAuthModalMode('signup');
+            setAuthModalMode("signup");
             const ok = await requireAuth();
-            if (ok) {
-              setShowLanding(false);
-              // Onboarding is handled by the isNewUser effect (CF flag only).
-              // Do NOT trigger it here — returning users on new devices would
-              // incorrectly get onboarding because their localStorage is empty.
-            }
+            if (ok) setShowLanding(false);
           }}
           onSignIn={async () => {
-            // Returning user flow — show "Welcome back" copy.
-            setAuthModalMode('signin');
+            setAuthModalMode("signin");
             const ok = await requireAuth();
             if (ok) setShowLanding(false);
           }}
@@ -1527,13 +607,13 @@ const AppInner: React.FC = () => {
     );
   }
 
+  // ── Main app ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       {showOnboarding && (
         <OnboardingWizard onComplete={handleOnboardingComplete} />
       )}
 
-      {/* ── Drive backup prompt ─────────────────────────────────────────────── */}
       <DriveBackupPrompt
         show={showDrivePrompt}
         driveConnected={driveConnected}
@@ -1544,6 +624,7 @@ const AppInner: React.FC = () => {
         onConnect={handleConnectDrive}
         onDismiss={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
       />
+
       {sharedCVPayload && (
         <SharedCVView
           cvData={sharedCVPayload.cvData}
@@ -1561,901 +642,100 @@ const AppInner: React.FC = () => {
           }
           onDismiss={() => {
             setSharedCVPayload(null);
-            window.history.replaceState(
-              null,
-              "",
-              window.location.pathname + window.location.search,
-            );
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
           }}
         />
       )}
+
       <OfflineBanner />
-      <header className="bg-white dark:bg-neutral-900 border-b border-zinc-200 dark:border-neutral-800 sticky top-0 z-20 shadow-sm">
-        {/* ── Row 1: Logo + Controls ──────────────────────────────────── */}
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
-          <button
-            onClick={() => {
-              if (isAuthenticated) {
-                setCurrentView("dashboard");
-              } else {
-                setShowLanding(true);
-              }
-            }}
-            className="flex items-center gap-2.5 group flex-shrink-0"
-            title="Go to dashboard"
-          >
-            <div className="p-1.5 bg-[#1B2B4B] group-hover:bg-[#152238] rounded-lg transition-colors">
-              <FileText className="h-5 w-5 text-white" />
-            </div>
-            <div className="text-left">
-              <h1
-                className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                ProCV
-              </h1>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-none mt-0.5 hidden sm:block">
-                Your Personal Career Consultant
-              </p>
-            </div>
-            <div className="hidden sm:block w-px h-8 bg-[#C9A84C]/30 ml-1" />
-          </button>
 
-          <div className="flex items-center gap-2">
-            {/* ── Profile switcher ───────────────────────────── */}
-            {profileExists && (
-              <div className="relative" ref={profileManagerRef}>
-                <button
-                  onClick={() => setShowProfileManager((v) => !v)}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-sm font-bold rounded-xl border transition-all ${showProfileManager ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 text-[#1B2B4B] dark:text-[#C9A84C]/80" : "bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-neutral-700"}`}
-                  title="Switch profile"
-                >
-                  {/* Avatar */}
-                  <div
-                    className={`w-7 h-7 rounded-full ${colorBg(slotColor)} flex items-center justify-center text-[10px] text-white font-extrabold flex-shrink-0`}
-                  >
-                    {(
-                      activeSlot?.profile?.personalInfo?.name ||
-                      activeSlot?.name ||
-                      "?"
-                    )
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
+      <AppNavbar
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        primaryNav={primaryNav}
+        moreNavGroups={moreNavGroups}
+        isMoreActive={isMoreActive}
+        handleNavClick={handleNavClick}
+        GATED_VIEWS={GATED_VIEWS}
+        profileExists={profileExists}
+        isEditingProfile={isEditingProfile}
+        activeSlot={activeSlot}
+        profiles={profiles}
+        userProfile={userProfile}
+        user={user}
+        isAuthenticated={isAuthenticated}
+        darkMode={!!darkMode}
+        setDarkMode={setDarkMode}
+        setIsSettingsOpen={setIsSettingsOpen}
+        setIsPricingOpen={setIsPricingOpen}
+        setIsEditingProfile={setIsEditingProfile}
+        setShowLanding={setShowLanding}
+        isMobile={isMobile}
+        signOut={signOut}
+        onSwitchProfile={handleSwitchProfile}
+        onCreateProfile={handleCreateProfile}
+        onDeleteProfile={handleDeleteProfile}
+        onRenameProfile={handleRenameProfile}
+      />
 
-                  {/* Two-line text block — desktop only */}
-                  <span className="hidden sm:flex flex-col items-start leading-none gap-0.5 min-w-0">
-                    <span className="max-w-[90px] truncate text-sm font-bold">
-                      {activeSlot?.name ?? "Profile"}
-                    </span>
-                    {/* Sub-row: ATS badge + time */}
-                    {(activeSlot?.lastAtsScore !== undefined || activeSlot?.lastGeneratedAt) && (
-                      <span className="flex items-center gap-1">
-                        {activeSlot?.lastAtsScore !== undefined && (
-                          <span
-                            className="text-[9px] font-extrabold px-1 py-px rounded"
-                            style={{
-                              background:
-                                activeSlot.lastAtsScore >= 80 ? "#dcfce7"
-                                : activeSlot.lastAtsScore >= 60 ? "#fef9c3"
-                                : "#fee2e2",
-                              color:
-                                activeSlot.lastAtsScore >= 80 ? "#15803d"
-                                : activeSlot.lastAtsScore >= 60 ? "#a16207"
-                                : "#b91c1c",
-                            }}
-                          >
-                            ATS {activeSlot.lastAtsScore}
-                          </span>
-                        )}
-                        {activeSlot?.lastGeneratedAt && (
-                          <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-medium">
-                            {navTimeAgo(activeSlot.lastGeneratedAt)}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </span>
-
-                  <UsersIcon className="h-4 w-4 text-zinc-400 flex-shrink-0" />
-                </button>
-
-                {/* Desktop dropdown (hidden on mobile — bottom sheet used instead) */}
-                {showProfileManager && !isMobile && (
-                  <div className="absolute right-0 top-full mt-2 w-[380px] bg-white dark:bg-neutral-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-zinc-200 dark:border-neutral-700 p-4 z-50 flex flex-col md:max-h-[70vh]">
-                    <ProfileManager
-                      profiles={profiles}
-                      activeProfileId={activeSlot?.id ?? null}
-                      onSwitch={handleSwitchProfile}
-                      onCreate={handleCreateProfile}
-                      onDelete={handleDeleteProfile}
-                      onRename={handleRenameProfile}
-                      currentProfile={userProfile}
-                      onClose={() => setShowProfileManager(false)}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Upgrade / Plans button — visible for non-premium users ── */}
-            {getTier() !== 'premium' && (
-              <button
-                onClick={() => setIsPricingOpen(true)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border transition-all flex-shrink-0"
-                style={{ background: 'rgba(201,168,76,0.08)', borderColor: 'rgba(201,168,76,0.35)', color: '#C9A84C' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(201,168,76,0.16)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(201,168,76,0.08)'; }}
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                  <polyline points="17 6 23 6 23 12"/>
-                </svg>
-                Plans
-              </button>
-            )}
-
-            {/* ── Dark mode toggle ──────────────────────────────────── */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-neutral-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
-
-            {/* ── Consolidated user menu ─────────────────────────────── */}
-            <div className="relative flex-shrink-0" ref={userMenuRef}>
-              <button
-                onClick={() => setShowUserMenu(v => !v)}
-                className={`group flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-xl border transition-all ${
-                  showUserMenu
-                    ? "bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/10 border-[#C9A84C]/40 dark:border-[#C9A84C]/30"
-                    : "bg-zinc-100 dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 hover:bg-zinc-200 dark:hover:bg-neutral-700"
-                }`}
-                aria-label="User menu"
-              >
-                {/* Avatar */}
-                {(isAuthenticated && user?.picture) ? (
-                  <img src={user.picture} alt={user.name} referrerPolicy="no-referrer"
-                       className="w-7 h-7 rounded-full ring-2 ring-[#C9A84C]/50 shadow-sm flex-shrink-0" />
-                ) : (isAuthenticated && user?.picture) ? (
-                  <img src={user.picture} alt={user.name} referrerPolicy="no-referrer"
-                       className="w-7 h-7 rounded-full ring-2 ring-[#C9A84C]/50 shadow-sm flex-shrink-0" />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-[#1B2B4B] dark:bg-[#C9A84C] flex items-center justify-center text-[11px] text-white dark:text-[#1B2B4B] font-black flex-shrink-0">
-                    {((isAuthenticated && user ? (user.name || user.email) : isAuthenticated && user ? user.name : '') || 'U').charAt(0).toUpperCase()}
-                  </div>
-                )}
-                {/* Name — hidden on mobile, shown sm+ */}
-                <span className="hidden sm:inline text-xs font-bold text-zinc-700 dark:text-zinc-200 max-w-[90px] truncate">
-                  {isAuthenticated && user
-                    ? (user.name || user.email || '').split(' ')[0]
-                    : isAuthenticated && user
-                      ? user.name.split(' ')[0]
-                      : 'Menu'}
-                </span>
-                <svg className={`h-3 w-3 text-zinc-400 transition-transform flex-shrink-0 ${showUserMenu ? 'rotate-180' : ''}`}
-                     viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="m6 9 6 6 6-6"/>
-                </svg>
-              </button>
-
-              {/* Dropdown */}
-              {showUserMenu && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden z-50 animate-nav-slide-down">
-                  {/* User header */}
-                  {(isAuthenticated && user) && (
-                    <div className="px-4 py-3 border-b border-zinc-100 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-900/50">
-                      <p className="text-sm font-black text-zinc-900 dark:text-zinc-100 truncate">{user.name || user.email?.split('@')[0]}</p>
-                      <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{user.email}</p>
-                    </div>
-                  )}
-                  <div className="p-1.5 space-y-0.5">
-                    {/* Settings */}
-                    <button
-                      onClick={() => { setShowUserMenu(false); setIsSettingsOpen(true); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
-                    >
-                      <Settings className="h-4 w-4 text-zinc-400 flex-shrink-0" />
-                      Settings &amp; API Keys
-                    </button>
-                    {/* Edit / Create Profile — always shown when authenticated */}
-                    {isAuthenticated && (
-                      <button
-                        onClick={() => { setShowUserMenu(false); setIsEditingProfile(true); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
-                      >
-                        <User className="h-4 w-4 text-zinc-400 flex-shrink-0" />
-                        {profileExists ? 'Edit Profile' : 'Create Profile'}
-                      </button>
-                    )}
-                    {/* Account */}
-                    {isAuthenticated && (
-                      <button
-                        onClick={() => { setShowUserMenu(false); setCurrentView("account" as any); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
-                      >
-                        <svg className="h-4 w-4 text-zinc-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                        </svg>
-                        My Account
-                      </button>
-                    )}
-                  </div>
-                  {/* Sign out — separated at bottom */}
-                  {isAuthenticated && (
-                    <div className="p-1.5 border-t border-zinc-100 dark:border-neutral-700">
-                      <button
-                        onClick={async () => {
-                          setShowUserMenu(false);
-                          await clearQueueForAccount().catch(() => {});
-                          await signOut();
-                          setShowLanding(true);
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
-                      >
-                        <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                        </svg>
-                        Sign out
-                      </button>
-                    </div>
-                  )}
-                  {/* Unauthenticated: just cloud sync label */}
-                  {!isAuthenticated && !isAuthenticated && (
-                    <div className="p-1.5">
-                      <button
-                        onClick={() => { setShowUserMenu(false); setIsSettingsOpen(true); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors text-left"
-                      >
-                        <Settings className="h-4 w-4 flex-shrink-0" />
-                        Cloud Sync &amp; Settings
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Row 2: Responsive Nav ───────────────────────────────────── */}
-        {profileExists && !isEditingProfile && (
-          <div className="border-t border-zinc-200 dark:border-neutral-800">
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              {/* ── Desktop nav ── */}
-              <div className="hidden sm:flex items-center gap-0.5 py-1">
-                {primaryNav.map((item) => {
-                  const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
-                  return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleNavClick(item.id)}
-                    title={item.label}
-                    className={`flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-lg text-xs lg:text-sm font-semibold transition-all duration-150 whitespace-nowrap ${
-                      currentView === item.id
-                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/30 text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C]"
-                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800 border-b-2 border-transparent"
-                    }`}
-                  >
-                    <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.label}</span>
-                    {gated && <span className="ml-0.5 text-[8px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
-                  </button>
-                  );
-                })}
-
-                {/* ── More dropdown ── */}
-                <div className="relative ml-1" ref={moreMenuRef}>
-                  <button
-                    onClick={() => setShowMoreMenu((v) => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-lg text-xs lg:text-sm font-semibold transition-all duration-150 whitespace-nowrap ${
-                      isMoreActive || showMoreMenu
-                        ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/30 text-[#1B2B4B] dark:text-[#C9A84C]"
-                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-neutral-800"
-                    }`}
-                  >
-                    <span>More</span>
-                    <svg
-                      className={`h-3 w-3 transition-transform ${showMoreMenu ? "rotate-180" : ""}`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-
-                  {showMoreMenu && (
-                    <div className="animate-nav-slide-down absolute left-0 top-full mt-1 w-64 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-neutral-700 p-2 z-50">
-                      {moreNavGroups.map((group) => (
-                        <div key={group.label} className="mb-1 last:mb-0">
-                          <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                            {group.label}
-                          </p>
-                          {group.items.map((item) => {
-                            const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
-                            return (
-                            <button
-                              key={item.id}
-                              onClick={() => handleNavClick(item.id)}
-                              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
-                                currentView === item.id
-                                  ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
-                                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
-                              }`}
-                            >
-                              <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="flex-1">{item.label}</span>
-                              {gated && <span className="text-[8px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
-                            </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Mobile nav: hamburger + slide-down ── */}
-              <div className="sm:hidden flex items-center justify-between py-1.5">
-                <div className="flex gap-0.5 overflow-x-auto no-scrollbar">
-                  {primaryNav.slice(0, 3).map((item) => {
-                    const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
-                    return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavClick(item.id)}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
-                        currentView === item.id
-                          ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
-                          : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800"
-                      }`}
-                    >
-                      <item.icon className="h-3 w-3 flex-shrink-0" />
-                      <span>{item.label}</span>
-                      {gated && <span className="ml-0.5 text-[7px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
-                    </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => setShowMobileMenu((v) => !v)}
-                  className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ml-1 ${
-                    showMobileMenu || isMoreActive
-                      ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
-                      : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800"
-                  }`}
-                >
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* ── Mobile slide-down full menu ── */}
-              {showMobileMenu && (
-                <div className="animate-mobile-menu sm:hidden pb-3 border-t border-zinc-100 dark:border-neutral-700 pt-2">
-                  {moreNavGroups.map((group) => (
-                    <div key={group.label} className="mb-1">
-                      <p className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                        {group.label}
-                      </p>
-                      <div className="grid grid-cols-2 gap-1">
-                        {group.items.map((item) => {
-                          const gated = isPureFreeTier() && GATED_VIEWS.has(item.id);
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => handleNavClick(item.id)}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
-                                currentView === item.id
-                                  ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/20 text-[#1B2B4B] dark:text-[#C9A84C]"
-                                  : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700"
-                              }`}
-                            >
-                              <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="flex-1">{item.label}</span>
-                              {gated && <span className="text-[7px] font-black px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">PRO</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* ── Mobile account/sign-out row ── */}
-                  {isAuthenticated && (
-                    <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-neutral-700 px-1 space-y-0.5">
-                      <button
-                        onClick={() => {
-                          setShowMobileMenu(false);
-                          setCurrentView("account" as any);
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-all"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                        </svg>
-                        My Account
-                        {user?.email && (
-                          <span className="ml-auto text-[10px] font-normal text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{user.email}</span>
-                        )}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          setShowMobileMenu(false);
-                          await clearQueueForAccount().catch(() => {});
-                          await signOut();
-                          setShowLanding(true);
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                        </svg>
-                        Sign out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
-
-      {/* Free-tier PDF download nudge — only visible to pure-free users after their first download */}
       <FreePlanNudge />
 
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-          {(!profileExists ||
-            isEditingProfile ||
-            currentView === "generator") && (
-            <aside className="hidden lg:block lg:col-span-4 xl:col-span-3">
-              <div className="sticky top-24 space-y-4">
-                {profileExists && (
-                  <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-bold flex items-center gap-3">
-                        <User className="h-5 w-5 text-[#C9A84C]" /> Profile
-                      </h2>
-                      <button
-                        onClick={() => setIsEditingProfile(true)}
-                        className="text-[#1B2B4B] hover:underline text-xs font-bold uppercase tracking-wider"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {/* Profiles mini-list */}
-                      <div className="space-y-1">
-                        {profiles.slice(0, 3).map((slot) => (
-                          <div
-                            key={slot.id}
-                            onClick={() => handleSwitchProfile(slot)}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${slot.id === activeSlot?.id ? "bg-[#F8F7F4] dark:bg-[#1B2B4B]/10" : "hover:bg-zinc-50 dark:hover:bg-neutral-700/50"}`}
-                          >
-                            <div
-                              className={`w-5 h-5 rounded-full ${colorBg(slot.color)} flex-shrink-0 flex items-center justify-center text-[9px] text-white font-bold`}
-                            >
-                              {(slot.profile?.personalInfo?.name || slot.name || '?')
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
-                            <span
-                              className={`text-xs font-semibold truncate ${slot.id === activeSlot?.id ? "text-[#1B2B4B] dark:text-[#C9A84C]/80" : "text-zinc-600 dark:text-zinc-400"}`}
-                            >
-                              {slot.name}
-                            </span>
-                            {slot.id === activeSlot?.id && (
-                              <span className="ml-auto text-[9px] font-extrabold text-[#C9A84C] uppercase">
-                                active
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                        {profiles.length > 3 && (
-                          <p className="text-[10px] text-zinc-400 pl-2">
-                            +{profiles.length - 3} more profiles
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="pt-2 border-t border-zinc-100 dark:border-neutral-700">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold">
-                            Name
-                          </span>
-                          <span className="text-sm font-semibold">
-                            {userProfile?.personalInfo?.name}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-                          <span>Skills</span>
-                          <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                            {(userProfile?.skills ?? []).length}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                          <span>Experience</span>
-                          <span className="font-bold text-zinc-700 dark:text-zinc-300">
-                            {(userProfile?.workExperience ?? []).length} roles
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {currentView === "generator" && (
-                  <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-base font-bold flex items-center gap-2">
-                        <Target className="h-4 w-4 text-[#C9A84C]" /> Recent
-                        Activity
-                      </h2>
-                      <span className="text-xs font-semibold text-zinc-400">
-                        {trackedApps.length} total
-                      </span>
-                    </div>
-                    {trackedApps.length === 0 ? (
-                      <div className="text-center py-6">
-                        <div className="w-10 h-10 rounded-full bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 flex items-center justify-center mx-auto mb-3">
-                          <Target className="h-5 w-5 text-[#C9A84C]" />
-                        </div>
-                        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                          No applications tracked yet.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {trackedApps.slice(0, 4).map((app) => {
-                          const statusColors: Record<string, string> = {
-                            Wishlist:
-                              "bg-zinc-100 text-zinc-600 dark:bg-neutral-700 dark:text-zinc-400",
-                            Applied:
-                              "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-                            Interviewing:
-                              "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
-                            Offer:
-                              "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-                            Rejected:
-                              "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
-                          };
-                          return (
-                            <div
-                              key={app.id}
-                              onClick={() => setCurrentView("tracker")}
-                              className="flex items-start gap-3 p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-neutral-700/50 cursor-pointer"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate">
-                                  {app.roleTitle}
-                                </p>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                                  {app.company}
-                                </p>
-                              </div>
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[app.status] || statusColors.Applied}`}
-                              >
-                                {app.status}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => setCurrentView("tracker")}
-                      className="w-full mt-4 text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] py-2.5 border border-[#C9A84C]/40 dark:border-[#1B2B4B]/40 rounded-lg hover:bg-[#F8F7F4] dark:hover:bg-[#1B2B4B]/10 transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Target className="h-3.5 w-3.5" /> View All Applications
-                    </button>
-                  </div>
-                )}
-              </div>
-            </aside>
-          )}
-
-          {profileExists &&
-            !isEditingProfile &&
-            currentView === "generator" && (
-              <div className="lg:hidden col-span-1">
-                <div className="bg-white dark:bg-neutral-800/50 rounded-xl border border-zinc-200 dark:border-neutral-800 p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-bold flex items-center gap-2">
-                      <Target className="h-4 w-4 text-[#C9A84C]" /> Recent
-                      Activity
-                    </h2>
-                    <button
-                      onClick={() => setCurrentView("tracker")}
-                      className="text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] hover:underline"
-                    >
-                      View All
-                    </button>
-                  </div>
-                  {trackedApps.length === 0 ? (
-                    <p className="text-xs text-zinc-400 text-center py-3">
-                      No applications tracked yet.
-                    </p>
-                  ) : (
-                    <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-                      {trackedApps.slice(0, 6).map((app) => (
-                        <div
-                          key={app.id}
-                          onClick={() => setCurrentView("tracker")}
-                          className="flex-shrink-0 w-44 bg-white dark:bg-neutral-800 border rounded-xl p-3 cursor-pointer hover:shadow-md transition-all border-zinc-200 dark:border-neutral-700"
-                        >
-                          <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate mt-1">
-                            {app.roleTitle}
-                          </p>
-                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                            {app.company}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-          <div
-            className={`${!profileExists || isEditingProfile || currentView === "generator" ? "lg:col-span-8 xl:col-span-9" : "lg:col-span-12"}`}
-          >
-            {!profileExists || isEditingProfile ? (
-              <ProfileForm
-                existingProfile={userProfile}
-                onSave={handleProfileSave}
-                onCancel={() => profileExists && setIsEditingProfile(false)}
-                currentCV={currentCV}
-                apiKeySet={apiKeySet}
-                openSettings={() => setIsSettingsOpen(true)}
-                onProfileImported={handleWordProfileImported}
-                onJsonImported={handleJsonProfileImported}
-              />
-            ) : (
-              <div className="space-y-6">
-                {/* Quick-Score banner — visible on generator homepage when a CV is loaded */}
-                {currentView === "generator" && currentCV && (currentCV.summary || (currentCV.experience ?? []).length > 0) && (
-                  <div
-                    className="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl border border-[#C9A84C]/30"
-                    style={{ background: 'linear-gradient(135deg, #1B2B4B08 0%, #C9A84C08 100%)' }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">📊</span>
-                      <div>
-                        <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 leading-tight">Ready to score this CV?</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Human voice · Bullet quality · Career logic · ATS match</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setCurrentView("score" as any)}
-                      className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white whitespace-nowrap transition-opacity hover:opacity-90"
-                      style={{ background: '#1B2B4B' }}
-                    >
-                      Score My CV →
-                    </button>
-                  </div>
-                )}
-                {currentView === "generator" && (
-                  <CVGenerator
-                    key={activeSlot?.id ?? 'default'}
-                    userProfile={userProfile!}
-                    currentCV={currentCV}
-                    setCurrentCV={setCurrentCV}
-                    onSaveCV={handleSaveCV}
-                    onAutoTrack={handleAutoTrack}
-                    apiKeySet={apiKeySet}
-                    openSettings={() => setIsSettingsOpen(true)}
-                    onApplyViaEmail={handleApplyViaEmail}
-                    onGoToInterviewPrep={handleGoToInterviewPrep}
-                    onRestoreProfileBullets={handleRestoreProfileBullets}
-                    savedCVs={savedCVs}
-                    toolkitSuggestions={toolkitSuggestions}
-                    onDismissToolkitSuggestions={() =>
-                      setToolkitSuggestions(null)
-                    }
-                    onSaveStories={handleSaveStories}
-                    importedFromJson={jsonImportTimestamp}
-                    profileId={activeSlot?.id ?? ''}
-                    initialJobDescription={activeSlot?.jobDescription ?? activeSlot?.currentJobDescription ?? ''}
-                    initialTargetCompany={activeSlot?.targetCompany ?? ''}
-                    initialTargetJobTitle={activeSlot?.targetJobTitle ?? ''}
-                    initialCvPurpose={activeSlot?.cvPurpose}
-                    initialGenerationMode={activeSlot?.generationMode}
-                    initialJdKeywords={activeSlot?.jdKeywords}
-                    onSlotUpdate={handleSlotUpdate}
-                    onPinField={handlePinField}
-                    onUnpinField={handleUnpinField}
-                    onUpgrade={() => setIsPricingOpen(true)}
-                    openToolkitAtQualityAudit={() => {
-                      setToolkitForceTab('hr-detector');
-                      setCurrentView('toolkit');
-                      setTimeout(() => setToolkitForceTab(undefined), 200);
-                    }}
-                  />
-                )}
-                {currentView === "linkedin" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <LinkedInGenerator
-                      userProfile={userProfile!}
-                      apiKeySet={apiKeySet}
-                      openSettings={() => setIsSettingsOpen(true)}
-                    />
-                  </div>
-                )}
-                {currentView === "interview" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <InterviewPrep
-                      userProfile={userProfile!}
-                      apiKeySet={apiKeySet}
-                      openSettings={() => setIsSettingsOpen(true)}
-                      initialJd={interviewPrepJd}
-                    />
-                  </div>
-                )}
-                {currentView === "essays" && (
-                  <ScholarshipEssayWriter
-                    userProfile={userProfile!}
-                    apiKeySet={apiKeySet}
-                    openSettings={() => setIsSettingsOpen(true)}
-                  />
-                )}
-                {currentView === "dashboard" && (
-                  <DashboardHome
-                    profiles={profiles}
-                    activeSlot={activeSlot}
-                    currentCV={currentCV}
-                    isAuthenticated={isAuthenticated}
-                    driveConnected={driveConnected}
-                    onNavigate={(view) => setCurrentView(view as any)}
-                    onConnectDrive={handleConnectDrive}
-                    onEditProfile={() => setIsEditingProfile(true)}
-                    onOpenSettings={() => setIsSettingsOpen(true)}
-                  />
-                )}
-                {currentView === "history" && (
-                  <CVHistory
-                    savedCVs={savedCVs}
-                    onLoad={(cv) => {
-                      handleLoadCV(cv);
-                      setCurrentView("generator");
-                    }}
-                    onDelete={handleDeleteCV}
-                    userProfile={userProfile!}
-                  />
-                )}
-                {currentView === "toolkit" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <CVToolkit
-                      userProfile={userProfile!}
-                      apiKeySet={apiKeySet}
-                      tavilyApiKey={tavilyApiKey}
-                      openSettings={() => setIsSettingsOpen(true)}
-                      onGoToGenerator={handleGoToGenerator}
-                      onProfileImported={handleWordProfileImported}
-                      onGitHubCVGenerated={handleGitHubCVGenerated}
-                      currentCV={currentCV}
-                      onCurrentCVUpdated={(cv) => setCurrentCV(cv)}
-                      forceTab={toolkitForceTab as any}
-                    />
-                  </div>
-                )}
-                {currentView === "email" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-4 sm:p-6 lg:p-8">
-                    <EmailApply
-                      userProfile={userProfile!}
-                      apiKeySet={apiKeySet}
-                      openSettings={() => setIsSettingsOpen(true)}
-                      currentCV={currentCV}
-                      brevoApiKey={brevoApiKey}
-                      initialJd={emailJd}
-                    />
-                  </div>
-                )}
-                {currentView === "tracker" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <div className="mb-8">
-                      <h2 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-50">
-                        Application Tracker
-                      </h2>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-                        Manage and track your job applications in one place.
-                      </p>
-                    </div>
-                    <Tracker
-                      trackedApps={trackedApps}
-                      setTrackedApps={setTrackedApps}
-                      savedCVs={savedCVs}
-                      starStories={starStories}
-                      setStarStories={setStarStories}
-                    />
-                  </div>
-                )}
-
-                {currentView === "negotiation" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <NegotiationCoach
-                      apiKeySet={apiKeySet}
-                      openSettings={() => setIsSettingsOpen(true)}
-                    />
-                  </div>
-                )}
-                {currentView === "analytics" && (
-                  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-800 p-6 sm:p-8">
-                    <AnalyticsDashboard
-                      trackedApps={trackedApps}
-                      onGoToTracker={() => setCurrentView("tracker")}
-                    />
-                  </div>
-                )}
-                {currentView === "score" && (
-                  <ScoreMyCVPage
-                    currentCV={currentCV}
-                    onGoToGenerator={() => setCurrentView("generator")}
-                    onCVUpdate={(cv) => setCurrentCV(cv)}
-                  />
-                )}
-                {currentView === "pivot" && (
-                  <CareerPivotPage
-                    currentCV={currentCV}
-                    onGoToGenerator={() => setCurrentView("generator")}
-                    onGoToScore={() => setCurrentView("score")}
-                  />
-                )}
-                {currentView === "admin-leaks" && (
-                  <div className="bg-slate-900 rounded-2xl border border-slate-800">
-                    <AdminLeaksPage />
-                  </div>
-                )}
-                {currentView === "admin-cv-engine" && (
-                  <div className="bg-slate-900 rounded-2xl border border-slate-800">
-                    <AdminCVEnginePage />
-                  </div>
-                )}
-                {currentView === "storage-map" && (
-                  <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700">
-                    <StorageMapPage />
-                  </div>
-                )}
-                {currentView === "account" && (
-                  <AccountPage
-                    workerUser={user}
-                    profiles={profiles}
-                    onSignOut={async () => {
-                      await clearQueueForAccount().catch(() => {});
-                      await signOut();
-                      setShowLanding(true);
-                    }}
-                    onDeleteAccount={handleDeleteAccount}
-                    onClearAllData={handleClearAllData}
-                    onBack={() => setCurrentView("generator")}
-                    onUpgrade={() => setIsPricingOpen(true)}
-                    onEditProfile={() => setIsEditingProfile(true)}
-                    driveConnected={driveConnected}
-                    onConnectDrive={requestDriveAccess}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
+      <AppViewRouter
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        profileExists={profileExists}
+        isEditingProfile={isEditingProfile}
+        setIsEditingProfile={setIsEditingProfile}
+        userProfile={userProfile}
+        currentCV={currentCV}
+        setCurrentCV={setCurrentCV}
+        activeSlot={activeSlot}
+        profiles={profiles}
+        savedCVs={savedCVs}
+        savedCoverLetters={savedCoverLetters}
+        trackedApps={trackedApps}
+        setTrackedApps={setTrackedApps}
+        starStories={starStories}
+        setStarStories={setStarStories}
+        apiKeySet={apiKeySet}
+        tavilyApiKey={tavilyApiKey}
+        brevoApiKey={brevoApiKey}
+        user={user}
+        isAuthenticated={isAuthenticated}
+        driveConnected={driveConnected}
+        jsonImportTimestamp={jsonImportTimestamp}
+        emailJd={emailJd}
+        interviewPrepJd={interviewPrepJd}
+        toolkitSuggestions={toolkitSuggestions}
+        setToolkitSuggestions={setToolkitSuggestions}
+        toolkitForceTab={toolkitForceTab}
+        setToolkitForceTab={setToolkitForceTab}
+        onSaveCV={handleSaveCV}
+        onAutoTrack={handleAutoTrack}
+        onApplyViaEmail={handleApplyViaEmail}
+        onGoToInterviewPrep={handleGoToInterviewPrep}
+        onRestoreProfileBullets={handleRestoreProfileBullets}
+        onSaveStories={handleSaveStories}
+        onSlotUpdate={handleSlotUpdate}
+        onPinField={handlePinField}
+        onUnpinField={handleUnpinField}
+        onGoToGenerator={handleGoToGenerator}
+        onProfileImported={handleWordProfileImported}
+        onProfileSave={handleProfileSave}
+        onGitHubCVGenerated={handleGitHubCVGenerated}
+        onJsonProfileImported={handleJsonProfileImported}
+        onDeleteCV={handleDeleteCV}
+        onLoadCV={handleLoadCV}
+        onSwitchProfile={handleSwitchProfile}
+        onDeleteAccount={handleDeleteAccount}
+        onClearAllData={handleClearAllData}
+        onConnectDrive={handleConnectDrive}
+        requestDriveAccess={requestDriveAccess}
+        signOut={signOut}
+        setShowLanding={setShowLanding}
+        setIsSettingsOpen={setIsSettingsOpen}
+        setIsPricingOpen={setIsPricingOpen}
+      />
 
       <SettingsModal
         isOpen={isSettingsOpen}
@@ -2464,6 +744,7 @@ const AppInner: React.FC = () => {
         currentApiSettings={apiSettings}
         onOpenOnboarding={() => { setIsSettingsOpen(false); setShowOnboarding(true); }}
       />
+
       <InactivityWarningModal
         isOpen={showInactivityWarning}
         onStay={() => {
@@ -2477,30 +758,17 @@ const AppInner: React.FC = () => {
           setShowLanding(true);
         }}
       />
+
       <PricingModal
         isOpen={isPricingOpen}
         onClose={() => setIsPricingOpen(false)}
-        currentPlan={user?.plan ?? 'free'}
+        currentPlan={user?.plan ?? "free"}
         userEmail={user?.email}
       />
+
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
-      {/* ── Mobile ProfileManager bottom-sheet ── */}
-      {showProfileManager && isMobile && profileExists && (
-        <ProfileManager
-          isMobileOverlay
-          profiles={profiles}
-          activeProfileId={activeSlot?.id ?? null}
-          onSwitch={handleSwitchProfile}
-          onCreate={handleCreateProfile}
-          onDelete={handleDeleteProfile}
-          onRename={handleRenameProfile}
-          currentProfile={userProfile}
-          onClose={() => setShowProfileManager(false)}
-        />
-      )}
-
-      {/* ── JSON import choice dialog — update current profile or create new ── */}
+      {/* ── JSON import dialog ── */}
       {pendingJsonImport && (
         <JsonImportDialog
           pendingImport={pendingJsonImport}
@@ -2522,17 +790,15 @@ const AppInner: React.FC = () => {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">
-                  Backed-up profiles found
-                </p>
+                <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight">Backed-up profiles found</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  We found {driveRestoreSlots.length} profile{driveRestoreSlots.length !== 1 ? 's' : ''} saved in your Google Drive. Restore them to this device?
+                  We found {driveRestoreSlots.length} profile{driveRestoreSlots.length !== 1 ? "s" : ""} saved in your Google Drive. Restore them to this device?
                 </p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => { sessionStorage.setItem('procv:restore-dismissed', '1'); setDriveRestoreSlots(null); }}
+                onClick={() => { sessionStorage.setItem("procv:restore-dismissed", "1"); setDriveRestoreSlots(null); }}
                 className="px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
               >
                 Skip
@@ -2543,7 +809,7 @@ const AppInner: React.FC = () => {
                   setActiveProfileId(driveRestoreSlots[0]?.id ?? null);
                   setIsEditingProfile(false);
                   setDriveRestoreSlots(null);
-                  toast.success('Profiles restored', `${driveRestoreSlots.length} profile${driveRestoreSlots.length !== 1 ? 's' : ''} restored from Google Drive.`);
+                  toast.success("Profiles restored", `${driveRestoreSlots.length} profile${driveRestoreSlots.length !== 1 ? "s" : ""} restored from Google Drive.`);
                 }}
                 className="px-3 py-1.5 text-xs font-bold text-white bg-[#1B2B4B] hover:bg-[#1B2B4B]/90 dark:bg-[#C9A84C] dark:text-[#1B2B4B] dark:hover:bg-[#C9A84C]/90 rounded-lg transition-colors"
               >
@@ -2554,10 +820,6 @@ const AppInner: React.FC = () => {
         </div>
       )}
 
-      {/* ── D1 cloud-backup restore prompt ── */}
-      {/* D1 auto-restores silently — no popup needed */}
-
-      {/* ── Auth modal ────────────────────────────────────────────────── */}
       <AuthModal
         open={authModalOpen}
         onSuccess={onAuthSuccess}
@@ -2565,7 +827,6 @@ const AppInner: React.FC = () => {
         mode={authModalMode}
       />
 
-      {/* ── Welcome modal (new user first sign-in) ─────────────────────── */}
       {isNewUser && user && (
         <WelcomeModal
           name={user.name}
@@ -2577,19 +838,12 @@ const AppInner: React.FC = () => {
         />
       )}
 
-      {/* ── Google Drive conflict resolution modal ── */}
       <DriveConflictModal
         onResolved={(key, action) => {
           if (action === "overwrite") {
-            toast.success(
-              "Conflict Resolved",
-              `Your local version of "${key}" was pushed to Drive.`,
-            );
+            toast.success("Conflict Resolved", `Your local version of "${key}" was pushed to Drive.`);
           } else if (action === "pull") {
-            toast.success(
-              "Conflict Resolved",
-              `Drive version of "${key}" loaded — refreshing data.`,
-            );
+            toast.success("Conflict Resolved", `Drive version of "${key}" loaded — refreshing data.`);
           }
         }}
       />
@@ -2597,12 +851,12 @@ const AppInner: React.FC = () => {
   );
 };
 
-// ── Root App — single AuthProvider wraps everything ───────────────────────────
+// ── Root App ─────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
-  if (window.location.pathname.startsWith('/admin')) {
+  if (window.location.pathname.startsWith("/admin")) {
     return <AdminApp />;
   }
-  if (window.location.pathname.startsWith('/how-it-works')) {
+  if (window.location.pathname.startsWith("/how-it-works")) {
     return <VideoTemplate />;
   }
   return (
