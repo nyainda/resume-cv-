@@ -102,14 +102,19 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
       <header className="sticky top-0 z-20 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-zinc-200 dark:border-neutral-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
 
-          {/* Brand */}
+          {/* Brand + Shared By */}
           <div className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-[#1B2B4B] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-[#1B2B4B] flex items-center justify-center flex-shrink-0">
               <span className="text-white font-black text-[10px]">CV</span>
             </div>
-            <span className="text-sm font-bold text-[#1B2B4B] dark:text-zinc-100 hidden sm:block">ProCV</span>
-            <span className="text-zinc-300 dark:text-neutral-600 hidden sm:block">·</span>
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:block">Shared CV</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-bold text-[#1B2B4B] dark:text-zinc-100">ProCV</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:block">
+                {personalInfo.name
+                  ? <>{personalInfo.name.split(' ')[0]}&apos;s shared CV</>
+                  : 'Shared CV'}
+              </span>
+            </div>
           </div>
 
           {/* Tab switcher (if cover letter) */}
