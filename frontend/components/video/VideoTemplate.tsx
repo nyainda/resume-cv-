@@ -111,17 +111,38 @@ function useScreenRecorder() {
 export default function VideoTemplate() {
   const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
   const { state, secondsLeft, start, stop } = useScreenRecorder();
+  const [lightMode, setLightMode] = useState(false);
 
   const bg = bgPositions[currentScene];
   const accent = accentLineConfig[currentScene];
 
+  const darkBg   = '#0d1724';
+  const lightBg  = '#F8F7F4';
+  const blobDark  = 'radial-gradient(circle, rgba(201,168,76,0.12) 0%, rgba(27,43,75,0.6) 60%, transparent 100%)';
+  const blobLight = 'radial-gradient(circle, rgba(201,168,76,0.18) 0%, rgba(27,43,75,0.08) 60%, transparent 100%)';
+
   return (
-    <div className="relative w-full h-screen overflow-hidden" style={{ background: '#0d1724' }}>
+    <div className="relative w-full h-screen overflow-hidden" style={{ background: lightMode ? lightBg : darkBg }}>
+
+      {/* Light/Dark mode toggle */}
+      <button
+        onClick={() => setLightMode(m => !m)}
+        className="absolute top-[3vh] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+        style={{
+          background: lightMode ? 'rgba(27,43,75,0.08)' : 'rgba(248,247,244,0.08)',
+          border: lightMode ? '1px solid rgba(27,43,75,0.2)' : '1px solid rgba(248,247,244,0.2)',
+          color: lightMode ? '#1B2B4B' : 'rgba(248,247,244,0.8)',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        <span>{lightMode ? '🌙' : '☀️'}</span>
+        {lightMode ? 'Dark mode' : 'Light mode'}
+      </button>
 
       {/* Persistent background blob */}
       <motion.div
         className="absolute rounded-full blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(201,168,76,0.12) 0%, rgba(27,43,75,0.6) 60%, transparent 100%)', width: '60vw', height: '60vw' }}
+        style={{ background: lightMode ? blobLight : blobDark, width: '60vw', height: '60vw' }}
         animate={{ left: bg.x, top: bg.y, scale: bg.scale }}
         transition={{ duration: 2.5, ease: [0.16, 1, 0.3, 1] }}
       />
@@ -129,7 +150,7 @@ export default function VideoTemplate() {
       {/* Secondary drifting orb */}
       <motion.div
         className="absolute rounded-full blur-2xl pointer-events-none opacity-30"
-        style={{ background: 'radial-gradient(circle, #1B2B4B 0%, transparent 70%)', width: '40vw', height: '40vw' }}
+        style={{ background: lightMode ? 'radial-gradient(circle, rgba(201,168,76,0.3) 0%, transparent 70%)' : 'radial-gradient(circle, #1B2B4B 0%, transparent 70%)', width: '40vw', height: '40vw' }}
         animate={{ x: ['-5%', '8%', '-3%'], y: ['5%', '-8%', '4%'] }}
         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
       />
@@ -180,7 +201,7 @@ export default function VideoTemplate() {
         >
           CV
         </div>
-        <span style={{ fontSize: '0.9vw', color: 'rgba(248,247,244,0.6)', fontFamily: 'Playfair Display, serif', fontWeight: 600 }}>
+        <span style={{ fontSize: '0.9vw', color: lightMode ? 'rgba(27,43,75,0.6)' : 'rgba(248,247,244,0.6)', fontFamily: 'Playfair Display, serif', fontWeight: 600 }}>
           ProCV
         </span>
       </motion.div>
@@ -274,7 +295,7 @@ export default function VideoTemplate() {
             animate={{
               width: currentScene === i ? '1.5vw' : '0.4vw',
               height: '0.4vw',
-              backgroundColor: currentScene === i ? '#C9A84C' : 'rgba(255,255,255,0.2)',
+              backgroundColor: currentScene === i ? '#C9A84C' : lightMode ? 'rgba(27,43,75,0.2)' : 'rgba(255,255,255,0.2)',
             }}
             transition={{ duration: 0.3 }}
           />

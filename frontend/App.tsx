@@ -44,6 +44,7 @@ import {
   UsersIcon,
 } from "./components/nav/NavIcons";
 import DriveBackupPrompt from "./components/DriveBackupPrompt";
+import DashboardHome from "./components/DashboardHome";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import type { WorkerUser, RawSlot } from "./services/authService";
 import { drainPendingSlots } from "./services/authService";
@@ -412,6 +413,22 @@ const AppInner: React.FC = () => {
     const t = setTimeout(check, 10_000);
     return () => clearTimeout(t);
   }, [driveConnected, drivePromptDismissed, isAuthenticated]);
+
+  // Auto-show: 8 s after first sign-in if Drive not yet connected and not already dismissed.
+  // Only shown once per account — keyed by the user's email in sessionStorage.
+  useEffect(() => {
+    if (!isAuthenticated || driveConnected || drivePromptDismissed) return;
+    const seenKey = `procv:drive_nudge_seen:${user?.email ?? 'anon'}`;
+    if (sessionStorage.getItem(seenKey)) return;
+    const t = setTimeout(() => {
+      if (!driveConnected && !drivePromptDismissed) {
+        setShowDrivePrompt(true);
+        sessionStorage.setItem(seenKey, '1');
+      }
+    }, 8_000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, driveConnected]);
 
   // Auto-show: immediately when localStorage overflows (storage-quota-warning)
   useEffect(() => {
@@ -1580,10 +1597,11 @@ const AppInner: React.FC = () => {
   );
 
   const VIEW_KEY = 'procv:lastView';
-  const RESTORABLE_VIEWS = ['generator','linkedin','interview','jobs','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
+  const RESTORABLE_VIEWS = ['dashboard','generator','linkedin','interview','jobs','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
   type RestorableView = typeof RESTORABLE_VIEWS[number];
 
   const [currentView, setCurrentView] = useState<
+    | "dashboard"
     | "generator"
     | "linkedin"
     | "interview"
@@ -1608,7 +1626,7 @@ const AppInner: React.FC = () => {
         return saved as RestorableView;
       }
     } catch { /* non-fatal */ }
-    return 'generator';
+    return 'dashboard';
   });
 
   // Admin routes — accessible at #admin/leaks and #admin/cv-engine. Hidden
@@ -1654,10 +1672,11 @@ const AppInner: React.FC = () => {
   );
 
   const primaryNav = [
+    { id: "dashboard", label: "Home",         icon: FileText },
     { id: "generator", label: "CV Generator", icon: FileText },
     { id: "score",     label: "Score My CV",  icon: ScoreNavIcon },
     { id: "interview", label: "Interview Prep", icon: InterviewNavIcon },
-    { id: "tracker", label: "Job Tracker", icon: Target },
+    { id: "tracker",   label: "Job Tracker",  icon: Target },
   ];
 
   const moreNavGroups = [
@@ -1862,8 +1881,8 @@ const AppInner: React.FC = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center gap-3">
           <button
             onClick={() => {
-              if (isAuthenticated || isAuthenticated) {
-                setCurrentView("generator");
+              if (isAuthenticated) {
+                setCurrentView("dashboard");
               } else {
                 setShowLanding(true);
               }
@@ -2601,6 +2620,19 @@ const AppInner: React.FC = () => {
                     userProfile={userProfile!}
                     apiKeySet={apiKeySet}
                     openSettings={() => setIsSettingsOpen(true)}
+                  />
+                )}
+                {currentView === "dashboard" && (
+                  <DashboardHome
+                    profiles={profiles}
+                    activeSlot={activeSlot}
+                    currentCV={currentCV}
+                    isAuthenticated={isAuthenticated}
+                    driveConnected={driveConnected}
+                    onNavigate={(view) => setCurrentView(view as any)}
+                    onConnectDrive={handleConnectDrive}
+                    onEditProfile={() => setIsEditingProfile(true)}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
                   />
                 )}
                 {currentView === "history" && (
