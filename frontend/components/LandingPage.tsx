@@ -760,6 +760,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const v = (id: string) => vis.has(id);
   const isMobile = windowWidth < 768;
   const isTablet = windowWidth < 1024;
+  const isLarge  = windowWidth >= 1280;
 
   /* Two-theme token system — switches cleanly between dark and light */
   const DARK_T = {
@@ -789,7 +790,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         background: darkMode ? 'rgba(23,23,23,0.95)' : 'rgba(248,247,244,0.97)',
         backdropFilter: 'blur(20px)', borderBottom: `1px solid ${border}`,
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <div style={{ width: 30, height: 30, background: Y, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#111' }}>CV</div>
@@ -900,7 +901,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </header>
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '48px 16px 40px' : '72px 24px 56px' }}>
+      <section style={{ maxWidth: isLarge ? 1440 : 1200, margin: '0 auto', padding: isMobile ? '48px 16px 40px' : isLarge ? '88px 48px 72px' : '72px 24px 56px' }}>
 
         {/* Eyebrow */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
@@ -909,7 +910,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         </div>
 
         {/* Two-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit,minmax(320px,1fr))', gap: isMobile ? 40 : 64, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isLarge ? '1fr 1.05fr' : '1fr 1fr', gap: isMobile ? 40 : isLarge ? 80 : 56, alignItems: 'center' }}>
 
           {/* Left: headline + CTA */}
           <div>
@@ -918,12 +919,12 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               <span>⚙️</span> 7-Pass Quality Engine
             </div>
 
-            <h1 style={{ fontSize: 'clamp(2.6rem,5.5vw,4.4rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', margin: '0 0 20px' }}>
+            <h1 style={{ fontSize: isLarge ? 'clamp(3rem,4vw,4.8rem)' : 'clamp(2.6rem,5.5vw,4.4rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', margin: '0 0 20px' }}>
               Not Another AI CV.<br />
               <span style={{ color: '#C9A84C' }}>A builder that checks its own work.</span>
             </h1>
 
-            <p style={{ fontSize: 15, lineHeight: 1.7, color: muted, maxWidth: 440, margin: '0 0 20px' }}>
+            <p style={{ fontSize: isLarge ? 16 : 15, lineHeight: 1.7, color: muted, maxWidth: isLarge ? 520 : 440, margin: '0 0 20px' }}>
               Most AI tools generate and stop. ProCV runs a 7-pass quality pipeline that catches AI tells, validates every number, and rewrites until your CV sounds like <strong style={{ color: text }}>you</strong> — not a template.
             </p>
 
@@ -945,7 +946,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             {/* CTAs */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
               <button onClick={onGetStarted}
-                style={{ padding: '13px 28px', fontSize: 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.35)' }}
+                style={{ padding: isLarge ? '15px 32px' : '13px 28px', fontSize: isLarge ? 16 : 15, fontWeight: 900, borderRadius: 10, background: Y, border: 'none', cursor: 'pointer', color: '#111', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 20px rgba(235,255,56,0.35)' }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(235,255,56,0.5)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(235,255,56,0.35)'; }}>
                 {hasProfile ? 'Open Suite' : 'Improve My CV – It\'s Free'}
@@ -976,7 +977,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           {/* Right: Before / After CV card */}
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
             <div style={{
-              width: '100%', maxWidth: isMobile ? '100%' : 500,
+              width: '100%', maxWidth: isMobile ? '100%' : isLarge ? 580 : 500,
               background: surface, borderRadius: 16,
               border: `1px solid ${border}`,
               boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
@@ -1058,8 +1059,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </section>
 
       {/* ── Company trust bar ────────────────────────────────────────── */}
-      <section style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '28px 24px', background: surface }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: isLarge ? '32px 48px' : '28px 24px', background: surface }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           <p style={{ textAlign: 'center', fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', color: faint, marginBottom: 20 }}>
             Built for candidates targeting roles across
           </p>
@@ -1072,8 +1073,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </section>
 
       {/* ── Solve the Real Problems Others Ignore ────────────────────── */}
-      <section style={{ padding: isMobile ? '48px 16px' : '72px 24px', borderBottom: `1px solid ${border}` }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ padding: isMobile ? '48px 16px' : isLarge ? '88px 48px' : '72px 24px', borderBottom: `1px solid ${border}` }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 48px' }}>
             <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
               Solve the <span style={{ color: '#C9A84C' }}>Real Problems</span> Others Ignore
@@ -1082,7 +1083,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               We built ProCV around the most common complaints job seekers have about AI CV tools. Here's what frustrates people — and how we fix it.
             </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isLarge ? 'repeat(5,1fr)' : 'repeat(auto-fit,minmax(200px,1fr))', gap: isLarge ? 20 : 14 }}>
             {[
               {
                 icon: '💬', title: 'Too Generic',
@@ -1135,8 +1136,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </section>
 
       {/* ── Live Bullet Checker ───────────────────────────────────────── */}
-      <section style={{ padding: isMobile ? '40px 16px' : '56px 24px', borderTop: `1px solid ${border}` }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ padding: isMobile ? '40px 16px' : isLarge ? '72px 48px' : '56px 24px', borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#22c55e22', border: '1px solid #22c55e55', color: '#16a34a', fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 14 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 1.5s ease-in-out infinite' }} />
@@ -1318,11 +1319,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         id="score-cv"
         ref={reg('smc')} data-s="smc"
         style={{
-          padding: isMobile ? '40px 16px' : '64px 24px',
+          padding: isMobile ? '40px 16px' : isLarge ? '80px 48px' : '64px 24px',
           borderTop: `1px solid ${border}`,
           borderBottom: `1px solid ${border}`,
         }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           {/* Header */}
           <div style={{ marginBottom: 36, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
@@ -1536,12 +1537,12 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       <section
         ref={reg('pipe')} data-s="pipe"
         style={{
-          background: bg, padding: isMobile ? '48px 16px' : '72px 24px', position: 'relative', overflow: 'hidden',
+          background: bg, padding: isMobile ? '48px 16px' : isLarge ? '88px 48px' : '72px 24px', position: 'relative', overflow: 'hidden',
           borderTop: `1px solid ${border}`,
           opacity: v('pipe') ? 1 : 0, transform: v('pipe') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
 
           {/* Section header */}
           <div style={{ textAlign: 'center', maxWidth: 620, margin: '0 auto 48px' }}>
@@ -1794,8 +1795,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
 
 
       {/* ── One Profile. Unlimited Possibilities. ────────────────────── */}
-      <section style={{ padding: isMobile ? '48px 16px' : '72px 24px', borderTop: `1px solid ${border}` }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ padding: isMobile ? '48px 16px' : isLarge ? '88px 48px' : '72px 24px', borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 48px' }}>
             <h2 style={{ fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 900, letterSpacing: '-0.04em', margin: '0 0 14px', lineHeight: 1.1 }}>
               One Profile. <span style={{ color: '#C9A84C' }}>Unlimited Possibilities.</span>
@@ -1804,7 +1805,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               Your career data powers everything. Keep it updated once, and generate anything you need.
             </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isLarge ? 'repeat(4,1fr)' : 'repeat(auto-fit,minmax(240px,1fr))', gap: isLarge ? 24 : 16 }}>
             {[
               {
                 icon: '📄', color: '#3b82f6',
@@ -1912,12 +1913,12 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             id="tpl"
             ref={reg('tpl')} data-s="tpl"
             style={{
-              padding: isMobile ? '48px 16px' : '80px 24px',
+              padding: isMobile ? '48px 16px' : isLarge ? '88px 48px' : '80px 24px',
               borderTop: `1px solid ${border}`,
               opacity: v('tpl') ? 1 : 0, transform: v('tpl') ? 'none' : 'translateY(20px)',
               transition: 'opacity 0.5s, transform 0.5s',
             }}>
-            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+            <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
 
               {/* Header */}
               <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 40px' }}>
@@ -1953,7 +1954,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               {/* Template grid */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(155px, 1fr))',
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : isLarge ? 'repeat(auto-fill, minmax(175px, 1fr))' : 'repeat(auto-fill, minmax(155px, 1fr))',
                 gap: 14,
               }}>
                 {visible.map(tpl => {
@@ -2228,11 +2229,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         id="pricing"
         ref={reg('pricing')} data-s="pricing"
         style={{
-          padding: isMobile ? '48px 16px' : '80px 24px', borderTop: `1px solid ${border}`,
+          padding: isMobile ? '48px 16px' : isLarge ? '96px 48px' : '80px 24px', borderTop: `1px solid ${border}`,
           opacity: v('pricing') ? 1 : 0, transform: v('pricing') ? 'none' : 'translateY(20px)',
           transition: 'opacity 0.5s, transform 0.5s',
         }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           {/* Header */}
           <div style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto 56px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', background: '#C9A84C', color: '#1B2B4B', fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99, marginBottom: 18 }}>
@@ -2248,7 +2249,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           </div>
 
           {/* Plan cards — 4 tiers */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4,1fr)', gap: 16, maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4,1fr)', gap: isLarge ? 24 : 16, maxWidth: isLarge ? 1200 : 1100, margin: '0 auto' }}>
 
             {/* ── Free ── */}
             <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '28px 22px', display: 'flex', flexDirection: 'column' }}>
@@ -2445,8 +2446,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </section>
 
       {/* ── Privacy slim banner ───────────────────────────────────────── */}
-      <div style={{ background: surface, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: '18px 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+      <div style={{ background: surface, borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, padding: isLarge ? '22px 48px' : '18px 24px' }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: elevated, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width={18} height={18} fill="none" viewBox="0 0 24 24" stroke={text} strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -2466,8 +2467,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       </div>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${border}`, background: bg, padding: '40px 24px 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <footer style={{ borderTop: `1px solid ${border}`, background: bg, padding: isLarge ? '48px 48px 28px' : '40px 24px 24px' }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
           {/* Top: logo + columns */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 48, marginBottom: 36, justifyContent: 'space-between' }}>
             {/* Brand */}
