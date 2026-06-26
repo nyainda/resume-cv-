@@ -60,9 +60,24 @@ function ScoreRing({ value, label, color }: { value: number; label: string; colo
   );
 }
 
-const PRIORITY_ICON: Record<string, string> = {
-  critical: '🔴', high: '🟠', medium: '🟡', low: '⚪',
+const PRIORITY_CONFIG: Record<string, { icon: string; color: string; bg: string; border: string }> = {
+  critical: { icon: '🔴', color: 'text-rose-700 dark:text-rose-400',   bg: 'bg-rose-50 dark:bg-rose-900/20',   border: 'border-rose-200 dark:border-rose-800' },
+  high:     { icon: '🟠', color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800' },
+  medium:   { icon: '🟡', color: 'text-amber-700 dark:text-amber-400',  bg: 'bg-amber-50 dark:bg-amber-900/20',  border: 'border-amber-200 dark:border-amber-800' },
+  low:      { icon: '⚪', color: 'text-zinc-600 dark:text-zinc-400',    bg: 'bg-zinc-50 dark:bg-zinc-800/60',    border: 'border-zinc-200 dark:border-zinc-700' },
 };
+
+/** Resolve a recommendation's targetView to a concrete navigation action. */
+function resolveRecAction(
+  targetView: string | undefined,
+  onNavigate: (v: string) => void,
+  onEditProfile: () => void,
+) {
+  if (!targetView) return null;
+  if (targetView === 'profile') return onEditProfile;
+  if (targetView === 'generate') return () => onNavigate('generator');
+  return () => onNavigate(targetView);
+}
 
 const DashboardHome: React.FC<Props> = ({
   profiles,
@@ -259,115 +274,116 @@ const DashboardHome: React.FC<Props> = ({
       {/* Career Intelligence Panel */}
       {audit && userProfile?.workExperience && userProfile.workExperience.length > 0 && (
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-          <div className="px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Career Intelligence</h2>
-              <p className="text-xs text-zinc-400 mt-0.5">Zero AI — instant deterministic analysis</p>
-            </div>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium capitalize">
-              {audit.career_stage} · {Math.round(audit.total_experience_months / 12)}yr exp
-            </span>
-          </div>
 
-          <div className="p-5 space-y-5">
-            {/* Score rings */}
-            <div className="flex items-center justify-around flex-wrap gap-4">
-              <ScoreRing
-                value={audit.profile_completeness}
-                label="Profile"
-                color={audit.profile_completeness >= 80 ? '#16a34a' : audit.profile_completeness >= 50 ? '#C9A84C' : '#ef4444'}
-              />
-              <ScoreRing
-                value={audit.achievement_density}
-                label="Achievements"
-                color={audit.achievement_density >= 60 ? '#16a34a' : audit.achievement_density >= 35 ? '#C9A84C' : '#ef4444'}
-              />
-              <ScoreRing
-                value={audit.leadership_score}
-                label="Leadership"
-                color={audit.leadership_score >= 50 ? '#16a34a' : audit.leadership_score >= 25 ? '#C9A84C' : '#94a3b8'}
-              />
-              <ScoreRing
-                value={audit.skill_evidence_score}
-                label="Skill Evidence"
-                color={audit.skill_evidence_score >= 60 ? '#16a34a' : audit.skill_evidence_score >= 35 ? '#C9A84C' : '#ef4444'}
-              />
-              <ScoreRing
-                value={audit.metric_strength}
-                label="Metrics"
-                color={audit.metric_strength >= 60 ? '#16a34a' : audit.metric_strength >= 30 ? '#C9A84C' : '#ef4444'}
-              />
+          {/* Header */}
+          <div className="px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Career Intelligence</h2>
+                <p className="text-xs text-zinc-400 mt-0.5">Instant deterministic analysis — no AI, always accurate</p>
+              </div>
+              <div className="flex flex-wrap gap-1.5 justify-end">
+                {/* Career stage */}
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C] border border-[#1B2B4B]/15 dark:border-[#C9A84C]/20 capitalize">
+                  {audit.career_stage}
+                </span>
+                {/* Total experience */}
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                  {Math.round(audit.total_experience_months / 12)}yr exp
+                </span>
+              </div>
             </div>
 
-            {/* Key signals row */}
-            <div className="flex flex-wrap gap-2">
-              {/* Undersell risk badge */}
+            {/* Signal badges row */}
+            <div className="flex flex-wrap gap-1.5 mt-3">
               <span
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border"
                 style={{
                   color: undersellRiskColor(audit.underselling_risk),
-                  borderColor: undersellRiskColor(audit.underselling_risk) + '40',
-                  background: undersellRiskColor(audit.underselling_risk) + '12',
+                  borderColor: undersellRiskColor(audit.underselling_risk) + '50',
+                  background: undersellRiskColor(audit.underselling_risk) + '15',
                 }}
               >
-                {audit.underselling_risk !== 'none' ? '⚠️ ' : '✓ '}
-                {undersellRiskLabel(audit.underselling_risk)}
+                {audit.underselling_risk !== 'none' ? '⚠' : '✓'} {undersellRiskLabel(audit.underselling_risk)}
               </span>
 
-              {/* Career track badge */}
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
                 🗺 {describeTrack(audit.career_track)}
               </span>
 
-              {/* Progression badge */}
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border ${
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                 audit.career_progression === 'strong' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
                 audit.career_progression === 'steady' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' :
                 audit.career_progression === 'lateral' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' :
                 'bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
               }`}>
-                {audit.career_progression === 'strong' ? '📈' : audit.career_progression === 'lateral' ? '↔️' : '📊'}
-                {' '}
+                {audit.career_progression === 'strong' ? '📈' : audit.career_progression === 'lateral' ? '↔' : '📊'}{' '}
                 {audit.career_progression.charAt(0).toUpperCase() + audit.career_progression.slice(1)} progression
               </span>
 
               {audit.employment_gap_detected && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                   ⏸ Gap detected
                 </span>
               )}
+            </div>
+          </div>
+
+          <div className="p-5 space-y-5">
+            {/* Score rings — 5 metrics in a balanced grid */}
+            <div className="grid grid-cols-5 gap-2">
+              {[
+                { value: profileComplete, label: 'Completeness', thresh: [80, 50] },
+                { value: audit.achievement_density, label: 'Achievements', thresh: [60, 35] },
+                { value: audit.metric_strength,     label: 'Metrics',      thresh: [60, 30] },
+                { value: audit.leadership_score,    label: 'Leadership',   thresh: [50, 25] },
+                { value: audit.skill_evidence_score,label: 'Skill Depth',  thresh: [60, 35] },
+              ].map(({ value, label, thresh }) => {
+                const color = value >= thresh[0] ? '#16a34a' : value >= thresh[1] ? '#C9A84C' : '#ef4444';
+                return (
+                  <div key={label} className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                    <ScoreRing value={value} label="" color={color} />
+                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">{label}</span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Top recommendations */}
             {audit.recommendations.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                  Top recommendations
+                <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  Top actions for you
                 </div>
-                {audit.recommendations.slice(0, 3).map(rec => (
-                  <button
-                    key={rec.id}
-                    onClick={() => rec.targetView && rec.targetView !== 'generate' && onNavigate(rec.targetView)}
-                    className="w-full flex items-start gap-2.5 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left group border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
-                  >
-                    <span className="text-sm flex-shrink-0 mt-0.5">{PRIORITY_ICON[rec.priority]}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 leading-tight">{rec.title}</div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed line-clamp-2">{rec.detail}</div>
-                    </div>
-                    {rec.targetView && rec.targetView !== 'generate' && (
-                      <span className="text-xs font-bold text-[#1B2B4B] dark:text-[#C9A84C] whitespace-nowrap flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {rec.action} →
-                      </span>
-                    )}
-                  </button>
-                ))}
-                {audit.recommendations.length > 3 && (
+                {audit.recommendations.slice(0, 4).map(rec => {
+                  const cfg = PRIORITY_CONFIG[rec.priority] ?? PRIORITY_CONFIG.low;
+                  const action = resolveRecAction(rec.targetView, onNavigate, onEditProfile);
+                  return (
+                    <button
+                      key={rec.id}
+                      onClick={action ?? undefined}
+                      disabled={!action}
+                      className={`w-full flex items-start gap-3 p-3 rounded-xl border transition-all text-left group ${cfg.border} ${cfg.bg} ${action ? 'hover:shadow-sm cursor-pointer' : 'cursor-default opacity-80'}`}
+                    >
+                      <span className="text-base flex-shrink-0 mt-0.5">{cfg.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs font-bold leading-tight ${cfg.color}`}>{rec.title}</div>
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{rec.detail}</div>
+                      </div>
+                      {action && (
+                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] whitespace-nowrap flex-shrink-0 mt-1 transition-colors">
+                          {rec.action} →
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {audit.recommendations.length > 4 && (
                   <button
                     onClick={() => onNavigate('score')}
-                    className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline"
+                    className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline mt-1"
                   >
-                    +{audit.recommendations.length - 3} more recommendations — view full report →
+                    +{audit.recommendations.length - 4} more — view full ATS report →
                   </button>
                 )}
               </div>
