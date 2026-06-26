@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { UserProfile } from '../types';
 import { extractTextFromDocx, extractTextFromArrayBuffer, parseWordTextToProfile } from '../services/wordImportService';
+import { classifyAndSaveAllRoles } from '../services/careerTrackClassifier';
 import { Button } from './ui/Button';
 import { RefreshCw, CheckCircle, AlertCircle, Download } from './icons';
 
@@ -455,6 +456,10 @@ const JsonImportMode: React.FC<JsonImportModeProps> = ({ onProfileImported, onJs
         } else {
             onProfileImported(parsedProfile);
         }
+        // Fire-and-forget: populate D1 ontology with all imported roles
+        if (parsedProfile.workExperience?.length) {
+            classifyAndSaveAllRoles(parsedProfile.workExperience, 'pdf_import').catch(() => {});
+        }
         setStep('done');
     }, [parsedProfile, onProfileImported, onJsonImported]);
 
@@ -590,6 +595,9 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
     const handleApply = useCallback(() => {
         if (!parsedProfile) return;
         onProfileImported(parsedProfile);
+        if (parsedProfile.workExperience?.length) {
+            classifyAndSaveAllRoles(parsedProfile.workExperience, 'pdf_import').catch(() => {});
+        }
         setStep('done');
     }, [parsedProfile, onProfileImported]);
 

@@ -410,6 +410,21 @@ export async function handleJdAnalysisCachePost(request: Request, env: Env, ctx:
             .bind(fourteenDaysAgo).run().catch(() => {})
     );
 
+    // Piggyback: extract job title from result and save to ontology
+    try {
+        const parsed = JSON.parse(resultJson);
+        const detectedTitle: string = parsed?.jobTitle || parsed?.job_title || parsed?.title || '';
+        const detectedField: string = parsed?.field || parsed?.field_slug || parsed?.cvField || '';
+
+        if (detectedTitle && detectedField) {
+            const { upsertTitle, parseFieldSlugFromLLM } = await import('../services/titleOntologyService');
+            const validSlug = parseFieldSlugFromLLM(detectedField);
+            if (validSlug) {
+                ctx.waitUntil(upsertTitle(env, detectedTitle, validSlug, 'llm', 'jd_upload'));
+            }
+        }
+    } catch { /* non-fatal piggyback */ }
+
     return json({ ok: true, key, cached: true }, request, env);
 }
 

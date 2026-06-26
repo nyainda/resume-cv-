@@ -11,7 +11,7 @@
  *   - 'user_confirmed' confidence always overwrites 'llm' or 'regex'.
  */
 
-import type { Env } from '../middlewaretypes';
+import type { Env } from '../types';
 
 export const VALID_FIELD_SLUGS = new Set([
   'irrigation', 'drought_management', 'civil_engineering', 'construction',

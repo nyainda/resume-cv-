@@ -911,6 +911,110 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
     }
 }
 
+// ─── Job title ontology classifier ───────────────────────────────────────────
+
+/**
+ * POST /api/ontology/classify-titles
+ *
+ * Body: { titles: string[], source?: TitleSource, force_confidence?: 'user_confirmed', force_field?: string }
+ *
+ * Step 1: bulk D1 lookup for all titles
+ * Step 2: for any miss, batch LLM classify with Llama 3.2 3B (free tier)
+ * Step 3: upsert LLM results to D1 fire-and-forget
+ *
+ * Returns: { results: Array<{ title, field_slug, confidence, from_cache }> }
+ */
+export async function handleClassifyTitles(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    let body: any;
+    try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
+
+    const titles: string[] = Array.isArray(body?.titles) ? body.titles.filter((t: any) => typeof t === 'string' && t.trim()) : [];
+    if (titles.length === 0) return json({ results: [] }, request, env);
+    if (titles.length > 50) return json({ error: 'too_many_titles', max: 50 }, request, env, 400);
+
+    const source: string = ['pdf_import', 'jd_upload', 'manual_form', 'deep_analysis'].includes(body?.source)
+        ? body.source : 'manual_form';
+
+    const { bulkLookupTitles, upsertTitle, parseFieldSlugFromLLM, normalizeTitle, VALID_FIELD_SLUGS } =
+        await import('../services/titleOntologyService');
+
+    // Force-upsert path (user_confirmed from ProfileForm field dropdown)
+    if (body?.force_confidence === 'user_confirmed' && body?.force_field) {
+        const validSlug = parseFieldSlugFromLLM(body.force_field);
+        if (validSlug && titles.length === 1) {
+            ctx.waitUntil(upsertTitle(env, titles[0], validSlug, 'user_confirmed', source as any));
+            return json({ results: [{ title: titles[0], field_slug: validSlug, confidence: 'user_confirmed', from_cache: false }] }, request, env);
+        }
+    }
+
+    // Step 1: D1 bulk lookup
+    const cached = await bulkLookupTitles(env, titles);
+    const results: Array<{ title: string; field_slug: string | null; confidence: string; from_cache: boolean }> =
+        titles.map(t => {
+            const row = cached.get(normalizeTitle(t));
+            return row
+                ? { title: t, field_slug: row.field_slug, confidence: row.confidence, from_cache: true }
+                : { title: t, field_slug: null, confidence: 'unclassified', from_cache: false };
+        });
+
+    // Step 2: LLM classify misses
+    const missedIndices = results.map((r, i) => (r.field_slug === null ? i : -1)).filter(i => i >= 0);
+    if (missedIndices.length > 0) {
+        const missedTitles = missedIndices.map(i => titles[i]);
+        const validSlugs = [...VALID_FIELD_SLUGS].join(', ');
+        const prompt = `You are a job title classifier. Classify each job title into exactly one field slug.
+
+Valid field slugs: ${validSlugs}
+
+Rules:
+- Return ONLY a JSON object, no explanation, no markdown.
+- For each title, return the single best matching field slug.
+- If genuinely unclear, return "general".
+- Engineering titles need careful distinction:
+  civil/structural/road/drainage → civil_engineering
+  irrigation/water resource/agricultural → irrigation
+  manufacturing/production/process → manufacturing
+  software/developer/devops → tech
+  data/analytics/ml → data_analytics
+
+Job titles to classify:
+${missedTitles.map((t, i) => `${i + 1}. "${t}"`).join('\n')}
+
+Respond with ONLY this JSON (no backticks, no explanation):
+{
+  "classifications": [
+    { "title": "exact title here", "field_slug": "slug_here" }
+  ]
+}`;
+
+        try {
+            const llmRes: any = await env.AI.run(
+                '@cf/meta/llama-3.2-3b-instruct' as any,
+                { prompt, max_tokens: 512 } as any,
+            );
+            const raw = typeof llmRes?.response === 'string' ? llmRes.response : '';
+            const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+            const classifications: Array<{ title: string; field_slug: string }> = parsed?.classifications ?? [];
+            const now = Math.floor(Date.now() / 1000);
+
+            for (const cls of classifications) {
+                const slug = parseFieldSlugFromLLM(cls.field_slug);
+                if (!slug || !cls.title) continue;
+
+                const idx = results.findIndex(r => normalizeTitle(r.title) === normalizeTitle(cls.title));
+                if (idx !== -1) {
+                    results[idx].field_slug = slug;
+                    results[idx].confidence = 'llm';
+                }
+
+                ctx.waitUntil(upsertTitle(env, cls.title, slug, 'llm', source as any));
+            }
+        } catch { /* LLM failed — results stay null for missed titles */ }
+    }
+
+    return json({ results }, request, env);
+}
+
 // ─── Account tier probe ───────────────────────────────────────────────────────
 
 export async function handleAccountTier(request: Request, env: Env): Promise<Response> {

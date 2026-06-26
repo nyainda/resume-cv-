@@ -47,7 +47,7 @@ import { handlePurifyCv, handleGetRules } from './handlers/purify';
 import {
     handleLLM, handleVisionExtract, handleTieredLLM,
     handleRaceLLM, handleParallelSections,
-    handleProxyLLM, handleAccountTier,
+    handleProxyLLM, handleAccountTier, handleClassifyTitles,
 } from './handlers/llm';
 
 import {
@@ -199,6 +199,9 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/vision-extract' && m === 'POST')                     return handleVisionExtract(request, env);
     if (p === '/api/cv/tiered-llm'     && m === 'POST')                     return handleTieredLLM(request, env);
     if (p === '/api/cv/account-tier'   && m === 'GET')                      return handleAccountTier(request, env);
+
+    // ── Job title ontology ────────────────────────────────────────────────────
+    if (p === '/api/ontology/classify-titles' && m === 'POST')              return handleClassifyTitles(request, env, ctx);
     if (p === '/api/cv/race-llm'       && m === 'POST')                     return handleRaceLLM(request, env);
     if (p === '/api/cv/parallel-sections' && m === 'POST')                  return handleParallelSections(request, env);
     if (p === '/api/cv/proxy-llm'      && m === 'POST')                     return handleProxyLLM(request, env);

@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import PhotoCropModal from './PhotoCropModal';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { buildFlatOntology } from '../services/fieldOntologyResolver';
+import { classifyRoleFieldAsync } from '../services/careerTrackClassifier';
 import {
   UserProfile, Reference,
   CustomSection, CustomSectionItem, CustomSectionType,
@@ -685,7 +686,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs mb-1 block">Job Title <span className="text-red-400">*</span></Label>
-                  <Input placeholder="e.g. Senior Software Engineer" {...register(`workExperience.${index}.jobTitle`, { required: true })} />
+                  <Input
+                    placeholder="e.g. Senior Software Engineer"
+                    {...register(`workExperience.${index}.jobTitle`, { required: true })}
+                    onBlur={async (e) => {
+                      const title = e.target.value.trim();
+                      if (!title) return;
+                      classifyRoleFieldAsync(title, 'manual_form').catch(() => {});
+                    }}
+                  />
                 </div>
                 <div>
                   <Label className="text-xs mb-1 block">Company <span className="text-red-400">*</span></Label>

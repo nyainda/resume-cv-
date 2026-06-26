@@ -495,6 +495,79 @@ export function buildCareerTrack(experience: WorkExperience[]): CareerTrack {
 
 // ─── Convenience exports ──────────────────────────────────────────────────────
 
+/**
+ * Async version of classifyRoleField that adds D1 lookup as layer 2.
+ *
+ * Call order:
+ *   1. Regex (synchronous, free)
+ *   2. Worker D1 lookup via /api/ontology/classify-titles (~5ms)
+ *   3. Worker LLM classification (Workers AI free tier, fires only on miss)
+ *
+ * Use in ProfileForm (on title blur) and after PDF/Word import.
+ * buildCareerTrack() continues to use synchronous classifyRoleField()
+ * for in-memory rendering — the async version is for D1 persistence only.
+ */
+export async function classifyRoleFieldAsync(
+  jobTitle: string,
+  source: 'pdf_import' | 'jd_upload' | 'manual_form' | 'deep_analysis' = 'manual_form',
+): Promise<{ field: CVField | null; confidence: string; from_cache: boolean }> {
+  const regexResult = classifyRoleField(jobTitle);
+  if (regexResult.confidence === 'high' || regexResult.confidence === 'medium') {
+    return { field: regexResult.field, confidence: regexResult.confidence, from_cache: false };
+  }
+
+  try {
+    const ENGINE_URL = import.meta.env.VITE_CV_ENGINE_URL || '';
+    if (!ENGINE_URL) return { field: regexResult.field, confidence: 'unclassified', from_cache: false };
+
+    const res = await fetch(`${ENGINE_URL}/api/ontology/classify-titles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titles: [jobTitle], source }),
+    });
+
+    if (!res.ok) return { field: regexResult.field, confidence: 'unclassified', from_cache: false };
+
+    const data = await res.json() as {
+      results: Array<{ title: string; field_slug: string | null; confidence: string; from_cache: boolean }>
+    };
+    const result = data.results?.[0];
+    if (!result?.field_slug) return { field: regexResult.field, confidence: 'unclassified', from_cache: false };
+
+    return {
+      field: result.field_slug as CVField,
+      confidence: result.confidence,
+      from_cache: result.from_cache,
+    };
+  } catch {
+    return { field: regexResult.field, confidence: 'unclassified', from_cache: false };
+  }
+}
+
+/**
+ * Batch classify all roles from a profile after PDF/Word import.
+ * Call fire-and-forget after assembling workExperience[].
+ * Populates D1 so future classifications are instant.
+ */
+export async function classifyAndSaveAllRoles(
+  workExperience: Array<{ jobTitle: string }>,
+  source: 'pdf_import' | 'manual_form' = 'pdf_import',
+): Promise<void> {
+  const titles = workExperience.map(r => r.jobTitle).filter(Boolean);
+  if (titles.length === 0) return;
+
+  const ENGINE_URL = import.meta.env.VITE_CV_ENGINE_URL || '';
+  if (!ENGINE_URL) return;
+
+  try {
+    await fetch(`${ENGINE_URL}/api/ontology/classify-titles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titles, source }),
+    });
+  } catch { /* fire-and-forget — non-fatal */ }
+}
+
 export function describeTrack(track: CareerTrack): string {
   const known = track.segments.filter(s => s.field !== null);
 
