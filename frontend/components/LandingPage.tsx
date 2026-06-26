@@ -1089,11 +1089,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         <div style={{ maxWidth: isLarge ? 1440 : 1100, margin: '0 auto' }}>
 
           {/* Eyebrow */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: isMobile ? 36 : 52 }}>
-            <div style={{ flex: 1, maxWidth: 80, height: 1, background: 'rgba(201,168,76,0.4)' }} />
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#C9A84C', whiteSpace: 'nowrap' }}>What ProCV delivers</span>
-            <div style={{ flex: 1, maxWidth: 80, height: 1, background: 'rgba(201,168,76,0.4)' }} />
-          </div>
+          <div style={{ height: isMobile ? 36 : 52 }} />
 
           {/* Stats row */}
           <div style={{
@@ -1349,7 +1345,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               Start with Step 1 — it's free
               <svg width={14} height={14} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
             </button>
-            <p style={{ fontSize: 12, color: faint, marginTop: 10 }}>No credit card · No data stored on our servers · $2 per PDF when you're ready</p>
+            <p style={{ fontSize: 12, color: faint, marginTop: 10 }}>All tools free to use · $2 per PDF download · cancel anytime</p>
           </div>
 
         </div>
