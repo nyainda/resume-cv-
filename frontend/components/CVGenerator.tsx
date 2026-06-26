@@ -250,6 +250,16 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onUpgrade, openToolkitAtQualityAudit, activeSlot,
 }) => {
   const { isAuthenticated, requireAuth, user: workerUser } = useAuth();
+
+  // Shared helper: push the latest CV to D1 so changes persist across all devices.
+  // The syncQueue is rate-limited (max 1 flush per 30 s) and deduplicates by payload
+  // hash, so calling this on every user action is safe and will never flood the server.
+  const syncCurrentCVToD1 = useCallback((cv: CVData) => {
+    if (isAuthenticated && activeSlot) {
+      enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+    }
+  }, [isAuthenticated, activeSlot]);
+
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);
   // Profile-isolated "room" state — each profileId gets its own localStorage keys
@@ -622,10 +632,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const handleApplyTemplate = useCallback(() => {
     const cvData = profileToCV(userProfile);
     setCurrentCV(cvData);
+    syncCurrentCVToD1(cvData);
     setError(null);
     setCoverLetter(null);
     setAtsDataEmbedded(false);
-  }, [userProfile, setCurrentCV, setCoverLetter]);
+  }, [userProfile, setCurrentCV, setCoverLetter, syncCurrentCVToD1]);
 
   // Show import quality report whenever a JSON import is triggered from parent
   useEffect(() => {
@@ -907,6 +918,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       }
 
       setCurrentCV(generatedData);
+      syncCurrentCVToD1(generatedData);
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
       // Increment free-tier trial counter so the gate fires after 2 generations
@@ -984,7 +996,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     setIsLoading(false);
     setLoadingMessage('Generating...');
     resetProgress();
-  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress]);
+  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress, syncCurrentCVToD1]);
 
   /**
    * Zero-LLM fallback: assembles a clean CV directly from the user's profile
@@ -997,13 +1009,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     try {
       const assembled = await buildCVDeterministically(userProfile, jobDescription || undefined);
       setCurrentCV(assembled);
+      syncCurrentCVToD1(assembled);
       setJustGenerated(true);
     } catch (err) {
       setError(friendlyError(err, 'build your CV without AI'));
     } finally {
       setIsAssembling(false);
     }
-  }, [userProfile, jobDescription, setCurrentCV]);
+  }, [userProfile, jobDescription, setCurrentCV, syncCurrentCVToD1]);
 
   // Track active AI provider during auto-optimize so the button label can show it.
   useEffect(() => {
@@ -1084,6 +1097,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         (stage) => setOptimizeStage(stage),
       );
       setCurrentCV(improved);
+      syncCurrentCVToD1(improved);
 
       // Compute what changed and store for the diff panel
       const diff = diffCV(beforeSnapshot, improved);
@@ -1111,7 +1125,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       setIsOptimizing(false);
       setOptimizeStage(null);
     }
-  }, [currentCV, cvScore, userProfile, jobDescription, setCurrentCV]);
+  }, [currentCV, cvScore, userProfile, jobDescription, setCurrentCV, syncCurrentCVToD1]);
 
   const handleGenerateCoverLetter = useCallback(async () => {
     if (!apiKeySet) {
@@ -2380,7 +2394,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                     <button
                       key={hex}
                       title={label}
-                      onClick={() => setCurrentCV({ ...currentCV, accentColor: hex })}
+                      onClick={() => { const cv = { ...currentCV, accentColor: hex }; setCurrentCV(cv); syncCurrentCVToD1(cv); }}
                       className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 hover:shadow-md ${
                         (currentCV.accentColor ?? '#4f46e5') === hex
                           ? 'border-zinc-900 dark:border-white scale-110 shadow-lg ring-2 ring-offset-1 ring-zinc-300 dark:ring-zinc-600'
@@ -2398,12 +2412,12 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                       type="color"
                       className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                       value={currentCV.accentColor ?? '#4f46e5'}
-                      onChange={e => setCurrentCV({ ...currentCV, accentColor: e.target.value })}
+                      onChange={e => { const cv = { ...currentCV, accentColor: e.target.value }; setCurrentCV(cv); syncCurrentCVToD1(cv); }}
                     />
                   </label>
                   {currentCV.accentColor && (
                     <button
-                      onClick={() => setCurrentCV({ ...currentCV, accentColor: undefined })}
+                      onClick={() => { const cv = { ...currentCV, accentColor: undefined }; setCurrentCV(cv); syncCurrentCVToD1(cv); }}
                       className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline ml-1"
                     >
                       Reset
@@ -2508,7 +2522,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               Only visible for V2 engine templates. Lets the user override the
               accent colour and font pairing on any V2 template in real-time. */}
           {V2_TEMPLATE_IDS.includes(template as string) && (
-            <V2ThemePicker cvData={currentCV} onChange={setCurrentCV} />
+            <V2ThemePicker cvData={currentCV} onChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }} />
           )}
 
           {/* ── Import Quality Report ─────────────────────────────────────── */}
@@ -2618,7 +2632,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
                 personalInfo={userProfile.personalInfo}
                 isEditing={isEditing && !!currentCV}
-                onDataChange={setCurrentCV}
+                onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
                 jobDescriptionForATS={jobDescription}
                 template={template}
                 sidebarSections={sidebarSections}
@@ -2674,7 +2688,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           personalInfo={userProfile.personalInfo}
           jobDescription={jobDescription}
           apiKeySet={apiKeySet}
-          onCVUpdate={(newCV) => { setCurrentCV(newCV); }}
+          onCVUpdate={(newCV) => { setCurrentCV(newCV); syncCurrentCVToD1(newCV); }}
           onClose={() => setShowAIPanel(false)}
         />
       )}
@@ -2733,19 +2747,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           jobDescription={jobDescription || undefined}
           diff={optimizeDiff}
           onApplyBullet={(roleIndex, bulletIndex, newText) => {
-            setCurrentCV(prev => {
-              if (!prev) return prev;
-              const exp = prev.experience.map((role, rIdx) => {
-                if (rIdx !== roleIndex) return role;
-                const responsibilities = role.responsibilities.map((b, bIdx) =>
-                  bIdx === bulletIndex ? newText : b
-                );
-                return { ...role, responsibilities };
-              });
-              return { ...prev, experience: exp };
+            if (!currentCV) return;
+            const exp = currentCV.experience.map((role, rIdx) => {
+              if (rIdx !== roleIndex) return role;
+              const responsibilities = role.responsibilities.map((b, bIdx) =>
+                bIdx === bulletIndex ? newText : b
+              );
+              return { ...role, responsibilities };
             });
+            const newCV = { ...currentCV, experience: exp };
+            setCurrentCV(newCV);
+            syncCurrentCVToD1(newCV);
           }}
-          onUpdateCV={(updatedCV) => setCurrentCV(updatedCV)}
+          onUpdateCV={(updatedCV) => { setCurrentCV(updatedCV); syncCurrentCVToD1(updatedCV); }}
           onClose={() => setShowDoctorPanel(false)}
         />
       )}

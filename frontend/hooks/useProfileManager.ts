@@ -184,24 +184,23 @@ export function useProfileManager({
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleRestoreProfileBullets = useCallback(() => {
-    if (!currentCV || !userProfile) return;
+    if (!currentCV || !userProfile || !activeSlot) return;
     const fromProfile = profileToCV(userProfile);
-    setCurrentCV((prev) => {
-      if (!prev) return prev;
-      const restored = prev.experience.map((cvExp) => {
-        const profileExp = fromProfile.experience.find(
-          (e) => e.company === cvExp.company && e.jobTitle === cvExp.jobTitle,
-        );
-        if (!profileExp) return cvExp;
-        return { ...cvExp, responsibilities: profileExp.responsibilities };
-      });
-      return {
-        ...prev,
-        experience: restored,
-        summary: userProfile.summary || prev.summary,
-      };
+    const restored = currentCV.experience.map((cvExp) => {
+      const profileExp = fromProfile.experience.find(
+        (e) => e.company === cvExp.company && e.jobTitle === cvExp.jobTitle,
+      );
+      if (!profileExp) return cvExp;
+      return { ...cvExp, responsibilities: profileExp.responsibilities };
     });
-  }, [currentCV, userProfile, setCurrentCV]);
+    const newCV = {
+      ...currentCV,
+      experience: restored,
+      summary: userProfile.summary || currentCV.summary,
+    };
+    setCurrentCV(newCV);
+    enqueueSlotSync({ ...activeSlot, currentCV: newCV }).catch(() => {});
+  }, [currentCV, userProfile, activeSlot, setCurrentCV]);
 
   const handleProfileSave = useCallback(
     (profile: UserProfile) => {

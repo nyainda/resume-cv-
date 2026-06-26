@@ -22,7 +22,7 @@ import StorageMapPage from './StorageMapPage';
 import AccountPage from './AccountPage';
 import { Target, User } from './icons';
 import { colorBg } from '../utils/profileUtils';
-import { clearQueueForAccount } from '../services/storage/syncQueue';
+import { clearQueueForAccount, enqueueSlotSync } from '../services/storage/syncQueue';
 
 interface AppViewRouterProps {
   currentView: string;
@@ -443,7 +443,10 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                     onProfileImported={onProfileImported}
                     onGitHubCVGenerated={onGitHubCVGenerated}
                     currentCV={currentCV}
-                    onCurrentCVUpdated={(cv) => setCurrentCV(cv)}
+                    onCurrentCVUpdated={(cv) => {
+                      setCurrentCV(cv);
+                      if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+                    }}
                     forceTab={toolkitForceTab as any}
                   />
                 </div>
@@ -500,7 +503,10 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                 <ScoreMyCVPage
                   currentCV={currentCV}
                   onGoToGenerator={() => setCurrentView('generator')}
-                  onCVUpdate={(cv) => setCurrentCV(cv)}
+                  onCVUpdate={(cv) => {
+                    setCurrentCV(cv);
+                    if (isAuthenticated && activeSlot) enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+                  }}
                 />
               )}
 
