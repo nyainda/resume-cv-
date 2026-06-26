@@ -3,7 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import V2ThemePicker from './V2ThemePicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, UserProfileSlot } from '../types';
-import { enqueueSlotSync } from '../services/storage/syncQueue';
+import { enqueueSlotSync, _devGetLastSlotSyncAt } from '../services/storage/syncQueue';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
 import { auditCvQuality } from '../services/cvNumberFidelity';
@@ -259,6 +259,34 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
     }
   }, [isAuthenticated, activeSlot]);
+
+  // ── Dev-only sync gap detector ───────────────────────────────────────────
+  // Warns in the browser console whenever currentCV changes but no matching
+  // enqueueSlotSync follows within 1.5 seconds, catching future regressions
+  // where a setCurrentCV call is added without the required sync call.
+  // Completely stripped in production builds (import.meta.env.DEV).
+  const _devCVChangeAt = useRef<number>(0);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!currentCV || !isAuthenticated) return;
+    const changeAt = Date.now();
+    _devCVChangeAt.current = changeAt;
+    const timer = setTimeout(() => {
+      // Only warn if this is still the most recent CV change (no newer one queued)
+      if (_devCVChangeAt.current !== changeAt) return;
+      const lastSync = _devGetLastSlotSyncAt();
+      if (lastSync < changeAt) {
+        console.warn(
+          '[DEV] Sync gap detected: currentCV changed but enqueueSlotSync was NOT called within 1.5 s.\n' +
+          'This means the change will be lost when the user opens the app on another device.\n' +
+          'Add syncCurrentCVToD1(cv) next to the setCurrentCV call that triggered this change.',
+          { cvSummaryStart: currentCV.summary?.slice(0, 80) }
+        );
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCV]);
 
   const [showDownloadGate, setShowDownloadGate] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(false);

@@ -633,12 +633,20 @@ const AppInner: React.FC = () => {
           sharedAt={sharedCVPayload.sharedAt}
           coverLetterText={sharedCVPayload.coverLetterText}
           onLoadIntoEditor={
-            userProfile
-              ? (cvData) => {
-                  setCurrentCV(cvData);
-                  setCurrentView("generator");
-                }
-              : undefined
+            // Only pass this to the actual owner of the shared CV.
+            // We match on email so another ProCV user viewing a colleague's
+            // shared link never accidentally overwrites their own active CV.
+            (() => {
+              if (!userProfile) return undefined;
+              const sharedEmail = sharedCVPayload.personalInfo.email?.toLowerCase().trim();
+              const myEmail = userProfile.personalInfo.email?.toLowerCase().trim();
+              const isOwner = !!(sharedEmail && myEmail && sharedEmail === myEmail);
+              if (!isOwner) return undefined;
+              return (cvData: CVData) => {
+                setCurrentCV(cvData);
+                setCurrentView("generator");
+              };
+            })()
           }
           onDismiss={() => {
             setSharedCVPayload(null);

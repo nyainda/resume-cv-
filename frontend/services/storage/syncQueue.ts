@@ -249,7 +249,14 @@ async function _doFlush(): Promise<void> {
  * The slot will be sent to CF D1 at most once per 30 seconds.
  * Duplicate payloads (same hash) are dropped before any network call.
  */
+// Dev-only: records the timestamp of the last enqueueSlotSync call so the
+// useDevSyncGuard hook in CVGenerator can detect CV mutations without a sync.
+let _devLastSlotSyncAt = 0;
+/** @internal — dev mode only. Returns the timestamp of the last enqueueSlotSync call. */
+export function _devGetLastSlotSyncAt(): number { return _devLastSlotSyncAt; }
+
 export async function enqueueSlotSync(slot: UserProfileSlot): Promise<void> {
+    if (import.meta.env.DEV) _devLastSlotSyncAt = Date.now();
     try {
         const payloadJson = JSON.stringify(slot);
         const payloadHash = await sha256hex(payloadJson);

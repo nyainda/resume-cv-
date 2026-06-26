@@ -324,14 +324,22 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
             </a>
           </div>
 
-          {/* Owner CTA */}
-          {isOwner && (
+          {/* Owner CTA — only the CV owner sees this */}
+          {isOwner ? (
             <button
               onClick={() => { onLoadIntoEditor!(cvData); onDismiss(); }}
               className="text-xs text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] underline underline-offset-2 transition-colors text-center w-full"
             >
               Load this CV into your editor →
             </button>
+          ) : (
+            /* Visitor CTA — takes them to the ProCV landing page, not into the owner's account */
+            <a
+              href={window.location.origin}
+              className="block text-center text-xs text-zinc-400 hover:text-[#C9A84C] transition-colors underline underline-offset-2"
+            >
+              Build your own CV free with ProCV →
+            </a>
           )}
         </aside>
 
