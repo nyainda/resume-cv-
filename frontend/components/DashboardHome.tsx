@@ -167,20 +167,20 @@ const DashboardHome: React.FC<Props> = ({
     if (savedCVs.length > 0 && trackedApps.length === 0)
       steps.push({ label: 'Track your job applications', action: 'Log applications and monitor your pipeline', view: 'tracker' });
     if (savedCVs.length > 0 && savedCLs.length === 0)
-      steps.push({ label: 'Write a cover letter', action: 'Tailored to your CV and target role', view: 'linkedin' });
+      steps.push({ label: 'Write a cover letter', action: 'Tailored to your CV and target role', view: 'generator' });
     return steps.slice(0, 3);
   }, [activeSlot, savedCVs, savedCLs, trackedApps, isAuthenticated, driveConnected]);
 
   const statCards = [
     { label: 'CVs Saved',     value: savedCVs.length,     icon: '📄', view: 'history',   color: 'from-[#1B2B4B] to-[#2d4272]' },
-    { label: 'Cover Letters', value: savedCLs.length,     icon: '✉️', view: 'linkedin',  color: 'from-violet-700 to-violet-500' },
+    { label: 'Cover Letters', value: savedCLs.length,     icon: '✉️', view: 'generator', color: 'from-violet-700 to-violet-500' },
     { label: 'Applications',  value: trackedApps.length,  icon: '🎯', view: 'tracker',   color: 'from-emerald-700 to-emerald-500' },
     { label: 'STAR Stories',  value: starStories.length,  icon: '⭐', view: 'interview', color: 'from-amber-700 to-amber-500' },
   ];
 
   const quickActions = [
     { label: 'Generate CV',    icon: '✨', view: 'generator', desc: 'Job-matched, quality-checked' },
-    { label: 'Cover Letter',   icon: '✉️', view: 'linkedin',  desc: 'Written in seconds' },
+    { label: 'Cover Letter',   icon: '✉️', view: 'generator', desc: 'Written in seconds' },
     { label: 'Job Tracker',    icon: '🎯', view: 'tracker',   desc: 'Manage pipeline' },
     { label: 'Interview Prep', icon: '🎤', view: 'interview', desc: 'Practice Q&A' },
     { label: 'ATS Score',      icon: '📊', view: 'score',     desc: 'Beat the robots' },

@@ -10,6 +10,7 @@ import {
   InterviewNavIcon,
   NegotiationNavIcon,
   AnalyticsNavIcon,
+  LinkedInNavIcon,
 } from '../components/nav/NavIcons';
 import { FileText, Target, List, BookOpen } from '../components/icons';
 import { isPureFreeTier } from '../services/accountTierService';
@@ -165,7 +166,8 @@ export function useAppNavigation({
     {
       label: 'Tools',
       items: [
-        { id: 'pivot', label: 'Career Pivot', icon: PivotNavIcon },
+        { id: 'linkedin', label: 'LinkedIn Profile', icon: LinkedInNavIcon },
+        { id: 'pivot',    label: 'Career Pivot',     icon: PivotNavIcon },
       ],
     },
     {
