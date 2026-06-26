@@ -1,17 +1,19 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+interface SceneProps { lightMode: boolean }
+
 const passes = [
-  { label: 'Market Research', icon: '⬡' },
-  { label: 'CV Generation', icon: '⬡' },
-  { label: 'Number Fidelity', icon: '⬡' },
-  { label: 'Humanization Audit', icon: '⬡' },
-  { label: 'Voice Consistency', icon: '⬡' },
-  { label: 'ATS Coverage', icon: '⬡' },
-  { label: 'Quality Polish', icon: '⬡' },
+  { label: 'Market Research',    detail: 'Gemini grounding — live JD intel' },
+  { label: 'CV Generation',      detail: 'Llama 3.3 70B via Groq' },
+  { label: 'Number Fidelity',    detail: 'Lock real metrics to ground truth' },
+  { label: 'Humanization Audit', detail: 'Strip AI tells and clichés' },
+  { label: 'Voice Consistency',  detail: 'Enforce your career persona' },
+  { label: 'ATS Coverage',       detail: 'Inject confirmed gap keywords' },
+  { label: 'Quality Polish',     detail: 'Rhythm, dedup, opener diversity' },
 ];
 
-export function Scene2() {
+export function Scene2({ lightMode }: SceneProps) {
   const [activeNode, setActiveNode] = useState(-1);
   const [phase, setPhase] = useState(0);
 
@@ -19,12 +21,18 @@ export function Scene2() {
     const base = 500;
     const timers = [
       setTimeout(() => setPhase(1), 300),
-      ...passes.map((_, i) => setTimeout(() => setActiveNode(i), base + i * 1200)),
-      setTimeout(() => setPhase(2), base + passes.length * 1200 + 400),
-      setTimeout(() => setPhase(3), base + passes.length * 1200 + 1200),
+      ...passes.map((_, i) => setTimeout(() => setActiveNode(i), base + i * 1000)),
+      setTimeout(() => setPhase(2), base + passes.length * 1000 + 400),
+      setTimeout(() => setPhase(3), base + passes.length * 1000 + 1200),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
+  const dim     = lightMode ? 'rgba(27,43,75,0.3)' : 'rgba(248,247,244,0.3)';
+  const circleBorder = lightMode ? 'rgba(27,43,75,0.15)' : 'rgba(255,255,255,0.2)';
+  const circleBg     = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.03)';
+  const connectorDim = lightMode ? 'rgba(27,43,75,0.12)' : 'rgba(255,255,255,0.1)';
 
   return (
     <motion.div
@@ -45,8 +53,8 @@ export function Scene2() {
       </motion.p>
 
       <motion.h2
-        className="text-[4vw] font-bold text-center mb-[4vh]"
-        style={{ color: '#F8F7F4', fontFamily: 'Playfair Display, serif' }}
+        className="text-[4vw] font-bold text-center mb-[3vh]"
+        style={{ color: text, fontFamily: 'Playfair Display, serif' }}
         initial={{ opacity: 0 }}
         animate={phase >= 1 ? { opacity: 1 } : { opacity: 0 }}
         transition={{ duration: 0.6, delay: 0.1 }}
@@ -56,7 +64,7 @@ export function Scene2() {
 
       <div className="relative flex flex-col items-center gap-0">
         {passes.map((pass, i) => {
-          const isActive = activeNode >= i;
+          const isActive  = activeNode >= i;
           const isCurrent = activeNode === i;
           return (
             <div key={i} className="flex flex-col items-center">
@@ -69,33 +77,43 @@ export function Scene2() {
                 <motion.div
                   className="w-[2.2vw] h-[2.2vw] rounded-full border-2 flex items-center justify-center text-[0.7vw] font-bold"
                   animate={{
-                    borderColor: isActive ? '#C9A84C' : 'rgba(255,255,255,0.2)',
-                    backgroundColor: isActive ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.03)',
+                    borderColor: isActive ? '#C9A84C' : circleBorder,
+                    backgroundColor: isActive ? 'rgba(201,168,76,0.15)' : circleBg,
                     scale: isCurrent ? [1, 1.15, 1] : 1,
                     boxShadow: isActive ? '0 0 12px rgba(201,168,76,0.4)' : '0 0 0px transparent',
                   }}
                   transition={{ duration: 0.4, scale: { duration: 0.3, repeat: isCurrent ? Infinity : 0 } }}
                 >
                   <motion.span
-                    animate={{ color: isActive ? '#C9A84C' : 'rgba(255,255,255,0.3)' }}
+                    animate={{ color: isActive ? '#C9A84C' : dim }}
                     transition={{ duration: 0.3 }}
                   >
                     {i + 1}
                   </motion.span>
                 </motion.div>
 
-                <motion.p
-                  className="text-[1vw] font-medium w-[14vw]"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
-                  animate={{ color: isActive ? '#F8F7F4' : 'rgba(248,247,244,0.3)' }}
-                  transition={{ duration: 0.4 }}
-                >
-                  {pass.label}
-                </motion.p>
+                <div className="w-[16vw]">
+                  <motion.p
+                    className="text-[1vw] font-semibold"
+                    style={{ fontFamily: 'DM Sans, sans-serif' }}
+                    animate={{ color: isActive ? text : dim }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    {pass.label}
+                  </motion.p>
+                  <motion.p
+                    className="text-[0.7vw]"
+                    style={{ fontFamily: 'DM Sans, sans-serif' }}
+                    animate={{ color: isActive ? (lightMode ? 'rgba(27,43,75,0.5)' : 'rgba(248,247,244,0.4)') : 'transparent' }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {pass.detail}
+                  </motion.p>
+                </div>
 
                 <motion.div
                   className="w-[4vw] h-[2px] rounded-full"
-                  animate={{ backgroundColor: isActive ? '#C9A84C' : 'rgba(255,255,255,0.1)', scaleX: isActive ? 1 : 0.3 }}
+                  animate={{ backgroundColor: isActive ? '#C9A84C' : connectorDim, scaleX: isActive ? 1 : 0.3 }}
                   style={{ transformOrigin: 'left' }}
                   transition={{ duration: 0.5 }}
                 />
@@ -112,9 +130,9 @@ export function Scene2() {
 
               {i < passes.length - 1 && (
                 <motion.div
-                  className="w-[2px] my-[0.5vh]"
-                  style={{ height: '1.8vh' }}
-                  animate={{ backgroundColor: activeNode > i ? '#C9A84C' : 'rgba(255,255,255,0.1)' }}
+                  className="w-[2px] my-[0.4vh]"
+                  style={{ height: '1.4vh' }}
+                  animate={{ backgroundColor: activeNode > i ? '#C9A84C' : connectorDim }}
                   transition={{ duration: 0.4, delay: 0.2 }}
                 />
               )}
@@ -124,7 +142,7 @@ export function Scene2() {
       </div>
 
       <motion.div
-        className="mt-[3.5vh] text-center"
+        className="mt-[3vh] text-center"
         initial={{ opacity: 0, y: 10 }}
         animate={phase >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}

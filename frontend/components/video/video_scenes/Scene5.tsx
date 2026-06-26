@@ -1,12 +1,15 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+interface SceneProps { lightMode: boolean }
+
 const tagline = 'Your Personal Career Consultant';
-const subtitle = 'Not another AI CV. A builder that checks its own work.';
+const subtitle = 'Not another AI CV tool. A builder that checks its own work — 7 passes, zero AI tells, WYSIWYG PDF.';
 
-export function Scene5() {
+const features = ['Groq AI', 'Cloudflare Workers', '35 Templates', 'WYSIWYG PDF', 'ATS Gap Targeting', 'Cover Letters'];
+
+export function Scene5({ lightMode }: SceneProps) {
   const [phase, setPhase] = useState(0);
-
   useEffect(() => {
     const timers = [
       setTimeout(() => setPhase(1), 300),
@@ -18,6 +21,10 @@ export function Scene5() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
+  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
+  const subtext = lightMode ? 'rgba(27,43,75,0.5)' : 'rgba(248,247,244,0.5)';
+  const lineColor = lightMode ? 'rgba(27,43,75,0.15)' : 'rgba(255,255,255,0.12)';
+
   return (
     <motion.div
       className="absolute inset-0 flex flex-col items-center justify-center"
@@ -26,21 +33,23 @@ export function Scene5() {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.8 }}
     >
+      {/* Side accent lines */}
       <motion.div
         className="absolute left-[8vw] top-1/2 -translate-y-1/2 w-[2px]"
-        style={{ background: 'linear-gradient(180deg, transparent, #C9A84C, transparent)' }}
+        style={{ background: `linear-gradient(180deg, transparent, #C9A84C, transparent)` }}
         initial={{ height: 0 }}
         animate={phase >= 1 ? { height: '40vh' } : { height: 0 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       />
       <motion.div
         className="absolute right-[8vw] top-1/2 -translate-y-1/2 w-[2px]"
-        style={{ background: 'linear-gradient(180deg, transparent, #C9A84C, transparent)' }}
+        style={{ background: `linear-gradient(180deg, transparent, #C9A84C, transparent)` }}
         initial={{ height: 0 }}
         animate={phase >= 1 ? { height: '40vh' } : { height: 0 }}
         transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
       />
 
+      {/* Logo */}
       <motion.div
         className="flex items-center gap-[1.5vw] mb-[2vh]"
         initial={{ opacity: 0, scale: 0.6 }}
@@ -53,14 +62,12 @@ export function Scene5() {
         >
           CV
         </div>
-        <span
-          className="font-bold"
-          style={{ fontSize: '3.5vw', color: '#F8F7F4', fontFamily: 'Playfair Display, serif', letterSpacing: '-0.02em' }}
-        >
+        <span className="font-bold" style={{ fontSize: '3.5vw', color: text, fontFamily: 'Playfair Display, serif', letterSpacing: '-0.02em' }}>
           ProCV
         </span>
       </motion.div>
 
+      {/* Gold line */}
       <motion.div
         className="h-[2px] mb-[3vh]"
         style={{ background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }}
@@ -69,10 +76,8 @@ export function Scene5() {
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       />
 
-      <div
-        className="text-center mb-[2.5vh] overflow-hidden"
-        style={{ maxWidth: '60vw' }}
-      >
+      {/* Tagline letter-by-letter */}
+      <div className="text-center mb-[2.5vh] overflow-hidden" style={{ maxWidth: '60vw' }}>
         <motion.p
           className="font-semibold"
           style={{ fontSize: '2.2vw', color: '#C9A84C', fontFamily: 'Playfair Display, serif', lineHeight: 1.3 }}
@@ -86,7 +91,7 @@ export function Scene5() {
               style={{ display: 'inline-block', whiteSpace: char === ' ' ? 'pre' : 'normal' }}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: i * 0.03, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.25, delay: i * 0.025, ease: [0.16, 1, 0.3, 1] }}
             >
               {char}
             </motion.span>
@@ -95,8 +100,8 @@ export function Scene5() {
       </div>
 
       <motion.p
-        className="text-center"
-        style={{ fontSize: '1.1vw', color: 'rgba(248,247,244,0.5)', fontFamily: 'DM Sans, sans-serif', maxWidth: '44vw', lineHeight: 1.6 }}
+        className="text-center mb-[3vh]"
+        style={{ fontSize: '1.05vw', color: subtext, fontFamily: 'DM Sans, sans-serif', maxWidth: '48vw', lineHeight: 1.6 }}
         initial={{ opacity: 0, y: 10 }}
         animate={phase >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
         transition={{ duration: 0.6 }}
@@ -104,20 +109,21 @@ export function Scene5() {
         {subtitle}
       </motion.p>
 
+      {/* Feature tags */}
       <motion.div
-        className="flex gap-[2vw] mt-[4vh]"
+        className="flex flex-wrap justify-center gap-[1vw]"
         initial={{ opacity: 0 }}
         animate={phase >= 5 ? { opacity: 1 } : { opacity: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {['Groq AI', 'Cloudflare Workers', '35 Templates', 'WYSIWYG PDF'].map((tag, i) => (
+        {features.map((tag, i) => (
           <motion.span
             key={tag}
             className="px-[1vw] py-[0.5vh] rounded-full text-[0.7vw] font-semibold"
-            style={{ border: '1px solid rgba(201,168,76,0.3)', color: 'rgba(201,168,76,0.7)', fontFamily: 'DM Sans, sans-serif' }}
+            style={{ border: '1px solid rgba(201,168,76,0.3)', color: 'rgba(201,168,76,0.8)', fontFamily: 'DM Sans, sans-serif' }}
             initial={{ opacity: 0, scale: 0.8 }}
             animate={phase >= 5 ? { opacity: 1, scale: 1 } : {}}
-            transition={{ delay: i * 0.08, type: 'spring', stiffness: 300, damping: 20 }}
+            transition={{ delay: i * 0.07, type: 'spring', stiffness: 300, damping: 20 }}
           >
             {tag}
           </motion.span>

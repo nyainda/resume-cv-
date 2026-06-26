@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+interface SceneProps { lightMode: boolean }
+
 const weakBullets = [
   'Managed product roadmap',
   'Helped improve metrics',
@@ -30,9 +32,8 @@ function TypewriterText({ text, delay = 0 }: { text: string; delay?: number }) {
   return <span>{displayed}<span className="opacity-0">|</span></span>;
 }
 
-export function Scene1() {
+export function Scene1({ lightMode }: SceneProps) {
   const [phase, setPhase] = useState(0);
-
   useEffect(() => {
     const timers = [
       setTimeout(() => setPhase(1), 300),
@@ -42,6 +43,10 @@ export function Scene1() {
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
+  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : '#a1a1aa';
+  const strong  = lightMode ? '#1B2B4B' : '#e4e4e7';
 
   return (
     <motion.div
@@ -63,7 +68,7 @@ export function Scene1() {
 
       <motion.h2
         className="text-[4.5vw] font-bold text-center leading-tight mb-[4vh]"
-        style={{ color: '#F8F7F4', fontFamily: 'Playfair Display, serif' }}
+        style={{ color: text, fontFamily: 'Playfair Display, serif' }}
         initial={{ opacity: 0, y: 20 }}
         animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
         transition={{ duration: 0.6, delay: 0.1 }}
@@ -92,7 +97,7 @@ export function Scene1() {
               transition={{ duration: 0.4, delay: i * 0.12 }}
             >
               <span className="text-[1.1vw] text-red-400 mt-[0.1vh] flex-shrink-0">✗</span>
-              <span className="text-[0.85vw] leading-snug" style={{ color: '#a1a1aa', fontFamily: 'DM Sans, sans-serif' }}>{b}</span>
+              <span className="text-[0.85vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{b}</span>
             </motion.div>
           ))}
         </div>
@@ -117,7 +122,7 @@ export function Scene1() {
               transition={{ duration: 0.5, delay: i * 0.15, type: 'spring', stiffness: 280, damping: 22 }}
             >
               <span className="text-[1.1vw] text-green-400 mt-[0.1vh] flex-shrink-0">✓</span>
-              <span className="text-[0.85vw] leading-snug" style={{ color: '#e4e4e7', fontFamily: 'DM Sans, sans-serif' }}>
+              <span className="text-[0.85vw] leading-snug" style={{ color: strong, fontFamily: 'DM Sans, sans-serif' }}>
                 {phase >= 3 ? <TypewriterText text={b} delay={i * 160} /> : ''}
               </span>
             </motion.div>

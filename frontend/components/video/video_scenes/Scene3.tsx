@@ -1,30 +1,29 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+interface SceneProps { lightMode: boolean }
+
 const steps = [
   {
     num: '01',
     label: 'Paste Job Description',
     detail: 'Drop in the job posting. ProCV extracts keywords, seniority, and required skills automatically.',
-    color: '#C9A84C',
   },
   {
     num: '02',
     label: 'AI Generates & Validates',
     detail: 'Groq + Cloudflare Workers AI run 7 quality passes — fidelity, humanization, ATS coverage.',
-    color: '#C9A84C',
   },
   {
     num: '03',
     label: 'Download Your PDF',
     detail: 'Pixel-perfect PDF via headless Chrome. 35 templates. WYSIWYG — what you see is what you get.',
-    color: '#C9A84C',
   },
 ];
 
-function ProgressBar({ active }: { active: boolean }) {
+function ProgressBar({ active, lightMode }: { active: boolean; lightMode: boolean }) {
   return (
-    <div className="mt-[1.2vh] h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+    <div className="mt-[1.2vh] h-[3px] rounded-full overflow-hidden" style={{ background: lightMode ? 'rgba(27,43,75,0.1)' : 'rgba(255,255,255,0.1)' }}>
       <motion.div
         className="h-full rounded-full"
         style={{ background: 'linear-gradient(90deg, #C9A84C, #e8c97a)' }}
@@ -36,9 +35,8 @@ function ProgressBar({ active }: { active: boolean }) {
   );
 }
 
-export function Scene3() {
+export function Scene3({ lightMode }: SceneProps) {
   const [phase, setPhase] = useState(0);
-
   useEffect(() => {
     const timers = [
       setTimeout(() => setPhase(1), 200),
@@ -48,6 +46,12 @@ export function Scene3() {
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
+  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.55)';
+  const cardBg  = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
+  const cardBorder = lightMode ? 'rgba(27,43,75,0.12)' : 'rgba(255,255,255,0.08)';
+  const numColor   = lightMode ? 'rgba(201,168,76,0.25)' : 'rgba(201,168,76,0.2)';
 
   return (
     <motion.div
@@ -69,7 +73,7 @@ export function Scene3() {
 
       <motion.h2
         className="text-[4vw] font-bold text-center mb-[5vh]"
-        style={{ color: '#F8F7F4', fontFamily: 'Playfair Display, serif' }}
+        style={{ color: text, fontFamily: 'Playfair Display, serif' }}
         initial={{ opacity: 0 }}
         animate={phase >= 1 ? { opacity: 1 } : { opacity: 0 }}
         transition={{ duration: 0.6, delay: 0.1 }}
@@ -82,24 +86,24 @@ export function Scene3() {
           <div key={i} className="flex items-center gap-[2vw] flex-1">
             <motion.div
               className="flex-1 rounded-xl p-[2.5vh_1.8vw]"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
               initial={{ opacity: 0, y: 40 }}
               animate={phase >= i + 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
               transition={{ duration: 0.6, type: 'spring', stiffness: 280, damping: 22 }}
             >
               <p
                 className="text-[2.5vw] font-black mb-[0.5vh]"
-                style={{ color: 'rgba(201,168,76,0.2)', fontFamily: 'Playfair Display, serif', lineHeight: 1 }}
+                style={{ color: numColor, fontFamily: 'Playfair Display, serif', lineHeight: 1 }}
               >
                 {step.num}
               </p>
-              <p className="text-[1.1vw] font-bold mb-[1vh]" style={{ color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif' }}>
+              <p className="text-[1.1vw] font-bold mb-[1vh]" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>
                 {step.label}
               </p>
-              <p className="text-[0.78vw] leading-relaxed" style={{ color: 'rgba(248,247,244,0.55)', fontFamily: 'DM Sans, sans-serif' }}>
+              <p className="text-[0.78vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
                 {step.detail}
               </p>
-              {i === 1 && <ProgressBar active={phase >= 3} />}
+              {i === 1 && <ProgressBar active={phase >= 3} lightMode={lightMode} />}
             </motion.div>
 
             {i < steps.length - 1 && (
