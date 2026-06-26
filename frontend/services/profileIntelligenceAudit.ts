@@ -542,10 +542,10 @@ export function clearAuditCache(slotId: string): void {
 
 export function undersellRiskLabel(risk: UndersellRisk): string {
   switch (risk) {
-    case 'high':   return 'High Under-Selling Risk';
-    case 'medium': return 'Moderate Under-Selling Risk';
-    case 'low':    return 'Low Under-Selling Risk';
-    case 'none':   return 'No Under-Selling Detected';
+    case 'high':   return 'Under-selling your experience';
+    case 'medium': return 'Could present stronger';
+    case 'low':    return 'Profile well-represented';
+    case 'none':   return 'Presenting at full strength';
   }
 }
 
@@ -553,7 +553,7 @@ export function undersellRiskColor(risk: UndersellRisk): string {
   switch (risk) {
     case 'high':   return '#dc2626';
     case 'medium': return '#d97706';
-    case 'low':    return '#ca8a04';
+    case 'low':    return '#16a34a';
     case 'none':   return '#16a34a';
   }
 }

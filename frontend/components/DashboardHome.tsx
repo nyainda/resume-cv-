@@ -35,16 +35,33 @@ interface Props {
   onOpenSettings: () => void;
 }
 
-function ScoreRing({ value, label, color }: { value: number; label: string; color: string }) {
-  const r = 22;
+function qualityLabel(value: number): { label: string; color: string } {
+  if (value >= 70) return { label: 'Strong',    color: '#16a34a' };
+  if (value >= 50) return { label: 'Good',      color: '#C9A84C' };
+  if (value >= 30) return { label: 'Building',  color: '#d97706' };
+  return               { label: 'Early',     color: '#94a3b8' };
+}
+
+function ScoreRing({
+  value, label, color, tooltip,
+}: {
+  value: number; label: string; color: string; tooltip?: React.ReactNode;
+}) {
+  const [show, setShow] = useState(false);
+  const r = 20;
   const circ = 2 * Math.PI * r;
-  const dash = circ * (value / 100);
+  const dash = circ * (Math.min(value, 100) / 100);
+  const ql = qualityLabel(value);
   return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="60" height="60" viewBox="0 0 60 60">
-        <circle cx="30" cy="30" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-zinc-100 dark:text-zinc-800" />
+    <div
+      className="relative flex flex-col items-center gap-1 cursor-default"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <svg width="56" height="56" viewBox="0 0 56 56">
+        <circle cx="28" cy="28" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-zinc-100 dark:text-zinc-800" />
         <circle
-          cx="30" cy="30" r={r}
+          cx="28" cy="28" r={r}
           fill="none"
           stroke={color}
           strokeWidth="4"
@@ -53,9 +70,15 @@ function ScoreRing({ value, label, color }: { value: number; label: string; colo
           strokeDashoffset={circ / 4}
           style={{ transition: 'stroke-dasharray 0.7s ease' }}
         />
-        <text x="30" y="34" textAnchor="middle" fontSize="13" fontWeight="700" fill={color}>{value}</text>
+        <text x="28" y="32" textAnchor="middle" fontSize="12" fontWeight="700" fill={color}>{value}</text>
       </svg>
-      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium text-center leading-tight">{label}</span>
+      <span style={{ color: ql.color }} className="text-[9px] font-bold text-center leading-none">{ql.label}</span>
+      {show && tooltip && (
+        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 w-56 bg-zinc-900 dark:bg-zinc-950 text-white rounded-xl p-3 text-xs shadow-2xl pointer-events-none">
+          {tooltip}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-950" />
+        </div>
+      )}
     </div>
   );
 }
@@ -321,33 +344,120 @@ const DashboardHome: React.FC<Props> = ({
                 {audit.career_progression.charAt(0).toUpperCase() + audit.career_progression.slice(1)} progression
               </span>
 
-              {audit.employment_gap_detected && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                  ⏸ Gap detected
+              {audit.gaps.length > 0 && Math.max(...audit.gaps.map(g => g.gapMonths)) >= 6 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                  ⏸ Career break · {Math.max(...audit.gaps.map(g => g.gapMonths))}mo
                 </span>
               )}
             </div>
           </div>
 
           <div className="p-5 space-y-5">
-            {/* Score rings — 5 metrics in a balanced grid */}
+            {/* Score rings — 5 quality signals */}
             <div className="grid grid-cols-5 gap-2">
-              {[
-                { value: profileComplete, label: 'Completeness', thresh: [80, 50] },
-                { value: audit.achievement_density, label: 'Achievements', thresh: [60, 35] },
-                { value: audit.metric_strength,     label: 'Metrics',      thresh: [60, 30] },
-                { value: audit.leadership_score,    label: 'Leadership',   thresh: [50, 25] },
-                { value: audit.skill_evidence_score,label: 'Skill Depth',  thresh: [60, 35] },
-              ].map(({ value, label, thresh }) => {
-                const color = value >= thresh[0] ? '#16a34a' : value >= thresh[1] ? '#C9A84C' : '#ef4444';
+              {/* Completeness */}
+              {(() => {
+                const v = profileComplete;
+                const color = v >= 80 ? '#16a34a' : v >= 50 ? '#C9A84C' : '#ef4444';
+                const missing = audit.completeness.missing.slice(0, 3);
                 return (
-                  <div key={label} className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                    <ScoreRing value={value} label="" color={color} />
-                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">{label}</span>
+                  <div key="completeness" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                    <ScoreRing value={v} label="" color={color} tooltip={
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-white">Profile Completeness</div>
+                        <div className="text-zinc-300">How filled-in your profile is across all sections.</div>
+                        {missing.length > 0 && <div className="text-amber-300 mt-1">Still missing: {missing.join(', ')}.</div>}
+                        {v >= 80 && <div className="text-emerald-400">Great — all key sections are filled.</div>}
+                      </div>
+                    } />
+                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Completeness</span>
                   </div>
                 );
-              })}
+              })()}
+
+              {/* Achievement density */}
+              {(() => {
+                const v = audit.achievement_density;
+                const color = v >= 60 ? '#16a34a' : v >= 35 ? '#C9A84C' : '#ef4444';
+                return (
+                  <div key="density" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                    <ScoreRing value={v} label="" color={color} tooltip={
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-white">Achievement Density</div>
+                        <div className="text-zinc-300">{audit.density.achievementCount} of {audit.density.totalBullets} bullets show measurable outcomes.</div>
+                        {v < 60 && <div className="text-amber-300">Tip: rewrite duty bullets as "achieved X by doing Y".</div>}
+                        {v >= 60 && <div className="text-emerald-400">Strong — most bullets show real impact.</div>}
+                      </div>
+                    } />
+                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Achievements</span>
+                  </div>
+                );
+              })()}
+
+              {/* Metric strength */}
+              {(() => {
+                const v = audit.metric_strength;
+                const color = v >= 60 ? '#16a34a' : v >= 30 ? '#C9A84C' : '#ef4444';
+                return (
+                  <div key="metrics" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                    <ScoreRing value={v} label="" color={color} tooltip={
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-white">Metric Strength</div>
+                        <div className="text-zinc-300">How often your bullets include real numbers: %, £, $, counts, timelines.</div>
+                        {v < 60 && <div className="text-amber-300">Tip: add specific numbers to your top 3 bullets — even rough ones help.</div>}
+                        {v >= 60 && <div className="text-emerald-400">Good quantification — numbers make bullets credible.</div>}
+                      </div>
+                    } />
+                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Metrics</span>
+                  </div>
+                );
+              })()}
+
+              {/* Leadership */}
+              {(() => {
+                const v = audit.leadership_score;
+                const color = v >= 50 ? '#16a34a' : v >= 25 ? '#C9A84C' : '#94a3b8';
+                return (
+                  <div key="leadership" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                    <ScoreRing value={v} label="" color={color} tooltip={
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-white">Leadership Evidence</div>
+                        <div className="text-zinc-300">{audit.leadership.signalCount} leadership signals found — team sizes, mentoring, decision scope.</div>
+                        {v < 25 && <div className="text-zinc-400 italic">Not all roles need leadership evidence — only relevant for senior positions.</div>}
+                        {v >= 25 && v < 50 && <div className="text-amber-300">Tip: add team sizes or reporting lines to senior roles.</div>}
+                        {v >= 50 && <div className="text-emerald-400">Clear leadership presence across your roles.</div>}
+                      </div>
+                    } />
+                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Leadership</span>
+                  </div>
+                );
+              })()}
+
+              {/* Skill evidence */}
+              {(() => {
+                const v = audit.skill_evidence_score;
+                const color = v >= 60 ? '#16a34a' : v >= 35 ? '#C9A84C' : '#ef4444';
+                const mentionedOnly = audit.evidence.skills.filter((s: any) => s.level === 'mentioned').length;
+                return (
+                  <div key="skills" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                    <ScoreRing value={v} label="" color={color} tooltip={
+                      <div className="space-y-1.5">
+                        <div className="font-bold text-white">Skill Depth</div>
+                        <div className="text-zinc-300">How many of your listed skills are backed up by your experience bullets.</div>
+                        {mentionedOnly > 0 && <div className="text-amber-300">{mentionedOnly} skill{mentionedOnly > 1 ? 's' : ''} listed but never demonstrated in experience.</div>}
+                        {v >= 60 && <div className="text-emerald-400">Most skills are shown, not just listed.</div>}
+                      </div>
+                    } />
+                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Skill Depth</span>
+                  </div>
+                );
+              })()}
             </div>
+
+            {/* Context note — prevent score-chasing */}
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
+              These measure content quality, not completion. <span className="font-semibold">60+ on any signal is strong</span> — a focused 50% CV beats a padded one. Hover each ring for details.
+            </p>
 
             {/* Top recommendations */}
             {audit.recommendations.length > 0 && (
