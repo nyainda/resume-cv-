@@ -380,6 +380,15 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     }
   }, [currentCV]);
 
+  // displayCV — the CV to show in the preview and score card.
+  // Falls back to a profile-derived CV when the user hasn't generated or
+  // applied a template yet, so the template preview and Profile Intelligence
+  // Score always reflect the real profile data rather than showing empty/stale.
+  const displayCV = useMemo(() => {
+    if (currentCV) return currentCV;
+    return profileToCV(userProfile);
+  }, [currentCV, userProfile]);
+
   const handleFixImportIssues = useCallback(async () => {
     if (!currentCV) return;
     setIsFixingIssues(true);
@@ -1419,7 +1428,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
       {/* === Profile Intelligence Score === */}
       <ProfileIntelligenceScore
-        cv={currentCV}
+        cv={displayCV}
         profile={userProfile}
         jobDescription={jobDescription}
       />
@@ -2583,7 +2592,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 selector prefers, and what we pass explicitly via cvCaptureRef. */}
             <div ref={cvCaptureRef} data-cv-preview-active="true">
               <CVPreview
-                cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : currentCV}
+                cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
                 personalInfo={userProfile.personalInfo}
                 isEditing={isEditing && !!currentCV}
                 onDataChange={setCurrentCV}
