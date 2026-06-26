@@ -373,6 +373,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                     setCurrentView('toolkit');
                     setTimeout(() => setToolkitForceTab(undefined), 200);
                   }}
+                  activeSlot={activeSlot}
                 />
               )}
 

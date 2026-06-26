@@ -2,7 +2,8 @@
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
 import V2ThemePicker from './V2ThemePicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
-import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES } from '../types';
+import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, UserProfileSlot } from '../types';
+import { enqueueSlotSync } from '../services/storage/syncQueue';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
 import { auditCvQuality } from '../services/cvNumberFidelity';
@@ -157,6 +158,8 @@ interface CVGeneratorProps {
   onUpgrade?: () => void;
   /** Navigates to Toolkit → Quality Audit (HR Detector) tab */
   openToolkitAtQualityAudit?: () => void;
+  /** Active profile slot — used to sync quality fixes to D1 for cross-device persistence */
+  activeSlot?: UserProfileSlot | null;
 }
 
 const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
@@ -244,7 +247,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField,
-  onUpgrade, openToolkitAtQualityAudit,
+  onUpgrade, openToolkitAtQualityAudit, activeSlot,
 }) => {
   const { isAuthenticated, requireAuth, user: workerUser } = useAuth();
   const [showDownloadGate, setShowDownloadGate] = useState(false);
@@ -478,6 +481,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       setCurrentCV(cvAfterRemote);
       setPurifyLeaks(report.leaks ?? []);
       setFixSummary({ total: totalFixed, remote: remoteFixes });
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({ ...activeSlot, currentCV: cvAfterRemote }).catch(() => {});
+      }
     } finally {
       setIsFixingIssues(false);
     }
@@ -2686,6 +2692,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             // Surface which provider just produced the rewrite, so the engine
             // badge stays in sync with reality.
             setLastEngine(getLastAiEngine());
+            // Push the fixed CV to D1 so the fix persists across all devices.
+            if (isAuthenticated && activeSlot) {
+              enqueueSlotSync({ ...activeSlot, currentCV: newCv }).catch(() => {});
+            }
           }}
           onDownloadJson={handleDownloadQualityReport}
         />
