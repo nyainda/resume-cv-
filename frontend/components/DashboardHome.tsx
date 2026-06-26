@@ -176,22 +176,37 @@ const DashboardHome: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Profile completion bar */}
-      {activeSlot && profileComplete < 100 && (
+      {/* Profile completion ring */}
+      {activeSlot && (
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Profile strength</span>
-            <span className="text-sm font-bold" style={{ color: profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a' }}>{profileComplete}%</span>
-          </div>
-          <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
-            <div
-              className="h-2 rounded-full transition-all duration-700"
-              style={{ width: `${profileComplete}%`, background: profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a' }}
+          <div className="flex items-center gap-4">
+            <ScoreRing
+              value={profileComplete}
+              label="Profile"
+              color={profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a'}
             />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Profile Strength</span>
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{
+                    color: profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a',
+                    background: profileComplete < 50 ? '#fef2f2' : profileComplete < 80 ? '#fefce8' : '#f0fdf4',
+                  }}
+                >
+                  {profileComplete < 50 ? 'Needs Work' : profileComplete < 80 ? 'Almost There' : profileComplete < 100 ? 'Nearly Complete' : 'Complete'}
+                </span>
+              </div>
+              {profileComplete < 100 ? (
+                <button onClick={onEditProfile} className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
+                  {profileComplete < 50 ? 'Set up your profile to unlock AI generation →' : 'Fill in missing details to improve your score →'}
+                </button>
+              ) : (
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">All key sections filled in — you're ready to generate!</p>
+              )}
+            </div>
           </div>
-          <button onClick={onEditProfile} className="mt-2 text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
-            Complete your profile →
-          </button>
         </div>
       )}
 

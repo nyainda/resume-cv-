@@ -582,6 +582,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobDescription, targetCompany, targetJobTitle, cvPurpose, generationMode, jdTier1Keywords]);
 
+  // ── Auto-populate CV from profile on first load ───────────────────────────
+  // If the user has profile data but no CV yet (currentCV is null), silently
+  // run the same logic as "Use Template" so the preview and score are always
+  // populated the moment the generator opens — no button click required.
+  // This effect runs once on mount (CVGenerator remounts on profile switch via
+  // key={activeSlot.id} in App.tsx, so it fires fresh for each profile).
+  useEffect(() => {
+    if (currentCV) return; // already have a CV — never overwrite
+    const hasData = !!(
+      userProfile?.personalInfo?.name ||
+      (userProfile?.workExperience?.length ?? 0) > 0
+    );
+    if (!hasData) return;
+    setCurrentCV(profileToCV(userProfile));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — mount-only, profile switch triggers remount
+
   // ── Active AI engine (shown as badge after generation) ──
   const [lastEngine, setLastEngine] = useState<string | null>(null);
 
