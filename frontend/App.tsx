@@ -1597,7 +1597,7 @@ const AppInner: React.FC = () => {
   );
 
   const VIEW_KEY = 'procv:lastView';
-  const RESTORABLE_VIEWS = ['dashboard','generator','linkedin','interview','jobs','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
+  const RESTORABLE_VIEWS = ['dashboard','generator','linkedin','interview','essays','history','tracker','toolkit','email','negotiation','analytics','score','pivot'] as const;
   type RestorableView = typeof RESTORABLE_VIEWS[number];
 
   const [currentView, setCurrentView] = useState<
@@ -1605,7 +1605,6 @@ const AppInner: React.FC = () => {
     | "generator"
     | "linkedin"
     | "interview"
-    | "jobs"
     | "essays"
     | "history"
     | "tracker"
@@ -1666,11 +1665,6 @@ const AppInner: React.FC = () => {
     () => apiSettings?.brevoApiKey || null,
     [apiSettings],
   );
-  const jsearchApiKey = useMemo(
-    () => apiSettings?.jsearchApiKey || null,
-    [apiSettings],
-  );
-
   const primaryNav = [
     { id: "dashboard", label: "Home",         icon: FileText },
     { id: "generator", label: "CV Generator", icon: FileText },
@@ -1711,7 +1705,7 @@ const AppInner: React.FC = () => {
   const isMoreActive = allMoreItems.some((item) => item.id === currentView);
 
   // ── Feature gate: views locked for pure free users (no API keys, no premium) ──
-  const GATED_VIEWS = new Set(['interview', 'linkedin', 'email', 'negotiation', 'pivot', 'essays', 'analytics']);
+  const GATED_VIEWS = new Set(['interview', 'email', 'negotiation', 'pivot', 'essays', 'analytics']);
   const handleNavClick = useCallback((id: string) => {
     if (isPureFreeTier() && GATED_VIEWS.has(id)) {
       setIsPricingOpen(true);

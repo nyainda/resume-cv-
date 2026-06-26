@@ -538,7 +538,6 @@ const TOOL_GROUPS = [
     tools: [
       { name: 'CV Generator', desc: 'Tailored, ATS-ready CVs for any role in minutes. 35 templates.' },
       { name: 'Cover Letter', desc: 'Smart cover letters using JD + company research. Tone matched.' },
-      { name: 'LinkedIn Optimiser', desc: 'Rewrites summary, headline, and experience sections for LinkedIn algorithms.' },
       { name: 'Scholarship Essays', desc: 'Academic application essays crafted to institutional tone and word limits.' },
     ],
   },
@@ -553,11 +552,9 @@ const TOOL_GROUPS = [
     ],
   },
   {
-    label: 'Search & Coach',
+    label: 'Coach',
     color: '#064e3b',
     tools: [
-      { name: 'Portal Scanner', desc: 'Hits 150+ company career portals (Greenhouse, Lever, Ashby) in seconds.' },
-      { name: 'Job Board', desc: 'Unified job search + application tracker with saved status and notes.' },
       { name: 'Interview Prep', desc: '10 tailored questions (Behavioural, Technical, Cultural) with model answers.' },
       { name: 'Negotiation Coach', desc: 'Counter-offer scripts, verbal talk tracks, equity guides — for any offer.' },
     ],
@@ -1709,8 +1706,8 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
       {/* ── Tool marquee ─────────────────────────────────────────────── */}
       <div style={{ borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`, overflow: 'hidden', padding: '10px 0' }}>
         <div style={{ display: 'flex', gap: 36, whiteSpace: 'nowrap', width: 'max-content', animation: 'marquee 26s linear infinite' }}>
-          {['CV Generator', 'Cover Letter', 'ATS Checker', 'Portal Scanner', 'Interview Prep', 'Negotiation Coach', 'CV Doctor', 'LinkedIn Optimiser', 'HR Detector', 'Quality Audit', 'Scholarship Essays', 'Job Board', 'Cloud Backup', 'PDF Export',
-            'CV Generator', 'Cover Letter', 'ATS Checker', 'Portal Scanner', 'Interview Prep', 'Negotiation Coach', 'CV Doctor', 'LinkedIn Optimiser', 'HR Detector', 'Quality Audit', 'Scholarship Essays', 'Job Board', 'Cloud Backup', 'PDF Export'].map((t, i) => (
+          {['CV Generator', 'Cover Letter', 'ATS Checker', 'Interview Prep', 'Negotiation Coach', 'CV Doctor', 'HR Detector', 'Quality Audit', 'Scholarship Essays', 'Cloud Backup', 'PDF Export', 'Career Pivot', 'Job Tracker', 'Analytics',
+            'CV Generator', 'Cover Letter', 'ATS Checker', 'Interview Prep', 'Negotiation Coach', 'CV Doctor', 'HR Detector', 'Quality Audit', 'Scholarship Essays', 'Cloud Backup', 'PDF Export', 'Career Pivot', 'Job Tracker', 'Analytics'].map((t, i) => (
             <span key={i} style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted, display: 'inline-flex', alignItems: 'center', gap: 14 }}>
               {t}
               {i % 5 === 2 && <span style={{ color: '#111', fontSize: 10, background: Y, padding: '1px 5px', borderRadius: 3 }}>✦</span>}
