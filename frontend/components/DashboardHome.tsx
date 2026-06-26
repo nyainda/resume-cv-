@@ -157,9 +157,9 @@ const DashboardHome: React.FC<Props> = ({
   const nextSteps = useMemo(() => {
     const steps: { label: string; action: string; view?: string; isDrive?: boolean; isProfile?: boolean }[] = [];
     if (!activeSlot?.profile?.personalInfo?.name)
-      steps.push({ label: 'Complete your profile', action: 'Set up your profile to unlock AI generation', isProfile: true });
+      steps.push({ label: 'Complete your profile', action: 'Set up your profile to unlock smart CV building', isProfile: true });
     if (savedCVs.length === 0)
-      steps.push({ label: 'Generate your first CV', action: 'Pick a template and let AI build your CV', view: 'generator' });
+      steps.push({ label: 'Generate your first CV', action: 'Pick a template and build a polished CV in minutes', view: 'generator' });
     if (!isAuthenticated)
       steps.push({ label: 'Sign in to sync across devices', action: 'Your data stays safe in the cloud' });
     if (isAuthenticated && !driveConnected)
@@ -167,7 +167,7 @@ const DashboardHome: React.FC<Props> = ({
     if (savedCVs.length > 0 && trackedApps.length === 0)
       steps.push({ label: 'Track your job applications', action: 'Log applications and monitor your pipeline', view: 'tracker' });
     if (savedCVs.length > 0 && savedCLs.length === 0)
-      steps.push({ label: 'Write a cover letter', action: 'AI-matched to your CV and target role', view: 'linkedin' });
+      steps.push({ label: 'Write a cover letter', action: 'Tailored to your CV and target role', view: 'linkedin' });
     return steps.slice(0, 3);
   }, [activeSlot, savedCVs, savedCLs, trackedApps, isAuthenticated, driveConnected]);
 
@@ -179,12 +179,12 @@ const DashboardHome: React.FC<Props> = ({
   ];
 
   const quickActions = [
-    { label: 'Generate CV',    icon: '✨', view: 'generator', desc: 'AI-powered, job-matched' },
+    { label: 'Generate CV',    icon: '✨', view: 'generator', desc: 'Job-matched, quality-checked' },
     { label: 'Cover Letter',   icon: '✉️', view: 'linkedin',  desc: 'Written in seconds' },
     { label: 'Job Tracker',    icon: '🎯', view: 'tracker',   desc: 'Manage pipeline' },
-    { label: 'Interview Prep', icon: '🎤', view: 'interview', desc: 'AI mock Q&A' },
+    { label: 'Interview Prep', icon: '🎤', view: 'interview', desc: 'Practice Q&A' },
     { label: 'ATS Score',      icon: '📊', view: 'score',     desc: 'Beat the robots' },
-    { label: 'AI Toolkit',     icon: '🛠', view: 'toolkit',   desc: 'Polish & humanize' },
+    { label: 'Quality Toolkit',icon: '🛠', view: 'toolkit',   desc: 'Polish & humanize' },
   ];
 
   return (
@@ -248,7 +248,7 @@ const DashboardHome: React.FC<Props> = ({
               </div>
               {profileComplete < 100 ? (
                 <button onClick={onEditProfile} className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
-                  {profileComplete < 50 ? 'Set up your profile to unlock AI generation →' : 'Fill in missing details to improve your score →'}
+                  {profileComplete < 50 ? 'Set up your profile to unlock CV generation →' : 'Fill in missing details to improve your score →'}
                 </button>
               ) : (
                 <p className="text-xs text-zinc-400 dark:text-zinc-500">All key sections filled in — you're ready to generate!</p>
@@ -353,6 +353,33 @@ const DashboardHome: React.FC<Props> = ({
           </div>
 
           <div className="p-5 space-y-5">
+            {/* Priority focus banner — single most important action */}
+            {audit.recommendations.length > 0 && (() => {
+              const ORDER = ['critical', 'high', 'medium', 'low'];
+              const top = [...audit.recommendations].sort(
+                (a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority)
+              )[0];
+              const cfg = PRIORITY_CONFIG[top.priority] ?? PRIORITY_CONFIG.low;
+              const action = resolveRecAction(top.targetView, onNavigate, onEditProfile);
+              return (
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
+                  <span className="text-lg flex-shrink-0">{cfg.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-0.5">Your biggest opportunity</p>
+                    <p className={`text-xs font-bold leading-tight ${cfg.color}`}>{top.title}</p>
+                  </div>
+                  {action && (
+                    <button
+                      onClick={action}
+                      className={`flex-shrink-0 text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap`}
+                    >
+                      {top.action} →
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Score rings — 5 quality signals */}
             <div className="grid grid-cols-5 gap-2">
               {/* Completeness */}

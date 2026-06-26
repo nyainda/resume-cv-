@@ -2258,11 +2258,11 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 <span style={{ fontSize: 12, color: muted }}>forever</span>
               </div>
               <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, margin: '0 0 20px' }}>
-                Try it out. 2 full AI-powered CVs, no card needed.
+                Try it out. 2 complete CVs through the full quality pipeline, no card needed.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, flex: 1 }}>
                 {[
-                  '2 AI CV generations',
+                  '2 CV generations (full pipeline)',
                   '5 PDF downloads max',
                   '1 profile room',
                   'All 35+ templates',
@@ -2476,7 +2476,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                 <div style={{ width: 28, height: 28, background: Y, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 10, color: '#111' }}>CV</div>
                 <span style={{ fontWeight: 900, fontSize: 15, color: text, letterSpacing: '-0.02em' }}>ProCV</span>
               </div>
-              <p style={{ fontSize: 13, color: muted, margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. AI-powered career documents that actually sound like you.</p>
+              <p style={{ fontSize: 13, color: muted, margin: '0 0 16px', lineHeight: 1.6, maxWidth: 200 }}>Your Personal Career Consultant. Career documents crafted to sound like you, not a template.</p>
             </div>
 
             {/* Link columns */}
