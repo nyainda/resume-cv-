@@ -26,7 +26,8 @@
     "test:unit": "vitest run --reporter=verbose",
     "test:unit:watch": "vitest --reporter=verbose",
     "test:unit:coverage": "vitest run --coverage",
-    "scrub-lockfile": "node backend/scripts/scrub-lockfile.mjs"
+    "scrub-lockfile": "node backend/scripts/scrub-lockfile.mjs",
+    "vercel-build": "node backend/scripts/scrub-lockfile.mjs && vite build"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",
