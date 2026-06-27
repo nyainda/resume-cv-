@@ -26,6 +26,7 @@ import CoverLetterPreview from './CoverLetterPreview';
 import TemplateGallery from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
 import ShareCVModal from './ShareCVModal';
+import { buildProfileUrl } from '../services/publicProfileService';
 import AIImprovementPanel from './AIImprovementPanel';
 import QualityIssuesPanel from './QualityIssuesPanel';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
@@ -598,6 +599,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
 
   const [showShareModal, setShowShareModal] = useState(false);
+  const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [showImportReport, setShowImportReport] = useState(false);
@@ -639,7 +641,9 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       (userProfile?.workExperience?.length ?? 0) > 0
     );
     if (!hasData) return;
-    setCurrentCV(profileToCV(userProfile));
+    const cv = profileToCV(userProfile);
+    setCurrentCV(cv);
+    syncCurrentCVToD1(cv);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — mount-only, profile switch triggers remount
 
@@ -1737,7 +1741,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 onAnalysisComplete={handleJobAnalysisComplete}
                 onSaveStories={onSaveStories}
                 currentCV={currentCV}
-                onCVUpdate={(updated) => setCurrentCV(updated)}
+                onCVUpdate={(updated) => { setCurrentCV(updated); syncCurrentCVToD1(updated); }}
               />
             )}
           </div>
@@ -2146,6 +2150,33 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               >
                 <ShareIcon className="h-4 w-4 mr-2" />Share Link
               </Button>
+              {/* Quick copy of published public profile link */}
+              {workerUser?.id && (() => {
+                let savedSlug: string | null = null;
+                try { savedSlug = localStorage.getItem(`publicProfile:slug:${workerUser.id}`); } catch { /* ignore */ }
+                if (!savedSlug) return null;
+                const profileLink = buildProfileUrl(savedSlug);
+                return (
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(profileLink); } catch { /* ignore */ }
+                      setProfileLinkCopied(true);
+                      setTimeout(() => setProfileLinkCopied(false), 2500);
+                    }}
+                    disabled={isEditing}
+                    size="sm"
+                    title={profileLink}
+                    className="bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/40"
+                  >
+                    {profileLinkCopied ? (
+                      <><svg className="h-4 w-4 mr-1.5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>Copied!</>
+                    ) : (
+                      <><svg className="h-4 w-4 mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copy Profile Link</>
+                    )}
+                  </Button>
+                );
+              })()}
               <Button
                 variant="secondary"
                 onClick={() => setShowAIPanel(true)}

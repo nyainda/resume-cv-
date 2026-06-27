@@ -61,7 +61,13 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
   const [profilePublished, setProfilePublished] = useState(false);
   const [profileError, setProfileError]   = useState('');
   const [profileCopied, setProfileCopied] = useState(false);
-  const [profileSlug, setProfileSlug] = useState<string | null>(null);
+  // Persist the slug so the editor's quick "Copy profile link" button works
+  // across modal open/close without re-publishing.
+  const profileSlugKey = userId ? `publicProfile:slug:${userId}` : null;
+  const [profileSlug, setProfileSlug] = useState<string | null>(() => {
+    if (!profileSlugKey) return null;
+    try { return localStorage.getItem(profileSlugKey); } catch { return null; }
+  });
   const profileUrl = profileSlug
     ? buildProfileUrl(profileSlug)
     : (userId ? buildProfileUrl(String(userId)) : '');
@@ -123,6 +129,10 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
     if (slug) {
       setProfileSlug(slug);
       setProfilePublished(true);
+      // Persist so the editor's quick-copy button works without reopening this modal
+      if (profileSlugKey) {
+        try { localStorage.setItem(profileSlugKey, slug); } catch { /* ignore quota */ }
+      }
       logEvent({ event_type: 'profile_published' });
     } else {
       setProfileError('Could not publish. Please try again.');
