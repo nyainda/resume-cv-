@@ -100,6 +100,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [contactCopied, setContactCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -119,6 +120,16 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
       if (!result.ok) setDownloadError(result.error || 'Download failed.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      /* clipboard not available — silently ignore */
     }
   };
 
@@ -192,6 +203,36 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
           {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
+
+            {/* Copy link */}
+            <button
+              onClick={handleCopyLink}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all shadow-sm ${
+                linkCopied
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                  : 'bg-white dark:bg-neutral-800 border-zinc-200 dark:border-neutral-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700'
+              }`}
+              title="Copy shareable link"
+            >
+              {linkCopied ? (
+                <>
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span className="hidden sm:inline">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                  <span className="hidden sm:inline">Copy link</span>
+                </>
+              )}
+            </button>
+
+            {/* Download PDF */}
             <button
               onClick={handleDownload}
               disabled={downloading}
@@ -211,6 +252,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                 </>
               )}
             </button>
+
             {isOwner && (
               <button
                 onClick={onDismiss}
