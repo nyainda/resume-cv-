@@ -300,12 +300,12 @@ const DashboardHome: React.FC<Props> = ({
 
           {/* Header */}
           <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col xs:flex-row xs:items-start xs:justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Career Intelligence</h2>
                 <p className="text-xs text-zinc-400 mt-0.5">Instant deterministic analysis — no AI, always accurate</p>
               </div>
-              <div className="flex flex-wrap gap-1.5 justify-end">
+              <div className="flex flex-wrap gap-1.5">
                 {/* Career stage */}
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C] border border-[#1B2B4B]/15 dark:border-[#C9A84C]/20 capitalize">
                   {audit.career_stage}
@@ -380,9 +380,9 @@ const DashboardHome: React.FC<Props> = ({
               );
             })()}
 
-            {/* Score rings — 5 quality signals (scrollable on mobile so rings stay readable) */}
-            <div className="overflow-x-auto -mx-5 px-5 sm:mx-0 sm:px-0 pb-0.5">
-            <div className="grid grid-cols-5 gap-1.5 min-w-[300px]">
+            {/* Score rings — 5 quality signals */}
+            <div>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
               {/* Completeness */}
               {(() => {
                 const v = profileComplete;

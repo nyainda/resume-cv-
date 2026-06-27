@@ -1,7 +1,74 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
 import { downloadCV } from '../services/cvDownloadService';
+
+// ── Smart Summary ─────────────────────────────────────────────────────────────
+// Builds a deterministic, human-readable professional snapshot from CV data.
+// No AI required — derived entirely from structured fields.
+function buildSmartSummary(cvData: CVData, personalInfo: PersonalInfo): string | null {
+  const experiences = cvData.experience ?? [];
+  const skills = cvData.skills ?? [];
+  const education = cvData.education ?? [];
+
+  if (experiences.length === 0 && !cvData.summary) return null;
+
+  // If there's an existing summary, use it directly
+  if (cvData.summary && cvData.summary.trim().length > 40) {
+    return cvData.summary.trim();
+  }
+
+  const firstName = personalInfo.name?.split(' ')[0] || 'This professional';
+  const latestExp = experiences[0];
+  const title = latestExp?.jobTitle || '';
+  const company = latestExp?.company || '';
+
+  // Compute total experience months from start/end dates
+  let totalMonths = 0;
+  for (const exp of experiences) {
+    try {
+      const rawStart = exp.startDate || '';
+      const rawEnd = exp.endDate || '';
+      const isPresent = !rawEnd || /present|current/i.test(rawEnd);
+      const start = new Date(rawStart);
+      const end = isPresent ? new Date() : new Date(rawEnd);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
+        totalMonths += (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+      }
+    } catch { /* skip */ }
+  }
+  const years = Math.round(totalMonths / 12);
+
+  const parts: string[] = [];
+
+  // Opening line
+  if (title && years > 0) {
+    parts.push(`${firstName} is a ${title.toLowerCase().includes('senior') || title.toLowerCase().includes('lead') || title.toLowerCase().includes('head') || title.toLowerCase().includes('director') ? '' : ''}${title} with ${years}+ year${years !== 1 ? 's' : ''} of experience.`);
+  } else if (title) {
+    parts.push(`${firstName} is a ${title}.`);
+  } else if (years > 0) {
+    parts.push(`${firstName} brings ${years}+ year${years !== 1 ? 's' : ''} of professional experience.`);
+  }
+
+  // Skills sentence
+  if (skills.length >= 3) {
+    const topSkills = skills.slice(0, 3).join(', ');
+    parts.push(`Core expertise includes ${topSkills}.`);
+  }
+
+  // Education sentence
+  const latestEd = education[0];
+  if (latestEd?.degree && latestEd?.school) {
+    parts.push(`Holds ${latestEd.degree} from ${latestEd.school}.`);
+  }
+
+  // Current role
+  if (company) {
+    parts.push(`Currently at ${company}.`);
+  }
+
+  return parts.length > 0 ? parts.join(' ') : null;
+}
 
 interface SharedCVViewProps {
   cvData: CVData;
@@ -33,10 +100,13 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [contactCopied, setContactCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const previewWrapRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
   const [wrapperHeight, setWrapperHeight] = useState<number | string>('auto');
+
+  const smartSummary = useMemo(() => buildSmartSummary(cvData, personalInfo), [cvData, personalInfo]);
 
   // Scale the A4 preview to fit the container width, and track the scaled height
   const CV_NATURAL_WIDTH = 794; // ~210mm at 96dpi
@@ -282,6 +352,32 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
               </div>
             )}
           </div>
+
+          {/* Smart Summary */}
+          {smartSummary && (
+            <div className="bg-gradient-to-br from-[#1B2B4B]/5 to-[#C9A84C]/5 dark:from-[#1B2B4B]/20 dark:to-[#C9A84C]/10 rounded-2xl border border-[#1B2B4B]/10 dark:border-[#C9A84C]/15 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="w-5 h-5 rounded-md bg-[#1B2B4B] dark:bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3 h-3 text-white dark:text-[#C9A84C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                </div>
+                <p className="text-[10px] font-bold text-[#1B2B4B] dark:text-[#C9A84C] uppercase tracking-wider">Smart Summary</p>
+              </div>
+              <p className={`text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed ${!summaryExpanded && smartSummary.length > 180 ? 'line-clamp-4' : ''}`}>
+                {smartSummary}
+              </p>
+              {smartSummary.length > 180 && (
+                <button
+                  onClick={() => setSummaryExpanded(v => !v)}
+                  className="mt-1.5 text-[10px] font-semibold text-[#1B2B4B] dark:text-[#C9A84C] hover:underline"
+                >
+                  {summaryExpanded ? 'Show less ↑' : 'Read more ↓'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Snapshot stats */}
           {(cvData.skills?.length > 0 || cvData.experience?.length > 0) && (
