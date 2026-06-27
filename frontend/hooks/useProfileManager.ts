@@ -226,13 +226,15 @@ export function useProfileManager({
         enqueueSlotSync(slot).catch(() => {});
       }
 
-      setCurrentCV((prev) => {
-        if (!prev) return prev;
+      // Compute the merged CV synchronously so we can sync it to D1 in the same
+      // call — avoids a sync gap where the profile is saved but the updated CV
+      // bullets are lost on other devices.
+      if (currentCV) {
         const fromProfile = profileToCV(profile);
         const oldFromProfile = profileToCV(userProfile);
 
         const mergedExperience = fromProfile.experience.map((newExp) => {
-          const prevCVExp = prev.experience.find(
+          const prevCVExp = currentCV.experience.find(
             (e) =>
               e.company === newExp.company &&
               e.jobTitle === newExp.jobTitle &&
@@ -265,37 +267,44 @@ export function useProfileManager({
           };
         });
 
-        return {
-          ...prev,
-          summary: profile.summary || prev.summary,
+        const mergedCV: CVData = {
+          ...currentCV,
+          summary: profile.summary || currentCV.summary,
           experience:
-            mergedExperience.length > 0 ? mergedExperience : prev.experience,
+            mergedExperience.length > 0 ? mergedExperience : currentCV.experience,
           education:
             (fromProfile.education ?? []).length > 0
               ? fromProfile.education
-              : prev.education,
-          skills: (profile.skills ?? []).length > 0 ? profile.skills : prev.skills,
+              : currentCV.education,
+          skills: (profile.skills ?? []).length > 0 ? profile.skills : currentCV.skills,
           projects:
             fromProfile.projects && fromProfile.projects.length > 0
               ? fromProfile.projects
-              : prev.projects,
+              : currentCV.projects,
           languages:
             fromProfile.languages && fromProfile.languages.length > 0
               ? fromProfile.languages
-              : prev.languages,
+              : currentCV.languages,
           references:
             fromProfile.references && fromProfile.references.length > 0
               ? fromProfile.references
-              : prev.references,
+              : currentCV.references,
           customSections: (profile.customSections || []).filter((s) =>
             s.items.some((i) => i.title.trim().length > 0),
           ),
           sectionOrder: profile.sectionOrder,
         };
-      });
+
+        setCurrentCV(mergedCV);
+        // Include the merged CV in the slot sync so other devices get the full
+        // picture (profile + updated bullets) in one round-trip.
+        if (isAuthenticated && activeSlot) {
+          enqueueSlotSync({ ...activeSlot, profile, currentCV: mergedCV }).catch(() => {});
+        }
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeSlot, setUserProfile, setProfiles, setActiveProfileId, setCurrentCV, userProfile, isAuthenticated],
+    [activeSlot, currentCV, setUserProfile, setProfiles, setActiveProfileId, setCurrentCV, userProfile, isAuthenticated],
   );
 
   const handleCreateProfile = useCallback(

@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env } from '../types';
-import { json } from '../utils';
+import { json, rateLimitRequest, rateLimitResponse } from '../utils';
 import { hashToken } from './auth';
 
 function randomShareId(): string {
@@ -38,6 +38,10 @@ export async function handleShareGet(request: Request, env: Env, url: URL): Prom
 }
 
 export async function handleSharePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Rate-limit: max 10 short links per IP per hour to prevent DB flooding
+    const rl = await rateLimitRequest(env, request, 'share', 10, 3600);
+    if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
+
     let body: any;
     try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
 

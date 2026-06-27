@@ -668,6 +668,10 @@ const AppInner: React.FC = () => {
               return (cvData: CVData) => {
                 setCurrentCV(cvData);
                 setCurrentView("generator");
+                // Sync loaded CV so other devices see the owner's selection
+                if (isAuthenticated && activeSlot) {
+                  enqueueSlotSync({ ...activeSlot, currentCV: cvData }).catch(() => {});
+                }
               };
             })()
           }

@@ -162,9 +162,12 @@ export function useCVManager({
     (cvData: CVData) => {
       setCurrentCV(cvData);
       setIsEditingProfile(false);
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({ ...activeSlot, currentCV: cvData }).catch(() => {});
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [setCurrentCV, setIsEditingProfile],
+    [setCurrentCV, setIsEditingProfile, isAuthenticated, activeSlot],
   );
 
   const handleAutoTrack = useCallback(
@@ -262,13 +265,16 @@ export function useCVManager({
     (cv: CVData) => {
       setCurrentCV(cv);
       setCurrentView('generator');
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({ ...activeSlot, currentCV: cv }).catch(() => {});
+      }
       toast.success(
         'GitHub CV Ready!',
         'Your AI-generated CV is loaded in the CV Generator — complete with real project links.',
       );
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [setCurrentCV, setCurrentView, toast],
+    [setCurrentCV, setCurrentView, isAuthenticated, activeSlot, toast],
   );
 
   const handleWordProfileImported = useCallback(
