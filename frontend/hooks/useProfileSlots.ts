@@ -243,6 +243,20 @@ export function useProfileSlots() {
     [activeSlot, setProfiles],
   );
 
+  const slotSharedLinks: Array<{ id: string; created_at: number; expires_at: number }> =
+    activeSlot?.sharedLinks ?? [];
+  const setSlotSharedLinks = useCallback(
+    (next: Array<{ id: string; created_at: number; expires_at: number }>) => {
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id !== (activeSlot?.id ?? null)) return p;
+          return { ...p, sharedLinks: next };
+        }),
+      );
+    },
+    [activeSlot, setProfiles],
+  );
+
   const starStories: STARStory[] = activeSlot?.starStories ?? [];
   const setStarStories = useCallback(
     (next: STARStory[] | ((prev: STARStory[]) => STARStory[])) => {
@@ -276,5 +290,7 @@ export function useProfileSlots() {
     setTrackedApps,
     starStories,
     setStarStories,
+    slotSharedLinks,
+    setSlotSharedLinks,
   };
 }

@@ -99,7 +99,19 @@ const AppInner: React.FC = () => {
     setTrackedApps,
     starStories,
     setStarStories,
+    slotSharedLinks,
+    setSlotSharedLinks,
   } = useProfileSlots();
+
+  const handleShareLinkAdded = useCallback(
+    (link: { id: string; created_at: number; expires_at: number }) => {
+      setSlotSharedLinks([
+        link,
+        ...slotSharedLinks.filter((l) => l.id !== link.id),
+      ].slice(0, 20));
+    },
+    [slotSharedLinks, setSlotSharedLinks],
+  );
 
   // ── API settings ─────────────────────────────────────────────────────────
   const [rawApiSettings, setRawApiSettings] = useStorage<ApiSettings>(
@@ -756,6 +768,7 @@ const AppInner: React.FC = () => {
         onRestoreProfileBullets={handleRestoreProfileBullets}
         onSaveStories={handleSaveStories}
         onSlotUpdate={handleSlotUpdate}
+        onShareLinkAdded={handleShareLinkAdded}
         onPinField={handlePinField}
         onUnpinField={handleUnpinField}
         onGoToGenerator={handleGoToGenerator}

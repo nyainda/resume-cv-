@@ -13,6 +13,8 @@ interface ShareCVModalProps {
   onClose: () => void;
   sessionToken?: string;
   userId?: number;
+  /** Called when a short link is successfully created so the slot can store the ID for cross-device sync */
+  onShareLinkAdded?: (link: { id: string; created_at: number; expires_at: number }) => void;
 }
 
 export interface SharedCVPayload {
@@ -46,7 +48,7 @@ export function buildShareUrl(payload: SharedCVPayload): string {
 type Tab = 'link' | 'qr' | 'profile';
 
 const ShareCVModal: React.FC<ShareCVModalProps> = ({
-  cvData, personalInfo, template, coverLetterText, onClose, sessionToken, userId,
+  cvData, personalInfo, template, coverLetterText, onClose, sessionToken, userId, onShareLinkAdded,
 }) => {
   const [copied, setCopied] = useState(false);
   const [linkGenerated, setLinkGenerated] = useState(false);
@@ -123,6 +125,8 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
       setLinkExpiresAt(expires_at);
       // Persist for editor badge + dashboard stats
       addStoredShareLink(shortId, expires_at);
+      // Notify slot so the link syncs across devices
+      onShareLinkAdded?.({ id: shortId, created_at: Math.floor(Date.now() / 1000), expires_at });
     } else {
       setShareUrl(buildShareUrl(payload));
       setIsShortLink(false);

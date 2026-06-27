@@ -162,6 +162,9 @@ export interface UserProfileSlot {
   generationMode?: string;          // 'honest' | 'boosted' | 'aggressive'
   jdKeywords?: string[];
 
+  // ── Share links (synced across devices via profile slot) ────────────────
+  sharedLinks?: Array<{ id: string; created_at: number; expires_at: number }>;
+
   // ── Tracker / analytics ─────────────────────────────────────────────────
   lastGeneratedAt?: string;         // ISO timestamp of last successful generation
   lastAtsScore?: number;            // cached ATS score after last generation (0-100)

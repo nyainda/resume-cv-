@@ -156,6 +156,8 @@ interface CVGeneratorProps {
   onPinField?: (field: string) => void;
   /** Called when user removes a pinned field from the Generation Trace panel */
   onUnpinField?: () => void;
+  /** Called when a share link is successfully created — used for cross-device sync via slot storage */
+  onShareLinkAdded?: (link: { id: string; created_at: number; expires_at: number }) => void;
   /** Opens the pricing / upgrade modal — called when the free cap is hit */
   onUpgrade?: () => void;
   /** Navigates to Toolkit → Quality Audit (HR Detector) tab */
@@ -248,7 +250,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions,
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
-  initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField,
+  initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
   onUpgrade, openToolkitAtQualityAudit, activeSlot,
 }) => {
   const { isAuthenticated, requireAuth, user: workerUser } = useAuth();
@@ -2770,6 +2772,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           onClose={() => setShowShareModal(false)}
           sessionToken={undefined}
           userId={workerUser?.id}
+          onShareLinkAdded={onShareLinkAdded}
         />
       )}
 

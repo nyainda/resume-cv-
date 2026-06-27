@@ -138,11 +138,16 @@ const DashboardHome: React.FC<Props> = ({
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   useEffect(() => {
-    const links = getStoredShareLinks();
-    setStoredLinks(links);
-    if (links.length === 0) return;
-    fetchAllShareStats(links.slice(0, 5).map(l => l.id)).then(stats => setShareStats(stats));
-  }, []);
+    // Slot links are synced across devices via Drive. Merge with localStorage
+    // (legacy/fallback) deduplicating by ID so slot links take priority.
+    const slotLinks: StoredShareLink[] = (activeSlot?.sharedLinks ?? []) as StoredShareLink[];
+    const localLinks = getStoredShareLinks();
+    const slotIds = new Set(slotLinks.map(l => l.id));
+    const merged = [...slotLinks, ...localLinks.filter(l => !slotIds.has(l.id))];
+    setStoredLinks(merged);
+    if (merged.length === 0) return;
+    fetchAllShareStats(merged.slice(0, 5).map(l => l.id)).then(stats => setShareStats(stats));
+  }, [activeSlot?.id, activeSlot?.sharedLinks]);
 
   const totalShareViews = useMemo(() =>
     [...shareStats.values()].reduce((s, v) => s + (v.view_count ?? 0), 0),
