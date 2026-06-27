@@ -145,7 +145,7 @@ const DashboardHome: React.FC<Props> = ({
   }, []);
 
   const totalShareViews = useMemo(() =>
-    Array.from(shareStats.values()).reduce((s, v) => s + (v.view_count ?? 0), 0),
+    [...shareStats.values()].reduce((s, v) => s + (v.view_count ?? 0), 0),
   [shareStats]);
 
   // ── Profile Intelligence Audit ────────────────────────────────────────────
@@ -194,6 +194,7 @@ const DashboardHome: React.FC<Props> = ({
     { label: 'Cover Letters', value: savedCLs.length,     icon: '✉️', view: 'generator', color: 'from-violet-700 to-violet-500' },
     { label: 'Applications',  value: trackedApps.length,  icon: '🎯', view: 'tracker',   color: 'from-emerald-700 to-emerald-500' },
     { label: 'STAR Stories',  value: starStories.length,  icon: '⭐', view: 'interview', color: 'from-amber-700 to-amber-500' },
+    { label: 'CV Views',      value: totalShareViews,     icon: '👁️', view: '',          color: 'from-emerald-700 to-teal-600' },
   ];
 
   const quickActions = [
@@ -277,12 +278,12 @@ const DashboardHome: React.FC<Props> = ({
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {statCards.map(card => (
           <button
             key={card.label}
-            onClick={() => onNavigate(card.view)}
-            className={`bg-gradient-to-br ${card.color} rounded-xl p-4 text-left hover:opacity-90 active:scale-95 transition-all`}
+            onClick={() => { if (card.view) onNavigate(card.view); }}
+            className={`bg-gradient-to-br ${card.color} rounded-xl p-4 text-left hover:opacity-90 active:scale-95 transition-all ${!card.view ? 'cursor-default' : ''}`}
           >
             <div className="text-2xl mb-1">{card.icon}</div>
             <div className="text-2xl font-bold text-white">{card.value}</div>
@@ -636,9 +637,8 @@ const DashboardHome: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Share links summary — only shown when user has created at least one link */}
-      {storedLinks.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+      {/* Share links summary — always visible */}
+      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5">
               <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -652,6 +652,16 @@ const DashboardHome: React.FC<Props> = ({
               {totalShareViews > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{totalShareViews} view{totalShareViews !== 1 ? 's' : ''}</span></>}
             </span>
           </div>
+          {storedLinks.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-5 text-center">
+              <svg className="w-8 h-8 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">No shared links yet</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">Open a saved CV and click <span className="font-semibold">Share</span> to create a trackable link</p>
+            </div>
+          ) : (
           <div className="space-y-2">
             {storedLinks.slice(0, 5).map(link => {
               const stats = shareStats.get(link.id);
@@ -722,8 +732,8 @@ const DashboardHome: React.FC<Props> = ({
               );
             })}
           </div>
-        </div>
-      )}
+          )}
+      </div>
 
       {/* Quick actions */}
       <div>
