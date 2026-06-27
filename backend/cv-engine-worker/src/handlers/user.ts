@@ -22,8 +22,8 @@ export async function handleShareGet(request: Request, env: Env, url: URL): Prom
 
     const now = Math.floor(Date.now() / 1000);
     const row = await env.CV_DB.prepare(
-        `SELECT payload, expires_at FROM cv_shares WHERE id = ?`
-    ).bind(id).first<{ payload: string; expires_at: number }>();
+        `SELECT payload, expires_at, view_count FROM cv_shares WHERE id = ?`
+    ).bind(id).first<{ payload: string; expires_at: number; view_count: number }>();
 
     if (!row) return json({ error: 'not_found' }, request, env, 404);
     if (row.expires_at < now) {
@@ -34,7 +34,32 @@ export async function handleShareGet(request: Request, env: Env, url: URL): Prom
     env.CV_DB.prepare(`UPDATE cv_shares SET view_count = view_count + 1 WHERE id = ?`)
         .bind(id).run().catch(() => {});
 
-    return json({ ok: true, id, payload: row.payload }, request, env);
+    // Return view_count + 1 (anticipate the async increment above)
+    return json({ ok: true, id, payload: row.payload, view_count: (row.view_count ?? 0) + 1 }, request, env);
+}
+
+/** Read-only stats endpoint — returns view count without incrementing it. */
+export async function handleShareStats(request: Request, env: Env, url: URL): Promise<Response> {
+    const id = (url.searchParams.get('id') || '').trim();
+    if (!id || id.length < 4 || id.length > 16) {
+        return json({ error: 'missing_id' }, request, env, 400);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const row = await env.CV_DB.prepare(
+        `SELECT view_count, created_at, expires_at FROM cv_shares WHERE id = ?`
+    ).bind(id).first<{ view_count: number; created_at: number; expires_at: number }>();
+
+    if (!row) return json({ error: 'not_found' }, request, env, 404);
+    if (row.expires_at < now) return json({ error: 'expired' }, request, env, 410);
+
+    return json({
+        ok: true,
+        id,
+        view_count: row.view_count ?? 0,
+        created_at: row.created_at,
+        expires_at: row.expires_at,
+    }, request, env);
 }
 
 export async function handleSharePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

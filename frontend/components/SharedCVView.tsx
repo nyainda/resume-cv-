@@ -1,7 +1,8 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
 import { downloadCV } from '../services/cvDownloadService';
+import { fetchShareStats, ShareStats } from '../services/shareService';
 
 // ── Smart Summary ─────────────────────────────────────────────────────────────
 // Builds a deterministic, human-readable professional snapshot from CV data.
@@ -77,6 +78,9 @@ interface SharedCVViewProps {
   template: TemplateName;
   sharedAt: string;
   coverLetterText?: string;
+  /** The 8-char short share ID from the URL hash (e.g. `#s=AbC12345`).
+   *  Only present when the CV was loaded via a short link (not legacy `#share=`). */
+  shareId?: string;
   onLoadIntoEditor?: (cvData: CVData) => void;
   onDismiss: () => void;
 }
@@ -94,6 +98,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   template,
   sharedAt,
   coverLetterText,
+  shareId,
   onLoadIntoEditor,
   onDismiss,
 }) => {
@@ -103,11 +108,24 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const [linkCopied, setLinkCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const smartSummary = useMemo(() => buildSmartSummary(cvData, personalInfo), [cvData, personalInfo]);
 
   const isOwner = !!onLoadIntoEditor;
+
+  // Fetch view stats for the owner only — no network call for other viewers.
+  // Runs once on mount; no-ops gracefully if worker is unreachable.
+  useEffect(() => {
+    if (!isOwner || !shareId) return;
+    let cancelled = false;
+    fetchShareStats(shareId).then(stats => {
+      if (!cancelled && stats) setShareStats(stats);
+    });
+    return () => { cancelled = true; };
+  }, [isOwner, shareId]);
+
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
   const hasContact = !!(personalInfo.email || personalInfo.phone || personalInfo.linkedin);
 
@@ -433,6 +451,58 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                     {cvData.skills.length > 8 && (
                       <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-neutral-700 text-[10px] text-zinc-500">+{cvData.skills.length - 8}</span>
                     )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── View counter — owner only ───────────────────────────────── */}
+          {isOwner && shareId && (
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm p-4">
+              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-3">Link performance</p>
+
+              {shareStats ? (
+                <div className="space-y-3">
+                  {/* Big view count */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-[#1B2B4B] dark:text-[#C9A84C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-[#1B2B4B] dark:text-[#C9A84C] leading-none">
+                        {shareStats.view_count.toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
+                        {shareStats.view_count === 1 ? 'view' : 'views'} so far
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expiry */}
+                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    {(() => {
+                      const daysLeft = Math.max(0, Math.ceil((shareStats.expires_at - Date.now() / 1000) / 86400));
+                      return daysLeft > 0
+                        ? `Link expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`
+                        : 'Link has expired';
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                /* Loading skeleton */
+                <div className="flex items-center gap-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-neutral-800 flex-shrink-0"/>
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-5 w-12 rounded bg-zinc-100 dark:bg-neutral-800"/>
+                    <div className="h-2.5 w-20 rounded bg-zinc-100 dark:bg-neutral-800"/>
                   </div>
                 </div>
               )}

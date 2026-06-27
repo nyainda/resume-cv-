@@ -59,7 +59,7 @@ import {
 } from './handlers/admin';
 
 import {
-    handleShareGet, handleSharePost,
+    handleShareGet, handleSharePost, handleShareStats,
     handleJobCacheGet, handleJobCachePost,
     handleEventPost,
     handleUserSlotsPost, handleUserSlotsDelete, handleUserPrefsPost, handleUserDataGet,
@@ -168,6 +168,7 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
         (p === '/api/cv/jd-analysis'     && (m === 'GET' || m === 'POST')) ||
         (p === '/api/cv/market-research' && (m === 'GET' || m === 'POST')) ||
         (p === '/api/cv/share'           && (m === 'GET' || m === 'POST')) ||
+        (p === '/api/cv/share/stats'     && m === 'GET') ||
         (p === '/api/cv/job-cache'       && (m === 'GET' || m === 'POST'))
     ) {
         const rl = await rateLimitRequest(env, request, 'cache', 120, 60);
@@ -245,6 +246,7 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     // ── Share links ───────────────────────────────────────────────────────────
     if (p === '/api/cv/share'          && m === 'GET')                      return handleShareGet(request, env, url);
     if (p === '/api/cv/share'          && m === 'POST')                     return handleSharePost(request, env, ctx);
+    if (p === '/api/cv/share/stats'    && m === 'GET')                      return handleShareStats(request, env, url);
 
     // ── Job search cache ──────────────────────────────────────────────────────
     if (p === '/api/cv/job-cache'      && m === 'GET')                      return handleJobCacheGet(request, env, url);

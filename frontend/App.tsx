@@ -431,6 +431,7 @@ const AppInner: React.FC = () => {
 
   // ── Shared CV payload (hash links) ───────────────────────────────────────
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
+  const [sharedCVId, setSharedCVId] = useState<string | null>(null);
   // Public profile page — separate from the CV share view (#p= route)
   const [publicProfilePayload, setPublicProfilePayload] = useState<SharedCVPayload | null>(null);
   useEffect(() => {
@@ -438,6 +439,7 @@ const AppInner: React.FC = () => {
     if (hash.startsWith("#s=")) {
       const id = hash.slice("#s=".length);
       if (id) {
+        setSharedCVId(id);
         fetchSharePayload(id).then(compressed => {
           if (compressed) {
             const payload = decodeSharePayload(compressed);
@@ -655,6 +657,7 @@ const AppInner: React.FC = () => {
           template={sharedCVPayload.template}
           sharedAt={sharedCVPayload.sharedAt}
           coverLetterText={sharedCVPayload.coverLetterText}
+          shareId={sharedCVId ?? undefined}
           onLoadIntoEditor={
             // Only pass this to the actual owner of the shared CV.
             // We match on email so another ProCV user viewing a colleague's
@@ -677,6 +680,7 @@ const AppInner: React.FC = () => {
           }
           onDismiss={() => {
             setSharedCVPayload(null);
+            setSharedCVId(null);
             window.history.replaceState(null, "", window.location.pathname + window.location.search);
           }}
         />

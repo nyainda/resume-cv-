@@ -142,3 +142,33 @@ export function buildShortShareUrl(id: string): string {
   const base = window.location.origin + window.location.pathname;
   return `${base}#s=${id}`;
 }
+
+export interface ShareStats {
+  view_count: number;
+  created_at: number;   // unix seconds
+  expires_at: number;   // unix seconds
+}
+
+/**
+ * Fetch view stats for a short share ID.
+ * Read-only — does NOT increment the view counter.
+ * Returns null when the link is not found, expired, or worker is unreachable.
+ */
+export async function fetchShareStats(id: string): Promise<ShareStats | null> {
+  try {
+    if (!ENGINE_BASE || !id) return null;
+    const res = await fetchWithTimeout(
+      `${ENGINE_BASE}/api/cv/share/stats?id=${encodeURIComponent(id)}`
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { ok?: boolean; view_count?: number; created_at?: number; expires_at?: number };
+    if (!data.ok) return null;
+    return {
+      view_count: data.view_count ?? 0,
+      created_at: data.created_at ?? 0,
+      expires_at: data.expires_at ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
