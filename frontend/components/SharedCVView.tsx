@@ -177,7 +177,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
     .join('');
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-100 dark:bg-neutral-950 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-100 dark:bg-neutral-950 overflow-y-auto overflow-x-hidden">
 
       {/* ── Header bar ── */}
       <header className="sticky top-0 z-20 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-zinc-200 dark:border-neutral-800 shadow-sm">
@@ -457,7 +457,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
         </aside>
 
         {/* ── CV / Cover Letter preview panel ── */}
-        <section className="flex-1 min-w-0">
+        <section className="flex-1 min-w-0 overflow-hidden">
           {downloadError && (
             <div className="mb-4 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
               {downloadError}
