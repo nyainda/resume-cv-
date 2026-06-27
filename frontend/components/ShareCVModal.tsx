@@ -101,6 +101,8 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
     if (shortId) {
       setShareUrl(buildShortShareUrl(shortId));
       setIsShortLink(true);
+      // Persist so the editor can show a view-count badge on the Share button
+      try { localStorage.setItem('procv:latestShareId', shortId); } catch { /* quota */ }
     } else {
       setShareUrl(buildShareUrl(payload));
       setIsShortLink(false);

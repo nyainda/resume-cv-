@@ -27,6 +27,7 @@ import TemplateGallery from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
 import ShareCVModal from './ShareCVModal';
 import { buildProfileUrl } from '../services/publicProfileService';
+import { fetchShareStats } from '../services/shareService';
 import AIImprovementPanel from './AIImprovementPanel';
 import QualityIssuesPanel from './QualityIssuesPanel';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
@@ -600,6 +601,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
+  const [shareViewCount, setShareViewCount] = useState<number | null>(null);
+
+  // Fetch view count for the most-recently created share link so we can show a
+  // live badge on the Share button. Runs once on mount; fire-and-forget on error.
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      const latestId = localStorage.getItem('procv:latestShareId');
+      if (!latestId) return;
+      fetchShareStats(latestId).then(stats => {
+        if (!cancelled && stats && stats.view_count > 0) {
+          setShareViewCount(stats.view_count);
+        }
+      });
+    } catch { /* ignore */ }
+    return () => { cancelled = true; };
+  }, []);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showQualityPanel, setShowQualityPanel] = useState(false);
   const [showImportReport, setShowImportReport] = useState(false);
@@ -2146,9 +2164,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 onClick={() => setShowShareModal(true)}
                 disabled={isEditing}
                 size="sm"
-                className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                className="relative bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
               >
                 <ShareIcon className="h-4 w-4 mr-2" />Share Link
+                {shareViewCount !== null && shareViewCount > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[9px] font-bold leading-none">
+                    {shareViewCount > 99 ? '99+' : shareViewCount}
+                  </span>
+                )}
               </Button>
               {/* Quick copy of published public profile link */}
               {workerUser?.id && (() => {
@@ -2681,11 +2704,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             );
           })()}
 
-          <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6">
+          <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6 overflow-x-auto">
             {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
                 so the editor download is byte-identical to the share download.
                 The data-cv-preview-active marker is what `getCVHtml`'s default
-                selector prefers, and what we pass explicitly via cvCaptureRef. */}
+                selector prefers, and what we pass explicitly via cvCaptureRef.
+                overflow-x-auto on the outer div + CVPreview's own overflow-x-auto
+                ensures the A4-width template scrolls horizontally on phones. */}
             <div ref={cvCaptureRef} data-cv-preview-active="true">
               <CVPreview
                 cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}

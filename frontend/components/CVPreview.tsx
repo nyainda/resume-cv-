@@ -135,6 +135,11 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       <div id="cv-preview-area" data-cv-preview="true" className="min-w-[210mm] bg-white shadow-sm mx-auto">
         {renderTemplate()}
       </div>
+      {/* Swipe hint — only visible on screens narrower than A4 (210 mm ≈ 794 px).
+          Hidden on wider viewports where the full page is visible at once. */}
+      <p className="min-[800px]:hidden mt-2 text-center text-[11px] text-zinc-400 select-none pointer-events-none">
+        ← Swipe to see full CV →
+      </p>
     </div>
   );
 };
