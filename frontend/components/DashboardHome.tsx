@@ -193,7 +193,7 @@ const DashboardHome: React.FC<Props> = ({
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B2B4B] dark:text-zinc-100 font-['Playfair_Display',serif]">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#1B2B4B] dark:text-zinc-100 font-['Playfair_Display',serif] leading-tight">
             {userProfile?.personalInfo?.name
               ? `Welcome back, ${userProfile.personalInfo.name.split(' ')[0]} 👋`
               : 'Welcome to ProCV 👋'}
@@ -299,7 +299,7 @@ const DashboardHome: React.FC<Props> = ({
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
 
           {/* Header */}
-          <div className="px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Career Intelligence</h2>
@@ -352,7 +352,7 @@ const DashboardHome: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="p-5 space-y-5">
+          <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
             {/* Priority focus banner — single most important action */}
             {audit.recommendations.length > 0 && (() => {
               const ORDER = ['critical', 'high', 'medium', 'low'];
@@ -362,7 +362,7 @@ const DashboardHome: React.FC<Props> = ({
               const cfg = PRIORITY_CONFIG[top.priority] ?? PRIORITY_CONFIG.low;
               const action = resolveRecAction(top.targetView, onNavigate, onEditProfile);
               return (
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
+                <div className={`flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 sm:px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
                   <span className="text-lg flex-shrink-0">{cfg.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-0.5">Your biggest opportunity</p>
@@ -371,7 +371,7 @@ const DashboardHome: React.FC<Props> = ({
                   {action && (
                     <button
                       onClick={action}
-                      className={`flex-shrink-0 text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap`}
+                      className={`text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap`}
                     >
                       {top.action} →
                     </button>
@@ -380,8 +380,9 @@ const DashboardHome: React.FC<Props> = ({
               );
             })()}
 
-            {/* Score rings — 5 quality signals */}
-            <div className="grid grid-cols-5 gap-2">
+            {/* Score rings — 5 quality signals (scrollable on mobile so rings stay readable) */}
+            <div className="overflow-x-auto -mx-5 px-5 sm:mx-0 sm:px-0 pb-0.5">
+            <div className="grid grid-cols-5 gap-1.5 min-w-[300px]">
               {/* Completeness */}
               {(() => {
                 const v = profileComplete;
@@ -479,6 +480,7 @@ const DashboardHome: React.FC<Props> = ({
                   </div>
                 );
               })()}
+            </div>
             </div>
 
             {/* Context note — prevent score-chasing */}
