@@ -199,7 +199,6 @@ const DashboardHome: React.FC<Props> = ({
     { label: 'Cover Letters', value: savedCLs.length,     icon: '✉️', view: 'generator', color: 'from-violet-700 to-violet-500' },
     { label: 'Applications',  value: trackedApps.length,  icon: '🎯', view: 'tracker',   color: 'from-emerald-700 to-emerald-500' },
     { label: 'STAR Stories',  value: starStories.length,  icon: '⭐', view: 'interview', color: 'from-amber-700 to-amber-500' },
-    { label: 'CV Views',      value: totalShareViews,     icon: '👁️', view: '',          color: 'from-emerald-700 to-teal-600' },
   ];
 
   const quickActions = [
@@ -283,7 +282,7 @@ const DashboardHome: React.FC<Props> = ({
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {statCards.map(card => (
           <button
             key={card.label}
@@ -642,102 +641,129 @@ const DashboardHome: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Share links summary — always visible */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5">
-              <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-              Shared CV Links
-            </h2>
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
-              {storedLinks.length} link{storedLinks.length !== 1 ? 's' : ''}
-              {totalShareViews > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{totalShareViews} view{totalShareViews !== 1 ? 's' : ''}</span></>}
-            </span>
+      {/* CV Performance — share links + live view counts */}
+      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+          <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5">
+            <svg className="w-4 h-4 text-teal-600 dark:text-teal-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+            CV Performance
+          </h2>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {storedLinks.length} shared link{storedLinks.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {/* Stats summary row — only when links exist */}
+        {storedLinks.length > 0 && (
+          <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="px-4 py-3 text-center">
+              <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{totalShareViews}</div>
+              <div className="text-[10px] text-zinc-400 font-medium mt-0.5">Total views</div>
+            </div>
+            <div className="px-4 py-3 text-center">
+              <div className="text-2xl font-bold text-[#1B2B4B] dark:text-zinc-100">{storedLinks.length}</div>
+              <div className="text-[10px] text-zinc-400 font-medium mt-0.5">Active links</div>
+            </div>
+            <div className="px-4 py-3 text-center">
+              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                {storedLinks.length > 0
+                  ? Math.round(totalShareViews / storedLinks.length)
+                  : 0}
+              </div>
+              <div className="text-[10px] text-zinc-400 font-medium mt-0.5">Avg per link</div>
+            </div>
           </div>
+        )}
+
+        <div className="p-4">
           {storedLinks.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-5 text-center">
+            <div className="flex flex-col items-center gap-2 py-4 text-center">
               <svg className="w-8 h-8 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
               </svg>
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">No shared links yet</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">Open a saved CV and click <span className="font-semibold">Share</span> to create a trackable link</p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">No shared CV links yet</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">Open a saved CV and click <span className="font-semibold">Share</span> to create a trackable link — view counts appear here</p>
             </div>
           ) : (
-          <div className="space-y-2">
-            {storedLinks.slice(0, 5).map(link => {
-              const stats = shareStats.get(link.id);
-              const views = stats?.view_count;
-              const expiresAt = link.expires_at;
-              const nowSec = Math.floor(Date.now() / 1000);
-              const daysLeft = Math.ceil((expiresAt - nowSec) / 86400);
-              const expiryLabel = daysLeft <= 3
-                ? `Expires in ${daysLeft}d ⚠️`
-                : new Date(expiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-              const expiryColor = daysLeft <= 3
-                ? 'text-rose-500 dark:text-rose-400'
-                : 'text-zinc-400 dark:text-zinc-500';
-              const shareUrl = `${window.location.origin}${window.location.pathname}#s=${link.id}`;
-              return (
-                <div key={link.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700">
-                  {/* View count bubble */}
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
-                    {views == null ? (
-                      <span className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-pulse" />
-                    ) : (
-                      <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{views > 99 ? '99+' : views}</span>
-                    )}
-                  </div>
-                  {/* Link ID + expiry */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300 truncate">
-                      …/#s={link.id}
+            <div className="space-y-2">
+              {storedLinks.slice(0, 5).map(link => {
+                const stats = shareStats.get(link.id);
+                const views = stats?.view_count;
+                const expiresAt = link.expires_at;
+                const nowSec = Math.floor(Date.now() / 1000);
+                const daysLeft = Math.ceil((expiresAt - nowSec) / 86400);
+                const expiryLabel = daysLeft <= 0
+                  ? 'Expired'
+                  : daysLeft <= 3
+                    ? `Expires in ${daysLeft}d ⚠️`
+                    : new Date(expiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                const expiryColor = daysLeft <= 0
+                  ? 'text-zinc-400 dark:text-zinc-500 line-through'
+                  : daysLeft <= 3
+                    ? 'text-rose-500 dark:text-rose-400'
+                    : 'text-zinc-400 dark:text-zinc-500';
+                const shareUrl = `${window.location.origin}${window.location.pathname}#s=${link.id}`;
+                return (
+                  <div key={link.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700">
+                    {/* View count bubble */}
+                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 flex flex-col items-center justify-center">
+                      {views == null ? (
+                        <span className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-pulse" />
+                      ) : (
+                        <>
+                          <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400 leading-none">{views > 99 ? '99+' : views}</span>
+                          <span className="text-[8px] text-teal-500/70 leading-none">views</span>
+                        </>
+                      )}
                     </div>
-                    <div className={`text-[10px] font-medium mt-0.5 ${expiryColor}`}>
-                      {expiryLabel}
+                    {/* Link ID + expiry */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300 truncate">…/#s={link.id}</div>
+                      <div className={`text-[10px] font-medium mt-0.5 ${expiryColor}`}>{expiryLabel}</div>
                     </div>
+                    {/* Copy button */}
+                    <button
+                      onClick={async () => {
+                        try { await navigator.clipboard.writeText(shareUrl); } catch {
+                          const ta = document.createElement('textarea');
+                          ta.value = shareUrl; document.body.appendChild(ta);
+                          ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                        }
+                        setCopiedLinkId(link.id);
+                        setTimeout(() => setCopiedLinkId(null), 2000);
+                      }}
+                      className="flex-shrink-0 p-1.5 rounded-lg transition-colors text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                      title="Copy link"
+                    >
+                      {copiedLinkId === link.id ? (
+                        <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      )}
+                    </button>
+                    {/* Open link button */}
+                    <a
+                      href={shareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                      title="Open shared CV"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                      </svg>
+                    </a>
                   </div>
-                  {/* Copy button */}
-                  <button
-                    onClick={async () => {
-                      try { await navigator.clipboard.writeText(shareUrl); } catch {
-                        const ta = document.createElement('textarea');
-                        ta.value = shareUrl; document.body.appendChild(ta);
-                        ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-                      }
-                      setCopiedLinkId(link.id);
-                      setTimeout(() => setCopiedLinkId(null), 2000);
-                    }}
-                    className="flex-shrink-0 p-1.5 rounded-lg transition-colors text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                    title="Copy link"
-                  >
-                    {copiedLinkId === link.id ? (
-                      <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    )}
-                  </button>
-                  {/* Open link button */}
-                  <a
-                    href={shareUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                    title="Open shared CV"
-                  >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                      <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                  </a>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           )}
+        </div>
       </div>
 
       {/* Quick actions */}
