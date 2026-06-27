@@ -102,33 +102,35 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const [contactCopied, setContactCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [cvExpanded, setCvExpanded] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
-  const previewWrapRef = useRef<HTMLDivElement>(null);
+  const scrollBoxRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
-  const [wrapperHeight, setWrapperHeight] = useState<number | string>('auto');
+  const [naturalCvHeight, setNaturalCvHeight] = useState(0);
 
   const smartSummary = useMemo(() => buildSmartSummary(cvData, personalInfo), [cvData, personalInfo]);
 
-  // Scale the A4 preview to fit the container width, and track the scaled height
-  const CV_NATURAL_WIDTH = 794; // ~210mm at 96dpi
+  // CV natural A4 width at 96 dpi. Min scale: 0.45 so text stays legible on narrow phones.
+  const CV_NATURAL_WIDTH = 794;
+  const MIN_SCALE = 0.45;
+
   useEffect(() => {
     let raf: number;
-    const update = () => {
-      if (!previewWrapRef.current) return;
-      const w = previewWrapRef.current.offsetWidth;
-      const scale = Math.min(1, w / CV_NATURAL_WIDTH);
+    const measure = () => {
+      if (!scrollBoxRef.current) return;
+      const containerW = scrollBoxRef.current.clientWidth;
+      // Fit to container but never shrink below MIN_SCALE; desktop stays at ≤1
+      const scale = Math.min(1, Math.max(MIN_SCALE, containerW / CV_NATURAL_WIDTH));
       setPreviewScale(scale);
-      // Measure the actual rendered height of the CV content and collapse the wrapper
       if (previewRef.current) {
-        const naturalH = previewRef.current.scrollHeight;
-        if (naturalH > 0) setWrapperHeight(Math.round(naturalH * scale));
+        const h = previewRef.current.scrollHeight;
+        if (h > 0) setNaturalCvHeight(h);
       }
     };
-    // First pass immediately, then again after CVPreview has painted
-    update();
-    raf = requestAnimationFrame(() => { update(); });
-    const ro = new ResizeObserver(() => { update(); });
-    if (previewWrapRef.current) ro.observe(previewWrapRef.current);
+    measure();
+    raf = requestAnimationFrame(measure);
+    const ro = new ResizeObserver(measure);
+    if (scrollBoxRef.current) ro.observe(scrollBoxRef.current);
     if (previewRef.current) ro.observe(previewRef.current);
     return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, []);
@@ -466,31 +468,76 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
           {activeDoc === 'cv' ? (
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
-              {/* Scale wrapper so the A4 preview fills the container */}
+
+              {/* Mobile hint */}
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-50 dark:bg-neutral-800 border-b border-zinc-100 dark:border-neutral-700 sm:hidden">
+                <svg className="w-3 h-3 text-zinc-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+                <span className="text-[10px] text-zinc-400 font-medium">Scroll inside the card to read · pinch to zoom</span>
+              </div>
+
+              {/*
+                Scroll box — both axes.
+                On mobile we cap height at 75dvh so the card doesn't dwarf the page.
+                On desktop the card grows naturally to show the full CV.
+              */}
               <div
-                ref={previewWrapRef}
-                className="w-full overflow-hidden"
-                style={{ height: wrapperHeight }}
+                ref={scrollBoxRef}
+                className="overflow-auto w-full"
+                style={{
+                  maxHeight: cvExpanded ? 'none' : 'min(75dvh, 900px)',
+                  WebkitOverflowScrolling: 'touch',
+                }}
               >
+                {/*
+                  Spacer: tells the scroll container the real content size after scaling.
+                  Without this the transform doesn't affect layout, so nothing scrolls.
+                */}
                 <div
-                  ref={previewRef}
-                  data-cv-preview-active="true"
                   style={{
-                    width: CV_NATURAL_WIDTH,
-                    transformOrigin: 'top left',
-                    transform: `scale(${previewScale})`,
+                    width:  naturalCvHeight > 0 ? Math.ceil(CV_NATURAL_WIDTH * previewScale) : '100%',
+                    height: naturalCvHeight > 0 ? Math.ceil(naturalCvHeight  * previewScale) : undefined,
+                    position: 'relative',
+                    flexShrink: 0,
                   }}
                 >
-                  <CVPreview
-                    cvData={cvData}
-                    personalInfo={personalInfo}
-                    template={template}
-                    isEditing={false}
-                    onDataChange={() => {}}
-                    jobDescriptionForATS=""
-                  />
+                  <div
+                    ref={previewRef}
+                    data-cv-preview-active="true"
+                    style={{
+                      width: CV_NATURAL_WIDTH,
+                      transformOrigin: 'top left',
+                      transform: `scale(${previewScale})`,
+                      position: naturalCvHeight > 0 ? 'absolute' : 'relative',
+                      top: 0,
+                      left: 0,
+                    }}
+                  >
+                    <CVPreview
+                      cvData={cvData}
+                      personalInfo={personalInfo}
+                      template={template}
+                      isEditing={false}
+                      onDataChange={() => {}}
+                      jobDescriptionForATS=""
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* Expand / collapse toggle — mobile only */}
+              {naturalCvHeight > 0 && (
+                <div className="flex items-center justify-center gap-2 px-4 py-2.5 border-t border-zinc-100 dark:border-neutral-800 sm:hidden">
+                  <button
+                    onClick={() => setCvExpanded(v => !v)}
+                    className="flex items-center gap-1 text-[11px] text-[#1B2B4B] dark:text-[#C9A84C] font-semibold underline underline-offset-2"
+                  >
+                    {cvExpanded ? 'Collapse CV ↑' : 'Expand to full CV ↓'}
+                  </button>
+                  {!cvExpanded && <span className="text-[10px] text-zinc-400">or scroll inside the card</span>}
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm p-8 md:p-12">
