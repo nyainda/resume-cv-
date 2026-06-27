@@ -1,4 +1,5 @@
 {
+  "installCommand": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install",
   "buildCommand": "npm run vercel-build",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
