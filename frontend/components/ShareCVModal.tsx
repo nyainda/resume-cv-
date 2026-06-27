@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
 import { createShareLink, buildShortShareUrl, checkShareRateLimit, addStoredShareLink, getStoredShareLinks } from '../services/shareService';
