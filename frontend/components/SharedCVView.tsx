@@ -6,7 +6,8 @@ import { downloadCV } from '../services/cvDownloadService';
 // ── Smart Summary ─────────────────────────────────────────────────────────────
 // Builds a deterministic, human-readable professional snapshot from CV data.
 // No AI required — derived entirely from structured fields.
-function buildSmartSummary(cvData: CVData, personalInfo: PersonalInfo): string | null {
+// Exported so PublicProfilePage can reuse the same logic.
+export function buildSmartSummary(cvData: CVData, personalInfo: PersonalInfo): string | null {
   const experiences = cvData.experience ?? [];
   const skills = cvData.skills ?? [];
   const education = cvData.education ?? [];

@@ -26,6 +26,7 @@ import { ToastContainer } from "./components/ui/Toast";
 import PricingModal from "./components/PricingModal";
 import FreePlanNudge from "./components/FreePlanNudge";
 import SharedCVView from "./components/SharedCVView";
+import PublicProfilePage from "./components/PublicProfilePage";
 import { decodeSharePayload, SharedCVPayload } from "./components/ShareCVModal";
 import { fetchSharePayload } from "./services/shareService";
 import { fetchPublicProfile } from "./services/publicProfileService";
@@ -430,6 +431,8 @@ const AppInner: React.FC = () => {
 
   // ── Shared CV payload (hash links) ───────────────────────────────────────
   const [sharedCVPayload, setSharedCVPayload] = useState<SharedCVPayload | null>(null);
+  // Public profile page — separate from the CV share view (#p= route)
+  const [publicProfilePayload, setPublicProfilePayload] = useState<SharedCVPayload | null>(null);
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.startsWith("#s=")) {
@@ -446,7 +449,8 @@ const AppInner: React.FC = () => {
       const slugOrId = hash.slice("#p=".length);
       if (slugOrId) {
         fetchPublicProfile(slugOrId).then(payload => {
-          if (payload) setSharedCVPayload(payload);
+          // Show the rich PublicProfilePage instead of the CV-document view
+          if (payload) setPublicProfilePayload(payload);
         });
       }
     } else if (hash.startsWith("#share=")) {
@@ -624,6 +628,25 @@ const AppInner: React.FC = () => {
         onConnect={handleConnectDrive}
         onDismiss={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
       />
+
+      {/* ── Public Profile Page (#p= links) ── */}
+      {publicProfilePayload && !sharedCVPayload && (
+        <PublicProfilePage
+          cvData={publicProfilePayload.cvData}
+          personalInfo={publicProfilePayload.personalInfo}
+          template={publicProfilePayload.template}
+          sharedAt={publicProfilePayload.sharedAt}
+          onViewCV={() => {
+            // Switch from profile page to the full CV document view
+            setSharedCVPayload(publicProfilePayload);
+            setPublicProfilePayload(null);
+          }}
+          onDismiss={() => {
+            setPublicProfilePayload(null);
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          }}
+        />
+      )}
 
       {sharedCVPayload && (
         <SharedCVView
