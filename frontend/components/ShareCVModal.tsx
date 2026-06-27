@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
-import { createShareLink, buildShortShareUrl, checkShareRateLimit, addStoredShareLink } from '../services/shareService';
+import { createShareLink, buildShortShareUrl, checkShareRateLimit, addStoredShareLink, getStoredShareLinks } from '../services/shareService';
 import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl } from '../services/publicProfileService';
 import { logEvent } from '../services/eventsService';
 
@@ -51,11 +51,28 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [linkGenerated, setLinkGenerated] = useState(false);
   const [linkExpiresAt, setLinkExpiresAt] = useState<number>(0); // unix seconds
+  const [isReusingLink, setIsReusingLink] = useState(false); // true when showing a pre-existing link
   const [generating, setGenerating] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isShortLink, setIsShortLink] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('link');
   const [includeCoverLetter, setIncludeCoverLetter] = useState(false);
+
+  // On open: if the user already has a valid (non-expired) short link, load it
+  // immediately so they don't have to click "Generate" again.
+  useEffect(() => {
+    const links = getStoredShareLinks();
+    if (links.length === 0) return;
+    const latest = links[0]; // newest first
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (latest.expires_at > nowSec) {
+      setShareUrl(buildShortShareUrl(latest.id));
+      setLinkExpiresAt(latest.expires_at);
+      setIsShortLink(true);
+      setLinkGenerated(true);
+      setIsReusingLink(true);
+    }
+  }, []);
   const [rateLimitError, setRateLimitError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -132,6 +149,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
     setLinkGenerated(false);
     setShareUrl('');
     setCopied(false);
+    setIsReusingLink(false);
   };
 
   const handlePublishProfile = useCallback(async () => {
@@ -341,13 +359,22 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
               {/* ── Link tab ── */}
               {activeTab === 'link' && (
                 <div className="space-y-3">
-                  {/* Link type badge */}
+                  {/* Link type / reuse badge */}
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold ${
-                    isShortLink
-                      ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                      : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
+                    isReusingLink
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                      : isShortLink
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                        : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
                   }`}>
-                    {isShortLink ? (
+                    {isReusingLink ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        Reusing your existing link — expires {linkExpiresAt > 0
+                          ? new Date(linkExpiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : 'soon'} · Hit "New link" below for a fresh one
+                      </>
+                    ) : isShortLink ? (
                       <>
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>
                         Short link — expires {linkExpiresAt > 0

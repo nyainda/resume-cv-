@@ -135,6 +135,7 @@ const DashboardHome: React.FC<Props> = ({
   // ── Share links summary ───────────────────────────────────────────────────
   const [storedLinks, setStoredLinks] = useState<StoredShareLink[]>([]);
   const [shareStats, setShareStats]   = useState<Map<string, ShareStats>>(new Map());
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   useEffect(() => {
     const links = getStoredShareLinks();
@@ -684,6 +685,26 @@ const DashboardHome: React.FC<Props> = ({
                       {expiryLabel}
                     </div>
                   </div>
+                  {/* Copy button */}
+                  <button
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(shareUrl); } catch {
+                        const ta = document.createElement('textarea');
+                        ta.value = shareUrl; document.body.appendChild(ta);
+                        ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                      }
+                      setCopiedLinkId(link.id);
+                      setTimeout(() => setCopiedLinkId(null), 2000);
+                    }}
+                    className="flex-shrink-0 p-1.5 rounded-lg transition-colors text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    title="Copy link"
+                  >
+                    {copiedLinkId === link.id ? (
+                      <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    )}
+                  </button>
                   {/* Open link button */}
                   <a
                     href={shareUrl}
