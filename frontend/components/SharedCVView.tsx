@@ -550,24 +550,21 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
           )}
 
           {activeDoc === 'cv' ? (
-            /* Exactly the same pattern as the dashboard editor:
-               CVPreview renders at its natural A4 width; the wrapper
-               handles horizontal overflow so mobile users can scroll
-               left/right, and the page scrolls vertically as normal. */
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-x-auto">
-              <div
-                ref={previewRef}
-                data-cv-preview-active="true"
-              >
-                <CVPreview
-                  cvData={cvData}
-                  personalInfo={personalInfo}
-                  template={template}
-                  isEditing={false}
-                  onDataChange={() => {}}
-                  jobDescriptionForATS=""
-                />
-              </div>
+            /* CVPreview already renders its own bg-white shadow-sm container,
+               so we only need an overflow scroll wrapper here — no extra card. */
+            <div
+              ref={previewRef}
+              data-cv-preview-active="true"
+              className="overflow-x-auto"
+            >
+              <CVPreview
+                cvData={cvData}
+                personalInfo={personalInfo}
+                template={template}
+                isEditing={false}
+                onDataChange={() => {}}
+                jobDescriptionForATS=""
+              />
             </div>
           ) : (
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm p-8 md:p-12">
