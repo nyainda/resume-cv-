@@ -100,7 +100,12 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
  * Callers should check `checkShareRateLimit()` first if they want to show
  * the rate-limit message before attempting the network call.
  */
-export async function createShareLink(compressedPayload: string): Promise<string | null> {
+export interface CreateShareResult {
+  id: string;
+  expires_at: number; // unix seconds
+}
+
+export async function createShareLink(compressedPayload: string): Promise<CreateShareResult | null> {
   try {
     if (!ENGINE_BASE) return null;
 
@@ -117,8 +122,13 @@ export async function createShareLink(compressedPayload: string): Promise<string
       body: JSON.stringify({ payload: compressedPayload }),
     });
     if (!res.ok) return null;
-    const data = await res.json() as { id?: string };
-    return data.id ?? null;
+    const data = await res.json() as { id?: string; expires_at?: number };
+    if (!data.id) return null;
+    return {
+      id: data.id,
+      // Fall back to 30-day TTL if server omits expires_at (older deployed worker)
+      expires_at: data.expires_at ?? (Math.floor(Date.now() / 1000) + 30 * 86400),
+    };
   } catch {
     return null;
   }
@@ -142,6 +152,58 @@ export function buildShortShareUrl(id: string): string {
   const base = window.location.origin + window.location.pathname;
   return `${base}#s=${id}`;
 }
+
+// ─── Stored share links (localStorage) ───────────────────────────────────────
+
+export interface StoredShareLink {
+  id: string;
+  created_at: number; // unix ms (client clock when created)
+  expires_at: number; // unix seconds (from server)
+}
+
+const SHARE_LINKS_KEY = 'procv:shareLinks';
+const MAX_STORED_LINKS = 20;
+
+/** Read all locally stored share links, filtering out any that have expired. */
+export function getStoredShareLinks(): StoredShareLink[] {
+  try {
+    const raw = localStorage.getItem(SHARE_LINKS_KEY);
+    if (!raw) {
+      // Migrate legacy single-ID key if present
+      const legacyId = localStorage.getItem('procv:latestShareId');
+      if (legacyId) return [{ id: legacyId, created_at: Date.now(), expires_at: Math.floor(Date.now() / 1000) + 30 * 86400 }];
+      return [];
+    }
+    const arr = JSON.parse(raw) as StoredShareLink[];
+    const nowSec = Math.floor(Date.now() / 1000);
+    return arr.filter(l => l.expires_at > nowSec);
+  } catch { return []; }
+}
+
+/** Persist a newly created share link. Also keeps legacy key in sync. */
+export function addStoredShareLink(id: string, expires_at: number): void {
+  try {
+    const links = getStoredShareLinks();
+    const deduped = links.filter(l => l.id !== id);
+    deduped.unshift({ id, created_at: Date.now(), expires_at });
+    localStorage.setItem(SHARE_LINKS_KEY, JSON.stringify(deduped.slice(0, MAX_STORED_LINKS)));
+    localStorage.setItem('procv:latestShareId', id);
+  } catch { /* quota */ }
+}
+
+/** Fetch live stats for an array of IDs in parallel (max 10 at once). */
+export async function fetchAllShareStats(ids: string[]): Promise<Map<string, ShareStats>> {
+  const results = new Map<string, ShareStats>();
+  await Promise.allSettled(
+    ids.slice(0, 10).map(async id => {
+      const stats = await fetchShareStats(id);
+      if (stats) results.set(id, stats);
+    })
+  );
+  return results;
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
 
 export interface ShareStats {
   view_count: number;

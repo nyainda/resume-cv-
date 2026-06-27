@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
-import { createShareLink, buildShortShareUrl, checkShareRateLimit } from '../services/shareService';
+import { createShareLink, buildShortShareUrl, checkShareRateLimit, addStoredShareLink } from '../services/shareService';
 import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl } from '../services/publicProfileService';
 import { logEvent } from '../services/eventsService';
 
@@ -50,6 +50,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [linkGenerated, setLinkGenerated] = useState(false);
+  const [linkExpiresAt, setLinkExpiresAt] = useState<number>(0); // unix seconds
   const [generating, setGenerating] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [isShortLink, setIsShortLink] = useState(false);
@@ -97,17 +98,19 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
       ...(includeCoverLetter && hasCoverLetter ? { coverLetterText: coverLetterText! } : {}),
     };
     const compressed = encodeSharePayload(payload);
-    const shortId = await createShareLink(compressed);
-    if (shortId) {
+    const shareResult = await createShareLink(compressed);
+    if (shareResult) {
+      const { id: shortId, expires_at } = shareResult;
       setShareUrl(buildShortShareUrl(shortId));
       setIsShortLink(true);
-      // Persist so the editor can show a view-count badge on the Share button
-      try { localStorage.setItem('procv:latestShareId', shortId); } catch { /* quota */ }
+      setLinkExpiresAt(expires_at);
+      // Persist for editor badge + dashboard stats
+      addStoredShareLink(shortId, expires_at);
     } else {
       setShareUrl(buildShareUrl(payload));
       setIsShortLink(false);
     }
-    logEvent({ event_type: 'share_created', template, mode: shortId ? 'short' : 'hash' });
+    logEvent({ event_type: 'share_created', template, mode: shareResult ? 'short' : 'hash' });
     setLinkGenerated(true);
     setGenerating(false);
   }, [cvData, personalInfo, template, includeCoverLetter, hasCoverLetter, coverLetterText]);
@@ -347,7 +350,9 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
                     {isShortLink ? (
                       <>
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="20 6 9 17 4 12"/></svg>
-                        Short link — expires in 30 days · Your CV data stays on our server, not in the URL
+                        Short link — expires {linkExpiresAt > 0
+                          ? new Date(linkExpiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : 'in 30 days'} · Your CV data stays on our server, not in the URL
                       </>
                     ) : (
                       <>

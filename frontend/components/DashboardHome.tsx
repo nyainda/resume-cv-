@@ -2,6 +2,8 @@ import React, { useMemo, useEffect, useState } from 'react';
 import type { UserProfileSlot, SavedCV, SavedCoverLetter, TrackedApplication, CVData, UserProfile } from '../types';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { profileToCV } from '../utils/profileToCV';
+import { getStoredShareLinks, fetchAllShareStats } from '../services/shareService';
+import type { StoredShareLink, ShareStats } from '../services/shareService';
 function navTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -129,6 +131,21 @@ const DashboardHome: React.FC<Props> = ({
   const activeApps     = trackedApps.filter(a => a.status !== 'Rejected');
   const offersCount    = trackedApps.filter(a => a.status === 'Offer').length;
   const interviewCount = trackedApps.filter(a => a.status === 'Interviewing').length;
+
+  // ── Share links summary ───────────────────────────────────────────────────
+  const [storedLinks, setStoredLinks] = useState<StoredShareLink[]>([]);
+  const [shareStats, setShareStats]   = useState<Map<string, ShareStats>>(new Map());
+
+  useEffect(() => {
+    const links = getStoredShareLinks();
+    setStoredLinks(links);
+    if (links.length === 0) return;
+    fetchAllShareStats(links.slice(0, 5).map(l => l.id)).then(stats => setShareStats(stats));
+  }, []);
+
+  const totalShareViews = useMemo(() =>
+    Array.from(shareStats.values()).reduce((s, v) => s + (v.view_count ?? 0), 0),
+  [shareStats]);
 
   // ── Profile Intelligence Audit ────────────────────────────────────────────
   const [audit, setAudit] = useState<ProfileIntelligenceReport | null>(null);
@@ -617,6 +634,75 @@ const DashboardHome: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {/* Share links summary — only shown when user has created at least one link */}
+      {storedLinks.length > 0 && (
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Shared CV Links
+            </h2>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+              {storedLinks.length} link{storedLinks.length !== 1 ? 's' : ''}
+              {totalShareViews > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{totalShareViews} view{totalShareViews !== 1 ? 's' : ''}</span></>}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {storedLinks.slice(0, 5).map(link => {
+              const stats = shareStats.get(link.id);
+              const views = stats?.view_count;
+              const expiresAt = link.expires_at;
+              const nowSec = Math.floor(Date.now() / 1000);
+              const daysLeft = Math.ceil((expiresAt - nowSec) / 86400);
+              const expiryLabel = daysLeft <= 3
+                ? `Expires in ${daysLeft}d ⚠️`
+                : new Date(expiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+              const expiryColor = daysLeft <= 3
+                ? 'text-rose-500 dark:text-rose-400'
+                : 'text-zinc-400 dark:text-zinc-500';
+              const shareUrl = `${window.location.origin}${window.location.pathname}#s=${link.id}`;
+              return (
+                <div key={link.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700">
+                  {/* View count bubble */}
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
+                    {views == null ? (
+                      <span className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-pulse" />
+                    ) : (
+                      <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{views > 99 ? '99+' : views}</span>
+                    )}
+                  </div>
+                  {/* Link ID + expiry */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300 truncate">
+                      …/#s={link.id}
+                    </div>
+                    <div className={`text-[10px] font-medium mt-0.5 ${expiryColor}`}>
+                      {expiryLabel}
+                    </div>
+                  </div>
+                  {/* Open link button */}
+                  <a
+                    href={shareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                    title="Open shared CV"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                      <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div>

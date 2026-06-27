@@ -27,7 +27,7 @@ import TemplateGallery from './TemplateGallery';
 import JobAnalysis from './JobAnalysis';
 import ShareCVModal from './ShareCVModal';
 import { buildProfileUrl } from '../services/publicProfileService';
-import { fetchShareStats } from '../services/shareService';
+import { fetchShareStats, getStoredShareLinks } from '../services/shareService';
 import AIImprovementPanel from './AIImprovementPanel';
 import QualityIssuesPanel from './QualityIssuesPanel';
 import { scoreAtsCoverage } from '../services/cvAtsKeywords';
@@ -603,17 +603,24 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [shareViewCount, setShareViewCount] = useState<number | null>(null);
 
-  // Fetch view count for the most-recently created share link so we can show a
-  // live badge on the Share button. Runs once on mount; fire-and-forget on error.
+  // Fetch view counts across all stored share links and sum them for the badge.
+  // Runs once on mount; fire-and-forget on error.
   useEffect(() => {
     let cancelled = false;
     try {
-      const latestId = localStorage.getItem('procv:latestShareId');
-      if (!latestId) return;
-      fetchShareStats(latestId).then(stats => {
-        if (!cancelled && stats && stats.view_count > 0) {
-          setShareViewCount(stats.view_count);
-        }
+      const links = getStoredShareLinks();
+      if (links.length === 0) return;
+      // Fetch stats for the most-recent 5 links in parallel
+      const recentIds = links.slice(0, 5).map(l => l.id);
+      Promise.allSettled(
+        recentIds.map(id => fetchShareStats(id))
+      ).then(results => {
+        if (cancelled) return;
+        const total = results.reduce((sum, r) => {
+          if (r.status === 'fulfilled' && r.value) return sum + (r.value.view_count ?? 0);
+          return sum;
+        }, 0);
+        if (total > 0) setShareViewCount(total);
       });
     } catch { /* ignore */ }
     return () => { cancelled = true; };
