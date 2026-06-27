@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
-import { createShareLink, buildShortShareUrl } from '../services/shareService';
+import { createShareLink, buildShortShareUrl, checkShareRateLimit } from '../services/shareService';
 import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl } from '../services/publicProfileService';
 import { logEvent } from '../services/eventsService';
 
@@ -55,6 +55,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
   const [isShortLink, setIsShortLink] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('link');
   const [includeCoverLetter, setIncludeCoverLetter] = useState(false);
+  const [rateLimitError, setRateLimitError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [profilePublishing, setProfilePublishing] = useState(false);
@@ -75,6 +76,18 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
   const hasCoverLetter = !!(coverLetterText && coverLetterText.trim().length > 0);
 
   const generateLink = useCallback(async () => {
+    setRateLimitError('');
+
+    // Client-side rate limit check — mirrors the server's 10/hour limit
+    const rateCheck = checkShareRateLimit();
+    if (!rateCheck.allowed) {
+      const minutesLeft = Math.ceil(rateCheck.retryAfterMs / 60_000);
+      setRateLimitError(
+        `You've created 10 share links this hour. Try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`,
+      );
+      return;
+    }
+
     setGenerating(true);
     const payload: SharedCVPayload = {
       cvData,
@@ -266,6 +279,15 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
 
           {/* Generate button */}
           {!linkGenerated ? (
+            <>
+              {rateLimitError && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <svg className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <p className="text-xs text-red-700 dark:text-red-400 font-medium">{rateLimitError}</p>
+                </div>
+              )}
             <button
               onClick={generateLink}
               disabled={generating}
@@ -289,6 +311,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
                 </>
               )}
             </button>
+            </>
           ) : (
             <div className="space-y-4">
 

@@ -89,6 +89,12 @@ export function useCVManager({
         qualityReport: buildQualitySnapshot(cvData),
       };
       setSavedCVs((prev) => [newSavedCV, ...prev]);
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({
+          ...activeSlot,
+          savedCVs: [newSavedCV, ...(activeSlot.savedCVs ?? [])],
+        }).catch(() => {});
+      }
       toast.success(
         'CV Saved Successfully!',
         `"${cvName}" has been saved to your library.`,
@@ -108,9 +114,15 @@ export function useCVManager({
         qualityReport: buildQualitySnapshot(cvData),
       };
       setSavedCVs((prev) => [newSavedCV, ...prev]);
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({
+          ...activeSlot,
+          savedCVs: [newSavedCV, ...(activeSlot.savedCVs ?? [])],
+        }).catch(() => {});
+      }
       toast.success('CV Saved!', `"${name}" saved to your CV library.`);
     },
-    [setSavedCVs, toast],
+    [setSavedCVs, toast, isAuthenticated, activeSlot],
   );
 
   const handleSaveCoverLetter = useCallback(
@@ -122,9 +134,15 @@ export function useCVManager({
         text,
       };
       setSavedCoverLetters((prev) => [newCL, ...prev]);
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({
+          ...activeSlot,
+          savedCoverLetters: [newCL, ...(activeSlot.savedCoverLetters ?? [])],
+        }).catch(() => {});
+      }
       toast.success('Cover Letter Saved!', `"${name}" saved to your library.`);
     },
-    [setSavedCoverLetters, toast],
+    [setSavedCoverLetters, toast, isAuthenticated, activeSlot],
   );
 
   const deleteCVTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,6 +150,7 @@ export function useCVManager({
     (id: string) => {
       const cvToDelete = savedCVs.find((cv) => cv.id === id);
       if (!cvToDelete) return;
+      const newSavedCVs = savedCVs.filter((cv) => cv.id !== id);
       setSavedCVs((prev) => prev.filter((cv) => cv.id !== id));
       if (deleteCVTimerRef.current) clearTimeout(deleteCVTimerRef.current);
       toast.info('CV Deleted', `"${cvToDelete.name}" removed.`, () => {
@@ -142,20 +161,29 @@ export function useCVManager({
       deleteCVTimerRef.current = setTimeout(() => {
         deleteCVTimerRef.current = null;
         deleteCVData(id).catch(() => {});
+        if (isAuthenticated && activeSlot) {
+          enqueueSlotSync({ ...activeSlot, savedCVs: newSavedCVs }).catch(() => {});
+        }
       }, 6000);
     },
-    [setSavedCVs, savedCVs, toast],
+    [setSavedCVs, savedCVs, toast, isAuthenticated, activeSlot],
   );
 
   const handleSaveStories = useCallback(
     (newStories: STARStory[]) => {
       setStarStories((prev) => [...newStories, ...prev]);
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({
+          ...activeSlot,
+          starStories: [...newStories, ...(activeSlot.starStories ?? [])],
+        }).catch(() => {});
+      }
       toast.success(
         'Stories Saved!',
         `${newStories.length} STAR+R story added to your Interview Story Bank.`,
       );
     },
-    [setStarStories, toast],
+    [setStarStories, toast, isAuthenticated, activeSlot],
   );
 
   const handleLoadCV = useCallback(
@@ -177,6 +205,8 @@ export function useCVManager({
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+      let newTrackedApps: TrackedApplication[] = [];
+
       setTrackedApps((prev) => {
         const existingIdx = prev.findIndex((app) => {
           const sameRole =
@@ -187,8 +217,9 @@ export function useCVManager({
           return sameRole && sameCompany && recent;
         });
 
+        let updated: TrackedApplication[];
         if (existingIdx !== -1) {
-          const updated = [...prev];
+          updated = [...prev];
           updated[existingIdx] = {
             ...updated[existingIdx],
             savedCvName: details.savedCvName,
@@ -197,27 +228,33 @@ export function useCVManager({
             'CV Updated',
             `Re-generation detected — updated CV for "${details.roleTitle}" at ${details.company}.`,
           );
-          return updated;
+        } else {
+          const newApp: TrackedApplication = {
+            id: Date.now().toString(),
+            savedCvId: 'auto-generated',
+            savedCvName: details.savedCvName,
+            roleTitle: details.roleTitle,
+            company: details.company,
+            status: 'Applied',
+            dateApplied: new Date().toISOString().split('T')[0],
+            notes: `Automatically tracked after CV generation on ${new Date().toLocaleDateString()}.`,
+          };
+          toast.success(
+            'Application Tracked!',
+            `Added "${details.roleTitle}" at ${details.company} to your tracker.`,
+          );
+          updated = [newApp, ...prev];
         }
 
-        const newApp: TrackedApplication = {
-          id: Date.now().toString(),
-          savedCvId: 'auto-generated',
-          savedCvName: details.savedCvName,
-          roleTitle: details.roleTitle,
-          company: details.company,
-          status: 'Applied',
-          dateApplied: new Date().toISOString().split('T')[0],
-          notes: `Automatically tracked after CV generation on ${new Date().toLocaleDateString()}.`,
-        };
-        toast.success(
-          'Application Tracked!',
-          `Added "${details.roleTitle}" at ${details.company} to your tracker.`,
-        );
-        return [newApp, ...prev];
+        newTrackedApps = updated;
+        return updated;
       });
+
+      if (isAuthenticated && activeSlot) {
+        enqueueSlotSync({ ...activeSlot, trackedApps: newTrackedApps }).catch(() => {});
+      }
     },
-    [setTrackedApps, toast],
+    [setTrackedApps, toast, isAuthenticated, activeSlot],
   );
 
   const handleApplyViaEmail = useCallback(

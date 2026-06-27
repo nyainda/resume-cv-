@@ -337,9 +337,10 @@ export function useProfileManager({
       setProfiles((prev) => [...prev, slot]);
       setActiveProfileId(id);
       setIsEditingProfile(!cloneFrom);
+      if (isAuthenticated) enqueueSlotSync(slot).catch(() => {});
       toast.success('Profile Created', `"${name}" is now your active profile.`);
     },
-    [setProfiles, setActiveProfileId, setIsEditingProfile, toast],
+    [setProfiles, setActiveProfileId, setIsEditingProfile, toast, isAuthenticated],
   );
 
   const handleSwitchProfile = useCallback(
@@ -417,12 +418,15 @@ export function useProfileManager({
       jdKeywords: string[]; lastGeneratedAt: string; lastAtsScore: number;
     }>) => {
       setProfiles(prev =>
-        prev.map(p =>
-          p.id === activeSlot?.id ? { ...p, ...update } : p
-        )
+        prev.map(p => {
+          if (p.id !== activeSlot?.id) return p;
+          const updated = { ...p, ...update };
+          if (isAuthenticated) enqueueSlotSync(updated).catch(() => {});
+          return updated;
+        })
       );
     },
-    [activeSlot, setProfiles],
+    [activeSlot, setProfiles, isAuthenticated],
   );
 
   const handleDeleteAccount = useCallback(async () => {
