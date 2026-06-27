@@ -36,20 +36,30 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const previewRef = useRef<HTMLDivElement>(null);
   const previewWrapRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const [wrapperHeight, setWrapperHeight] = useState<number | string>('auto');
 
-  // Scale the A4 preview to fit the container width
+  // Scale the A4 preview to fit the container width, and track the scaled height
   const CV_NATURAL_WIDTH = 794; // ~210mm at 96dpi
   useEffect(() => {
+    let raf: number;
     const update = () => {
-      if (previewWrapRef.current) {
-        const w = previewWrapRef.current.offsetWidth;
-        setPreviewScale(Math.min(1, w / CV_NATURAL_WIDTH));
+      if (!previewWrapRef.current) return;
+      const w = previewWrapRef.current.offsetWidth;
+      const scale = Math.min(1, w / CV_NATURAL_WIDTH);
+      setPreviewScale(scale);
+      // Measure the actual rendered height of the CV content and collapse the wrapper
+      if (previewRef.current) {
+        const naturalH = previewRef.current.scrollHeight;
+        if (naturalH > 0) setWrapperHeight(Math.round(naturalH * scale));
       }
     };
+    // First pass immediately, then again after CVPreview has painted
     update();
-    const ro = new ResizeObserver(update);
+    raf = requestAnimationFrame(() => { update(); });
+    const ro = new ResizeObserver(() => { update(); });
     if (previewWrapRef.current) ro.observe(previewWrapRef.current);
-    return () => ro.disconnect();
+    if (previewRef.current) ro.observe(previewRef.current);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, []);
 
   const isOwner = !!onLoadIntoEditor;
@@ -144,15 +154,16 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-50"
             >
               {downloading ? (
-                <><SpinnerIcon />Saving…</>
+                <><SpinnerIcon /><span className="hidden xs:inline">Saving…</span></>
               ) : (
                 <>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
-                  Download PDF
+                  <span className="hidden sm:inline">Download PDF</span>
+                  <span className="sm:hidden">Save</span>
                 </>
               )}
             </button>
@@ -359,7 +370,11 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
           {activeDoc === 'cv' ? (
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm overflow-hidden">
               {/* Scale wrapper so the A4 preview fills the container */}
-              <div ref={previewWrapRef} className="w-full overflow-hidden">
+              <div
+                ref={previewWrapRef}
+                className="w-full overflow-hidden"
+                style={{ height: wrapperHeight }}
+              >
                 <div
                   ref={previewRef}
                   data-cv-preview-active="true"
@@ -367,8 +382,6 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                     width: CV_NATURAL_WIDTH,
                     transformOrigin: 'top left',
                     transform: `scale(${previewScale})`,
-                    height: `calc(100% * ${previewScale})`,
-                    ...(previewScale < 1 ? { marginBottom: `calc((${previewScale} - 1) * 100%)` } : {}),
                   }}
                 >
                   <CVPreview

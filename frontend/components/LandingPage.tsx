@@ -779,7 +779,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
   const ac       = BEFORE_AFTER_CASES[activeCase];
 
   return (
-    <div style={{ opacity: ready ? 1 : 0, transition: 'opacity 0.4s', background: bg, color: text, fontFamily: 'system-ui,-apple-system,sans-serif', minHeight: '100vh' }}>
+    <div style={{ opacity: ready ? 1 : 0, transition: 'opacity 0.4s', background: bg, color: text, fontFamily: 'system-ui,-apple-system,sans-serif', minHeight: '100vh', overflowX: 'hidden' }}>
 
       {/* ── Nav ──────────────────────────────────────────────────────── */}
       <header style={{
@@ -787,7 +787,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         background: darkMode ? 'rgba(23,23,23,0.95)' : 'rgba(248,247,244,0.97)',
         backdropFilter: 'blur(20px)', borderBottom: `1px solid ${border}`,
       }}>
-        <div style={{ maxWidth: isLarge ? 1440 : 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ maxWidth: isLarge ? 1440 : 1200, margin: '0 auto', padding: isMobile ? '0 14px' : '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <div style={{ width: 30, height: 30, background: Y, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#111' }}>CV</div>
@@ -1794,13 +1794,15 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 1 }}>Pass {activePipe + 1} of {PIPELINE_STEPS.length}</div>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 700, background: 'rgba(201,168,76,0.15)', padding: '4px 10px', borderRadius: 6, maxWidth: 320, textAlign: 'right' }}>
-                Prevents: {PIPELINE_STEPS[activePipe].detail.split('Prevents')[1]?.trim().replace(/^:?\s*/, '') || ''}
-              </div>
+              {!isMobile && (
+                <div style={{ fontSize: 11, color: '#C9A84C', fontWeight: 700, background: 'rgba(201,168,76,0.15)', padding: '4px 10px', borderRadius: 6, maxWidth: 300, textAlign: 'right' }}>
+                  Prevents: {PIPELINE_STEPS[activePipe].detail.split('Prevents')[1]?.trim().replace(/^:?\s*/, '') || ''}
+                </div>
+              )}
             </div>
 
             {/* Panel body — step-specific demo */}
-            <div style={{ padding: '28px 28px 32px' }}>
+            <div style={{ padding: isMobile ? '16px 14px 20px' : '28px 28px 32px' }}>
               {activePipe === 0 && (
                 <div>
                   <p style={{ fontSize: 12, color: faint, textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700, margin: '0 0 16px' }}>What gets extracted from your profile</p>
@@ -2432,7 +2434,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
           </div>
 
           {/* Plan cards — 4 tiers */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4,1fr)', gap: isLarge ? 24 : 16, maxWidth: isLarge ? 1200 : 1100, margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: isLarge ? 24 : 16, maxWidth: isLarge ? 1200 : 1100, margin: '0 auto' }}>
 
             {/* ── Free ── */}
             <div style={{ background: surface, borderRadius: 18, border: `1px solid ${border}`, padding: '28px 22px', display: 'flex', flexDirection: 'column' }}>
