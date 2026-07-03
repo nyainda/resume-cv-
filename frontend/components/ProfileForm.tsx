@@ -227,7 +227,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [showWordImport, setShowWordImport] = useState(false);
   const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload'>('text');
   const [rawText, setRawText] = useState('');
-  const [githubUrl, setGithubUrl] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -410,16 +409,14 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   };
 
   const handleGenerateProfile = async () => {
-    if (!rawText.trim() && !uploadedFile && !githubUrl.trim()) {
-      setAiError('Please paste your resume text, upload a file, or enter a GitHub URL to continue.'); return;
+    if (!rawText.trim() && !uploadedFile) {
+      setAiError('Please paste your resume text or upload a file to continue.'); return;
     }
     setIsGenerating(true); setAiError(null); setImportStage(null);
     const importT0 = performance.now();
     const importSource = uploadedFile
       ? `file:${uploadedFile.name} (${Math.round(uploadedFile.size / 1024)}KB, ${uploadedFile.type || 'unknown type'})`
-      : githubUrl.trim()
-        ? `github:${githubUrl.trim()}`
-        : `text-paste:${rawText.trim().length} chars`;
+      : `text-paste:${rawText.trim().length} chars`;
     console.group(`[ImportPipeline] Import started — ${importSource}`);
     try {
       let profile: UserProfile;
@@ -452,10 +449,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             console.log(`[ImportPipeline] Scanned PDF — selected provider: ${activeProvider}`);
             if (activeProvider === 'claude' && hasClaudeKey()) {
               setImportStage({ step: 2, label: 'Extracting via Claude vision…', sub: 'Multimodal AI reading your PDF' });
-              profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
+              profile = await generateProfileFromFileClaude(base64, mimeType, undefined);
             } else if (hasGeminiKey()) {
               setImportStage({ step: 2, label: 'Extracting via Gemini vision…', sub: 'Multimodal AI reading your PDF' });
-              profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
+              profile = await generateProfileFromFileWithGemini(base64, mimeType, undefined);
             } else {
               // Workers AI vision — supports images only, NOT PDFs.
               // Convert to PNG first by rendering page 1 to canvas if browser supports it,
@@ -474,7 +471,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                 );
               }
               setImportStage({ step: 3, label: 'Structuring profile…' });
-              profile = await generateProfile(visionText, githubUrl || undefined);
+              profile = await generateProfile(visionText, undefined);
             }
             setImportStage({ step: 4, label: 'Profile extracted ✓' });
           }
@@ -498,16 +495,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           setImportStage({ step: 2, label: 'AI extracting CV content…', sub: 'This may take a few seconds' });
           const activeProvider = getSelectedProvider();
           if (activeProvider === 'claude' && hasClaudeKey()) {
-            profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
+            profile = await generateProfileFromFileClaude(base64, mimeType, undefined);
           } else if (hasGeminiKey()) {
-            profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
+            profile = await generateProfileFromFileWithGemini(base64, mimeType, undefined);
           } else {
             // Workers AI vision — free, no key needed
             setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free, no key required' });
             const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
             if (!extracted || extracted.trim().length < 50) throw new Error('Could not extract text from the image. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
-            profile = await generateProfile(extracted, githubUrl || undefined);
+            profile = await generateProfile(extracted, undefined);
           }
           setImportStage({ step: 4, label: 'Profile extracted ✓' });
 
@@ -516,24 +513,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         }
 
       } else {
-        // ── Text / GitHub path ──────────────────────────────────────────────
-        if (githubUrl.trim() || !rawText.trim()) {
-          // GitHub URL or empty text box — still uses AI
-          if (!apiKeySet) throw new Error('GitHub profile import requires an AI key. Add one in Settings → AI Keys.');
-          setImportStage({ step: 1, label: 'Fetching GitHub profile…' });
-          profile = await generateProfile(rawText, githubUrl || undefined);
-          setImportStage({ step: 4, label: 'Profile built ✓' });
-        } else {
-          // Plain text paste — zero-token pipeline, AI verify in background
-          setImportStage({ step: 1, label: 'Reading pasted text…' });
-          const result = await runImportPipeline(rawText, 'text', {
-            onStage1Complete: (r) => { setImportStage({ step: 3, label: 'Structuring profile…' }); setImportConfidence(r.confidence); },
-            onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
-          });
-          profile = result.profile;
-          setImportConfidence(result.confidence);
-          if (!result.aiVerified) setImportStage({ step: 4, label: 'Profile ready ✓', sub: 'Add an AI key for higher accuracy' });
-        }
+        // ── Text paste path ─────────────────────────────────────────────────
+        // Zero-token pipeline, AI verify in background
+        setImportStage({ step: 1, label: 'Reading pasted text…' });
+        const result = await runImportPipeline(rawText, 'text', {
+          onStage1Complete: (r) => { setImportStage({ step: 3, label: 'Structuring profile…' }); setImportConfidence(r.confidence); },
+          onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
+        });
+        profile = result.profile;
+        setImportConfidence(result.confidence);
+        if (!result.aiVerified) setImportStage({ step: 4, label: 'Profile ready ✓', sub: 'Add an AI key for higher accuracy' });
       }
 
       reset(profile);
@@ -1381,13 +1370,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             onChange={handleFileChange} />
         </label>
       )}
-
-      <div>
-        <Label className="mb-1 block">GitHub Profile URL <span className="text-zinc-400 font-normal">(Optional — requires AI key)</span></Label>
-        <Input value={githubUrl} onChange={e => setGithubUrl(e.target.value)}
-          placeholder="https://github.com/username" disabled={isGenerating} />
-        <p className="text-xs text-zinc-400 mt-1">Your public repositories and projects will be pulled in to enrich your profile automatically.</p>
-      </div>
 
       {aiError && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
