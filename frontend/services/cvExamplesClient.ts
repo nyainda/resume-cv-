@@ -275,20 +275,24 @@ export function buildReferenceBlock(
         : '';
 
     return `\
-===== STRUCTURAL REFERENCE — NUMERIC MEASUREMENTS ONLY =====
-CRITICAL: This block contains ONLY word-count numbers and bullet-count numbers.
-There is NO CV content here — no names, no companies, no skills, no bullet text, no job titles.
-Do NOT invent or fabricate any content from this block.
-Do NOT mention this block in your output. Treat it purely as a length calibration guide.
-All content MUST come exclusively from the candidate's own profile and job description below.
+===== STRUCTURAL REFERENCE — SIZE CALIBRATION NUMBERS ONLY =====
+⚠ STOP: THIS BLOCK CONTAINS NO CV CONTENT. DO NOT COPY, ECHO, QUOTE, OR PARAPHRASE IT.
+⚠ Every word in your output MUST originate from the candidate profile and job description below — NEVER from this block.
 
-Role-size targets for a ${example.seniority}-level ${example.primaryTitle} (${example.generationMode} mode):
-  • Summary: target ~${example.summaryWords} words total${angleNote}
-  • Skills list: target ${example.skillsCount} items
-  • Bullet lengths per role (number of bullets × average word count — match the proportions):
+Mandatory rules:
+  1. Read the numbers. Use them ONLY to calibrate length and bullet-count proportions.
+  2. "Role 1", "Role 2" etc. are index labels — NOT job titles. Do NOT use them in your output.
+  3. If any number here conflicts with the candidate's real history, IGNORE the number; use real data.
+  4. Do NOT reference, quote, or mention this block anywhere in your response.
+  5. Do NOT generate bullet text or job-title text from anything in this block.
+
+Size calibration targets — ${example.seniority}-level ${example.primaryTitle} (${example.generationMode} mode):
+  • Summary length  : aim for ~${example.summaryWords} words${angleNote}
+  • Skills list size: aim for ${example.skillsCount} items
+  • Bullet count and average length per role (calibrate proportions only — do NOT copy wording):
 ${rhythmLines}
 
-These numbers are CALIBRATION TARGETS ONLY. Match the scale; generate entirely original content.
-===== END STRUCTURAL REFERENCE =====
+All content you write must be 100% original and sourced exclusively from the candidate data below.
+===== END SIZE CALIBRATION — DO NOT MENTION THIS BLOCK IN YOUR OUTPUT =====
 `;
 }

@@ -38,8 +38,10 @@ import DriveBackupPrompt from "./components/DriveBackupPrompt";
 import DriveConflictModal from "./components/DriveConflictModal";
 import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
-import { extractTextFromDocx, parseWordTextToProfile } from "./services/wordImportService";
+import { extractTextFromDocx } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini } from "./services/geminiService";
+import { extractText as pdfExtractText } from "./services/pdfCvParser";
+import { runImportPipeline } from "./services/importPipeline";
 import AdminApp from "./components/admin/AdminApp";
 import JsonImportDialog from "./components/JsonImportDialog";
 import { migrateLocalToDrive } from "./services/storage/StorageRouter";
@@ -531,8 +533,8 @@ const AppInner: React.FC = () => {
       if (opts.pendingDocxFile) {
         try {
           const text = await extractTextFromDocx(opts.pendingDocxFile);
-          const profile = await parseWordTextToProfile(text);
-          handleWordProfileImported(profile);
+          const result = await runImportPipeline(text, 'docx');
+          handleWordProfileImported(result.profile);
         } catch (e: any) {
           toast.error("Word Import Failed", e?.message ?? "Could not parse the Word document. Try again from your Profile page.");
         }
@@ -540,15 +542,55 @@ const AppInner: React.FC = () => {
       if (opts.pendingImportFile && opts.pendingImportType) {
         try {
           const file = opts.pendingImportFile;
-          const mimeType = file.type || (opts.pendingImportType === "pdf" ? "application/pdf" : "image/jpeg");
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          const profile = await generateProfileFromFileWithGemini(base64, mimeType);
-          handleWordProfileImported(profile);
+          if (opts.pendingImportType === "pdf") {
+            // Try zero-token text extraction first — works for any text-layer PDF
+            let extracted: Awaited<ReturnType<typeof pdfExtractText>> | null = null;
+            try { extracted = await pdfExtractText(file); } catch { /* fall through */ }
+
+            if (extracted?.layout.hasTextLayer) {
+              // Text PDF — no API key needed
+              const result = await runImportPipeline(extracted.text, 'pdf');
+              handleWordProfileImported(result.profile);
+            } else {
+              // Scanned PDF — needs vision AI; check for a key first
+              const mimeType = file.type || "application/pdf";
+              const apiKey = opts.apiSettings?.apiKey || (opts.apiSettings as any)?.claudeApiKey;
+              if (!apiKey) {
+                toast.error(
+                  "Scanned PDF Detected",
+                  "This PDF has no text layer. Add a Gemini or Claude API key in Settings to import scanned PDFs, or paste your CV text in the Profile tab instead."
+                );
+              } else {
+                const base64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve((reader.result as string).split(",")[1]);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(file);
+                });
+                const profile = await generateProfileFromFileWithGemini(base64, mimeType);
+                handleWordProfileImported(profile);
+              }
+            }
+          } else {
+            // Image — always needs vision AI
+            const mimeType = file.type || "image/jpeg";
+            const apiKey = opts.apiSettings?.apiKey || (opts.apiSettings as any)?.claudeApiKey;
+            if (!apiKey) {
+              toast.error(
+                "API Key Required",
+                "Image imports need a Gemini or Claude API key. Add one in Settings → AI Keys, or paste your CV text in the Profile tab instead."
+              );
+            } else {
+              const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve((reader.result as string).split(",")[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              const profile = await generateProfileFromFileWithGemini(base64, mimeType);
+              handleWordProfileImported(profile);
+            }
+          }
         } catch (e: any) {
           const label = opts.pendingImportType === "pdf" ? "PDF" : "Image";
           toast.error(`${label} Import Failed`, e?.message ?? `Could not extract your profile from this ${label.toLowerCase()}. Try again from your Profile page.`);
