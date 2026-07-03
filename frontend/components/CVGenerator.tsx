@@ -835,6 +835,27 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         }
       }
 
+      // ── Safety guard: never let the smart path re-use imported / non-AI CVs ──
+      // The smart path is only safe when the existing CV was produced by our own
+      // generation pipeline (it has a _trace). Imported CVs (DOCX, PDF, JSON, paste)
+      // reach this component as currentCV but must NEVER be used as the base for
+      // iterative improvement — that would mix the user's raw import content with
+      // AI-generated bullets, creating a corrupt hybrid. Always do a full fresh
+      // generation from the profile in that case.
+      if (!skipSmartPath && currentCV && !currentCV._trace) {
+        skipSmartPath = true;
+        console.log('[CVGenerator] Existing CV has no generation trace (imported/manual) — skipping smart path, full fresh generation.');
+      }
+
+      // ── Always do a full fresh generation for "general" purpose ───────────────
+      // General CVs have no JD target, so auditing the existing CV for "violations"
+      // has no clear goal — the user expects a freshly generated document, not a
+      // purified version of whatever CV is currently loaded.
+      if (!skipSmartPath && cvPurpose === 'general') {
+        skipSmartPath = true;
+        console.log('[CVGenerator] General purpose — skipping smart path, always doing full fresh generation.');
+      }
+
       // ── Smart regenerate path ─────────────────────────────────────────────
       if (currentCV && !skipSmartPath) {
         advanceStage('drafting', 'Auditing existing CV for quality issues…');

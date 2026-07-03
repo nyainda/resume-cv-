@@ -275,14 +275,20 @@ export function buildReferenceBlock(
         : '';
 
     return `\
-===== STRUCTURAL REFERENCE (size targets only — do NOT copy content, phrasing, or angle) =====
-A proven CV for a ${example.seniority} ${example.primaryTitle} (${example.generationMode} mode) used these measurements:
-  • Summary: ~${example.summaryWords} words${angleNote}
-  • Skills: ${example.skillsCount} items
-  • Bullet band distribution per role (target these proportions, NOT this sequence):
+===== STRUCTURAL REFERENCE — NUMERIC MEASUREMENTS ONLY =====
+CRITICAL: This block contains ONLY word-count numbers and bullet-count numbers.
+There is NO CV content here — no names, no companies, no skills, no bullet text, no job titles.
+Do NOT invent or fabricate any content from this block.
+Do NOT mention this block in your output. Treat it purely as a length calibration guide.
+All content MUST come exclusively from the candidate's own profile and job description below.
+
+Role-size targets for a ${example.seniority}-level ${example.primaryTitle} (${example.generationMode} mode):
+  • Summary: target ~${example.summaryWords} words total${angleNote}
+  • Skills list: target ${example.skillsCount} items
+  • Bullet lengths per role (number of bullets × average word count — match the proportions):
 ${rhythmLines}
-These are CALIBRATION TARGETS. All content, tone, angle and phrasing must come entirely from
-the candidate's real profile and JD. Never echo example phrasing.
+
+These numbers are CALIBRATION TARGETS ONLY. Match the scale; generate entirely original content.
 ===== END STRUCTURAL REFERENCE =====
 `;
 }
