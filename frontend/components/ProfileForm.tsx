@@ -214,6 +214,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [importStage, setImportStage] = useState<{ label: string; sub?: string; step: 0|1|2|3|4 } | null>(null);
+  const [importConfidence, setImportConfidence] = useState<Record<string, number> | null>(null);
   const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
   const [quantifyingEntry, setQuantifyingEntry] = useState<number | null>(null);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -394,10 +395,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           if (extracted?.layout.hasTextLayer) {
             setImportStage({ step: 2, label: 'Parsing sections…', sub: `${extracted.layout.pageCount} page${extracted.layout.pageCount !== 1 ? 's' : ''} detected` });
             const result = await runImportPipeline(extracted.text, 'pdf', {
-              onStage1Complete: () => setImportStage({ step: 3, label: 'Structuring profile…' }),
+              onStage1Complete: (r) => { setImportStage({ step: 3, label: 'Structuring profile…' }); setImportConfidence(r.confidence); },
               onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
             });
             profile = result.profile;
+            setImportConfidence(result.confidence);
           } else {
             // Scanned PDF — requires AI vision
             if (!apiKeySet) throw new Error('This looks like a scanned PDF. Add an AI key in Settings to extract it, or paste your CV text instead.');
@@ -418,10 +420,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           const text = await extractTextFromDocx(uploadedFile);
           setImportStage({ step: 2, label: 'Parsing sections…' });
           const result = await runImportPipeline(text, 'docx', {
-            onStage1Complete: () => setImportStage({ step: 3, label: 'Structuring profile…' }),
+            onStage1Complete: (r) => { setImportStage({ step: 3, label: 'Structuring profile…' }); setImportConfidence(r.confidence); },
             onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
           });
           profile = result.profile;
+          setImportConfidence(result.confidence);
 
         } else if (isImage) {
           // ── Image path — still requires AI vision key ──────────────────────
@@ -458,10 +461,11 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           // Plain text paste — zero-token pipeline, AI verify in background
           setImportStage({ step: 1, label: 'Reading pasted text…' });
           const result = await runImportPipeline(rawText, 'text', {
-            onStage1Complete: () => setImportStage({ step: 3, label: 'Structuring profile…' }),
+            onStage1Complete: (r) => { setImportStage({ step: 3, label: 'Structuring profile…' }); setImportConfidence(r.confidence); },
             onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
           });
           profile = result.profile;
+          setImportConfidence(result.confidence);
           if (!result.aiVerified) setImportStage({ step: 4, label: 'Profile ready ✓', sub: 'Add an AI key for higher accuracy' });
         }
       }
@@ -1460,6 +1464,84 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           </Button>
         </div>
       </div>
+
+      {/* ── Import confidence summary banner ─────────────────────────── */}
+      {importConfidence && (() => {
+        // Group raw confidence keys into display sections
+        const sections: { key: TabKey | 'personal'; label: string; tab: TabKey; score: number }[] = [
+          {
+            key: 'personal', label: 'Personal Info', tab: 'personal',
+            score: Math.round(['personalInfo.name','personalInfo.email','personalInfo.phone','personalInfo.location']
+              .reduce((s, k) => s + (importConfidence[k] ?? 0), 0) / 4),
+          },
+          { key: 'summary' as TabKey, label: 'Summary', tab: 'personal', score: importConfidence['summary'] ?? 0 },
+          { key: 'experience', label: 'Experience', tab: 'experience', score: importConfidence['workExperience'] ?? 0 },
+          { key: 'education', label: 'Education', tab: 'education', score: importConfidence['education'] ?? 0 },
+          { key: 'skills', label: 'Skills', tab: 'personal', score: importConfidence['skills'] ?? 0 },
+          { key: 'projects', label: 'Projects', tab: 'projects', score: importConfidence['projects'] ?? 0 },
+        ].filter(s => s.score > 0);
+
+        const lowCount = sections.filter(s => s.score < 70).length;
+        const allGood  = sections.every(s => s.score >= 85);
+
+        return (
+          <div className="border-b border-zinc-200 dark:border-neutral-700 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 mb-2 flex items-center gap-1.5">
+                  <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 flex-shrink-0 text-[#C9A84C]">
+                    <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM7 5h2v2H7V5Zm0 3h2v3H7V8Z" fill="currentColor"/>
+                  </svg>
+                  Import Review
+                  {allGood
+                    ? <span className="ml-1 text-emerald-600 dark:text-emerald-400 font-normal">— everything looks great!</span>
+                    : lowCount > 0
+                      ? <span className="ml-1 text-amber-600 dark:text-amber-400 font-normal">— {lowCount} section{lowCount > 1 ? 's' : ''} to review</span>
+                      : <span className="ml-1 text-zinc-500 font-normal">— check highlighted fields</span>
+                  }
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {sections.map(s => {
+                    const hi  = s.score >= 85;
+                    const mid = s.score >= 70 && s.score < 85;
+                    return (
+                      <button
+                        key={s.key} type="button"
+                        onClick={() => setActiveTab(s.tab)}
+                        title={`Confidence: ${s.score}% — click to jump to ${s.label}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors hover:opacity-80 ${
+                          hi  ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
+                          mid ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' :
+                                'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hi ? 'bg-emerald-500' : mid ? 'bg-amber-500' : 'bg-red-500'}`} />
+                        {s.label}
+                        <span className="opacity-60">{s.score}%</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!allGood && (
+                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1.5">
+                    Click a badge to jump to that section and fill in any missing details.
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportConfidence(null)}
+                className="flex-shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-0.5 rounded transition-colors"
+                title="Dismiss"
+              >
+                <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Word / PDF Import panel ────────────────────────────────────── */}
       {showWordImport && onProfileImported && (
