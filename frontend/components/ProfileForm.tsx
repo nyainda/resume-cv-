@@ -1336,163 +1336,304 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
   const renderAI = () => (
     <div className="space-y-6">
-      <SectionTitle subtitle="Already have a CV or resume? Import it and we'll instantly read and structure your full profile — no manual typing needed. PDF and DOCX work without an AI key.">
-        Import Your Existing Profile
-      </SectionTitle>
 
-      {/* ── Three-tab strip ──────────────────────────────────────────────── */}
-      <div className="border-b border-zinc-200 dark:border-neutral-700">
-        <nav className="-mb-px flex gap-6">
-          {([
-            { key: 'text',   label: 'Paste Text' },
-            { key: 'upload', label: 'Upload File' },
-            { key: 'json',   label: 'Import JSON' },
-          ] as const).map(({ key, label }) => (
-            <button key={key} type="button"
-              onClick={() => { setProfileInputMode(key); setAiError(null); setJsonParseError(null); }}
-              className={`py-2.5 px-1 border-b-2 text-sm font-medium transition-colors ${profileInputMode === key
-                ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C] dark:border-[#C9A84C]'
-                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-300'}`}>
-              {label}
-            </button>
-          ))}
-        </nav>
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 w-10 h-10 rounded-xl bg-[#1B2B4B] dark:bg-[#C9A84C]/20 flex items-center justify-center shadow-sm">
+          <Sparkles className="h-5 w-5 text-[#C9A84C]" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Import Your Existing CV</h2>
+          <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+            Already have a CV? Drop it in — we'll read and structure your full profile in seconds.
+            PDF &amp; DOCX work without an AI key.
+          </p>
+        </div>
       </div>
 
-      {/* ── Paste Text ───────────────────────────────────────────────────── */}
-      {profileInputMode === 'text' && (
-        <Textarea
-          value={rawText}
-          onChange={e => { setRawText(e.target.value); setUploadedFile(null); }}
-          onPaste={handleTextareaPaste}
-          placeholder="Paste the full text of your resume or CV here. Include your work history, education, skills, and anything else you'd like in your profile..."
-          rows={10}
-          disabled={isGenerating}
-        />
-      )}
+      {/* ── Mode selector cards ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-2.5">
+        {([
+          {
+            key: 'text' as const,
+            icon: (
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="14" height="14" rx="2"/>
+                <path d="M7 7h6M7 10h6M7 13h4"/>
+              </svg>
+            ),
+            label: 'Paste Text',
+            sub: 'Copy & paste',
+          },
+          {
+            key: 'upload' as const,
+            icon: <UploadCloud className="h-5 w-5" />,
+            label: 'Upload File',
+            sub: 'PDF, DOCX, image',
+          },
+          {
+            key: 'json' as const,
+            icon: (
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 4H4a1 1 0 0 0-1 1v2c0 1.1.9 2 2 2H4a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1H3"/>
+                <path d="M14 4h2a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2h1a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1h-2"/>
+                <path d="M10 4v12"/>
+              </svg>
+            ),
+            label: 'Import JSON',
+            sub: 'ProCV export',
+          },
+        ] as const).map(({ key, icon, label, sub }) => {
+          const active = profileInputMode === key;
+          return (
+            <button
+              key={key} type="button"
+              onClick={() => { setProfileInputMode(key); setAiError(null); setJsonParseError(null); }}
+              className={`relative flex flex-col items-center gap-1.5 px-3 py-3.5 rounded-xl border-2 text-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C] focus-visible:ring-offset-2 ${
+                active
+                  ? 'border-[#1B2B4B] bg-[#1B2B4B] text-white shadow-md dark:border-[#C9A84C] dark:bg-[#C9A84C]/10 dark:text-[#C9A84C]'
+                  : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-neutral-600 hover:bg-zinc-50 dark:hover:bg-neutral-800 hover:text-zinc-700 dark:hover:text-zinc-300'
+              }`}
+            >
+              <span className={active ? 'text-white dark:text-[#C9A84C]' : 'text-zinc-400 dark:text-zinc-500'}>{icon}</span>
+              <span className="text-xs font-semibold leading-tight">{label}</span>
+              <span className={`text-[10px] leading-tight ${active ? 'text-white/70 dark:text-[#C9A84C]/70' : 'text-zinc-400 dark:text-zinc-600'}`}>{sub}</span>
+              {active && (
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2.5 h-2.5 rotate-45 bg-[#1B2B4B] dark:bg-[#C9A84C]/10 border-r-2 border-b-2 border-[#1B2B4B] dark:border-[#C9A84C]" />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ── Upload File ──────────────────────────────────────────────────── */}
-      {profileInputMode === 'upload' && (
-        <label htmlFor="profile-upload"
-          className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl bg-zinc-50 dark:bg-neutral-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors">
-          {uploadedFile ? (
-            <p className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C] px-2">{uploadedFile.name}</p>
-          ) : (
-            <>
-              <UploadCloud className="h-8 w-8 text-zinc-400 mb-2" />
-              <p className="text-sm text-zinc-500"><span className="font-semibold">Click to upload</span> or drag &amp; drop your CV</p>
-              <p className="text-xs text-zinc-400 mt-1">PDF or DOCX — no AI key needed • Images need an AI key</p>
-            </>
-          )}
-          <input id="profile-upload" type="file" className="sr-only"
-            accept="application/pdf,.docx,image/png,image/jpeg,image/webp"
-            onChange={handleFileChange} />
-        </label>
-      )}
+      {/* ── Content area ──────────────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50/50 dark:bg-neutral-800/30 overflow-hidden">
 
-      {/* ── Import JSON ──────────────────────────────────────────────────── */}
-      {profileInputMode === 'json' && (
-        <div className="space-y-3">
-          <div className="p-3.5 rounded-xl bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800/40">
-            <p className="text-sm text-violet-700 dark:text-violet-300">
-              Paste a ProCV JSON export below, or select a <strong>.json</strong> file. The profile is mapped directly — no AI processing needed.
+        {/* Paste Text */}
+        {profileInputMode === 'text' && (
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+              <svg className="h-3.5 w-3.5 text-[#C9A84C] shrink-0" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM7 5h2v2H7V5Zm0 3h2v3H7V8Z"/>
+              </svg>
+              Paste any resume text below — or paste a screenshot / image of your CV directly into the box.
+            </p>
+            <Textarea
+              value={rawText}
+              onChange={e => { setRawText(e.target.value); setUploadedFile(null); }}
+              onPaste={handleTextareaPaste}
+              placeholder="Paste your CV or resume text here…&#10;&#10;Work experience, education, skills, certifications — include everything."
+              rows={11}
+              disabled={isGenerating}
+              className="resize-none bg-white dark:bg-neutral-900/60 text-sm"
+            />
+            {rawText && (
+              <p className="text-xs text-zinc-400 dark:text-zinc-600 text-right tabular-nums">
+                {rawText.length.toLocaleString()} characters
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Upload File */}
+        {profileInputMode === 'upload' && (
+          <div className="p-4 space-y-4">
+            {/* Format badges */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { label: 'PDF', note: 'no AI needed', color: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50' },
+                { label: 'DOCX', note: 'no AI needed', color: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50' },
+                { label: 'PNG / JPG', note: 'AI key needed', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50' },
+              ].map(({ label, note, color }) => (
+                <span key={label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${color}`}>
+                  {label}
+                  <span className="opacity-60 font-normal">· {note}</span>
+                </span>
+              ))}
+            </div>
+
+            {/* Drop zone */}
+            <label htmlFor="profile-upload" className={`group flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 ${
+              uploadedFile
+                ? 'border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/10 py-5'
+                : 'border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-900/40 py-10 hover:border-[#1B2B4B]/40 dark:hover:border-[#C9A84C]/40 hover:bg-zinc-50 dark:hover:bg-neutral-800/60'
+            }`}>
+              {uploadedFile ? (
+                <div className="flex items-center gap-3 px-4">
+                  <span className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                    <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 truncate">{uploadedFile.name}</p>
+                    <p className="text-xs text-emerald-600/70 dark:text-emerald-500/70 mt-0.5">Ready to import — click the button below</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={e => { e.preventDefault(); setUploadedFile(null); }}
+                    className="ml-auto p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors shrink-0"
+                    title="Remove file"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-neutral-700 flex items-center justify-center mb-3 group-hover:bg-[#1B2B4B]/8 dark:group-hover:bg-[#C9A84C]/10 transition-colors">
+                    <UploadCloud className="h-6 w-6 text-zinc-400 dark:text-zinc-500 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] transition-colors" />
+                  </span>
+                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                    Drop your CV here, or <span className="text-[#1B2B4B] dark:text-[#C9A84C] underline underline-offset-2">browse</span>
+                  </p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">PDF, DOCX, PNG, JPG, WEBP</p>
+                </>
+              )}
+              <input id="profile-upload" type="file" className="sr-only"
+                accept="application/pdf,.docx,image/png,image/jpeg,image/webp"
+                onChange={handleFileChange} />
+            </label>
+          </div>
+        )}
+
+        {/* Import JSON */}
+        {profileInputMode === 'json' && (
+          <div className="p-4 space-y-3">
+            {/* Two-option row: paste OR browse */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-zinc-200 dark:bg-neutral-700" />
+              <div className="flex items-center gap-2">
+                <input ref={jsonFileInputRef} type="file" accept=".json" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleJsonFileLoad(f); }} />
+                <button
+                  type="button"
+                  onClick={() => jsonFileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:border-[#1B2B4B] dark:hover:border-[#C9A84C] hover:text-[#1B2B4B] dark:hover:text-[#C9A84C] transition-all shadow-sm"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Browse .json file
+                </button>
+              </div>
+              <div className="flex-1 h-px bg-zinc-200 dark:bg-neutral-700" />
+            </div>
+            <Textarea
+              value={jsonText}
+              onChange={e => { setJsonText(e.target.value); setJsonParseError(null); }}
+              placeholder={'{ "personalInfo": { "name": "…" }, "workExperience": [ … ] }'}
+              rows={9}
+              className="font-mono text-xs resize-none bg-white dark:bg-neutral-900/60"
+            />
+            {jsonText && !jsonParseError && (
+              <p className="text-xs text-zinc-400 dark:text-zinc-600 text-right tabular-nums">
+                {jsonText.length.toLocaleString()} characters
+              </p>
+            )}
+            {jsonParseError && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/60 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+                <p className="text-red-600 dark:text-red-400 text-sm">{jsonParseError}</p>
+              </div>
+            )}
+            <Button
+              onClick={handleJsonImport}
+              disabled={!jsonText.trim()}
+              className="w-full"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Parse &amp; Import Profile
+            </Button>
+            <p className="text-center text-xs text-zinc-400 dark:text-zinc-600">
+              No AI processing — maps directly into your profile form
             </p>
           </div>
-          <Textarea
-            value={jsonText}
-            onChange={e => { setJsonText(e.target.value); setJsonParseError(null); }}
-            placeholder={'Paste your ProCV JSON here…'}
-            rows={10}
-            className="font-mono text-xs"
-          />
-          <div className="flex items-center gap-3">
-            <input ref={jsonFileInputRef} type="file" accept=".json" className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleJsonFileLoad(f); }} />
-            <button type="button"
-              onClick={() => jsonFileInputRef.current?.click()}
-              className="text-xs text-violet-600 dark:text-violet-400 hover:underline">
-              Browse for a .json file
-            </button>
-          </div>
-          {jsonParseError && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-red-600 dark:text-red-400 text-sm">{jsonParseError}</p>
-            </div>
-          )}
-          <Button onClick={handleJsonImport} disabled={!jsonText.trim()} className="w-full sm:w-auto">
-            Parse &amp; Import Profile
-          </Button>
+        )}
+      </div>
+
+      {/* ── Error / no-key notices (text + upload) ───────────────────────────── */}
+      {profileInputMode !== 'json' && aiError && (
+        <div className="flex items-start gap-2.5 p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/60 rounded-xl">
+          <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+          <p className="text-red-600 dark:text-red-400 text-sm" style={{ whiteSpace: 'pre-line' }}>{aiError}</p>
+        </div>
+      )}
+      {profileInputMode !== 'json' && !apiKeySet && (
+        <div className="flex items-start gap-2.5 p-3.5 bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/5 border border-[#1B2B4B]/15 dark:border-[#C9A84C]/15 rounded-xl">
+          <svg className="h-4 w-4 text-[#C9A84C] shrink-0 mt-0.5" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM7 5h2v2H7V5Zm0 3h2v3H7V8Z"/>
+          </svg>
+          <p className="text-sm text-[#1B2B4B] dark:text-zinc-300">
+            <strong>PDF &amp; DOCX import without an AI key.</strong>{' '}
+            Add a Gemini or Claude key in Settings to unlock scanned PDFs, images, and higher accuracy.
+          </p>
         </div>
       )}
 
-      {/* ── Shared feedback (text + upload modes) ────────────────────────── */}
+      {/* ── CTA + progress (text + upload) ───────────────────────────────────── */}
       {profileInputMode !== 'json' && (
-        <>
-          {aiError && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-red-600 dark:text-red-400 text-sm" style={{ whiteSpace: 'pre-line' }}>{aiError}</p>
+        <div className="space-y-4">
+          <Button
+            onClick={handleGenerateProfile}
+            disabled={isGenerating || (!rawText.trim() && !uploadedFile)}
+            className="w-full py-3 text-base"
+          >
+            {isGenerating ? (
+              <><SpinnerIcon /><span className="ml-2">Importing…</span></>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2 text-[#C9A84C]" />
+                Import &amp; Build My Profile
+              </>
+            )}
+          </Button>
+
+          {/* ── Progress stepper ─────────────────────────────────────────────── */}
+          {importStage && (
+            <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/60 overflow-hidden">
+              {/* Track bar */}
+              <div className="h-1 bg-zinc-100 dark:bg-neutral-700">
+                <div
+                  className="h-full bg-[#C9A84C] transition-all duration-500 ease-out"
+                  style={{ width: `${importStage.step === 4 ? 100 : (importStage.step - 1) * 33.3}%` }}
+                />
+              </div>
+              <div className="px-4 py-3.5 space-y-2.5">
+                {/* Step pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(['Extract', 'Parse', 'Structure', 'Verify'] as const).map((label, i) => {
+                    const stepNum = (i + 1) as 1|2|3|4;
+                    const isDone   = importStage.step > stepNum;
+                    const isActive = importStage.step === stepNum;
+                    return (
+                      <span key={label} className="flex items-center gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold transition-all duration-300 ${
+                          isDone    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' :
+                          isActive  ? 'bg-[#1B2B4B] dark:bg-[#C9A84C]/20 text-white dark:text-[#C9A84C] shadow-sm' :
+                                      'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 dark:text-zinc-500'
+                        }`}>
+                          {isDone ? (
+                            <svg className="w-3 h-3 shrink-0" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          ) : isActive ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse shrink-0" />
+                          ) : null}
+                          {label}
+                        </span>
+                        {i < 3 && <span className="text-zinc-300 dark:text-zinc-700 text-[10px]">›</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+                {/* Status */}
+                <p className={`text-sm font-medium ${importStage.step === 4 ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#1B2B4B] dark:text-zinc-200'}`}>
+                  {importStage.label}
+                </p>
+                {importStage.sub && (
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">{importStage.sub}</p>
+                )}
+              </div>
             </div>
           )}
-          {!apiKeySet && (
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-blue-700 dark:text-blue-400 text-sm">
-                <strong>PDF &amp; DOCX imports work without an AI key.</strong> Add a Gemini or Claude key in Settings for scanned PDFs, image imports, and higher accuracy.
-              </p>
-            </div>
-          )}
-        </>
+        </div>
       )}
-
-      {profileInputMode !== 'json' && (<div className="space-y-3">
-        <Button onClick={handleGenerateProfile} disabled={isGenerating} className="w-full sm:w-auto">
-          {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing…</span></> : <>Import &amp; Build My Profile</>}
-        </Button>
-
-        {/* ── Import progress stepper ─────────────────────────────────── */}
-        {importStage && (
-          <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/60 px-4 py-3 space-y-2.5">
-            {/* Step pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(['Extract', 'Parse', 'Structure', 'Verify'] as const).map((label, i) => {
-                const stepNum = (i + 1) as 1|2|3|4;
-                const isDone   = importStage.step > stepNum;
-                const isActive = importStage.step === stepNum;
-                return (
-                  <span key={label} className="flex items-center gap-1">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${
-                      isDone    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' :
-                      isActive  ? 'bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C] ring-1 ring-[#1B2B4B]/30 dark:ring-[#C9A84C]/30' :
-                                  'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 dark:text-zinc-500'
-                    }`}>
-                      {isDone ? (
-                        <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 12 12" fill="none">
-                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      ) : isActive ? (
-                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse flex-shrink-0" />
-                      ) : (
-                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-30 flex-shrink-0" />
-                      )}
-                      {label}
-                    </span>
-                    {i < 3 && <span className="text-zinc-300 dark:text-zinc-600 text-xs">→</span>}
-                  </span>
-                );
-              })}
-            </div>
-
-            {/* Status text */}
-            <div>
-              <p className={`text-sm font-medium ${importStage.step === 4 ? 'text-emerald-700 dark:text-emerald-400' : 'text-[#1B2B4B] dark:text-zinc-200'}`}>
-                {importStage.label}
-              </p>
-              {importStage.sub && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{importStage.sub}</p>
-              )}
-            </div>
-          </div>
-        )}
-      </div>)}
     </div>
   );
 
