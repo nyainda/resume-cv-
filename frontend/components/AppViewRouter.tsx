@@ -46,6 +46,7 @@ interface AppViewRouterProps {
   brevoApiKey: string | null;
   user: WorkerUser | null | undefined;
   isAuthenticated: boolean;
+  d1SyncPending?: boolean;
   driveConnected: boolean;
   jsonImportTimestamp: number | undefined;
   emailJd: string;
@@ -103,6 +104,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   brevoApiKey,
   user,
   isAuthenticated,
+  d1SyncPending = false,
   driveConnected,
   jsonImportTimestamp,
   emailJd,
@@ -303,7 +305,12 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
         <div
           className={`${!profileExists || isEditingProfile || currentView === 'generator' ? 'lg:col-span-8 xl:col-span-9' : 'lg:col-span-12'}`}
         >
-          {!profileExists || isEditingProfile ? (
+          {(!profileExists || isEditingProfile) && d1SyncPending ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-zinc-400">
+              <div className="w-8 h-8 border-3 border-zinc-200 border-t-[#C9A84C] rounded-full animate-spin" style={{ borderWidth: '3px' }} />
+              <p className="text-sm font-medium">Loading your profile…</p>
+            </div>
+          ) : !profileExists || isEditingProfile ? (
             <ProfileForm
               existingProfile={userProfile}
               onSave={onProfileSave}

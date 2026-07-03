@@ -53,6 +53,7 @@ export function useProfileManager({
   // ── Drive restore-on-new-device flow ─────────────────────────────────────
   const driveRestoreCheckedRef = useRef(false);
   const [driveRestoreSlots, setDriveRestoreSlots] = useState<UserProfileSlot[] | null>(null);
+  const [d1SyncPending, setD1SyncPending] = useState(false);
   const driveRestoreSlotsRef = useRef<UserProfileSlot[] | null>(null);
   useEffect(() => { driveRestoreSlotsRef.current = driveRestoreSlots; }, [driveRestoreSlots]);
 
@@ -158,7 +159,8 @@ export function useProfileManager({
     if (d1RestoreCheckedRef.current) return;
     d1RestoreCheckedRef.current = true;
     drainPendingSlots();
-    void runD1MergeSync(profiles, 'login');
+    setD1SyncPending(true);
+    void runD1MergeSync(profiles, 'login').finally(() => setD1SyncPending(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
@@ -476,5 +478,6 @@ export function useProfileManager({
     handleDeleteAccount,
     handleClearAllData,
     runD1MergeSync,
+    d1SyncPending,
   };
 }

@@ -265,6 +265,7 @@ const AppInner: React.FC = () => {
     handleSlotUpdate,
     handleDeleteAccount,
     handleClearAllData,
+    d1SyncPending,
   } = useProfileManager({
     profiles,
     setProfiles,
@@ -795,6 +796,7 @@ const AppInner: React.FC = () => {
         brevoApiKey={brevoApiKey}
         user={user}
         isAuthenticated={isAuthenticated}
+        d1SyncPending={d1SyncPending}
         driveConnected={driveConnected}
         jsonImportTimestamp={jsonImportTimestamp}
         emailJd={emailJd}
