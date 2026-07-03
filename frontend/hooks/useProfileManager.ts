@@ -160,7 +160,11 @@ export function useProfileManager({
     d1RestoreCheckedRef.current = true;
     drainPendingSlots();
     setD1SyncPending(true);
-    void runD1MergeSync(profiles, 'login').finally(() => setD1SyncPending(false));
+    const syncTimeout = setTimeout(() => setD1SyncPending(false), 6000);
+    void runD1MergeSync(profiles, 'login').finally(() => {
+      clearTimeout(syncTimeout);
+      setD1SyncPending(false);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 

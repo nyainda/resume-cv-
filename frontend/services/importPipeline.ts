@@ -656,11 +656,25 @@ export async function runImportPipeline(
     detectedTrack: ontology.detectedTrack,
   });
 
+  // ── Stage 1 monitoring ────────────────────────────────────────────────────
+  const lowConf  = Object.entries(confidence).filter(([, v]) => v < 70).map(([k]) => k);
+  const highConf = Object.entries(confidence).filter(([, v]) => v >= 70).map(([k]) => k);
+  const avgConf  = Object.values(confidence).length
+    ? Math.round(Object.values(confidence).reduce((a, b) => a + b, 0) / Object.values(confidence).length)
+    : 0;
+  console.group(`[ImportPipeline] Stage 1 — ${format.toUpperCase()} | ${Math.round(stage1Ms)}ms | avg confidence ${avgConf}%`);
+  console.log(`  ✓ High confidence (≥70%): ${highConf.join(', ') || 'none'}`);
+  if (lowConf.length) console.warn(`  ⚠ Low confidence (<70%): ${lowConf.join(', ')}`);
+  console.log(`  Field: ${ontology.detectedField ?? '(undetected)'} | Track: ${ontology.detectedTrack ?? '(undetected)'}`);
+  console.log(`  Experience entries: ${profile.workExperience?.length ?? 0} | Education: ${profile.education?.length ?? 0} | Skills: ${profile.skills?.length ?? 0}`);
+  console.groupEnd();
+
   // ── Stage 2 (background AI verification) ─────────────────────────────────
   const runAi = !opts.skipAi && hasAnyAiKey();
-  const anyLowConf = Object.values(confidence).some(v => v < 70);
+  const anyLowConf = lowConf.length > 0;
 
   if (!runAi || (format === 'json' && !anyLowConf)) {
+    console.log(`[ImportPipeline] Stage 2 skipped — ${!runAi ? 'no AI available' : 'all fields high-confidence'}`);
     return {
       profile,
       confidence,
@@ -676,18 +690,24 @@ export async function runImportPipeline(
   const t2 = performance.now();
   const provider = bestAvailableProvider();
   let verifiedProfile = profile;
+  let stage2Succeeded = false;
+
+  console.log(`[ImportPipeline] Stage 2 starting — provider: ${provider} | patching ${lowConf.length} low-confidence field(s): ${lowConf.join(', ')}`);
 
   try {
     verifiedProfile = await Promise.race([
       aiVerifyImport(profile, confidence, rawSections),
-      new Promise<UserProfile>((_, reject) => setTimeout(() => reject(new Error('timeout')), 12_000)),
+      new Promise<UserProfile>((_, reject) => setTimeout(() => reject(new Error('stage2_timeout_20s')), 20_000)),
     ]);
+    stage2Succeeded = true;
   } catch (e) {
-    console.warn('[ImportPipeline] Stage 2 AI verification timed out or failed:', e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[ImportPipeline] Stage 2 failed — provider: ${provider} | reason: ${msg} | using Stage 1 result`);
     verifiedProfile = profile;
   }
 
   const stage2Ms = performance.now() - t2;
+  console.log(`[ImportPipeline] Stage 2 ${stage2Succeeded ? '✓ complete' : '✗ fell back to Stage 1'} — ${Math.round(stage2Ms)}ms via ${provider}`);
   opts.onStage2Complete?.(verifiedProfile, provider);
 
   return {
@@ -696,7 +716,7 @@ export async function runImportPipeline(
     detectedField: ontology.detectedField,
     detectedTrack: ontology.detectedTrack,
     unknownRoles:  ontology.unknownRoles,
-    aiVerified:    true,
+    aiVerified:    stage2Succeeded,
     stage1Ms,
     stage2Ms,
   };

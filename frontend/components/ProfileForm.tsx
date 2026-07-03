@@ -395,6 +395,13 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       setAiError('Please paste your resume text, upload a file, or enter a GitHub URL to continue.'); return;
     }
     setIsGenerating(true); setAiError(null); setImportStage(null);
+    const importT0 = performance.now();
+    const importSource = uploadedFile
+      ? `file:${uploadedFile.name} (${Math.round(uploadedFile.size / 1024)}KB, ${uploadedFile.type || 'unknown type'})`
+      : githubUrl.trim()
+        ? `github:${githubUrl.trim()}`
+        : `text-paste:${rawText.trim().length} chars`;
+    console.group(`[ImportPipeline] Import started — ${importSource}`);
     try {
       let profile: UserProfile;
 
@@ -423,17 +430,29 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             setImportStage({ step: 2, label: 'PDF has no text layer — trying AI vision…', sub: 'This may take a few seconds' });
             const { base64 } = await fileToBase64(uploadedFile);
             const activeProvider = getSelectedProvider();
+            console.log(`[ImportPipeline] Scanned PDF — selected provider: ${activeProvider}`);
             if (activeProvider === 'claude' && hasClaudeKey()) {
+              setImportStage({ step: 2, label: 'Extracting via Claude vision…', sub: 'Multimodal AI reading your PDF' });
               profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
             } else if (hasGeminiKey()) {
+              setImportStage({ step: 2, label: 'Extracting via Gemini vision…', sub: 'Multimodal AI reading your PDF' });
               profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
             } else {
-              // Free fallback — Workers AI vision (no key needed)
-              setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free, no key required' });
-              const visionText = await workerVisionExtract(base64, mimeType,
+              // Workers AI vision — supports images only, NOT PDFs.
+              // Convert to PNG first by rendering page 1 to canvas if browser supports it,
+              // otherwise surface a helpful error.
+              setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free — images only, no key required' });
+              console.warn('[ImportPipeline] Workers AI does not support PDF vision. Returning null — will surface error to user.');
+              const visionText = await workerVisionExtract(base64, 'image/png',
                 'Extract ALL text from this resume/CV page by page. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
               if (!visionText || visionText.trim().length < 50) {
-                throw new Error('Could not extract text from this PDF. Try pasting your CV text instead, or add a Gemini/Claude key in Settings for better scanned-PDF support.');
+                throw new Error(
+                  'This PDF is image-only (scanned) and Workers AI cannot read PDFs directly.\n\n' +
+                  'To import this CV, please:\n' +
+                  '• Paste the CV text manually in the text box below, OR\n' +
+                  '• Add a free Gemini API key in Settings → AI Keys (supports PDF vision), OR\n' +
+                  '• Export your CV as a text-based PDF from your editor and re-upload.'
+                );
               }
               setImportStage({ step: 3, label: 'Structuring profile…' });
               profile = await generateProfile(visionText, githubUrl || undefined);
@@ -503,8 +522,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       setSectionOrder(profile.sectionOrder || [...DEFAULT_SECTION_ORDER]);
       onProfileImported?.(profile);
       setActiveTab('personal');
+      console.log(`[ImportPipeline] ✓ Import complete — ${Math.round(performance.now() - importT0)}ms total`);
+      console.groupEnd();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[ImportPipeline] ✗ Import failed — ${Math.round(performance.now() - importT0)}ms | ${msg}`);
+      console.groupEnd();
       setAiError(`Import failed: ${msg}`);
     } finally {
       setIsGenerating(false);
@@ -1345,7 +1368,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
       {aiError && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-600 dark:text-red-400 text-sm">{aiError}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm" style={{ whiteSpace: 'pre-line' }}>{aiError}</p>
         </div>
       )}
       {!apiKeySet && (

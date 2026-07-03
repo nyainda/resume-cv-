@@ -149,6 +149,7 @@ export async function extractText(file: File): Promise<PDFExtractResult> {
 
   if (!hasTextLayer) {
     await doc.destroy();
+    console.log(`[PDFParser] ${file.name} — ${pageCount}p, scanned/image-only (no text layer). Needs AI vision.`);
     return {
       text: '',
       layout: { isMultiColumn: false, pageCount, hasTextLayer: false },
@@ -165,6 +166,9 @@ export async function extractText(file: File): Promise<PDFExtractResult> {
   }
 
   await doc.destroy();
+
+  const wordCount = lines.join(' ').split(/\s+/).filter(Boolean).length;
+  console.log(`[PDFParser] ${file.name} — ${pageCount}p, ${isMultiColumn ? 'multi-column' : 'single-column'}, ~${wordCount} words extracted`);
 
   return {
     text: lines.join('\n'),
