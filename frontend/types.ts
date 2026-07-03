@@ -126,6 +126,13 @@ export interface UserProfile {
   customSections?: CustomSection[];   // extra sections the user adds
   sectionOrder?: ProfileSectionKey[]; // preferred section order
   preferredField?: string;            // S6: ontology slug chosen by user — bypasses keyword scoring in detectField
+  /** Set at import time by the zero-token import pipeline. Used by detectFieldWithSource
+   *  to skip keyword scoring when the field was already classified during import. */
+  detectedField?: string;
+  /** ROLE_TRACKS name detected at import time (e.g. "Software Engineering"). */
+  detectedTrack?: string;
+  /** How the profile was originally created/imported. */
+  importSource?: 'pdf' | 'docx' | 'json' | 'text' | 'github' | 'manual';
 }
 
 // --- Multiple Profiles ---

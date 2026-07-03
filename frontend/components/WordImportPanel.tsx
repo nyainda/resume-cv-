@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { UserProfile } from '../types';
-import { extractTextFromDocx, extractTextFromArrayBuffer, parseWordTextToProfile } from '../services/wordImportService';
+import { extractTextFromDocx, extractTextFromArrayBuffer } from '../services/wordImportService';
+import { runImportPipeline } from '../services/importPipeline';
 import { classifyAndSaveAllRoles } from '../services/careerTrackClassifier';
 import { Button } from './ui/Button';
 import { RefreshCw, CheckCircle, AlertCircle, Download } from './icons';
@@ -552,11 +553,14 @@ const JsonImportMode: React.FC<JsonImportModeProps> = ({ onProfileImported, onJs
     );
 };
 
-const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, onProfileImported }) => {
+const UploadMode: React.FC<WordImportPanelProps> = ({ onProfileImported }) => {
     const [step, setStep] = useState<ImportStep>('idle');
     const [error, setError] = useState<string | null>(null);
     const [parsedProfile, setParsedProfile] = useState<UserProfile | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [aiVerifying, setAiVerifying] = useState(false);
+    const [aiVerified, setAiVerified] = useState(false);
+    const [aiProvider, setAiProvider] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const processFile = useCallback(async (file: File) => {
@@ -566,20 +570,34 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
             setStep('error');
             return;
         }
-        if (!apiKeySet) { openSettings(); return; }
         setError(null);
+        setAiVerifying(false);
+        setAiVerified(false);
         setStep('extracting');
         try {
             const text = await extractTextFromDocx(file);
             setStep('parsing');
-            const profile = await parseWordTextToProfile(text);
-            setParsedProfile(profile);
-            setStep('preview');
+            await runImportPipeline(text, 'docx', {
+                onStage1Complete: ({ profile }) => {
+                    setParsedProfile(profile);
+                    setStep('preview');
+                    setAiVerifying(true);
+                },
+                onStage2Complete: (verifiedProfile, provider) => {
+                    setParsedProfile(verifiedProfile);
+                    setAiVerifying(false);
+                    setAiVerified(true);
+                    setAiProvider(provider);
+                },
+            });
+            // If Stage 2 never ran (skipAi or no engine), ensure we stop the spinner
+            setAiVerifying(false);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to parse the Word document.');
             setStep('error');
+            setAiVerifying(false);
         }
-    }, [apiKeySet, openSettings]);
+    }, []);
 
     const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -600,6 +618,22 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
         }
         setStep('done');
     }, [parsedProfile, onProfileImported]);
+
+    const aiStatusBadge = aiVerifying
+        ? (
+            <div className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400 font-semibold">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
+                AI is verifying & improving your data…
+            </div>
+        )
+        : aiVerified
+            ? (
+                <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                    <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                    ✓ AI verified{aiProvider && aiProvider !== 'workers-ai' ? ` with ${aiProvider.charAt(0).toUpperCase() + aiProvider.slice(1)}` : ''}
+                </div>
+            )
+            : null;
 
     const reset = () => {
         setStep('idle'); setError(null); setParsedProfile(null);
@@ -648,8 +682,15 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ apiKeySet, openSettings, o
             {(step === 'extracting' || step === 'parsing') && <ParseLoadingState step={step} />}
 
             {step === 'preview' && parsedProfile && (
-                <ProfilePreview parsedProfile={parsedProfile} onApply={handleApply} onReset={reset}
-                    applyLabel="Import to My Profile" resetLabel="Try Another File" />
+                <div className="space-y-3">
+                    {aiStatusBadge && (
+                        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
+                            {aiStatusBadge}
+                        </div>
+                    )}
+                    <ProfilePreview parsedProfile={parsedProfile} onApply={handleApply} onReset={reset}
+                        applyLabel="Import to My Profile" resetLabel="Try Another File" />
+                </div>
             )}
 
             {step === 'done' && <DoneState onReset={reset} resetLabel="Import Another File" />}
@@ -670,10 +711,10 @@ const ParseLoadingState: React.FC<{ step: 'extracting' | 'parsing' }> = ({ step 
         </div>
         <div className="text-center">
             <p className="font-bold text-zinc-800 dark:text-zinc-200">
-                {step === 'extracting' ? 'Downloading your Word document…' : 'AI is extracting your profile data…'}
+                {step === 'extracting' ? 'Reading your Word document…' : 'Extracting your profile — no AI key needed…'}
             </p>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                {step === 'extracting' ? 'Fetching via sharing link' : 'This takes about 10–20 seconds'}
+                {step === 'extracting' ? 'Parsing file structure' : 'Usually done in under 2 seconds'}
             </p>
         </div>
         <div className="flex gap-1.5">

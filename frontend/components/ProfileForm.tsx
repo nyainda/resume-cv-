@@ -18,6 +18,9 @@ import {
 } from '../services/geminiService';
 import { getSelectedProvider } from '../services/groqService';
 import { workerVisionExtract } from '../services/cvEngineClient';
+import { extractText as pdfExtractText } from '../services/pdfCvParser';
+import { extractTextFromDocx } from '../services/wordImportService';
+import { runImportPipeline } from '../services/importPipeline';
 import QuantifyPanel from './QuantifyPanel';
 import WordImportPanel from './WordImportPanel';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -368,35 +371,76 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   };
 
   const handleGenerateProfile = async () => {
-    if (!apiKeySet) { setAiError('Please set your API key in settings.'); openSettings(); return; }
     if (!rawText.trim() && !uploadedFile && !githubUrl.trim()) {
       setAiError('Please paste your resume text, upload a file, or enter a GitHub URL to continue.'); return;
     }
     setIsGenerating(true); setAiError(null);
     try {
-      let profile;
+      let profile: UserProfile;
 
-      const activeProvider = getSelectedProvider();
-
-      // ── Strict provider routing — selected provider handles EVERYTHING, no fallbacks ──
       if (uploadedFile) {
-        const { base64, mimeType } = await fileToBase64(uploadedFile);
-        if (activeProvider === 'claude') {
-          profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
-        } else if (activeProvider === 'gemini') {
-          profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
-        } else {
-          // Workers AI: vision is image-only, not PDFs
-          if (!/^image\//i.test(mimeType)) {
-            throw new Error('Workers AI does not support PDF or Word file imports. Please paste your CV text in the text box instead, or switch to Claude or Gemini in Settings for file upload.');
+        const mimeType = uploadedFile.type || '';
+        const isPDF  = mimeType === 'application/pdf' || uploadedFile.name.toLowerCase().endsWith('.pdf');
+        const isDOCX = mimeType.includes('wordprocessingml') || uploadedFile.name.toLowerCase().endsWith('.docx');
+        const isImage = /^image\//i.test(mimeType);
+
+        if (isPDF) {
+          // ── Zero-token PDF path ────────────────────────────────────────────
+          let extracted;
+          try { extracted = await pdfExtractText(uploadedFile); } catch { extracted = null; }
+
+          if (extracted?.layout.hasTextLayer) {
+            // Text PDF — heuristic parse + background AI verify (no key needed)
+            const result = await runImportPipeline(extracted.text, 'pdf');
+            profile = result.profile;
+          } else {
+            // Scanned PDF — requires AI vision
+            if (!apiKeySet) throw new Error('This looks like a scanned PDF. Add an AI key in Settings to extract it, or paste your CV text instead.');
+            const { base64 } = await fileToBase64(uploadedFile);
+            const activeProvider = getSelectedProvider();
+            if (activeProvider === 'claude') {
+              profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
+            } else {
+              profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
+            }
           }
-          const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
-          if (!extracted || extracted.trim().length < 50) throw new Error('Workers AI could not extract text from the image. Please paste your CV text in the text box instead.');
-          profile = await generateProfile(extracted, githubUrl || undefined);
+
+        } else if (isDOCX) {
+          // ── Zero-token DOCX path ───────────────────────────────────────────
+          const text = await extractTextFromDocx(uploadedFile);
+          const result = await runImportPipeline(text, 'docx');
+          profile = result.profile;
+
+        } else if (isImage) {
+          // ── Image path — still requires AI vision key ──────────────────────
+          if (!apiKeySet) throw new Error('Image imports require an AI key. Add one in Settings → AI Keys, or paste your CV text instead.');
+          const { base64 } = await fileToBase64(uploadedFile);
+          const activeProvider = getSelectedProvider();
+          if (activeProvider === 'claude') {
+            profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
+          } else if (activeProvider === 'gemini') {
+            profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
+          } else {
+            const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
+            if (!extracted || extracted.trim().length < 50) throw new Error('Could not extract text from the image. Please paste your CV text in the text box instead.');
+            profile = await generateProfile(extracted, githubUrl || undefined);
+          }
+
+        } else {
+          throw new Error('Unsupported file type. Please upload a PDF, DOCX, or image file.');
         }
+
       } else {
-        // Text / GitHub path — generateProfile routes through selected provider internally
-        profile = await generateProfile(rawText, githubUrl || undefined);
+        // ── Text / GitHub path ──────────────────────────────────────────────
+        if (githubUrl.trim() || !rawText.trim()) {
+          // GitHub URL or empty text box — still uses AI
+          if (!apiKeySet) throw new Error('GitHub profile import requires an AI key. Add one in Settings → AI Keys.');
+          profile = await generateProfile(rawText, githubUrl || undefined);
+        } else {
+          // Plain text paste — use zero-token pipeline first, then AI verify in background
+          const result = await runImportPipeline(rawText, 'text');
+          profile = result.profile;
+        }
       }
 
       reset(profile);
@@ -1216,30 +1260,30 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           onChange={e => { setRawText(e.target.value); setUploadedFile(null); }}
           placeholder="Paste the full text of your resume or CV here. Include your work history, education, skills, and anything else you'd like in your profile..."
           rows={10}
-          disabled={isGenerating || !apiKeySet}
+          disabled={isGenerating}
         />
       ) : (
         <label htmlFor="profile-upload"
-          className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl bg-zinc-50 dark:bg-neutral-800 ${!apiKeySet ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors'}`}>
+          className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl bg-zinc-50 dark:bg-neutral-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors">
           {uploadedFile ? (
-            <p className="font-semibold text-[#1B2B4B] px-2">{uploadedFile.name}</p>
+            <p className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C] px-2">{uploadedFile.name}</p>
           ) : (
             <>
               <UploadCloud className="h-8 w-8 text-zinc-400 mb-2" />
               <p className="text-sm text-zinc-500"><span className="font-semibold">Click to upload</span> or drag & drop your CV</p>
-              <p className="text-xs text-zinc-400 mt-1">PDF, PNG, JPG, WEBP — Gemini will read and extract your details</p>
+              <p className="text-xs text-zinc-400 mt-1">PDF or DOCX — no AI key needed • Images need an AI key</p>
             </>
           )}
           <input id="profile-upload" type="file" className="sr-only"
-            accept="application/pdf,image/png,image/jpeg,image/webp"
-            onChange={handleFileChange} disabled={!apiKeySet} />
+            accept="application/pdf,.docx,image/png,image/jpeg,image/webp"
+            onChange={handleFileChange} />
         </label>
       )}
 
       <div>
-        <Label className="mb-1 block">GitHub Profile URL <span className="text-zinc-400 font-normal">(Optional)</span></Label>
+        <Label className="mb-1 block">GitHub Profile URL <span className="text-zinc-400 font-normal">(Optional — requires AI key)</span></Label>
         <Input value={githubUrl} onChange={e => setGithubUrl(e.target.value)}
-          placeholder="https://github.com/username" disabled={isGenerating || !apiKeySet} />
+          placeholder="https://github.com/username" disabled={isGenerating} />
         <p className="text-xs text-zinc-400 mt-1">Your public repositories and projects will be pulled in to enrich your profile automatically.</p>
       </div>
 
@@ -1249,13 +1293,15 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         </div>
       )}
       {!apiKeySet && (
-        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <p className="text-amber-700 dark:text-amber-400 text-sm">A Gemini API key is required to use this feature. Please add it in Settings to get started.</p>
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-blue-700 dark:text-blue-400 text-sm">
+            <strong>PDF &amp; DOCX imports work without an AI key.</strong> Add a Gemini or Claude key in Settings for scanned PDFs, image imports, and higher accuracy.
+          </p>
         </div>
       )}
 
-      <Button onClick={handleGenerateProfile} disabled={isGenerating || !apiKeySet} className="w-full sm:w-auto">
-        {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing Profile...</span></> : <>Import &amp; Build My Profile</>}
+      <Button onClick={handleGenerateProfile} disabled={isGenerating} className="w-full sm:w-auto">
+        {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing Profile…</span></> : <>Import &amp; Build My Profile</>}
       </Button>
     </div>
   );

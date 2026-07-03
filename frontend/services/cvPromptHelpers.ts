@@ -232,18 +232,30 @@ export function detectFieldWithSource(
     jd: string | undefined,
     profile?: UserProfile,
 ): { field: CVField; source: FieldDetectionSource } {
+    const VALID_FIELDS: CVField[] = [
+        'irrigation','drought_management','tech','data_analytics','civil_engineering',
+        'construction','architecture','manufacturing','logistics','ngo','government',
+        'sales','marketing','finance','legal','healthcare','education','hr',
+        'consulting','operations','hospitality','media','general',
+    ];
+
+    // 1️⃣ User-pinned choice takes highest priority
     if (profile?.preferredField) {
         const pf = profile.preferredField as CVField;
-        const VALID_FIELDS: CVField[] = [
-            'irrigation','drought_management','tech','data_analytics','civil_engineering',
-            'construction','architecture','manufacturing','logistics','ngo','government',
-            'sales','marketing','finance','legal','healthcare','education','hr',
-            'consulting','operations','hospitality','media','general',
-        ];
         if (VALID_FIELDS.includes(pf)) {
             return { field: pf, source: { kind: 'user-pinned' } };
         }
     }
+
+    // 2️⃣ Import-time detected field — pre-cached by the zero-token pipeline,
+    //    skips keyword scoring entirely (fast path, no re-computation).
+    if (profile?.detectedField) {
+        const df = profile.detectedField as CVField;
+        if (VALID_FIELDS.includes(df)) {
+            return { field: df, source: { kind: 'title-match', titles: [profile.detectedField] } };
+        }
+    }
+
     // Fall through to auto-detection — re-run the scorer so this function
     // has no hidden dependency on detectField's internal state.
     const field = detectField(jd, profile);
