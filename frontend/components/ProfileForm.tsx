@@ -384,6 +384,25 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   };
 
   // ── AI helpers ────────────────────────────────────────────────────────────
+
+  // Handle Ctrl+V / Cmd+V of a screenshot or copied image in the text area.
+  // Clipboard images are silently dropped without this handler.
+  const handleTextareaPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const imageItem = items.find(item => /^image\//i.test(item.type));
+    if (!imageItem) return; // plain text paste — let default behaviour handle it
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) {
+      setAiError('Could not read the pasted image. Try using the upload button instead.');
+      return;
+    }
+    setUploadedFile(file);
+    setRawText('');
+    setProfileInputMode('upload');
+    setAiError(null);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) { setUploadedFile(file); setRawText(''); setAiError(null); }
@@ -520,7 +539,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       reset(profile);
       setCustomSections(profile.customSections || []);
       setSectionOrder(profile.sectionOrder || [...DEFAULT_SECTION_ORDER]);
-      onProfileImported?.(profile);
+      // NOTE: do NOT call onProfileImported here — that would immediately persist
+      // the imported data to state/cloud before the user clicks Save.
+      // The form is already populated via reset(profile); the user reviews and
+      // clicks "Save Profile" to commit, or Cancel to discard.
       setActiveTab('personal');
       console.log(`[ImportPipeline] ✓ Import complete — ${Math.round(performance.now() - importT0)}ms total`);
       console.groupEnd();
@@ -1337,6 +1359,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         <Textarea
           value={rawText}
           onChange={e => { setRawText(e.target.value); setUploadedFile(null); }}
+          onPaste={handleTextareaPaste}
           placeholder="Paste the full text of your resume or CV here. Include your work history, education, skills, and anything else you'd like in your profile..."
           rows={10}
           disabled={isGenerating}
