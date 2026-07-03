@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { extractTextFromDocx, extractTextFromArrayBuffer } from '../services/wordImportService';
 import { runImportPipeline } from '../services/importPipeline';
 import { classifyAndSaveAllRoles } from '../services/careerTrackClassifier';
+import { ImportConfidenceBadge } from './ImportConfidenceBadge';
 import { Button } from './ui/Button';
 import { RefreshCw, CheckCircle, AlertCircle, Download } from './icons';
 
@@ -557,6 +558,7 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ onProfileImported }) => {
     const [step, setStep] = useState<ImportStep>('idle');
     const [error, setError] = useState<string | null>(null);
     const [parsedProfile, setParsedProfile] = useState<UserProfile | null>(null);
+    const [confidence, setConfidence] = useState<Record<string, number>>({});
     const [isDragging, setIsDragging] = useState(false);
     const [aiVerifying, setAiVerifying] = useState(false);
     const [aiVerified, setAiVerified] = useState(false);
@@ -573,13 +575,15 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ onProfileImported }) => {
         setError(null);
         setAiVerifying(false);
         setAiVerified(false);
+        setConfidence({});
         setStep('extracting');
         try {
             const text = await extractTextFromDocx(file);
             setStep('parsing');
             await runImportPipeline(text, 'docx', {
-                onStage1Complete: ({ profile }) => {
+                onStage1Complete: ({ profile, confidence: conf }) => {
                     setParsedProfile(profile);
+                    setConfidence(conf);
                     setStep('preview');
                     setAiVerifying(true);
                 },
@@ -590,7 +594,6 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ onProfileImported }) => {
                     setAiProvider(provider);
                 },
             });
-            // If Stage 2 never ran (skipAi or no engine), ensure we stop the spinner
             setAiVerifying(false);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to parse the Word document.');
@@ -688,7 +691,8 @@ const UploadMode: React.FC<WordImportPanelProps> = ({ onProfileImported }) => {
                             {aiStatusBadge}
                         </div>
                     )}
-                    <ProfilePreview parsedProfile={parsedProfile} onApply={handleApply} onReset={reset}
+                    <ProfilePreview parsedProfile={parsedProfile} confidence={confidence} aiVerified={aiVerified}
+                        onApply={handleApply} onReset={reset}
                         applyLabel="Import to My Profile" resetLabel="Try Another File" />
                 </div>
             )}
@@ -727,80 +731,153 @@ const ParseLoadingState: React.FC<{ step: 'extracting' | 'parsing' }> = ({ step 
 
 interface ProfilePreviewProps {
     parsedProfile: UserProfile;
+    confidence: Record<string, number>;
+    aiVerified: boolean;
     onApply: () => void;
     onReset: () => void;
     applyLabel: string;
     resetLabel: string;
 }
 
-const ProfilePreview: React.FC<ProfilePreviewProps> = ({ parsedProfile, onApply, onReset, applyLabel, resetLabel }) => (
-    <div className="space-y-4">
-        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
-            <CheckCircle className="h-4 w-4" /> Profile extracted successfully! Review below, then click "{applyLabel}".
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-                { label: 'Work Roles', count: parsedProfile.workExperience.length, color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
-                { label: 'Education', count: parsedProfile.education.length, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-                { label: 'Skills', count: parsedProfile.skills.length, color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
-                { label: 'Projects', count: parsedProfile.projects?.length || 0, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
-            ].map(item => (
-                <div key={item.label} className={`${item.color} rounded-xl p-3 text-center`}>
-                    <div className="text-2xl font-black">{item.count}</div>
-                    <div className="text-xs font-semibold mt-0.5">{item.label}</div>
-                </div>
-            ))}
-        </div>
-
-        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Extracted Data Preview</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                {parsedProfile.personalInfo.name && (
-                    <div><span className="text-zinc-400 text-xs">Name</span><br /><span className="font-semibold">{parsedProfile.personalInfo.name}</span></div>
-                )}
-                {parsedProfile.personalInfo.email && (
-                    <div><span className="text-zinc-400 text-xs">Email</span><br /><span className="font-semibold">{parsedProfile.personalInfo.email}</span></div>
-                )}
-                {parsedProfile.personalInfo.phone && (
-                    <div><span className="text-zinc-400 text-xs">Phone</span><br /><span className="font-semibold">{parsedProfile.personalInfo.phone}</span></div>
-                )}
-                {parsedProfile.personalInfo.location && (
-                    <div><span className="text-zinc-400 text-xs">Location</span><br /><span className="font-semibold">{parsedProfile.personalInfo.location}</span></div>
-                )}
+/** A single extracted field row with an inline confidence badge. */
+const FieldRow: React.FC<{
+    label: string;
+    value: string | undefined;
+    confidenceKey: string;
+    confidence: Record<string, number>;
+    aiVerified: boolean;
+}> = ({ label, value, confidenceKey, confidence, aiVerified }) => {
+    if (!value) return null;
+    const score = confidence[confidenceKey] ?? 80;
+    const wasLow = score < 70;
+    return (
+        <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
+                <span className="text-zinc-400 text-xs">{label}</span>
+                <ImportConfidenceBadge score={score} aiVerified={aiVerified && wasLow} />
             </div>
-            {parsedProfile.workExperience.length > 0 && (
-                <div>
-                    <span className="text-zinc-400 text-xs">Latest Role</span><br />
-                    <span className="font-semibold text-sm">{parsedProfile.workExperience[0].jobTitle}</span>
-                    <span className="text-zinc-500 text-xs"> @ {parsedProfile.workExperience[0].company}</span>
+            <span className="font-semibold text-sm leading-snug">{value}</span>
+        </div>
+    );
+};
+
+const ProfilePreview: React.FC<ProfilePreviewProps> = ({ parsedProfile, confidence, aiVerified, onApply, onReset, applyLabel, resetLabel }) => {
+    // Compute overall extraction quality
+    const scores = Object.values(confidence);
+    const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    const lowCount = scores.filter(s => s < 70).length;
+    const qualityLabel = avgScore >= 85 ? 'High quality extraction' : avgScore >= 65 ? 'Good extraction' : 'Partial extraction';
+    const qualityColor = avgScore >= 85 ? 'text-emerald-600 dark:text-emerald-400' : avgScore >= 65 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+
+    return (
+        <div className="space-y-4">
+            {/* Header status */}
+            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-start gap-3">
+                <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                    <p className="text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
+                        Profile extracted — review below, then click "{applyLabel}".
+                    </p>
+                    {scores.length > 0 && (
+                        <p className={`text-xs mt-0.5 ${qualityColor}`}>
+                            {qualityLabel}
+                            {lowCount > 0 && !aiVerified ? ` · ${lowCount} field${lowCount > 1 ? 's' : ''} flagged for AI review` : ''}
+                            {aiVerified && lowCount > 0 ? ` · ${lowCount} field${lowCount > 1 ? 's' : ''} improved by AI` : ''}
+                        </p>
+                    )}
                 </div>
-            )}
-            {parsedProfile.skills.length > 0 && (
-                <div>
-                    <span className="text-zinc-400 text-xs block mb-1.5">Skills Preview</span>
-                    <div className="flex flex-wrap gap-1">
-                        {parsedProfile.skills.slice(0, 12).map(s => (
-                            <span key={s} className="text-xs px-2 py-0.5 bg-zinc-100 dark:bg-neutral-700 rounded-full text-zinc-600 dark:text-zinc-400">{s}</span>
-                        ))}
-                        {parsedProfile.skills.length > 12 && (
-                            <span className="text-xs text-zinc-400">+{parsedProfile.skills.length - 12} more</span>
+            </div>
+
+            {/* Section count pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                    { label: 'Work Roles', count: parsedProfile.workExperience.length, confKey: 'workExperience', color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
+                    { label: 'Education',  count: parsedProfile.education.length,       confKey: 'education',      color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
+                    { label: 'Skills',     count: parsedProfile.skills.length,          confKey: 'skills',         color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
+                    { label: 'Projects',   count: parsedProfile.projects?.length || 0,  confKey: 'projects',       color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
+                ].map(item => {
+                    const sc = confidence[item.confKey] ?? 80;
+                    return (
+                        <div key={item.label} className={`${item.color} rounded-xl p-3 text-center relative`}>
+                            <div className="text-2xl font-black">{item.count}</div>
+                            <div className="text-xs font-semibold mt-0.5">{item.label}</div>
+                            {sc < 70 && (
+                                <div className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${aiVerified ? 'bg-emerald-500' : sc < 50 ? 'bg-rose-400' : 'bg-amber-400'}`} title={aiVerified ? 'AI verified' : `Confidence: ${sc}%`} />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Field detail with confidence badges */}
+            <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-zinc-200 dark:border-neutral-700 p-4 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Extracted Data</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <FieldRow label="Name"     value={parsedProfile.personalInfo.name}     confidenceKey="personalInfo.name"     confidence={confidence} aiVerified={aiVerified} />
+                    <FieldRow label="Email"    value={parsedProfile.personalInfo.email}    confidenceKey="personalInfo.email"    confidence={confidence} aiVerified={aiVerified} />
+                    <FieldRow label="Phone"    value={parsedProfile.personalInfo.phone}    confidenceKey="personalInfo.phone"    confidence={confidence} aiVerified={aiVerified} />
+                    <FieldRow label="Location" value={parsedProfile.personalInfo.location} confidenceKey="personalInfo.location" confidence={confidence} aiVerified={aiVerified} />
+                    {parsedProfile.personalInfo.linkedin && (
+                        <FieldRow label="LinkedIn" value={parsedProfile.personalInfo.linkedin} confidenceKey="personalInfo.linkedin" confidence={confidence} aiVerified={aiVerified} />
+                    )}
+                    {parsedProfile.personalInfo.github && (
+                        <FieldRow label="GitHub" value={parsedProfile.personalInfo.github} confidenceKey="personalInfo.github" confidence={confidence} aiVerified={aiVerified} />
+                    )}
+                </div>
+
+                {parsedProfile.workExperience.length > 0 && (
+                    <div className="pt-1 border-t border-zinc-100 dark:border-neutral-700">
+                        <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-zinc-400 text-xs">Latest Role</span>
+                            <ImportConfidenceBadge score={confidence['workExperience'] ?? 80} aiVerified={aiVerified && (confidence['workExperience'] ?? 80) < 70} />
+                        </div>
+                        <span className="font-semibold text-sm">{parsedProfile.workExperience[0].jobTitle}</span>
+                        {parsedProfile.workExperience[0].company && (
+                            <span className="text-zinc-500 text-xs"> @ {parsedProfile.workExperience[0].company}</span>
                         )}
                     </div>
-                </div>
-            )}
-        </div>
+                )}
 
-        <div className="flex flex-wrap gap-3">
-            <Button onClick={onApply} className="bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-xl px-6 shadow shadow-blue-500/20">
-                <Download className="h-4 w-4 mr-2" /> {applyLabel}
-            </Button>
-            <Button onClick={onReset} className="rounded-xl border border-zinc-200 dark:border-neutral-700 px-5">
-                {resetLabel}
-            </Button>
+                {parsedProfile.skills.length > 0 && (
+                    <div className="pt-1 border-t border-zinc-100 dark:border-neutral-700">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <span className="text-zinc-400 text-xs">Skills</span>
+                            <ImportConfidenceBadge score={confidence['skills'] ?? 80} aiVerified={aiVerified && (confidence['skills'] ?? 80) < 70} />
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {parsedProfile.skills.slice(0, 14).map(s => (
+                                <span key={s} className="text-xs px-2 py-0.5 bg-zinc-100 dark:bg-neutral-700 rounded-full text-zinc-600 dark:text-zinc-400">{s}</span>
+                            ))}
+                            {parsedProfile.skills.length > 14 && (
+                                <span className="text-xs text-zinc-400 self-center">+{parsedProfile.skills.length - 14} more</span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Low-confidence nudge */}
+                {!aiVerified && lowCount > 0 && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-700 dark:text-amber-400">
+                        <span className="flex-shrink-0 mt-0.5">⚡</span>
+                        <span>
+                            {lowCount} field{lowCount > 1 ? 's' : ''} had low confidence.
+                            AI is checking them in the background — the preview updates automatically.
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+                <Button onClick={onApply} className="bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-xl px-6 shadow shadow-blue-500/20">
+                    <Download className="h-4 w-4 mr-2" /> {applyLabel}
+                </Button>
+                <Button onClick={onReset} className="rounded-xl border border-zinc-200 dark:border-neutral-700 px-5">
+                    {resetLabel}
+                </Button>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const DoneState: React.FC<{ onReset: () => void; resetLabel: string }> = ({ onReset, resetLabel }) => (
     <div className="flex flex-col items-center gap-4 py-12 text-center">
