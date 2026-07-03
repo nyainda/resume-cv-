@@ -203,6 +203,24 @@ const RefinedBadge = ({ show }: { show: boolean }) =>
     </span>
   ) : null;
 
+// ─── Key helpers (separate from apiKeySet which includes CF worker) ────────────
+function hasGeminiKey(): boolean {
+  try {
+    const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+    if (s) { const p = JSON.parse(s); if (p.apiKey && !p.apiKey.startsWith('enc:v1:')) return true; }
+    const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
+    return !!(pk.gemini && !pk.gemini.startsWith('enc:v1:'));
+  } catch { return false; }
+}
+function hasClaudeKey(): boolean {
+  try {
+    const s = localStorage.getItem('cv_builder:apiSettings') || localStorage.getItem('apiSettings');
+    if (s) { const p = JSON.parse(s); if (p.claudeApiKey && !p.claudeApiKey.startsWith('enc:v1:')) return true; }
+    const pk = JSON.parse(localStorage.getItem('cv_builder:provider_keys') || '{}');
+    return !!(pk.claude && !pk.claude.startsWith('enc:v1:'));
+  } catch { return false; }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported, onJsonImported, currentCV }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
@@ -401,15 +419,24 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             profile = result.profile;
             setImportConfidence(result.confidence);
           } else {
-            // Scanned PDF — requires AI vision
-            if (!apiKeySet) throw new Error('This looks like a scanned PDF. Add an AI key in Settings to extract it, or paste your CV text instead.');
-            setImportStage({ step: 2, label: 'AI reading scanned PDF…', sub: 'This may take a few seconds' });
+            // Scanned / image-only PDF — try vision providers in order
+            setImportStage({ step: 2, label: 'PDF has no text layer — trying AI vision…', sub: 'This may take a few seconds' });
             const { base64 } = await fileToBase64(uploadedFile);
             const activeProvider = getSelectedProvider();
-            if (activeProvider === 'claude') {
+            if (activeProvider === 'claude' && hasClaudeKey()) {
               profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
-            } else {
+            } else if (hasGeminiKey()) {
               profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
+            } else {
+              // Free fallback — Workers AI vision (no key needed)
+              setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free, no key required' });
+              const visionText = await workerVisionExtract(base64, mimeType,
+                'Extract ALL text from this resume/CV page by page. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
+              if (!visionText || visionText.trim().length < 50) {
+                throw new Error('Could not extract text from this PDF. Try pasting your CV text instead, or add a Gemini/Claude key in Settings for better scanned-PDF support.');
+              }
+              setImportStage({ step: 3, label: 'Structuring profile…' });
+              profile = await generateProfile(visionText, githubUrl || undefined);
             }
             setImportStage({ step: 4, label: 'Profile extracted ✓' });
           }
@@ -427,19 +454,20 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           setImportConfidence(result.confidence);
 
         } else if (isImage) {
-          // ── Image path — still requires AI vision key ──────────────────────
-          if (!apiKeySet) throw new Error('Image imports require an AI key. Add one in Settings → AI Keys, or paste your CV text instead.');
+          // ── Image path — tries Claude/Gemini first, falls back to Workers AI ─
           setImportStage({ step: 1, label: 'Reading image…' });
           const { base64 } = await fileToBase64(uploadedFile);
           setImportStage({ step: 2, label: 'AI extracting CV content…', sub: 'This may take a few seconds' });
           const activeProvider = getSelectedProvider();
-          if (activeProvider === 'claude') {
+          if (activeProvider === 'claude' && hasClaudeKey()) {
             profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
-          } else if (activeProvider === 'gemini') {
+          } else if (hasGeminiKey()) {
             profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
           } else {
+            // Workers AI vision — free, no key needed
+            setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free, no key required' });
             const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
-            if (!extracted || extracted.trim().length < 50) throw new Error('Could not extract text from the image. Please paste your CV text in the text box instead.');
+            if (!extracted || extracted.trim().length < 50) throw new Error('Could not extract text from the image. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
             profile = await generateProfile(extracted, githubUrl || undefined);
           }
