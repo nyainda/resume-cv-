@@ -7,10 +7,14 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Use CDN for the worker — avoids heavy Vite bundling of the worker code.
-// Set once at module load time.
+// pdfjs-dist v5+ ships .mjs workers only — the old CDN .min.js URL is a 404.
+// Vite resolves `new URL(pkg/file, import.meta.url)` into a proper asset URL
+// at build time, so the worker is always served from the same origin.
 if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+  ).href;
 }
 
 export interface LayoutMeta {
