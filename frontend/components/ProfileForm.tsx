@@ -213,6 +213,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [importStage, setImportStage] = useState<{ label: string; sub?: string; step: 0|1|2|3|4 } | null>(null);
   const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
   const [quantifyingEntry, setQuantifyingEntry] = useState<number | null>(null);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -374,7 +375,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     if (!rawText.trim() && !uploadedFile && !githubUrl.trim()) {
       setAiError('Please paste your resume text, upload a file, or enter a GitHub URL to continue.'); return;
     }
-    setIsGenerating(true); setAiError(null);
+    setIsGenerating(true); setAiError(null); setImportStage(null);
     try {
       let profile: UserProfile;
 
@@ -386,16 +387,21 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
         if (isPDF) {
           // ── Zero-token PDF path ────────────────────────────────────────────
+          setImportStage({ step: 1, label: 'Extracting text from PDF…' });
           let extracted;
           try { extracted = await pdfExtractText(uploadedFile); } catch { extracted = null; }
 
           if (extracted?.layout.hasTextLayer) {
-            // Text PDF — heuristic parse + background AI verify (no key needed)
-            const result = await runImportPipeline(extracted.text, 'pdf');
+            setImportStage({ step: 2, label: 'Parsing sections…', sub: `${extracted.layout.pageCount} page${extracted.layout.pageCount !== 1 ? 's' : ''} detected` });
+            const result = await runImportPipeline(extracted.text, 'pdf', {
+              onStage1Complete: () => setImportStage({ step: 3, label: 'Structuring profile…' }),
+              onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
+            });
             profile = result.profile;
           } else {
             // Scanned PDF — requires AI vision
             if (!apiKeySet) throw new Error('This looks like a scanned PDF. Add an AI key in Settings to extract it, or paste your CV text instead.');
+            setImportStage({ step: 2, label: 'AI reading scanned PDF…', sub: 'This may take a few seconds' });
             const { base64 } = await fileToBase64(uploadedFile);
             const activeProvider = getSelectedProvider();
             if (activeProvider === 'claude') {
@@ -403,18 +409,26 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             } else {
               profile = await generateProfileFromFileWithGemini(base64, mimeType, githubUrl || undefined);
             }
+            setImportStage({ step: 4, label: 'Profile extracted ✓' });
           }
 
         } else if (isDOCX) {
           // ── Zero-token DOCX path ───────────────────────────────────────────
+          setImportStage({ step: 1, label: 'Extracting text from Word document…' });
           const text = await extractTextFromDocx(uploadedFile);
-          const result = await runImportPipeline(text, 'docx');
+          setImportStage({ step: 2, label: 'Parsing sections…' });
+          const result = await runImportPipeline(text, 'docx', {
+            onStage1Complete: () => setImportStage({ step: 3, label: 'Structuring profile…' }),
+            onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
+          });
           profile = result.profile;
 
         } else if (isImage) {
           // ── Image path — still requires AI vision key ──────────────────────
           if (!apiKeySet) throw new Error('Image imports require an AI key. Add one in Settings → AI Keys, or paste your CV text instead.');
+          setImportStage({ step: 1, label: 'Reading image…' });
           const { base64 } = await fileToBase64(uploadedFile);
+          setImportStage({ step: 2, label: 'AI extracting CV content…', sub: 'This may take a few seconds' });
           const activeProvider = getSelectedProvider();
           if (activeProvider === 'claude') {
             profile = await generateProfileFromFileClaude(base64, mimeType, githubUrl || undefined);
@@ -423,8 +437,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           } else {
             const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
             if (!extracted || extracted.trim().length < 50) throw new Error('Could not extract text from the image. Please paste your CV text in the text box instead.');
+            setImportStage({ step: 3, label: 'Structuring profile…' });
             profile = await generateProfile(extracted, githubUrl || undefined);
           }
+          setImportStage({ step: 4, label: 'Profile extracted ✓' });
 
         } else {
           throw new Error('Unsupported file type. Please upload a PDF, DOCX, or image file.');
@@ -435,11 +451,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         if (githubUrl.trim() || !rawText.trim()) {
           // GitHub URL or empty text box — still uses AI
           if (!apiKeySet) throw new Error('GitHub profile import requires an AI key. Add one in Settings → AI Keys.');
+          setImportStage({ step: 1, label: 'Fetching GitHub profile…' });
           profile = await generateProfile(rawText, githubUrl || undefined);
+          setImportStage({ step: 4, label: 'Profile built ✓' });
         } else {
-          // Plain text paste — use zero-token pipeline first, then AI verify in background
-          const result = await runImportPipeline(rawText, 'text');
+          // Plain text paste — zero-token pipeline, AI verify in background
+          setImportStage({ step: 1, label: 'Reading pasted text…' });
+          const result = await runImportPipeline(rawText, 'text', {
+            onStage1Complete: () => setImportStage({ step: 3, label: 'Structuring profile…' }),
+            onStage2Complete: (_, provider) => setImportStage({ step: 4, label: 'AI verification complete ✓', sub: `via ${provider}` }),
+          });
           profile = result.profile;
+          if (!result.aiVerified) setImportStage({ step: 4, label: 'Profile ready ✓', sub: 'Add an AI key for higher accuracy' });
         }
       }
 
@@ -453,6 +476,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       setAiError(`Import failed: ${msg}`);
     } finally {
       setIsGenerating(false);
+      setTimeout(() => setImportStage(null), 3000);
     }
   };
 
@@ -1237,7 +1261,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
 
   const renderAI = () => (
     <div className="space-y-6">
-      <SectionTitle subtitle="Already have a CV or resume? Import it and Gemini AI will instantly read and structure your full profile — no manual typing needed.">
+      <SectionTitle subtitle="Already have a CV or resume? Import it and we'll instantly read and structure your full profile — no manual typing needed. PDF and DOCX work without an AI key.">
         Import Your Existing Profile
       </SectionTitle>
 
@@ -1300,9 +1324,56 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         </div>
       )}
 
-      <Button onClick={handleGenerateProfile} disabled={isGenerating} className="w-full sm:w-auto">
-        {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing Profile…</span></> : <>Import &amp; Build My Profile</>}
-      </Button>
+      <div className="space-y-3">
+        <Button onClick={handleGenerateProfile} disabled={isGenerating} className="w-full sm:w-auto">
+          {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing…</span></> : <>Import &amp; Build My Profile</>}
+        </Button>
+
+        {/* ── Import progress stepper ─────────────────────────────────── */}
+        {importStage && (
+          <div className="rounded-xl border border-zinc-200 dark:border-neutral-700 bg-zinc-50 dark:bg-neutral-800/60 px-4 py-3 space-y-2.5">
+            {/* Step pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['Extract', 'Parse', 'Structure', 'Verify'] as const).map((label, i) => {
+                const stepNum = (i + 1) as 1|2|3|4;
+                const isDone   = importStage.step > stepNum;
+                const isActive = importStage.step === stepNum;
+                return (
+                  <span key={label} className="flex items-center gap-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${
+                      isDone    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400' :
+                      isActive  ? 'bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C] ring-1 ring-[#1B2B4B]/30 dark:ring-[#C9A84C]/30' :
+                                  'bg-zinc-100 dark:bg-neutral-700 text-zinc-400 dark:text-zinc-500'
+                    }`}>
+                      {isDone ? (
+                        <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : isActive ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse flex-shrink-0" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-30 flex-shrink-0" />
+                      )}
+                      {label}
+                    </span>
+                    {i < 3 && <span className="text-zinc-300 dark:text-zinc-600 text-xs">→</span>}
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* Status text */}
+            <div>
+              <p className={`text-sm font-medium ${importStage.step === 4 ? 'text-emerald-700 dark:text-emerald-400' : 'text-[#1B2B4B] dark:text-zinc-200'}`}>
+                {importStage.label}
+              </p>
+              {importStage.sub && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{importStage.sub}</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
