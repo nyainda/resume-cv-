@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import PhotoCropModal from './PhotoCropModal';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { buildFlatOntology } from '../services/fieldOntologyResolver';
-import { classifyRoleFieldAsync } from '../services/careerTrackClassifier';
+import { classifyRoleFieldAsync, classifyAndSaveAllRoles } from '../services/careerTrackClassifier';
 import {
   UserProfile, Reference,
   CustomSection, CustomSectionItem, CustomSectionType,
@@ -22,7 +22,7 @@ import { extractText as pdfExtractText } from '../services/pdfCvParser';
 import { extractTextFromDocx } from '../services/wordImportService';
 import { runImportPipeline } from '../services/importPipeline';
 import QuantifyPanel from './QuantifyPanel';
-import WordImportPanel from './WordImportPanel';
+import { validateAndNormaliseProfile } from '../utils/profileValidator';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
@@ -224,10 +224,11 @@ function hasClaudeKey(): boolean {
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCancel, apiKeySet, openSettings, onProfileImported, onJsonImported, currentCV }) => {
   const [activeTab, setActiveTab] = useState<TabKey>('personal');
-  const [showWordImport, setShowWordImport] = useState(false);
-  const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload'>('text');
+  const [profileInputMode, setProfileInputMode] = useState<'text' | 'upload' | 'json'>('text');
   const [rawText, setRawText] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonParseError, setJsonParseError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [importStage, setImportStage] = useState<{ label: string; sub?: string; step: 0|1|2|3|4 } | null>(null);
@@ -237,7 +238,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
 
-  const importInputRef = useRef<HTMLInputElement>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
   const [customSections, setCustomSections] = useState<CustomSection[]>(existingProfile?.customSections || []);
   const [sectionOrder, setSectionOrder] = useState<ProfileSectionKey[]>(
@@ -582,25 +583,33 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     URL.revokeObjectURL(url);
   };
 
-  const handleImportProfile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleJsonImport = () => {
+    if (!jsonText.trim()) { setJsonParseError('Paste your JSON first.'); return; }
+    setJsonParseError(null);
+    try {
+      const profile = validateAndNormaliseProfile(JSON.parse(jsonText));
+      reset(profile);
+      setCustomSections(profile.customSections || []);
+      setSectionOrder(profile.sectionOrder || [...DEFAULT_SECTION_ORDER]);
+      if (profile.workExperience?.length) {
+        classifyAndSaveAllRoles(profile.workExperience, 'json_import').catch(() => {});
+      }
+      setActiveTab('personal');
+      setJsonText('');
+    } catch (err) {
+      setJsonParseError(err instanceof Error ? err.message : 'Could not parse JSON.');
+    }
+  };
+
+  const handleJsonFileLoad = (file: File) => {
+    if (!file.name.match(/\.json$/i)) { setJsonParseError('Please select a .json file.'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      try {
-        const imported = JSON.parse(ev.target?.result as string) as UserProfile;
-        if (imported.personalInfo && imported.summary !== undefined) {
-          reset(imported);
-          if (onJsonImported) {
-            onJsonImported(imported);
-          }
-        } else throw new Error('Invalid profile format — missing personalInfo or summary.');
-      } catch (err) {
-        alert(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
+      const content = ev.target?.result;
+      if (typeof content === 'string') { setJsonText(content); setJsonParseError(null); }
     };
     reader.readAsText(file);
-    e.target.value = '';
+    if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
   };
 
   // ── Tab completion indicators ──────────────────────────────────────────────
@@ -1331,20 +1340,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         Import Your Existing Profile
       </SectionTitle>
 
+      {/* ── Three-tab strip ──────────────────────────────────────────────── */}
       <div className="border-b border-zinc-200 dark:border-neutral-700">
         <nav className="-mb-px flex gap-6">
-          {(['text', 'upload'] as const).map(mode => (
-            <button key={mode} type="button" onClick={() => setProfileInputMode(mode)}
-              className={`py-2.5 px-1 border-b-2 text-sm font-medium transition-colors ${profileInputMode === mode
-                ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C]'
+          {([
+            { key: 'text',   label: 'Paste Text' },
+            { key: 'upload', label: 'Upload File' },
+            { key: 'json',   label: 'Import JSON' },
+          ] as const).map(({ key, label }) => (
+            <button key={key} type="button"
+              onClick={() => { setProfileInputMode(key); setAiError(null); setJsonParseError(null); }}
+              className={`py-2.5 px-1 border-b-2 text-sm font-medium transition-colors ${profileInputMode === key
+                ? 'border-[#1B2B4B] text-[#1B2B4B] dark:text-[#C9A84C] dark:border-[#C9A84C]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-300'}`}>
-              {mode === 'text' ? 'Paste Resume Text' : 'Upload CV / Resume'}
+              {label}
             </button>
           ))}
         </nav>
       </div>
 
-      {profileInputMode === 'text' ? (
+      {/* ── Paste Text ───────────────────────────────────────────────────── */}
+      {profileInputMode === 'text' && (
         <Textarea
           value={rawText}
           onChange={e => { setRawText(e.target.value); setUploadedFile(null); }}
@@ -1353,7 +1369,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           rows={10}
           disabled={isGenerating}
         />
-      ) : (
+      )}
+
+      {/* ── Upload File ──────────────────────────────────────────────────── */}
+      {profileInputMode === 'upload' && (
         <label htmlFor="profile-upload"
           className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-zinc-300 dark:border-neutral-600 rounded-xl bg-zinc-50 dark:bg-neutral-800 cursor-pointer hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors">
           {uploadedFile ? (
@@ -1361,7 +1380,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           ) : (
             <>
               <UploadCloud className="h-8 w-8 text-zinc-400 mb-2" />
-              <p className="text-sm text-zinc-500"><span className="font-semibold">Click to upload</span> or drag & drop your CV</p>
+              <p className="text-sm text-zinc-500"><span className="font-semibold">Click to upload</span> or drag &amp; drop your CV</p>
               <p className="text-xs text-zinc-400 mt-1">PDF or DOCX — no AI key needed • Images need an AI key</p>
             </>
           )}
@@ -1371,20 +1390,60 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         </label>
       )}
 
-      {aiError && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-600 dark:text-red-400 text-sm" style={{ whiteSpace: 'pre-line' }}>{aiError}</p>
-        </div>
-      )}
-      {!apiKeySet && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-blue-700 dark:text-blue-400 text-sm">
-            <strong>PDF &amp; DOCX imports work without an AI key.</strong> Add a Gemini or Claude key in Settings for scanned PDFs, image imports, and higher accuracy.
-          </p>
+      {/* ── Import JSON ──────────────────────────────────────────────────── */}
+      {profileInputMode === 'json' && (
+        <div className="space-y-3">
+          <div className="p-3.5 rounded-xl bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800/40">
+            <p className="text-sm text-violet-700 dark:text-violet-300">
+              Paste a ProCV JSON export below, or select a <strong>.json</strong> file. The profile is mapped directly — no AI processing needed.
+            </p>
+          </div>
+          <Textarea
+            value={jsonText}
+            onChange={e => { setJsonText(e.target.value); setJsonParseError(null); }}
+            placeholder={'Paste your ProCV JSON here…'}
+            rows={10}
+            className="font-mono text-xs"
+          />
+          <div className="flex items-center gap-3">
+            <input ref={jsonFileInputRef} type="file" accept=".json" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleJsonFileLoad(f); }} />
+            <button type="button"
+              onClick={() => jsonFileInputRef.current?.click()}
+              className="text-xs text-violet-600 dark:text-violet-400 hover:underline">
+              Browse for a .json file
+            </button>
+          </div>
+          {jsonParseError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-red-600 dark:text-red-400 text-sm">{jsonParseError}</p>
+            </div>
+          )}
+          <Button onClick={handleJsonImport} disabled={!jsonText.trim()} className="w-full sm:w-auto">
+            Parse &amp; Import Profile
+          </Button>
         </div>
       )}
 
-      <div className="space-y-3">
+      {/* ── Shared feedback (text + upload modes) ────────────────────────── */}
+      {profileInputMode !== 'json' && (
+        <>
+          {aiError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-red-600 dark:text-red-400 text-sm" style={{ whiteSpace: 'pre-line' }}>{aiError}</p>
+            </div>
+          )}
+          {!apiKeySet && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-blue-700 dark:text-blue-400 text-sm">
+                <strong>PDF &amp; DOCX imports work without an AI key.</strong> Add a Gemini or Claude key in Settings for scanned PDFs, image imports, and higher accuracy.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {profileInputMode !== 'json' && (<div className="space-y-3">
         <Button onClick={handleGenerateProfile} disabled={isGenerating} className="w-full sm:w-auto">
           {isGenerating ? <><SpinnerIcon /><span className="ml-2">Importing…</span></> : <>Import &amp; Build My Profile</>}
         </Button>
@@ -1433,7 +1492,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             </div>
           </div>
         )}
-      </div>
+      </div>)}
     </div>
   );
 
@@ -1488,35 +1547,18 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/80">
         <h1 className="text-lg sm:text-xl font-bold">My Profile</h1>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <input type="file" accept=".json" ref={importInputRef} onChange={handleImportProfile} className="hidden" />
-          <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()} title="Import profile">
-            <UploadCloud className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleExportProfile} title="Export profile">
+          <Button variant="ghost" size="sm" onClick={handleExportProfile} title="Export profile as JSON">
             <DownloadCloud className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          {onProfileImported && (
-            <Button
-              variant={showWordImport ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => setShowWordImport(v => !v)}
-              title="Import profile from a Word (.docx) or PDF CV"
-            >
-              <FileText className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">{showWordImport ? 'Close Import' : 'Import from Word'}</span>
-              <span className="inline sm:hidden">Word</span>
-            </Button>
-          )}
           <Button
             variant={activeTab === 'ai' ? 'primary' : 'secondary'}
             size="sm"
             onClick={() => setActiveTab(activeTab === 'ai' ? 'personal' : 'ai')}
-            title={!apiKeySet ? 'Please set your API key in settings' : ''}
           >
             <Sparkles className="h-4 w-4 sm:mr-1.5 text-[#C9A84C]" />
             <span className="hidden sm:inline">{activeTab === 'ai' ? 'Back to Form' : 'Import CV'}</span>
+            <span className="inline sm:hidden">Import</span>
           </Button>
         </div>
       </div>
@@ -1598,24 +1640,6 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           </div>
         );
       })()}
-
-      {/* ── Word / PDF Import panel ────────────────────────────────────── */}
-      {showWordImport && onProfileImported && (
-        <div className="border-b border-zinc-200 dark:border-neutral-700 bg-[#F8F7F4]/60 dark:bg-[#1B2B4B]/10 p-4">
-          <WordImportPanel
-            apiKeySet={apiKeySet}
-            openSettings={openSettings}
-            onProfileImported={(profile) => {
-              onProfileImported(profile);
-              setShowWordImport(false);
-            }}
-            onJsonImported={onJsonImported ? (profile) => {
-              onJsonImported(profile);
-              setShowWordImport(false);
-            } : undefined}
-          />
-        </div>
-      )}
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col sm:flex-row sm:min-h-[600px]">
