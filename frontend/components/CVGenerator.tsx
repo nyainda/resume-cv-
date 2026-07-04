@@ -2814,58 +2814,57 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               </div>
 
               {/* Paper / print-preview area — responsive scaling
-                  The CV template is A4-fixed (794 px wide). On narrow screens
-                  we scale the visual preview down to fit without horizontal
-                  scrolling. The scale transform is on scalingRef which sits
-                  OUTSIDE cvCaptureRef, so PDF capture always gets full A4. */}
+                  CSS transform: scale() does NOT affect layout flow — the element
+                  still claims its original 794px width, causing overflow: hidden
+                  to clip both sides. The fix: a width-constraining wrapper that
+                  is sized to (794 × scale) px so the layout matches the visual.
+                  transform-origin: top left keeps the content anchored at the
+                  top-left corner of the constraining wrapper.
+                  The scale transform sits OUTSIDE cvCaptureRef so PDF capture
+                  always gets full, unscaled A4 content. */}
               <div
                 ref={paperAreaRef}
-                className="bg-zinc-200/60 dark:bg-neutral-900 overflow-hidden px-4 sm:px-8 flex justify-center"
-                style={{
-                  // Collapse phantom layout space left by transform: scale().
-                  // previewContentHeight is the natural (unscaled) pixel height.
-                  // We show the scaled visual height + 48px top+bottom padding.
-                  paddingTop: 24,
-                  paddingBottom: 24,
-                  minHeight: previewContentHeight > 0
-                    ? `${Math.round(previewContentHeight * previewScale) + 48}px`
-                    : 200,
-                }}
+                className="bg-zinc-200/60 dark:bg-neutral-900 flex justify-center"
+                style={{ padding: '24px 16px' }}
               >
-                {/* scalingRef — this div receives the CSS scale transform.
-                    It lives OUTSIDE cvCaptureRef so getCVHtml / Playwright
-                    never sees the transform when generating the PDF. */}
-                <div
-                  ref={scalingRef}
-                  style={{
-                    transform: `scale(${previewScale})`,
-                    transformOrigin: 'top center',
-                    // Negative bottom margin collapses the "phantom" space that
-                    // transform leaves in the normal flow, so the container
-                    // height matches the visually scaled content.
-                    marginBottom: previewContentHeight > 0
-                      ? `${Math.round(previewContentHeight * (previewScale - 1))}px`
-                      : 0,
-                    width: 'fit-content',
-                  }}
-                >
-                  {/* Drop-shadow wrapper — outside cvCaptureRef so shadow never
-                      bleeds into the PDF capture DOM. */}
-                  <div className="shadow-2xl shadow-zinc-500/30 dark:shadow-black/60">
-                    {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
-                        so the editor download is byte-identical to the share download.
-                        The data-cv-preview-active marker is what getCVHtml's default
-                        selector prefers, and what we pass explicitly via cvCaptureRef. */}
-                    <div ref={cvCaptureRef} data-cv-preview-active="true">
-                      <CVPreview
-                        cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
-                        personalInfo={userProfile.personalInfo}
-                        isEditing={isEditing && !!currentCV}
-                        onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
-                        jobDescriptionForATS={jobDescription}
-                        template={template}
-                        sidebarSections={sidebarSections}
-                      />
+                {/* Width-constraining wrapper: layout width = 794 × scale px.
+                    Height = natural content height × scale px.
+                    This is the true visual footprint after scaling. */}
+                <div style={{
+                  width: `${Math.round(794 * previewScale)}px`,
+                  height: previewContentHeight > 0
+                    ? `${Math.round(previewContentHeight * previewScale)}px`
+                    : undefined,
+                  minHeight: 200,
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                }}>
+                  {/* scalingRef: receives transform: scale(). Lives OUTSIDE
+                      cvCaptureRef so getCVHtml / Playwright never sees it. */}
+                  <div
+                    ref={scalingRef}
+                    style={{
+                      transform: `scale(${previewScale})`,
+                      transformOrigin: 'top left',
+                      width: 794,
+                    }}
+                  >
+                    {/* Drop-shadow wrapper — outside cvCaptureRef so shadow never
+                        bleeds into the PDF capture DOM. */}
+                    <div className="shadow-2xl shadow-zinc-500/30 dark:shadow-black/60">
+                      {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
+                          so the editor download is byte-identical to the share download. */}
+                      <div ref={cvCaptureRef} data-cv-preview-active="true">
+                        <CVPreview
+                          cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
+                          personalInfo={userProfile.personalInfo}
+                          isEditing={isEditing && !!currentCV}
+                          onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
+                          jobDescriptionForATS={jobDescription}
+                          template={template}
+                          sidebarSections={sidebarSections}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

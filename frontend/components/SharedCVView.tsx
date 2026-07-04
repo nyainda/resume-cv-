@@ -581,41 +581,46 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
           {activeDoc === 'cv' ? (
             /* Responsive-scaling wrapper: the CV template is A4-fixed (794 px).
-               sharedScalingRef receives the CSS scale transform so it shrinks
-               to fit any viewport width. previewRef (the PDF capture target)
-               sits inside and is never scaled — Playwright always gets full A4. */
+               CSS transform: scale() does NOT affect layout — the element still
+               claims 794px, causing overflow: hidden to clip both sides.
+               Fix: a width-constraining wrapper sized to (794 × scale) px so
+               the layout matches the visual footprint. sharedScalingRef holds
+               the transform and lives OUTSIDE previewRef so PDF capture is safe. */
             <div
               ref={sharedPaperAreaRef}
-              className="overflow-hidden w-full"
-              style={{
-                minHeight: sharedPreviewContentHeight > 0
-                  ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
-                  : 200,
-              }}
+              className="w-full flex justify-center"
             >
-              <div
-                ref={sharedScalingRef}
-                style={{
-                  transform: `scale(${sharedPreviewScale})`,
-                  transformOrigin: 'top left',
-                  marginBottom: sharedPreviewContentHeight > 0
-                    ? `${Math.round(sharedPreviewContentHeight * (sharedPreviewScale - 1))}px`
-                    : 0,
-                  width: 'fit-content',
-                }}
-              >
+              {/* Width-constraining wrapper: layout width = 794 × scale px */}
+              <div style={{
+                width: `${Math.round(794 * sharedPreviewScale)}px`,
+                height: sharedPreviewContentHeight > 0
+                  ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
+                  : undefined,
+                minHeight: 200,
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}>
                 <div
-                  ref={previewRef}
-                  data-cv-preview-active="true"
+                  ref={sharedScalingRef}
+                  style={{
+                    transform: `scale(${sharedPreviewScale})`,
+                    transformOrigin: 'top left',
+                    width: 794,
+                  }}
                 >
-                  <CVPreview
-                    cvData={cvData}
-                    personalInfo={personalInfo}
-                    template={template}
-                    isEditing={false}
-                    onDataChange={() => {}}
-                    jobDescriptionForATS=""
-                  />
+                  <div
+                    ref={previewRef}
+                    data-cv-preview-active="true"
+                  >
+                    <CVPreview
+                      cvData={cvData}
+                      personalInfo={personalInfo}
+                      template={template}
+                      isEditing={false}
+                      onDataChange={() => {}}
+                      jobDescriptionForATS=""
+                    />
+                  </div>
                 </div>
               </div>
             </div>
