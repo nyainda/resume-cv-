@@ -145,7 +145,7 @@ const BulletRow: React.FC<{
                             </p>
                             {rewrites.map((rw, i) => (
                                 <div key={i} className="flex items-start gap-2 group/rw">
-                                    <span className="flex-shrink-0 mt-0.5 w-4 h-4 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 text-[9px] font-bold flex items-center justify-center">
+                                    <span className="flex-shrink-0 mt-0.5 w-4 h-4 rounded-full bg-[#C9A84C]/15 dark:bg-[#C9A84C]/20 text-[#1B2B4B] dark:text-[#C9A84C] text-[9px] font-bold flex items-center justify-center">
                                         {i + 1}
                                     </span>
                                     <p className="flex-1 text-[11px] text-zinc-700 dark:text-zinc-300 leading-relaxed">
@@ -156,7 +156,7 @@ const BulletRow: React.FC<{
                                         className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded transition-colors ${
                                             applied === i
                                                 ? 'bg-green-500 text-white'
-                                                : 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/60'
+                                                : 'bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/15 text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-[#1B2B4B]/20 dark:hover:bg-[#C9A84C]/25'
                                         }`}
                                     >
                                         {applied === i ? '✓ Applied' : 'Use this'}
@@ -222,7 +222,7 @@ const BulletRow: React.FC<{
                         <button
                             onClick={() => fetchRewrites()}
                             disabled={loading}
-                            className="text-[10px] text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 underline disabled:opacity-40"
+                            className="text-[10px] text-[#C9A84C] hover:text-[#A8872E] dark:hover:text-[#E8C96C] underline disabled:opacity-40"
                         >
                             {loading ? 'Loading…' : rewrites !== null ? 'Refresh rewrites' : 'Get rewrites'}
                         </button>
@@ -396,22 +396,22 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                 </div>
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-zinc-200 dark:border-neutral-700 bg-gradient-to-r from-violet-600 to-violet-500 dark:from-violet-800 dark:to-violet-700 flex-shrink-0">
+                <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-[#1B2B4B]/20 dark:border-[#C9A84C]/20 bg-gradient-to-r from-[#1B2B4B] to-[#243555] dark:from-[#0F1E35] dark:to-[#1B2B4B] flex-shrink-0">
                     <div className="min-w-0 flex-1">
                         <h2 className="text-base font-extrabold text-white flex items-center gap-2">
-                            <span>⚕</span>
+                            <img src="/logo.svg" alt="ProCV" className="w-6 h-6 rounded-md flex-shrink-0" draggable={false} />
                             CV Doctor
                             {issueCount > 0 && (
-                                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black">
+                                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-[#C9A84C]/25 text-[#C9A84C] text-[10px] font-black">
                                     {issueCount} issue{issueCount > 1 ? 's' : ''}
                                 </span>
                             )}
                         </h2>
-                        <p className="text-xs text-violet-100 mt-0.5">
+                        <p className="text-xs text-white/70 mt-0.5">
                             {annotations.length} bullets · {goodCount} strong · {issueCount} flagged
                         </p>
                         {/* JD context indicator — shows which JD the Doctor is working from */}
-                        <p className="text-[10px] text-violet-200/80 mt-1 truncate max-w-[260px]">
+                        <p className="text-[10px] text-white/45 mt-1 truncate max-w-[260px]">
                             {jobDescription?.trim()
                                 ? `📋 ${jobDescription.trim().substring(0, 60).replace(/\n/g, ' ')}${jobDescription.trim().length > 60 ? '…' : ''}`
                                 : '📋 General review — no JD pasted'}
@@ -419,7 +419,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 text-white text-sm font-bold transition-colors"
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-white/15 hover:bg-[#C9A84C]/30 text-white hover:text-[#C9A84C] text-sm font-bold transition-colors"
                         aria-label="Close"
                     >
                         ✕
@@ -434,7 +434,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex-1 py-3 text-xs font-bold relative transition-colors ${
                                 activeTab === tab.id
-                                    ? 'text-violet-700 dark:text-violet-300 border-b-2 border-violet-500 bg-white dark:bg-neutral-900'
+                                    ? 'text-[#1B2B4B] dark:text-[#C9A84C] border-b-2 border-[#C9A84C] bg-white dark:bg-neutral-900'
                                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
                             }`}
                         >
@@ -474,7 +474,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                             {scanLoading && (
                                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                                    <span className="inline-block w-8 h-8 rounded-full border-3 border-violet-400 border-t-transparent animate-spin" style={{ borderWidth: '3px' }} />
+                                    <span className="inline-block w-8 h-8 rounded-full border-t-transparent animate-spin" style={{ borderWidth: '3px', borderColor: '#C9A84C transparent #C9A84C #C9A84C' }} />
                                     <p className="text-sm text-zinc-500">
                                         {jobDescription?.trim() ? 'Reviewing CV against job description…' : 'Reviewing your CV…'}
                                     </p>
@@ -621,7 +621,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                         <div className="space-y-4">
                             {/* Rewrite All Flagged banner — shown only when there are issues */}
                             {issueCount > 0 && (
-                                <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50 to-white dark:from-violet-900/20 dark:to-neutral-900 p-4">
+                                <div className="rounded-xl border border-[#C9A84C]/30 dark:border-[#C9A84C]/20 bg-gradient-to-r from-[#1B2B4B]/5 to-white dark:from-[#1B2B4B]/20 dark:to-neutral-900 p-4">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100">
@@ -643,7 +643,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                         <button
                                             onClick={handleRewriteAll}
                                             disabled={isRewritingAll}
-                                            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white transition-colors shadow-sm disabled:cursor-not-allowed"
+                                            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] hover:bg-[#152238] disabled:bg-[#1B2B4B]/50 text-white transition-colors shadow-sm disabled:cursor-not-allowed"
                                         >
                                             {isRewritingAll ? (
                                                 <>
@@ -732,13 +732,13 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                         onClick={() => setParaTone(t.id)}
                                         className={`text-left p-2.5 rounded-xl border-2 transition-all text-xs
                                             ${paraTone === t.id
-                                                ? 'border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/20'
+                                                ? 'border-[#C9A84C] dark:border-[#C9A84C]/60 bg-[#1B2B4B]/5 dark:bg-[#1B2B4B]/25'
                                                 : 'border-zinc-200 dark:border-neutral-700 hover:border-zinc-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/40'
                                             }`}
                                     >
                                         <span className="block text-base mb-0.5">{t.emoji}</span>
-                                        <span className={`font-bold ${paraTone === t.id ? 'text-violet-700 dark:text-violet-300' : 'text-zinc-700 dark:text-zinc-300'}`}>{t.label}</span>
-                                        <span className={`block text-[10px] ${paraTone === t.id ? 'text-violet-500 dark:text-violet-400' : 'text-zinc-400 dark:text-zinc-500'}`}>{t.desc}</span>
+                                        <span className={`font-bold ${paraTone === t.id ? 'text-[#1B2B4B] dark:text-[#C9A84C]' : 'text-zinc-700 dark:text-zinc-300'}`}>{t.label}</span>
+                                        <span className={`block text-[10px] ${paraTone === t.id ? 'text-[#1B2B4B]/70 dark:text-[#C9A84C]/70' : 'text-zinc-400 dark:text-zinc-500'}`}>{t.desc}</span>
                                     </button>
                                 ))}
                             </div>
@@ -751,14 +751,14 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                                     value={paraInput}
                                     onChange={e => setParaInput(e.target.value)}
                                     placeholder="Paste a bullet, summary line, or any text here…"
-                                    className="w-full text-xs rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2.5 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                                    className="w-full text-xs rounded-xl border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2.5 text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#C9A84C] focus:border-transparent"
                                 />
                             </div>
 
                             <button
                                 onClick={handleParaphrase}
                                 disabled={!paraInput.trim() || paraLoading}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white transition-colors disabled:cursor-not-allowed shadow-sm"
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-[#1B2B4B] hover:bg-[#152238] disabled:bg-[#1B2B4B]/50 text-white transition-colors disabled:cursor-not-allowed shadow-sm"
                             >
                                 {paraLoading ? (
                                     <>
@@ -773,12 +773,12 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 
                             {/* Output */}
                             {paraOutput && (
-                                <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 p-3">
+                                <div className="rounded-xl border border-[#C9A84C]/30 dark:border-[#C9A84C]/20 bg-[#F8F7F4] dark:bg-[#1B2B4B]/10 p-3">
                                     <div className="flex items-center justify-between mb-2">
-                                        <p className="text-[10px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-400">Result</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#1B2B4B] dark:text-[#C9A84C]">Result</p>
                                         <button
                                             onClick={copyParaOutput}
-                                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-700/40 transition-colors"
+                                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-[#1B2B4B]/10 dark:bg-[#C9A84C]/15 text-[#1B2B4B] dark:text-[#C9A84C] hover:bg-[#1B2B4B]/20 dark:hover:bg-[#C9A84C]/25 transition-colors"
                                         >
                                             {paraCopied ? '✓ Copied!' : '⎘ Copy'}
                                         </button>
@@ -799,7 +799,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
                             ) : (
                                 <>
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Auto-Optimize made <span className="font-bold text-violet-600 dark:text-violet-400">{diff.totalChanges} change{diff.totalChanges > 1 ? 's' : ''}</span> to your CV.
+                                        Auto-Optimize made <span className="font-bold text-[#C9A84C]">{diff.totalChanges} change{diff.totalChanges > 1 ? 's' : ''}</span> to your CV.
                                     </p>
 
                                     {diff.fixedSummary && (
@@ -863,7 +863,7 @@ const CVDoctorPanel: React.FC<Props> = ({ cv, jobDescription, diff, onApplyBulle
 // ─── Scan section sub-component ───────────────────────────────────────────────
 
 const COLOUR_MAP = {
-    violet: { bg: 'bg-violet-50 dark:bg-violet-900/20', border: 'border-violet-200 dark:border-violet-800', title: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-400' },
+    violet: { bg: 'bg-[#1B2B4B]/5 dark:bg-[#1B2B4B]/20', border: 'border-[#C9A84C]/35 dark:border-[#C9A84C]/20', title: 'text-[#1B2B4B] dark:text-[#C9A84C]', dot: 'bg-[#C9A84C]' },
     green:  { bg: 'bg-green-50 dark:bg-green-900/20',   border: 'border-green-200 dark:border-green-800',   title: 'text-green-700 dark:text-green-300',   dot: 'bg-green-400' },
     red:    { bg: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-800',       title: 'text-red-700 dark:text-red-300',       dot: 'bg-red-400' },
     amber:  { bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-200 dark:border-amber-800',   title: 'text-amber-700 dark:text-amber-300',   dot: 'bg-amber-400' },
