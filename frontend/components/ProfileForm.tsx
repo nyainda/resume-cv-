@@ -31,6 +31,7 @@ import { Button } from './ui/Button';
 import {
   Plus, Trash, Sparkles, UploadCloud, DownloadCloud, User,
   Briefcase, BookOpen, List, Globe, FileText, CheckCircle,
+  X, AlertCircle,
 } from './icons';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
