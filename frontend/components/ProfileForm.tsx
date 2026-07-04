@@ -588,14 +588,59 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
     if (!jsonText.trim()) { setJsonParseError('Paste your JSON first.'); return; }
     setJsonParseError(null);
     try {
-      const profile = validateAndNormaliseProfile(JSON.parse(jsonText));
+      const raw = JSON.parse(jsonText);
+
+      // ── Choose normalisation strategy ─────────────────────────────────────
+      // ProCV fast path: if the JSON is already in ProCV format (has a valid
+      // personalInfo object AND all collection fields are arrays or absent),
+      // use it directly so no fields are dropped (pointCount, preferredField,
+      // location, etc.). For foreign JSON run the full normaliser.
+      let profile: UserProfile;
+      const pi = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).personalInfo : null;
+      const collectionFields = ['workExperience', 'education', 'skills', 'projects', 'languages', 'references', 'customSections'] as const;
+      const collectionsAreValid = collectionFields.every(f => {
+        const v = (raw as Record<string, unknown>)[f];
+        return v === undefined || v === null || Array.isArray(v);
+      });
+      const isProCVFormat =
+        raw && typeof raw === 'object' &&
+        pi && typeof pi === 'object' && !Array.isArray(pi) &&
+        ((pi as Record<string, unknown>).name || (pi as Record<string, unknown>).email) &&
+        collectionsAreValid;
+
+      if (isProCVFormat) {
+        profile = raw as UserProfile;
+        // Ensure all required arrays exist (guard against missing keys)
+        profile.workExperience = Array.isArray(profile.workExperience) ? profile.workExperience : [];
+        profile.education       = Array.isArray(profile.education)       ? profile.education       : [];
+        profile.skills          = Array.isArray(profile.skills)          ? profile.skills          : [];
+        profile.projects        = Array.isArray(profile.projects)        ? profile.projects        : [];
+        profile.languages       = Array.isArray(profile.languages)       ? profile.languages       : [];
+      } else {
+        profile = validateAndNormaliseProfile(raw);
+      }
+
+      // ── Populate the form (so the user can review / edit before they leave) ─
       reset(profile);
       setCustomSections(profile.customSections || []);
       setSectionOrder(profile.sectionOrder || [...DEFAULT_SECTION_ORDER]);
+
+      // ── Kick off career-track classification in the background ────────────
       if (profile.workExperience?.length) {
         classifyAndSaveAllRoles(profile.workExperience, 'json_import').catch(() => {});
       }
-      setActiveTab('personal');
+
+      // ── Update the parent's state so the CV template is populated now ─────
+      // onJsonImported calls profileToCV(), updates currentCV in the slot,
+      // syncs to cache, and navigates to the generator — identical to the
+      // old WordImportPanel JSON path.
+      if (onJsonImported) {
+        onJsonImported(profile);
+      } else {
+        // Fallback: stay on form, let user save manually
+        setActiveTab('personal');
+      }
+
       setJsonText('');
     } catch (err) {
       setJsonParseError(err instanceof Error ? err.message : 'Could not parse JSON.');
