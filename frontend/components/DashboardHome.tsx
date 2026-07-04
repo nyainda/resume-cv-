@@ -174,6 +174,34 @@ const DashboardHome: React.FC<Props> = ({
     [...shareStats.values()].reduce((s, v) => s + (v.view_count ?? 0), 0),
   [shareStats]);
 
+  // ── Resume last session ───────────────────────────────────────────────────
+  const [lastSession, setLastSession] = useState<{
+    jobTitle: string; company: string; hasJD: boolean; purpose: string; recentCv: SavedCV | null;
+  } | null>(null);
+  const [sessionDismissed, setSessionDismissed] = useState(false);
+
+  useEffect(() => {
+    setSessionDismissed(false);
+    if (!activeSlot?.id) { setLastSession(null); return; }
+    const id = activeSlot.id;
+    try {
+      const raw = (key: string) => { try { return localStorage.getItem(key) ?? ''; } catch { return ''; } };
+      const jd       = raw(`p:${id}:jd`);
+      const jobTitle = raw(`p:${id}:jobTitle`);
+      const company  = raw(`p:${id}:company`);
+      const purpose  = raw(`p:${id}:purpose`) || 'job';
+      const allCvs   = (activeSlot.savedCVs ?? []) as SavedCV[];
+      const recentCv = allCvs.length > 0
+        ? allCvs.reduce((a, b) => new Date(a.createdAt ?? 0) > new Date(b.createdAt ?? 0) ? a : b)
+        : null;
+      if (jd.trim() || recentCv) {
+        setLastSession({ jobTitle, company, hasJD: !!jd.trim(), purpose, recentCv });
+      } else {
+        setLastSession(null);
+      }
+    } catch { setLastSession(null); }
+  }, [activeSlot?.id]);
+
   // ── Profile Intelligence Audit ────────────────────────────────────────────
   const [audit, setAudit] = useState<ProfileIntelligenceReport | null>(null);
 
@@ -293,6 +321,49 @@ const DashboardHome: React.FC<Props> = ({
           ))}
         </div>
       </div>
+
+      {/* ── RESUME LAST SESSION ──────────────────────────────────────────────── */}
+      {lastSession && !sessionDismissed && (
+        <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 bg-white dark:bg-zinc-900 rounded-2xl border border-[#C9A84C]/40 dark:border-[#C9A84C]/25 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-[#C9A84C]/12 dark:bg-[#C9A84C]/15 flex items-center justify-center flex-shrink-0 text-base select-none">
+            ↩
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-zinc-800 dark:text-zinc-100 leading-tight">
+              Resume last session
+            </p>
+            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 truncate">
+              {lastSession.jobTitle
+                ? `${lastSession.jobTitle}${lastSession.company ? ` · ${lastSession.company}` : ''}`
+                : lastSession.recentCv?.name ?? 'Pick up where you left off'}
+              {lastSession.recentCv?.createdAt
+                ? ` · ${(() => {
+                    const d = new Date(lastSession.recentCv.createdAt);
+                    const diff = Date.now() - d.getTime();
+                    if (diff < 3600000)  return `${Math.round(diff / 60000)}m ago`;
+                    if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
+                    return `${Math.round(diff / 86400000)}d ago`;
+                  })()}`
+                : ''}
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate('generator')}
+            className="flex-shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-[#1B2B4B] hover:opacity-90 active:scale-95 transition-all whitespace-nowrap"
+          >
+            Continue →
+          </button>
+          <button
+            onClick={() => setSessionDismissed(true)}
+            className="flex-shrink-0 p-1 rounded-lg text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+            aria-label="Dismiss"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* ── PROFILE STRENGTH ─────────────────────────────────────────────────── */}
       {activeSlot && (
