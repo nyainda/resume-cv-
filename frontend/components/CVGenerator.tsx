@@ -1934,42 +1934,61 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           </div>
         </div>
 
-        {/* ── Action buttons row ── */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Use Template (no AI) — always available */}
-          <div className="flex flex-col">
+        {/* ── Action zone ── */}
+        <div className="mt-6 rounded-2xl border border-[#1B2B4B]/10 dark:border-[#C9A84C]/20 bg-gradient-to-br from-[#1B2B4B]/4 via-transparent to-[#C9A84C]/4 dark:from-[#1B2B4B]/20 dark:via-transparent dark:to-[#C9A84C]/10 p-5 sm:p-6">
+          <div className="flex flex-col items-center gap-3">
+            {/* Primary CTA */}
+            <Button
+              onClick={handleGenerateCV}
+              disabled={isLoading || isGeneratingCoverLetter || !apiKeySet}
+              size="lg"
+              className="w-full sm:w-auto sm:min-w-[260px] text-base"
+            >
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {loadingMessage}
+                </>
+              ) : <><Sparkles className="h-5 w-5 mr-2" />Build My CV</>}
+            </Button>
+
+            {/* No-key hint */}
+            {!apiKeySet && !isLoading && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 text-center">
+                <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                AI key required — add a free Groq or Gemini key in Settings to generate
+              </p>
+            )}
+
+            {/* Hint text */}
+            {!isLoading && apiKeySet && (
+              <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
+                Tailored to your job description · 7-pass quality engine · ~30 seconds
+              </p>
+            )}
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 w-full max-w-xs mt-1">
+              <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">or</span>
+              <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            </div>
+
+            {/* Secondary: no-AI template apply */}
             <button
               onClick={handleApplyTemplate}
               disabled={isLoading}
-              className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-700 transition-colors disabled:opacity-40"
               title="Instantly apply your profile data to the selected template — no AI, no API key needed"
             >
-              <FileText className="h-4 w-4 text-zinc-500" />
-              Use Template Only
+              <FileText className="h-4 w-4 text-zinc-400" />
+              Use Template Only — no AI, instant
             </button>
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 ml-1">Your existing data, no AI rewriting</p>
           </div>
-
-          {/* AI Generate — full pipeline */}
-          <Button onClick={handleGenerateCV} disabled={isLoading || isGeneratingCoverLetter || !apiKeySet} size="lg" className="sm:ml-auto">
-            {isLoading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {loadingMessage}
-              </>
-            ) : <><Sparkles className="h-5 w-5 mr-2" />Build My CV</>}
-          </Button>
         </div>
-
-        {/* Hint text — below both buttons */}
-        {!isLoading && (
-          <p className="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-2">
-            Tailored to your job description · ready in ~30 seconds
-          </p>
-        )}
 
         {/* Badges row — gap analysis + engine indicator */}
         {!isLoading && (

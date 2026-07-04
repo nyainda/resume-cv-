@@ -217,12 +217,12 @@ const DashboardHome: React.FC<Props> = ({
   ];
 
   const quickActions = [
-    { label: 'Generate CV',     icon: '✨', view: 'generator', desc: 'Job-matched' },
-    { label: 'Cover Letter',    icon: '✉️', view: 'generator', desc: 'In seconds' },
-    { label: 'Job Tracker',     icon: '🎯', view: 'tracker',   desc: 'Pipeline' },
-    { label: 'Interview Prep',  icon: '🎤', view: 'interview', desc: 'Q&A practice' },
-    { label: 'ATS Score',       icon: '📊', view: 'score',     desc: 'Beat robots' },
-    { label: 'Quality Toolkit', icon: '🛠', view: 'toolkit',   desc: 'Polish & fix' },
+    { label: 'Generate CV',     icon: '✨', view: 'generator', desc: 'Job-matched',  primary: true },
+    { label: 'Cover Letter',    icon: '✉️', view: 'generator', desc: 'In seconds',   primary: false },
+    { label: 'Job Tracker',     icon: '🎯', view: 'tracker',   desc: 'Pipeline',     primary: false },
+    { label: 'Interview Prep',  icon: '🎤', view: 'interview', desc: 'Q&A practice', primary: false },
+    { label: 'ATS Score',       icon: '📊', view: 'score',     desc: 'Beat robots',  primary: false },
+    { label: 'Quality Toolkit', icon: '🛠', view: 'toolkit',   desc: 'Polish & fix', primary: false },
   ];
 
   // Derived profile ring colors
@@ -286,6 +286,7 @@ const DashboardHome: React.FC<Props> = ({
               onClick={() => { if (card.view) onNavigate(card.view); }}
               className="flex flex-col items-center gap-0.5 py-2.5 sm:py-3 rounded-xl bg-white/8 hover:bg-white/14 active:scale-95 transition-all group"
             >
+              <span className="text-base leading-none mb-0.5 opacity-80">{card.icon}</span>
               <span className="text-xl sm:text-2xl font-bold text-white">{card.value}</span>
               <span className="text-[8px] sm:text-[10px] text-white/45 font-medium text-center leading-tight px-1">{card.label}</span>
             </button>
@@ -417,7 +418,7 @@ const DashboardHome: React.FC<Props> = ({
               })()}
 
               {/* Score rings — 5 signals */}
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-5 gap-1.5">
                 {/* Completeness */}
                 {(() => {
                   const v = profileComplete;
@@ -590,10 +591,14 @@ const DashboardHome: React.FC<Props> = ({
                 <button
                   key={a.label}
                   onClick={() => onNavigate(a.view)}
-                  className="flex flex-col items-start gap-1 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 hover:border-[#1B2B4B]/30 dark:hover:border-[#C9A84C]/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 active:scale-95 transition-all text-left group"
+                  className={`flex flex-col items-start gap-1 p-3 rounded-xl border active:scale-95 transition-all text-left group ${
+                    a.primary
+                      ? 'border-[#1B2B4B]/25 dark:border-[#C9A84C]/30 bg-[#1B2B4B]/6 dark:bg-[#C9A84C]/10 hover:bg-[#1B2B4B]/10 dark:hover:bg-[#C9A84C]/15'
+                      : 'border-zinc-100 dark:border-zinc-800 hover:border-[#1B2B4B]/25 dark:hover:border-[#C9A84C]/25 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                  }`}
                 >
                   <span className="text-lg leading-none">{a.icon}</span>
-                  <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 leading-tight mt-0.5">{a.label}</span>
+                  <span className={`text-[11px] font-semibold leading-tight mt-0.5 ${a.primary ? 'text-[#1B2B4B] dark:text-[#C9A84C]' : 'text-zinc-700 dark:text-zinc-200'}`}>{a.label}</span>
                   <span className="text-[9px] text-zinc-400 leading-tight">{a.desc}</span>
                 </button>
               ))}
