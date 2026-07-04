@@ -24,7 +24,15 @@ function tryParseProfileJson(text: string): UserProfile | null {
             }
         }
         if (!obj.personalInfo && !obj.name && !obj.workExperience && !obj.experience) return null;
-        return obj as unknown as UserProfile;
+
+        // Ensure all collection fields are arrays — prevents profileToCV from
+        // throwing if a malformed or foreign JSON has a non-array in these slots.
+        const profile = obj as unknown as UserProfile;
+        const collections: (keyof UserProfile)[] = ['workExperience', 'education', 'skills', 'projects', 'languages'];
+        for (const k of collections) {
+            if (!Array.isArray(profile[k])) (profile as Record<string, unknown>)[k] = [];
+        }
+        return profile;
     } catch { return null; }
 }
 

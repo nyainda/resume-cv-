@@ -143,6 +143,7 @@ export function useAuth(): AuthContextValue {
 function openOAuthPopup(
     scopes: string,
     prompt = 'select_account',
+    loginHint?: string,
 ): Promise<{ accessToken: string; expiresIn: number }> {
     return new Promise((resolve, reject) => {
         const clientId = (import.meta as { env: Record<string, string> }).env.VITE_GOOGLE_CLIENT_ID;
@@ -160,7 +161,8 @@ function openOAuthPopup(
             `&redirect_uri=${encodeURIComponent(redirectUri)}` +
             `&response_type=token` +
             `&scope=${encodeURIComponent(scopes)}` +
-            `&prompt=${prompt}`;
+            `&prompt=${prompt}` +
+            (loginHint ? `&login_hint=${encodeURIComponent(loginHint)}` : '');
 
         const popup = window.open(url, 'google_auth', 'width=520,height=640,left=200,top=100');
         if (!popup) {
@@ -535,7 +537,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const requestDriveAccess = useCallback(async () => {
-        const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'consent');
+        // Pass login_hint so Google skips account selection and goes straight to
+        // the consent screen for the email the user already signed in with.
+        const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'consent', user?.email);
         const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
         setDriveToken({ accessToken, expiresAt });
         // Write to localStorage so StorageRouter can pick up the token immediately.
@@ -546,7 +550,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(DRIVE_SCOPE_KEY, '1');
         setDriveConnected(true);
         _scheduleDriveRefresh(expiresAt);
-    }, [_scheduleDriveRefresh]);
+    }, [_scheduleDriveRefresh, user?.email]);
 
     const disconnectDrive = useCallback(() => {
         localStorage.removeItem(DRIVE_SCOPE_KEY);
