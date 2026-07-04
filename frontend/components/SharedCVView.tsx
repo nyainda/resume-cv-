@@ -111,6 +111,36 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // ── Responsive preview scaling ─────────────────────────────────────────────
+  const sharedPaperAreaRef  = useRef<HTMLDivElement>(null);
+  const sharedScalingRef    = useRef<HTMLDivElement>(null);
+  const [sharedPreviewScale, setSharedPreviewScale]               = useState(1);
+  const [sharedPreviewContentHeight, setSharedPreviewContentHeight] = useState(0);
+
+  useEffect(() => {
+    const el = sharedPaperAreaRef.current;
+    if (!el) return;
+    const A4_PX = 794;
+    function measure() {
+      if (!el) return;
+      const scale = Math.min(1, Math.max(0.25, el.clientWidth / A4_PX));
+      setSharedPreviewScale(scale);
+    }
+    const obs = new ResizeObserver(measure);
+    obs.observe(el);
+    measure();
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const el = sharedScalingRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(() => setSharedPreviewContentHeight(el.scrollHeight));
+    obs.observe(el);
+    setSharedPreviewContentHeight(el.scrollHeight);
+    return () => obs.disconnect();
+  }, []);
+
   const smartSummary = useMemo(() => buildSmartSummary(cvData, personalInfo), [cvData, personalInfo]);
 
   const isOwner = !!onLoadIntoEditor;
@@ -550,21 +580,44 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
           )}
 
           {activeDoc === 'cv' ? (
-            /* CVPreview already renders its own bg-white shadow-sm container,
-               so we only need an overflow scroll wrapper here — no extra card. */
+            /* Responsive-scaling wrapper: the CV template is A4-fixed (794 px).
+               sharedScalingRef receives the CSS scale transform so it shrinks
+               to fit any viewport width. previewRef (the PDF capture target)
+               sits inside and is never scaled — Playwright always gets full A4. */
             <div
-              ref={previewRef}
-              data-cv-preview-active="true"
-              className="overflow-x-auto"
+              ref={sharedPaperAreaRef}
+              className="overflow-hidden w-full"
+              style={{
+                minHeight: sharedPreviewContentHeight > 0
+                  ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
+                  : 200,
+              }}
             >
-              <CVPreview
-                cvData={cvData}
-                personalInfo={personalInfo}
-                template={template}
-                isEditing={false}
-                onDataChange={() => {}}
-                jobDescriptionForATS=""
-              />
+              <div
+                ref={sharedScalingRef}
+                style={{
+                  transform: `scale(${sharedPreviewScale})`,
+                  transformOrigin: 'top left',
+                  marginBottom: sharedPreviewContentHeight > 0
+                    ? `${Math.round(sharedPreviewContentHeight * (sharedPreviewScale - 1))}px`
+                    : 0,
+                  width: 'fit-content',
+                }}
+              >
+                <div
+                  ref={previewRef}
+                  data-cv-preview-active="true"
+                >
+                  <CVPreview
+                    cvData={cvData}
+                    personalInfo={personalInfo}
+                    template={template}
+                    isEditing={false}
+                    onDataChange={() => {}}
+                    jobDescriptionForATS=""
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm p-8 md:p-12">

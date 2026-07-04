@@ -402,6 +402,47 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   // like the top border + padding used for visual separation) prevents that
   // chrome from leaking into the captured PDF.
   const cvCaptureRef = useRef<HTMLDivElement>(null);
+
+  // ── Responsive preview scaling ─────────────────────────────────────────────
+  // CV templates are fixed A4 width (794 px). On narrow screens we scale the
+  // preview DOWN to fit the available container width so the user never needs
+  // to scroll horizontally. The scale transform is applied to the shadow wrapper
+  // that WRAPS cvCaptureRef — getCVHtml captures cvCaptureRef's innerHTML
+  // directly so the PDF is always generated at full A4 size, unaffected.
+  const paperAreaRef  = useRef<HTMLDivElement>(null);
+  const scalingRef    = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale]               = useState(1);
+  const [previewContentHeight, setPreviewContentHeight] = useState<number>(0);
+
+  useEffect(() => {
+    const paperEl = paperAreaRef.current;
+    if (!paperEl) return;
+    const A4_PX = 794;
+    function measure() {
+      if (!paperEl) return;
+      // px-4 = 16px each side → 32px total horizontal padding
+      const available = paperEl.clientWidth - 32;
+      const scale = Math.min(1, Math.max(0.25, available / A4_PX));
+      setPreviewScale(scale);
+    }
+    const obs = new ResizeObserver(measure);
+    obs.observe(paperEl);
+    measure();
+    return () => obs.disconnect();
+  }, []);
+
+  // Track natural content height so we can collapse the "phantom" space that
+  // CSS transform leaves behind (transform doesn't affect layout flow).
+  useEffect(() => {
+    const el = scalingRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(() => {
+      setPreviewContentHeight(el.scrollHeight);
+    });
+    obs.observe(el);
+    setPreviewContentHeight(el.scrollHeight);
+    return () => obs.disconnect();
+  }, []);
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
@@ -2772,25 +2813,60 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 tracking-widest uppercase select-none">A4</span>
               </div>
 
-              {/* Paper / print-preview area */}
-              <div className="bg-zinc-200/60 dark:bg-neutral-900 overflow-x-auto py-6 px-4 sm:px-8 flex justify-center min-h-[200px]">
-                {/* Drop-shadow wrapper — kept outside cvCaptureRef so shadow
-                    never bleeds into the PDF capture DOM */}
-                <div className="shadow-2xl shadow-zinc-500/30 dark:shadow-black/60 w-fit mx-auto">
-                  {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
-                      so the editor download is byte-identical to the share download.
-                      The data-cv-preview-active marker is what getCVHtml's default
-                      selector prefers, and what we pass explicitly via cvCaptureRef. */}
-                  <div ref={cvCaptureRef} data-cv-preview-active="true">
-                    <CVPreview
-                      cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
-                      personalInfo={userProfile.personalInfo}
-                      isEditing={isEditing && !!currentCV}
-                      onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
-                      jobDescriptionForATS={jobDescription}
-                      template={template}
-                      sidebarSections={sidebarSections}
-                    />
+              {/* Paper / print-preview area — responsive scaling
+                  The CV template is A4-fixed (794 px wide). On narrow screens
+                  we scale the visual preview down to fit without horizontal
+                  scrolling. The scale transform is on scalingRef which sits
+                  OUTSIDE cvCaptureRef, so PDF capture always gets full A4. */}
+              <div
+                ref={paperAreaRef}
+                className="bg-zinc-200/60 dark:bg-neutral-900 overflow-hidden px-4 sm:px-8 flex justify-center"
+                style={{
+                  // Collapse phantom layout space left by transform: scale().
+                  // previewContentHeight is the natural (unscaled) pixel height.
+                  // We show the scaled visual height + 48px top+bottom padding.
+                  paddingTop: 24,
+                  paddingBottom: 24,
+                  minHeight: previewContentHeight > 0
+                    ? `${Math.round(previewContentHeight * previewScale) + 48}px`
+                    : 200,
+                }}
+              >
+                {/* scalingRef — this div receives the CSS scale transform.
+                    It lives OUTSIDE cvCaptureRef so getCVHtml / Playwright
+                    never sees the transform when generating the PDF. */}
+                <div
+                  ref={scalingRef}
+                  style={{
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: 'top center',
+                    // Negative bottom margin collapses the "phantom" space that
+                    // transform leaves in the normal flow, so the container
+                    // height matches the visually scaled content.
+                    marginBottom: previewContentHeight > 0
+                      ? `${Math.round(previewContentHeight * (previewScale - 1))}px`
+                      : 0,
+                    width: 'fit-content',
+                  }}
+                >
+                  {/* Drop-shadow wrapper — outside cvCaptureRef so shadow never
+                      bleeds into the PDF capture DOM. */}
+                  <div className="shadow-2xl shadow-zinc-500/30 dark:shadow-black/60">
+                    {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
+                        so the editor download is byte-identical to the share download.
+                        The data-cv-preview-active marker is what getCVHtml's default
+                        selector prefers, and what we pass explicitly via cvCaptureRef. */}
+                    <div ref={cvCaptureRef} data-cv-preview-active="true">
+                      <CVPreview
+                        cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
+                        personalInfo={userProfile.personalInfo}
+                        isEditing={isEditing && !!currentCV}
+                        onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
+                        jobDescriptionForATS={jobDescription}
+                        template={template}
+                        sidebarSections={sidebarSections}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
