@@ -1,8 +1,5 @@
 {
-  "github": {
-    "enabled": false
-  },
-  "installCommand": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install",
+  "installCommand": "sed -i 's|http://package-firewall.replit.local/npm/|https://registry.npmjs.org/|g' package-lock.json && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install",
   "buildCommand": "npm run vercel-build",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
