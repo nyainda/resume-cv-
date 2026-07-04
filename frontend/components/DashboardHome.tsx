@@ -104,6 +104,29 @@ function resolveRecAction(
   return () => onNavigate(targetView);
 }
 
+/* ─── SVG icon helpers (inline, no dep) ─────────────────────────────────── */
+const IconSettings = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+);
+const IconChevron = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+);
+const DriveIcon = () => (
+  <svg width="13" height="12" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+  </svg>
+);
+
 const DashboardHome: React.FC<Props> = ({
   profiles,
   activeSlot,
@@ -138,8 +161,6 @@ const DashboardHome: React.FC<Props> = ({
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Slot links are synced across devices via Drive. Merge with localStorage
-    // (legacy/fallback) deduplicating by ID so slot links take priority.
     const slotLinks: StoredShareLink[] = (activeSlot?.sharedLinks ?? []) as StoredShareLink[];
     const localLinks = getStoredShareLinks();
     const slotIds = new Set(slotLinks.map(l => l.id));
@@ -158,19 +179,13 @@ const DashboardHome: React.FC<Props> = ({
 
   useEffect(() => {
     if (!activeSlot?.id) { setAudit(null); return; }
-    // Try cache first
     const cached = loadAuditFromLocalStorage(activeSlot.id);
     if (cached) { setAudit(cached); return; }
-    // Run synchronously (zero LLM, always fast)
     const report = runProfileIntelligenceAudit(userProfile, currentCV);
     saveAuditToLocalStorage(activeSlot.id, report);
     setAudit(report);
   }, [activeSlot?.id, userProfile, currentCV]);
 
-  // Compute profile completeness live — never use the cached audit for this.
-  // The audit cache can be stale (computed when the profile was empty), and
-  // currentCV may be null on initial dashboard load. Deriving from profileToCV
-  // gives an accurate reading the moment the profile has any real data.
   const profileComplete = useMemo(() => {
     if (!userProfile) return 0;
     const cvForScoring = currentCV ?? profileToCV(userProfile);
@@ -195,372 +210,460 @@ const DashboardHome: React.FC<Props> = ({
   }, [activeSlot, savedCVs, savedCLs, trackedApps, isAuthenticated, driveConnected]);
 
   const statCards = [
-    { label: 'CVs Saved',     value: savedCVs.length,     icon: '📄', view: 'history',   color: 'from-[#1B2B4B] to-[#2d4272]' },
-    { label: 'Cover Letters', value: savedCLs.length,     icon: '✉️', view: 'generator', color: 'from-violet-700 to-violet-500' },
-    { label: 'Applications',  value: trackedApps.length,  icon: '🎯', view: 'tracker',   color: 'from-emerald-700 to-emerald-500' },
-    { label: 'STAR Stories',  value: starStories.length,  icon: '⭐', view: 'interview', color: 'from-amber-700 to-amber-500' },
+    { label: 'CVs Saved',     value: savedCVs.length,     icon: '📄', view: 'history',   accent: 'from-[#1B2B4B] to-[#2d4272]',   accentText: 'text-blue-700 dark:text-blue-300',   accentBg: 'bg-blue-50 dark:bg-blue-900/20' },
+    { label: 'Cover Letters', value: savedCLs.length,     icon: '✉️', view: 'generator', accent: 'from-violet-600 to-violet-500', accentText: 'text-violet-700 dark:text-violet-300', accentBg: 'bg-violet-50 dark:bg-violet-900/20' },
+    { label: 'Applications',  value: trackedApps.length,  icon: '🎯', view: 'tracker',   accent: 'from-emerald-600 to-emerald-500', accentText: 'text-emerald-700 dark:text-emerald-300', accentBg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+    { label: 'STAR Stories',  value: starStories.length,  icon: '⭐', view: 'interview', accent: 'from-amber-600 to-amber-500',   accentText: 'text-amber-700 dark:text-amber-300',   accentBg: 'bg-amber-50 dark:bg-amber-900/20' },
   ];
 
   const quickActions = [
-    { label: 'Generate CV',    icon: '✨', view: 'generator', desc: 'Job-matched, quality-checked' },
-    { label: 'Cover Letter',   icon: '✉️', view: 'generator', desc: 'Written in seconds' },
-    { label: 'Job Tracker',    icon: '🎯', view: 'tracker',   desc: 'Manage pipeline' },
-    { label: 'Interview Prep', icon: '🎤', view: 'interview', desc: 'Practice Q&A' },
-    { label: 'ATS Score',      icon: '📊', view: 'score',     desc: 'Beat the robots' },
-    { label: 'Quality Toolkit',icon: '🛠', view: 'toolkit',   desc: 'Polish & humanize' },
+    { label: 'Generate CV',     icon: '✨', view: 'generator', desc: 'Job-matched' },
+    { label: 'Cover Letter',    icon: '✉️', view: 'generator', desc: 'In seconds' },
+    { label: 'Job Tracker',     icon: '🎯', view: 'tracker',   desc: 'Pipeline' },
+    { label: 'Interview Prep',  icon: '🎤', view: 'interview', desc: 'Q&A practice' },
+    { label: 'ATS Score',       icon: '📊', view: 'score',     desc: 'Beat robots' },
+    { label: 'Quality Toolkit', icon: '🛠', view: 'toolkit',   desc: 'Polish & fix' },
   ];
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+  // Derived profile ring colors
+  const ringColor = profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a';
+  const strengthLabel = profileComplete < 50 ? 'Needs Work' : profileComplete < 80 ? 'Almost There' : profileComplete < 100 ? 'Nearly Complete' : 'Complete ✓';
+  const strengthBg    = profileComplete < 50 ? '#fef2f2' : profileComplete < 80 ? '#fefce8' : '#f0fdf4';
+  const strengthColor = profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a';
 
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#1B2B4B] dark:text-zinc-100 font-['Playfair_Display',serif] leading-tight">
-            {userProfile?.personalInfo?.name
-              ? `Welcome back, ${userProfile.personalInfo.name.split(' ')[0]} 👋`
-              : 'Welcome to ProCV 👋'}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Your personal career command centre
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isAuthenticated && !driveConnected && (
+  const firstName = userProfile?.personalInfo?.name?.split(' ')[0];
+
+  return (
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-5 sm:py-6 space-y-4 sm:space-y-5">
+
+      {/* ── HERO BANNER ─────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl bg-gradient-to-br from-[#1B2B4B] via-[#1e3258] to-[#243870] p-5 sm:p-6 shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          {/* Greeting */}
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em] text-white/40 mb-1.5">
+              Career Command Centre
+            </p>
+            <h1 className="text-xl sm:text-2xl font-bold text-white font-['Playfair_Display',serif] leading-tight">
+              {firstName ? `Welcome back, ${firstName} 👋` : 'Welcome to ProCV 👋'}
+            </h1>
+            <p className="text-xs text-white/45 mt-1 hidden sm:block">Your personal career snapshot</p>
+          </div>
+
+          {/* Top-right controls */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+            {isAuthenticated && !driveConnected && (
+              <button
+                onClick={onConnectDrive}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors whitespace-nowrap"
+              >
+                <DriveIcon />
+                <span className="hidden sm:inline">Connect Drive</span>
+                <span className="sm:hidden">Drive</span>
+              </button>
+            )}
+            {driveConnected && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/25">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span className="hidden sm:inline">Drive synced</span>
+                <span className="sm:hidden">Synced</span>
+              </span>
+            )}
             <button
-              onClick={onConnectDrive}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 transition-colors"
+              onClick={onOpenSettings}
+              className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <svg width="14" height="13" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
-              Connect Drive
+              <IconSettings />
             </button>
-          )}
-          {driveConnected && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Drive synced
-            </span>
-          )}
-          <button onClick={onOpenSettings} className="p-2 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </button>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-4 gap-2 sm:gap-3 mt-5 pt-4 border-t border-white/10">
+          {statCards.map(card => (
+            <button
+              key={card.label}
+              onClick={() => { if (card.view) onNavigate(card.view); }}
+              className="flex flex-col items-center gap-0.5 py-2.5 sm:py-3 rounded-xl bg-white/8 hover:bg-white/14 active:scale-95 transition-all group"
+            >
+              <span className="text-xl sm:text-2xl font-bold text-white">{card.value}</span>
+              <span className="text-[8px] sm:text-[10px] text-white/45 font-medium text-center leading-tight px-1">{card.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Profile completion ring */}
+      {/* ── PROFILE STRENGTH ─────────────────────────────────────────────────── */}
       {activeSlot && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-4 sm:p-5 shadow-sm">
           <div className="flex items-center gap-4">
-            <ScoreRing
-              value={profileComplete}
-              label="Profile"
-              color={profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a'}
-            />
+            <div className="flex-shrink-0">
+              <ScoreRing
+                value={profileComplete}
+                label="Profile"
+                color={ringColor}
+              />
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
+              <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Profile Strength</span>
                 <span
-                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{
-                    color: profileComplete < 50 ? '#ef4444' : profileComplete < 80 ? '#C9A84C' : '#16a34a',
-                    background: profileComplete < 50 ? '#fef2f2' : profileComplete < 80 ? '#fefce8' : '#f0fdf4',
-                  }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ color: strengthColor, background: strengthBg }}
                 >
-                  {profileComplete < 50 ? 'Needs Work' : profileComplete < 80 ? 'Almost There' : profileComplete < 100 ? 'Nearly Complete' : 'Complete'}
+                  {strengthLabel}
                 </span>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mb-2">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${profileComplete}%`, background: ringColor }}
+                />
               </div>
               {profileComplete < 100 ? (
                 <button onClick={onEditProfile} className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
                   {profileComplete < 50 ? 'Set up your profile to unlock CV generation →' : 'Fill in missing details to improve your score →'}
                 </button>
               ) : (
-                <p className="text-xs text-zinc-400 dark:text-zinc-500">All key sections filled in — you're ready to generate!</p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">All key sections filled in — you're ready to generate!</p>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {statCards.map(card => (
-          <button
-            key={card.label}
-            onClick={() => { if (card.view) onNavigate(card.view); }}
-            className={`bg-gradient-to-br ${card.color} rounded-xl p-4 text-left hover:opacity-90 active:scale-95 transition-all ${!card.view ? 'cursor-default' : ''}`}
-          >
-            <div className="text-2xl mb-1">{card.icon}</div>
-            <div className="text-2xl font-bold text-white">{card.value}</div>
-            <div className="text-xs text-white/70 font-medium mt-0.5">{card.label}</div>
-          </button>
-        ))}
-      </div>
+      {/* ── MAIN CONTENT GRID ────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
-      {/* Application pipeline stats */}
-      {trackedApps.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-1">Active pipeline</div>
-            <div className="text-3xl font-bold text-[#1B2B4B] dark:text-zinc-100">{activeApps.length}</div>
-            <div className="text-xs text-zinc-500 mt-0.5">open applications</div>
-          </div>
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-1">Interviews</div>
-            <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">{interviewCount}</div>
-            <div className="text-xs text-zinc-500 mt-0.5">scheduled / pending</div>
-          </div>
-          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 col-span-2 sm:col-span-1">
-            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-1">Offers 🎉</div>
-            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{offersCount}</div>
-            <div className="text-xs text-zinc-500 mt-0.5">received</div>
-          </div>
-        </div>
-      )}
-
-      {/* Career Intelligence Panel */}
-      {audit && userProfile?.workExperience && userProfile.workExperience.length > 0 && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-
-          {/* Header */}
-          <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-            <div className="flex flex-col xs:flex-row xs:items-start xs:justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Career Intelligence</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Instant deterministic analysis — no AI, always accurate</p>
+        {/* Career Intelligence — left 2 cols on desktop */}
+        {audit && userProfile?.workExperience && userProfile.workExperience.length > 0 ? (
+          <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex flex-col xs:flex-row xs:items-start xs:justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">Career Intelligence</h2>
+                  <p className="text-xs text-zinc-400 mt-0.5">Instant deterministic analysis — no AI, always accurate</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C] border border-[#1B2B4B]/15 dark:border-[#C9A84C]/20 capitalize">
+                    {audit.career_stage}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                    {Math.round(audit.total_experience_months / 12)}yr exp
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {/* Career stage */}
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 text-[#1B2B4B] dark:text-[#C9A84C] border border-[#1B2B4B]/15 dark:border-[#C9A84C]/20 capitalize">
-                  {audit.career_stage}
+
+              {/* Signal badges */}
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border"
+                  style={{
+                    color: undersellRiskColor(audit.underselling_risk),
+                    borderColor: undersellRiskColor(audit.underselling_risk) + '50',
+                    background: undersellRiskColor(audit.underselling_risk) + '15',
+                  }}
+                >
+                  {audit.underselling_risk !== 'none' ? '⚠' : '✓'} {undersellRiskLabel(audit.underselling_risk)}
                 </span>
-                {/* Total experience */}
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                  {Math.round(audit.total_experience_months / 12)}yr exp
-                </span>
-              </div>
-            </div>
-
-            {/* Signal badges row */}
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border"
-                style={{
-                  color: undersellRiskColor(audit.underselling_risk),
-                  borderColor: undersellRiskColor(audit.underselling_risk) + '50',
-                  background: undersellRiskColor(audit.underselling_risk) + '15',
-                }}
-              >
-                {audit.underselling_risk !== 'none' ? '⚠' : '✓'} {undersellRiskLabel(audit.underselling_risk)}
-              </span>
-
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                🗺 {describeTrack(audit.career_track)}
-              </span>
-
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                audit.career_progression === 'strong' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
-                audit.career_progression === 'steady' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' :
-                audit.career_progression === 'lateral' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' :
-                'bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
-              }`}>
-                {audit.career_progression === 'strong' ? '📈' : audit.career_progression === 'lateral' ? '↔' : '📊'}{' '}
-                {audit.career_progression.charAt(0).toUpperCase() + audit.career_progression.slice(1)} progression
-              </span>
-
-              {audit.gaps.length > 0 && Math.max(...audit.gaps.map(g => g.gapMonths)) >= 6 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                  ⏸ Career break · {Math.max(...audit.gaps.map(g => g.gapMonths))}mo
+                  🗺 {describeTrack(audit.career_track)}
                 </span>
-              )}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                  audit.career_progression === 'strong' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
+                  audit.career_progression === 'steady' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' :
+                  audit.career_progression === 'lateral' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' :
+                  'bg-zinc-50 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
+                }`}>
+                  {audit.career_progression === 'strong' ? '📈' : audit.career_progression === 'lateral' ? '↔' : '📊'}{' '}
+                  {audit.career_progression.charAt(0).toUpperCase() + audit.career_progression.slice(1)} progression
+                </span>
+                {audit.gaps.length > 0 && Math.max(...audit.gaps.map(g => g.gapMonths)) >= 6 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                    ⏸ Career break · {Math.max(...audit.gaps.map(g => g.gapMonths))}mo
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
-            {/* Priority focus banner — single most important action */}
-            {audit.recommendations.length > 0 && (() => {
-              const ORDER = ['critical', 'high', 'medium', 'low'];
-              const top = [...audit.recommendations].sort(
-                (a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority)
-              )[0];
-              const cfg = PRIORITY_CONFIG[top.priority] ?? PRIORITY_CONFIG.low;
-              const action = resolveRecAction(top.targetView, onNavigate, onEditProfile);
-              return (
-                <div className={`flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 sm:px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
-                  <span className="text-lg flex-shrink-0">{cfg.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-0.5">Your biggest opportunity</p>
-                    <p className={`text-xs font-bold leading-tight ${cfg.color}`}>{top.title}</p>
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Priority focus banner */}
+              {audit.recommendations.length > 0 && (() => {
+                const ORDER = ['critical', 'high', 'medium', 'low'];
+                const top = [...audit.recommendations].sort(
+                  (a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority)
+                )[0];
+                const cfg = PRIORITY_CONFIG[top.priority] ?? PRIORITY_CONFIG.low;
+                const action = resolveRecAction(top.targetView, onNavigate, onEditProfile);
+                return (
+                  <div className={`flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 sm:px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
+                    <span className="text-lg flex-shrink-0">{cfg.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-0.5">Your biggest opportunity</p>
+                      <p className={`text-xs font-bold leading-tight ${cfg.color}`}>{top.title}</p>
+                    </div>
+                    {action && (
+                      <button
+                        onClick={action}
+                        className={`text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap`}
+                      >
+                        {top.action} →
+                      </button>
+                    )}
                   </div>
-                  {action && (
+                );
+              })()}
+
+              {/* Score rings — 5 signals */}
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                {/* Completeness */}
+                {(() => {
+                  const v = profileComplete;
+                  const color = v >= 80 ? '#16a34a' : v >= 50 ? '#C9A84C' : '#ef4444';
+                  const missing = audit.completeness.missing.slice(0, 3);
+                  return (
+                    <div key="completeness" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                      <ScoreRing value={v} label="" color={color} tooltip={
+                        <div className="space-y-1.5">
+                          <div className="font-bold text-white">Profile Completeness</div>
+                          <div className="text-zinc-300">How filled-in your profile is across all sections.</div>
+                          {missing.length > 0 && <div className="text-amber-300 mt-1">Still missing: {missing.join(', ')}.</div>}
+                          {v >= 80 && <div className="text-emerald-400">Great — all key sections are filled.</div>}
+                        </div>
+                      } />
+                      <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Completeness</span>
+                    </div>
+                  );
+                })()}
+
+                {/* Achievement density */}
+                {(() => {
+                  const v = audit.achievement_density;
+                  const color = v >= 60 ? '#16a34a' : v >= 35 ? '#C9A84C' : '#ef4444';
+                  return (
+                    <div key="density" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                      <ScoreRing value={v} label="" color={color} tooltip={
+                        <div className="space-y-1.5">
+                          <div className="font-bold text-white">Achievement Density</div>
+                          <div className="text-zinc-300">{audit.density.achievementCount} of {audit.density.totalBullets} bullets show measurable outcomes.</div>
+                          {v < 60 && <div className="text-amber-300">Tip: rewrite duty bullets as "achieved X by doing Y".</div>}
+                          {v >= 60 && <div className="text-emerald-400">Strong — most bullets show real impact.</div>}
+                        </div>
+                      } />
+                      <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Achievements</span>
+                    </div>
+                  );
+                })()}
+
+                {/* Metric strength */}
+                {(() => {
+                  const v = audit.metric_strength;
+                  const color = v >= 60 ? '#16a34a' : v >= 30 ? '#C9A84C' : '#ef4444';
+                  return (
+                    <div key="metrics" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                      <ScoreRing value={v} label="" color={color} tooltip={
+                        <div className="space-y-1.5">
+                          <div className="font-bold text-white">Metric Strength</div>
+                          <div className="text-zinc-300">How often your bullets include real numbers: %, £, $, counts, timelines.</div>
+                          {v < 60 && <div className="text-amber-300">Tip: add specific numbers to your top 3 bullets — even rough ones help.</div>}
+                          {v >= 60 && <div className="text-emerald-400">Good quantification — numbers make bullets credible.</div>}
+                        </div>
+                      } />
+                      <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Metrics</span>
+                    </div>
+                  );
+                })()}
+
+                {/* Leadership */}
+                {(() => {
+                  const v = audit.leadership_score;
+                  const color = v >= 50 ? '#16a34a' : v >= 25 ? '#C9A84C' : '#94a3b8';
+                  return (
+                    <div key="leadership" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                      <ScoreRing value={v} label="" color={color} tooltip={
+                        <div className="space-y-1.5">
+                          <div className="font-bold text-white">Leadership Evidence</div>
+                          <div className="text-zinc-300">{audit.leadership.signalCount} leadership signals found — team sizes, mentoring, decision scope.</div>
+                          {v < 25 && <div className="text-zinc-400 italic">Not all roles need leadership evidence — only relevant for senior positions.</div>}
+                          {v >= 25 && v < 50 && <div className="text-amber-300">Tip: add team sizes or reporting lines to senior roles.</div>}
+                          {v >= 50 && <div className="text-emerald-400">Clear leadership presence across your roles.</div>}
+                        </div>
+                      } />
+                      <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Leadership</span>
+                    </div>
+                  );
+                })()}
+
+                {/* Skill evidence */}
+                {(() => {
+                  const v = audit.skill_evidence_score;
+                  const color = v >= 60 ? '#16a34a' : v >= 35 ? '#C9A84C' : '#ef4444';
+                  const mentionedOnly = audit.evidence.skills.filter((s: any) => s.level === 'mentioned').length;
+                  return (
+                    <div key="skills" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                      <ScoreRing value={v} label="" color={color} tooltip={
+                        <div className="space-y-1.5">
+                          <div className="font-bold text-white">Skill Depth</div>
+                          <div className="text-zinc-300">How many of your listed skills are backed up by your experience bullets.</div>
+                          {mentionedOnly > 0 && <div className="text-amber-300">{mentionedOnly} skill{mentionedOnly > 1 ? 's' : ''} listed but never demonstrated in experience.</div>}
+                          {v >= 60 && <div className="text-emerald-400">Most skills are shown, not just listed.</div>}
+                        </div>
+                      } />
+                      <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Skill Depth</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
+                These measure content quality, not completion. <span className="font-semibold">60+ on any signal is strong</span> — a focused 50% CV beats a padded one. Hover each ring for details.
+              </p>
+
+              {/* Top recommendations */}
+              {audit.recommendations.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                    Top actions for you
+                  </div>
+                  {audit.recommendations.slice(0, 4).map(rec => {
+                    const cfg = PRIORITY_CONFIG[rec.priority] ?? PRIORITY_CONFIG.low;
+                    const action = resolveRecAction(rec.targetView, onNavigate, onEditProfile);
+                    return (
+                      <button
+                        key={rec.id}
+                        onClick={action ?? undefined}
+                        disabled={!action}
+                        className={`w-full flex items-start gap-3 p-3 rounded-xl border transition-all text-left group ${cfg.border} ${cfg.bg} ${action ? 'hover:shadow-sm cursor-pointer' : 'cursor-default opacity-80'}`}
+                      >
+                        <span className="text-base flex-shrink-0 mt-0.5">{cfg.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-xs font-bold leading-tight ${cfg.color}`}>{rec.title}</div>
+                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{rec.detail}</div>
+                        </div>
+                        {action && (
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] whitespace-nowrap flex-shrink-0 mt-1 transition-colors">
+                            {rec.action} →
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {audit.recommendations.length > 4 && (
                     <button
-                      onClick={action}
-                      className={`text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap`}
+                      onClick={() => onNavigate('score')}
+                      className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline mt-1"
                     >
-                      {top.action} →
+                      +{audit.recommendations.length - 4} more — view full ATS report →
                     </button>
                   )}
                 </div>
-              );
-            })()}
-
-            {/* Score rings — 5 quality signals */}
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Placeholder when no intelligence yet — still occupies the left slot */
+          <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-6 shadow-sm flex flex-col items-center justify-center text-center gap-3 min-h-[160px]">
+            <div className="w-12 h-12 rounded-full bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center text-2xl">🧠</div>
             <div>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-              {/* Completeness */}
-              {(() => {
-                const v = profileComplete;
-                const color = v >= 80 ? '#16a34a' : v >= 50 ? '#C9A84C' : '#ef4444';
-                const missing = audit.completeness.missing.slice(0, 3);
-                return (
-                  <div key="completeness" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                    <ScoreRing value={v} label="" color={color} tooltip={
-                      <div className="space-y-1.5">
-                        <div className="font-bold text-white">Profile Completeness</div>
-                        <div className="text-zinc-300">How filled-in your profile is across all sections.</div>
-                        {missing.length > 0 && <div className="text-amber-300 mt-1">Still missing: {missing.join(', ')}.</div>}
-                        {v >= 80 && <div className="text-emerald-400">Great — all key sections are filled.</div>}
-                      </div>
-                    } />
-                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Completeness</span>
-                  </div>
-                );
-              })()}
-
-              {/* Achievement density */}
-              {(() => {
-                const v = audit.achievement_density;
-                const color = v >= 60 ? '#16a34a' : v >= 35 ? '#C9A84C' : '#ef4444';
-                return (
-                  <div key="density" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                    <ScoreRing value={v} label="" color={color} tooltip={
-                      <div className="space-y-1.5">
-                        <div className="font-bold text-white">Achievement Density</div>
-                        <div className="text-zinc-300">{audit.density.achievementCount} of {audit.density.totalBullets} bullets show measurable outcomes.</div>
-                        {v < 60 && <div className="text-amber-300">Tip: rewrite duty bullets as "achieved X by doing Y".</div>}
-                        {v >= 60 && <div className="text-emerald-400">Strong — most bullets show real impact.</div>}
-                      </div>
-                    } />
-                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Achievements</span>
-                  </div>
-                );
-              })()}
-
-              {/* Metric strength */}
-              {(() => {
-                const v = audit.metric_strength;
-                const color = v >= 60 ? '#16a34a' : v >= 30 ? '#C9A84C' : '#ef4444';
-                return (
-                  <div key="metrics" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                    <ScoreRing value={v} label="" color={color} tooltip={
-                      <div className="space-y-1.5">
-                        <div className="font-bold text-white">Metric Strength</div>
-                        <div className="text-zinc-300">How often your bullets include real numbers: %, £, $, counts, timelines.</div>
-                        {v < 60 && <div className="text-amber-300">Tip: add specific numbers to your top 3 bullets — even rough ones help.</div>}
-                        {v >= 60 && <div className="text-emerald-400">Good quantification — numbers make bullets credible.</div>}
-                      </div>
-                    } />
-                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Metrics</span>
-                  </div>
-                );
-              })()}
-
-              {/* Leadership */}
-              {(() => {
-                const v = audit.leadership_score;
-                const color = v >= 50 ? '#16a34a' : v >= 25 ? '#C9A84C' : '#94a3b8';
-                return (
-                  <div key="leadership" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                    <ScoreRing value={v} label="" color={color} tooltip={
-                      <div className="space-y-1.5">
-                        <div className="font-bold text-white">Leadership Evidence</div>
-                        <div className="text-zinc-300">{audit.leadership.signalCount} leadership signals found — team sizes, mentoring, decision scope.</div>
-                        {v < 25 && <div className="text-zinc-400 italic">Not all roles need leadership evidence — only relevant for senior positions.</div>}
-                        {v >= 25 && v < 50 && <div className="text-amber-300">Tip: add team sizes or reporting lines to senior roles.</div>}
-                        {v >= 50 && <div className="text-emerald-400">Clear leadership presence across your roles.</div>}
-                      </div>
-                    } />
-                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Leadership</span>
-                  </div>
-                );
-              })()}
-
-              {/* Skill evidence */}
-              {(() => {
-                const v = audit.skill_evidence_score;
-                const color = v >= 60 ? '#16a34a' : v >= 35 ? '#C9A84C' : '#ef4444';
-                const mentionedOnly = audit.evidence.skills.filter((s: any) => s.level === 'mentioned').length;
-                return (
-                  <div key="skills" className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-                    <ScoreRing value={v} label="" color={color} tooltip={
-                      <div className="space-y-1.5">
-                        <div className="font-bold text-white">Skill Depth</div>
-                        <div className="text-zinc-300">How many of your listed skills are backed up by your experience bullets.</div>
-                        {mentionedOnly > 0 && <div className="text-amber-300">{mentionedOnly} skill{mentionedOnly > 1 ? 's' : ''} listed but never demonstrated in experience.</div>}
-                        {v >= 60 && <div className="text-emerald-400">Most skills are shown, not just listed.</div>}
-                      </div>
-                    } />
-                    <span className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 text-center leading-tight uppercase tracking-wide">Skill Depth</span>
-                  </div>
-                );
-              })()}
+              <p className="text-sm font-bold text-zinc-700 dark:text-zinc-200">Career Intelligence</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs">Add work experience to your profile to unlock instant career analysis — progression, skill depth, and personalised actions.</p>
             </div>
+            <button
+              onClick={onEditProfile}
+              className="mt-1 px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] text-white hover:bg-[#1B2B4B]/90 transition-colors"
+            >
+              Add Work Experience →
+            </button>
+          </div>
+        )}
+
+        {/* ── RIGHT COLUMN ───────────────────────────────────────────────────── */}
+        <div className="space-y-4 sm:space-y-5">
+
+          {/* Quick Actions */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-4 sm:p-5 shadow-sm">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">Quick Actions</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {quickActions.map(a => (
+                <button
+                  key={a.label}
+                  onClick={() => onNavigate(a.view)}
+                  className="flex flex-col items-start gap-1 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 hover:border-[#1B2B4B]/30 dark:hover:border-[#C9A84C]/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 active:scale-95 transition-all text-left group"
+                >
+                  <span className="text-lg leading-none">{a.icon}</span>
+                  <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 leading-tight mt-0.5">{a.label}</span>
+                  <span className="text-[9px] text-zinc-400 leading-tight">{a.desc}</span>
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Context note — prevent score-chasing */}
-            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center leading-relaxed">
-              These measure content quality, not completion. <span className="font-semibold">60+ on any signal is strong</span> — a focused 50% CV beats a padded one. Hover each ring for details.
-            </p>
-
-            {/* Top recommendations */}
-            {audit.recommendations.length > 0 && (
+          {/* Next Steps */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-4 sm:p-5 shadow-sm">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">Next Steps</h2>
+            {nextSteps.length === 0 ? (
+              <div className="flex flex-col items-center py-5 text-center gap-2">
+                <div className="text-3xl">🎉</div>
+                <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">You're all set!</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Keep applying and track everything in the Job Tracker.</p>
+              </div>
+            ) : (
               <div className="space-y-2">
-                <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                  Top actions for you
-                </div>
-                {audit.recommendations.slice(0, 4).map(rec => {
-                  const cfg = PRIORITY_CONFIG[rec.priority] ?? PRIORITY_CONFIG.low;
-                  const action = resolveRecAction(rec.targetView, onNavigate, onEditProfile);
-                  return (
-                    <button
-                      key={rec.id}
-                      onClick={action ?? undefined}
-                      disabled={!action}
-                      className={`w-full flex items-start gap-3 p-3 rounded-xl border transition-all text-left group ${cfg.border} ${cfg.bg} ${action ? 'hover:shadow-sm cursor-pointer' : 'cursor-default opacity-80'}`}
-                    >
-                      <span className="text-base flex-shrink-0 mt-0.5">{cfg.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-xs font-bold leading-tight ${cfg.color}`}>{rec.title}</div>
-                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{rec.detail}</div>
-                      </div>
-                      {action && (
-                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] whitespace-nowrap flex-shrink-0 mt-1 transition-colors">
-                          {rec.action} →
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-                {audit.recommendations.length > 4 && (
+                {nextSteps.map((step, i) => (
                   <button
-                    onClick={() => onNavigate('score')}
-                    className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline mt-1"
+                    key={i}
+                    onClick={() => {
+                      if (step.isDrive) onConnectDrive();
+                      else if (step.isProfile) onEditProfile();
+                      else if (step.view) onNavigate(step.view);
+                    }}
+                    className="w-full flex items-start gap-3 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 hover:border-[#C9A84C]/50 hover:bg-amber-50/30 dark:hover:bg-amber-900/10 transition-all text-left group"
                   >
-                    +{audit.recommendations.length - 4} more — view full ATS report →
+                    <div className="w-5 h-5 rounded-full border-2 border-[#C9A84C]/40 group-hover:border-[#C9A84C] flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
+                      <span className="text-[9px] font-bold text-[#C9A84C]">{i + 1}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">{step.label}</div>
+                      <div className="text-[10px] text-zinc-400 mt-0.5 leading-tight">{step.action}</div>
+                    </div>
                   </button>
-                )}
+                ))}
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* Recent CVs + Next Steps */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Pipeline stats (inline in right col when small) */}
+          {trackedApps.length > 0 && (
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-4 sm:p-5 shadow-sm">
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">Job Pipeline</h2>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center p-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+                  <span className="text-xl font-bold text-[#1B2B4B] dark:text-zinc-100">{activeApps.length}</span>
+                  <span className="text-[9px] text-zinc-400 font-medium text-center mt-0.5">Active</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-xl bg-amber-50 dark:bg-amber-900/15">
+                  <span className="text-xl font-bold text-amber-600 dark:text-amber-400">{interviewCount}</span>
+                  <span className="text-[9px] text-amber-500/80 font-medium text-center mt-0.5">Interviews</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/15">
+                  <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{offersCount}</span>
+                  <span className="text-[9px] text-emerald-500/80 font-medium text-center mt-0.5">Offers 🎉</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── BOTTOM ROW: Recent CVs + CV Performance ──────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
 
         {/* Recent CVs */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-4 sm:p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200">Recent CVs</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Recent CVs</h2>
             {savedCVs.length > 0 && (
               <button onClick={() => onNavigate('history')} className="text-xs text-[#1B2B4B] dark:text-[#C9A84C] font-semibold hover:underline">
                 View all →
@@ -568,231 +671,182 @@ const DashboardHome: React.FC<Props> = ({
             )}
           </div>
           {recentCVs.length === 0 ? (
-            <div className="flex flex-col items-center py-8 text-center">
-              <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-3">
+            <div className="flex flex-col items-center py-7 text-center gap-2">
+              <div className="w-12 h-12 rounded-2xl bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center">
                 <span className="text-2xl">📄</span>
               </div>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">No CVs saved yet</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">No CVs saved yet</p>
               <button
                 onClick={() => onNavigate('generator')}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#1B2B4B] text-white hover:bg-[#1B2B4B]/90 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1B2B4B] text-white hover:bg-[#1B2B4B]/90 transition-colors"
               >
                 Generate your first CV ✨
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {recentCVs.map(cv => (
                 <button
                   key={cv.id}
                   onClick={() => onNavigate('history')}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left group"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left group"
                 >
-                  <div className="w-8 h-10 rounded bg-gradient-to-br from-[#1B2B4B] to-[#2d4272] flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-xs font-bold">CV</span>
+                  <div className="w-8 h-10 rounded-lg bg-gradient-to-br from-[#1B2B4B] to-[#2d4272] flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <span className="text-white text-[10px] font-bold">CV</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">
                       {cv.name || 'Untitled CV'}
                     </div>
-                    <div className="text-xs text-zinc-400 truncate">
+                    <div className="text-xs text-zinc-400 truncate mt-0.5">
                       {cv.template ? `${cv.template} · ` : ''}{cv.createdAt ? navTimeAgo(cv.createdAt) : ''}
                     </div>
                   </div>
-                  <svg className="w-4 h-4 text-zinc-300 group-hover:text-zinc-500 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  <span className="text-zinc-300 group-hover:text-zinc-500 flex-shrink-0">
+                    <IconChevron />
+                  </span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Next steps */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-3">Next steps</h2>
-          {nextSteps.length === 0 ? (
-            <div className="flex flex-col items-center py-8 text-center">
-              <div className="text-3xl mb-2">🎉</div>
-              <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">You're all set!</p>
-              <p className="text-xs text-zinc-400 mt-1">Keep applying and track everything in the Job Tracker.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {nextSteps.map((step, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    if (step.isDrive) onConnectDrive();
-                    else if (step.isProfile) onEditProfile();
-                    else if (step.view) onNavigate(step.view);
-                  }}
-                  className="w-full flex items-start gap-3 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 hover:border-[#C9A84C]/50 hover:bg-amber-50/30 dark:hover:bg-amber-900/10 transition-all text-left group"
-                >
-                  <div className="w-5 h-5 rounded-full border-2 border-[#C9A84C]/40 group-hover:border-[#C9A84C] flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
-                    <span className="text-[9px] font-bold text-[#C9A84C]">{i + 1}</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{step.label}</div>
-                    <div className="text-xs text-zinc-400 mt-0.5">{step.action}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* CV Performance — share links + live view counts */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-          <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-teal-600 dark:text-teal-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-            </svg>
-            CV Performance
-          </h2>
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            {storedLinks.length} shared link{storedLinks.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        {/* Stats summary row — only when links exist */}
-        {storedLinks.length > 0 && (
-          <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800 border-b border-zinc-100 dark:border-zinc-800">
-            <div className="px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{totalShareViews}</div>
-              <div className="text-[10px] text-zinc-400 font-medium mt-0.5">Total views</div>
-            </div>
-            <div className="px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-[#1B2B4B] dark:text-zinc-100">{storedLinks.length}</div>
-              <div className="text-[10px] text-zinc-400 font-medium mt-0.5">Active links</div>
-            </div>
-            <div className="px-4 py-3 text-center">
-              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                {storedLinks.length > 0
-                  ? Math.round(totalShareViews / storedLinks.length)
-                  : 0}
-              </div>
-              <div className="text-[10px] text-zinc-400 font-medium mt-0.5">Avg per link</div>
-            </div>
-          </div>
-        )}
-
-        <div className="p-4">
-          {storedLinks.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-4 text-center">
-              <svg className="w-8 h-8 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        {/* CV Performance — share links */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-4 sm:px-5 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-teal-500 dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
               </svg>
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">No shared CV links yet</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">Open a saved CV and click <span className="font-semibold">Share</span> to create a trackable link — view counts appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {storedLinks.slice(0, 5).map(link => {
-                const stats = shareStats.get(link.id);
-                const views = stats?.view_count;
-                const expiresAt = link.expires_at;
-                const nowSec = Math.floor(Date.now() / 1000);
-                const daysLeft = Math.ceil((expiresAt - nowSec) / 86400);
-                const expiryLabel = daysLeft <= 0
-                  ? 'Expired'
-                  : daysLeft <= 3
-                    ? `Expires in ${daysLeft}d ⚠️`
-                    : new Date(expiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-                const expiryColor = daysLeft <= 0
-                  ? 'text-zinc-400 dark:text-zinc-500 line-through'
-                  : daysLeft <= 3
-                    ? 'text-rose-500 dark:text-rose-400'
-                    : 'text-zinc-400 dark:text-zinc-500';
-                const shareUrl = `${window.location.origin}${window.location.pathname}#s=${link.id}`;
-                return (
-                  <div key={link.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700">
-                    {/* View count bubble */}
-                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 flex flex-col items-center justify-center">
-                      {views == null ? (
-                        <span className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-pulse" />
-                      ) : (
-                        <>
-                          <span className="text-[11px] font-bold text-teal-700 dark:text-teal-400 leading-none">{views > 99 ? '99+' : views}</span>
-                          <span className="text-[8px] text-teal-500/70 leading-none">views</span>
-                        </>
-                      )}
-                    </div>
-                    {/* Link ID + expiry */}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300 truncate">…/#s={link.id}</div>
-                      <div className={`text-[10px] font-medium mt-0.5 ${expiryColor}`}>{expiryLabel}</div>
-                    </div>
-                    {/* Copy button */}
-                    <button
-                      onClick={async () => {
-                        try { await navigator.clipboard.writeText(shareUrl); } catch {
-                          const ta = document.createElement('textarea');
-                          ta.value = shareUrl; document.body.appendChild(ta);
-                          ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-                        }
-                        setCopiedLinkId(link.id);
-                        setTimeout(() => setCopiedLinkId(null), 2000);
-                      }}
-                      className="flex-shrink-0 p-1.5 rounded-lg transition-colors text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                      title="Copy link"
-                    >
-                      {copiedLinkId === link.id ? (
-                        <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                      )}
-                    </button>
-                    {/* Open link button */}
-                    <a
-                      href={shareUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                      title="Open shared CV"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                      </svg>
-                    </a>
-                  </div>
-                );
-              })}
+              CV Performance
+            </h2>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+              {storedLinks.length} link{storedLinks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {storedLinks.length > 0 && (
+            <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="px-3 py-3 text-center">
+                <div className="text-xl font-bold text-teal-600 dark:text-teal-400">{totalShareViews}</div>
+                <div className="text-[9px] text-zinc-400 font-medium mt-0.5">Total views</div>
+              </div>
+              <div className="px-3 py-3 text-center">
+                <div className="text-xl font-bold text-[#1B2B4B] dark:text-zinc-100">{storedLinks.length}</div>
+                <div className="text-[9px] text-zinc-400 font-medium mt-0.5">Active links</div>
+              </div>
+              <div className="px-3 py-3 text-center">
+                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                  {storedLinks.length > 0 ? Math.round(totalShareViews / storedLinks.length) : 0}
+                </div>
+                <div className="text-[9px] text-zinc-400 font-medium mt-0.5">Avg per link</div>
+              </div>
             </div>
           )}
+
+          <div className="p-4 sm:p-5">
+            {storedLinks.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-5 text-center">
+                <svg className="w-8 h-8 text-zinc-300 dark:text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <p className="text-sm text-zinc-400 dark:text-zinc-500">No shared CV links yet</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-[200px]">Open a saved CV and click <span className="font-semibold">Share</span> to track views</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {storedLinks.slice(0, 4).map(link => {
+                  const stats = shareStats.get(link.id);
+                  const views = stats?.view_count;
+                  const expiresAt = link.expires_at;
+                  const nowSec = Math.floor(Date.now() / 1000);
+                  const daysLeft = Math.ceil((expiresAt - nowSec) / 86400);
+                  const expiryLabel = daysLeft <= 0
+                    ? 'Expired'
+                    : daysLeft <= 3
+                      ? `Expires in ${daysLeft}d ⚠️`
+                      : new Date(expiresAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                  const expiryColor = daysLeft <= 0
+                    ? 'text-zinc-400 dark:text-zinc-500 line-through'
+                    : daysLeft <= 3
+                      ? 'text-rose-500 dark:text-rose-400'
+                      : 'text-zinc-400 dark:text-zinc-500';
+                  const shareUrl = `${window.location.origin}${window.location.pathname}#s=${link.id}`;
+                  return (
+                    <div key={link.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 flex flex-col items-center justify-center">
+                        {views == null ? (
+                          <span className="w-2 h-2 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-pulse" />
+                        ) : (
+                          <>
+                            <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 leading-none">{views > 99 ? '99+' : views}</span>
+                            <span className="text-[7px] text-teal-500/70 leading-none">views</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-mono text-zinc-600 dark:text-zinc-300 truncate">…/#s={link.id}</div>
+                        <div className={`text-[9px] font-medium mt-0.5 ${expiryColor}`}>{expiryLabel}</div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try { await navigator.clipboard.writeText(shareUrl); } catch {
+                            const ta = document.createElement('textarea');
+                            ta.value = shareUrl; document.body.appendChild(ta);
+                            ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                          }
+                          setCopiedLinkId(link.id);
+                          setTimeout(() => setCopiedLinkId(null), 2000);
+                        }}
+                        className="flex-shrink-0 p-1.5 rounded-lg transition-colors text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                        title="Copy link"
+                      >
+                        {copiedLinkId === link.id ? (
+                          <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        )}
+                      </button>
+                      <a
+                        href={shareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-[#1B2B4B] dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        title="Open shared CV"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Quick actions */}
-      <div>
-        <h2 className="text-sm font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3">Quick actions</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          {quickActions.map(a => (
-            <button
-              key={a.label}
-              onClick={() => onNavigate(a.view)}
-              className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 hover:border-[#1B2B4B]/40 dark:hover:border-[#C9A84C]/40 hover:shadow-sm transition-all text-center group"
-            >
-              <span className="text-2xl">{a.icon}</span>
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-200 leading-tight">{a.label}</span>
-              <span className="text-[10px] text-zinc-400 leading-tight hidden sm:block">{a.desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Profiles row */}
+      {/* ── PROFILES ROW ─────────────────────────────────────────────────────── */}
       {profiles.length > 1 && (
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <h2 className="text-sm font-bold text-zinc-700 dark:text-zinc-200 mb-3">Your profiles ({profiles.length})</h2>
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-4 sm:p-5 shadow-sm">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-3">
+            Your Profiles ({profiles.length})
+          </h2>
           <div className="flex flex-wrap gap-2">
             {profiles.map(p => (
-              <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${p.id === activeSlot?.id ? 'bg-[#1B2B4B] text-white border-[#1B2B4B]' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'}`}>
+              <div
+                key={p.id}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                  p.id === activeSlot?.id
+                    ? 'bg-[#1B2B4B] text-white border-[#1B2B4B] shadow-sm'
+                    : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
+                }`}
+              >
                 <span>{p.name || 'Profile'}</span>
-                {p.id === activeSlot?.id && <span className="text-[10px] opacity-70">active</span>}
+                {p.id === activeSlot?.id && <span className="text-[9px] opacity-60 font-medium">active</span>}
               </div>
             ))}
           </div>
