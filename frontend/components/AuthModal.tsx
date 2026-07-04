@@ -158,13 +158,7 @@ export default function AuthModal({ open, onSuccess, onDismiss, mode: initialMod
 
                     {/* Logo row */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                        <div style={{
-                            width: 36, height: 36, borderRadius: 10,
-                            background: '#C9A84C', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center',
-                            fontWeight: 900, fontSize: 14, color: '#1B2B4B',
-                            flexShrink: 0,
-                        }}>CV</div>
+                        <img src="/logo.svg" alt="ProCV" style={{ width: 36, height: 36, borderRadius: 10, display: 'block', flexShrink: 0 }} draggable={false} />
                         <div>
                             <div style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif", fontWeight: 800, fontSize: 17, lineHeight: 1 }}>ProCV</div>
                             <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 2 }}>Your Personal Career Consultant</div>

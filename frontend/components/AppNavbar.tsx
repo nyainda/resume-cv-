@@ -143,9 +143,12 @@ const AppNavbar: React.FC<AppNavbarProps> = ({
           className="flex items-center gap-2.5 group flex-shrink-0"
           title="Go to dashboard"
         >
-          <div className="p-1.5 bg-[#1B2B4B] group-hover:bg-[#152238] rounded-lg transition-colors">
-            <FileText className="h-5 w-5 text-white" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="ProCV"
+            className="h-9 w-9 rounded-xl flex-shrink-0"
+            draggable={false}
+          />
           <div className="text-left">
             <h1
               className="text-base font-extrabold text-zinc-900 dark:text-zinc-50 leading-none"

@@ -790,7 +790,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
         <div style={{ maxWidth: isLarge ? 1440 : 1200, margin: '0 auto', padding: isMobile ? '0 14px' : '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <div style={{ width: 30, height: 30, background: Y, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 11, color: '#111' }}>CV</div>
+            <img src="/logo.svg" alt="ProCV" style={{ width: 30, height: 30, borderRadius: 7, display: 'block' }} draggable={false} />
             <span style={{ fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', color: text }}>ProCV</span>
           </div>
           {/* Nav links — hidden on mobile */}

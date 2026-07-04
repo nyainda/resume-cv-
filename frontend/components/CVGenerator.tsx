@@ -2753,23 +2753,47 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
             );
           })()}
 
-          <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6 overflow-x-auto">
-            {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
-                so the editor download is byte-identical to the share download.
-                The data-cv-preview-active marker is what `getCVHtml`'s default
-                selector prefers, and what we pass explicitly via cvCaptureRef.
-                overflow-x-auto on the outer div + CVPreview's own overflow-x-auto
-                ensures the A4-width template scrolls horizontally on phones. */}
-            <div ref={cvCaptureRef} data-cv-preview-active="true">
-              <CVPreview
-                cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
-                personalInfo={userProfile.personalInfo}
-                isEditing={isEditing && !!currentCV}
-                onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
-                jobDescriptionForATS={jobDescription}
-                template={template}
-                sidebarSections={sidebarSections}
-              />
+          <div ref={previewRef} className="mt-6 border-t border-zinc-200 dark:border-neutral-700 pt-6">
+            {/* ── Preview chrome ─────────────────────────────────────────── */}
+            <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-neutral-700 shadow-sm">
+              {/* Window header bar */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-100 dark:bg-neutral-800 border-b border-zinc-200 dark:border-neutral-700">
+                <div className="flex items-center gap-3">
+                  {/* Traffic-light dots */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-400/70 dark:bg-red-500/60" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-400/70 dark:bg-yellow-500/60" />
+                    <div className="w-3 h-3 rounded-full bg-green-400/70 dark:bg-green-500/60" />
+                  </div>
+                  <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 select-none">
+                    {templateDisplayNames[template] ?? template} · Live Preview
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 tracking-widest uppercase select-none">A4</span>
+              </div>
+
+              {/* Paper / print-preview area */}
+              <div className="bg-zinc-200/60 dark:bg-neutral-900 overflow-x-auto py-6 px-4 sm:px-8 flex justify-center min-h-[200px]">
+                {/* Drop-shadow wrapper — kept outside cvCaptureRef so shadow
+                    never bleeds into the PDF capture DOM */}
+                <div className="shadow-2xl shadow-zinc-500/30 dark:shadow-black/60 w-fit mx-auto">
+                  {/* Tight wrapper for PDF capture — mirrors SharedCVView's layout
+                      so the editor download is byte-identical to the share download.
+                      The data-cv-preview-active marker is what getCVHtml's default
+                      selector prefers, and what we pass explicitly via cvCaptureRef. */}
+                  <div ref={cvCaptureRef} data-cv-preview-active="true">
+                    <CVPreview
+                      cvData={(isLoading && draftCV && !currentCV) ? draftCV as CVData : displayCV}
+                      personalInfo={userProfile.personalInfo}
+                      isEditing={isEditing && !!currentCV}
+                      onDataChange={(cv) => { setCurrentCV(cv); syncCurrentCVToD1(cv); }}
+                      jobDescriptionForATS={jobDescription}
+                      template={template}
+                      sidebarSections={sidebarSections}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
             {/* Generation Trace Panel — S5 Phase 2. Shows only when the CV
                 carries a _trace from the last generation run. Collapsed by
