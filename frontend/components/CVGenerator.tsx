@@ -413,6 +413,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const scalingRef    = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale]               = useState(1);
   const [previewContentHeight, setPreviewContentHeight] = useState<number>(0);
+  // Zoom controls — autoFitScale is the container-driven fit value;
+  // zoomOverride (null = auto-fit) lets the user manually set a scale.
+  const [autoFitScale, setAutoFitScale] = useState(1);
+  const [zoomOverride, setZoomOverride] = useState<number | null>(null);
 
   useEffect(() => {
     const paperEl = paperAreaRef.current;
@@ -420,16 +424,28 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     const A4_PX = 794;
     function measure() {
       if (!paperEl) return;
-      // px-4 = 16px each side → 32px total horizontal padding
+      // 32px = 16px each side horizontal padding
       const available = paperEl.clientWidth - 32;
-      const scale = Math.min(1, Math.max(0.25, available / A4_PX));
-      setPreviewScale(scale);
+      const auto = Math.min(1, Math.max(0.25, available / A4_PX));
+      setAutoFitScale(auto);
     }
     const obs = new ResizeObserver(measure);
     obs.observe(paperEl);
     measure();
     return () => obs.disconnect();
   }, []);
+
+  // Sync effective scale whenever auto-fit or manual override changes
+  useEffect(() => {
+    setPreviewScale(zoomOverride !== null ? zoomOverride : autoFitScale);
+  }, [autoFitScale, zoomOverride]);
+
+  const ZOOM_STEP = 0.15;
+  const MIN_ZOOM  = 0.25;
+  const MAX_ZOOM  = 1.75;
+  const handleZoomIn    = () => setZoomOverride(z => Math.min(MAX_ZOOM, parseFloat(((z ?? autoFitScale) + ZOOM_STEP).toFixed(2))));
+  const handleZoomOut   = () => setZoomOverride(z => Math.max(MIN_ZOOM, parseFloat(((z ?? autoFitScale) - ZOOM_STEP).toFixed(2))));
+  const handleZoomReset = () => setZoomOverride(null);
 
   // Track natural content height so we can collapse the "phantom" space that
   // CSS transform leaves behind (transform doesn't affect layout flow).
@@ -2598,6 +2614,33 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 </div>
               </div>
             )}
+
+            {/* One-page mode */}
+            {currentCV && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block">1-Page Mode</span>
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-snug">Compresses content to fit one A4 page — a red line shows where page 1 ends</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const cv = { ...currentCV, onePage: !currentCV.onePage };
+                    setCurrentCV(cv);
+                    syncCurrentCVToD1(cv);
+                  }}
+                  className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ml-4 ${
+                    currentCV.onePage
+                      ? 'bg-[#1B2B4B]'
+                      : 'bg-zinc-200 dark:bg-neutral-600'
+                  }`}
+                  role="switch"
+                  aria-checked={!!currentCV.onePage}
+                  title="Toggle 1-page mode"
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${currentCV.onePage ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ── Quick Template Strip ── */}
@@ -2810,7 +2853,32 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                     {templateDisplayNames[template] ?? template} · Live Preview
                   </span>
                 </div>
-                <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 tracking-widest uppercase select-none">A4</span>
+                {/* Zoom controls */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleZoomOut}
+                    disabled={previewScale <= MIN_ZOOM}
+                    title="Zoom out"
+                    className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm font-medium select-none"
+                  >−</button>
+                  <button
+                    onClick={handleZoomReset}
+                    title={zoomOverride !== null ? 'Reset to fit' : 'Auto-fit'}
+                    className={`min-w-[42px] h-6 px-1 rounded text-[10px] font-bold tracking-wider transition-colors select-none ${
+                      zoomOverride !== null
+                        ? 'bg-[#1B2B4B] text-white hover:bg-[#243a65]'
+                        : 'text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
+                    }`}
+                  >
+                    {zoomOverride !== null ? `${Math.round(previewScale * 100)}%` : 'FIT'}
+                  </button>
+                  <button
+                    onClick={handleZoomIn}
+                    disabled={previewScale >= MAX_ZOOM}
+                    title="Zoom in"
+                    className="w-6 h-6 flex items-center justify-center rounded text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-neutral-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm font-medium select-none"
+                  >+</button>
+                </div>
               </div>
 
               {/* Paper / print-preview area — responsive scaling
@@ -2825,7 +2893,10 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
               <div
                 ref={paperAreaRef}
                 className="bg-zinc-200/60 dark:bg-neutral-900 flex justify-center"
-                style={{ padding: '24px 16px' }}
+                style={{
+                  padding: '24px 16px',
+                  overflowX: zoomOverride !== null && zoomOverride > autoFitScale ? 'auto' : 'hidden',
+                }}
               >
                 {/* Width-constraining wrapper: layout width = 794 × scale px.
                     Height = natural content height × scale px.

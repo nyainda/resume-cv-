@@ -16,6 +16,9 @@ interface TemplateV2Props {
 // to prevent the same data appearing twice in the sidebar/main body.
 const PROMOTED_SECTION_TYPES = new Set(['certifications', 'achievements', 'awards', 'publications']);
 
+// Semantic constant — always green regardless of theme; signals an active/current role
+const LIVE_ROLE_GREEN = '#22c55e';
+
 // ─── Smart content density detection ─────────────────────────────────────────
 function detectDensity(cvData: CVData): ContentDensity {
   let score = 0;
@@ -47,23 +50,56 @@ interface SmartSplit {
 }
 
 function computeSmartSplit(cvData: CVData): SmartSplit {
+  // ── Education ────────────────────────────────────────────────────────────────
+  // Sidebar: ≤2 entries and no long descriptions (≥60 chars triggers main-col treatment)
   const eduCount = cvData.education?.length ?? 0;
   const eduHasLongDesc = cvData.education?.some(e => (e.description?.length ?? 0) > 60) ?? false;
   const eduInSidebar = eduCount <= 2 && !eduHasLongDesc;
 
+  // ── Projects ─────────────────────────────────────────────────────────────────
+  // Sidebar: ≤2 entries, short description, few tech tags, and no bullet list
+  // (bullet lists require the full main-column treatment)
   const projCount = cvData.projects?.length ?? 0;
   const projHasLongDesc = cvData.projects?.some(p => (p.description?.length ?? 0) > 90) ?? false;
   const projHasLongTech = cvData.projects?.some(p => (p.technologies?.length ?? 0) > 4) ?? false;
-  const projectsInSidebar = projCount <= 2 && !projHasLongDesc && !projHasLongTech;
+  const projHasBullets  = cvData.projects?.some(p => (p.bullets?.length ?? 0) > 0) ?? false;
+  const projectsInSidebar = projCount <= 2 && !projHasLongDesc && !projHasLongTech && !projHasBullets;
 
-  const achievementsInSidebar = (cvData.achievements?.length ?? 0) <= 5;
+  // ── Achievements ─────────────────────────────────────────────────────────────
+  // Sidebar: ≤5 items AND individually short (avg ≤ 90 chars)
+  const achList = cvData.achievements ?? [];
+  const achAvgLen = achList.length > 0
+    ? achList.reduce((s, a) => s + a.length, 0) / achList.length
+    : 0;
+  const achievementsInSidebar = achList.length <= 5 && achAvgLen <= 90;
+
+  // ── References ───────────────────────────────────────────────────────────────
+  // Sidebar: ≤2 — brief card style fits; 3+ get the full main-column table
   const refsInSidebar = (cvData.references?.length ?? 0) <= 2;
+
+  // ── Certifications ───────────────────────────────────────────────────────────
+  // Always sidebar — compact credential chips never need full width
   const certsInSidebar = (cvData.certifications?.length ?? 0) > 0;
-  // Only route to sidebar when there are non-promoted sections with at least one filled item
-  const customInSidebar = (cvData.customSections ?? [])
-    .filter(s => !PROMOTED_SECTION_TYPES.has(s.type))
-    .some(s => s.items.some(item => item.title?.trim()));
-  const pubsInSidebar   = (cvData.publications?.length ?? 0) > 0;
+
+  // ── Publications ─────────────────────────────────────────────────────────────
+  // Sidebar: ≤3 items AND short titles AND small author lists
+  // Longer academic citation lists always go to main column
+  const pubs = cvData.publications ?? [];
+  const pubsHaveLongContent = pubs.some(
+    p => (p.title?.length ?? 0) > 80 || (p.authors?.length ?? 0) > 3
+  );
+  const pubsInSidebar = pubs.length > 0 && pubs.length <= 3 && !pubsHaveLongContent;
+
+  // ── Custom sections ───────────────────────────────────────────────────────────
+  // Sidebar: only when ALL non-promoted sections have short items (no long descriptions/subtitles)
+  // Long items (volunteer role descriptions, patent abstracts) go to main column
+  const nonPromotedCustom = (cvData.customSections ?? [])
+    .filter(s => !PROMOTED_SECTION_TYPES.has(s.type));
+  const customHasContent = nonPromotedCustom.some(s => s.items.some(item => item.title?.trim()));
+  const customHasLongItems = nonPromotedCustom.some(s =>
+    s.items.some(item => (item.description?.length ?? 0) > 60 || (item.subtitle?.length ?? 0) > 50)
+  );
+  const customInSidebar = customHasContent && !customHasLongItems;
 
   return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar, pubsInSidebar };
 }
@@ -303,7 +339,7 @@ const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
             <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{exp.company}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               {isCurrentRole(exp.dates) && (
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 2px #22c55e33' }} title="Current role" />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: LIVE_ROLE_GREEN, display: 'inline-block', boxShadow: `0 0 0 2px ${LIVE_ROLE_GREEN}33` }} title="Current role" />
               )}
               <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody }}>{exp.dates}</span>
             </span>
@@ -406,7 +442,7 @@ const SkillsSection: React.FC<{ skills: string[]; theme: TemplateTheme; sc: Dens
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: `${sc.bulletGap + 1}px 12px` }}>
           {skills.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-              <span style={{ color: theme.accent, fontSize: '5px', flexShrink: 0, opacity: 0.8, lineHeight: 1 }}>◆</span>
+              <span style={{ color: theme.accent, fontSize: '5px', flexShrink: 0, lineHeight: 1 }}>◆</span>
               <span style={{ fontSize: sc.bodySize, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {s}
               </span>
@@ -689,8 +725,10 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
         </div>
       ) : null}
 
-      {/* Publications — compact sidebar version (title + year only) */}
-      {cvData.publications?.length ? (
+      {/* Publications — compact sidebar version (title + year only).
+          Only rendered here when smart-split decided they're short enough for sidebar.
+          Long academic citation lists are routed to main column instead. */}
+      {split.pubsInSidebar && cvData.publications?.length ? (
         <div style={{ marginBottom: sc.sectionGap }}>
           <SidebarHead title="Publications" theme={theme} sc={sc} />
           {cvData.publications.map((p, i) => (
@@ -703,9 +741,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
       ) : null}
 
       {/* Additional Sections (Volunteer, Presentations, Patents, etc.)
-          Promoted types (certifications, awards, publications) are already rendered
-          above as dedicated blocks — filter them out to avoid duplication. */}
-      {cvData.customSections?.filter(sec => !PROMOTED_SECTION_TYPES.has(sec.type)).map(sec => (
+          Only rendered here when smart-split decided they're short enough for sidebar.
+          Long descriptions/subtitles are routed to main column instead.
+          Promoted types (certifications, awards, publications) are excluded — they have
+          their own dedicated blocks above. */}
+      {split.customInSidebar && cvData.customSections?.filter(sec => !PROMOTED_SECTION_TYPES.has(sec.type)).map(sec => (
         <div key={sec.id} style={{ marginBottom: sc.sectionGap }}>
           <SidebarHead title={sec.label} theme={theme} sc={sc} />
           {sec.items.filter(item => item.title?.trim()).map((item, i) => (
@@ -756,9 +796,32 @@ const MainContent: React.FC<LayoutProps> = ({ cvData, theme, sc, isEditing, onCh
   </div>
 );
 
+// ─── One-page boundary indicator ─────────────────────────────────────────────
+// Shows a dashed red line at the exact A4 page-1 boundary in the preview.
+// Hidden from PDF via data-pdf-hide — only the user ever sees it.
+const OnePageBoundary: React.FC = () => (
+  <div
+    data-pdf-hide="true"
+    style={{ position: 'absolute', top: '297mm', left: 0, right: 0, zIndex: 20, pointerEvents: 'none' }}
+  >
+    <div style={{ borderTop: '1.5px dashed #ef4444', position: 'relative' }}>
+      <span style={{
+        position: 'absolute', top: -9, right: 0,
+        background: '#ef4444', color: '#fff',
+        fontSize: 8, fontWeight: 700, padding: '1px 5px',
+        borderRadius: '3px 0 0 3px', letterSpacing: '0.06em',
+        fontFamily: 'system-ui, sans-serif', lineHeight: 1.5,
+      }}>
+        PAGE 1 END
+      </span>
+    </div>
+  </div>
+);
+
 // ─── Layouts ──────────────────────────────────────────────────────────────────
 const LayoutSingleColumn: React.FC<LayoutProps> = (props) => (
-  <div style={{ background: props.theme.bodyBg, minHeight: '280mm' }}>
+  <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
+    {props.cvData.onePage && <OnePageBoundary />}
     <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
     <div style={{ padding: props.sc.bodyPad }}>
       {/* Recruiter-expected order: Summary → Experience → Education → Skills → Projects → Extras */}
@@ -780,7 +843,8 @@ const LayoutSingleColumn: React.FC<LayoutProps> = (props) => (
 const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
   const split = computeSmartSplit(props.cvData);
   return (
-    <div style={{ background: props.theme.bodyBg, minHeight: '280mm' }}>
+    <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
+      {props.cvData.onePage && <OnePageBoundary />}
       <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         <div style={{ width: props.theme.sidebarWidth, background: props.theme.sidebarBg, flexShrink: 0 }}>
@@ -797,7 +861,8 @@ const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
 const LayoutSidebarRight: React.FC<LayoutProps> = (props) => {
   const split = computeSmartSplit(props.cvData);
   return (
-    <div style={{ background: props.theme.bodyBg, minHeight: '280mm' }}>
+    <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
+      {props.cvData.onePage && <OnePageBoundary />}
       <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         <div style={{ flex: 1, borderRight: `1px solid ${props.theme.borderColor}` }}>
@@ -824,7 +889,8 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
     sectionBorderColor: theme.accent + '44',
   };
   return (
-    <div style={{ background: theme.bodyBg, minHeight: '280mm' }}>
+    <div style={{ background: theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
+      {cvData.onePage && <OnePageBoundary />}
       <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={props.isEditing} onUpdate={() => {}} />
       <div style={{ display: 'flex', minHeight: '230mm' }}>
         {/* Main column: summary, experience, (projects if long), publications, custom */}
@@ -867,7 +933,15 @@ const LayoutTwoColumn: React.FC<LayoutProps> = (props) => {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, themeId }) => {
   let theme = { ...getTheme(themeId) };
-  const density = detectDensity(cvData);
+
+  // One-page mode: force compact density so content has the best chance of fitting
+  // on a single A4 page. The visual page-boundary indicator shows the user exactly
+  // where page 1 ends so they can trim any overflow manually.
+  const rawDensity = detectDensity(cvData);
+  const density: ContentDensity = cvData.onePage
+    ? (rawDensity === 'spacious' ? 'balanced' : 'compact')
+    : rawDensity;
+
   const sc = applyFontScale(DENSITY_SCALES[density], cvData.fontScale ?? 1);
 
   // Apply user accent-colour override
