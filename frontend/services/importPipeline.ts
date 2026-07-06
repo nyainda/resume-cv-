@@ -81,13 +81,17 @@ function bestAvailableProvider(): 'claude' | 'gemini' | 'workers-ai' {
 const SECTION_PATTERNS: Record<string, RegExp> = {
   experience:     /^(WORK\s+EXPERIENCE|EXPERIENCE|EMPLOYMENT\s+HISTORY|EMPLOYMENT|CAREER\s+HISTORY|PROFESSIONAL\s+EXPERIENCE|WORK\s+HISTORY)/i,
   education:      /^(EDUCATION|ACADEMIC\s+BACKGROUND|ACADEMIC\s+QUALIFICATIONS?|QUALIFICATIONS?|TRAINING\s+&\s+EDUCATION|TRAINING)/i,
-  skills:         /^(SKILLS?|CORE\s+SKILLS?|TECHNICAL\s+SKILLS?|KEY\s+SKILLS?|COMPETENCIES|EXPERTISE|AREAS?\s+OF\s+EXPERTISE)/i,
-  summary:        /^(SUMMARY|PROFESSIONAL\s+SUMMARY|CAREER\s+SUMMARY|EXECUTIVE\s+SUMMARY|PROFILE|PROFESSIONAL\s+PROFILE|ABOUT\s+ME|ABOUT|OBJECTIVE|CAREER\s+OBJECTIVE)/i,
-  projects:       /^(PROJECTS?|PERSONAL\s+PROJECTS?|KEY\s+PROJECTS?|SELECTED\s+PROJECTS?|RESEARCH\s+PROJECTS?|RESEARCH)/i,
+  skills:         /^(SKILLS?|CORE\s+SKILLS?|TECHNICAL\s+SKILLS?|KEY\s+SKILLS?|COMPETENCIES|EXPERTISE|AREAS?\s+OF\s+EXPERTISE|TECHNICAL\s+COMPETENCIES)/i,
+  summary:        /^(SUMMARY|PROFESSIONAL\s+SUMMARY|CAREER\s+SUMMARY|EXECUTIVE\s+SUMMARY|PROFILE|PROFESSIONAL\s+PROFILE|ABOUT\s+ME|ABOUT|OBJECTIVE|CAREER\s+OBJECTIVE|PERSONAL\s+STATEMENT)/i,
+  projects:       /^(PROJECTS?|PERSONAL\s+PROJECTS?|KEY\s+PROJECTS?|SELECTED\s+PROJECTS?|NOTABLE\s+PROJECTS?)/i,
   languages:      /^(LANGUAGES?|LANGUAGE\s+SKILLS?|SPOKEN\s+LANGUAGES?)/i,
-  certifications: /^(CERTIFICATIONS?|CERTIFICATES?|LICENCES?|LICENSES?|ACCREDITATIONS?|PROFESSIONAL\s+CERTIFICATIONS?)/i,
-  awards:         /^(AWARDS?|HONOURS?|HONORS?|ACHIEVEMENTS?|ACCOMPLISHMENTS?)/i,
+  certifications: /^(CERTIFICATIONS?|CERTIFICATES?|LICENCES?|LICENSES?|ACCREDITATIONS?|PROFESSIONAL\s+CERTIFICATIONS?|PROFESSIONAL\s+DEVELOPMENT|CREDENTIALS?)/i,
+  awards:         /^(AWARDS?|HONOURS?|HONORS?|ACHIEVEMENTS?|ACCOMPLISHMENTS?|AWARDS?\s+(&|AND)\s+HONOURS?|AWARDS?\s+(&|AND)\s+RECOGNITIONS?)/i,
   references:     /^(REFERENCES?|REFEREES?)/i,
+  volunteer:      /^(VOLUNTEER(ING)?|VOLUNTARY\s+WORK|COMMUNITY\s+(SERVICE|INVOLVEMENT)|SOCIAL\s+WORK|CIVIC\s+ENGAGEMENT|NON-?PROFIT\s+WORK)/i,
+  publications:   /^(PUBLICATIONS?|PAPERS?|RESEARCH\s+PAPERS?|JOURNAL\s+ARTICLES?|CONFERENCE\s+PAPERS?|PEER.REVIEWED|ARTICLES?\s+(&|AND)\s+PUBLICATIONS?)/i,
+  hobbies:        /^(HOBBIES?\s+(&|AND)\s+INTERESTS?|HOBBIES?|PERSONAL\s+INTERESTS?|EXTRACURRICULAR|ACTIVITIES|INTERESTS?)/i,
+  courses:        /^(COURSES?|ONLINE\s+COURSES?|TRAINING\s+COURSES?|PROFESSIONAL\s+COURSES?|CONTINUING\s+EDUCATION)/i,
 };
 
 function detectSectionHeader(line: string): string | null {
@@ -314,6 +318,178 @@ function parseSummarySection(lines: string[]): string {
     .join(' ');
 }
 
+/** Parse certifications/licenses into a CustomSection. */
+function parseCertificationsSection(lines: string[]): import('../types').CustomSection | null {
+  const items: import('../types').CustomSectionItem[] = [];
+  let title = ''; let subtitle = ''; let year = '';
+
+  const flush = () => {
+    const t = title.trim();
+    if (t) items.push({ id: `cert_${items.length + 1}_${Date.now()}`, title: t, subtitle: subtitle.trim() || undefined, year: year || undefined });
+    title = ''; subtitle = ''; year = '';
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { flush(); continue; }
+    const yearMatch = trimmed.match(/\b((19|20)\d{2})\b/);
+    if (yearMatch) year = year || yearMatch[1];
+    const stripped = trimmed.replace(/\b(19|20)\d{2}\b.*$/, '').replace(/[|\-–]+$/, '').trim();
+    if (BULLET_PATTERN.test(trimmed)) {
+      // bullet line — treat as a cert title
+      if (!title) { title = stripped.replace(BULLET_PATTERN, '').trim(); }
+      else { flush(); title = stripped.replace(BULLET_PATTERN, '').trim(); }
+    } else if (!title) {
+      title = stripped;
+    } else if (!subtitle && stripped && stripped !== title) {
+      subtitle = stripped;
+    } else if (stripped && stripped !== title && stripped !== subtitle) {
+      // extra line — likely another cert on same block; flush first
+      flush(); title = stripped;
+    }
+  }
+  flush();
+
+  if (!items.length) return null;
+  return { id: `custom_cert_${Date.now()}`, type: 'certifications', label: 'Certifications', items };
+}
+
+/** Parse awards/achievements into a CustomSection. */
+function parseAwardsSection(lines: string[]): import('../types').CustomSection | null {
+  const items: import('../types').CustomSectionItem[] = [];
+  let title = ''; let subtitle = ''; let year = '';
+
+  const flush = () => {
+    const t = title.trim();
+    if (t) items.push({ id: `award_${items.length + 1}_${Date.now()}`, title: t, subtitle: subtitle.trim() || undefined, year: year || undefined });
+    title = ''; subtitle = ''; year = '';
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { flush(); continue; }
+    const yearMatch = trimmed.match(/\b((19|20)\d{2})\b/);
+    if (yearMatch) year = year || yearMatch[1];
+    const stripped = trimmed.replace(/\b(19|20)\d{2}\b.*$/, '').replace(/[|\-–]+$/, '').replace(BULLET_PATTERN, '').trim();
+    if (!stripped) continue;
+    if (!title) { title = stripped; }
+    else if (!subtitle) { subtitle = stripped; }
+    else { flush(); title = stripped; }
+  }
+  flush();
+
+  if (!items.length) return null;
+  return { id: `custom_awards_${Date.now()}`, type: 'awards', label: 'Awards & Honours', items };
+}
+
+/** Parse references section. */
+function parseReferencesSection(lines: string[]): import('../types').Reference[] {
+  const refs: import('../types').Reference[] = [];
+  let name = ''; let title = ''; let company = ''; let email = ''; let phone = ''; let relationship = '';
+
+  const flush = () => {
+    if (name.trim()) {
+      refs.push({ id: `ref_${refs.length + 1}_${Date.now()}`, name: name.trim(), title: title.trim(), company: company.trim(), email: email.trim(), phone: phone.trim(), relationship: relationship.trim() });
+    }
+    name = ''; title = ''; company = ''; email = ''; phone = ''; relationship = '';
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { flush(); continue; }
+    if (/available\s+on\s+request|upon\s+request/i.test(trimmed)) continue;
+    const emailMatch = trimmed.match(/[\w.+%-]+@[\w-]+\.[a-z]{2,}/i);
+    if (emailMatch) { email = email || emailMatch[0]; continue; }
+    const phoneMatch = trimmed.match(/(\+?[\d][\d\s\-().]{5,14}\d)/);
+    if (phoneMatch && !name) { phone = phone || phoneMatch[1]; continue; }
+    if (phoneMatch && name) { phone = phone || phoneMatch[1]; continue; }
+    const stripped = trimmed.replace(BULLET_PATTERN, '').trim();
+    if (!name) { name = stripped; }
+    else if (!title) { title = stripped; }
+    else if (!company) { company = stripped; }
+    else if (!relationship) { relationship = stripped; }
+  }
+  flush();
+
+  return refs.slice(0, 5);
+}
+
+/** Parse volunteer / community service into a CustomSection. */
+function parseVolunteerSection(lines: string[]): import('../types').CustomSection | null {
+  // Reuse experience-style parsing, then wrap in a CustomSection
+  const experiences = parseExperienceSection(lines);
+  if (!experiences.length) {
+    // Fall back: treat each non-empty block as an item
+    const items: import('../types').CustomSectionItem[] = [];
+    let title = ''; let desc = '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        if (title) { items.push({ id: `vol_${items.length + 1}_${Date.now()}`, title, description: desc || undefined }); title = ''; desc = ''; }
+        continue;
+      }
+      if (!title) title = trimmed.replace(BULLET_PATTERN, '').trim();
+      else desc += (desc ? ' ' : '') + trimmed.replace(BULLET_PATTERN, '').trim();
+    }
+    if (title) items.push({ id: `vol_${items.length + 1}_${Date.now()}`, title, description: desc || undefined });
+    if (!items.length) return null;
+    return { id: `custom_vol_${Date.now()}`, type: 'volunteer', label: 'Volunteer Work', items };
+  }
+  const items: import('../types').CustomSectionItem[] = experiences.map((e, i) => ({
+    id: `vol_${i + 1}_${Date.now()}`,
+    title: [e.jobTitle, e.company].filter(Boolean).join(' — '),
+    subtitle: e.company && e.jobTitle ? e.company : undefined,
+    year: e.startDate ? `${e.startDate}${e.endDate ? ' – ' + e.endDate : ''}` : undefined,
+    description: e.responsibilities || undefined,
+  }));
+  return { id: `custom_vol_${Date.now()}`, type: 'volunteer', label: 'Volunteer Work', items };
+}
+
+/** Parse publications into a CustomSection. */
+function parsePublicationsSection(lines: string[]): import('../types').CustomSection | null {
+  const items: import('../types').CustomSectionItem[] = [];
+  let title = ''; let subtitle = ''; let year = ''; let link = '';
+
+  const flush = () => {
+    const t = title.trim();
+    if (t) items.push({ id: `pub_${items.length + 1}_${Date.now()}`, title: t, subtitle: subtitle.trim() || undefined, year: year || undefined, link: link || undefined });
+    title = ''; subtitle = ''; year = ''; link = '';
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { flush(); continue; }
+    const urlMatch = trimmed.match(/https?:\/\/[\w./%-]+/);
+    if (urlMatch) { link = link || urlMatch[0]; continue; }
+    const yearMatch = trimmed.match(/\b((19|20)\d{2})\b/);
+    if (yearMatch) year = year || yearMatch[1];
+    const stripped = trimmed.replace(BULLET_PATTERN, '').trim();
+    if (!title) { title = stripped; }
+    else if (!subtitle) { subtitle = stripped; }
+    else { flush(); title = stripped; }
+  }
+  flush();
+
+  if (!items.length) return null;
+  return { id: `custom_pub_${Date.now()}`, type: 'publications', label: 'Publications', items };
+}
+
+/** Parse hobbies/interests into a CustomSection. */
+function parseHobbiesSection(lines: string[]): import('../types').CustomSection | null {
+  const raw = lines.join(', ');
+  const interests = raw.split(/[,|•\n]/).map(s => s.replace(BULLET_PATTERN, '').trim()).filter(s => s.length > 1 && s.length < 60);
+  if (!interests.length) return null;
+  const items: import('../types').CustomSectionItem[] = interests.map((t, i) => ({ id: `hobby_${i}_${Date.now()}`, title: t }));
+  return { id: `custom_hobbies_${Date.now()}`, type: 'hobbies', label: 'Interests', items };
+}
+
+/** Parse short training/online course lines into a CustomSection. */
+function parseCoursesSection(lines: string[]): import('../types').CustomSection | null {
+  return parseCertificationsSection(lines)
+    ? { ...(parseCertificationsSection(lines) as import('../types').CustomSection), id: `custom_courses_${Date.now()}`, type: 'courses', label: 'Courses & Training' }
+    : null;
+}
+
 /** Extract projects. */
 function parseProjectsSection(lines: string[]): Project[] {
   const projects: Project[] = [];
@@ -409,6 +585,42 @@ export function heuristicParse(text: string): HeuristicResult {
         })
     : [];
 
+  // ── Certifications ──
+  const certSection = sections.find(s => s.name === 'certifications');
+  const certCustom = certSection ? parseCertificationsSection(certSection.lines) : null;
+  confidence['certifications'] = certCustom ? 75 : 50;
+
+  // ── Awards ──
+  const awardsSection = sections.find(s => s.name === 'awards');
+  const awardsCustom = awardsSection ? parseAwardsSection(awardsSection.lines) : null;
+  confidence['awards'] = awardsCustom ? 72 : 50;
+
+  // ── References ──
+  const refSection = sections.find(s => s.name === 'references');
+  const references = refSection ? parseReferencesSection(refSection.lines) : [];
+  confidence['references'] = references.length > 0 ? 70 : 50;
+
+  // ── Volunteer ──
+  const volSection = sections.find(s => s.name === 'volunteer');
+  const volCustom = volSection ? parseVolunteerSection(volSection.lines) : null;
+  confidence['volunteer'] = volCustom ? 70 : 50;
+
+  // ── Publications ──
+  const pubSection = sections.find(s => s.name === 'publications');
+  const pubCustom = pubSection ? parsePublicationsSection(pubSection.lines) : null;
+  confidence['publications'] = pubCustom ? 70 : 50;
+
+  // ── Hobbies / Interests ──
+  const hobbiesSection = sections.find(s => s.name === 'hobbies');
+  const hobbiesCustom = hobbiesSection ? parseHobbiesSection(hobbiesSection.lines) : null;
+
+  // ── Courses ──
+  const coursesSection = sections.find(s => s.name === 'courses');
+  const coursesCustom = coursesSection ? parseCoursesSection(coursesSection.lines) : null;
+
+  // Build ordered customSections — only include non-null ones
+  const customSections = [certCustom, awardsCustom, volCustom, pubCustom, hobbiesCustom, coursesCustom].filter(Boolean) as import('../types').CustomSection[];
+
   const profile: UserProfile = {
     personalInfo: { name, email, phone, location, linkedin, website, github },
     summary,
@@ -417,6 +629,8 @@ export function heuristicParse(text: string): HeuristicResult {
     skills,
     projects: projects.length ? projects : undefined,
     languages: languages.length ? languages : undefined,
+    references: references.length ? references : undefined,
+    customSections: customSections.length ? customSections : undefined,
   };
 
   return { profile, confidence, rawSections };
@@ -484,7 +698,9 @@ const PARSE_SCHEMA = `{
   "education": [{ "id": "", "degree": "", "school": "", "graduationYear": "" }],
   "skills": [],
   "projects": [{ "id": "", "name": "", "description": "", "link": "" }],
-  "languages": [{ "id": "", "name": "", "proficiency": "" }]
+  "languages": [{ "id": "", "name": "", "proficiency": "" }],
+  "references": [{ "id": "", "name": "", "title": "", "company": "", "email": "", "phone": "", "relationship": "" }],
+  "customSections": [{ "id": "", "type": "", "label": "", "items": [{ "id": "", "title": "", "subtitle": "", "year": "", "description": "", "link": "" }] }]
 }`;
 
 function buildAiVerifyPrompt(profile: UserProfile, lowConfFields: string[], rawSections: Record<string, string>): string {
@@ -538,6 +754,14 @@ function mergeAiPatch(base: UserProfile, aiResult: Partial<UserProfile>, lowConf
       }));
     } else if (top === 'skills' && aiResult.skills?.length) {
       merged.skills = aiResult.skills;
+    } else if (top === 'references' && aiResult.references?.length) {
+      merged.references = aiResult.references;
+    } else if (['certifications', 'awards', 'volunteer', 'publications', 'hobbies', 'courses', 'customSections'].includes(top) && aiResult.customSections?.length) {
+      // Merge: keep Stage 1 custom sections and add any new ones found by AI
+      const existing = merged.customSections ?? [];
+      const existingTypes = new Set(existing.map(s => s.type));
+      const aiNew = aiResult.customSections.filter(s => !existingTypes.has(s.type));
+      merged.customSections = [...existing, ...aiNew];
     }
   }
   return merged;

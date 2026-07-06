@@ -140,7 +140,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
   setIsPricingOpen,
 }) => {
   return (
-    <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+    <main className="container mx-auto px-4 pt-4 pb-24 sm:px-6 sm:pt-6 sm:pb-28 lg:px-8 lg:pt-8 lg:pb-28">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
         {/* ── Left sidebar — profile + recent activity ── */}
         {(!profileExists || isEditingProfile || currentView === 'generator') && (
