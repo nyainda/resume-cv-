@@ -15,7 +15,13 @@ ProCV is a full-featured PWA designed to help users build, manage, and download 
 
 ## Testing
 
-Run the full unit test suite (Vitest — covers `frontend/services/*.test.ts`, including CV purification/audit regression tests):
+Run everything (unit tests + CV number-fidelity/quality checks) before committing:
+
+```
+npm run test:all
+```
+
+Run just the unit test suite (Vitest — covers `frontend/services/*.test.ts`, including CV purification/audit regression tests):
 
 ```
 npm run test:unit
@@ -24,9 +30,9 @@ npm run test:unit
 Other useful test commands:
 - `npm run test:unit:watch` — re-runs tests on file change.
 - `npm run test:unit:coverage` — unit tests with coverage report.
-- `npm run test:cv` — number-fidelity + CV-quality checks (`backend/scripts/`).
-- `npm run test:pdf` — smoke test for both PDF renderers (Playwright + Cloudflare worker).
-- `npm run test:variance` / `test:rhythm` / `test:banned` / `test:gap-pin` / `test:pipeline` / `test:landing-validator` — targeted checks for CV generation quality (all in `backend/scripts/`).
+- `npm run test:cv` — number-fidelity + CV-quality checks (`backend/scripts/`), also included in `test:all`.
+- `npm run test:pdf` — smoke test for both PDF renderers (Playwright + Cloudflare worker). Requires the PDF Server workflow running; not included in `test:all`.
+- `npm run test:variance` / `test:rhythm` / `test:banned` / `test:gap-pin` / `test:pipeline` / `test:landing-validator` — targeted checks for CV generation quality (all in `backend/scripts/`, not included in `test:all`).
 
 ## Project Structure
 
