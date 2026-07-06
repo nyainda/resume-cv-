@@ -91,7 +91,11 @@ export default {
       browser = await puppeteer.launch(env.BROWSER);
       const page = await browser.newPage();
 
-      await page.setViewport({ width: 794, height: 1123 });
+      // Width must be >= 800px so the CVPreview mobile-only "swipe to see
+      // full CV" hint (Tailwind `min-[800px]:hidden`) stays hidden in the
+      // rendered PDF — 794px (A4 @ 96dpi) sits just under that breakpoint
+      // and was leaking the hint text into every downloaded PDF.
+      await page.setViewport({ width: 800, height: 1123 });
       await page.setContent(html, { waitUntil: "networkidle0" });
       await page.evaluateHandle("document.fonts.ready");
 

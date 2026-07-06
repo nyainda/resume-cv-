@@ -157,7 +157,11 @@ async function renderPdf(pageContent) {
     const b = await ensureBrowser();
     const page = await b.newPage();
     try {
-        await page.setViewportSize({ width: 794, height: 1123 });
+        // Width must be >= 800px so the CVPreview mobile-only "swipe to see
+        // full CV" hint (Tailwind `min-[800px]:hidden`) stays hidden in the
+        // rendered PDF — 794px (A4 @ 96dpi) sits just under that breakpoint
+        // and was leaking the hint text into every downloaded PDF.
+        await page.setViewportSize({ width: 800, height: 1123 });
         // 'load' returns as soon as the document and its sub-resources are loaded.
         // We previously used 'networkidle' which adds a guaranteed 500ms wait for
         // network silence — wasteful when fonts are pre-embedded as base64 data-URIs.

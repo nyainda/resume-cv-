@@ -136,8 +136,12 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         {renderTemplate()}
       </div>
       {/* Swipe hint — only visible on screens narrower than A4 (210 mm ≈ 794 px).
-          Hidden on wider viewports where the full page is visible at once. */}
-      <p className="min-[800px]:hidden mt-2 text-center text-[11px] text-zinc-400 select-none pointer-events-none">
+          Hidden on wider viewports where the full page is visible at once.
+          `data-pdf-hide` is a belt-and-suspenders guard: getCVHtml() strips any
+          element with this attribute before PDF rendering, so this hint can
+          never leak into a downloaded PDF even if a renderer's viewport width
+          ever regresses below the 800px breakpoint again. */}
+      <p data-pdf-hide className="min-[800px]:hidden mt-2 text-center text-[11px] text-zinc-400 select-none pointer-events-none">
         ← Swipe to see full CV →
       </p>
     </div>
