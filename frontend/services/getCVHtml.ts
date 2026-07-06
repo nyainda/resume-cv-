@@ -186,9 +186,21 @@ export async function getCVHtml(opts: GetCVHtmlOptions = {}): Promise<string | n
 
   const clone = container.cloneNode(true) as HTMLElement;
 
-  ["button", "[data-pdf-hide]", ".no-print", '[contenteditable="true"]'].forEach((sel) =>
+  // Remove UI chrome — buttons and elements explicitly marked for PDF exclusion.
+  ["button", "[data-pdf-hide]", ".no-print"].forEach((sel) =>
     clone.querySelectorAll(sel).forEach((el) => el.remove())
   );
+
+  // Strip contenteditable attributes WITHOUT removing the elements.
+  // IMPORTANT: do NOT remove these elements — they contain the actual CV content
+  // (name, job title, summary, bullet points, education fields, etc.). When the
+  // user is in edit mode every editable span has contentEditable:true, so removing
+  // the elements would silently wipe the content from the downloaded PDF.
+  clone.querySelectorAll<HTMLElement>('[contenteditable]').forEach((el) => {
+    el.removeAttribute('contenteditable');
+    el.style.outline = '';   // was 'none' — harmless to clear
+    el.style.cursor = '';    // was 'text' — harmless to clear
+  });
 
   // Separate readable (same-origin) sheets from cross-origin sheets.
   const inlineCssBlocks: string[] = [];

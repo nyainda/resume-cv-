@@ -169,7 +169,7 @@ const CVHeader: React.FC<{
         {contacts.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 3, marginTop: 2, justifyContent: centered ? 'center' : 'flex-start' }}>
             {contacts.map((c, i) => (
-              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', fontSize: sc.metaSize, color: theme.headerText, opacity: 0.8, fontFamily: theme.fontBody }}>
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', fontSize: sc.metaSize, color: theme.headerText, fontFamily: theme.fontBody }}>
                 <ContactIcon type={c.type} color={theme.headerText} />
                 {c.label}
               </span>
@@ -273,7 +273,7 @@ const SummarySection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: Densi
   return (
     <Section sc={sc}>
       <SectionHeading title="Professional Summary" theme={theme} sc={sc} />
-      <p style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, margin: 0, fontFamily: theme.fontBody, opacity: 0.88 }}
+      <p style={{ fontSize: sc.bodySize, color: theme.bodyText, lineHeight: sc.lineH, margin: 0, fontFamily: theme.fontBody }}
         {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.summary = v; onChange(d); })}>
         {cvData.summary}
       </p>

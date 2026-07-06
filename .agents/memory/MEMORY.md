@@ -20,4 +20,5 @@
 - [Import pipeline AI refactor](import-pipeline-ai-refactor.md) — heuristic Stage 1 deleted; all text imports now go through parseWordTextToProfile(); purifyProfile() required on every exit path including vision routes.
 - [Template system V2 themes](template-v2-themes.md) — 8 new premium V2 themes added; gallery reorganized into 8 named categories; new templates auto-route via V2_TEMPLATE_IDS = THEMES.map(t=>t.id).
 - [V2 font sizes and education layout](v2-font-education.md) — DENSITY_SCALES bumped ~15-17% (compact 9→10.5px, balanced 10→11.5px, spacious 11→12.5px); education redesigned degree-first; CVEducation.startYear added for date ranges.
+- [getCVHtml contenteditable bug](getcvhtml-contenteditable.md) — never remove [contenteditable] elements from the PDF clone; strip the attribute only — removing elements silently wipes CV content (name, summary, bullets) when user is in edit mode.
 - [LLM model resilience pattern](llm-model-resilience.md) — BYOK Claude/Gemini proxy: fallback chain on model-not-found, fail-fast on other errors, finish_reason/stop_reason truncation → same-model bump-retry.
