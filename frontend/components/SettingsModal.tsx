@@ -7,6 +7,8 @@ import { useAuth } from '../auth/AuthContext';
 import {
   testProviderConnection, getSelectedProvider, setSelectedProvider, type AiProvider,
   getSessionTokenUsage, resetSessionTokenUsage, TOKEN_USAGE_EVENT, type SessionTokenUsage,
+  getClaudeModel, setClaudeModel, getGeminiModel, setGeminiModel,
+  CLAUDE_MODEL_OPTIONS, GEMINI_MODEL_OPTIONS,
 } from '../services/groqService';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { usePremiumGate } from '../hooks/usePremiumGate';
@@ -24,6 +26,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   const [geminiKey, setGeminiKey] = useState(currentApiSettings.apiKey || '');
   const [claudeKey, setClaudeKey] = useState(currentApiSettings.claudeApiKey || '');
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>(getSelectedProvider());
+  const [claudeModel, setClaudeModelState] = useState<string>(getClaudeModel());
+  const [geminiModel, setGeminiModelState] = useState<string>(getGeminiModel());
 
   // Premium gate for Workers AI — free users see the upgrade modal on click
   const {
@@ -90,6 +94,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
     setGeminiKey(currentApiSettings.apiKey || '');
     setClaudeKey(currentApiSettings.claudeApiKey || '');
     setSelectedAiProvider(getSelectedProvider());
+    setClaudeModelState(getClaudeModel());
+    setGeminiModelState(getGeminiModel());
   }, [currentApiSettings, isOpen]);
 
   useEffect(() => {
@@ -105,6 +111,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleSave = () => {
     setSelectedProvider(selectedAiProvider);
+    setClaudeModel(claudeModel);
+    setGeminiModel(geminiModel);
     const settingsToSave: ApiSettings = {
       provider: 'gemini',
       aiProvider: selectedAiProvider,
@@ -305,6 +313,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                           placeholder={opt.keyPlaceholder}
                           className="font-mono text-sm"
                         />
+                        {(opt.id === 'claude' || opt.id === 'gemini') && (
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Model</label>
+                            <select
+                              value={opt.id === 'claude' ? claudeModel : geminiModel}
+                              onChange={(e) => opt.id === 'claude' ? setClaudeModelState(e.target.value) : setGeminiModelState(e.target.value)}
+                              className="w-full text-sm rounded-lg border border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-2 py-1.5 text-zinc-700 dark:text-zinc-200"
+                            >
+                              {(opt.id === 'claude' ? CLAUDE_MODEL_OPTIONS : GEMINI_MODEL_OPTIONS).map((m) => (
+                                <option key={m.id} value={m.id}>{m.label}</option>
+                              ))}
+                            </select>
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                              If a model is retired or renamed by the provider, we automatically fall back to another {opt.id === 'claude' ? 'Claude' : 'Gemini'} model so generation keeps working.
+                            </p>
+                          </div>
+                        )}
                         <div className="flex items-center gap-3">
                           <Button
                             type="button"

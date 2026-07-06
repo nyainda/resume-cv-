@@ -9,6 +9,54 @@ import {
     _CV_SYSTEM_AUDIT,
 } from './purify';
 
+// ─── BYOK model catalogs + fallback chains ───────────────────────────────────
+// Providers routinely retire or rename models (e.g. Anthropic sunsetting a
+// Claude snapshot, Google bumping a Gemini alias). Both the catalog (surfaced
+// to the Settings UI so users can pick a specific model) and the fallback
+// chain (tried automatically server-side when the requested model 404s or is
+// otherwise rejected) live here so a provider's model shuffle never produces
+// a hard failure for the user — worst case we silently step down to the next
+// entry in the chain and tell the frontend which model actually served the
+// request via `fallback: true`.
+export const CLAUDE_MODEL_CATALOG = [
+    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (best quality)' },
+    { id: 'claude-haiku-4-5-20251001',  label: 'Claude Haiku 4.5 (fast, default)' },
+    { id: 'claude-opus-4-1-20250805',   label: 'Claude Opus 4.1 (most capable, slowest)' },
+    { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet (legacy)' },
+    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (legacy)' },
+];
+
+export const GEMINI_MODEL_CATALOG = [
+    { id: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash (default)' },
+    { id: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro (best quality)' },
+    { id: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash (legacy, fast)' },
+    { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite (cheapest)' },
+];
+
+// Ordered same-capability alternates tried automatically if the requested (or
+// default) model returns 404 / "not found" / "deprecated" / empty response.
+const CLAUDE_FALLBACK_CHAIN: string[] = [
+    'claude-haiku-4-5-20251001',
+    'claude-sonnet-4-5-20250929',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-haiku-20240307',
+];
+
+const GEMINI_FALLBACK_CHAIN: string[] = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+];
+
+/** True when a provider error looks like "this model id no longer exists" rather than a transient/auth/quota failure. */
+function isModelNotFoundError(status: number, message: string): boolean {
+    const m = message.toLowerCase();
+    if (status === 404) return true;
+    return /model.*(not found|not_found|does not exist|unknown|deprecated|retired|no longer|invalid model)/i.test(m)
+        || /(not found|not_found|does not exist|unknown|deprecated|retired|no longer|invalid model).*model/i.test(m);
+}
+
 // ─── Legacy LLM proxy (Llama 70B) ────────────────────────────────────────────
 const WORKER_LLM_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const WORKER_LLM_MAX_PROMPT_CHARS = 60000;
@@ -720,20 +768,85 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
                 });
             }
 
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: claudeHeaders,
-                body: JSON.stringify(claudeBody),
-            });
-            if (!res.ok) {
-                const raw = await res.text().catch(() => '');
-                const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
-                return json({ error: 'upstream_error', message: raw.slice(0, 200), status: res.status }, request, env, errStatus);
+            // Try the requested model, then step through the fallback chain if the
+            // model itself is the problem (retired/renamed) rather than a genuine
+            // auth/quota/content error — those should surface immediately.
+            const claudeCandidates = [claudeModel, ...CLAUDE_FALLBACK_CHAIN.filter(m => m !== claudeModel)];
+            let claudeLastErr: { status: number; message: string } | null = null;
+            const claudeAttempted: string[] = [];
+
+            for (let i = 0; i < claudeCandidates.length; i++) {
+                const candidate = claudeCandidates[i];
+                const attemptBody = { ...claudeBody, model: candidate };
+                const res = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: claudeHeaders,
+                    body: JSON.stringify(attemptBody),
+                });
+                claudeAttempted.push(candidate);
+
+                if (!res.ok) {
+                    const raw = await res.text().catch(() => '');
+                    claudeLastErr = { status: res.status, message: raw.slice(0, 300) };
+                    // Model-not-found: try the next candidate. Anything else
+                    // (auth, quota, content policy) is not fixed by switching
+                    // models — fail fast with the real error.
+                    if (isModelNotFoundError(res.status, raw) && i < claudeCandidates.length - 1) continue;
+                    const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
+                    return json({
+                        error: 'upstream_error',
+                        message: raw.slice(0, 200),
+                        status: res.status,
+                        ...(claudeAttempted.length > 1 ? { attempted: claudeAttempted } : {}),
+                    }, request, env, errStatus);
+                }
+
+                let data = await res.json() as any;
+                let text: string = data?.content?.[0]?.text ?? '';
+                let stopReason: string = data?.stop_reason ?? '';
+                if (!text) {
+                    claudeLastErr = { status: 502, message: 'empty_response' };
+                    if (i < claudeCandidates.length - 1) continue;
+                    return json({ error: 'empty_response', ...(claudeAttempted.length > 1 ? { attempted: claudeAttempted } : {}) }, request, env, 502);
+                }
+
+                // Confirmed truncation (provider explicitly says it hit the token
+                // ceiling) — retry the SAME model once with a bumped budget instead
+                // of returning a known-incomplete answer. Root-cause fix rather than
+                // patching the cut-off sentence after the fact.
+                if (stopReason === 'max_tokens' && maxTokens < PROXY_HARD_MAX_TOKENS) {
+                    const bumpedTokens = Math.min(maxTokens * 2, PROXY_HARD_MAX_TOKENS);
+                    const bumpRes = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: claudeHeaders,
+                        body: JSON.stringify({ ...attemptBody, max_tokens: bumpedTokens }),
+                    });
+                    if (bumpRes.ok) {
+                        const bumpData = await bumpRes.json().catch(() => null) as any;
+                        const bumpText: string = bumpData?.content?.[0]?.text ?? '';
+                        if (bumpText) { data = bumpData; text = bumpText; stopReason = bumpData?.stop_reason ?? stopReason; }
+                    }
+                }
+
+                const usedFallback = candidate !== claudeModel;
+                return json({
+                    text,
+                    model: candidate,
+                    provider: 'claude',
+                    finishReason: stopReason,
+                    truncated: stopReason === 'max_tokens',
+                    ...(usedFallback ? { fallback: true, requestedModel: claudeModel, attempted: claudeAttempted } : {}),
+                }, request, env);
             }
-            const data = await res.json() as any;
-            const text: string = data?.content?.[0]?.text ?? '';
-            if (!text) return json({ error: 'empty_response' }, request, env, 502);
-            return json({ text, model: claudeModel, provider: 'claude' }, request, env);
+
+            // Exhausted the whole chain (should be unreachable given the loop's own
+            // return paths, but keep a safe exit).
+            return json({
+                error: 'upstream_error',
+                message: claudeLastErr?.message || 'All Claude models failed',
+                status: claudeLastErr?.status ?? 502,
+                attempted: claudeAttempted,
+            }, request, env, 502);
         }
 
         // ── OpenRouter / Together / Cerebras ─────────────────────────────────
@@ -888,23 +1001,78 @@ export async function handleProxyLLM(request: Request, env: Env): Promise<Respon
             });
         }
 
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
-        const res = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(geminiBody),
-        });
-        if (!res.ok) {
-            const raw = await res.text().catch(() => '');
-            let msg = '';
-            try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch { /**/ }
-            const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
-            return json({ error: 'upstream_error', message: msg || `Gemini error ${res.status}`, status: res.status }, request, env, errStatus);
+        const geminiCandidates = [geminiModel, ...GEMINI_FALLBACK_CHAIN.filter(m => m !== geminiModel)];
+        let geminiLastErr: { status: number; message: string } | null = null;
+        const geminiAttempted: string[] = [];
+
+        for (let i = 0; i < geminiCandidates.length; i++) {
+            const candidate = geminiCandidates[i];
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${apiKey}`;
+            const res = await fetch(geminiUrl, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(geminiBody),
+            });
+            geminiAttempted.push(candidate);
+
+            if (!res.ok) {
+                const raw = await res.text().catch(() => '');
+                let msg = '';
+                try { msg = (JSON.parse(raw) as any)?.error?.message || ''; } catch { /**/ }
+                geminiLastErr = { status: res.status, message: msg || `Gemini error ${res.status}` };
+                if (isModelNotFoundError(res.status, msg || raw) && i < geminiCandidates.length - 1) continue;
+                const errStatus = (res.status >= 400 && res.status < 500) ? res.status : 502;
+                return json({
+                    error: 'upstream_error',
+                    message: msg || `Gemini error ${res.status}`,
+                    status: res.status,
+                    ...(geminiAttempted.length > 1 ? { attempted: geminiAttempted } : {}),
+                }, request, env, errStatus);
+            }
+
+            let data = await res.json() as any;
+            let text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+            let finishReason: string = data?.candidates?.[0]?.finishReason ?? '';
+            if (!text) {
+                geminiLastErr = { status: 502, message: 'empty_response' };
+                if (i < geminiCandidates.length - 1) continue;
+                return json({ error: 'empty_response', ...(geminiAttempted.length > 1 ? { attempted: geminiAttempted } : {}) }, request, env, 502);
+            }
+
+            // Confirmed truncation — retry the SAME model once with a bumped token
+            // budget rather than returning a known-incomplete answer.
+            if (finishReason === 'MAX_TOKENS' && maxTokens < PROXY_HARD_MAX_TOKENS) {
+                const bumpedTokens = Math.min(maxTokens * 2, PROXY_HARD_MAX_TOKENS);
+                const bumpBody = { ...geminiBody, generationConfig: { ...(geminiBody as any).generationConfig, maxOutputTokens: bumpedTokens } };
+                const bumpRes = await fetch(geminiUrl, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(bumpBody),
+                });
+                if (bumpRes.ok) {
+                    const bumpData = await bumpRes.json().catch(() => null) as any;
+                    const bumpText: string = bumpData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+                    if (bumpText) { data = bumpData; text = bumpText; finishReason = bumpData?.candidates?.[0]?.finishReason ?? finishReason; }
+                }
+            }
+
+            const usedFallback = candidate !== geminiModel;
+            return json({
+                text,
+                model: candidate,
+                provider: 'gemini',
+                finishReason,
+                truncated: finishReason === 'MAX_TOKENS',
+                ...(usedFallback ? { fallback: true, requestedModel: geminiModel, attempted: geminiAttempted } : {}),
+            }, request, env);
         }
-        const data = await res.json() as any;
-        const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-        if (!text) return json({ error: 'empty_response' }, request, env, 502);
-        return json({ text, model: geminiModel, provider: 'gemini' }, request, env);
+
+        return json({
+            error: 'upstream_error',
+            message: geminiLastErr?.message || 'All Gemini models failed',
+            status: geminiLastErr?.status ?? 502,
+            attempted: geminiAttempted,
+        }, request, env, 502);
 
     } catch (err: any) {
         return json({ error: 'proxy_error', message: String(err?.message || err) }, request, env, 502);

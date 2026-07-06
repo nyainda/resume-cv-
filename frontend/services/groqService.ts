@@ -84,6 +84,62 @@ export function setSelectedProvider(p: AiProvider): void {
     try { localStorage.setItem(_AI_PROVIDER_KEY, p); } catch { /* ignore */ }
 }
 
+// ── BYOK model selection (Claude / Gemini) ────────────────────────────────────
+// Mirrors the catalogs exported by the worker (backend/cv-engine-worker/src/
+// handlers/llm.ts). Kept as a small duplicated constant here because the
+// frontend does not import worker code directly. If a provider renames or
+// retires a model, update BOTH lists — the worker also has its own fallback
+// chain so a stale frontend default still degrades gracefully server-side.
+export interface AiModelOption { id: string; label: string; }
+
+export const CLAUDE_MODEL_OPTIONS: AiModelOption[] = [
+    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (best quality)' },
+    { id: 'claude-haiku-4-5-20251001',  label: 'Claude Haiku 4.5 (fast, default)' },
+    { id: 'claude-opus-4-1-20250805',   label: 'Claude Opus 4.1 (most capable, slowest)' },
+    { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet (legacy)' },
+    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (legacy)' },
+];
+
+export const GEMINI_MODEL_OPTIONS: AiModelOption[] = [
+    { id: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash (default)' },
+    { id: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro (best quality)' },
+    { id: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash (legacy, fast)' },
+    { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite (cheapest)' },
+];
+
+const _CLAUDE_MODEL_KEY = 'cv_builder:claudeModel';
+const _GEMINI_MODEL_KEY = 'cv_builder:geminiModel';
+
+// Defaults intentionally match the worker's own hardcoded fallback default
+// (backend/cv-engine-worker/src/handlers/llm.ts) rather than the first catalog
+// entry, so users who never touch this setting see unchanged behavior.
+const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+
+export function getClaudeModel(): string {
+    try {
+        const v = localStorage.getItem(_CLAUDE_MODEL_KEY);
+        if (v && CLAUDE_MODEL_OPTIONS.some(m => m.id === v)) return v;
+    } catch { /* ignore */ }
+    return DEFAULT_CLAUDE_MODEL;
+}
+
+export function setClaudeModel(id: string): void {
+    try { localStorage.setItem(_CLAUDE_MODEL_KEY, id); } catch { /* ignore */ }
+}
+
+export function getGeminiModel(): string {
+    try {
+        const v = localStorage.getItem(_GEMINI_MODEL_KEY);
+        if (v && GEMINI_MODEL_OPTIONS.some(m => m.id === v)) return v;
+    } catch { /* ignore */ }
+    return DEFAULT_GEMINI_MODEL;
+}
+
+export function setGeminiModel(id: string): void {
+    try { localStorage.setItem(_GEMINI_MODEL_KEY, id); } catch { /* ignore */ }
+}
+
 // ── Prompt Vault stubs (no-op — worker injects system prompts internally) ─────
 export function registerSystemTemplate(_template: string, _key: string): void { /* no-op */ }
 export function getSystemTemplateKey(_template: string): string | undefined { return undefined; }
@@ -241,6 +297,7 @@ export async function callProviderViaProxy(
     const result = await workerProxyLLM(opts.task || 'general', userPrompt, {
         provider,
         apiKey,
+        model:       provider === 'claude' ? getClaudeModel() : getGeminiModel(),
         temperature: opts.temperature,
         maxTokens:   opts.maxTokens,
         json:        opts.json,
@@ -277,15 +334,17 @@ export async function testProviderConnection(
     try {
         const key = provider === 'claude' ? getClaudeApiKey() : getGeminiApiKey();
         if (!key) return { ok: false, error: `No ${provider === 'claude' ? 'Claude' : 'Gemini'} API key configured.` };
+        const model = provider === 'claude' ? getClaudeModel() : getGeminiModel();
         const result = await workerProxyLLM('general', 'Reply with the single word OK.', {
             provider,
             apiKey: key,
+            model,
             temperature: 0,
             maxTokens: 10,
             timeoutMs: 12_000,
         });
         if (!result) return { ok: false, error: 'Worker proxy returned no text.' };
-        return { ok: true, model: provider === 'claude' ? 'claude-haiku-4-5-20251001' : 'gemini-2.0-flash' };
+        return { ok: true, model };
     } catch (e: any) {
         return { ok: false, error: e?.message || 'Connection test failed.' };
     }
@@ -370,6 +429,7 @@ export async function groqChat(
             const r = await workerProxyLLM(proxyTask, userPrompt, {
                 provider:    'claude',
                 apiKey:      key,
+                model:       getClaudeModel(),
                 temperature: opts.temperature,
                 maxTokens:   opts.maxTokens ?? 8192,
                 json:        opts.json,
@@ -417,6 +477,7 @@ export async function groqChat(
             const r = await workerProxyLLM(proxyTask, userPrompt, {
                 provider:    'gemini',
                 apiKey:      key,
+                model:       getGeminiModel(),
                 temperature: opts.temperature,
                 maxTokens:   opts.maxTokens ?? 8192,
                 json:        opts.json,
@@ -496,6 +557,7 @@ export async function groqChatStream(
             const text = await workerProxyStream(proxyTask, userPrompt, {
                 provider:    'claude',
                 apiKey:      key,
+                model:       getClaudeModel(),
                 temperature: opts.temperature,
                 maxTokens:   opts.maxTokens,
                 timeoutMs:   60_000,
@@ -563,6 +625,7 @@ export async function groqChatStream(
             const text = await workerProxyStream(proxyTask, userPrompt, {
                 provider:    'gemini',
                 apiKey:      key,
+                model:       getGeminiModel(),
                 temperature: opts.temperature,
                 maxTokens:   opts.maxTokens,
                 timeoutMs:   60_000,

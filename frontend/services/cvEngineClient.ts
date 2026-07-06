@@ -1066,6 +1066,7 @@ export async function workerProxyStream(
     opts: {
         provider: 'claude' | 'gemini';
         apiKey: string;
+        model?: string;
         temperature?: number;
         maxTokens?: number;
         timeoutMs?: number;
@@ -1087,6 +1088,7 @@ export async function workerProxyStream(
             prompt,
             provider:    opts.provider,
             apiKey:      opts.apiKey,
+            model:       opts.model,
             temperature: opts.temperature ?? 0.3,
             maxTokens:   opts.maxTokens   ?? 4096,
             stream:      true,

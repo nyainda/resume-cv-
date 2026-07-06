@@ -1,6 +1,6 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { UserProfile, CVData, PersonalInfo, JobAnalysisResult, CVGenerationMode, ScholarshipFormat, EnhancedJobAnalysis } from '../types';
-import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider } from './groqService';
+import { groqChat, groqChatStream, GROQ_LARGE, GROQ_FAST, getLastAiEngine, getSelectedProvider, getClaudeModel } from './groqService';
 import { purifyCV, purifyText, cleanImportedText, purifyProfile, purifyInboundCV, revertCorruptedMetrics, enforceOpenerDiversity, type PurifyReport } from './cvPurificationPipeline';
 import { remotePrePurify } from './cvPurifyClient';
 import { detectField, detectFieldWithSource, lockRealNumbers, buildPromptAnchorBlock, fixPronounsInCV } from './cvPromptHelpers';
@@ -1526,7 +1526,7 @@ async function claudeMultimodalCall(
         method: 'POST',
         headers,
         body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
+            model: getClaudeModel(),
             max_tokens: opts.maxTokens ?? 4096,
             temperature: opts.temperature ?? 0.1,
             messages: [{ role: 'user', content: [filePart, { type: 'text', text: textPrompt }] }],
