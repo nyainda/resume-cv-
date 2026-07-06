@@ -90,7 +90,7 @@ const SECTION_PATTERNS: Record<string, RegExp> = {
   references:     /^(REFERENCES?|REFEREES?)/i,
   volunteer:      /^(VOLUNTEER(ING)?|VOLUNTARY\s+WORK|COMMUNITY\s+(SERVICE|INVOLVEMENT)|SOCIAL\s+WORK|CIVIC\s+ENGAGEMENT|NON-?PROFIT\s+WORK)/i,
   publications:   /^(PUBLICATIONS?|PAPERS?|RESEARCH\s+PAPERS?|JOURNAL\s+ARTICLES?|CONFERENCE\s+PAPERS?|PEER.REVIEWED|ARTICLES?\s+(&|AND)\s+PUBLICATIONS?)/i,
-  hobbies:        /^(HOBBIES?\s+(&|AND)\s+INTERESTS?|HOBBIES?|PERSONAL\s+INTERESTS?|EXTRACURRICULAR|ACTIVITIES|INTERESTS?)/i,
+  hobbies:        /^(HOBBIES?\s+(&|AND)\s+INTERESTS?|HOBBIES?|PERSONAL\s+INTERESTS?|EXTRACURRICULAR\s+ACTIVITIES|INTERESTS\s+(&|AND)\s+HOBBIES?)/i,
   courses:        /^(COURSES?|ONLINE\s+COURSES?|TRAINING\s+COURSES?|PROFESSIONAL\s+COURSES?|CONTINUING\s+EDUCATION)/i,
 };
 
@@ -757,11 +757,22 @@ function mergeAiPatch(base: UserProfile, aiResult: Partial<UserProfile>, lowConf
     } else if (top === 'references' && aiResult.references?.length) {
       merged.references = aiResult.references;
     } else if (['certifications', 'awards', 'volunteer', 'publications', 'hobbies', 'courses', 'customSections'].includes(top) && aiResult.customSections?.length) {
-      // Merge: keep Stage 1 custom sections and add any new ones found by AI
+      // Merge: AI result wins for section types it returns (overrides weak Stage 1 items),
+      // and keeps Stage 1 sections for types AI didn't touch.
       const existing = merged.customSections ?? [];
+      const aiByType = new Map(aiResult.customSections.map(s => [s.type, s]));
+      const merged1 = existing.map(s => {
+        const aiVersion = aiByType.get(s.type);
+        if (aiVersion && aiVersion.items.length > 0) {
+          // AI has a version for this type — use it if it has more/better items
+          return aiVersion.items.length >= s.items.length ? aiVersion : s;
+        }
+        return s;
+      });
+      // Also add types that only AI found (not in Stage 1 at all)
       const existingTypes = new Set(existing.map(s => s.type));
-      const aiNew = aiResult.customSections.filter(s => !existingTypes.has(s.type));
-      merged.customSections = [...existing, ...aiNew];
+      const aiOnly = aiResult.customSections.filter(s => !existingTypes.has(s.type));
+      merged.customSections = [...merged1, ...aiOnly];
     }
   }
   return merged;
