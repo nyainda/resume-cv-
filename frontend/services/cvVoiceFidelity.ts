@@ -47,8 +47,13 @@ export function stripFirstPersonPronouns(text: string): string {
     );
     // Mid-sentence "I've" / "I have" / etc. — drop the pronoun, keep the verb.
     out = out.replace(/\bI(?:'ve| have|'m| am)\s+/g, '');
-    // Standalone "I" (with surrounding spaces).
-    out = out.replace(/\bI\s+/g, '');
+    // Standalone leading "I" — ONLY at sentence/clause start. Never strip a
+    // mid-clause "I" (e.g. "the team I led", "systems that I designed") —
+    // that "I" is grammatically required and deleting it breaks the sentence.
+    out = out.replace(
+        /(^|[.!?]\s+|—\s+)I\s+(\w+)/g,
+        (_match, lead, verb) => `${lead}${verb.charAt(0).toUpperCase()}${verb.slice(1)}`,
+    );
     // Possessive "my" — rewrite to "the" when followed by a noun phrase.
     // This is the safest neutralisation; "their" reads strangely out of
     // first-person context. Skip "my own" → "" (rare but cleaner).
@@ -76,9 +81,56 @@ export function stripFirstPersonPronouns(text: string): string {
 // spelling that matches the input. The map is intentionally small and
 // hand-curated — better to under-fix than to convert a noun ("Engineers
 // solutions") into something wrong.
-const TPS_TO_BASE: Record<string, string> = {}; // moved to Worker /api/cv/purify-cv
+// Single source of truth: this table MUST stay in sync with the identical
+// `_TPS` map in `backend/cv-engine-worker/src/handlers/purify.ts`. A prior
+// migration emptied this table (leaving it a silent no-op) while the Worker
+// kept the real data — see cv-purification-pipeline-migration-gap memory note.
+const TPS_TO_BASE: Record<string, string> = {
+    generates: 'Generate', delivers: 'Deliver', maintains: 'Maintain',
+    improves: 'Improve', reduces: 'Reduce', coordinates: 'Coordinate',
+    leads: 'Lead', drives: 'Drive', manages: 'Manage', builds: 'Build',
+    designs: 'Design', develops: 'Develop', implements: 'Implement',
+    provides: 'Provide', supports: 'Support', creates: 'Create',
+    optimizes: 'Optimize', optimises: 'Optimise', analyzes: 'Analyze',
+    analyses: 'Analyse', collaborates: 'Collaborate', trains: 'Train',
+    conducts: 'Conduct', oversees: 'Oversee', streamlines: 'Streamline',
+    executes: 'Execute', launches: 'Launch', handles: 'Handle',
+    monitors: 'Monitor', evaluates: 'Evaluate', performs: 'Perform',
+    presents: 'Present', writes: 'Write', edits: 'Edit', tests: 'Test',
+    deploys: 'Deploy', resolves: 'Resolve', mentors: 'Mentor',
+    advises: 'Advise', achieves: 'Achieve', reviews: 'Review',
+    tracks: 'Track', reports: 'Report', identifies: 'Identify',
+    communicates: 'Communicate', assists: 'Assist', facilitates: 'Facilitate',
+    negotiates: 'Negotiate', forecasts: 'Forecast', plans: 'Plan',
+    organizes: 'Organize', organises: 'Organise', spearheads: 'Spearhead',
+    champions: 'Champion', architects: 'Architect', automates: 'Automate',
+    prepares: 'Prepare', engineers: 'Engineer', supervises: 'Supervise',
+    operates: 'Operate', delegates: 'Delegate', acquires: 'Acquire',
+    schedules: 'Schedule', mitigates: 'Mitigate', sources: 'Source',
+    compiles: 'Compile', calculates: 'Calculate', configures: 'Configure',
+    integrates: 'Integrate', translates: 'Translate', validates: 'Validate',
+    audits: 'Audit', authors: 'Author', secures: 'Secure', scales: 'Scale',
+    pilots: 'Pilot', standardizes: 'Standardize', standardises: 'Standardise',
+    initiates: 'Initiate', formulates: 'Formulate',
+    owns: 'Own', grows: 'Grow',
+    refactors: 'Refactor', migrates: 'Migrate', publishes: 'Publish',
+    recommends: 'Recommend', serves: 'Serve', ensures: 'Ensure',
+    documents: 'Document', promotes: 'Promote', programs: 'Program',
+    investigates: 'Investigate', orchestrates: 'Orchestrate', partners: 'Partner',
+    produces: 'Produce', processes: 'Process', drafts: 'Draft',
+    researches: 'Research', quantifies: 'Quantify', establishes: 'Establish',
+};
 
 const TPS_KEYS = new Set(Object.keys(TPS_TO_BASE));
+
+// Some entries in TPS_TO_BASE are also common plural job-title nouns
+// ("Engineers", "Leads", "Reports", "Analysts" aren't in the map, but the
+// verbs below overlap with plural nouns). When one of these words opens a
+// bullet and is immediately followed by a preposition, it almost always
+// reads as a plural-noun subject ("Engineers across 3 squads…", "Leads
+// within the team…") rather than a verb — skip conversion in that case.
+const NOUN_AMBIGUOUS_TPS = new Set(['engineers', 'leads', 'reports', 'works', 'plans', 'drafts', 'tests', 'programs']);
+const SUBJECT_PREPOSITIONS = new Set(['across', 'in', 'on', 'at', 'within', 'throughout', 'among', 'over', 'from']);
 
 /**
  * Normalise the leading verb of a single CV bullet from third-person
@@ -97,6 +149,12 @@ export function normalizePresentTenseToImperative(bullet: string): string {
     const firstWord = wordMatch[1];
     const lower = firstWord.toLowerCase();
     if (!TPS_KEYS.has(lower)) return bullet;
+    if (NOUN_AMBIGUOUS_TPS.has(lower)) {
+        const afterFirstWord = rest.slice(firstWord.length).trimStart();
+        const nextWordMatch = afterFirstWord.match(/^(\w+)/);
+        const nextWord = nextWordMatch ? nextWordMatch[1].toLowerCase() : '';
+        if (SUBJECT_PREPOSITIONS.has(nextWord)) return bullet;
+    }
     const base = TPS_TO_BASE[lower];
     return leading + base + rest.slice(firstWord.length);
 }

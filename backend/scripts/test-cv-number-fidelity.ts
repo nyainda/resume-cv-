@@ -16,14 +16,14 @@ import {
     repairTextAgainstSource,
     isBulletDegraded,
     auditCvQuality,
-} from '../../services/cvNumberFidelity';
+} from '../../frontend/services/cvNumberFidelity';
 import {
     stripFirstPersonPronouns,
     normalizePresentTenseToImperative,
     auditCvVoice,
     hasFirstPerson,
     startsWithThirdPersonSingularVerb,
-} from '../../services/cvVoiceFidelity';
+} from '../../frontend/services/cvVoiceFidelity';
 
 interface Case {
     label: string;

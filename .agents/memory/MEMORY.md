@@ -16,3 +16,4 @@
 - [Optimistic sync queue](optimistic-sync-queue.md) — IDB-backed rate-limited queue for CF KV saves; max 1 flush/30s; clearQueueForAccount must be called before every sign-out/delete.
 - [User-partitioned storage](user-partitioned-storage.md) — all keys prefixed `u_<userId>:` via userStorageNamespace.ts; IDB DBs namespaced too; wired into AuthContext + index.tsx boot.
 - [D1 sync timestamp must survive sign-out](d1-sync-timestamp-signout.md) — clearUserScopedStorage must ONLY clear hash keys (usync_slot_hash:*), NOT timestamp keys (usync_slot_ts:*); clearing timestamps zeros localPushTs → D1 always wins merge → local edits lost.
+- [CV purification pipeline migration gap](cv-purification-pipeline-migration-gap.md) — "moved to Worker" comments emptied frontend data tables without wiring an actual worker call; verify call sites, don't trust comments.

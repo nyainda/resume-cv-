@@ -348,6 +348,28 @@ export async function runFinalCVGuard(cvData: CVData): Promise<FinalGuardResult>
         }
     }
 
+    if ((data.certifications ?? []).length > 0) {
+        let certsChanged = false;
+        const cleanedCerts = (data.certifications!).map(cert => {
+            if (typeof cert === 'string') {
+                const cleaned = cleanText(cert);
+                if (cleaned !== cert) certsChanged = true;
+                return cleaned;
+            }
+            const cleanedName = cert.name ? cleanText(cert.name) : cert.name;
+            const cleanedIssuer = cert.issuer ? cleanText(cert.issuer) : cert.issuer;
+            if (cleanedName !== cert.name || cleanedIssuer !== cert.issuer) {
+                certsChanged = true;
+                return { ...cert, name: cleanedName, issuer: cleanedIssuer };
+            }
+            return cert;
+        });
+        if (certsChanged) {
+            fixes.push('certifications: placeholder/double-word cleaned');
+            data = { ...data, certifications: cleanedCerts };
+        }
+    }
+
     if ((data.customSections ?? []).length > 0) {
         let sectionChanged = false;
         const cleanedSections = (data.customSections!).map(sec => {
