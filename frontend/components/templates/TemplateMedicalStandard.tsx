@@ -62,7 +62,7 @@ const TemplateMedicalStandard: React.FC<TemplateProps> = ({ cvData, personalInfo
                         <span>{personalInfo.location}</span>
                     </div>
                 </div>
-                <div className="hidden lg:block">
+                <div className="hidden sm:block shrink-0">
                     <div className="w-16 h-16 rounded-2xl border-2 flex items-center justify-center" style={{ borderColor: accent + '33', backgroundColor: accent + '0d' }}>
                         <span className="text-2xl" style={{ color: accent + 'aa' }}>✚</span>
                     </div>

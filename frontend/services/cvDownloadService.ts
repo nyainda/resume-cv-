@@ -21,7 +21,6 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import {
-  downloadViaPlaywright,
   isPlaywrightServerAvailable,
   renderHtmlToPdfBytes,
 } from './playwrightPdfService';
@@ -128,6 +127,52 @@ let playwrightHealthCache: { ok: boolean; checkedAt: number } | null = null;
 let cfHealthCache: { ok: boolean; checkedAt: number } | null = null;
 const HEALTH_CACHE_MS = 30_000;
 
+// ── PDF bytes cache ──────────────────────────────────────────────────────────
+// Keyed by a fast hash of the exact HTML sent to the renderer. If the user
+// downloads the same CV twice in a row (double-click, re-download after
+// switching tabs, etc.) with nothing changed, we skip the render round-trip
+// entirely and re-serve the same bytes instantly. Purely additive — the
+// render path itself is untouched, this only short-circuits repeat work.
+interface PdfCacheEntry { bytes: Uint8Array; via: 'playwright' | 'cloudflare'; cachedAt: number }
+const pdfBytesCache = new Map<string, PdfCacheEntry>();
+const PDF_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes — long enough for a re-click, short enough to never serve stale content after real edits
+const PDF_CACHE_MAX_ENTRIES = 3; // bounded so embedded-font HTML + PDF bytes never accumulate unbounded memory
+
+/** Cheap, fast, non-cryptographic hash (FNV-1a) — collision risk is irrelevant here since a false hit just re-serves identical bytes for identical HTML. */
+function hashHtml(html: string): string {
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < html.length; i++) {
+    h1 ^= html.charCodeAt(i);
+    h1 = Math.imul(h1, 0x01000193);
+  }
+  return `${html.length}:${(h1 >>> 0).toString(36)}`;
+}
+
+function getCachedPdf(key: string): PdfCacheEntry | null {
+  const entry = pdfBytesCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > PDF_CACHE_TTL_MS) {
+    pdfBytesCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function setCachedPdf(key: string, bytes: Uint8Array, via: 'playwright' | 'cloudflare'): void {
+  pdfBytesCache.set(key, { bytes, via, cachedAt: Date.now() });
+  // Evict oldest entries beyond the cap (Map preserves insertion order).
+  while (pdfBytesCache.size > PDF_CACHE_MAX_ENTRIES) {
+    const oldestKey = pdfBytesCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    pdfBytesCache.delete(oldestKey);
+  }
+}
+
+/** Clear the in-memory PDF bytes cache — call after any CV edit so a stale render is never re-served. */
+export function invalidatePdfCache(): void {
+  pdfBytesCache.clear();
+}
+
 async function probePlaywright(): Promise<boolean> {
   const now = Date.now();
   if (playwrightHealthCache && now - playwrightHealthCache.checkedAt < HEALTH_CACHE_MS) {
@@ -207,6 +252,39 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
     return full;
   };
 
+  // ── Capture the exact HTML once, up front ───────────────────────────────
+  // Previously each tier ran its own getCVHtml() pass (extra DOM clone +
+  // stylesheet capture on every fallback). Capturing once means: (a) a single
+  // cost regardless of how many tiers we try, and (b) a stable cache key so
+  // repeat downloads of an unchanged CV can skip rendering entirely.
+  const tHtml = performance.now();
+  const html = await getCVHtml({
+    containerEl,
+    extraStyles: `
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+      body { margin: 0; padding: 0; }
+    `,
+    watermark,
+  });
+  timing.htmlMs = Math.round(performance.now() - tHtml);
+
+  if (!html) {
+    return finish({
+      ok: false,
+      error: 'CV preview element not found. Please ensure the CV is visible on screen.',
+    });
+  }
+
+  // ── Cache short-circuit ──────────────────────────────────────────────────
+  const cacheKey = hashHtml(html);
+  const cached = getCachedPdf(cacheKey);
+  if (cached) {
+    onStatus?.('Preparing your PDF…');
+    triggerPdfDownload(cached.bytes, fileName);
+    if (isPureFreeTier()) incrementPdfDownloadCount();
+    return finish({ ok: true, via: cached.via, watermarked: watermark });
+  }
+
   // ── Tier 1: Local Playwright ────────────────────────────────────────────
   try {
     const tProbe = performance.now();
@@ -216,9 +294,11 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
     if (playwrightUp) {
       onStatus?.('Rendering preview…');
       const tRender = performance.now();
-      const r = await downloadViaPlaywright(fileName, containerEl);
+      const r = await renderHtmlToPdfBytes(html, fileName);
       timing.renderMs = Math.round(performance.now() - tRender);
-      if (r.success) {
+      if (r.ok && r.bytes) {
+        triggerPdfDownload(r.bytes, fileName);
+        setCachedPdf(cacheKey, r.bytes, 'playwright');
         if (isPureFreeTier()) incrementPdfDownloadCount();
         return finish({ ok: true, via: 'playwright', watermarked: watermark });
       }
@@ -241,32 +321,22 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
 
     if (cfUp) {
       onStatus?.('Sending to Cloudflare renderer…');
-      const tHtml = performance.now();
-      const html = await getCVHtml({
-        containerEl,
-        extraStyles: `
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          body { margin: 0; padding: 0; }
-        `,
-        watermark,
+      const tRender2 = performance.now();
+      const r = await renderHtmlToPdfBytesViaCF({
+        html,
+        filename: fileName,
+        format: 'A4',
+        onStatus,
       });
-      timing.htmlMs = Math.round(performance.now() - tHtml);
-      if (html) {
-        const tRender2 = performance.now();
-        const r = await generateAndDownloadViaCF({
-          html,
-          filename: fileName,
-          format: 'A4',
-          onStatus,
-        });
-        timing.renderMs = Math.round(performance.now() - tRender2);
-        if (r.ok) {
-          if (isPureFreeTier()) incrementPdfDownloadCount();
-          return finish({ ok: true, via: 'cloudflare', watermarked: watermark });
-        }
-        console.warn('[cvDownloadService] Cloudflare failed:', r.error);
-        cfHealthCache = null;
+      timing.renderMs = Math.round(performance.now() - tRender2);
+      if (r.ok && r.bytes) {
+        triggerPdfDownload(r.bytes, fileName);
+        setCachedPdf(cacheKey, r.bytes, 'cloudflare');
+        if (isPureFreeTier()) incrementPdfDownloadCount();
+        return finish({ ok: true, via: 'cloudflare', watermarked: watermark });
       }
+      console.warn('[cvDownloadService] Cloudflare failed:', r.error);
+      cfHealthCache = null;
     }
   } catch (e) {
     console.warn('[cvDownloadService] Cloudflare error:', e);
