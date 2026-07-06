@@ -178,94 +178,206 @@ function extractLocation(lines: string[]): string {
   return '';
 }
 
-/** Parse work experience entries from section lines. */
+/**
+ * Extract a date range string from a line, returning { startDate, endDate }.
+ * Handles: "Jan 2020 – Present", "2020 – 2023", "Jan 2020 - Dec 2022", etc.
+ */
+function extractDateRange(line: string): { startDate: string; endDate: string } {
+  const rangeRx = /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4}|\b\d{4})\s*[-–—]+\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4}|present|current|now|\d{4})/i;
+  const m = line.match(rangeRx);
+  if (m) return { startDate: m[1].trim(), endDate: m[2].trim() };
+  // Single date — start only
+  const single = line.match(/((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4}|\b(19|20)\d{2}\b)/i);
+  return { startDate: single ? single[1].trim() : '', endDate: 'Present' };
+}
+
+/**
+ * Strip all date tokens from a line and return the remaining text.
+ * Used to find company/title when they share a line with the date.
+ */
+function stripDatesFromLine(line: string): string {
+  return line
+    .replace(/((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4})/ig, '')
+    .replace(/\b(19|20)\d{2}\b/g, '')
+    .replace(/[-–—]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s|,–—•]+|[\s|,–—•]+$/g, '')
+    .trim();
+}
+
+/**
+ * Parse work experience entries from section lines.
+ *
+ * Handles the most common CV formats:
+ *   A) Company / Title / Date / Bullets  (most common, blank lines between entries)
+ *   B) Company | Title | Date (all inline on one line)
+ *   C) Date first → Company → Title → Bullets  (date-first)
+ *   D) Contiguous entries (no blank lines, new date signals new entry)
+ *   E) "Title at Company (2020–2023)" single-line header
+ *
+ * ALL non-bullet post-date lines are included as responsibilities so plain
+ * paragraph descriptions are never silently dropped.
+ */
 function parseExperienceSection(lines: string[]): WorkExperience[] {
+  // ── Phase 1: split into entry blocks ─────────────────────────────────────
+  //
+  // Two boundary conditions (either triggers a new block):
+  //   1. Blank line + block already has date/bullets + next line is a header
+  //   2. New date line when current block already has responsibilities bullets
+  //      (handles contiguous entries — no blank lines between them)
+  interface Block { lines: string[] }
+  const blocks: Block[] = [];
+  let cur: string[] = [];
+  let curHasDate = false;
+  let curHasResponsibilities = false;
+  let lastWasBlank = false;
+
+  const flushBlock = () => {
+    if (cur.length) { blocks.push({ lines: cur }); cur = []; }
+    curHasDate = false;
+    curHasResponsibilities = false;
+  };
+
+  for (const raw of lines) {
+    const ln = raw.trim();
+    if (!ln) {
+      if (cur.length) cur.push('');
+      lastWasBlank = true;
+      continue;
+    }
+
+    const isDate   = DATE_PATTERN.test(ln);
+    const isBullet = BULLET_PATTERN.test(ln) || ACTION_VERB.test(ln);
+
+    // Boundary 1: blank line separator after we have a complete entry
+    if ((curHasDate || curHasResponsibilities) && lastWasBlank && !isDate && !isBullet && cur.length) {
+      flushBlock();
+    }
+
+    // Boundary 2: new date line when current entry already has bullet responsibilities
+    // (signals a back-to-back entry with no blank line separator)
+    if (isDate && curHasResponsibilities && cur.length) {
+      flushBlock();
+    }
+
+    if (isDate) curHasDate = true;
+    // Track ANY post-date content (not just bullet lines) so plain-text
+    // responsibility paragraphs also trigger the contiguous-entry boundary.
+    if (curHasDate && !isDate) curHasResponsibilities = true;
+
+    cur.push(ln);
+    lastWasBlank = false;
+  }
+  if (cur.length) blocks.push({ lines: cur });
+
+  // ── Phase 2: parse each block into a WorkExperience ──────────────────────
   const experiences: WorkExperience[] = [];
-  let i = 0;
 
-  while (i < lines.length) {
-    const line = lines[i].trim();
-    if (!line) { i++; continue; }
+  for (const block of blocks) {
+    const nonEmpty = block.lines.filter(l => l.trim());
+    if (!nonEmpty.length) continue;
 
-    // Look for a date line — marks the start of an entry or the date for an entry
-    let company = '';
+    let company  = '';
     let jobTitle = '';
     let startDate = '';
-    let endDate = '';
-    const bullets: string[] = [];
+    let endDate   = 'Present';
+    const responsibilities: string[] = [];
+    let dateFound = false;
+    // How many post-date non-bullet lines have we already promoted to header fields.
+    // Date-first CVs put company/title AFTER the date; allow up to 2 promotions.
+    let postDateHeadersUsed = 0;
 
-    // Try to find company/title above the date
-    if (DATE_PATTERN.test(line)) {
-      // date is on this line — look back for company/title
-      const dateMatch = line.match(/(.*?)\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\w.]*[\s.]*\d{4}[\s\-–—]*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\w.]*[\s.]*\d{4}|present|current|now|\d{4}))/i);
-      if (dateMatch) {
-        const datePart = dateMatch[2] || line;
-        const rangeParts = datePart.split(/[\-–—]+/);
-        startDate = rangeParts[0]?.trim() || '';
-        endDate   = rangeParts[1]?.trim() || 'Present';
-      }
-      // Peek backwards for company/title (already consumed as previous lines)
-      // peek forwards for responsibilities
-      i++;
-      while (i < lines.length) {
-        const bLine = lines[i].trim();
-        if (!bLine) { i++; break; }
-        if (DATE_PATTERN.test(bLine) && !BULLET_PATTERN.test(bLine)) break;
-        if (BULLET_PATTERN.test(bLine) || ACTION_VERB.test(bLine)) {
-          bullets.push(bLine.replace(BULLET_PATTERN, '').trim());
-        }
-        i++;
-      }
-    } else {
-      // Non-date line: could be company or job title
-      company = line;
-      i++;
-      // Next non-empty line: likely job title or date
-      while (i < lines.length && !lines[i].trim()) i++;
-      if (i < lines.length) {
-        const nextLine = lines[i].trim();
-        if (DATE_PATTERN.test(nextLine)) {
-          // date is on next line — no explicit job title
-          const rangeParts = nextLine.split(/[\-–—]+/);
-          startDate = rangeParts[0]?.trim() || '';
-          endDate   = rangeParts[1]?.trim() || 'Present';
-          i++;
-        } else if (!BULLET_PATTERN.test(nextLine) && !ACTION_VERB.test(nextLine)) {
-          // likely job title
-          jobTitle = nextLine;
-          i++;
-          // Look for date next
-          while (i < lines.length && !lines[i].trim()) i++;
-          if (i < lines.length && DATE_PATTERN.test(lines[i].trim())) {
-            const dateLine = lines[i].trim();
-            const rangeParts = dateLine.split(/[\-–—]+/);
-            startDate = rangeParts[0]?.trim() || '';
-            endDate   = rangeParts[1]?.trim() || 'Present';
-            i++;
+    for (const line of nonEmpty) {
+      const isDate   = DATE_PATTERN.test(line);
+      const isBullet = BULLET_PATTERN.test(line);
+
+      // ── Date line ──────────────────────────────────────────────────────
+      if (isDate && !dateFound) {
+        dateFound = true;
+        const dr = extractDateRange(line);
+        startDate = dr.startDate;
+        endDate   = dr.endDate;
+
+        // Inline company/title on the same line: "Google | Engineer | Jan 2020 – Present"
+        // or with comma: "Google, Engineer, Jan 2020 – Present"
+        const withoutDate = stripDatesFromLine(line);
+        if (withoutDate) {
+          const pipeParts = withoutDate.split(/\s*\|\s*/);
+          const commaParts = withoutDate.split(/\s*,\s*/);
+          if (pipeParts.length >= 2) {
+            if (!company)  company  = pipeParts[0].trim();
+            if (!jobTitle) jobTitle = pipeParts[1].trim();
+          } else if (commaParts.length >= 2) {
+            if (!company)  company  = commaParts[0].trim();
+            if (!jobTitle) jobTitle = commaParts[1].trim();
+          } else if (!company) {
+            company = withoutDate;
           }
         }
+        continue;
       }
-      // Collect bullets
-      while (i < lines.length) {
-        const bLine = lines[i].trim();
-        if (!bLine) { i++; if (i < lines.length && !lines[i]?.trim()) break; continue; }
-        if (DATE_PATTERN.test(bLine) && !BULLET_PATTERN.test(bLine) && bullets.length > 0) break;
-        if (bLine.length > 5 && bLine === bLine.toUpperCase() && bLine.length < 60) break;
-        if (BULLET_PATTERN.test(bLine) || ACTION_VERB.test(bLine)) {
-          bullets.push(bLine.replace(BULLET_PATTERN, '').trim());
+
+      // ── Post-date lines ────────────────────────────────────────────────
+      if (dateFound) {
+        // Date-first format: allow up to 2 short, non-bullet, non-action-verb
+        // post-date lines to become company/title when those slots are still empty.
+        // ACTION_VERB lines (e.g. "Built API integrations…") must never be promoted.
+        const isShortNonBullet = !isBullet && !ACTION_VERB.test(line) && line.length <= 80 && postDateHeadersUsed < 2;
+        if (isShortNonBullet && (!company || !jobTitle)) {
+          if (!company) {
+            company = line;
+            postDateHeadersUsed++;
+          } else if (!jobTitle) {
+            jobTitle = line;
+            postDateHeadersUsed++;
+          }
+          continue;
         }
-        i++;
+        // Everything else is a responsibility (bullet, action verb, or plain desc)
+        const clean = line.replace(BULLET_PATTERN, '').trim();
+        if (clean) responsibilities.push(clean);
+        continue;
+      }
+
+      // ── Pre-date header lines → company / title ───────────────────────
+      if (!isBullet) {
+        const pipeIdx = line.indexOf('|');
+        if (pipeIdx > 0) {
+          if (!company)  company  = line.slice(0, pipeIdx).trim();
+          if (!jobTitle) jobTitle = line.slice(pipeIdx + 1).trim();
+        } else if (!company) {
+          company = line;
+        } else if (!jobTitle) {
+          jobTitle = line;
+        }
+      } else {
+        // Bullet before date (capture it — some CVs list bullets without a header date)
+        const clean = line.replace(BULLET_PATTERN, '').trim();
+        if (clean) responsibilities.push(clean);
       }
     }
 
-    if (company || jobTitle || bullets.length) {
+    // ── "Title at Company" or "Title — Company" decomposition ────────────
+    if (company && !jobTitle) {
+      const atM  = company.match(/^(.+?)\s+at\s+(.+)$/i);
+      const dashM = company.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+      if (atM) {
+        jobTitle = atM[1].trim();
+        company  = atM[2].trim();
+      } else if (dashM && dashM[1].split(/\s+/).length <= 5) {
+        jobTitle = dashM[1].trim();
+        company  = dashM[2].trim();
+      }
+    }
+
+    if (company || jobTitle || startDate || responsibilities.length) {
       experiences.push({
         id:               `exp_${experiences.length + 1}_${Date.now()}`,
-        company:          company,
-        jobTitle:         jobTitle,
-        startDate:        startDate,
-        endDate:          endDate || 'Present',
-        responsibilities: bullets.join('\n• '),
+        company:          company.trim(),
+        jobTitle:         jobTitle.trim(),
+        startDate,
+        endDate: endDate || 'Present',
+        responsibilities: responsibilities.join('\n• '),
       });
     }
   }
@@ -275,30 +387,101 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
 
 /** Parse education entries from section lines. */
 function parseEducationSection(lines: string[]): Education[] {
-  const DEGREE_RX = /\b(b\.?sc|b\.?a|b\.?eng|b\.?tech|m\.?sc|m\.?a|m\.?eng|m\.?b\.?a|ph\.?d|phd|doctorate|diploma|certificate|hnd|llb|llm|bcom|mcom|bachelor|master|degree|associate)\b/i;
+  const DEGREE_RX = /\b(b\.?sc|b\.?a\.?|b\.?eng|b\.?tech|m\.?sc|m\.?a\.?|m\.?eng|m\.?b\.?a\.?|ph\.?d\.?|phd|doctorate|diploma|certificate|hnd|llb|llm|bcom|mcom|bachelor|master|degree|associate|a\.?s\.?|a\.?a\.?)\b/i;
+  const INSTITUTION_RX = /\b(university|college|school|institute|academy|polytechnic|faculty|campus)\b/i;
   const entries: Education[] = [];
-  let degree = ''; let school = ''; let year = '';
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
+  // Split into blocks by blank lines — each block is one qualification
+  const blocks: string[][] = [];
+  let cur: string[] = [];
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) {
+      if (cur.length) { blocks.push(cur); cur = []; }
+    } else {
+      cur.push(t);
+    }
+  }
+  if (cur.length) blocks.push(cur);
+
+  for (const block of blocks) {
+    let degree = ''; let school = ''; let year = '';
+
+    // ── Single-line decomposition ────────────────────────────────────────
+    // Handle: "BSc Computer Science, University of X, 2022"
+    //         "University of X | BSc Computer Science (2022)"
+    if (block.length === 1) {
+      const line = block[0];
+      // Extract year first
+      const yearMatches = line.match(/\b((19|20)\d{2})\b/g);
+      if (yearMatches) year = yearMatches[yearMatches.length - 1];
+
+      const stripped = line
+        .replace(/\b(19|20)\d{2}\b[\s\-–—]*((19|20)\d{2})?\b/g, '')
+        .replace(/[()]/g, '')
+        .trim();
+
+      const parts = stripped.split(/\s*[,|]\s*/).map(p => p.trim()).filter(Boolean);
+      for (const part of parts) {
+        if (DEGREE_RX.test(part) && !degree) degree = part;
+        else if ((INSTITUTION_RX.test(part) || !DEGREE_RX.test(part)) && !school && part.length > 2) school = part;
+      }
+      // If no institution keyword found in parts, treat non-degree part as school
+      if (!school && parts.length > 1) {
+        school = parts.find(p => !DEGREE_RX.test(p)) || '';
+      }
+
       if (degree || school) {
-        entries.push({ id: `edu_${entries.length + 1}_${Date.now()}`, degree, school, graduationYear: year });
-        degree = ''; school = ''; year = '';
+        entries.push({ id: `edu_${entries.length + 1}_${Date.now()}`, degree: degree.trim(), school: school.trim(), graduationYear: year });
       }
       continue;
     }
-    const yearMatch = trimmed.match(/\b(19|20)\d{2}\b/);
-    if (yearMatch) year = yearMatch[0];
-    if (DEGREE_RX.test(trimmed)) {
-      degree = trimmed.replace(/\b(19|20)\d{2}\b/, '').trim();
-    } else if (!school && trimmed.length > 3 && !DATE_PATTERN.test(trimmed)) {
-      school = trimmed;
+
+    // ── Multi-line block parsing ──────────────────────────────────────────
+    for (const trimmed of block) {
+      // Year: prefer the latest year in the block
+      const yearMatch = trimmed.match(/\b((19|20)\d{2})\b/g);
+      if (yearMatch) year = yearMatch[yearMatch.length - 1];
+
+      // Pure date-only line → skip (year already captured)
+      const isDateOnly = DATE_PATTERN.test(trimmed) && stripDatesFromLine(trimmed) === '';
+      if (isDateOnly) continue;
+
+      const cleanLine = trimmed
+        .replace(/\b(19|20)\d{2}\b[\s\-–—]*((19|20)\d{2})?\b/g, '')
+        .replace(/[()]/g, '')
+        .replace(/\s*[|\-–—,]\s*$/g, '')
+        .trim();
+
+      if (!cleanLine) continue;
+
+      // Pipe-separated inline on one line: "School | Program" or "Program | School"
+      if (cleanLine.includes('|')) {
+        const [left, right] = cleanLine.split(/\s*\|\s*/);
+        const leftIsInst = INSTITUTION_RX.test(left);
+        const rightIsInst = INSTITUTION_RX.test(right);
+        const leftIsDeg  = DEGREE_RX.test(left);
+        const rightIsDeg = DEGREE_RX.test(right);
+        // Prefer explicit keyword signals; fall back to left=school, right=degree
+        if (!school) school = leftIsInst ? left : (rightIsInst ? right : (leftIsDeg ? right : left));
+        if (!degree) degree = rightIsDeg ? right : (leftIsDeg  ? left  : (rightIsInst ? left : right));
+        continue;
+      }
+
+      if (DEGREE_RX.test(cleanLine)) {
+        if (!degree) degree = cleanLine;
+      } else if (!school && cleanLine.length > 2) {
+        school = cleanLine;
+      } else if (school && !degree && cleanLine.length > 2) {
+        degree = cleanLine;
+      }
+    }
+
+    if (degree || school) {
+      entries.push({ id: `edu_${entries.length + 1}_${Date.now()}`, degree: degree.trim(), school: school.trim(), graduationYear: year.trim() });
     }
   }
-  if (degree || school) {
-    entries.push({ id: `edu_${entries.length + 1}_${Date.now()}`, degree, school, graduationYear: year });
-  }
+
   return entries;
 }
 
@@ -309,13 +492,13 @@ function parseSkillsSection(lines: string[]): string[] {
   return [...new Set(skills)].slice(0, 40);
 }
 
-/** Extract summary paragraph. */
+/** Extract summary paragraph — joins all non-empty, non-bullet lines. */
 function parseSummarySection(lines: string[]): string {
   return lines
     .map(l => l.trim())
-    .filter(l => l.length > 20 && !BULLET_PATTERN.test(l))
-    .slice(0, 5)
-    .join(' ');
+    .filter(l => l.length > 5 && !BULLET_PATTERN.test(l))
+    .join(' ')
+    .trim();
 }
 
 /** Parse certifications/licenses into a CustomSection. */
