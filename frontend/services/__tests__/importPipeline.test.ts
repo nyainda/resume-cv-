@@ -146,7 +146,27 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
     if ((curHasDate || curHasResponsibilities) && lastWasBlank && !isDate && !isBullet && cur.length) flushBlock();
     // Boundary 2: only split on "clean" date lines (stripped text < 40 chars, no sentence-glue words)
     const isCleanDateLine = isDate && stripDatesLocal(ln).length < 40 && !SENTENCE_WORDS.test(ln);
-    if (isCleanDateLine && curHasResponsibilities && cur.length) flushBlock();
+    if (isCleanDateLine && curHasResponsibilities && cur.length) {
+      const tailCandidate = (function () {
+        for (let i = cur.length - 1; i >= 0; i--) {
+          const t = cur[i].trim();
+          if (!t) continue;
+          return { line: t, idx: i };
+        }
+        return null;
+      })();
+      if (tailCandidate) {
+        const { line: t, idx } = tailCandidate;
+        const words = t.split(/\s+/);
+        const isOrgName =
+          /^[A-Z]/.test(t) && t.length >= 3 && t.length <= 45 &&
+          words.length <= 6 && !DATE_PATTERN.test(t) && !BULLET_PATTERN.test(t) &&
+          !ACTION_VERB.test(t) &&
+          !/\b(for|with|to|on|by|via|up|down|in|per)\b/.test(t);
+        if (isOrgName) { cur.splice(idx, 1); flushBlock(); cur.push(t); }
+        else { flushBlock(); }
+      } else { flushBlock(); }
+    }
     if (isDate) curHasDate = true;
     if (curHasDate && !isDate) curHasResponsibilities = true;
     cur.push(ln); lastWasBlank = false;
@@ -186,7 +206,9 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
         continue;
       }
       if (dateFound) {
-        const isShortNonBullet = !isBullet && !ACTION_VERB.test(line) && line.length <= 80 && postDateHeadersUsed < 2;
+        const isLikelyJobTitle   = JOB_TITLE_RX.test(line);
+        const actionVerbNotTitle = ACTION_VERB.test(line) && !isLikelyJobTitle;
+        const isShortNonBullet   = !isBullet && !actionVerbNotTitle && line.length <= 80 && postDateHeadersUsed < 2;
         if (isShortNonBullet && (!company || !jobTitle)) {
           if (!company) { company = line; postDateHeadersUsed++; }
           else { jobTitle = line; postDateHeadersUsed++; }

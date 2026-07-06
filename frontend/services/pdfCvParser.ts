@@ -165,12 +165,13 @@ export async function extractText(file: File): Promise<PDFExtractResult> {
     lines = groupIntoLines(sortReadingOrder(allItems));
   }
 
-  // Remove page-number lines (lone 1–4 digit numbers) and other extraction
+  // Remove page-number lines (lone 1–3 digit numbers) and other extraction
   // noise that would otherwise pollute the section parser.
+  // NOTE: 4-digit numbers (e.g. "2022") are graduation years — do NOT filter them.
   lines = lines.filter(l => {
     const t = l.trim();
     if (!t) return true;                    // keep blank separator lines
-    if (/^\d{1,4}$/.test(t)) return false; // bare page numbers: 1, 2, 12, 123
+    if (/^\d{1,3}$/.test(t)) return false; // bare page numbers: 1, 2, 12, 123
     if (t.length < 2) return false;         // single stray chars
     return true;
   });

@@ -302,7 +302,51 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
       && stripDatesFromLine(ln).length < 40
       && !SENTENCE_WORDS.test(ln);
     if (isCleanDateLine && curHasResponsibilities && cur.length) {
-      flushBlock();
+      // Before flushing, check if the SINGLE last non-empty line of this block
+      // is actually the employer/company name for the NEXT entry.  This happens
+      // in contiguous CVs where company → date → bullets repeat without blank lines:
+      //   Elgon Kenya          ← tail of block 1 — belongs to block 2
+      //   Sep 2023 – Jan 2024  ← triggers this boundary
+      //
+      // We use a POSITIVE "looks-like-org-name" test to keep this safe:
+      //   • Must start with an uppercase letter
+      //   • Must be short (≤ 45 chars, ≤ 6 words) — company names aren't essays
+      //   • Must NOT contain filler prepositions (for, with, to…) that signal prose
+      //   • Must NOT match ACTION_VERB (past-tense / gerund — rules out "Built X")
+      //   • Must NOT be a date line or bullet line
+      //
+      // We only ever pop ONE line — company names are always a single line.
+      const tailCandidate = (function () {
+        for (let i = cur.length - 1; i >= 0; i--) {
+          const t = cur[i].trim();
+          if (!t) continue; // skip trailing blanks to find last real line
+          return { line: t, idx: i };
+        }
+        return null;
+      })();
+
+      if (tailCandidate) {
+        const { line: t, idx } = tailCandidate;
+        const words = t.split(/\s+/);
+        const isOrgName =
+          /^[A-Z]/.test(t) &&                          // uppercase start
+          t.length >= 3 && t.length <= 45 &&            // short
+          words.length <= 6 &&                          // few words
+          !DATE_PATTERN.test(t) &&                      // not a date
+          !BULLET_PATTERN.test(t) &&                    // not a bullet
+          !ACTION_VERB.test(t) &&                       // not a verb sentence
+          !/\b(for|with|to|on|by|via|up|down|in|per)\b/.test(t); // no prose prepositions
+
+        if (isOrgName) {
+          cur.splice(idx, 1);            // remove from tail
+          flushBlock();
+          cur.push(t);                   // prepend to next block
+        } else {
+          flushBlock();
+        }
+      } else {
+        flushBlock();
+      }
     }
 
     if (isDate) curHasDate = true;
@@ -374,7 +418,14 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
         // Date-first format: allow up to 2 short, non-bullet, non-action-verb
         // post-date lines to become company/title when those slots are still empty.
         // ACTION_VERB lines (e.g. "Built API integrations…") must never be promoted.
-        const isShortNonBullet = !isBullet && !ACTION_VERB.test(line) && line.length <= 80 && postDateHeadersUsed < 2;
+        // A line is a candidate for company/title promotion if it's short, has no
+        // explicit bullet marker, and is NOT a pure action-verb sentence.
+        // Exception: words like "Engineering Attachment", "Marketing Intern" match
+        // ACTION_VERB (gerund suffix) but are actually job titles — allow them if
+        // JOB_TITLE_RX also matches.
+        const isLikelyJobTitle   = JOB_TITLE_RX.test(line);
+        const actionVerbNotTitle = ACTION_VERB.test(line) && !isLikelyJobTitle;
+        const isShortNonBullet   = !isBullet && !actionVerbNotTitle && line.length <= 80 && postDateHeadersUsed < 2;
         if (isShortNonBullet && (!company || !jobTitle)) {
           // Prioritise filling whichever header slot is still empty.
           // When jobTitle was already extracted from an inline date line (e.g.
@@ -556,20 +607,68 @@ function parseEducationSection(lines: string[]): Education[] {
   return entries;
 }
 
-/** Extract skills from section lines (comma/pipe/newline separated). */
+/** Extract skills from section lines.
+ *
+ * Handles three common formats:
+ *  1. Comma / pipe / bullet separated:  "AutoCAD, IrriCAD, Excel"
+ *  2. One skill per line
+ *  3. Grid / table layout (pdfjs merges cells into one line per row):
+ *     "AutoCAD   Sales Engineering   Customer Focus"
+ *     We split on 2+ consecutive spaces because PDF column gaps produce them.
+ *     If no multi-space gap, we keep the whole line as one skill token
+ *     (joining columns without gaps is an unsolvable ambiguity without AI).
+ *
+ * Also filters heading-remnant lines like "& Competencies" that appear when
+ * the section header "Skills & Competencies" is detected and the remainder
+ * after "Skills" is added as a content line.
+ */
 function parseSkillsSection(lines: string[]): string[] {
-  const raw = lines.join(', ');
-  const skills = raw.split(/[,|•\n]/).map(s => s.replace(BULLET_PATTERN, '').trim()).filter(s => s.length > 1 && s.length < 60);
-  return [...new Set(skills)].slice(0, 40);
+  const tokens: string[] = [];
+
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) continue;
+    // Drop section-heading remnants like "& Competencies", "& Expertise", etc.
+    if (/^[&(]/.test(t)) continue;
+
+    if (/[,|•]/.test(t)) {
+      // Explicit separators — split on them
+      tokens.push(...t.split(/[,|•]/).map(s => s.replace(BULLET_PATTERN, '').trim()).filter(Boolean));
+    } else if (/\s{2,}/.test(t)) {
+      // 2+ spaces between tokens — PDF column gap (e.g. table/grid layout).
+      // Only keep tokens that start with an uppercase letter or digit; lowercase-
+      // starting fragments are usually OCR ligature split-artefacts (e.g. "ce Suite"
+      // from "O  ce Suite" where "ffi" ligature is missing).
+      tokens.push(
+        ...t.split(/\s{2,}/).map(s => s.trim()).filter(s => s.length > 1 && /^[A-Z0-9]/.test(s))
+      );
+    } else {
+      // Single skill or unsplittable line — keep as-is
+      tokens.push(t.replace(BULLET_PATTERN, '').trim());
+    }
+  }
+
+  return [...new Set(tokens.filter(s => s.length > 1 && s.length < 60))].slice(0, 40);
 }
 
-/** Extract summary paragraph — joins all non-empty, non-bullet lines. */
+/** Extract summary paragraph — joins all non-empty, non-bullet lines.
+ *
+ * Some PDF layouts place a "highlights" blob in the summary section that
+ * concatenates all responsibility bullets separated by "•".  We strip
+ * everything from the first "•" onward so only the genuine prose survives.
+ */
 function parseSummarySection(lines: string[]): string {
-  return lines
-    .map(l => l.trim())
+  const cleaned = lines
+    .map(l => {
+      const t = l.trim();
+      // Truncate at the first inline bullet — everything after is experience bullets
+      const bulletIdx = t.indexOf('•');
+      return bulletIdx > 20 ? t.slice(0, bulletIdx).trim() : t;
+    })
     .filter(l => l.length > 5 && !BULLET_PATTERN.test(l))
     .join(' ')
     .trim();
+  return cleaned;
 }
 
 /** Parse certifications/licenses into a CustomSection. */
