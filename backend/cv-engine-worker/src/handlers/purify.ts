@@ -213,7 +213,7 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
     }
   ],
   "education": [
-    { "degree": "string", "school": "string", "year": "string", "description": "string" }
+    { "degree": "string", "school": "string", "startYear": "string (enrolment year e.g. 2019)", "year": "string (graduation year e.g. 2022 — use Present or Expected YYYY if ongoing)", "description": "string" }
   ],
   "projects": [
     {

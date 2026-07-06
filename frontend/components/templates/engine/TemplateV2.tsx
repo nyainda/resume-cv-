@@ -322,21 +322,49 @@ const ExperienceSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: De
   );
 };
 
+// Format education date range from startYear + year fields
+function eduDateRange(startYear?: string, year?: string): string {
+  if (startYear && year && startYear !== year) return `${startYear} – ${year}`;
+  if (year) return year;
+  return '';
+}
+
 const EducationSection: React.FC<{ cvData: CVData; theme: TemplateTheme; sc: DensityScale; isEditing: boolean; onChange: (d: CVData) => void }> = ({ cvData, theme, sc, isEditing, onChange }) => {
   if (!cvData.education?.length) return null;
   return (
     <Section sc={sc}>
       <SectionHeading title="Education" theme={theme} sc={sc} />
-      {cvData.education.map((edu, i) => (
-        <div key={i} style={{ marginBottom: sc.itemGap, paddingLeft: 9, borderLeft: `2px solid ${theme.accent}55` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 1 }}>
-            <span style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody }}>{edu.school}</span>
-            {edu.year && <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, flexShrink: 0 }}>{edu.year}</span>}
+      {cvData.education.map((edu, i) => {
+        const dateRange = eduDateRange(edu.startYear, edu.year);
+        return (
+          <div key={i} style={{ marginBottom: sc.itemGap }}>
+            {/* Degree first — it's the credential that matters most */}
+            {edu.degree && (
+              <div style={{ fontSize: sc.bodySize, fontWeight: 700, color: theme.bodyText, fontFamily: theme.fontBody, lineHeight: 1.3, marginBottom: 2 }}
+                {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.education[i].degree = v; onChange(d); })}>
+                {edu.degree}
+              </div>
+            )}
+            {/* School + date range on the same line */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: sc.metaSize, color: theme.bodyMuted, fontFamily: theme.fontBody, fontWeight: 500 }}
+                {...editable(isEditing, v => { const d = JSON.parse(JSON.stringify(cvData)); d.education[i].school = v; onChange(d); })}>
+                {edu.school}
+              </span>
+              {dateRange && (
+                <span style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, fontWeight: 600, flexShrink: 0 }}>
+                  {dateRange}
+                </span>
+              )}
+            </div>
+            {edu.description && (
+              <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 3, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>
+                {edu.description}
+              </div>
+            )}
           </div>
-          {edu.degree && <div style={{ fontSize: sc.bodySize, color: theme.accent, fontWeight: 600, fontFamily: theme.fontBody, marginBottom: 1 }}>{edu.degree}</div>}
-          {edu.description && <div style={{ fontSize: sc.metaSize, color: theme.bodyMuted, marginTop: 1, fontFamily: theme.fontBody, lineHeight: sc.lineH }}>{edu.description}</div>}
-        </div>
-      ))}
+        );
+      })}
     </Section>
   );
 };
@@ -600,13 +628,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
       {split.eduInSidebar && cvData.education?.length ? (
         <div style={{ marginBottom: sc.sectionGap }}>
           <SidebarHead title="Education" theme={theme} sc={sc} />
-          {cvData.education.map((edu, i) => (
-            <div key={i} style={{ marginBottom: 7 }}>
-              <div style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody, lineHeight: 1.3 }}>{edu.school}</div>
-              <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, lineHeight: sc.lineH, marginTop: 1 }}>{edu.degree}</div>
-              {edu.year && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, marginTop: 1 }}>{edu.year}</div>}
-            </div>
-          ))}
+          {cvData.education.map((edu, i) => {
+            const dateRange = eduDateRange(edu.startYear, edu.year);
+            return (
+              <div key={i} style={{ marginBottom: 8 }}>
+                {edu.degree && <div style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody, lineHeight: 1.3 }}>{edu.degree}</div>}
+                <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, lineHeight: sc.lineH, marginTop: 1 }}>{edu.school}</div>
+                {dateRange && <div style={{ fontSize: sc.metaSize, color: theme.accent, fontFamily: theme.fontBody, marginTop: 1, fontWeight: 600 }}>{dateRange}</div>}
+              </div>
+            );
+          })}
         </div>
       ) : null}
 

@@ -204,7 +204,8 @@ export interface CVExperience {
 export interface CVEducation {
   degree: string;
   school: string;
-  year: string;
+  year: string;           // graduation / end year, e.g. "2022"
+  startYear?: string;     // enrolment year, e.g. "2019" — used to build "2019 – 2022" date range
   description?: string;
 }
 

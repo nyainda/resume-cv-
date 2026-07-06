@@ -67,20 +67,23 @@ export interface DensityScale {
 }
 
 export const DENSITY_SCALES: Record<ContentDensity, DensityScale> = {
+  // compact — many bullets / multiple long jobs: keep content fitting while being readable
   compact: {
-    bodySize: '9px', metaSize: '8px', tagSize: '7.5px', sidebarBodySize: '8.5px',
-    sectionGap: 10, bulletGap: 2.5, itemGap: 8,
+    bodySize: '10.5px', metaSize: '9px', tagSize: '8.5px', sidebarBodySize: '9.5px',
+    sectionGap: 11, bulletGap: 2.5, itemGap: 8,
     lineH: 1.45, bodyPad: '16px 24px', sidebarPad: '14px 12px', sectionTopMargin: 0,
   },
+  // balanced — typical professional CV: clear, comfortable, professional
   balanced: {
-    bodySize: '10px', metaSize: '8.5px', tagSize: '8.5px', sidebarBodySize: '9.5px',
-    sectionGap: 15, bulletGap: 3, itemGap: 11,
-    lineH: 1.55, bodyPad: '22px 30px', sidebarPad: '20px 16px', sectionTopMargin: 2,
+    bodySize: '11.5px', metaSize: '9.5px', tagSize: '9px', sidebarBodySize: '10.5px',
+    sectionGap: 14, bulletGap: 3, itemGap: 10,
+    lineH: 1.5, bodyPad: '20px 28px', sidebarPad: '18px 16px', sectionTopMargin: 2,
   },
+  // spacious — sparse CV (new grad / career change): generous, open, inviting
   spacious: {
-    bodySize: '11px', metaSize: '9.5px', tagSize: '9px', sidebarBodySize: '10px',
-    sectionGap: 22, bulletGap: 4, itemGap: 15,
-    lineH: 1.65, bodyPad: '28px 36px', sidebarPad: '28px 20px', sectionTopMargin: 4,
+    bodySize: '12.5px', metaSize: '10.5px', tagSize: '10px', sidebarBodySize: '11.5px',
+    sectionGap: 20, bulletGap: 3.5, itemGap: 14,
+    lineH: 1.6, bodyPad: '26px 34px', sidebarPad: '26px 20px', sectionTopMargin: 4,
   },
 };
 
