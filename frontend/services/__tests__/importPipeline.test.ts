@@ -193,7 +193,12 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
           continue;
         }
         const clean = line.replace(BULLET_PATTERN, '').trim();
-        if (clean) responsibilities.push(clean);
+        const isExplicitBullet  = BULLET_PATTERN.test(line);
+        const isActionVerbLine  = ACTION_VERB.test(line);
+        const isSubstantiveText = clean.length > 30 && !/^\d+$/.test(clean);
+        if (clean && (isExplicitBullet || isActionVerbLine || isSubstantiveText)) {
+          responsibilities.push(clean);
+        }
         continue;
       }
       if (!isBullet) {
@@ -219,7 +224,7 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
       else if (dashM && dashM[1].split(/\s+/).length <= 5) { jobTitle = dashM[1].trim(); company = dashM[2].trim(); }
     }
     if (company || jobTitle || startDate || responsibilities.length) {
-      experiences.push({ id: `exp_${experiences.length + 1}`, company: company.trim(), jobTitle: jobTitle.trim(), startDate, endDate: endDate || 'Present', responsibilities: responsibilities.join('\n• ') });
+      experiences.push({ id: `exp_${experiences.length + 1}`, company: company.trim(), jobTitle: jobTitle.trim(), startDate, endDate: endDate || 'Present', responsibilities: responsibilities.map(r => `• ${r}`).join('\n') });
     }
   }
   return experiences;

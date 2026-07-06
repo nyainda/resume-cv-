@@ -165,6 +165,16 @@ export async function extractText(file: File): Promise<PDFExtractResult> {
     lines = groupIntoLines(sortReadingOrder(allItems));
   }
 
+  // Remove page-number lines (lone 1–4 digit numbers) and other extraction
+  // noise that would otherwise pollute the section parser.
+  lines = lines.filter(l => {
+    const t = l.trim();
+    if (!t) return true;                    // keep blank separator lines
+    if (/^\d{1,4}$/.test(t)) return false; // bare page numbers: 1, 2, 12, 123
+    if (t.length < 2) return false;         // single stray chars
+    return true;
+  });
+
   await doc.destroy();
 
   const wordCount = lines.join(' ').split(/\s+/).filter(Boolean).length;

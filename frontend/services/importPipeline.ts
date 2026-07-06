@@ -389,9 +389,19 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
           }
           continue;
         }
-        // Everything else is a responsibility (bullet, action verb, or plain desc)
+        // Only accept a line as a responsibility if it genuinely looks like one:
+        //  • Has an explicit bullet marker (•, -, *, etc.)
+        //  • Starts with a past-tense/gerund action verb (Developed, Built…)
+        //  • Is substantive plain text (> 30 chars and not a bare number)
+        // This prevents page numbers, short noise, and stray labels from
+        // being imported as fake bullets.
         const clean = line.replace(BULLET_PATTERN, '').trim();
-        if (clean) responsibilities.push(clean);
+        const isExplicitBullet  = BULLET_PATTERN.test(line);
+        const isActionVerbLine  = ACTION_VERB.test(line);
+        const isSubstantiveText = clean.length > 30 && !/^\d+$/.test(clean);
+        if (clean && (isExplicitBullet || isActionVerbLine || isSubstantiveText)) {
+          responsibilities.push(clean);
+        }
         continue;
       }
 
@@ -438,7 +448,7 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
         jobTitle:         jobTitle.trim(),
         startDate,
         endDate: endDate || 'Present',
-        responsibilities: responsibilities.join('\n• '),
+        responsibilities: responsibilities.map(r => `• ${r}`).join('\n'),
       });
     }
   }
@@ -791,7 +801,7 @@ export function heuristicParse(text: string): HeuristicResult {
   confidence['personalInfo.linkedin'] = linkedin ? 95 : 50;
   confidence['personalInfo.github']   = github   ? 95 : 50;
   confidence['personalInfo.website']  = website  ? 80 : 50;
-  confidence['personalInfo.location'] = location ? 70 : 40;
+  confidence['personalInfo.location'] = location ? 75 : 40;
 
   // ── Summary ──
   let summarySection = sections.find(s => s.name === 'summary');
@@ -810,12 +820,16 @@ export function heuristicParse(text: string): HeuristicResult {
       summary = parseSummarySection(proseLines);
     }
   }
-  confidence['summary'] = summary ? 65 : 0;
+  // 78 keeps summary above the 70 threshold so it isn't sent to an AI stage
+  // that is unreliable — Stage 1 extraction is accurate enough for summaries.
+  confidence['summary'] = summary ? 78 : 0;
 
   // ── Experience ──
   const expSection = sections.find(s => s.name === 'experience');
   const workExperience = expSection ? parseExperienceSection(expSection.lines) : [];
-  confidence['workExperience'] = workExperience.length > 0 ? 70 : 30;
+  // 80 keeps parsed experience above the 70 threshold — Stage 1 is reliable
+  // enough; sending to AI causes hallucinated bullets when AI times out.
+  confidence['workExperience'] = workExperience.length > 0 ? 80 : 30;
 
   // ── Education ──
   const eduSection = sections.find(s => s.name === 'education');
