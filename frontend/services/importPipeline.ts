@@ -123,9 +123,16 @@ function splitIntoSections(lines: string[]): RawSection[] {
 
 // ─── Field extraction helpers ─────────────────────────────────────────────────
 
-const DATE_PATTERN   = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*[\s.]*\d{4}|\b\d{4}\s*[-–—]\s*(\d{4}|present|current|now)/i;
+// Matches month-name dates AND year-ranges AND ISO dates (YYYY-MM-DD).
+const DATE_PATTERN   = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*[\s.]*\d{4}|\b\d{4}\s*[-–—]\s*(\d{4}|present|current|now)|\b\d{4}-\d{2}-\d{2}/i;
 const BULLET_PATTERN = /^[\•\-\*\u2022\u25CF\u2013\u2014]\s+/;
-const ACTION_VERB    = /^[A-Z][a-z]+(ed|ing|es?)\b/;
+// Match past-tense / gerund action verbs common in CVs (-ed, -ied, -ing) and
+// Re-prefixed verbs.  Deliberately excludes -es / -e endings which falsely match
+// proper nouns like "Accenture", "Software", "Deloitte".
+const ACTION_VERB    = /^[A-Z][a-z]+(ed|ied|ing)\b|^Re-[a-z]+(ed|ied|ing)\b/;
+// Matches common job-title keywords so inline-date text can be correctly identified
+// as a role title rather than a company name.
+const JOB_TITLE_RX   = /\b(engineer|manager|analyst|developer|intern|director|officer|specialist|coordinator|consultant|assistant|executive|architect|designer|lead|senior|junior|associate|attachment|supervisor|technician|scientist|researcher|strategist|advisor|head|vp|president|founder|ceo|cto|cfo|coo|accountant|administrator|representative|agent|officer|planner|programmer|writer|editor|nurse|doctor|therapist|auditor|controller)\b/i;
 
 function extractEmail(text: string): string {
   const m = text.match(/[\w.+%-]+@[\w-]+\.[a-z]{2,}/i);
@@ -180,25 +187,45 @@ function extractLocation(lines: string[]): string {
 
 /**
  * Extract a date range string from a line, returning { startDate, endDate }.
- * Handles: "Jan 2020 – Present", "2020 – 2023", "Jan 2020 - Dec 2022", etc.
+ * Handles: "Jan 2020 – Present", "2020 – 2023", "Jan 2020 - Dec 2022",
+ *          "2024-01-01 – Present" (ISO), "2021-02-01 – 2021-05-01".
  */
 function extractDateRange(line: string): { startDate: string; endDate: string } {
+  // ISO date range: "2024-01-01 – Present" or "2021-02-01 – 2021-05-01"
+  const isoRangeRx = /(\d{4}-\d{2}-\d{2})\s*[-–—]+\s*(\d{4}-\d{2}-\d{2}|present|current|now)/i;
+  const isoM = line.match(isoRangeRx);
+  if (isoM) return { startDate: isoM[1].trim(), endDate: isoM[2].trim() };
+
+  // ISO single date followed by "– Present"
+  const isoPresRx = /(\d{4}-\d{2}-\d{2})\s*[-–—]+\s*(present|current|now)/i;
+  const isoPresM = line.match(isoPresRx);
+  if (isoPresM) return { startDate: isoPresM[1].trim(), endDate: isoPresM[2].trim() };
+
+  // Month-name or year range: "Jan 2020 – Present", "2020 – 2023"
   const rangeRx = /((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4}|\b\d{4})\s*[-–—]+\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4}|present|current|now|\d{4})/i;
   const m = line.match(rangeRx);
   if (m) return { startDate: m[1].trim(), endDate: m[2].trim() };
-  // Single date — start only
+
+  // ISO single date (no range)
+  const isoSingle = line.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoSingle) return { startDate: isoSingle[1].trim(), endDate: 'Present' };
+
+  // Month-name or plain year single date
   const single = line.match(/((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4}|\b(19|20)\d{2}\b)/i);
   return { startDate: single ? single[1].trim() : '', endDate: 'Present' };
 }
 
 /**
  * Strip all date tokens from a line and return the remaining text.
+ * Handles ISO dates (YYYY-MM-DD), month-name dates, and year-ranges.
  * Used to find company/title when they share a line with the date.
  */
 function stripDatesFromLine(line: string): string {
   return line
-    .replace(/((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4})/ig, '')
-    .replace(/\b(19|20)\d{2}\b/g, '')
+    .replace(/\d{4}-\d{2}-\d{2}/g, '')                                    // ISO dates
+    .replace(/((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z.]*\.?\s*\d{4})/ig, '') // month-name dates
+    .replace(/\b(19|20)\d{2}\b/g, '')                                      // bare years
+    .replace(/\b(present|current|now)\b/gi, '')                            // end-date keywords
     .replace(/[-–—]+/g, ' ')
     .replace(/\s+/g, ' ')
     .replace(/^[\s|,–—•]+|[\s|,–—•]+$/g, '')
@@ -254,9 +281,15 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
       flushBlock();
     }
 
-    // Boundary 2: new date line when current entry already has bullet responsibilities
-    // (signals a back-to-back entry with no blank line separator)
-    if (isDate && curHasResponsibilities && cur.length) {
+    // Boundary 2: new date line when current entry already has responsibilities.
+    // "Clean" = after stripping dates, remaining text is short (< 40 chars) AND
+    // doesn't contain sentence-glue words that indicate mid-sentence prose.
+    // This avoids false splits on lines like "Grew sales since Dec 2023".
+    const SENTENCE_WORDS = /\b(since|during|through|using|with|from|because|while|until|after|before|including|across|achieving|generating|exceeding|surpassing|resulting|contributing)\b/i;
+    const isCleanDateLine = isDate
+      && stripDatesFromLine(ln).length < 40
+      && !SENTENCE_WORDS.test(ln);
+    if (isCleanDateLine && curHasResponsibilities && cur.length) {
       flushBlock();
     }
 
@@ -300,6 +333,7 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
 
         // Inline company/title on the same line: "Google | Engineer | Jan 2020 – Present"
         // or with comma: "Google, Engineer, Jan 2020 – Present"
+        // or title-only: "Field & Sales Engineer - Irrigation Dept   2024-01-01 – Present"
         const withoutDate = stripDatesFromLine(line);
         if (withoutDate) {
           const pipeParts = withoutDate.split(/\s*\|\s*/);
@@ -307,11 +341,17 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
           if (pipeParts.length >= 2) {
             if (!company)  company  = pipeParts[0].trim();
             if (!jobTitle) jobTitle = pipeParts[1].trim();
-          } else if (commaParts.length >= 2) {
+          } else if (commaParts.length >= 2 && commaParts[0].length < 50) {
             if (!company)  company  = commaParts[0].trim();
             if (!jobTitle) jobTitle = commaParts[1].trim();
-          } else if (!company) {
-            company = withoutDate;
+          } else {
+            // Single value inline — if it looks like a job title assign to jobTitle
+            // (very common: "Software Engineer   Jan 2020 – Present" then company below)
+            if (!jobTitle && JOB_TITLE_RX.test(withoutDate)) {
+              jobTitle = withoutDate;
+            } else if (!company) {
+              company = withoutDate;
+            }
           }
         }
         continue;
@@ -324,10 +364,14 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
         // ACTION_VERB lines (e.g. "Built API integrations…") must never be promoted.
         const isShortNonBullet = !isBullet && !ACTION_VERB.test(line) && line.length <= 80 && postDateHeadersUsed < 2;
         if (isShortNonBullet && (!company || !jobTitle)) {
+          // Prioritise filling whichever header slot is still empty.
+          // When jobTitle was already extracted from an inline date line (e.g.
+          // "Field & Sales Engineer   2024-01-01 – Present"), the next post-date
+          // short line is the company name, so fill company first.
           if (!company) {
             company = line;
             postDateHeadersUsed++;
-          } else if (!jobTitle) {
+          } else {
             jobTitle = line;
             postDateHeadersUsed++;
           }
@@ -358,9 +402,14 @@ function parseExperienceSection(lines: string[]): WorkExperience[] {
     }
 
     // ── "Title at Company" or "Title — Company" decomposition ────────────
-    if (company && !jobTitle) {
-      const atM  = company.match(/^(.+?)\s+at\s+(.+)$/i);
-      const dashM = company.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+    // Handles both directions: text may have ended up in company OR jobTitle.
+    const candidateForDecomp = (company && !jobTitle) ? 'company'
+                             : (jobTitle && !company)  ? 'jobTitle'
+                             : null;
+    if (candidateForDecomp) {
+      const src = candidateForDecomp === 'company' ? company : jobTitle;
+      const atM  = src.match(/^(.+?)\s+at\s+(.+)$/i);
+      const dashM = src.match(/^(.+?)\s+[-–—]\s+(.+)$/);
       if (atM) {
         jobTitle = atM[1].trim();
         company  = atM[2].trim();
