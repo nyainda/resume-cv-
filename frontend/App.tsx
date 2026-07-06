@@ -42,6 +42,7 @@ import { extractTextFromDocx } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini } from "./services/geminiService";
 import { extractText as pdfExtractText } from "./services/pdfCvParser";
 import { runImportPipeline } from "./services/importPipeline";
+import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
 import JsonImportDialog from "./components/JsonImportDialog";
 import { migrateLocalToDrive } from "./services/storage/StorageRouter";
@@ -568,7 +569,7 @@ const AppInner: React.FC = () => {
                   reader.onerror = reject;
                   reader.readAsDataURL(file);
                 });
-                const profile = await generateProfileFromFileWithGemini(base64, mimeType);
+                const profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType));
                 handleWordProfileImported(profile);
               }
             }
@@ -588,7 +589,7 @@ const AppInner: React.FC = () => {
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
               });
-              const profile = await generateProfileFromFileWithGemini(base64, mimeType);
+              const profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType));
               handleWordProfileImported(profile);
             }
           }

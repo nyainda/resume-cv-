@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { UserProfile, ApiSettings } from '../types';
 import { setTier } from '../services/accountTierService';
 import { setSelectedProvider } from '../services/groqService';
-import { extractTextFromDocx, parseWordTextToProfile } from '../services/wordImportService';
+import { extractTextFromDocx } from '../services/wordImportService';
 
 export const ONBOARDING_DONE_KEY = 'procv:onboardingDone';
 export function hasCompletedOnboarding(): boolean {

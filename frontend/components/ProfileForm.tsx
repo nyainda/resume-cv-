@@ -21,6 +21,7 @@ import { workerVisionExtract } from '../services/cvEngineClient';
 import { extractText as pdfExtractText } from '../services/pdfCvParser';
 import { extractTextFromDocx } from '../services/wordImportService';
 import { runImportPipeline } from '../services/importPipeline';
+import { purifyProfile } from '../services/cvPurificationPipeline';
 import QuantifyPanel from './QuantifyPanel';
 import { validateAndNormaliseProfile } from '../utils/profileValidator';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -451,10 +452,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             console.log(`[ImportPipeline] Scanned PDF — selected provider: ${activeProvider}`);
             if (activeProvider === 'claude' && hasClaudeKey()) {
               setImportStage({ step: 2, label: 'Extracting via Claude vision…', sub: 'Multimodal AI reading your PDF' });
-              profile = await generateProfileFromFileClaude(base64, mimeType, undefined);
+              profile = purifyProfile(await generateProfileFromFileClaude(base64, mimeType, undefined));
             } else if (hasGeminiKey()) {
               setImportStage({ step: 2, label: 'Extracting via Gemini vision…', sub: 'Multimodal AI reading your PDF' });
-              profile = await generateProfileFromFileWithGemini(base64, mimeType, undefined);
+              profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
             } else {
               // Workers AI vision — supports images only, NOT PDFs.
               // Convert to PNG first by rendering page 1 to canvas if browser supports it,
@@ -497,9 +498,9 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           setImportStage({ step: 2, label: 'AI extracting CV content…', sub: 'This may take a few seconds' });
           const activeProvider = getSelectedProvider();
           if (activeProvider === 'claude' && hasClaudeKey()) {
-            profile = await generateProfileFromFileClaude(base64, mimeType, undefined);
+            profile = purifyProfile(await generateProfileFromFileClaude(base64, mimeType, undefined));
           } else if (hasGeminiKey()) {
-            profile = await generateProfileFromFileWithGemini(base64, mimeType, undefined);
+            profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
           } else {
             // Workers AI vision — free, no key needed
             setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free, no key required' });
