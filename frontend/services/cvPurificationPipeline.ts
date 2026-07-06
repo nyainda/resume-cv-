@@ -2467,7 +2467,11 @@ export function stripInstructionLeakPreamble(text: string): { text: string; stri
     return { text, stripped: null };
 }
 
-export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
+export function purifyCV(
+    cv: CVData,
+    opts?: { skipWorkerDuplicatePasses?: boolean },
+): { cv: CVData; report: PurifyReport } {
+    const skipDup = opts?.skipWorkerDuplicatePasses === true;
     const emptyReport: PurifyReport = {
         repeatedPhrases: [], roundNumberRatio: 0, roundNumberFlagged: false,
         tenseIssues: [], bulletsTenseFlipped: 0, metricsJittered: 0,
@@ -2538,8 +2542,18 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
         return cleaned;
     };
 
+    // When the Worker's /api/cv/purify-cv pass already ran successfully
+    // (skipDup === true), the substitution table (SUBSTITUTIONS +
+    // GOVERNANCE_SUBSTITUTIONS) has already been applied server-side against
+    // the exact same rule set — re-running it here is redundant CPU work with
+    // no behavioural difference. We only re-run it locally as a fallback when
+    // the Worker was unreachable, so a real substitution pass always happens
+    // at least once (never both, never neither).
+    const subTrackMaybe = (text: string, fieldLocation: string): string =>
+        skipDup ? (text || '') : subTrack(text, fieldLocation);
+
     const cleanedEducation = (cv.education || []).map((e, idx) => {
-        const sub = subTrack(e.description || '', `education[${idx}].description`);
+        const sub = subTrackMaybe(e.description || '', `education[${idx}].description`);
         const stripped = stripPursuingForCompletedDegree(sub, e.year);
         if (stripped !== sub) {
             leaks.push({
@@ -2555,24 +2569,29 @@ export function purifyCV(cv: CVData): { cv: CVData; report: PurifyReport } {
 
     const cleaned: CVData = {
         ...cv,
-        summary: subTrack(cv.summary || '', 'summary'),
-        skills: (cv.skills || []).map((s, i) => subTrack(s, `skills[${i}]`)),
+        summary: subTrackMaybe(cv.summary || '', 'summary'),
+        skills: (cv.skills || []).map((s, i) => subTrackMaybe(s, `skills[${i}]`)),
         experience: (cv.experience || []).map((e, i) => ({
             ...e,
             responsibilities: (e.responsibilities || []).map((b, j) =>
-                subTrack(b, `experience[${i}].responsibilities[${j}]`)),
+                subTrackMaybe(b, `experience[${i}].responsibilities[${j}]`)),
         })),
         education: cleanedEducation,
         projects: (cv.projects || []).map((p, i) => ({
             ...p,
-            description: subTrack(p.description || '', `projects[${i}].description`),
+            description: subTrackMaybe(p.description || '', `projects[${i}].description`),
             bullets: (p.bullets || []).map((b, j) =>
-                subTrack(b, `projects[${i}].bullets[${j}]`)),
+                subTrackMaybe(b, `projects[${i}].bullets[${j}]`)),
         })),
     };
 
     // Step 2 — TENSE ENFORCEMENT (deterministic).
-    const tensePass = enforceTenseConsistency(cleaned);
+    // Same redundancy rule as Step 1: the Worker already ran the identical
+    // VERB_TENSE_MAP pass server-side when skipDup is true, so we only
+    // re-run it locally as the offline fallback.
+    const tensePass = skipDup
+        ? { cv: cleaned, changes: [] as string[] }
+        : enforceTenseConsistency(cleaned);
     let working = tensePass.cv;
     const bulletsTenseFlipped = tensePass.changes.length;
     if (bulletsTenseFlipped) {

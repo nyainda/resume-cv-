@@ -5178,10 +5178,18 @@ async function runQualityPolishPasses(
     //     Also runs the final visible-text gate; if the gate finds critical issues,
     //     a targeted LLM repair is triggered for the affected sections (summary /
     //     experience) before the local pipeline continues.
+    // Tracks whether the Worker's purify-cv pass ran successfully AND no
+    // fresh LLM text was written afterward (gate repair). Only in that case
+    // is it safe to skip the local substitution/tense passes in step 6 below
+    // — they'd just be re-applying the exact same rule set the Worker already
+    // applied. If the Worker was unreachable, or a gate repair introduced new
+    // unvetted text, the local pass must run so nothing ships uncleaned.
+    let workerPurifiedCleanly = false;
     _dispatchPolishStage('purifying');
     try {
         const pre = await remotePrePurify(out);
         out = pre.cv;
+        workerPurifiedCleanly = pre.fromWorker;
 
         // ── Gate-triggered repair ────────────────────────────────────────────
         // The worker gate scans every visible field AFTER all server-side
@@ -5203,9 +5211,12 @@ async function runQualityPolishPasses(
                 );
                 if (gateRepair.repairedSummary) {
                     out = { ...out, summary: gateRepair.repairedSummary };
+                    // Fresh LLM text — hasn't been through substitution/tense yet.
+                    workerPurifiedCleanly = false;
                 }
                 if (gateRepair.repairedExperience) {
                     out = { ...out, experience: gateRepair.repairedExperience };
+                    workerPurifiedCleanly = false;
                 }
             } catch (repairErr) {
                 console.debug('[Polish/Gate] Targeted repair after server gate failed (non-fatal):', repairErr);
@@ -5214,7 +5225,12 @@ async function runQualityPolishPasses(
     } catch { /* non-fatal — local purifyCV handles the rest */ }
 
     // 6. Hot Fire — deterministic purification (banned subs, tense, jitter, dedup).
-    const purified = purifyCV(out);
+    //    Substitution + tense passes are skipped when the Worker already ran
+    //    them cleanly (workerPurifiedCleanly) to avoid double-processing the
+    //    same identical rule tables; every other pass here (word-overuse,
+    //    semantic dedup, polish, skill normalisation) is local-only logic the
+    //    Worker doesn't perform, so it always runs regardless.
+    const purified = purifyCV(out, { skipWorkerDuplicatePasses: workerPurifiedCleanly });
     out = purified.cv;
     // Accumulate purifier warning count for quality score penalty at step 9.
     const _purifyWarnings = (purified.report.leaks ?? []).filter(l => !l.fixedBy || l.fixedBy === 'none').length;
