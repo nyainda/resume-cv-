@@ -1,4 +1,17 @@
 
+// pdfjs-dist v5.7+ uses Map.prototype.getOrInsertComputed (ES2026).
+// Polyfill it for browsers that don't have it yet.
+if (typeof Map !== 'undefined' && !Map.prototype.getOrInsertComputed) {
+  Map.prototype.getOrInsertComputed = function<K, V>(
+    this: Map<K, V>,
+    key: K,
+    callbackfn: (key: K) => V,
+  ): V {
+    if (!this.has(key)) this.set(key, callbackfn(key));
+    return this.get(key) as V;
+  };
+}
+
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
