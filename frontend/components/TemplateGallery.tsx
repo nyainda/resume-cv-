@@ -14,26 +14,51 @@ interface TemplateGalleryProps {
 // ─── Category definitions ─────────────────────────────────────────────────────
 
 const templateCategories: Record<string, TemplateName[]> = {
-  '✨ New Engine': ['v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy', 'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-minimal', 'v2-sage', 'v2-terminal', 'v2-noir', 'v2-editorial', 'v2-coral', 'v2-amber', 'v2-ink', 'v2-forest'],
-  'Professional': ['professional', 'corporate', 'elegant', 'executive', 'standard-pro', 'ats-clean-pro', 'london-finance', 'medical-standard'],
-  'Modern':       ['prestige', 'modern', 'modern-tech', 'twoColumnBlue', 'silicon-valley', 'tokyo-night'],
-  'Creative':     ['creative', 'infographic', 'sydney-creative', 'berlin-design'],
-  'Academic':     ['harvard-gold', 'scholarship-pro', 'classic'],
-  'Minimal':      ['minimalist', 'compact', 'timeline', 'paris-vibe'],
-  'Technical':    ['swe-elite', 'software-engineer', 'technical'],
-  'Photo':        ['photo-sidebar', 'navy-sidebar', 'executive-sidebar'],
-  'Compact Sidebar': ['compact-slate', 'compact-sage', 'compact-charcoal'],
+  'Professional': [
+    'v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy',
+    'v2-harvard', 'v2-warm', 'v2-crimson',
+    'professional', 'standard-pro', 'ats-clean-pro', 'corporate', 'london-finance',
+  ],
+  'Modern': [
+    'v2-teal', 'v2-steel', 'v2-bold', 'v2-slate-sidebar',
+    'v2-sage', 'modern', 'prestige', 'modern-tech', 'twoColumnBlue', 'silicon-valley',
+  ],
+  'Executive': [
+    'v2-gold-exec', 'v2-ink', 'v2-crimson',
+    'executive', 'elegant', 'navy-sidebar', 'executive-sidebar',
+  ],
+  'Technical': [
+    'v2-modern-blue', 'v2-terminal', 'v2-noir',
+    'swe-elite', 'swe-clean', 'software-engineer', 'technical',
+  ],
+  'Creative': [
+    'v2-editorial', 'v2-coral',
+    'creative', 'sydney-creative', 'berlin-design', 'paris-vibe',
+  ],
+  'Academic': [
+    'v2-amber', 'v2-forest',
+    'harvard-gold', 'scholarship-pro', 'classic', 'medical-standard',
+  ],
+  'Photo': [
+    'v2-photo', 'v2-teal', 'v2-steel', 'v2-slate-sidebar',
+    'v2-sage', 'v2-gold-exec', 'v2-coral', 'v2-forest', 'v2-crimson',
+    'photo-sidebar',
+  ],
+  'Minimal': [
+    'v2-minimal', 'v2-graphite',
+    'minimalist', 'compact', 'timeline', 'compact-slate', 'compact-sage', 'compact-charcoal',
+  ],
 };
 
 const categoryIcons: Record<string, string> = {
-  'Professional':    '🏢',
-  'Modern':          '⚡',
-  'Creative':        '🎨',
-  'Academic':        '🎓',
-  'Minimal':         '✦',
-  'Technical':       '💻',
-  'Photo':           '📷',
-  'Compact Sidebar': '📄',
+  'Professional': '💼',
+  'Modern':       '⚡',
+  'Executive':    '👑',
+  'Technical':    '💻',
+  'Creative':     '🎨',
+  'Academic':     '🎓',
+  'Photo':        '📷',
+  'Minimal':      '📄',
 };
 
 // ─── Featured picks — one per use case ────────────────────────────────────────
@@ -46,20 +71,24 @@ interface FeaturedPick {
 }
 
 const FEATURED_PICKS: FeaturedPick[] = [
-  { template: 'standard-pro',      badge: '🎯 ATS King',        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300', bestFor: 'Corporate & tech hiring' },
-  { template: 'professional',      badge: '⭐ Most Popular',     badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',   bestFor: 'Any professional role'  },
-  { template: 'modern',            badge: '🔥 Trending',         badgeColor: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300', bestFor: 'Creative & startup roles' },
-  { template: 'executive',         badge: '🏛️ Harvard Style',    badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',         bestFor: 'C-suite, law & finance'   },
-  { template: 'minimalist',        badge: '✨ Clean & Safe',      badgeColor: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300', bestFor: 'Any industry'             },
-  { template: 'software-engineer', badge: '💻 Best for Tech',    badgeColor: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',             bestFor: 'SWE, DevOps, data science'},
-  { template: 'navy-sidebar',      badge: '🏛️ Bold & Sharp',     badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',         bestFor: 'Management & operations' },
-  { template: 'compact-slate',     badge: '📄 One-Page',         badgeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-300',     bestFor: 'Entry-level & internships'},
-  { template: 'prestige',          badge: '👑 Premium Design',   badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',       bestFor: 'Senior roles & executives' },
+  { template: 'v2-classic-pro',   badge: '⭐ Most Trusted',   badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',     bestFor: 'Any professional role'         },
+  { template: 'v2-harvard',       badge: '🏛️ Harvard Style',  badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',         bestFor: 'Consulting, law & finance'     },
+  { template: 'v2-pro',           badge: '🎯 ATS #1',          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300', bestFor: 'Corporate & tech hiring'    },
+  { template: 'v2-modern-blue',   badge: '💻 Best for Tech',   badgeColor: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',             bestFor: 'SWE, product & data science'   },
+  { template: 'v2-slate-sidebar', badge: '⚡ Modern Pro',      badgeColor: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300', bestFor: 'Management & operations'       },
+  { template: 'v2-gold-exec',     badge: '👑 Executive',       badgeColor: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bestFor: 'C-suite & senior leadership'   },
+  { template: 'v2-minimal',       badge: '✨ Ultra Clean',     badgeColor: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300', bestFor: 'Any industry'                  },
+  { template: 'v2-editorial',     badge: '🎨 Creative',        badgeColor: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',         bestFor: 'Design, media & marketing'     },
 ];
 
 // ─── ATS config ───────────────────────────────────────────────────────────────
 
-const photoSupportedTemplates: TemplateName[] = ['modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic', 'photo-sidebar', 'executive-sidebar', 'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-sage', 'v2-coral', 'v2-forest'];
+const photoSupportedTemplates: TemplateName[] = [
+  'modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic',
+  'photo-sidebar', 'executive-sidebar',
+  'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-sage', 'v2-coral', 'v2-forest',
+  'v2-teal', 'v2-steel', 'v2-crimson',
+];
 
 const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'standard-pro': 'high', 'ats-clean-pro': 'high', 'professional': 'high',
@@ -75,12 +104,17 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'swe-vivid': 'low', 'photo-sidebar': 'low', 'executive-sidebar': 'low',
   'compact-slate': 'medium', 'compact-sage': 'medium', 'compact-charcoal': 'medium',
   'prestige': 'medium',
+  // V2 existing
   'v2-classic-pro': 'high', 'v2-standard-black': 'high',
-  'v2-pro': 'high', 'v2-navy': 'high', 'v2-minimal': 'high',
+  'v2-pro': 'high', 'v2-navy': 'high', 'v2-minimal': 'high', 'v2-amber': 'high', 'v2-ink': 'high',
   'v2-photo': 'medium', 'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium',
-  'v2-sage': 'medium', 'v2-forest': 'medium', 'v2-coral': 'medium', 'v2-ink': 'high',
+  'v2-sage': 'medium', 'v2-forest': 'medium', 'v2-coral': 'medium',
   'v2-terminal': 'low', 'v2-noir': 'low',
-  'v2-editorial': 'medium', 'v2-amber': 'high',
+  'v2-editorial': 'medium',
+  // V2 new premium
+  'v2-harvard': 'high', 'v2-warm': 'high', 'v2-bold': 'high',
+  'v2-modern-blue': 'high', 'v2-graphite': 'high',
+  'v2-steel': 'medium', 'v2-teal': 'medium', 'v2-crimson': 'medium',
 };
 
 const atsConfig = {
@@ -372,10 +406,10 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           <div className="flex gap-2.5">
             <span className="text-sm flex-shrink-0">💡</span>
             <div className="text-[11px] text-blue-700 dark:text-blue-300 space-y-0.5">
-              <p><strong>ATS King (Standard Pro)</strong> — safest pick for corporate & tech. Passes every ATS.</p>
-              <p><strong>Executive</strong> — Harvard-style. Ideal for senior roles, law, finance, C-suite.</p>
-              <p><strong>SWE Elite / Software Engineer</strong> — built for engineers, data scientists & DevOps.</p>
-              <p><strong>Creative / Infographic</strong> — design & marketing only. Not ATS-safe.</p>
+              <p><strong>Harvard Classic</strong> — most trusted format for consulting, law, banking & top-tier firms.</p>
+              <p><strong>Clean Professional / Modern Indigo</strong> — highest ATS score. Safe for any corporate or tech role.</p>
+              <p><strong>Gold Executive / Crimson Elite</strong> — premium designs for senior, C-suite and leadership roles.</p>
+              <p><strong>Editorial Rose / Warm Coral</strong> — creative & marketing roles. Striking but less ATS-safe.</p>
             </div>
           </div>
         </div>

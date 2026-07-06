@@ -18,4 +18,5 @@
 - [D1 sync timestamp must survive sign-out](d1-sync-timestamp-signout.md) — clearUserScopedStorage must ONLY clear hash keys (usync_slot_hash:*), NOT timestamp keys (usync_slot_ts:*); clearing timestamps zeros localPushTs → D1 always wins merge → local edits lost.
 - [CV purification pipeline migration gap](cv-purification-pipeline-migration-gap.md) — "moved to Worker" comments emptied frontend data tables without wiring an actual worker call; verify call sites, don't trust comments.
 - [Import pipeline AI refactor](import-pipeline-ai-refactor.md) — heuristic Stage 1 deleted; all text imports now go through parseWordTextToProfile(); purifyProfile() required on every exit path including vision routes.
+- [Template system V2 themes](template-v2-themes.md) — 8 new premium V2 themes added; gallery reorganized into 8 named categories; new templates auto-route via V2_TEMPLATE_IDS = THEMES.map(t=>t.id).
 - [LLM model resilience pattern](llm-model-resilience.md) — BYOK Claude/Gemini proxy: fallback chain on model-not-found, fail-fast on other errors, finish_reason/stop_reason truncation → same-model bump-retry.

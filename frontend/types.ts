@@ -473,7 +473,15 @@ export type TemplateName =
   | 'v2-ink'
   | 'v2-forest'
   | 'v2-classic-pro'
-  | 'v2-standard-black';
+  | 'v2-standard-black'
+  | 'v2-harvard'
+  | 'v2-warm'
+  | 'v2-steel'
+  | 'v2-teal'
+  | 'v2-bold'
+  | 'v2-modern-blue'
+  | 'v2-graphite'
+  | 'v2-crimson';
 
 // ── Sidebar section visibility (Sidebar Section Picker) ──────────────────────
 // Controls which auto-generated sidebar fillers appear in templates that have
@@ -561,6 +569,14 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'v2-forest': 'Forest Pro',
   'v2-classic-pro': 'Classic Professional',
   'v2-standard-black': 'Standard Black',
+  'v2-harvard': 'Harvard Classic',
+  'v2-warm': 'Warm Consultancy',
+  'v2-steel': 'Steel Blue',
+  'v2-teal': 'Teal Professional',
+  'v2-bold': 'Bold Indigo',
+  'v2-modern-blue': 'Modern Indigo',
+  'v2-graphite': 'Graphite Clean',
+  'v2-crimson': 'Crimson Elite',
   'custom': 'My Custom',
 };
 
