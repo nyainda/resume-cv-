@@ -82,7 +82,7 @@ const SECTION_PATTERNS: Record<string, RegExp> = {
   experience:     /^(WORK\s+EXPERIENCE|EXPERIENCE|EMPLOYMENT\s+HISTORY|EMPLOYMENT|CAREER\s+HISTORY|PROFESSIONAL\s+EXPERIENCE|WORK\s+HISTORY)/i,
   education:      /^(EDUCATION|ACADEMIC\s+BACKGROUND|ACADEMIC\s+QUALIFICATIONS?|QUALIFICATIONS?|TRAINING\s+&\s+EDUCATION|TRAINING)/i,
   skills:         /^(SKILLS?|CORE\s+SKILLS?|TECHNICAL\s+SKILLS?|KEY\s+SKILLS?|COMPETENCIES|EXPERTISE|AREAS?\s+OF\s+EXPERTISE|TECHNICAL\s+COMPETENCIES)/i,
-  summary:        /^(SUMMARY|PROFESSIONAL\s+SUMMARY|CAREER\s+SUMMARY|EXECUTIVE\s+SUMMARY|PROFILE|PROFESSIONAL\s+PROFILE|ABOUT\s+ME|ABOUT|OBJECTIVE|CAREER\s+OBJECTIVE|PERSONAL\s+STATEMENT)/i,
+  summary:        /^(SUMMARY|PROFESSIONAL\s+SUMMARY|CAREER\s+SUMMARY|EXECUTIVE\s+SUMMARY|PROFILE|PROFESSIONAL\s+PROFILE|ABOUT\s+ME|ABOUT|OBJECTIVE|CAREER\s+OBJECTIVE|PERSONAL\s+STATEMENT|OVERVIEW|CAREER\s+OVERVIEW|INTRODUCTION|BIO|PERSONAL\s+PROFILE|PROFESSIONAL\s+BACKGROUND|PROFESSIONAL\s+STATEMENT|CAREER\s+PROFILE|PERSONAL\s+SUMMARY)/i,
   projects:       /^(PROJECTS?|PERSONAL\s+PROJECTS?|KEY\s+PROJECTS?|SELECTED\s+PROJECTS?|NOTABLE\s+PROJECTS?)/i,
   languages:      /^(LANGUAGES?|LANGUAGE\s+SKILLS?|SPOKEN\s+LANGUAGES?)/i,
   certifications: /^(CERTIFICATIONS?|CERTIFICATES?|LICENCES?|LICENSES?|ACCREDITATIONS?|PROFESSIONAL\s+CERTIFICATIONS?|PROFESSIONAL\s+DEVELOPMENT|CREDENTIALS?)/i,
@@ -94,11 +94,21 @@ const SECTION_PATTERNS: Record<string, RegExp> = {
   courses:        /^(COURSES?|ONLINE\s+COURSES?|TRAINING\s+COURSES?|PROFESSIONAL\s+COURSES?|CONTINUING\s+EDUCATION)/i,
 };
 
-function detectSectionHeader(line: string): string | null {
+/**
+ * Returns { section, remainder } where remainder is any prose text that
+ * appeared on the same line after the heading keyword (e.g. "Summary: I am…").
+ * Returns null when the line is not a section heading.
+ */
+function detectSectionHeader(line: string): { section: string; remainder: string } | null {
   const trimmed = line.trim();
-  if (trimmed.length < 3 || trimmed.length > 80) return null;
+  if (trimmed.length < 3) return null;
   for (const [section, rx] of Object.entries(SECTION_PATTERNS)) {
-    if (rx.test(trimmed)) return section;
+    const m = trimmed.match(rx);
+    if (m) {
+      // Everything after the matched keyword (strip leading colon/dash/space)
+      const remainder = trimmed.slice(m[0].length).replace(/^[\s:–—-]+/, '').trim();
+      return { section, remainder };
+    }
   }
   return null;
 }
@@ -109,10 +119,12 @@ function splitIntoSections(lines: string[]): RawSection[] {
   let current: RawSection = { name: 'header', lines: [] };
 
   for (const line of lines) {
-    const section = detectSectionHeader(line);
-    if (section) {
+    const hit = detectSectionHeader(line);
+    if (hit) {
       if (current.lines.length) sections.push(current);
-      current = { name: section, lines: [] };
+      current = { name: hit.section, lines: [] };
+      // Preserve text on the same line as the heading ("Summary: I am a…")
+      if (hit.remainder) current.lines.push(hit.remainder);
     } else {
       current.lines.push(line);
     }
@@ -782,8 +794,22 @@ export function heuristicParse(text: string): HeuristicResult {
   confidence['personalInfo.location'] = location ? 70 : 40;
 
   // ── Summary ──
-  const summarySection = sections.find(s => s.name === 'summary');
-  const summary = summarySection ? parseSummarySection(summarySection.lines) : '';
+  let summarySection = sections.find(s => s.name === 'summary');
+  let summary = summarySection ? parseSummarySection(summarySection.lines) : '';
+
+  // Fallback: many CVs place a summary paragraph directly after contact info
+  // with no section heading.  If we found nothing above, scan the header
+  // section for prose lines that look like a summary (long, not contact info).
+  if (!summary && headerSection) {
+    const CONTACT_LINE = /[@+\d().\-]{4,}|linkedin|github|http|www\./i;
+    const proseLines = headerSection.lines.filter(l => {
+      const t = l.trim();
+      return t.length > 40 && !CONTACT_LINE.test(t) && !/^\d/.test(t);
+    });
+    if (proseLines.length) {
+      summary = parseSummarySection(proseLines);
+    }
+  }
   confidence['summary'] = summary ? 65 : 0;
 
   // ── Experience ──

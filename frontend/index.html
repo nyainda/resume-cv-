@@ -17,6 +17,18 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ProCV" />
 
+  <!-- Polyfills — run before any ES module so library code can rely on them -->
+  <script>
+    // Map.prototype.getOrInsertComputed — ES2026, used by pdfjs-dist v5.7+.
+    // Not yet available in all browsers as of mid-2026.
+    if (typeof Map !== 'undefined' && typeof Map.prototype.getOrInsertComputed !== 'function') {
+      Map.prototype.getOrInsertComputed = function(key, callbackfn) {
+        if (!this.has(key)) this.set(key, callbackfn(key));
+        return this.get(key);
+      };
+    }
+  </script>
+
   <!-- jsPDF — loaded globally for PDF generation (pdfService.ts uses window.jspdf) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
