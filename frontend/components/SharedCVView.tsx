@@ -2,7 +2,8 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
 import { downloadCV } from '../services/cvDownloadService';
-import { fetchShareStats, ShareStats } from '../services/shareService';
+import DownloadProgressModal from './DownloadProgressModal';
+import { } from '../services/shareService';
 
 // ── Smart Summary ─────────────────────────────────────────────────────────────
 // Builds a deterministic, human-readable professional snapshot from CV data.
@@ -81,6 +82,9 @@ interface SharedCVViewProps {
   /** The 8-char short share ID from the URL hash (e.g. `#s=AbC12345`).
    *  Only present when the CV was loaded via a short link (not legacy `#share=`). */
   shareId?: string;
+  /** When true the creator was on Free/BYOK at share time — shows ProCV branding
+   *  on the preview and forces a watermark on any PDF downloaded from this view. */
+  procvBranding?: boolean;
   onLoadIntoEditor?: (cvData: CVData) => void;
   onDismiss: () => void;
 }
@@ -99,16 +103,18 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   sharedAt,
   coverLetterText,
   shareId,
+  procvBranding,
   onLoadIntoEditor,
   onDismiss,
 }) => {
-  const [downloading, setDownloading] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState<string | null>(null);
+  const [downloadTotalMs, setDownloadTotalMs] = useState<number | null>(null);
+  const [downloadVia, setDownloadVia] = useState<'playwright' | 'cloudflare' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [contactCopied, setContactCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
-  const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   // ── Responsive preview scaling ─────────────────────────────────────────────
@@ -180,14 +186,32 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const hasContact = !!(personalInfo.email || personalInfo.phone || personalInfo.linkedin);
 
   const handleDownload = async () => {
-    setDownloading(true);
     setDownloadError(null);
+    setDownloadTotalMs(null);
+    setDownloadVia(null);
+    setDownloadStatus('Preparing download…');
     try {
       const fileName = `${personalInfo.name.replace(/\s+/g, '_')}_CV.pdf`;
-      const result = await downloadCV({ fileName, containerEl: previewRef.current });
-      if (!result.ok) setDownloadError(result.error || 'Download failed.');
-    } finally {
-      setDownloading(false);
+      const result = await downloadCV({
+        fileName,
+        containerEl: previewRef.current,
+        onStatus: (m) => setDownloadStatus(m),
+        // Use the creator's watermark decision, not the viewer's own tier
+        forceWatermark: procvBranding,
+      });
+      if (result.ok) {
+        setDownloadTotalMs(result.totalMs ?? null);
+        setDownloadVia(result.via ?? null);
+        setDownloadStatus('PDF ready');
+        await new Promise((r) => setTimeout(r, 2200));
+        setDownloadStatus(null);
+      } else {
+        setDownloadStatus(null);
+        setDownloadError(result.error || 'Download failed.');
+      }
+    } catch (err) {
+      setDownloadStatus(null);
+      setDownloadError(err instanceof Error ? err.message : 'Download failed.');
     }
   };
 
@@ -303,10 +327,10 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
             {/* Download PDF */}
             <button
               onClick={handleDownload}
-              disabled={downloading}
+              disabled={!!downloadStatus}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B2B4B] hover:bg-[#152238] text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-50"
             >
-              {downloading ? (
+              {downloadStatus ? (
                 <><SpinnerIcon /><span className="hidden xs:inline">Saving…</span></>
               ) : (
                 <>
@@ -616,6 +640,30 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                           onDataChange={() => {}}
                           jobDescriptionForATS=""
                         />
+                        {/* ProCV branding strip — shown on Free/BYOK shared CVs */}
+                        {procvBranding && (
+                          <div style={{
+                            background: '#1B2B4B',
+                            color: '#C9A84C',
+                            textAlign: 'center',
+                            padding: '8px 16px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            fontFamily: 'DM Sans, sans-serif',
+                          }}>
+                            Made with{' '}
+                            <a
+                              href={window.location.origin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#C9A84C', textDecoration: 'underline' }}
+                            >
+                              ProCV
+                            </a>
+                            {' '}— AI-powered CVs that get results
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -645,6 +693,14 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
           )}
         </section>
       </main>
+
+      {/* Download progress modal — same as CVGenerator */}
+      <DownloadProgressModal
+        status={downloadStatus}
+        totalMs={downloadTotalMs}
+        via={downloadVia}
+        onClose={() => setDownloadStatus(null)}
+      />
     </div>
   );
 };

@@ -94,6 +94,12 @@ export interface DownloadCVOptions {
   containerEl?: HTMLElement | null;
   /** Optional progress callback for UI status text. */
   onStatus?: (msg: string) => void;
+  /**
+   * Force the watermark on/off regardless of the viewer's own tier.
+   * Use this when the watermark decision was made by the CV *creator*
+   * (e.g. shared-link downloads) rather than the current viewer.
+   */
+  forceWatermark?: boolean;
 }
 
 export interface DownloadCVResult {
@@ -222,8 +228,9 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
   }
 
   // Determine if a watermark footer should be added to this PDF.
-  // true for free + BYOK; false for premium (Pro) users.
-  const watermark = needsWatermark();
+  // forceWatermark (from shared-link downloads) takes priority over the
+  // viewer's own tier so the creator's decision is always honoured.
+  const watermark = opts.forceWatermark !== undefined ? opts.forceWatermark : needsWatermark();
 
   // ── Telemetry: capture per-stage timings so we can show "PDF ready in X.Xs"
   // in the UI and surface a structured log entry for debugging slow downloads.

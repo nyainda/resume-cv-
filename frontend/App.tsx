@@ -721,6 +721,7 @@ const AppInner: React.FC = () => {
           template={sharedCVPayload.template}
           sharedAt={sharedCVPayload.sharedAt}
           coverLetterText={sharedCVPayload.coverLetterText}
+          procvBranding={sharedCVPayload.procvBranding}
           shareId={sharedCVId ?? undefined}
           onLoadIntoEditor={
             // Only pass this to the actual owner of the shared CV.

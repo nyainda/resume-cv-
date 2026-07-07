@@ -4,6 +4,7 @@ import LZString from 'lz-string';
 import { createShareLink, buildShortShareUrl, checkShareRateLimit, addStoredShareLink, getStoredShareLinks } from '../services/shareService';
 import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl } from '../services/publicProfileService';
 import { logEvent } from '../services/eventsService';
+import { needsWatermark } from '../services/accountTierService';
 
 interface ShareCVModalProps {
   cvData: CVData;
@@ -23,6 +24,8 @@ export interface SharedCVPayload {
   template: TemplateName;
   sharedAt: string;
   coverLetterText?: string;
+  /** True when the creator was on Free/BYOK at share time — drives watermark on preview and PDF. */
+  procvBranding?: boolean;
 }
 
 export function encodeSharePayload(payload: SharedCVPayload): string {
@@ -120,6 +123,9 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
       template,
       sharedAt: new Date().toISOString(),
       ...(includeCoverLetter && hasCoverLetter ? { coverLetterText: coverLetterText! } : {}),
+      // Bake the creator's watermark decision into the payload so viewers use
+      // the creator's tier, not their own, for both preview and PDF download.
+      procvBranding: needsWatermark(),
     };
     const compressed = encodeSharePayload(payload);
     const shareResult = await createShareLink(compressed);
@@ -168,6 +174,7 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
     const payload: SharedCVPayload = {
       cvData, personalInfo, template,
       sharedAt: new Date().toISOString(),
+      procvBranding: needsWatermark(),
     };
     const slug = await publishPublicProfile(payload, sessionToken);
     setProfilePublishing(false);
