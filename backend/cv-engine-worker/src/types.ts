@@ -7,6 +7,11 @@
 
 // ─── Cloudflare Worker bindings ───────────────────────────────────────────────
 
+/** Cloudflare Workers Rate Limiting binding shape (from @cloudflare/workers-types). */
+export interface RateLimitBinding {
+    limit(opts: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
     CV_DB: D1Database;
     CV_KV: KVNamespace;
@@ -17,6 +22,12 @@ export interface Env {
     BREVO_API_KEY?: string;
     /** The app's public URL — used to construct magic-link redirect URLs. Defaults to procv.app if not set. */
     APP_URL?: string;
+    // ── Native rate-limiting bindings (wrangler.toml [[unsafe.bindings]]) ────
+    // These are optional so the fallback KV path still works in local dev
+    // (wrangler dev does not inject unsafe bindings).
+    RL_LLM?:    RateLimitBinding;   // 20 req / 60 s  — heavy LLM endpoints
+    RL_MEDIUM?: RateLimitBinding;   // 40 req / 60 s  — medium endpoints
+    RL_CACHE?:  RateLimitBinding;   // 120 req / 60 s — cache read endpoints
 }
 
 // ─── KV data versioning ───────────────────────────────────────────────────────

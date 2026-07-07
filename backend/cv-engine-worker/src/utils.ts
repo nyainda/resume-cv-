@@ -169,10 +169,16 @@ function _rateLimitId(request: Request): string {
 }
 
 // Module-level in-memory rate-limit counter cache.
-// Reduces KV reads: the counter is kept in memory per-isolate and only a single
-// KV read occurs on the FIRST request per (prefix, id, window-slot) — subsequent
-// requests in the same isolate/slot read from memory.
+// Used by the KV fallback path (local dev). The native Workers Rate Limiting
+// binding (RL_LLM / RL_MEDIUM / RL_CACHE) handles cross-isolate state in prod.
 const _rlMem = new Map<string, { count: number; slot: number }>();
+
+/** Map the rate-limit prefix string to whichever native RL binding handles it. */
+function _rlBinding(env: Env, prefix: string) {
+    if (prefix === 'llm')    return env.RL_LLM;
+    if (prefix === 'medium') return env.RL_MEDIUM;
+    return env.RL_CACHE;          // 'cache' and any future prefix
+}
 
 export async function rateLimitRequest(
     env: Env,
@@ -181,8 +187,29 @@ export async function rateLimitRequest(
     limit: number,
     windowSec: number,
 ): Promise<{ allowed: boolean; retryAfter: number; remaining: number }> {
+    const id = _rateLimitId(request);
+
+    // ── Path A: Cloudflare native Workers Rate Limiting ───────────────────────
+    // Zero KV reads/writes. Cross-isolate. Available on free plan (1M ops/day).
+    // Injected by wrangler in production; undefined during local `wrangler dev`
+    // because [[unsafe.bindings]] are not available in the local runtime.
+    const rl = _rlBinding(env, prefix);
+    if (rl) {
+        try {
+            const { success } = await rl.limit({ key: id });
+            if (!success) {
+                return { allowed: false, retryAfter: windowSec, remaining: 0 };
+            }
+            // Native API doesn't expose remaining — return a safe approximation.
+            return { allowed: true, retryAfter: 0, remaining: Math.max(limit - 1, 1) };
+        } catch {
+            // Binding error — fall through to KV path rather than blocking traffic.
+        }
+    }
+
+    // ── Path B: KV-based fallback (local dev / binding unavailable) ───────────
+    // Keeps local development working with the same logic that was in prod before.
     try {
-        const id    = _rateLimitId(request);
         const now   = Math.floor(Date.now() / 1000);
         const slot  = Math.floor(now / windowSec);
         const kvKey = `rl:${prefix}:${id}:${slot}`;
@@ -190,10 +217,8 @@ export async function rateLimitRequest(
         const mem = _rlMem.get(kvKey);
         let current: number;
         if (mem && mem.slot === slot) {
-            // Warm — skip KV read
             current = mem.count;
         } else {
-            // Cold — read from KV once, then keep in memory
             current = parseInt(await env.CV_KV.get(kvKey) ?? '0', 10);
             _rlMem.set(kvKey, { count: current, slot });
         }
@@ -203,16 +228,11 @@ export async function rateLimitRequest(
             return { allowed: false, retryAfter, remaining: 0 };
         }
 
-        // Increment in memory immediately so parallel requests in the same isolate
-        // see an up-to-date count without waiting for KV round-trips.
         const next = current + 1;
         _rlMem.set(kvKey, { count: next, slot });
-
-        // Persist to KV non-blocking — a small race is acceptable for rate limiting.
         env.CV_KV.put(kvKey, String(next), { expirationTtl: windowSec * 2 }).catch(() => {});
         return { allowed: true, retryAfter: 0, remaining: limit - next };
     } catch {
-        // KV unavailable — fail open rather than blocking all traffic
         return { allowed: true, retryAfter: 0, remaining: limit };
     }
 }

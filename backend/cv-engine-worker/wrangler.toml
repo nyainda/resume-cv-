@@ -34,6 +34,28 @@ binding = "AI"
 #          GET /api/cv/examples  (1 hr client / 24 hr edge).
 enabled = true
 
+# ─── Native rate limiting (replaces KV-based rate limiter) ───────────────────
+# Workers Rate Limiting API — cross-isolate, zero KV cost, free tier 1M/day.
+# Each binding maps to one tier. namespace_id is an arbitrary unique integer.
+# The KV fallback in utils.ts still covers local dev (where bindings don't exist).
+[[unsafe.bindings]]
+type = "ratelimit"
+name = "RL_LLM"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[[unsafe.bindings]]
+type = "ratelimit"
+name = "RL_MEDIUM"
+namespace_id = "1002"
+simple = { limit = 40, period = 60 }
+
+[[unsafe.bindings]]
+type = "ratelimit"
+name = "RL_CACHE"
+namespace_id = "1003"
+simple = { limit = 120, period = 60 }
+
 [triggers]
 crons = ["15 3 * * *"]
 

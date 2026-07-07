@@ -87,9 +87,9 @@ const KV_OPS = [
   },
   {
     op: 'Rate limiter (per new 60-s slot per IP)',
-    reads: { before: 1, after: 1 },
-    writes: { before: 1, after: 1 },
-    note: 'In-memory cache already skips reads on warm slot; writes per slot are unavoidable',
+    reads: { before: 1, after: 0 },
+    writes: { before: 1, after: 0 },
+    note: 'Replaced with Cloudflare native Workers Rate Limiting (RL_LLM/RL_MEDIUM/RL_CACHE bindings) — cross-isolate, 1M ops/day free, zero KV cost',
   },
 ];
 
@@ -210,10 +210,11 @@ function KVBudgetSection({ theme, isDark }: { theme: any; isDark: boolean }) {
         </table>
       </div>
 
-      <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? '#0a1a2a' : '#EFF6FF', borderRadius: 7, border: `1px solid ${isDark ? '#1a3a5a' : '#BFDBFE'}`, fontSize: 12, color: isDark ? '#93C5FD' : '#1E40AF' }}>
-        <strong>Remaining unavoidable KV write:</strong> rate-limiter writes 1 KV key per 60-second slot per unique visitor IP.
-        With {pageLoads} page loads/day and ~3 requests per load, estimated writes ≈ <strong>{Math.round(pageLoads * 3).toLocaleString()}</strong> / 1,000 free ({Math.min(pageLoads * 3 / 10, 100).toFixed(0)}% of limit).
-        The most reliable long-term fix is replacing the KV rate-limiter with Cloudflare's native Rate Limiting rules (free up to 10k requests/10min, zero KV cost).
+      <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? '#0a1e0e' : '#F0FDF4', borderRadius: 7, border: `1px solid ${isDark ? '#14532d' : '#BBF7D0'}`, fontSize: 12, color: isDark ? '#86EFAC' : '#166534' }}>
+        <strong>✓ All KV ops eliminated.</strong> The rate limiter now uses Cloudflare's native Workers Rate Limiting API
+        (<code style={{ fontFamily: 'monospace', background: isDark ? '#052e16' : '#DCFCE7', padding: '1px 4px', borderRadius: 3 }}>RL_LLM</code> / <code style={{ fontFamily: 'monospace', background: isDark ? '#052e16' : '#DCFCE7', padding: '1px 4px', borderRadius: 3 }}>RL_MEDIUM</code> / <code style={{ fontFamily: 'monospace', background: isDark ? '#052e16' : '#DCFCE7', padding: '1px 4px', borderRadius: 3 }}>RL_CACHE</code> bindings, deployed July 2026).
+        Cross-isolate state, 1 million ops/day free, zero KV reads or writes.
+        The KV fallback path is still active in local dev (<code style={{ fontFamily: 'monospace', background: isDark ? '#052e16' : '#DCFCE7', padding: '1px 4px', borderRadius: 3 }}>wrangler dev</code>) where unsafe bindings aren't injected.
       </div>
     </Section>
   );
