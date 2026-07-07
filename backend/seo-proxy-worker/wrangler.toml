@@ -5,14 +5,11 @@ compatibility_flags = ["nodejs_compat"]
 account_id = "3b2dc03a15c292df3054249f73a321bb"
 workers_dev = true
 
-# ── Environment variables ──────────────────────────────────────────────────────
-# ORIGIN_URL  — the upstream app URL the proxy fetches from (set as a secret or
-#               plain var). Examples:
-#                 wrangler secret put ORIGIN_URL          (for sensitive hosts)
-#                 or set in [vars] below for non-sensitive origins
+# ── Secrets (set once via: wrangler secret put <KEY>) ─────────────────────────
+# ORIGIN_URL  — full URL of your deployed app, e.g. https://your-app.vercel.app
+#               Run: cd backend/seo-proxy-worker && npx wrangler secret put ORIGIN_URL
 #
-# When your domain is ready, add a `routes` block:
-#
+# ── When your domain is ready, add routes: ────────────────────────────────────
 # [[routes]]
 # pattern = "procv.com/*"
 # zone_name = "procv.com"
@@ -21,18 +18,12 @@ workers_dev = true
 # pattern = "www.procv.com/*"
 # zone_name = "procv.com"
 #
-# Then run:  cd backend/seo-proxy-worker && npx wrangler deploy
-# CF will automatically handle SSL and route all traffic through the worker.
+# Then: npx wrangler deploy — CF handles SSL and routing automatically.
 # ──────────────────────────────────────────────────────────────────────────────
 
 [vars]
-# Set this to your Vercel / deployment URL until you have a custom domain.
-# Override in production with: wrangler secret put ORIGIN_URL
-ORIGIN_URL = ""
-
-# Cache TTLs (seconds)
-HTML_CACHE_TTL   = "300"      # 5 minutes — fresh for users, cached at CF edge
-ASSET_CACHE_TTL  = "31536000" # 1 year   — versioned JS/CSS/images are immutable
+HTML_CACHE_TTL  = "300"
+ASSET_CACHE_TTL = "31536000"
 
 [observability]
 enabled = true
