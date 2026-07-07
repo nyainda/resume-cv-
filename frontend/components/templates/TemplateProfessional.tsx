@@ -40,8 +40,30 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     className: "outline-none ring-1 ring-transparent focus:ring-blue-400 focus:bg-blue-100/50 dark:focus:bg-blue-900/50 rounded px-1 -mx-1 transition-all"
   } : {};
 
+  // --- Single, reusable header used by EVERY section (built-in + custom). ---
+  // Signature element: a short accent "tick" + tracked label + hairline rule
+  // running out to the margin. One component, one rhythm, everywhere.
   const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-    <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-2 mb-4" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>{title}</h2>
+    <div className="flex items-center gap-3 mb-4" data-pdf-keep="true">
+      <span
+        className="inline-block w-3.5 h-[3px] rounded-full shrink-0"
+        style={{ backgroundColor: accent }}
+      />
+      <h2 className="text-[11px] font-sans font-bold uppercase tracking-[0.2em] text-zinc-500 whitespace-nowrap">
+        {title}
+      </h2>
+      <span className="flex-1 h-px bg-zinc-200" />
+    </div>
+  );
+
+  // Consistent bullet marker used for every responsibility / description list,
+  // instead of default browser discs (which render inconsistently across
+  // browsers and PDF export engines).
+  const Bullet: React.FC<{ html: string; editProps?: any }> = ({ html, editProps }) => (
+    <li className="flex gap-2.5 text-sm leading-relaxed text-zinc-700">
+      <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent, opacity: 0.55 }} />
+      <span dangerouslySetInnerHTML={{ __html: html }} {...editProps} />
+    </li>
   );
 
   const orderedSections = cvData.sectionOrder || DEFAULT_SECTION_ORDER;
@@ -51,15 +73,20 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
       case 'summary':
         return (
           <section key="summary">
-            <h2 className="text-sm font-black uppercase tracking-[0.12em] pb-2 mb-5" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>Professional Summary</h2>
-            <p className="text-sm leading-relaxed text-zinc-700 font-medium" dangerouslySetInnerHTML={{ __html: cvData.summary }} {...editableProps(['summary'])} />
+            <SectionHeader title="Professional Summary" />
+            <p
+              className="text-[15px] leading-relaxed text-zinc-700 font-serif"
+              dangerouslySetInnerHTML={{ __html: cvData.summary }}
+              {...editableProps(['summary'])}
+            />
           </section>
         );
+
       case 'workExperience':
         return (
           <section key="workExperience">
-            <h2 className="text-sm font-bold uppercase tracking-widest pb-2 mb-4" style={{ color: accent, borderBottom: `2px solid ${accent}` }}>Experience</h2>
-            <div className="space-y-4">
+            <SectionHeader title="Experience" />
+            <div className="space-y-6">
               {cvData.experience.map((job, index) => (
                 <div key={index} className="relative group" data-pdf-keep="true">
                   {isEditing && (
@@ -71,52 +98,90 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                       <Trash className="h-4 w-4" />
                     </button>
                   )}
-                  <div className="flex justify-between items-baseline mb-1">
-                    <h3 className="text-lg font-bold text-slate-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
-                    <p className="text-sm font-medium text-slate-600" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
+                  <div className="flex justify-between items-baseline gap-4 mb-0.5">
+                    <h3
+                      className="text-[17px] font-serif font-bold text-zinc-900"
+                      {...editableProps(['experience', index, 'jobTitle'])}
+                    >
+                      {job.jobTitle}
+                    </h3>
+                    <p
+                      className="text-[11px] font-mono tracking-tight text-zinc-500 whitespace-nowrap"
+                      {...editableProps(['experience', index, 'dates'])}
+                    >
+                      {job.dates}
+                    </p>
                   </div>
-                  <p className="text-base font-bold text-slate-700" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
-                  <ul className="list-disc list-outside ml-5 mt-1 space-y-0.5 text-sm text-slate-700">
-                    {job.responsibilities.map((resp, i) => <li key={i} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />)}
+                  <p
+                    className="text-[13px] font-mono font-medium uppercase tracking-wide mb-2"
+                    style={{ color: accent }}
+                    {...editableProps(['experience', index, 'company'])}
+                  >
+                    {job.company}
+                  </p>
+                  <ul className="space-y-1">
+                    {job.responsibilities.map((resp, i) => (
+                      <Bullet key={i} html={resp} editProps={editableProps(['experience', index, 'responsibilities', i])} />
+                    ))}
                   </ul>
                 </div>
               ))}
             </div>
           </section>
         );
+
       case 'education':
         return cvData.education.length > 0 ? (
           <section key="education">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Education</h2>
-            {cvData.education.map((edu, index) => (
-              <div key={index} className="mb-6" data-pdf-keep="true">
-                <div className="flex justify-between items-baseline">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900" {...editableProps(['education', index, 'degree'])}>{edu.degree}</h3>
-                    <p className="text-base text-slate-700" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
+            <SectionHeader title="Education" />
+            <div className="space-y-5">
+              {cvData.education.map((edu, index) => (
+                <div key={index} data-pdf-keep="true">
+                  <div className="flex justify-between items-baseline gap-4">
+                    <div>
+                      <h3 className="text-[17px] font-serif font-bold text-zinc-900" {...editableProps(['education', index, 'degree'])}>
+                        {edu.degree}
+                      </h3>
+                      <p className="text-[13px] font-mono font-medium uppercase tracking-wide" style={{ color: accent }} {...editableProps(['education', index, 'school'])}>
+                        {edu.school}
+                      </p>
+                    </div>
+                    <p className="text-[11px] font-mono tracking-tight text-zinc-500 whitespace-nowrap" {...editableProps(['education', index, 'year'])}>
+                      {edu.year}
+                    </p>
                   </div>
-                  <p className="text-sm font-medium text-slate-600" {...editableProps(['education', index, 'year'])}>{edu.year}</p>
+                  {edu.description && (
+                    <p
+                      className="text-sm text-zinc-600 mt-1.5 font-serif italic"
+                      dangerouslySetInnerHTML={{ __html: edu.description }}
+                      {...editableProps(['education', index, 'description'])}
+                    />
+                  )}
                 </div>
-                {edu.description && (
-                  <p className="text-sm text-slate-600 mt-1 italic" dangerouslySetInnerHTML={{ __html: edu.description }} {...editableProps(['education', index, 'description'])} />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </section>
         ) : null;
+
       case 'skills':
         return cvData.skills.length > 0 ? (
           <section key="skills">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Skills</h2>
+            <SectionHeader title="Skills" />
             {(() => {
               const sk = cvData.skills.slice(0, 15);
-              const perCol = Math.ceil(sk.length / 3);
+              // Round-robin distribution keeps columns balanced regardless of
+              // count (5/5/5, 4/4/3, 5/4/4 — never a lopsided 5/5/1 tail).
+              const cols: string[][] = [[], [], []];
+              sk.forEach((s, i) => cols[i % 3].push(s));
               return (
-                <div className="grid grid-cols-3 gap-x-6">
-                  {[0, 1, 2].map(ci => (
-                    <ul key={ci} className="list-disc list-outside ml-4 space-y-0.5">
-                      {sk.slice(ci * perCol, (ci + 1) * perCol).map((s, si) => (
-                        <li key={si} className="text-sm text-slate-700">{s}</li>
+                <div className="grid grid-cols-3 gap-x-6 gap-y-1">
+                  {cols.map((col, ci) => (
+                    <ul key={ci} className="space-y-1">
+                      {col.map((s, si) => (
+                        <li key={si} className="flex items-center gap-2 text-sm text-zinc-700">
+                          <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent, opacity: 0.55 }} />
+                          {s}
+                        </li>
                       ))}
                     </ul>
                   ))}
@@ -125,98 +190,146 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             })()}
           </section>
         ) : null;
+
       case 'projects':
         return cvData.projects && cvData.projects.length > 0 ? (
           <section key="projects">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Projects</h2>
-            <div className="space-y-6">
+            <SectionHeader title="Projects" />
+            <div className="space-y-5">
               {cvData.projects.map((proj, index) => (
                 <div key={index} data-pdf-keep="true">
-                  <h3 className="text-lg font-bold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                  <p className="text-base text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
-                  {proj.link && <a href={proj.link} className="text-sm text-blue-600 underline" {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
+                  <h3 className="text-[17px] font-serif font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>
+                    {proj.name}
+                  </h3>
+                  <p
+                    className="text-sm text-zinc-700 mt-1 font-serif leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: proj.description }}
+                    {...editableProps(['projects', index, 'description'])}
+                  />
+                  {proj.link && (
+                    <a href={proj.link} className="text-[13px] font-mono underline mt-0.5 inline-block" style={{ color: accent }} {...editableProps(['projects', index, 'link'])}>
+                      {proj.link}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
           </section>
         ) : null;
+
       case 'languages':
         return cvData.languages && cvData.languages.length > 0 ? (
           <section key="languages">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Languages</h2>
-            <p className="text-base leading-relaxed">
-              {cvData.languages.map((l, i) => <span key={i}>{l.name} ({l.proficiency}){i < (cvData.languages?.length ?? 0) - 1 && ' • '}</span>)}
+            <SectionHeader title="Languages" />
+            <p className="text-sm leading-relaxed text-zinc-700 flex flex-wrap gap-x-1.5 gap-y-1">
+              {cvData.languages.map((l, i) => (
+                <span key={i} className="flex items-center gap-1.5">
+                  <span className="font-medium text-zinc-900">{l.name}</span>
+                  <span className="text-zinc-400 text-xs font-mono">({l.proficiency})</span>
+                  {i < (cvData.languages?.length ?? 0) - 1 && <span className="text-zinc-300 ml-1">•</span>}
+                </span>
+              ))}
             </p>
           </section>
         ) : null;
+
       case 'references':
         return cvData.references && cvData.references.length > 0 ? (
           <section key="references">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">References</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <SectionHeader title="References" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
               {cvData.references.map((ref, index) => (
-                <div key={index} className="text-sm text-slate-700">
-                  <p className="font-bold text-slate-900">{ref.name}</p>
-                  <p className="text-slate-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
-                  {ref.relationship && <p className="text-slate-500 italic">{ref.relationship}</p>}
-                  {ref.email && <p>{ref.email}</p>}
-                  {ref.phone && <p>{ref.phone}</p>}
+                <div key={index} className="text-sm text-zinc-700">
+                  <p className="font-serif font-bold text-zinc-900">{ref.name}</p>
+                  <p className="text-zinc-600">{ref.title}{ref.company ? `, ${ref.company}` : ''}</p>
+                  {ref.relationship && <p className="text-zinc-500 italic font-serif">{ref.relationship}</p>}
+                  {ref.email && <p className="font-mono text-[13px] text-zinc-500">{ref.email}</p>}
+                  {ref.phone && <p className="font-mono text-[13px] text-zinc-500">{ref.phone}</p>}
                 </div>
               ))}
             </div>
           </section>
         ) : null;
+
       default:
         return null;
     }
   };
 
   return (
-    <div id="cv-preview-professional" className="bg-white p-8 text-zinc-900 shadow-lg border font-serif">
-      <header className="text-center border-b-2 border-zinc-200 pb-4 mb-5" data-pdf-keep="true">
-        <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">{personalInfo.name}</h1>
-        <div className="flex justify-center items-center gap-x-4 gap-y-1 text-sm text-slate-600 mt-3 flex-wrap">
+    <div id="cv-preview-professional" className="bg-white p-10 text-zinc-900 shadow-lg border font-serif">
+      <header className="pb-6 mb-8 border-b border-zinc-200" data-pdf-keep="true">
+        <h1 className="text-[2.75rem] leading-none font-serif font-black tracking-tight text-zinc-900">
+          {personalInfo.name}
+        </h1>
+        <span
+          className="block mt-3 h-[3px] w-14 rounded-full"
+          style={{ backgroundColor: accent }}
+        />
+        <div className="flex items-center gap-x-3 gap-y-1 text-[13px] font-mono text-zinc-500 mt-4 flex-wrap">
           <span>{personalInfo.email}</span>
-          <span>|</span>
+          <span className="text-zinc-300">•</span>
           <span>{personalInfo.phone}</span>
-          <span>|</span>
+          <span className="text-zinc-300">•</span>
           <span>{personalInfo.location}</span>
-          {personalInfo.linkedin && (<><span>|</span><a href={personalInfo.linkedin} className="text-blue-600 hover:underline">LinkedIn</a></>)}
-          {personalInfo.website && (<><span>|</span><a href={personalInfo.website} className="text-blue-600 hover:underline">Website</a></>)}
-          {personalInfo.github && (<><span>|</span><a href={personalInfo.github} className="text-blue-600 hover:underline">GitHub</a></>)}
+          {personalInfo.linkedin && (
+            <>
+              <span className="text-zinc-300">•</span>
+              <a href={personalInfo.linkedin} className="hover:underline" style={{ color: accent }}>LinkedIn</a>
+            </>
+          )}
+          {personalInfo.website && (
+            <>
+              <span className="text-zinc-300">•</span>
+              <a href={personalInfo.website} className="hover:underline" style={{ color: accent }}>Website</a>
+            </>
+          )}
+          {personalInfo.github && (
+            <>
+              <span className="text-zinc-300">•</span>
+              <a href={personalInfo.github} className="hover:underline" style={{ color: accent }}>GitHub</a>
+            </>
+          )}
         </div>
       </header>
 
-      <main className="space-y-5">
+      <main className="space-y-8">
         {orderedSections.map(key => renderSection(key))}
+
         {cvData.publications && cvData.publications.length > 0 && (
           <section>
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 border-b border-slate-300 pb-2 mb-4">Publications</h2>
+            <SectionHeader title="Publications" />
             <div className="space-y-4">
               {cvData.publications.map((pub, index) => (
                 <div key={index} data-pdf-keep="true">
-                  <h3 className="text-base font-bold text-slate-900" {...editableProps(['publications', index, 'title'])}>{pub.title}</h3>
-                  <p className="text-sm text-slate-700" {...editableProps(['publications', index, 'authors'])}>{pub.authors.join(', ')}</p>
-                  <p className="text-sm italic text-slate-600">
-                    <span {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>, <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>
+                  <h3 className="text-[15px] font-serif font-bold text-zinc-900" {...editableProps(['publications', index, 'title'])}>
+                    {pub.title}
+                  </h3>
+                  <p className="text-sm text-zinc-700" {...editableProps(['publications', index, 'authors'])}>
+                    {pub.authors.join(', ')}
+                  </p>
+                  <p className="text-[13px] font-mono text-zinc-500 mt-0.5">
+                    <span {...editableProps(['publications', index, 'journal'])}>{pub.journal}</span>
+                    {', '}
+                    <span {...editableProps(['publications', index, 'year'])}>{pub.year}</span>
                   </p>
                 </div>
               ))}
             </div>
           </section>
         )}
-      
+
         <TemplateCustomSections
           customSections={cvData.customSections}
           skipReferences
           renderHeader={title => <SectionHeader title={title} />}
           sectionClassName="mb-8"
-          titleClass="font-semibold"
-          subtitleClass="text-sm opacity-70"
-          descClass="text-sm opacity-80 mt-0.5"
-          yearClass="text-xs opacity-60"
+          titleClass="font-serif font-bold text-zinc-900"
+          subtitleClass="text-[13px] font-mono uppercase tracking-wide"
+          descClass="text-sm opacity-80 mt-0.5 font-serif"
+          yearClass="text-[11px] font-mono text-zinc-500"
         />
-</main>
+      </main>
 
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />
