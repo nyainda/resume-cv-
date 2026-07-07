@@ -2952,12 +2952,14 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                   always gets full, unscaled A4 content. */}
               <div
                 ref={paperAreaRef}
-                className="bg-zinc-200/60 dark:bg-neutral-900 flex justify-center"
+                className={`bg-zinc-200/60 dark:bg-neutral-900 flex ${previewScale > autoFitScale ? 'justify-start' : 'justify-center'}`}
                 style={{
                   padding: '24px 16px',
-                  overflow: 'hidden',
+                  // When zoomed past fit: show scrollbars so the user can pan left/right.
+                  // At fit or zoomed out: keep hidden + centered (no scrollbars needed).
+                  overflow: previewScale > autoFitScale ? 'auto' : 'hidden',
                   position: 'relative',
-                  touchAction: 'none',
+                  touchAction: previewScale > autoFitScale ? 'auto' : 'none',
                 }}
               >
                 {/* Width-constraining wrapper: layout width = 794 × scale px.
@@ -2974,12 +2976,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                     overflow: 'hidden',
                     flexShrink: 0,
                     position: 'relative',
-                    cursor: previewScale > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                    // Drag-to-pan only active at fit zoom (scrollbars handle it when zoomed in)
+                    cursor: previewScale > autoFitScale ? 'default' : 'default',
                   }}
-                  onPointerDown={handlePanStart}
-                  onPointerMove={handlePanMove}
-                  onPointerUp={handlePanEnd}
-                  onPointerCancel={handlePanEnd}
+                  onPointerDown={previewScale > autoFitScale ? undefined : handlePanStart}
+                  onPointerMove={previewScale > autoFitScale ? undefined : handlePanMove}
+                  onPointerUp={previewScale > autoFitScale ? undefined : handlePanEnd}
+                  onPointerCancel={previewScale > autoFitScale ? undefined : handlePanEnd}
                 >
                   {/* scalingRef: receives transform: scale(). Lives OUTSIDE
                       cvCaptureRef so getCVHtml / Playwright never sees it. */}
