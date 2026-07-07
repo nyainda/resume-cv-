@@ -1,3 +1,6 @@
+# Replit agent memory — internal tooling, not part of the project
+.agents/
+
 # Environment variables — never commit secrets
 .env
 .env.local
