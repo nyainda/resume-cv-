@@ -235,10 +235,27 @@ export function useProfileManager({
       // Compute the merged CV synchronously so we can sync it to D1 in the same
       // call — avoids a sync gap where the profile is saved but the updated CV
       // bullets are lost on other devices.
+      //
+      // MERGE RULE: each field is only overwritten from the new profile when the
+      // user actually changed that field in the form. Fields that are unchanged
+      // keep the AI-generated value from currentCV so a trivial edit (e.g.
+      // fixing a phone number) never silently discards the built CV.
       if (currentCV) {
         const fromProfile = profileToCV(profile);
         const oldFromProfile = profileToCV(userProfile);
 
+        // ── Per-field change detection ─────────────────────────────────────
+        const ser = (v: unknown) => JSON.stringify(v ?? []);
+        const summaryChanged        = profile.summary       !== (userProfile?.summary       ?? '');
+        const skillsChanged         = ser(profile.skills)         !== ser(userProfile?.skills);
+        const educationChanged      = ser(profile.education)      !== ser(userProfile?.education);
+        const projectsChanged       = ser(profile.projects)       !== ser(userProfile?.projects);
+        const languagesChanged      = ser(profile.languages)      !== ser(userProfile?.languages);
+        const referencesChanged     = ser(profile.references)     !== ser(userProfile?.references);
+        const customSectionsChanged = ser(profile.customSections) !== ser(userProfile?.customSections);
+
+        // ── Experience merge: per-role bullet change detection ─────────────
+        // Unchanged roles keep AI bullets; changed roles use the new form bullets.
         const mergedExperience = fromProfile.experience.map((newExp) => {
           const prevCVExp = currentCV.experience.find(
             (e) =>
@@ -265,6 +282,8 @@ export function useProfileManager({
               endDate: newExp.endDate,
             };
           }
+          // Bullets unchanged → keep AI version, just sync dates in case
+          // the user adjusted start/end date on an existing role.
           return {
             ...prevCVExp,
             dates: newExp.dates,
@@ -275,29 +294,40 @@ export function useProfileManager({
 
         const mergedCV: CVData = {
           ...currentCV,
-          summary: profile.summary || currentCV.summary,
+          // personalInfo always updates — name/email/phone are never AI-generated.
+          personalInfo: profile.personalInfo ?? currentCV.personalInfo,
+          // summary: only replace AI-generated version if the user edited it.
+          summary: summaryChanged
+            ? (profile.summary || currentCV.summary)
+            : currentCV.summary,
           experience:
             mergedExperience.length > 0 ? mergedExperience : currentCV.experience,
-          education:
-            (fromProfile.education ?? []).length > 0
-              ? fromProfile.education
-              : currentCV.education,
-          skills: (profile.skills ?? []).length > 0 ? profile.skills : currentCV.skills,
-          projects:
-            fromProfile.projects && fromProfile.projects.length > 0
-              ? fromProfile.projects
-              : currentCV.projects,
-          languages:
-            fromProfile.languages && fromProfile.languages.length > 0
-              ? fromProfile.languages
-              : currentCV.languages,
-          references:
-            fromProfile.references && fromProfile.references.length > 0
-              ? fromProfile.references
-              : currentCV.references,
-          customSections: (profile.customSections || []).filter((s) =>
-            s.items.some((i) => i.title.trim().length > 0),
-          ),
+          // education: only replace if user changed it in the form.
+          education: educationChanged && (fromProfile.education ?? []).length > 0
+            ? fromProfile.education
+            : currentCV.education,
+          // skills: only replace if user changed them — preserve AI-enriched list.
+          skills: skillsChanged && (profile.skills ?? []).length > 0
+            ? profile.skills
+            : currentCV.skills,
+          // projects: only replace if user changed them.
+          projects: projectsChanged && (fromProfile.projects ?? []).length > 0
+            ? fromProfile.projects
+            : currentCV.projects,
+          // languages: only replace if user changed them.
+          languages: languagesChanged && (fromProfile.languages ?? []).length > 0
+            ? fromProfile.languages
+            : currentCV.languages,
+          // references: only replace if user changed them.
+          references: referencesChanged && (fromProfile.references ?? []).length > 0
+            ? fromProfile.references
+            : currentCV.references,
+          // customSections: only replace if user changed them.
+          customSections: customSectionsChanged
+            ? (profile.customSections || []).filter((s) =>
+                s.items.some((i) => i.title.trim().length > 0),
+              )
+            : currentCV.customSections,
           sectionOrder: profile.sectionOrder,
         };
 
