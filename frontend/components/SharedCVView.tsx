@@ -114,8 +114,14 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   // ── Responsive preview scaling ─────────────────────────────────────────────
   const sharedPaperAreaRef  = useRef<HTMLDivElement>(null);
   const sharedScalingRef    = useRef<HTMLDivElement>(null);
+  const [sharedAutoFitScale, setSharedAutoFitScale]               = useState(1);
+  const [sharedZoomOverride, setSharedZoomOverride]               = useState<number | null>(null);
   const [sharedPreviewScale, setSharedPreviewScale]               = useState(1);
   const [sharedPreviewContentHeight, setSharedPreviewContentHeight] = useState(0);
+
+  const SHARED_ZOOM_STEP = 0.15;
+  const SHARED_MIN_ZOOM  = 0.25;
+  const SHARED_MAX_ZOOM  = 1.75;
 
   useEffect(() => {
     const el = sharedPaperAreaRef.current;
@@ -124,13 +130,27 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
     function measure() {
       if (!el) return;
       const scale = Math.min(1, Math.max(0.25, el.clientWidth / A4_PX));
-      setSharedPreviewScale(scale);
+      setSharedAutoFitScale(scale);
     }
     const obs = new ResizeObserver(measure);
     obs.observe(el);
     measure();
     return () => obs.disconnect();
   }, []);
+
+  useEffect(() => {
+    setSharedPreviewScale(sharedZoomOverride !== null ? sharedZoomOverride : sharedAutoFitScale);
+  }, [sharedAutoFitScale, sharedZoomOverride]);
+
+  const handleSharedZoomIn = () => {
+    const next = Math.min(SHARED_MAX_ZOOM, parseFloat(((sharedZoomOverride ?? sharedAutoFitScale) + SHARED_ZOOM_STEP).toFixed(2)));
+    setSharedZoomOverride(next);
+  };
+  const handleSharedZoomOut = () => {
+    const next = Math.max(SHARED_MIN_ZOOM, parseFloat(((sharedZoomOverride ?? sharedAutoFitScale) - SHARED_ZOOM_STEP).toFixed(2)));
+    setSharedZoomOverride(next);
+  };
+  const handleSharedZoomReset = () => setSharedZoomOverride(null);
 
   useEffect(() => {
     const el = sharedScalingRef.current;
@@ -487,57 +507,6 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
             </div>
           )}
 
-          {/* ── View counter — owner only ───────────────────────────────── */}
-          {isOwner && shareId && (
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 shadow-sm p-4">
-              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-3">Link performance</p>
-
-              {shareStats ? (
-                <div className="space-y-3">
-                  {/* Big view count */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#1B2B4B]/8 dark:bg-[#C9A84C]/10 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-[#1B2B4B] dark:text-[#C9A84C]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-black text-[#1B2B4B] dark:text-[#C9A84C] leading-none">
-                        {shareStats.view_count.toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium mt-0.5">
-                        {shareStats.view_count === 1 ? 'view' : 'views'} so far
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Expiry */}
-                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <circle cx="12" cy="12" r="10"/>
-                      <polyline points="12 6 12 12 16 14"/>
-                    </svg>
-                    {(() => {
-                      const daysLeft = Math.max(0, Math.ceil((shareStats.expires_at - Date.now() / 1000) / 86400));
-                      return daysLeft > 0
-                        ? `Link expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`
-                        : 'Link has expired';
-                    })()}
-                  </div>
-                </div>
-              ) : (
-                /* Loading skeleton */
-                <div className="flex items-center gap-3 animate-pulse">
-                  <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-neutral-800 flex-shrink-0"/>
-                  <div className="space-y-1.5 flex-1">
-                    <div className="h-5 w-12 rounded bg-zinc-100 dark:bg-neutral-800"/>
-                    <div className="h-2.5 w-20 rounded bg-zinc-100 dark:bg-neutral-800"/>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Shared date + ProCV badge */}
           <div className="text-center py-1">
@@ -580,46 +549,75 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
           )}
 
           {activeDoc === 'cv' ? (
-            /* Responsive-scaling wrapper: the CV template is A4-fixed (794 px).
-               CSS transform: scale() does NOT affect layout — the element still
-               claims 794px, causing overflow: hidden to clip both sides.
-               Fix: a width-constraining wrapper sized to (794 × scale) px so
-               the layout matches the visual footprint. sharedScalingRef holds
-               the transform and lives OUTSIDE previewRef so PDF capture is safe. */
-            <div
-              ref={sharedPaperAreaRef}
-              className="w-full flex justify-center"
-            >
-              {/* Width-constraining wrapper: layout width = 794 × scale px */}
-              <div style={{
-                width: `${Math.round(794 * sharedPreviewScale)}px`,
-                height: sharedPreviewContentHeight > 0
-                  ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
-                  : undefined,
-                minHeight: 200,
-                overflow: 'hidden',
-                flexShrink: 0,
-              }}>
-                <div
-                  ref={sharedScalingRef}
-                  style={{
-                    transform: `scale(${sharedPreviewScale})`,
-                    transformOrigin: 'top left',
-                    width: 794,
-                  }}
+            <div className="flex flex-col gap-2">
+              {/* ── Zoom toolbar ── */}
+              <div className="flex items-center justify-end gap-1">
+                <button
+                  onClick={handleSharedZoomOut}
+                  disabled={sharedPreviewScale <= SHARED_MIN_ZOOM}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 disabled:opacity-30 transition-colors text-base font-bold"
+                  title="Zoom out"
+                >−</button>
+                <button
+                  onClick={handleSharedZoomReset}
+                  title={sharedZoomOverride !== null ? 'Reset to fit' : 'Auto-fit'}
+                  className="min-w-[48px] h-7 px-2 rounded-md text-[11px] font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-80 transition-opacity"
                 >
-                  <div
-                    ref={previewRef}
-                    data-cv-preview-active="true"
-                  >
-                    <CVPreview
-                      cvData={cvData}
-                      personalInfo={personalInfo}
-                      template={template}
-                      isEditing={false}
-                      onDataChange={() => {}}
-                      jobDescriptionForATS=""
-                    />
+                  {sharedZoomOverride !== null ? `${Math.round(sharedPreviewScale * 100)}%` : 'FIT'}
+                </button>
+                <button
+                  onClick={handleSharedZoomIn}
+                  disabled={sharedPreviewScale >= SHARED_MAX_ZOOM}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 disabled:opacity-30 transition-colors text-base font-bold"
+                  title="Zoom in"
+                >+</button>
+              </div>
+
+              {/* Scroll container — overflow:auto when zoomed past fit so the user
+                  can scroll left AND right. The inner centering row has minWidth
+                  equal to the scaled CV + gutters so both edges are reachable. */}
+              <div
+                ref={sharedPaperAreaRef}
+                style={{
+                  overflow: sharedPreviewScale > sharedAutoFitScale ? 'auto' : 'hidden',
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  minWidth: sharedPreviewScale > sharedAutoFitScale
+                    ? `${Math.round(794 * sharedPreviewScale) + 32}px`
+                    : undefined,
+                }}>
+                  {/* Width-constraining wrapper: layout width = 794 × scale px */}
+                  <div style={{
+                    width: `${Math.round(794 * sharedPreviewScale)}px`,
+                    height: sharedPreviewContentHeight > 0
+                      ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
+                      : undefined,
+                    minHeight: 200,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                  }}>
+                    <div
+                      ref={sharedScalingRef}
+                      style={{
+                        transform: `scale(${sharedPreviewScale})`,
+                        transformOrigin: 'top left',
+                        width: 794,
+                      }}
+                    >
+                      <div ref={previewRef} data-cv-preview-active="true">
+                        <CVPreview
+                          cvData={cvData}
+                          personalInfo={personalInfo}
+                          template={template}
+                          isEditing={false}
+                          onDataChange={() => {}}
+                          jobDescriptionForATS=""
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
