@@ -2,6 +2,7 @@
 .agents/
 .local/
 metadata.json
+screenshots/
 
 # Environment variables — never commit secrets
 .env
