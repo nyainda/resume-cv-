@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env, kvd } from '../types';
 import { json, escapeRegex } from '../utils';
+import { getCachedBannedPhrases } from './data';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CV Pipeline Rules — GET /api/cv/rules
@@ -890,7 +891,7 @@ export async function handlePurifyCv(request: Request, env: Env): Promise<Respon
     // Applies phrases auto-promoted by the leak-miner cron that are not yet in
     // the static _SUBS array, closing the self-improvement loop.
     try {
-        const dynBanned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
+        const dynBanned = await getCachedBannedPhrases(env);
         let dynSubs = 0;
         for (const { phrase, replacement } of dynBanned) {
             if (!phrase || !replacement) continue;

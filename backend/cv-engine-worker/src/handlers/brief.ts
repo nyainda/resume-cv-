@@ -1,6 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env, kvd } from '../types';
 import { json, safeJson, clamp, shuffle, stringify, escapeRegex } from '../utils';
+import { getCachedKV, getCachedBannedPhrases, getCachedVerbPool } from './data';
+
+// Shared TTL constants — match data.ts so entries are compatible across the same isolate cache.
+const TTL_10M = 10 * 60 * 1000;
 
 export async function handleBrief(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const body = await safeJson(request);
@@ -40,17 +44,22 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
         ? explicitYears
         : estimateYearsFromProfile(profile);
 
+    // Route all KV reads through the module-level memory cache (defined in data.ts).
+    // Previously these were raw env.CV_KV.get() calls on every generation, burning
+    // 9–10 of the free-tier 100k KV reads. With the cache warm (5–10 min TTL per
+    // key, shared across all requests within the same CF isolate) the read count
+    // drops to 0 for subsequent requests in the same window.
     const [seniorityRows, fieldRows, voiceRows, comboRows, rhythmRows, bannedRows,
            openerRows, resultConnRows, ctxConnRows] = await Promise.all([
-        env.CV_KV.get<any[]>(kvd('cv:seniority:all'), { type: 'json' }),
-        env.CV_KV.get<any[]>(kvd('cv:fields:all'),    { type: 'json' }),
-        env.CV_KV.get<any[]>(kvd('cv:voices:all'),    { type: 'json' }),
-        env.CV_KV.get<any[]>(kvd('cv:combos:all'),    { type: 'json' }),
-        env.CV_KV.get<any[]>(kvd('cv:rhythm:all'),    { type: 'json' }),
-        env.CV_KV.get<any[]>(kvd('cv:banned:all'),    { type: 'json' }),
-        env.CV_KV.get<any[]>(kvd('cv:openers:all'),   { type: 'json' }),   // ← 1.3
-        env.CV_KV.get<any[]>(kvd('cv:results:all'),   { type: 'json' }),   // ← 1.3
-        env.CV_KV.get<any[]>(kvd('cv:contexts:all'),  { type: 'json' }),   // ← 1.3
+        getCachedKV<any[]>('seniority:all', kvd('cv:seniority:all'), env, TTL_10M),
+        getCachedKV<any[]>('fields:all',    kvd('cv:fields:all'),    env, TTL_10M),
+        getCachedKV<any[]>('voices:all',    kvd('cv:voices:all'),    env, TTL_10M),
+        getCachedKV<any[]>('combos:all',    kvd('cv:combos:all'),    env, TTL_10M),
+        getCachedKV<any[]>('rhythm:all',    kvd('cv:rhythm:all'),    env, TTL_10M),
+        getCachedBannedPhrases(env),                                        // ← uses its own mem-cache
+        getCachedKV<any[]>('openers:all',   kvd('cv:openers:all'),   env, TTL_10M),
+        getCachedKV<any[]>('results:all',   kvd('cv:results:all'),   env, TTL_10M),
+        getCachedKV<any[]>('contexts:all',  kvd('cv:contexts:all'),  env, TTL_10M),
     ]);
 
     // 1. Seniority by years (with override from JD title cues)
@@ -124,7 +133,7 @@ export async function buildBriefData(env: Env, body: any): Promise<any> {
     // 5. Verb pool: pick category from field language_style, build pool of ~30
     const category = mapFieldToVerbCategory(fieldRow?.language_style || '');
     const tense = section === 'current_role' ? 'present' : 'past';
-    let verbPool = await env.CV_KV.get<any[]>(kvd(`cv:verbs:${category}:${tense}`), { type: 'json' }) || [];
+    let verbPool = await getCachedVerbPool(category, tense, env);
     if (fieldRow) {
         const avoided = new Set((fieldRow.avoided_verbs || []).map((v: string) => v.toLowerCase()));
         verbPool = verbPool.filter(v => !avoided.has(String(v.verb_present || '').toLowerCase()));

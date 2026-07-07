@@ -242,15 +242,30 @@ const MODEL_FALLBACK_CHAIN: Record<string, string[]> = {
  * Returns the resolved primary model AND the remaining fallback chain for
  * that task (excluding the resolved primary so we don't retry it first).
  */
+// ── Model override mem-cache ─────────────────────────────────────────────────
+// resolveModel is called on every LLM request (can be 5–8 times per generation).
+// Caching the KV override for 5 minutes per task key keeps the hot path free
+// while still picking up a manual hotfix within 5 minutes of it being written.
+const _modelOverrideCache = new Map<string, { value: string | null; expiresAt: number }>();
+const MODEL_OVERRIDE_TTL_MS = 5 * 60 * 1000;
+
 async function resolveModel(
     taskKey: string,
     paidUpgrade: boolean,
     env: Env,
 ): Promise<{ primary: string; chain: string[] }> {
-    // Check KV for a live override (allows hotfix without redeploy)
+    // Check KV for a live override (allows hotfix without redeploy).
+    // Use a short module-level cache so we don't hit KV on every LLM call.
     let kvOverride: string | null = null;
     try {
-        kvOverride = await env.CV_KV.get(`model:override:${taskKey}`);
+        const now = Date.now();
+        const cached = _modelOverrideCache.get(taskKey);
+        if (cached && now < cached.expiresAt) {
+            kvOverride = cached.value;
+        } else {
+            kvOverride = await env.CV_KV.get(`model:override:${taskKey}`);
+            _modelOverrideCache.set(taskKey, { value: kvOverride, expiresAt: now + MODEL_OVERRIDE_TTL_MS });
+        }
     } catch { /* KV miss or unavailable — continue */ }
 
     if (kvOverride?.trim()) {

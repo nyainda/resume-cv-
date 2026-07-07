@@ -78,6 +78,29 @@ export async function handleWords(request: Request, env: Env, url: URL): Promise
     return json({ category, tense, count: out.length, words: out, source: 'kv' }, request, env);
 }
 
+/**
+ * Generic cached KV read — wraps the module-level mem cache around any KV list.
+ * Callers pass a short human-readable memKey (e.g. 'seniority:all') so the
+ * entry is shareable across handlers that need the same data.
+ */
+export async function getCachedKV<T>(
+    memKey: string,
+    kvKey: string,
+    env: Env,
+    ttl: number,
+): Promise<T | null> {
+    let data = kvMemGet<T>(memKey);
+    if (data) return data;
+    data = await env.CV_KV.get<T>(kvKey, { type: 'json' });
+    if (data) kvMemSet(memKey, data, ttl);
+    return data;
+}
+
+/** Cached verb pool — used by brief.ts to avoid direct KV reads on every generation. */
+export async function getCachedVerbPool(category: string, tense: string, env: Env): Promise<any[]> {
+    return (await getCachedKV<any[]>(`verbs:${category}:${tense}`, kvd(`cv:verbs:${category}:${tense}`), env, TTL_10M)) || [];
+}
+
 /** Shared cached KV read for banned phrases — used by handleBanned AND validation handlers */
 export async function getCachedBannedPhrases(env: Env): Promise<any[]> {
     const MEM_KEY = 'banned:all';

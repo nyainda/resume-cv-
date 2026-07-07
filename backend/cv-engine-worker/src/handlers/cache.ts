@@ -1,14 +1,14 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env, kvd } from '../types';
-import { json } from '../utils';
+import { json, corsHeaders } from '../utils';
 import { verifySession } from './auth';
 
 // ─── LLM cache constants ──────────────────────────────────────────────────────
 const LLM_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const LLM_CACHE_MAX_RESPONSE_BYTES = 200_000;      // 200 KB
 
-const LLM_KV_PREFIX   = 'llm:';
-const LLM_KV_TTL_SECS = 3600; // KV hot-cache TTL: 1 hour (D1 keeps 30 days)
+// LLM_KV_PREFIX / LLM_KV_TTL_SECS removed — the KV hot-cache layer was replaced
+// by HTTP Cache-Control headers + Workers Tiered Cache (zero KV reads on edge hits).
 
 export async function handleLLMCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
     const key = (url.searchParams.get('key') ?? '').trim();
@@ -16,21 +16,14 @@ export async function handleLLMCacheGet(request: Request, env: Env, url: URL): P
         return json({ hit: false, error: 'invalid_key' }, request, env, 400);
     }
 
-    // ── 1. KV hot-cache — sub-millisecond lookup ──────────────────────────────
-    try {
-        const kvVal = await env.CV_KV.get<{ response: string; hitCount: number }>(
-            `${LLM_KV_PREFIX}${key}`, { type: 'json' }
-        );
-        if (kvVal?.response) {
-            const now = Math.floor(Date.now() / 1000);
-            void env.CV_DB.prepare(
-                `UPDATE llm_cache SET hit_count = hit_count + 1, last_hit_at = ? WHERE cache_key = ?`
-            ).bind(now, key).run().catch(() => {});
-            return json({ hit: true, response: kvVal.response, hitCount: kvVal.hitCount + 1, source: 'kv' }, request, env);
-        }
-    } catch { /* KV miss or error — fall through to D1 */ }
-
-    // ── 2. D1 cold-cache — persistent 30-day store ────────────────────────────
+    // ── D1 persistent store (30-day TTL) ─────────────────────────────────────
+    // The former KV hot-cache layer was removed: every cache GET was burning a
+    // KV read (free tier: 100k/day) for data that can be served by Cloudflare's
+    // own HTTP tiered cache at zero KV cost. We now return Cache-Control headers
+    // on hits so CF edge serves repeated lookups for the same key entirely from
+    // cache — no Worker execution, no KV read, no D1 read on a CF cache hit.
+    // Note: hit_count won't increment on CF-edge-served responses (acceptable
+    // since it's an internal analytics counter, not a functional dependency).
     const now = Math.floor(Date.now() / 1000);
     const expireBefore = now - LLM_CACHE_TTL_SECONDS;
 
@@ -45,17 +38,22 @@ export async function handleLLMCacheGet(request: Request, env: Env, url: URL): P
         return json({ hit: false }, request, env);
     }
 
-    void env.CV_KV.put(
-        `${LLM_KV_PREFIX}${key}`,
-        JSON.stringify({ response: row.response, hitCount: row.hit_count + 1 }),
-        { expirationTtl: LLM_KV_TTL_SECS }
-    ).catch(() => {});
-
     void env.CV_DB.prepare(
         `UPDATE llm_cache SET hit_count = hit_count + 1, last_hit_at = ? WHERE cache_key = ?`
     ).bind(now, key).run().catch(() => {});
 
-    return json({ hit: true, response: row.response, hitCount: row.hit_count + 1, source: 'd1' }, request, env);
+    // Cache-Control: public so CF tiered cache stores the response at the edge.
+    // max-age=3600 (1 hr client) / s-maxage=86400 (24 hr CF edge) — safe since
+    // LLM responses keyed by SHA-256 are immutable for their 30-day lifetime.
+    const body = JSON.stringify({ hit: true, response: row.response, hitCount: row.hit_count + 1, source: 'd1' });
+    return new Response(body, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+            ...corsHeaders(request, env),
+        },
+    });
 }
 
 export async function handleLLMCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -85,14 +83,8 @@ export async function handleLLMCachePost(request: Request, env: Env, ctx: Execut
              last_hit_at = excluded.created_at`
     ).bind(key, model, temperature, response, promptSize, now).run();
 
-    ctx.waitUntil(
-        env.CV_KV.put(
-            `${LLM_KV_PREFIX}${key}`,
-            JSON.stringify({ response, hitCount: 0 }),
-            { expirationTtl: LLM_KV_TTL_SECS }
-        ).catch(() => {})
-    );
-
+    // KV hot-tier write removed — Workers Tiered Cache handles edge caching via
+    // Cache-Control headers on the GET handler. This saves 1 KV write per store.
     const expireBefore = now - LLM_CACHE_TTL_SECONDS;
     ctx.waitUntil(
         env.CV_DB.prepare(
@@ -176,7 +168,10 @@ export async function handleCVExamplesGet(request: Request, env: Env, url: URL):
     let experienceStructure: number[][] = [];
     try { experienceStructure = JSON.parse(row.experience_structure); } catch { /* ignore */ }
 
-    return json({
+    // Cache-Control on a hit: keyed by fingerprint (SHA-256 of role/seniority/purpose/mode),
+    // so same fingerprint = same structural reference. Immutable for 1 hour client-side,
+    // 24 hours at CF edge — Workers Tiered Cache serves repeat lookups for free.
+    const exampleBody = JSON.stringify({
         example: {
             fingerprint:       row.fingerprint,
             primaryTitle:      row.primary_title,
@@ -191,7 +186,15 @@ export async function handleCVExamplesGet(request: Request, env: Env, url: URL):
             qualityScore:      row.quality_score   ?? 70,
             updatedAt:         row.updated_at,
         },
-    }, request, env);
+    });
+    return new Response(exampleBody, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+            ...corsHeaders(request, env),
+        },
+    });
 }
 
 export async function handleCVExamplesPost(request: Request, env: Env): Promise<Response> {

@@ -26,6 +26,14 @@ binding = "AI"
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Phase I: nightly leak-miner promotion at 03:15 UTC
+[cache]
+# Workers Tiered Cache — responses with Cache-Control: public are stored at CF's
+# upper-tier PoP so subsequent requests from any region are served without running
+# the Worker at all. Zero cost on free plan; no KV reads, no D1 reads on CF hits.
+# Affects: GET /api/cv/llm-cache (1 hr client / 24 hr edge) and
+#          GET /api/cv/examples  (1 hr client / 24 hr edge).
+enabled = true
+
 [triggers]
 crons = ["15 3 * * *"]
 

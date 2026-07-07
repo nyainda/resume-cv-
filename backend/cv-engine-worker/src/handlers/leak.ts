@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env, kvd, LEAK_PROMOTE_THRESHOLD } from '../types';
 import { json, safeJson, clamp, verifyAdminAuth, unauthorized } from '../utils';
+import { getCachedBannedPhrases } from './data';
 
 const LEAK_REPORT_MAX_PHRASES = 100;
 const LEAK_PHRASE_MAX_LEN = 80;
@@ -19,7 +20,7 @@ export async function handleLeakReport(request: Request, env: Env): Promise<Resp
         .slice(0, LEAK_REPORT_MAX_PHRASES);
     if (cleaned.length === 0) return json({ error: 'no_valid_phrases' }, request, env, 400);
 
-    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
+    const banned = await getCachedBannedPhrases(env);
     const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()));
     const fresh = cleaned.filter(p => !bannedSet.has(p));
     if (fresh.length === 0) return json({ ok: true, recorded: 0, already_banned: cleaned.length }, request, env);
@@ -117,7 +118,7 @@ export async function handleLeakCandidatesDecide(request: Request, env: Env): Pr
 }
 
 export async function runLeakPromotionCron(env: Env): Promise<void> {
-    const banned = (await env.CV_KV.get<any[]>(kvd('cv:banned:all'), { type: 'json' })) || [];
+    const banned = await getCachedBannedPhrases(env);
     const bannedSet = new Set(banned.map((b: any) => String(b.phrase || '').toLowerCase()));
 
     const rs = await env.CV_DB.prepare(
