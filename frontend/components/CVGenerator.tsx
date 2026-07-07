@@ -411,8 +411,13 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   // directly so the PDF is always generated at full A4 size, unaffected.
   const paperAreaRef  = useRef<HTMLDivElement>(null);
   const scalingRef    = useRef<HTMLDivElement>(null);
+  const viewportRef   = useRef<HTMLDivElement>(null);
+  const panOriginRef  = useRef<{ x: number; y: number; panX: number; panY: number }>({ x: 0, y: 0, panX: 0, panY: 0 });
   const [previewScale, setPreviewScale]               = useState(1);
   const [previewContentHeight, setPreviewContentHeight] = useState<number>(0);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
   // Zoom controls — autoFitScale is the container-driven fit value;
   // zoomOverride (null = auto-fit) lets the user manually set a scale.
   const [autoFitScale, setAutoFitScale] = useState(1);
@@ -443,9 +448,64 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const ZOOM_STEP = 0.15;
   const MIN_ZOOM  = 0.25;
   const MAX_ZOOM  = 1.75;
-  const handleZoomIn    = () => setZoomOverride(z => Math.min(MAX_ZOOM, parseFloat(((z ?? autoFitScale) + ZOOM_STEP).toFixed(2))));
-  const handleZoomOut   = () => setZoomOverride(z => Math.max(MIN_ZOOM, parseFloat(((z ?? autoFitScale) - ZOOM_STEP).toFixed(2))));
-  const handleZoomReset = () => setZoomOverride(null);
+  const clampPanToBounds = useCallback((x: number, y: number) => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) return { x, y };
+    const viewportWidth = viewportEl.clientWidth || 794;
+    const viewportHeight = viewportEl.clientHeight || 1123;
+    const contentWidth = 794 * previewScale;
+    const contentHeight = previewContentHeight > 0 ? previewContentHeight * previewScale : 794 * 1.414 * previewScale;
+    const maxPanX = Math.max(0, contentWidth - viewportWidth);
+    const maxPanY = Math.max(0, contentHeight - viewportHeight);
+    return {
+      x: Math.max(-maxPanX, Math.min(0, x)),
+      y: Math.max(-maxPanY, Math.min(0, y)),
+    };
+  }, [previewScale, previewContentHeight]);
+
+  const handleZoomIn = () => {
+    const nextScale = Math.min(MAX_ZOOM, parseFloat(((zoomOverride ?? autoFitScale) + ZOOM_STEP).toFixed(2)));
+    setZoomOverride(nextScale);
+    setPanX(0);
+    setPanY(0);
+  };
+  const handleZoomOut = () => {
+    const nextScale = Math.max(MIN_ZOOM, parseFloat(((zoomOverride ?? autoFitScale) - ZOOM_STEP).toFixed(2)));
+    setZoomOverride(nextScale);
+    setPanX(0);
+    setPanY(0);
+  };
+  const handleZoomReset = () => {
+    setZoomOverride(null);
+    setPanX(0);
+    setPanY(0);
+  };
+
+  const handlePanStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (previewScale <= autoFitScale) return;
+    event.preventDefault();
+    viewportRef.current?.setPointerCapture(event.pointerId);
+    panOriginRef.current = { x: event.clientX, y: event.clientY, panX, panY };
+    setIsPanning(true);
+  };
+
+  const handlePanMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPanning || previewScale <= autoFitScale) return;
+    const dx = event.clientX - panOriginRef.current.x;
+    const dy = event.clientY - panOriginRef.current.y;
+    const nextPan = clampPanToBounds(panOriginRef.current.panX + dx, panOriginRef.current.panY + dy);
+    setPanX(nextPan.x);
+    setPanY(nextPan.y);
+  };
+
+  const handlePanEnd = (event?: React.PointerEvent<HTMLDivElement>) => {
+    if (event?.pointerId !== undefined) {
+      try {
+        viewportRef.current?.releasePointerCapture(event.pointerId);
+      } catch {}
+    }
+    setIsPanning(false);
+  };
 
   // Track natural content height so we can collapse the "phantom" space that
   // CSS transform leaves behind (transform doesn't affect layout flow).
@@ -2895,27 +2955,38 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 className="bg-zinc-200/60 dark:bg-neutral-900 flex justify-center"
                 style={{
                   padding: '24px 16px',
-                  overflowX: zoomOverride !== null && zoomOverride > autoFitScale ? 'auto' : 'hidden',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  touchAction: 'none',
                 }}
               >
                 {/* Width-constraining wrapper: layout width = 794 × scale px.
                     Height = natural content height × scale px.
                     This is the true visual footprint after scaling. */}
-                <div style={{
-                  width: `${Math.round(794 * previewScale)}px`,
-                  height: previewContentHeight > 0
-                    ? `${Math.round(previewContentHeight * previewScale)}px`
-                    : undefined,
-                  minHeight: 200,
-                  overflow: 'hidden',
-                  flexShrink: 0,
-                }}>
+                <div
+                  ref={viewportRef}
+                  style={{
+                    width: `${Math.round(794 * previewScale)}px`,
+                    height: previewContentHeight > 0
+                      ? `${Math.round(previewContentHeight * previewScale)}px`
+                      : undefined,
+                    minHeight: 200,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    position: 'relative',
+                    cursor: previewScale > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                  }}
+                  onPointerDown={handlePanStart}
+                  onPointerMove={handlePanMove}
+                  onPointerUp={handlePanEnd}
+                  onPointerCancel={handlePanEnd}
+                >
                   {/* scalingRef: receives transform: scale(). Lives OUTSIDE
                       cvCaptureRef so getCVHtml / Playwright never sees it. */}
                   <div
                     ref={scalingRef}
                     style={{
-                      transform: `scale(${previewScale})`,
+                      transform: `translate(${panX}px, ${panY}px) scale(${previewScale})`,
                       transformOrigin: 'top left',
                       width: 794,
                     }}
