@@ -2950,18 +2950,33 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                   top-left corner of the constraining wrapper.
                   The scale transform sits OUTSIDE cvCaptureRef so PDF capture
                   always gets full, unscaled A4 content. */}
+              {/* Scroll container — overflow:auto when zoomed past fit so scrollbars
+                  appear. When at fit, overflow:hidden + flex justify-center keeps
+                  the CV centred with no scrollbars. */}
               <div
                 ref={paperAreaRef}
-                className={`bg-zinc-200/60 dark:bg-neutral-900 flex ${previewScale > autoFitScale ? 'justify-start' : 'justify-center'}`}
+                className="bg-zinc-200/60 dark:bg-neutral-900"
                 style={{
-                  padding: '24px 16px',
-                  // When zoomed past fit: show scrollbars so the user can pan left/right.
-                  // At fit or zoomed out: keep hidden + centered (no scrollbars needed).
                   overflow: previewScale > autoFitScale ? 'auto' : 'hidden',
                   position: 'relative',
                   touchAction: previewScale > autoFitScale ? 'auto' : 'none',
                 }}
               >
+                {/* Inner centering row. When zoomed past fit its minWidth equals
+                    the scaled CV width + gutters, so the scroll container can
+                    reach both the left AND right edges. justify-center keeps the
+                    CV centred inside this row whether it's narrower or wider than
+                    the outer container. */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    padding: '24px 16px',
+                    minWidth: previewScale > autoFitScale
+                      ? `${Math.round(794 * previewScale) + 32}px`
+                      : undefined,
+                  }}
+                >
                 {/* Width-constraining wrapper: layout width = 794 × scale px.
                     Height = natural content height × scale px.
                     This is the true visual footprint after scaling. */}
@@ -2976,8 +2991,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                     overflow: 'hidden',
                     flexShrink: 0,
                     position: 'relative',
-                    // Drag-to-pan only active at fit zoom (scrollbars handle it when zoomed in)
-                    cursor: previewScale > autoFitScale ? 'default' : 'default',
+                    cursor: 'default',
                   }}
                   onPointerDown={previewScale > autoFitScale ? undefined : handlePanStart}
                   onPointerMove={previewScale > autoFitScale ? undefined : handlePanMove}
@@ -3013,7 +3027,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
+                </div>{/* end inner centering row */}
+              </div>{/* end scroll container (paperAreaRef) */}
             </div>
             {/* Generation Trace Panel — S5 Phase 2. Shows only when the CV
                 carries a _trace from the last generation run. Collapsed by
