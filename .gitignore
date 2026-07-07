@@ -1,5 +1,7 @@
-# Replit agent memory — internal tooling, not part of the project
+# Replit agent memory and platform files — internal tooling, not part of the project
 .agents/
+.local/
+metadata.json
 
 # Environment variables — never commit secrets
 .env
