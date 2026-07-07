@@ -3,7 +3,7 @@ import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
 import { downloadCV } from '../services/cvDownloadService';
 import DownloadProgressModal from './DownloadProgressModal';
-import { } from '../services/shareService';
+import { fetchShareStats } from '../services/shareService';
 
 // ── Smart Summary ─────────────────────────────────────────────────────────────
 // Builds a deterministic, human-readable professional snapshot from CV data.
