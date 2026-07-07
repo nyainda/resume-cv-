@@ -19,6 +19,21 @@ import { getTier } from './accountTierService';
 // Engine on Vercel even when the env var is set.
 const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 
+/**
+ * Build a full URL for a CV engine endpoint.
+ * Handles both absolute base URLs (https://...) and relative proxy paths (/cf-engine).
+ * new URL(path, base) only works when base is absolute, so we fall back to
+ * simple concatenation for relative bases (local Vite proxy dev scenario).
+ */
+function buildEngineURL(path: string): URL {
+    if (/^https?:\/\//.test(ENGINE_URL)) {
+        // Absolute base URL (production): standard URL construction
+        return new URL(path, ENGINE_URL);
+    }
+    // Relative base (e.g. /cf-engine): concatenate directly and resolve against window origin
+    return new URL(ENGINE_URL + path, window.location.origin);
+}
+
 const DEFAULT_TIMEOUT_MS = 6000;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,7 +115,9 @@ export interface CleanResult {
 }
 
 export function isCVEngineConfigured(): boolean {
-    return Boolean(ENGINE_URL && /^https?:\/\//.test(ENGINE_URL));
+    // Accept full https:// URLs (production) or relative paths starting with /
+    // (local dev via Vite proxy, e.g. /cf-engine → CF worker without CORS issues)
+    return Boolean(ENGINE_URL && (/^https?:\/\//.test(ENGINE_URL) || ENGINE_URL.startsWith('/')));
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
@@ -141,7 +158,7 @@ async function getJSON<T>(path: string, params?: Record<string, string>): Promis
         if (import.meta.env.DEV) console.info(`[cvEngineClient] Skipping GET ${path} — rate limited for ${wait}s more.`);
         return null;
     }
-    const u = new URL(path, ENGINE_URL);
+    const u = buildEngineURL(path);
     if (params) for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     try {
         const r = await fetchWithTimeout(u.toString(), {
@@ -174,7 +191,7 @@ async function postJSON<T>(path: string, body: unknown): Promise<T | null> {
         if (import.meta.env.DEV) console.info(`[cvEngineClient] Skipping POST ${path} — rate limited for ${wait}s more.`);
         return null;
     }
-    const u = new URL(path, ENGINE_URL);
+    const u = buildEngineURL(path);
     try {
         const r = await fetchWithTimeout(u.toString(), {
             method: 'POST',
@@ -430,7 +447,7 @@ export async function buildBrief(input: BuildBriefInput): Promise<CVBrief | null
 
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
-            const u = new URL('/api/cv/brief', ENGINE_URL);
+            const u = buildEngineURL('/api/cv/brief');
             const r = await fetchWithTimeout(u.toString(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -540,7 +557,7 @@ export interface PrewarmResult {
 
 async function prewarmOne(task: string): Promise<PrewarmResult> {
     const t0 = Date.now();
-    const u = new URL('/api/cv/tiered-llm', ENGINE_URL);
+    const u = buildEngineURL('/api/cv/tiered-llm');
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -735,7 +752,7 @@ export async function detectAccountTier(): Promise<CFAccountTier> {
         return cached;
     }
 
-    const u = new URL('/api/cv/account-tier', ENGINE_URL);
+    const u = buildEngineURL('/api/cv/account-tier');
     try {
         const r = await fetchWithTimeout(u.toString(), { method: 'GET' }, ACCOUNT_TIER_TIMEOUT_MS);
         if (!r.ok) return 'unknown';
@@ -784,7 +801,7 @@ export async function semanticMatch(
 ): Promise<SemanticMatchRawResult | null> {
     if (!isCVEngineConfigured()) return null;
     if (!keywords?.length || !profileTexts?.length) return null;
-    const u = new URL('/api/cv/semantic-match', ENGINE_URL);
+    const u = buildEngineURL('/api/cv/semantic-match');
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -846,7 +863,7 @@ export async function workerTieredLLM(
     // Circuit breaker is per-task: a 502 on cvValidate doesn't block cvGenerate/general.
     const deadKey = `${ENDPOINT}:${task}`;
     if (isDead(deadKey)) return null;
-    const u = new URL(ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(ENDPOINT);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -922,7 +939,7 @@ export async function workerRaceLLM(
     if (!Array.isArray(tasks) || tasks.length < 2) return null;
     const ENDPOINT = '/api/cv/race-llm';
     if (isDead(ENDPOINT)) return null;
-    const u = new URL(ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(ENDPOINT);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -1007,7 +1024,7 @@ export async function workerProxyLLM(
     // circuit opens when the daily Workers AI neuron limit is hit — that must not
     // prevent user-key-based proxy calls from going through.
 
-    const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(PROXY_LLM_ENDPOINT);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -1076,7 +1093,7 @@ export async function workerProxyStream(
     if (!isCVEngineConfigured() || !prompt || !opts.apiKey) {
         throw new Error('Worker not configured or missing prompt/key.');
     }
-    const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(PROXY_LLM_ENDPOINT);
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
 
@@ -1165,7 +1182,7 @@ export async function workerTieredLLMStream(
         throw new Error('Workers AI is currently unavailable.');
     }
 
-    const u = new URL('/api/cv/tiered-llm', ENGINE_URL);
+    const u = buildEngineURL('/api/cv/tiered-llm');
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
 
@@ -1244,7 +1261,7 @@ export async function workerProxyMultimodal(
     // NOTE: intentionally NOT checking isDead() — same reason as workerProxyLLM.
     // CF Workers AI quota exhaustion must not block user-key file-import calls.
 
-    const u = new URL(PROXY_LLM_ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(PROXY_LLM_ENDPOINT);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -1341,7 +1358,7 @@ export async function workerParallelSections(
     if (!Array.isArray(sections) || sections.length === 0) return null;
     const ENDPOINT = '/api/cv/parallel-sections';
     if (isDead(ENDPOINT)) return null;
-    const u = new URL(ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(ENDPOINT);
     try {
         const bodyObj: Record<string, unknown> = {
             preamble: opts.preamble ?? '',
@@ -1390,7 +1407,7 @@ export async function workerLLM(
     if (!prompt) return null;
     const ENDPOINT = '/api/cv/llm';
     if (isDead(ENDPOINT)) return null;
-    const u = new URL(ENDPOINT, ENGINE_URL);
+    const u = buildEngineURL(ENDPOINT);
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -1444,7 +1461,7 @@ export async function workerVisionExtract(
     if (!isCVEngineConfigured()) return null;
     if (!base64Image || !prompt) return null;
     if (mimeType && !/^image\//i.test(mimeType)) return null; // PDFs not supported
-    const u = new URL('/api/cv/vision-extract', ENGINE_URL);
+    const u = buildEngineURL('/api/cv/vision-extract');
     try {
         const r = await fetchWithTimeout(
             u.toString(),
@@ -1512,7 +1529,7 @@ async function adminFetch<T>(path: string, init: RequestInit = {}): Promise<T | 
     if (!isCVEngineConfigured()) return null;
     const token = getAdminToken();
     if (!token) return null;
-    const u = new URL(path, ENGINE_URL);
+    const u = buildEngineURL(path);
     try {
         const r = await fetchWithTimeout(u.toString(), {
             ...init,

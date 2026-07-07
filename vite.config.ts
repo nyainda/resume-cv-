@@ -57,6 +57,15 @@ export default defineConfig(() => {
           timeout: 15000,
           proxyTimeout: 15000,
         },
+        // Proxy CF engine worker calls to avoid CORS (Replit origin not in worker's ALLOWED_ORIGINS)
+        '/cf-engine': {
+          target: 'https://cv-engine-worker.dripstech.workers.dev',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/cf-engine/, ''),
+          secure: true,
+          timeout: 60000,
+          proxyTimeout: 60000,
+        },
       },
     },
     plugins: [react()],
