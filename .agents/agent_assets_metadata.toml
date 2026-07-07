@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "-DCLspts4GGj6_C_HwxTC"
+uri = "file://frontend/public/og-image.png"
+type = "image"
+title = "ProCV OG social image"
 
 [[outputs]]
 id = "92l1e6VT6zGmrFfhNscy-"

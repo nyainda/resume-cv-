@@ -20,6 +20,8 @@
 import { applySeoRewrite }                     from './rewriter';
 import { classifyPath, cacheControlHeader,
          buildCacheKey, addSecurityHeaders }   from './cache';
+import { getJobPage, renderJobPage,
+         renderIndexPage, jobPageUrl }         from './programmatic';
 
 export interface Env {
   ORIGIN_URL:      string;
@@ -47,6 +49,25 @@ export default {
     // ── API routes: pass-through, no caching ──────────────────────────────────
     if (kind === 'api') {
       return passThrough(request, originUrl);
+    }
+
+    // ── Programmatic SEO pages — served directly from the worker ──────────────
+    // /cv-templates              → index of all job title pages
+    // /cv-templates/[job-slug]   → individual job title landing page
+    if (url.pathname === '/cv-templates' || url.pathname === '/cv-templates/') {
+      const baseUrl = `${url.protocol}//${url.host}`;
+      return htmlResponse(renderIndexPage(baseUrl));
+    }
+    const jobMatch = url.pathname.match(/^\/cv-templates\/([a-z0-9-]+)\/?$/);
+    if (jobMatch) {
+      const slug = jobMatch[1];
+      const data = getJobPage(slug);
+      if (data) {
+        const baseUrl = `${url.protocol}//${url.host}`;
+        return htmlResponse(renderJobPage(slug, data, baseUrl, country));
+      }
+      // Unknown slug → 404 with a helpful message
+      return new Response(`No CV template found for "${slug}". View all templates at /cv-templates`, { status: 404 });
     }
 
     // ── Static assets: serve from CF cache, long TTL ──────────────────────────
@@ -169,6 +190,14 @@ function buildOriginRequest(request: Request, originUrl: string): Request {
 function isHtml(resp: Response): boolean {
   const ct = resp.headers.get('content-type') ?? '';
   return ct.includes('text/html');
+}
+
+/** Serve a fully rendered programmatic HTML page with correct headers */
+function htmlResponse(html: string): Response {
+  const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60, s-maxage=300' });
+  addSecurityHeaders(headers);
+  headers.set('X-ProCV-Edge', '1');
+  return new Response(html, { status: 200, headers });
 }
 
 /** Return a new Response with correct Cache-Control + security headers */
