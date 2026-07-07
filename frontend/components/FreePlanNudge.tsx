@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { X, Download, Zap, CloudUpload } from 'lucide-react';
+import { X, Download, Zap } from 'lucide-react';
 import {
   isPureFreeTier,
   FREE_PDF_LIMIT,
@@ -23,8 +23,7 @@ import {
 } from '../services/accountTierService';
 import { useAuth } from '../auth/AuthContext';
 
-const PDF_DISMISS_KEY   = 'procv:free-nudge:dismissed-session';
-const DRIVE_DISMISS_KEY = 'procv:drive-nudge:dismissed';
+const PDF_DISMISS_KEY = 'procv:free-nudge:dismissed-session';
 
 function openPricing()  { window.dispatchEvent(new CustomEvent('procv:openPricing')); }
 function openSettings() { window.dispatchEvent(new CustomEvent('procv:openSettings')); }
@@ -135,71 +134,8 @@ function PdfLimitBanner() {
   );
 }
 
-// ─── Drive nudge ─────────────────────────────────────────────────────────────
-
-function DriveNudgeBanner() {
-  const { isAuthenticated, driveConnected } = useAuth();
-  const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    try { setDismissed(localStorage.getItem(DRIVE_DISMISS_KEY) === '1'); }
-    catch { setDismissed(false); }
-  }, []);
-
-  // Only show when signed in, Drive NOT connected, and not dismissed.
-  if (!isAuthenticated || driveConnected || dismissed) return null;
-
-  function dismiss() {
-    try { localStorage.setItem(DRIVE_DISMISS_KEY, '1'); } catch { /* ignore */ }
-    setDismissed(true);
-  }
-
-  return (
-    <div
-      className="border-b bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800 transition-colors"
-      role="status"
-    >
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 py-2">
-          <CloudUpload className="h-4 w-4 flex-shrink-0 text-indigo-500 dark:text-indigo-400" aria-hidden />
-
-          <div className="flex-1 min-w-0">
-            <span className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">
-              Back up your CVs to Google Drive
-            </span>
-            <span className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 hidden sm:inline">
-              Keep your work safe and access it from any browser.
-            </span>
-          </div>
-
-          <button
-            onClick={() => { dismiss(); openSettings(); }}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-sm"
-          >
-            Connect Drive
-          </button>
-
-          <button
-            onClick={dismiss}
-            title="Dismiss"
-            className="flex-shrink-0 p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors text-indigo-500 dark:text-indigo-400"
-            aria-label="Dismiss Drive suggestion"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Exported wrapper ─────────────────────────────────────────────────────────
 
 export default function FreePlanNudge() {
-  return (
-    <>
-      <PdfLimitBanner />
-      <DriveNudgeBanner />
-    </>
-  );
+  return <PdfLimitBanner />;
 }
