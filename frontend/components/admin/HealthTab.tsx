@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { getAdminDashboardStats, fetchAdminStats, TableCount } from '../../services/cvEngineClient';
 import { useAdminTheme } from './AdminContext';
 import { PageHeader, Section, LoadingBar } from './OverviewTab';
+import { loadWebhookConfig, sendAndLog } from './NotificationsTab';
 
 const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
 
@@ -228,14 +229,42 @@ export default function HealthTab() {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const adminTok = sessionStorage.getItem('procv_admin_tok') || '';
 
-  const runChecks = useCallback(async () => {
+  // Track which endpoints were already known-bad to avoid re-alerting every manual refresh
+  const alreadyAlerted = useRef<Set<string>>(new Set());
+
+  const runChecks = useCallback(async (triggeredManually = false) => {
     setChecking(true);
     setPings({});
+    const results: Record<string, PingResult> = {};
     await Promise.all(ENDPOINTS.map(async ep => {
       const hdrs: Record<string, string> = ep.auth ? { 'X-Admin-Token': adminTok } : {};
       const result = await pingEndpoint(`${ENGINE_URL}${ep.path}`, hdrs);
+      results[ep.key] = result;
       setPings(p => ({ ...p, [ep.key]: result }));
     }));
+
+    // Fire webhook alert for newly-failing endpoints
+    const cfg = loadWebhookConfig();
+    if (cfg.url && cfg.events.worker_error) {
+      const failing = Object.entries(results).filter(([, r]) => !r.ok);
+      const newlyFailing = failing.filter(([key]) => !alreadyAlerted.current.has(key));
+      if (newlyFailing.length > 0) {
+        const lines = newlyFailing.map(([key, r]) =>
+          `• **${key}** — ${r.detail || (r.status ? `HTTP ${r.status}` : 'Unreachable')}`
+        ).join('\n');
+        await sendAndLog(
+          'worker_error',
+          `${newlyFailing.length} Endpoint${newlyFailing.length > 1 ? 's' : ''} Failing`,
+          `Health check detected failures:\n${lines}`,
+          '#EF4444',
+        );
+        newlyFailing.forEach(([key]) => alreadyAlerted.current.add(key));
+      }
+      // Clear alert tracking for endpoints that recovered
+      const okKeys = Object.entries(results).filter(([, r]) => r.ok).map(([k]) => k);
+      okKeys.forEach(k => alreadyAlerted.current.delete(k));
+    }
+
     const stats = await getAdminDashboardStats();
     if (stats?.table_counts) setDbCounts(stats.table_counts);
     setLastChecked(new Date());
