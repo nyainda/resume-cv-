@@ -45,11 +45,13 @@ const JsonImportDialog: React.FC<JsonImportDialogProps> = ({
             className="w-full text-left p-4 rounded-xl border-2 border-[#1B2B4B] dark:border-[#C9A84C] bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/5 hover:bg-[#1B2B4B]/10 dark:hover:bg-[#C9A84C]/10 transition-colors group"
           >
             <p className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C] group-hover:underline">
-              Replace &ldquo;{activeSlotName}&rdquo;
+              Update &ldquo;{activeSlotName}&rdquo;
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Overwrites the current profile and CV data with the imported JSON.
-              Cannot be undone.
+              Updates your profile data. If this looks like the same person,
+              AI-polished CV bullets for matching roles are preserved — only
+              fields you actually changed get updated. If it&rsquo;s a
+              different CV entirely, the built CV is replaced.
             </p>
           </button>
 

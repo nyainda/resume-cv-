@@ -4,6 +4,7 @@ import {
   UserProfile, UserProfileSlot, ProfileColor, CVData,
 } from '../types';
 import { profileToCV } from '../utils/profileToCV';
+import { mergeProfileIntoCV } from '../utils/mergeProfileIntoCV';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync, clearQueueForAccount } from '../services/storage/syncQueue';
 import {
@@ -236,100 +237,11 @@ export function useProfileManager({
       // call — avoids a sync gap where the profile is saved but the updated CV
       // bullets are lost on other devices.
       //
-      // MERGE RULE: each field is only overwritten from the new profile when the
-      // user actually changed that field in the form. Fields that are unchanged
-      // keep the AI-generated value from currentCV so a trivial edit (e.g.
-      // fixing a phone number) never silently discards the built CV.
+      // Delegates to mergeProfileIntoCV() which only overwrites a CV field when
+      // the user demonstrably changed it in the form — preserving AI-generated
+      // content for everything they didn't touch.
       if (currentCV) {
-        const fromProfile = profileToCV(profile);
-        const oldFromProfile = profileToCV(userProfile);
-
-        // ── Per-field change detection ─────────────────────────────────────
-        const ser = (v: unknown) => JSON.stringify(v ?? []);
-        const summaryChanged        = profile.summary       !== (userProfile?.summary       ?? '');
-        const skillsChanged         = ser(profile.skills)         !== ser(userProfile?.skills);
-        const educationChanged      = ser(profile.education)      !== ser(userProfile?.education);
-        const projectsChanged       = ser(profile.projects)       !== ser(userProfile?.projects);
-        const languagesChanged      = ser(profile.languages)      !== ser(userProfile?.languages);
-        const referencesChanged     = ser(profile.references)     !== ser(userProfile?.references);
-        const customSectionsChanged = ser(profile.customSections) !== ser(userProfile?.customSections);
-
-        // ── Experience merge: per-role bullet change detection ─────────────
-        // Unchanged roles keep AI bullets; changed roles use the new form bullets.
-        const mergedExperience = fromProfile.experience.map((newExp) => {
-          const prevCVExp = currentCV.experience.find(
-            (e) =>
-              e.company === newExp.company &&
-              e.jobTitle === newExp.jobTitle &&
-              (e.responsibilities ?? []).length > 0,
-          );
-          if (!prevCVExp) return newExp;
-
-          const oldExp = oldFromProfile.experience.find(
-            (e) =>
-              e.company === newExp.company && e.jobTitle === newExp.jobTitle,
-          );
-          const bulletsChangedInForm =
-            JSON.stringify(oldExp?.responsibilities ?? []) !==
-            JSON.stringify(newExp.responsibilities);
-
-          if (bulletsChangedInForm) {
-            return {
-              ...prevCVExp,
-              responsibilities: newExp.responsibilities,
-              dates: newExp.dates,
-              startDate: newExp.startDate,
-              endDate: newExp.endDate,
-            };
-          }
-          // Bullets unchanged → keep AI version, just sync dates in case
-          // the user adjusted start/end date on an existing role.
-          return {
-            ...prevCVExp,
-            dates: newExp.dates,
-            startDate: newExp.startDate,
-            endDate: newExp.endDate,
-          };
-        });
-
-        const mergedCV: CVData = {
-          ...currentCV,
-          // personalInfo always updates — name/email/phone are never AI-generated.
-          personalInfo: profile.personalInfo ?? currentCV.personalInfo,
-          // summary: only replace AI-generated version if the user edited it.
-          summary: summaryChanged
-            ? (profile.summary || currentCV.summary)
-            : currentCV.summary,
-          experience:
-            mergedExperience.length > 0 ? mergedExperience : currentCV.experience,
-          // education: only replace if user changed it in the form.
-          education: educationChanged && (fromProfile.education ?? []).length > 0
-            ? fromProfile.education
-            : currentCV.education,
-          // skills: only replace if user changed them — preserve AI-enriched list.
-          skills: skillsChanged && (profile.skills ?? []).length > 0
-            ? profile.skills
-            : currentCV.skills,
-          // projects: only replace if user changed them.
-          projects: projectsChanged && (fromProfile.projects ?? []).length > 0
-            ? fromProfile.projects
-            : currentCV.projects,
-          // languages: only replace if user changed them.
-          languages: languagesChanged && (fromProfile.languages ?? []).length > 0
-            ? fromProfile.languages
-            : currentCV.languages,
-          // references: only replace if user changed them.
-          references: referencesChanged && (fromProfile.references ?? []).length > 0
-            ? fromProfile.references
-            : currentCV.references,
-          // customSections: only replace if user changed them.
-          customSections: customSectionsChanged
-            ? (profile.customSections || []).filter((s) =>
-                s.items.some((i) => i.title.trim().length > 0),
-              )
-            : currentCV.customSections,
-          sectionOrder: profile.sectionOrder,
-        };
+        const mergedCV: CVData = mergeProfileIntoCV(profile, userProfile, currentCV);
 
         setCurrentCV(mergedCV);
         // Include the merged CV in the slot sync so other devices get the full

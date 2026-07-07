@@ -5,6 +5,7 @@
 import { useState, useCallback } from 'react';
 import type { UserProfile, CVData, UserProfileSlot } from '../types';
 import { profileToCV } from '../utils/profileToCV';
+import { isSameProfileIdentity, mergeProfileIntoCV } from '../utils/mergeProfileIntoCV';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync } from '../services/storage/syncQueue';
 import { invalidateCVCache } from '../services/geminiService';
@@ -47,7 +48,15 @@ export function useJsonImport({
       slotToUpdate: UserProfileSlot | null,
     ) => {
       if (slotToUpdate) {
-        const updatedSlot = { ...slotToUpdate, profile, currentCV: cvData };
+        // Same person re-importing? → merge to preserve AI bullets.
+        // Genuinely different CV? → full replace (user confirmed via dialog).
+        const existingCV = slotToUpdate.currentCV ?? null;
+        const sameIdentity = isSameProfileIdentity(slotToUpdate.profile, profile);
+        const resolvedCV = sameIdentity && existingCV
+          ? mergeProfileIntoCV(profile, slotToUpdate.profile ?? null, existingCV)
+          : cvData;
+
+        const updatedSlot = { ...slotToUpdate, profile, currentCV: resolvedCV };
         setProfiles((prev) =>
           prev.map((p) => (p.id === slotToUpdate.id ? updatedSlot : p)),
         );
@@ -56,7 +65,9 @@ export function useJsonImport({
         if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
         toast.success(
           'Profile Updated!',
-          'Your CV is ready — all templates are populated. Check your quality report below.',
+          sameIdentity && existingCV
+            ? 'Profile refreshed — AI-built CV bullets preserved for unchanged roles.'
+            : 'Profile replaced — head to the Generator to rebuild your CV.',
         );
       } else {
         const id = crypto.randomUUID();

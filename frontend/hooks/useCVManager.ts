@@ -7,6 +7,7 @@ import {
 import { auditCvQuality } from '../services/cvNumberFidelity';
 import { saveCVData, deleteCVData } from '../services/storage/cvDataStore';
 import { profileToCV } from '../utils/profileToCV';
+import { isSameProfileIdentity, mergeProfileIntoCV } from '../utils/mergeProfileIntoCV';
 import { invalidateCVCache } from '../services/geminiService';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync } from '../services/storage/syncQueue';
@@ -316,13 +317,23 @@ export function useCVManager({
 
   const handleWordProfileImported = useCallback(
     (profile: UserProfile) => {
-      const cvData = profileToCV(profile);
       const extras = profile.customSections?.filter(s => s.items.length > 0) ?? [];
       const extrasMsg = extras.length > 0
         ? ` Found ${extras.length} extra section${extras.length > 1 ? 's' : ''}: ${extras.map(s => s.label).join(', ')}. Review them in your Profile.`
         : '';
 
       if (activeSlot) {
+        // Same person re-importing (e.g. re-importing after building a CV)?
+        // → merge so AI-polished bullets are preserved for unchanged roles.
+        // Different person entirely?
+        // → full replace (fresh start), but warn if an AI CV existed.
+        const existingCV = activeSlot.currentCV ?? null;
+        const sameIdentity = isSameProfileIdentity(activeSlot.profile, profile);
+
+        const cvData = sameIdentity && existingCV
+          ? mergeProfileIntoCV(profile, activeSlot.profile ?? null, existingCV)
+          : profileToCV(profile);
+
         const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
         setProfiles((prev) =>
           prev.map((p) => (p.id === activeSlot.id ? updatedSlot : p)),
@@ -330,11 +341,27 @@ export function useCVManager({
         invalidateCVCache();
         syncProfileToCache(updatedSlot).catch(() => {});
         if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
-        toast.success(
-          'Profile Imported!',
-          `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
-        );
+
+        if (sameIdentity && existingCV) {
+          toast.success(
+            'Profile Updated!',
+            `Profile data refreshed — your AI-built CV bullets are preserved.${extrasMsg}`,
+          );
+        } else {
+          if (existingCV) {
+            toast.info(
+              'Profile Replaced',
+              `Different CV imported — your previous built CV was reset.${extrasMsg} Head to the Generator to rebuild.`,
+            );
+          } else {
+            toast.success(
+              'Profile Imported!',
+              `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
+            );
+          }
+        }
       } else {
+        const cvData = profileToCV(profile);
         const id = crypto.randomUUID();
         const slot: UserProfileSlot = {
           id,
