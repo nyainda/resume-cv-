@@ -11,7 +11,14 @@ import { isSameProfileIdentity, mergeProfileIntoCV } from '../utils/mergeProfile
 import { invalidateCVCache } from '../services/geminiService';
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync } from '../services/storage/syncQueue';
+import { canAddProfileSlot } from '../services/accountTierService';
 import { useToast } from './useToast';
+
+export interface PendingWordImport {
+  profile: UserProfile;
+  /** true = detected different person; always true when this dialog is shown */
+  isDifferentPerson: boolean;
+}
 
 interface UseCVManagerConfig {
   savedCVs: SavedCV[];
@@ -40,6 +47,7 @@ export function useCVManager({
   setCurrentView,
   setIsEditingProfile,
   activeSlot,
+  profiles,
   setProfiles,
   setActiveProfileId,
   isAuthenticated,
@@ -50,6 +58,8 @@ export function useCVManager({
   const [interviewPrepJd, setInterviewPrepJd] = useState<string>('');
   const [toolkitSuggestions, setToolkitSuggestions] = useState<string | null>(null);
   const [toolkitForceTab, setToolkitForceTab] = useState<string | undefined>(undefined);
+  // Pending Word/PDF import — shown when the imported profile is a different person
+  const [pendingWordImport, setPendingWordImport] = useState<PendingWordImport | null>(null);
 
   const buildQualitySnapshot = (cvData: CVData) => {
     try {
@@ -343,22 +353,15 @@ export function useCVManager({
         if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
 
         if (sameIdentity && existingCV) {
+          // Same person — merge complete, show success
           toast.success(
             'Profile Updated!',
             `Profile data refreshed — your AI-built CV bullets are preserved.${extrasMsg}`,
           );
         } else {
-          if (existingCV) {
-            toast.info(
-              'Profile Replaced',
-              `Different CV imported — your previous built CV was reset.${extrasMsg} Head to the Generator to rebuild.`,
-            );
-          } else {
-            toast.success(
-              'Profile Imported!',
-              `Your CV data has been imported.${extrasMsg} Head to the CV Generator to apply a template.`,
-            );
-          }
+          // Different person — pause and show choice modal instead of silently replacing
+          setPendingWordImport({ profile, isDifferentPerson: true });
+          return;
         }
       } else {
         const cvData = profileToCV(profile);
@@ -384,6 +387,65 @@ export function useCVManager({
     [activeSlot, setProfiles, setActiveProfileId, toast, isAuthenticated],
   );
 
+  // ── Word/PDF import choice handlers ────────────────────────────────────────
+
+  /** User chose "Replace this room" from the ImportChoiceModal */
+  const handleConfirmReplaceWordImport = useCallback(() => {
+    if (!pendingWordImport || !activeSlot) return;
+    const { profile } = pendingWordImport;
+    const cvData = profileToCV(profile);
+    const extras = profile.customSections?.filter(s => s.items.length > 0) ?? [];
+    const extrasMsg = extras.length > 0
+      ? ` Found ${extras.length} extra section${extras.length > 1 ? 's' : ''}: ${extras.map(s => s.label).join(', ')}.`
+      : '';
+    const updatedSlot = { ...activeSlot, profile, currentCV: cvData };
+    setProfiles(prev => prev.map(p => (p.id === activeSlot.id ? updatedSlot : p)));
+    invalidateCVCache();
+    syncProfileToCache(updatedSlot).catch(() => {});
+    if (isAuthenticated) enqueueSlotSync(updatedSlot).catch(() => {});
+    setPendingWordImport(null);
+    toast.info(
+      'Profile Replaced',
+      `Room reset with the imported CV.${extrasMsg} Head to the Generator to rebuild.`,
+    );
+  }, [pendingWordImport, activeSlot, setProfiles, isAuthenticated, toast]);
+
+  /** User chose "Create new room" from the ImportChoiceModal */
+  const handleConfirmCreateNewWordImport = useCallback(() => {
+    if (!pendingWordImport) return;
+    const { profile } = pendingWordImport;
+    const cvData = profileToCV(profile);
+    const extras = profile.customSections?.filter(s => s.items.length > 0) ?? [];
+    const extrasMsg = extras.length > 0
+      ? ` Found ${extras.length} extra section${extras.length > 1 ? 's' : ''}: ${extras.map(s => s.label).join(', ')}.`
+      : '';
+    const id = crypto.randomUUID();
+    const slot: UserProfileSlot = {
+      id,
+      name: profile.personalInfo?.name || 'Imported Profile',
+      color: 'violet',
+      createdAt: new Date().toISOString(),
+      profile,
+      currentCV: cvData,
+    };
+    setProfiles(prev => [...prev, slot]);
+    setActiveProfileId(id);
+    setPendingWordImport(null);
+    toast.success(
+      'New Room Created!',
+      `"${slot.name}" added as a new room.${extrasMsg} Head to the Generator to build their CV.`,
+    );
+    syncProfileToCache(slot).catch(() => {});
+    if (isAuthenticated) enqueueSlotSync(slot).catch(() => {});
+  }, [pendingWordImport, setProfiles, setActiveProfileId, isAuthenticated, toast]);
+
+  const handleCancelWordImport = useCallback(() => {
+    setPendingWordImport(null);
+  }, []);
+
+  /** Whether the user can still add another profile slot (slot-limit check) */
+  const canAddWordImportSlot = canAddProfileSlot(profiles.length);
+
   return {
     emailJd,
     interviewPrepJd,
@@ -403,5 +465,10 @@ export function useCVManager({
     handleGoToGenerator,
     handleGitHubCVGenerated,
     handleWordProfileImported,
+    pendingWordImport,
+    handleConfirmReplaceWordImport,
+    handleConfirmCreateNewWordImport,
+    handleCancelWordImport,
+    canAddWordImportSlot,
   };
 }

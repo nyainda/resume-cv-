@@ -1,20 +1,18 @@
-// components/JsonImportDialog.tsx
-// Modal that appears when a JSON import would overwrite an existing profile.
-// Lets the user choose: update the current room, or create a new one.
-// "Create new" is disabled and shows an upgrade CTA when the user is at their slot limit.
+// components/ImportChoiceModal.tsx
+// Modal shown when a Word/PDF import detects a DIFFERENT person than the current slot.
+// Gives the user a clear, subscription-aware choice: replace this room or create a new one.
 
 import React from 'react';
-import type { PendingJsonImport } from '../hooks/useJsonImport';
+import type { UserProfile } from '../types';
 import { getProfileSlotLimit, getTier, hasByokKeys } from '../services/accountTierService';
 
-interface JsonImportDialogProps {
-  pendingImport: PendingJsonImport;
-  activeSlotName: string | undefined;
-  /** false when the user has hit their plan's room limit */
+interface ImportChoiceModalProps {
+  importedProfile: UserProfile;
+  currentSlotName: string;
+  /** true when the user still has a free slot available */
   canCreateNew: boolean;
-  onConfirmUpdate: () => void;
-  onConfirmCreate: () => void;
-  /** Called when user clicks the upgrade CTA inside this dialog */
+  onReplace: () => void;
+  onCreateNew: () => void;
   onUpgrade: () => void;
   onCancel: () => void;
 }
@@ -25,71 +23,70 @@ function planLabel(): string {
   return 'Free';
 }
 
-const JsonImportDialog: React.FC<JsonImportDialogProps> = ({
-  pendingImport,
-  activeSlotName,
+const ImportChoiceModal: React.FC<ImportChoiceModalProps> = ({
+  importedProfile,
+  currentSlotName,
   canCreateNew,
-  onConfirmUpdate,
-  onConfirmCreate,
+  onReplace,
+  onCreateNew,
   onUpgrade,
   onCancel,
 }) => {
-  const importedName = pendingImport.profile?.personalInfo?.name || 'Imported Profile';
+  const importedName = importedProfile?.personalInfo?.name || 'Imported Profile';
   const limit = getProfileSlotLimit();
   const plan = planLabel();
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-md bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-neutral-700 overflow-hidden">
+
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-zinc-100 dark:border-neutral-800">
           <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            Import JSON Profile
+            Different CV Detected
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            You already have a profile called{' '}
-            <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-              &ldquo;{activeSlotName}&rdquo;
-            </span>
-            . What would you like to do?
+            The imported profile looks like a <span className="font-semibold text-zinc-700 dark:text-zinc-300">different person</span> from{' '}
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300">&ldquo;{currentSlotName}&rdquo;</span>.
+            What would you like to do with it?
           </p>
         </div>
 
         {/* Options */}
         <div className="p-4 space-y-3">
-          {/* Option A — update current */}
+
+          {/* Option A — replace current room */}
           <button
-            onClick={onConfirmUpdate}
+            onClick={onReplace}
             className="w-full text-left p-4 rounded-xl border-2 border-[#1B2B4B] dark:border-[#C9A84C] bg-[#1B2B4B]/5 dark:bg-[#C9A84C]/5 hover:bg-[#1B2B4B]/10 dark:hover:bg-[#C9A84C]/10 transition-colors group"
           >
             <p className="font-semibold text-[#1B2B4B] dark:text-[#C9A84C] group-hover:underline">
-              Update &ldquo;{activeSlotName}&rdquo;
+              Replace &ldquo;{currentSlotName}&rdquo;
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Updates your profile data. If this looks like the same person,
-              AI-polished CV bullets for matching roles are preserved — only
-              fields you actually changed get updated. If it&rsquo;s a
-              different CV entirely, the built CV is replaced.
+              Overwrites the current room with the imported CV. Your existing
+              built CV for this room will be reset. Use this when you are
+              updating your own profile from scratch.
             </p>
           </button>
 
           {/* Option B — create new room (available) */}
           {canCreateNew && (
             <button
-              onClick={onConfirmCreate}
+              onClick={onCreateNew}
               className="w-full text-left p-4 rounded-xl border-2 border-zinc-200 dark:border-neutral-700 hover:border-violet-400 dark:hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors group"
             >
               <p className="font-semibold text-zinc-800 dark:text-zinc-100 group-hover:text-violet-700 dark:group-hover:text-violet-300">
                 Create new room &mdash; &ldquo;{importedName}&rdquo;
               </p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Keeps your existing room untouched and adds this as a separate
-                room you can switch between.
+                Keeps your existing room untouched and adds this as a new
+                separate room. Great for managing multiple people&rsquo;s CVs.
               </p>
             </button>
           )}
 
-          {/* Option B — upgrade CTA (at slot limit) */}
+          {/* Option B — upgrade CTA (at limit) */}
           {!canCreateNew && (
             <div className="w-full p-4 rounded-xl border-2 border-dashed border-zinc-300 dark:border-neutral-600 bg-zinc-50 dark:bg-neutral-800/50">
               <div className="flex items-start gap-3">
@@ -131,4 +128,4 @@ const JsonImportDialog: React.FC<JsonImportDialogProps> = ({
   );
 };
 
-export default JsonImportDialog;
+export default ImportChoiceModal;

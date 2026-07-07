@@ -9,6 +9,7 @@ import { isSameProfileIdentity, mergeProfileIntoCV } from '../utils/mergeProfile
 import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync } from '../services/storage/syncQueue';
 import { invalidateCVCache } from '../services/geminiService';
+import { canAddProfileSlot } from '../services/accountTierService';
 import type { AppView } from './useAppNavigation';
 import { useToast } from './useToast';
 
@@ -16,6 +17,8 @@ type ToastController = ReturnType<typeof useToast>;
 
 interface UseJsonImportConfig {
   activeSlot: UserProfileSlot | null | undefined;
+  /** Total number of existing profile slots — used for slot-limit check */
+  profileCount: number;
   isAuthenticated: boolean;
   setProfiles: (updater: (prev: UserProfileSlot[]) => UserProfileSlot[]) => void;
   setActiveProfileId: (id: string) => void;
@@ -31,6 +34,7 @@ export interface PendingJsonImport {
 
 export function useJsonImport({
   activeSlot,
+  profileCount,
   isAuthenticated,
   setProfiles,
   setActiveProfileId,
@@ -127,9 +131,13 @@ export function useJsonImport({
     setPendingJsonImport(null);
   }, []);
 
+  /** true when the user still has a free slot available for a new import */
+  const canCreateNewJsonSlot = canAddProfileSlot(profileCount);
+
   return {
     jsonImportTimestamp,
     pendingJsonImport,
+    canCreateNewJsonSlot,
     handleJsonProfileImported,
     handleConfirmUpdateCurrentProfile,
     handleConfirmCreateNewProfile,

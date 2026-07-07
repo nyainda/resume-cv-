@@ -45,6 +45,7 @@ import { runImportPipeline } from "./services/importPipeline";
 import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
 import JsonImportDialog from "./components/JsonImportDialog";
+import ImportChoiceModal from "./components/ImportChoiceModal";
 import { migrateLocalToDrive } from "./services/storage/StorageRouter";
 import { isCVEngineConfigured } from "./services/cvEngineClient";
 import { useAutoSync } from "./hooks/useAutoSync";
@@ -304,6 +305,11 @@ const AppInner: React.FC = () => {
     handleGoToGenerator,
     handleGitHubCVGenerated,
     handleWordProfileImported,
+    pendingWordImport,
+    handleConfirmReplaceWordImport,
+    handleConfirmCreateNewWordImport,
+    handleCancelWordImport,
+    canAddWordImportSlot,
   } = useCVManager({
     savedCVs,
     setSavedCVs,
@@ -325,12 +331,14 @@ const AppInner: React.FC = () => {
   const {
     jsonImportTimestamp,
     pendingJsonImport,
+    canCreateNewJsonSlot,
     handleJsonProfileImported,
     handleConfirmUpdateCurrentProfile,
     handleConfirmCreateNewProfile,
     handleCancelJsonImport,
   } = useJsonImport({
     activeSlot,
+    profileCount: profiles.length,
     isAuthenticated,
     setProfiles,
     setActiveProfileId,
