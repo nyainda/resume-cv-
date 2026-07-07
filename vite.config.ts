@@ -51,6 +51,12 @@ export default defineConfig(() => {
           timeout: 8000,
           proxyTimeout: 8000,
         },
+        '/api/notify-webhook': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          timeout: 15000,
+          proxyTimeout: 15000,
+        },
       },
     },
     plugins: [react()],

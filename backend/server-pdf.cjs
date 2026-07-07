@@ -794,6 +794,55 @@ if (IS_PROD && fs.existsSync(DIST_DIR)) {
     });
 }
 
+// ─── Webhook notification proxy ────────────────────────────────────────────────
+//
+// Forwards admin-triggered notifications to Slack or Discord webhooks.
+// The browser cannot call these directly due to CORS, so the admin panel POSTs
+// here and we forward server-side. Only Slack and Discord webhook domains are
+// allowed. No auth required — callers must supply the webhook URL themselves.
+
+const ALLOWED_WEBHOOK_HOSTS = [
+    'hooks.slack.com',
+    'discord.com',
+    'discordapp.com',
+    'ptb.discord.com',
+    'canary.discord.com',
+];
+
+app.post('/api/notify-webhook', async (req, res) => {
+    const { url, payload } = req.body || {};
+    if (!url || typeof url !== 'string') {
+        return res.status(400).json({ ok: false, error: 'url required' });
+    }
+    let parsed;
+    try { parsed = new URL(url); } catch {
+        return res.status(400).json({ ok: false, error: 'Invalid URL' });
+    }
+    const allowed = ALLOWED_WEBHOOK_HOSTS.some(
+        h => parsed.hostname === h || parsed.hostname.endsWith('.' + h)
+    );
+    if (!allowed) {
+        return res.status(403).json({ ok: false, error: 'Only Slack and Discord webhook URLs are supported' });
+    }
+    if (!payload || typeof payload !== 'object') {
+        return res.status(400).json({ ok: false, error: 'payload object required' });
+    }
+    try {
+        const upstream = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(10_000),
+        });
+        const body = await upstream.text().catch(() => '');
+        console.log(`[Notify] Webhook forwarded → ${parsed.hostname} — HTTP ${upstream.status}`);
+        return res.json({ ok: upstream.ok, status: upstream.status, body: body.slice(0, 200) });
+    } catch (err) {
+        console.error('[Notify] Webhook forward failed:', err.message);
+        return res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
 // ─── Start server & pre-warm browser ──────────────────────────────────────────
 
 app.listen(PORT, '0.0.0.0', async () => {

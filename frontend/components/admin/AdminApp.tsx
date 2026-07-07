@@ -4,43 +4,45 @@ import { AdminContextProvider, useAdminTheme } from './AdminContext';
 
 const SIDEBAR_W = 220;
 
-const OverviewTab  = lazy(() => import('./OverviewTab'));
-const UsersTab     = lazy(() => import('./UsersTab'));
-const AuthLogsTab  = lazy(() => import('./AuthLogsTab'));
-const TokensTab    = lazy(() => import('./TokensTab'));
-const HealthTab    = lazy(() => import('./HealthTab'));
-const CVEngineTab  = lazy(() => import('./CVEngineTab'));
-const LeakQueueTab = lazy(() => import('./LeakQueueTab'));
-const PipelineTab  = lazy(() => import('./PipelineTab'));
-const LiveFeedTab  = lazy(() => import('./LiveFeedTab'));
-const DBBrowserTab = lazy(() => import('./DBBrowserTab'));
+const OverviewTab      = lazy(() => import('./OverviewTab'));
+const UsersTab         = lazy(() => import('./UsersTab'));
+const AuthLogsTab      = lazy(() => import('./AuthLogsTab'));
+const TokensTab        = lazy(() => import('./TokensTab'));
+const HealthTab        = lazy(() => import('./HealthTab'));
+const CVEngineTab      = lazy(() => import('./CVEngineTab'));
+const LeakQueueTab     = lazy(() => import('./LeakQueueTab'));
+const PipelineTab      = lazy(() => import('./PipelineTab'));
+const LiveFeedTab      = lazy(() => import('./LiveFeedTab'));
+const DBBrowserTab     = lazy(() => import('./DBBrowserTab'));
+const NotificationsTab = lazy(() => import('./NotificationsTab'));
 
-export type AdminTab = 'overview' | 'users' | 'auth-logs' | 'cv-engine' | 'leak-queue' | 'tokens' | 'health' | 'pipeline' | 'live-feed' | 'db';
+export type AdminTab = 'overview' | 'users' | 'auth-logs' | 'cv-engine' | 'leak-queue' | 'tokens' | 'health' | 'pipeline' | 'live-feed' | 'db' | 'notifications';
 
 const NAV_GROUPS = [
   {
     label: 'Dashboard',
     items: [
-      { id: 'overview'  as AdminTab, label: 'Overview',      icon: <IGrid /> },
-      { id: 'live-feed' as AdminTab, label: 'Live Feed',     icon: <IFeed /> },
-      { id: 'pipeline'  as AdminTab, label: 'Pipeline',      icon: <IFlow /> },
+      { id: 'overview'       as AdminTab, label: 'Overview',       icon: <IGrid /> },
+      { id: 'live-feed'      as AdminTab, label: 'Live Feed',      icon: <IFeed /> },
+      { id: 'pipeline'       as AdminTab, label: 'Pipeline',       icon: <IFlow /> },
+      { id: 'notifications'  as AdminTab, label: 'Notifications',  icon: <IBell /> },
     ],
   },
   {
     label: 'Data',
     items: [
-      { id: 'users'     as AdminTab, label: 'Users',         icon: <IUsers /> },
-      { id: 'auth-logs' as AdminTab, label: 'Auth Logs',     icon: <ILogs /> },
-      { id: 'leak-queue'as AdminTab, label: 'Leak Queue',    icon: <IWarn /> },
-      { id: 'db'        as AdminTab, label: 'DB Browser',    icon: <IDB /> },
+      { id: 'users'          as AdminTab, label: 'Users',          icon: <IUsers /> },
+      { id: 'auth-logs'      as AdminTab, label: 'Auth Logs',      icon: <ILogs /> },
+      { id: 'leak-queue'     as AdminTab, label: 'Leak Queue',     icon: <IWarn /> },
+      { id: 'db'             as AdminTab, label: 'DB Browser',     icon: <IDB /> },
     ],
   },
   {
     label: 'System',
     items: [
-      { id: 'health'    as AdminTab, label: 'System Health', icon: <IHealth /> },
-      { id: 'cv-engine' as AdminTab, label: 'CV Engine',     icon: <IEngine /> },
-      { id: 'tokens'    as AdminTab, label: 'Admin Tokens',  icon: <IKey /> },
+      { id: 'health'         as AdminTab, label: 'System Health',  icon: <IHealth /> },
+      { id: 'cv-engine'      as AdminTab, label: 'CV Engine',      icon: <IEngine /> },
+      { id: 'tokens'         as AdminTab, label: 'Admin Tokens',   icon: <IKey /> },
     ],
   },
 ];
@@ -247,16 +249,17 @@ function AdminAppInner() {
 
         <div style={{ padding: '28px 28px', maxWidth: 1280 }}>
           <Suspense fallback={<Spinner theme={theme} />}>
-            {tab === 'overview'   && <OverviewTab />}
-            {tab === 'live-feed'  && <LiveFeedTab />}
-            {tab === 'pipeline'   && <PipelineTab />}
-            {tab === 'users'      && <UsersTab />}
-            {tab === 'auth-logs'  && <AuthLogsTab />}
-            {tab === 'cv-engine'  && <CVEngineTab />}
-            {tab === 'leak-queue' && <LeakQueueTab />}
-            {tab === 'tokens'     && <TokensTab />}
-            {tab === 'health'     && <HealthTab />}
-            {tab === 'db'         && <DBBrowserTab />}
+            {tab === 'overview'       && <OverviewTab />}
+            {tab === 'live-feed'      && <LiveFeedTab />}
+            {tab === 'pipeline'       && <PipelineTab />}
+            {tab === 'notifications'  && <NotificationsTab />}
+            {tab === 'users'          && <UsersTab />}
+            {tab === 'auth-logs'      && <AuthLogsTab />}
+            {tab === 'cv-engine'      && <CVEngineTab />}
+            {tab === 'leak-queue'     && <LeakQueueTab />}
+            {tab === 'tokens'         && <TokensTab />}
+            {tab === 'health'         && <HealthTab />}
+            {tab === 'db'             && <DBBrowserTab />}
           </Suspense>
         </div>
       </main>
@@ -283,3 +286,4 @@ function IHealth() { return <svg width="15" height="15" viewBox="0 0 16 16" fill
 function IEngine() { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" fill="currentColor"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 function IKey()    { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5"/><path d="M9 9.5l5 3M12 11l1.5 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 function IDB()     { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="4.5" rx="5.5" ry="2" stroke="currentColor" strokeWidth="1.4"/><path d="M2.5 4.5v3c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2v-3" stroke="currentColor" strokeWidth="1.4"/><path d="M2.5 7.5v3c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2v-3" stroke="currentColor" strokeWidth="1.4"/></svg>; }
+function IBell()   { return <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6v3l-1 1.5h11L12.5 9V6A4.5 4.5 0 0 0 8 1.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M6.5 12.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="11.5" cy="3.5" r="2" fill="#EF4444" stroke="currentColor" strokeWidth="0.8"/></svg>; }

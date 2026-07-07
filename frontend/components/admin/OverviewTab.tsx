@@ -54,8 +54,31 @@ export default function OverviewTab() {
 
   useEffect(() => {
     void load();
-    intervalRef.current = setInterval(load, 30_000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+
+    const startInterval = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(load, 30_000);
+    };
+    const stopInterval = () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    };
+
+    startInterval();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void load();
+        startInterval();
+      } else {
+        stopInterval();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      stopInterval();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   if (loading && !data) return <LoadingBar />;
