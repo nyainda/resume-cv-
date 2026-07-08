@@ -407,7 +407,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
       </header>
 
       {/* ── Body: sidebar + preview ── */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex flex-col lg:flex-row gap-6 items-start">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex flex-col lg:flex-row gap-6 items-stretch lg:items-start">
 
         {/* ── Candidate info sidebar ── */}
         <aside className="w-full lg:w-72 xl:w-80 flex-shrink-0 flex flex-col gap-4 lg:sticky lg:top-24">
