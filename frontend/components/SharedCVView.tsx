@@ -299,15 +299,15 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
     .join('');
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-100 dark:bg-neutral-950 overflow-y-auto overflow-x-hidden">
+    <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-zinc-100 via-zinc-100 to-[#eeece5] dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950 overflow-y-auto overflow-x-hidden">
 
       {/* ── Header bar ── */}
-      <header className="sticky top-0 z-20 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-zinc-200 dark:border-neutral-800 shadow-sm">
+      <header className="sticky top-0 z-20 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-[#1B2B4B]/8 dark:border-neutral-800 shadow-[0_1px_0_rgba(201,168,76,0.35)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
 
           {/* Brand + Shared By */}
           <div className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-[#1B2B4B] flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1B2B4B] to-[#2d4272] flex items-center justify-center flex-shrink-0 shadow-sm">
               <span className="text-white font-black text-[10px]">CV</span>
             </div>
             <div className="flex flex-col leading-tight">
@@ -619,28 +619,30 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
           )}
 
           {activeDoc === 'cv' ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {/* ── Zoom toolbar ── */}
-              <div className="flex items-center justify-end gap-1">
-                <button
-                  onClick={handleSharedZoomOut}
-                  disabled={sharedPreviewScale <= SHARED_MIN_ZOOM}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 disabled:opacity-30 transition-colors text-base font-bold"
-                  title="Zoom out"
-                >−</button>
-                <button
-                  onClick={handleSharedZoomReset}
-                  title={sharedZoomOverride !== null ? 'Reset to fit' : 'Auto-fit'}
-                  className="min-w-[48px] h-7 px-2 rounded-md text-[11px] font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-80 transition-opacity"
-                >
-                  {sharedZoomOverride !== null ? `${Math.round(sharedPreviewScale * 100)}%` : 'FIT'}
-                </button>
-                <button
-                  onClick={handleSharedZoomIn}
-                  disabled={sharedPreviewScale >= SHARED_MAX_ZOOM}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 disabled:opacity-30 transition-colors text-base font-bold"
-                  title="Zoom in"
-                >+</button>
+              <div className="flex items-center justify-end">
+                <div className="inline-flex items-center gap-0.5 bg-white dark:bg-neutral-900 rounded-full border border-zinc-200 dark:border-neutral-700 shadow-sm p-1">
+                  <button
+                    onClick={handleSharedZoomOut}
+                    disabled={sharedPreviewScale <= SHARED_MIN_ZOOM}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 disabled:opacity-30 transition-colors text-base font-bold"
+                    title="Zoom out"
+                  >−</button>
+                  <button
+                    onClick={handleSharedZoomReset}
+                    title={sharedZoomOverride !== null ? 'Reset to fit' : 'Auto-fit'}
+                    className="min-w-[52px] h-7 px-2.5 rounded-full text-[11px] font-bold bg-[#1B2B4B] dark:bg-[#C9A84C] text-white dark:text-neutral-900 hover:opacity-85 transition-opacity"
+                  >
+                    {sharedZoomOverride !== null ? `${Math.round(sharedPreviewScale * 100)}%` : 'FIT'}
+                  </button>
+                  <button
+                    onClick={handleSharedZoomIn}
+                    disabled={sharedPreviewScale >= SHARED_MAX_ZOOM}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-neutral-800 disabled:opacity-30 transition-colors text-base font-bold"
+                    title="Zoom in"
+                  >+</button>
+                </div>
               </div>
 
               {/* Viewport container — panning past fit width is handled via JS
@@ -657,7 +659,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                 <div style={{
                   display: 'flex',
                   justifyContent: 'center',
-                  padding: '0 16px',
+                  padding: '0 16px 32px',
                 }}>
                   {/* Width-constraining wrapper: layout width = 794 × scale px.
                       Drag/swipe handlers live here so the whole visible CV
@@ -687,6 +689,8 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                         transform: `translate(${sharedPanX}px, 0px) scale(${sharedPreviewScale})`,
                         transformOrigin: 'top left',
                         width: 794,
+                        boxShadow: '0 1px 2px rgba(27,43,75,0.06), 0 20px 45px -12px rgba(27,43,75,0.22)',
+                        borderRadius: 4,
                       }}
                     >
                       <div ref={previewRef} data-cv-preview-active="true">

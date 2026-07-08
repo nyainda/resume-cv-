@@ -694,6 +694,71 @@ const AppInner: React.FC = () => {
     );
   }
 
+  // ── Shared CV / Public Profile (hash links) ─────────────────────────────────
+  // Rendered as a standalone view — the rest of the app (navbar, view router,
+  // modals) never mounts underneath. Previously both were rendered together,
+  // which left the full dashboard's document-flow height in the DOM behind a
+  // `fixed` overlay, producing a second, invisible page-level scrollbar
+  // alongside the shared view's own internal scroll container on desktop.
+  if (sharedCVPayload) {
+    return (
+      <SharedCVView
+        cvData={sharedCVPayload.cvData}
+        personalInfo={sharedCVPayload.personalInfo}
+        template={sharedCVPayload.template}
+        sharedAt={sharedCVPayload.sharedAt}
+        coverLetterText={sharedCVPayload.coverLetterText}
+        procvBranding={sharedCVPayload.procvBranding}
+        shareId={sharedCVId ?? undefined}
+        onLoadIntoEditor={
+          // Only pass this to the actual owner of the shared CV.
+          // We match on email so another ProCV user viewing a colleague's
+          // shared link never accidentally overwrites their own active CV.
+          (() => {
+            if (!userProfile) return undefined;
+            const sharedEmail = sharedCVPayload.personalInfo.email?.toLowerCase().trim();
+            const myEmail = userProfile.personalInfo.email?.toLowerCase().trim();
+            const isOwner = !!(sharedEmail && myEmail && sharedEmail === myEmail);
+            if (!isOwner) return undefined;
+            return (cvData: CVData) => {
+              setCurrentCV(cvData);
+              setCurrentView("generator");
+              // Sync loaded CV so other devices see the owner's selection
+              if (isAuthenticated && activeSlot) {
+                enqueueSlotSync({ ...activeSlot, currentCV: cvData }).catch(() => {});
+              }
+            };
+          })()
+        }
+        onDismiss={() => {
+          setSharedCVPayload(null);
+          setSharedCVId(null);
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }}
+      />
+    );
+  }
+
+  if (publicProfilePayload) {
+    return (
+      <PublicProfilePage
+        cvData={publicProfilePayload.cvData}
+        personalInfo={publicProfilePayload.personalInfo}
+        template={publicProfilePayload.template}
+        sharedAt={publicProfilePayload.sharedAt}
+        onViewCV={() => {
+          // Switch from profile page to the full CV document view
+          setSharedCVPayload(publicProfilePayload);
+          setPublicProfilePayload(null);
+        }}
+        onDismiss={() => {
+          setPublicProfilePayload(null);
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }}
+      />
+    );
+  }
+
   // ── Main app ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F8F7F4] dark:bg-neutral-900 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
@@ -711,62 +776,6 @@ const AppInner: React.FC = () => {
         onConnect={handleConnectDrive}
         onDismiss={() => { setShowDrivePrompt(false); setDrivePromptDismissed(true); }}
       />
-
-      {/* ── Public Profile Page (#p= links) ── */}
-      {publicProfilePayload && !sharedCVPayload && (
-        <PublicProfilePage
-          cvData={publicProfilePayload.cvData}
-          personalInfo={publicProfilePayload.personalInfo}
-          template={publicProfilePayload.template}
-          sharedAt={publicProfilePayload.sharedAt}
-          onViewCV={() => {
-            // Switch from profile page to the full CV document view
-            setSharedCVPayload(publicProfilePayload);
-            setPublicProfilePayload(null);
-          }}
-          onDismiss={() => {
-            setPublicProfilePayload(null);
-            window.history.replaceState(null, "", window.location.pathname + window.location.search);
-          }}
-        />
-      )}
-
-      {sharedCVPayload && (
-        <SharedCVView
-          cvData={sharedCVPayload.cvData}
-          personalInfo={sharedCVPayload.personalInfo}
-          template={sharedCVPayload.template}
-          sharedAt={sharedCVPayload.sharedAt}
-          coverLetterText={sharedCVPayload.coverLetterText}
-          procvBranding={sharedCVPayload.procvBranding}
-          shareId={sharedCVId ?? undefined}
-          onLoadIntoEditor={
-            // Only pass this to the actual owner of the shared CV.
-            // We match on email so another ProCV user viewing a colleague's
-            // shared link never accidentally overwrites their own active CV.
-            (() => {
-              if (!userProfile) return undefined;
-              const sharedEmail = sharedCVPayload.personalInfo.email?.toLowerCase().trim();
-              const myEmail = userProfile.personalInfo.email?.toLowerCase().trim();
-              const isOwner = !!(sharedEmail && myEmail && sharedEmail === myEmail);
-              if (!isOwner) return undefined;
-              return (cvData: CVData) => {
-                setCurrentCV(cvData);
-                setCurrentView("generator");
-                // Sync loaded CV so other devices see the owner's selection
-                if (isAuthenticated && activeSlot) {
-                  enqueueSlotSync({ ...activeSlot, currentCV: cvData }).catch(() => {});
-                }
-              };
-            })()
-          }
-          onDismiss={() => {
-            setSharedCVPayload(null);
-            setSharedCVId(null);
-            window.history.replaceState(null, "", window.location.pathname + window.location.search);
-          }}
-        />
-      )}
 
       <OfflineBanner />
 
