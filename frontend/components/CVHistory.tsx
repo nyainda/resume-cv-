@@ -4,6 +4,7 @@ import { getHistoryLimit, FREE_HISTORY_LIMIT, isPureFreeTier } from '../services
 import { Trash, Eye, Download, FileText, BookOpen, Briefcase, Globe, X } from './icons';
 import TemplateThumbnail from './TemplateThumbnail';
 import CVPreview from './CVPreview';
+import ResponsiveCVScale from './ResponsiveCVScale';
 import { downloadCV } from '../services/cvDownloadService';
 import { getCVDataCached, loadCVData } from '../services/storage/cvDataStore';
 
@@ -183,15 +184,8 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
 
                 {/* Live CV Preview */}
                 <div className="flex-1 overflow-auto bg-zinc-100 dark:bg-neutral-950">
-                    <div className="py-8 px-4">
-                        <div
-                            style={{
-                                transform: 'scale(0.72)',
-                                transformOrigin: 'top center',
-                                width: '138.89%',
-                                marginLeft: '-19.44%',
-                            }}
-                        >
+                    <div className="py-8 px-4 max-w-2xl mx-auto">
+                        <ResponsiveCVScale maxScale={0.9}>
                             <div ref={previewRef} data-cv-preview-active="true">
                                 {cvData && (
                                     <CVPreview
@@ -204,7 +198,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, o
                                     />
                                 )}
                             </div>
-                        </div>
+                        </ResponsiveCVScale>
                     </div>
                 </div>
             </div>

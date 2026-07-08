@@ -3,6 +3,7 @@ import { CVData, UserProfile, TemplateName, FontName, templateDisplayNames, CVGe
 import { generateCV, generateCoverLetter } from '../services/geminiService';
 import { downloadCV } from '../services/cvDownloadService';
 import CVPreview from './CVPreview';
+import ResponsiveCVScale from './ResponsiveCVScale';
 import CoverLetterPreview from './CoverLetterPreview';
 import { Button } from './ui/Button';
 import {
@@ -534,8 +535,8 @@ const JobPipelineModal: React.FC<JobPipelineModalProps> = ({
                                     )}
                                     {/* CV Preview */}
                                     <div className="border-2 border-zinc-100 dark:border-neutral-700 rounded-2xl overflow-hidden">
-                                        <div className="overflow-auto max-h-[600px]">
-                                            <div className="scale-[0.7] origin-top-left" style={{ width: '142.857%' }}>
+                                        <div className="overflow-auto max-h-[600px] p-2">
+                                            <ResponsiveCVScale maxScale={0.85}>
                                                 <div ref={cvPreviewRef} data-cv-preview-active="true">
                                                     <CVPreview
                                                         cvData={generatedCV}
@@ -545,7 +546,7 @@ const JobPipelineModal: React.FC<JobPipelineModalProps> = ({
                                                         jobDescription={job.jobDescription || job.snippet}
                                                     />
                                                 </div>
-                                            </div>
+                                            </ResponsiveCVScale>
                                         </div>
                                     </div>
                                 </div>

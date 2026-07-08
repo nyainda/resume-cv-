@@ -16,6 +16,7 @@ import { auditCvQuality, type CvQualityReport } from '../services/cvNumberFideli
 import { scoreAtsCoverage, type AtsKeywordReport } from '../services/cvAtsKeywords';
 import { generateCV } from '../services/geminiService';
 import CVPreview from './CVPreview';
+import ResponsiveCVScale from './ResponsiveCVScale';
 import { getCVDataCached } from '../services/storage/cvDataStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,7 +305,7 @@ export default function CVCompareModal({
           </button>
         </div>
         <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 rounded-b-xl p-3">
-          <div style={{ width: 794, transform: 'scale(0.54)', transformOrigin: 'top left', height: Math.round(794 * 1.414 * 0.54) }}>
+          <ResponsiveCVScale maxScale={0.8}>
             <CVPreview
               cvData={cvData}
               personalInfo={userProfile!.personalInfo}
@@ -312,7 +313,7 @@ export default function CVCompareModal({
               sidebarSections={sidebarSections}
               jobDescriptionForATS={jd || undefined}
             />
-          </div>
+          </ResponsiveCVScale>
         </div>
       </div>
     );
@@ -437,10 +438,10 @@ export default function CVCompareModal({
               </div>
             </div>
 
-            {/* Two preview columns */}
-            <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700 min-h-0">
+            {/* Two preview columns — stack on mobile, side-by-side from md up */}
+            <div className="flex-1 overflow-auto md:overflow-hidden grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700 min-h-0">
               {/* Column A */}
-              <div className="overflow-hidden flex flex-col p-4 min-h-0">
+              <div className="overflow-visible md:overflow-hidden flex flex-col p-4 min-h-0">
                 {colA.phase === 'idle' && <EmptyCol mode={modeA} />}
                 {colA.phase === 'generating' && (
                   <div className="flex-1 flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-900/10">
@@ -466,7 +467,7 @@ export default function CVCompareModal({
               </div>
 
               {/* Column B */}
-              <div className="overflow-hidden flex flex-col p-4 min-h-0">
+              <div className="overflow-visible md:overflow-hidden flex flex-col p-4 min-h-0">
                 {colB.phase === 'idle' && <EmptyCol mode={modeB} />}
                 {colB.phase === 'generating' && (
                   <div className="flex-1 flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-900/10">
