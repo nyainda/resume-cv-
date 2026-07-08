@@ -4,6 +4,16 @@
 
 ProCV is a full-featured PWA designed to help users build, manage, and download professional CVs with advanced AI assistance. It acts as a personal career consultant, leveraging AI for CV generation, cover letter creation, ATS analysis, and interview preparation. The project integrates market intelligence to create highly relevant and impactful CVs, providing a comprehensive toolkit for job seekers. The business vision is to empower individuals in their job search journey, offering a competitive edge through AI-driven personalization and optimization.
 
+## Running on Replit
+
+- `npm install` installs frontend deps and the local PDF server deps (single root `package.json`).
+- **Start application** workflow runs `npm run dev` (Vite on port 5000) — this is what the Replit preview shows.
+- **PDF Server** workflow runs `npm run pdf-server` (local Playwright server on port 3001) for PDF export/preview.
+- The AI backend is a Cloudflare Worker (`backend/cv-engine-worker/`) already deployed at `cv-engine-worker.dripstech.workers.dev`; the frontend reaches it via the `/cf-engine` Vite dev proxy (`VITE_CV_ENGINE_URL=/cf-engine`, set in `.replit` userenv) — no extra secrets needed to browse/use the app in dev.
+- Signed-out visitors (or ones with a blocked third-party cookie/stale fallback token) may see one or two expected 401s in the browser console from a session-check call — the app is designed to fail gracefully into anonymous/offline mode; this is not a setup bug (see `frontend/services/authService.ts` header comment).
+- PDF export/preview in dev requires the **PDF Server** workflow to be running alongside **Start application**.
+- `VITE_PDF_WORKER_URL` (the separate Cloudflare *PDF* worker) is intentionally unset in dev; PDF generation falls back to the local Playwright **PDF Server** workflow instead.
+
 ## User Preferences
 
 - I want iterative development.
