@@ -1718,6 +1718,32 @@ export async function createAdminToken(label: string, role: 'viewer' | 'editor' 
     });
 }
 
+// ── Server-side webhook notification config ─────────────────────────────────
+// Stored in the worker's KV (shared across admins), not per-browser
+// localStorage, so real signup/sign-in events reach Discord/Slack whether or
+// not anyone has the admin panel open. See backend handlers/notifications.ts.
+export interface ServerWebhookConfig {
+    url: string;
+    events: {
+        new_signup: boolean;
+        new_signin: boolean;
+        signin_spike: boolean;
+        worker_error: boolean;
+    };
+}
+
+export async function getServerWebhookConfig(): Promise<{ ok: boolean; config: ServerWebhookConfig } | null> {
+    return adminFetch('/api/cv/admin/webhook-config');
+}
+
+export async function setServerWebhookConfig(cfg: ServerWebhookConfig): Promise<{ ok: boolean; config: ServerWebhookConfig } | null> {
+    return adminFetch('/api/cv/admin/webhook-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+    });
+}
+
 export async function revokeAdminTokens(ids: string[]): Promise<{ ok: boolean; revoked: number } | null> {
     return adminFetch('/api/cv/admin/tokens/revoke', {
         method: 'POST',

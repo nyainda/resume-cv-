@@ -21,6 +21,7 @@
 
 import { Env } from "../types";
 import { corsHeaders, json, safeJson, ipRateLimit } from "../utils";
+import { sendAdminNotification, checkSigninSpike } from "./notifications";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -265,6 +266,7 @@ function sessionTokenFromRequest(request: Request): string {
 export async function handleAuthGoogle(
     request: Request,
     env: Env,
+    ctx?: ExecutionContext,
 ): Promise<Response> {
     // Rate-limit: 20 Google sign-in / sign-up attempts per IP per hour.
     const rl = await ipRateLimit(env, request, "auth:google", 20, 3600);
@@ -388,6 +390,15 @@ export async function handleAuthGoogle(
 
     const sessionToken = await createSession(user.id, env);
     await auditLog(user.id, "signin_google", "google", request, env);
+
+    // Fire admin notifications server-side so delivery never depends on an
+    // admin having the panel open — see handlers/notifications.ts header.
+    const notify = isNewInsert
+        ? sendAdminNotification(env, "new_signup", "New User Signed Up", `**${user.email}** just created an account via Google.`, "#22C55E")
+        : sendAdminNotification(env, "new_signin", "User Signed In", `**${user.email}** signed in via Google.`, "#60A5FA");
+    const spike = checkSigninSpike(env);
+    if (ctx) { ctx.waitUntil(notify); ctx.waitUntil(spike); }
+    else { await Promise.allSettled([notify, spike]); }
 
     const slots = await fetchUserSlots(user.id, env);
     return withCookie(
@@ -513,6 +524,7 @@ export async function handleAuthMagicVerify(
     request: Request,
     env: Env,
     url: URL,
+    ctx?: ExecutionContext,
 ): Promise<Response> {
     // Bug 4 fix: IP rate limit — 20 verify attempts per IP per hour (token enumeration guard)
     const ipRl = await ipRateLimit(env, request, "auth:magic:verify", 20, 3600);
@@ -588,6 +600,15 @@ export async function handleAuthMagicVerify(
 
     const sessionToken = await createSession(user.id, env);
     await auditLog(user.id, "signin_magic", "magic_link", request, env);
+
+    // See handlers/notifications.ts header — fired server-side so delivery
+    // never depends on an admin having the panel open.
+    const notify = isNewInsert
+        ? sendAdminNotification(env, "new_signup", "New User Signed Up", `**${user.email}** just created an account via Magic Link.`, "#22C55E")
+        : sendAdminNotification(env, "new_signin", "User Signed In", `**${user.email}** signed in via Magic Link.`, "#60A5FA");
+    const spike = checkSigninSpike(env);
+    if (ctx) { ctx.waitUntil(notify); ctx.waitUntil(spike); }
+    else { await Promise.allSettled([notify, spike]); }
 
     const slots = await fetchUserSlots(user.id, env);
     return withCookie(

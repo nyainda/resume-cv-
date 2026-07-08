@@ -58,6 +58,8 @@ import {
     handleUsersRevokeSessions, handleUsersDetail, handleAuthLogsList, handleDbBrowse,
 } from './handlers/admin';
 
+import { handleWebhookConfigGet, handleWebhookConfigSet } from './handlers/notifications';
+
 import {
     handleShareGet, handleSharePost, handleShareStats,
     handleJobCacheGet, handleJobCachePost,
@@ -242,6 +244,8 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (/^\/api\/cv\/admin\/users\/\d+\/detail$/.test(p) && m === 'GET')    return handleUsersDetail(request, env, url);
     if (p === '/api/cv/admin/auth-logs'   && m === 'GET')                   return handleAuthLogsList(request, env, url);
     if (p === '/api/cv/admin/db-browse'   && m === 'GET')                   return handleDbBrowse(request, env, url);
+    if (p === '/api/cv/admin/webhook-config' && m === 'GET')                return handleWebhookConfigGet(request, env);
+    if (p === '/api/cv/admin/webhook-config' && m === 'POST')               return handleWebhookConfigSet(request, env);
 
     // ── Share links ───────────────────────────────────────────────────────────
     if (p === '/api/cv/share'          && m === 'GET')                      return handleShareGet(request, env, url);
@@ -262,9 +266,9 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/user-data'      && m === 'GET')                      return handleUserDataGet(request, env, url);
 
     // ── Auth ──────────────────────────────────────────────────────────────────
-    if (p === '/api/auth/google'              && m === 'POST')   return handleAuthGoogle(request, env);
+    if (p === '/api/auth/google'              && m === 'POST')   return handleAuthGoogle(request, env, ctx);
     if (p === '/api/auth/magic-link/send'     && m === 'POST')   return handleAuthMagicSend(request, env);
-    if (p === '/api/auth/magic-link/verify'   && m === 'GET')    return handleAuthMagicVerify(request, env, url);
+    if (p === '/api/auth/magic-link/verify'   && m === 'GET')    return handleAuthMagicVerify(request, env, url, ctx);
     if (p === '/api/auth/session'             && m === 'GET')    return handleAuthSession(request, env);
     if (p === '/api/auth/signout'             && m === 'POST')   return handleAuthSignout(request, env);
     if (p === '/api/auth/account'             && m === 'DELETE') return handleAuthDeleteAccount(request, env);

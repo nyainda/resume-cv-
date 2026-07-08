@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAdminTheme } from './AdminContext';
 import { PageHeader, Section } from './OverviewTab';
+import { getServerWebhookConfig, setServerWebhookConfig } from '../../services/cvEngineClient';
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 const LS_WEBHOOK_URL     = 'procv_admin_webhook_url';
@@ -181,13 +182,24 @@ export default function NotificationsTab() {
   const [testing, setTesting]     = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [log, setLog]             = useState<NotificationRecord[]>([]);
+  const [saveError, setSaveError] = useState('');
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Load saved config on mount
+  // Load saved config on mount — prefer the server-side copy (shared across
+  // every admin, and what the worker actually uses to fire real events);
+  // fall back to the local cache if the server is unreachable.
   useEffect(() => {
-    const cfg = loadWebhookConfig();
-    setUrlInput(cfg.url);
-    setEvents(cfg.events);
+    const local = loadWebhookConfig();
+    setUrlInput(local.url);
+    setEvents(local.events);
+    (async () => {
+      const res = await getServerWebhookConfig();
+      if (res?.ok && res.config) {
+        setUrlInput(res.config.url);
+        setEvents(res.config.events);
+        saveWebhookConfig(res.config); // keep local cache in sync
+      }
+    })();
   }, []);
 
   // Subscribe to notification log
@@ -197,8 +209,14 @@ export default function NotificationsTab() {
 
   const platform = detectPlatform(urlInput);
 
-  const handleSave = useCallback(() => {
-    saveWebhookConfig({ url: urlInput.trim(), events });
+  const handleSave = useCallback(async () => {
+    const cfg = { url: urlInput.trim(), events };
+    saveWebhookConfig(cfg); // local cache, used by the Test button below
+    setSaveError('');
+    const res = await setServerWebhookConfig(cfg); // authoritative — the worker reads this
+    if (!res?.ok) {
+      setSaveError('Saved locally, but could not sync to the server — real signup/sign-in alerts may not fire. Check your admin token permissions (editor+) and try again.');
+    }
     setSaved(true);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => setSaved(false), 2200);
@@ -209,6 +227,7 @@ export default function NotificationsTab() {
     setTesting(true);
     setTestResult(null);
     saveWebhookConfig({ url: urlInput.trim(), events });
+    void setServerWebhookConfig({ url: urlInput.trim(), events });
     const result = await sendAndLog(
       'test',
       'ProCV Admin — Test Notification',
@@ -302,6 +321,18 @@ export default function NotificationsTab() {
                 {testing ? 'Sending…' : 'Test'}
               </button>
             </div>
+
+            {saveError && (
+              <div style={{
+                marginTop: 10, padding: '9px 14px',
+                background: isDark ? '#2A0E0E' : '#FFF5F5',
+                border: `1px solid ${isDark ? '#4A1010' : '#FFCDD2'}`,
+                borderRadius: 8, fontSize: 13,
+                color: isDark ? '#F87171' : '#C62828',
+              }}>
+                ✗ {saveError}
+              </div>
+            )}
 
             {testResult && (
               <div style={{

@@ -2,7 +2,14 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { listAuthLogs, AuthLog } from '../../services/cvEngineClient';
 import { useAdminTheme } from './AdminContext';
 import { PageHeader } from './OverviewTab';
-import { loadWebhookConfig, sendAndLog } from './NotificationsTab';
+
+// Note: new_signup / new_signin / signin_spike Discord/Slack notifications are
+// now fired server-side, directly from the worker at the moment the real auth
+// event happens (see backend handlers/notifications.ts). This tab used to also
+// fire those webhooks client-side from its polling loop, but that only worked
+// while an admin happened to have this tab open — real events were silently
+// dropped otherwise. The client-side firing was removed to avoid duplicates
+// and to make delivery reliable regardless of who has the panel open.
 
 function fmtTime(unix: number) {
   return new Date(unix * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -45,59 +52,6 @@ export default function LiveFeedTab() {
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const countRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Track sign-in spike detection (5+ events within 60s)
-  const recentSigninTimes = useRef<number[]>([]);
-  const spikeNotifiedAt = useRef<number>(0);
-
-  const fireWebhookForEvents = useCallback(async (fresh: AuthLog[]) => {
-    const cfg = loadWebhookConfig();
-    if (!cfg.url) return;
-
-    const newSignups = fresh.filter(l => l.event === 'signup' || l.event === 'new_user');
-    const signins    = fresh.filter(l => l.event === 'signin_google' || l.event === 'signin_magic');
-
-    // New signup notifications
-    if (cfg.events.new_signup && newSignups.length > 0) {
-      for (const u of newSignups) {
-        await sendAndLog(
-          'new_signup',
-          'New User Signed Up',
-          `**${u.email}** just created an account via ${u.event === 'signin_google' ? 'Google' : 'Magic Link'}.`,
-          '#22C55E',
-        );
-      }
-    }
-
-    // Every sign-in notifications (noisy — usually off)
-    if (cfg.events.new_signin && signins.length > 0) {
-      for (const s of signins) {
-        await sendAndLog(
-          'new_signin',
-          'User Signed In',
-          `**${s.email}** signed in via ${s.event === 'signin_google' ? 'Google' : 'Magic Link'}.`,
-          '#60A5FA',
-        );
-      }
-    }
-
-    // Spike detection: >5 sign-ins in last 60 seconds
-    if (cfg.events.signin_spike) {
-      const now = Date.now();
-      signins.forEach(() => recentSigninTimes.current.push(now));
-      // Prune events older than 60s
-      recentSigninTimes.current = recentSigninTimes.current.filter(t => now - t < 60_000);
-      if (recentSigninTimes.current.length >= 5 && now - spikeNotifiedAt.current > 120_000) {
-        spikeNotifiedAt.current = now;
-        await sendAndLog(
-          'signin_spike',
-          'Sign-in Spike Detected',
-          `${recentSigninTimes.current.length} sign-ins in the last 60 seconds — possible viral traffic or bot activity.`,
-          '#F59E0B',
-        );
-      }
-    }
-  }, []);
-
   const poll = useCallback(async (silent = false) => {
     if (paused) return;
     if (!silent) setLoading(true);
@@ -115,17 +69,13 @@ export default function LiveFeedTab() {
           return updated;
         });
         setTimeout(() => setLines(prev => prev.map(l => ({ ...l, _new: false }))), 1200);
-        // Fire webhook notifications for fresh events (skip on very first load where seenIds was empty)
-        if (seenIds.current.size > fresh.length) {
-          void fireWebhookForEvents(fresh);
-        }
       }
       setLastPoll(new Date());
     } else {
       setErrMsg('Poll failed — worker unreachable?');
     }
     if (!silent) setLoading(false);
-  }, [paused, fireWebhookForEvents]);
+  }, [paused]);
 
   // Initial load
   useEffect(() => { void poll(); }, []);
