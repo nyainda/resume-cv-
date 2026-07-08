@@ -204,6 +204,14 @@ const AppInner: React.FC = () => {
   // ── showLanding: sync-safe init ──────────────────────────────────────────
   const [showLanding, setShowLanding] = useState<boolean>(() => {
     try {
+      // Shared-CV / public-profile hash links (#s=, #share=, #p=) must never
+      // hit the marketing landing page — anonymous visitors with no saved
+      // session/profile would otherwise be stuck on landing forever, since
+      // showLanding only flips to false via sign-in/sign-up.
+      const hash = window.location.hash;
+      if (hash.startsWith("#s=") || hash.startsWith("#share=") || hash.startsWith("#p=")) {
+        return false;
+      }
       const hasSession =
         !!localStorage.getItem("procv:worker_user") ||
         !!localStorage.getItem("procv:worker_session");
@@ -467,7 +475,10 @@ const AppInner: React.FC = () => {
         fetchSharePayload(id).then(compressed => {
           if (compressed) {
             const payload = decodeSharePayload(compressed);
-            if (payload) setSharedCVPayload(payload);
+            if (payload) {
+              setSharedCVPayload(payload);
+              setShowLanding(false);
+            }
           }
         });
       }
@@ -476,13 +487,19 @@ const AppInner: React.FC = () => {
       if (slugOrId) {
         fetchPublicProfile(slugOrId).then(payload => {
           // Show the rich PublicProfilePage instead of the CV-document view
-          if (payload) setPublicProfilePayload(payload);
+          if (payload) {
+            setPublicProfilePayload(payload);
+            setShowLanding(false);
+          }
         });
       }
     } else if (hash.startsWith("#share=")) {
       const encoded = hash.slice("#share=".length);
       const payload = decodeSharePayload(encoded);
-      if (payload) setSharedCVPayload(payload);
+      if (payload) {
+        setSharedCVPayload(payload);
+        setShowLanding(false);
+      }
     }
     if (hash === "#test-cv") {
       fetch("/test-cv-preview.json")

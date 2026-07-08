@@ -128,9 +128,14 @@ export function useAppNavigation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isNewUser]);
 
-  // When auth validation completes and no valid session exists, return to landing
+  // When auth validation completes and no valid session exists, return to landing.
+  // Exception: anonymous visitors opening a shared-CV / public-profile hash link
+  // (#s=, #share=, #p=) must never be bounced to the marketing landing page —
+  // they're not signing in, they're viewing someone else's shared document.
   useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
+    const hash = window.location.hash;
+    const isShareLink = hash.startsWith('#s=') || hash.startsWith('#share=') || hash.startsWith('#p=');
+    if (!isAuthLoading && !isAuthenticated && !isShareLink) {
       setShowLanding(true);
     }
   }, [isAuthLoading, isAuthenticated, setShowLanding]);
