@@ -448,54 +448,58 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   const ZOOM_STEP = 0.15;
   const MIN_ZOOM  = 0.25;
   const MAX_ZOOM  = 1.75;
-  const clampPanToBounds = useCallback((x: number, y: number) => {
-    const viewportEl = viewportRef.current;
-    if (!viewportEl) return { x, y };
-    const viewportWidth = viewportEl.clientWidth || 794;
-    const viewportHeight = viewportEl.clientHeight || 1123;
+  const clampPanToBounds = useCallback((x: number, _y: number) => {
+    // Bound against the OUTER viewport (paperAreaRef) — the visible window —
+    // not the inner content box, which is always sized to exactly match the
+    // scaled content and therefore has zero pan range on its own. The content
+    // is horizontally CENTRED by its flex row at panX = 0, so the excess width
+    // is split evenly left/right — the drag range must be symmetric
+    // (±half the excess), not one-sided, or one edge becomes unreachable.
+    const containerEl = paperAreaRef.current;
+    const containerWidth = (containerEl?.clientWidth || 794) - 32; // 16px padding each side
     const contentWidth = 794 * previewScale;
-    const contentHeight = previewContentHeight > 0 ? previewContentHeight * previewScale : 794 * 1.414 * previewScale;
-    const maxPanX = Math.max(0, contentWidth - viewportWidth);
-    const maxPanY = Math.max(0, contentHeight - viewportHeight);
+    const halfExcess = Math.max(0, (contentWidth - containerWidth) / 2);
     return {
-      x: Math.max(-maxPanX, Math.min(0, x)),
-      y: Math.max(-maxPanY, Math.min(0, y)),
+      x: Math.max(-halfExcess, Math.min(halfExcess, x)),
+      y: 0,
     };
-  }, [previewScale, previewContentHeight]);
+  }, [previewScale]);
 
   const handleZoomIn = () => {
     const nextScale = Math.min(MAX_ZOOM, parseFloat(((zoomOverride ?? autoFitScale) + ZOOM_STEP).toFixed(2)));
     setZoomOverride(nextScale);
     setPanX(0);
-    setPanY(0);
   };
   const handleZoomOut = () => {
     const nextScale = Math.max(MIN_ZOOM, parseFloat(((zoomOverride ?? autoFitScale) - ZOOM_STEP).toFixed(2)));
     setZoomOverride(nextScale);
     setPanX(0);
-    setPanY(0);
   };
   const handleZoomReset = () => {
     setZoomOverride(null);
     setPanX(0);
-    setPanY(0);
   };
 
+  // Drag-to-pan (horizontal only). Content height always grows to fit the CV,
+  // so the page itself handles vertical scrolling normally — only horizontal
+  // panning needs a custom implementation, because once zoomed past fit the
+  // CV becomes wider than its container. Pointer Events fire uniformly for
+  // mouse, touch and pen, so this works identically on desktop and phones —
+  // unlike relying on the browser's native nested-scroll behaviour, which is
+  // unreliable inside a touch-scrolling page on mobile.
   const handlePanStart = (event: React.PointerEvent<HTMLDivElement>) => {
     if (previewScale <= autoFitScale) return;
-    event.preventDefault();
     viewportRef.current?.setPointerCapture(event.pointerId);
-    panOriginRef.current = { x: event.clientX, y: event.clientY, panX, panY };
+    panOriginRef.current = { x: event.clientX, y: event.clientY, panX, panY: 0 };
     setIsPanning(true);
   };
 
   const handlePanMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!isPanning || previewScale <= autoFitScale) return;
+    event.preventDefault();
     const dx = event.clientX - panOriginRef.current.x;
-    const dy = event.clientY - panOriginRef.current.y;
-    const nextPan = clampPanToBounds(panOriginRef.current.panX + dx, panOriginRef.current.panY + dy);
+    const nextPan = clampPanToBounds(panOriginRef.current.panX + dx, 0);
     setPanX(nextPan.x);
-    setPanY(nextPan.y);
   };
 
   const handlePanEnd = (event?: React.PointerEvent<HTMLDivElement>) => {
@@ -2950,36 +2954,36 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                   top-left corner of the constraining wrapper.
                   The scale transform sits OUTSIDE cvCaptureRef so PDF capture
                   always gets full, unscaled A4 content. */}
-              {/* Scroll container — overflow:auto when zoomed past fit so scrollbars
-                  appear. When at fit, overflow:hidden + flex justify-center keeps
-                  the CV centred with no scrollbars. */}
+              {/* Viewport container. Horizontal panning past the fit width is
+                  handled entirely via JS drag (handlePanStart/Move/End) rather
+                  than native browser scrolling — native nested-scroll containers
+                  are unreliable on mobile Safari/Chrome when the page itself is
+                  also scrolling, which is why swiping used to work with a mouse
+                  (drag events fire regardless) but not with a finger on phones.
+                  overflow stays hidden always; touchAction is 'pan-y' when
+                  zoomed so vertical page-scroll still passes through natively
+                  while horizontal drags are captured by our pointer handlers. */}
               <div
                 ref={paperAreaRef}
                 className="bg-zinc-200/60 dark:bg-neutral-900"
                 style={{
-                  overflow: previewScale > autoFitScale ? 'auto' : 'hidden',
+                  overflow: 'hidden',
                   position: 'relative',
-                  touchAction: previewScale > autoFitScale ? 'auto' : 'none',
+                  touchAction: previewScale > autoFitScale ? 'pan-y' : 'auto',
                 }}
               >
-                {/* Inner centering row. When zoomed past fit its minWidth equals
-                    the scaled CV width + gutters, so the scroll container can
-                    reach both the left AND right edges. justify-center keeps the
-                    CV centred inside this row whether it's narrower or wider than
-                    the outer container. */}
+                {/* Inner centering row. */}
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'center',
                     padding: '24px 16px',
-                    minWidth: previewScale > autoFitScale
-                      ? `${Math.round(794 * previewScale) + 32}px`
-                      : undefined,
                   }}
                 >
                 {/* Width-constraining wrapper: layout width = 794 × scale px.
                     Height = natural content height × scale px.
-                    This is the true visual footprint after scaling. */}
+                    This is the true visual footprint after scaling. Drag/swipe
+                    handlers live here so the whole visible CV area is grabbable. */}
                 <div
                   ref={viewportRef}
                   style={{
@@ -2988,22 +2992,23 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                       ? `${Math.round(previewContentHeight * previewScale)}px`
                       : undefined,
                     minHeight: 200,
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     flexShrink: 0,
                     position: 'relative',
-                    cursor: 'default',
+                    cursor: previewScale > autoFitScale ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                    touchAction: previewScale > autoFitScale ? 'none' : 'auto',
                   }}
-                  onPointerDown={previewScale > autoFitScale ? undefined : handlePanStart}
-                  onPointerMove={previewScale > autoFitScale ? undefined : handlePanMove}
-                  onPointerUp={previewScale > autoFitScale ? undefined : handlePanEnd}
-                  onPointerCancel={previewScale > autoFitScale ? undefined : handlePanEnd}
+                  onPointerDown={previewScale > autoFitScale ? handlePanStart : undefined}
+                  onPointerMove={previewScale > autoFitScale ? handlePanMove : undefined}
+                  onPointerUp={previewScale > autoFitScale ? handlePanEnd : undefined}
+                  onPointerCancel={previewScale > autoFitScale ? handlePanEnd : undefined}
                 >
                   {/* scalingRef: receives transform: scale(). Lives OUTSIDE
                       cvCaptureRef so getCVHtml / Playwright never sees it. */}
                   <div
                     ref={scalingRef}
                     style={{
-                      transform: `translate(${panX}px, ${panY}px) scale(${previewScale})`,
+                      transform: `translate(${panX}px, 0px) scale(${previewScale})`,
                       transformOrigin: 'top left',
                       width: 794,
                     }}

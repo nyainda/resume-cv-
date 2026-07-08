@@ -25,5 +25,6 @@
 - [Smart sidebar routing gates](smart-sidebar-routing.md) — SidebarContent must gate publications/customSections using split.pubsInSidebar and split.customInSidebar; without these gates content duplicates across both columns.
 - [CV preview zoom + one-page mode](cv-preview-zoom-onepage.md) — autoFitScale (ResizeObserver) + zoomOverride state; synced via useEffect; onePage: boolean in CVData forces compact density + OnePageBoundary at top:'297mm' inside position:relative layout wrappers.
 - [LLM model resilience pattern](llm-model-resilience.md) — BYOK Claude/Gemini proxy: fallback chain on model-not-found, fail-fast on other errors, finish_reason/stop_reason truncation → same-model bump-retry.
+- [CV preview mobile pan/swipe](cv-preview-mobile-pan.md) — native nested-scroll unreliable for touch drag; use symmetric-bounded JS pointer-driven pan instead, don't clamp content box with maxWidth:100%.
 - [CV preview responsive scaling](cv-preview-responsive-scaling.md) — every new CVPreview surface must use ResizeObserver-driven scale, never a hardcoded scale(0.NN); side-by-side compare views must stack on mobile.
 - [SEO proxy worker](seo-proxy-worker.md) — CF Worker at backend/seo-proxy-worker/ injects country-aware meta/JSON-LD/hreflang at edge; domain plug-in via wrangler routes, zero code change.
