@@ -119,11 +119,15 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
   // ── Responsive preview scaling ─────────────────────────────────────────────
   const sharedPaperAreaRef  = useRef<HTMLDivElement>(null);
+  const sharedViewportRef   = useRef<HTMLDivElement>(null);
   const sharedScalingRef    = useRef<HTMLDivElement>(null);
+  const sharedPanOriginRef  = useRef<{ x: number; panX: number }>({ x: 0, panX: 0 });
   const [sharedAutoFitScale, setSharedAutoFitScale]               = useState(1);
   const [sharedZoomOverride, setSharedZoomOverride]               = useState<number | null>(null);
   const [sharedPreviewScale, setSharedPreviewScale]               = useState(1);
   const [sharedPreviewContentHeight, setSharedPreviewContentHeight] = useState(0);
+  const [sharedPanX, setSharedPanX] = useState(0);
+  const [isSharedPanning, setIsSharedPanning] = useState(false);
 
   const SHARED_ZOOM_STEP = 0.15;
   const SHARED_MIN_ZOOM  = 0.25;
@@ -151,12 +155,52 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const handleSharedZoomIn = () => {
     const next = Math.min(SHARED_MAX_ZOOM, parseFloat(((sharedZoomOverride ?? sharedAutoFitScale) + SHARED_ZOOM_STEP).toFixed(2)));
     setSharedZoomOverride(next);
+    setSharedPanX(0);
   };
   const handleSharedZoomOut = () => {
     const next = Math.max(SHARED_MIN_ZOOM, parseFloat(((sharedZoomOverride ?? sharedAutoFitScale) - SHARED_ZOOM_STEP).toFixed(2)));
     setSharedZoomOverride(next);
+    setSharedPanX(0);
   };
-  const handleSharedZoomReset = () => setSharedZoomOverride(null);
+  const handleSharedZoomReset = () => {
+    setSharedZoomOverride(null);
+    setSharedPanX(0);
+  };
+
+  // Drag-to-pan (horizontal only), mirrors the fix applied to the main editor
+  // preview (CVGenerator.tsx) — Pointer Events fire uniformly for mouse and
+  // touch, unlike native nested-scroll containers which are unreliable for
+  // single-finger drag on mobile browsers.
+  const clampSharedPanToBounds = (x: number) => {
+    const containerEl = sharedPaperAreaRef.current;
+    const containerWidth = (containerEl?.clientWidth || 794) - 32;
+    const contentWidth = 794 * sharedPreviewScale;
+    const halfExcess = Math.max(0, (contentWidth - containerWidth) / 2);
+    return Math.max(-halfExcess, Math.min(halfExcess, x));
+  };
+
+  const handleSharedPanStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (sharedPreviewScale <= sharedAutoFitScale) return;
+    sharedViewportRef.current?.setPointerCapture(event.pointerId);
+    sharedPanOriginRef.current = { x: event.clientX, panX: sharedPanX };
+    setIsSharedPanning(true);
+  };
+
+  const handleSharedPanMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isSharedPanning || sharedPreviewScale <= sharedAutoFitScale) return;
+    event.preventDefault();
+    const dx = event.clientX - sharedPanOriginRef.current.x;
+    setSharedPanX(clampSharedPanToBounds(sharedPanOriginRef.current.panX + dx));
+  };
+
+  const handleSharedPanEnd = (event?: React.PointerEvent<HTMLDivElement>) => {
+    if (event?.pointerId !== undefined) {
+      try {
+        sharedViewportRef.current?.releasePointerCapture(event.pointerId);
+      } catch {}
+    }
+    setIsSharedPanning(false);
+  };
 
   useEffect(() => {
     const el = sharedScalingRef.current;
@@ -597,36 +641,48 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                 >+</button>
               </div>
 
-              {/* Scroll container — overflow:auto when zoomed past fit so the user
-                  can scroll left AND right. The inner centering row has minWidth
-                  equal to the scaled CV + gutters so both edges are reachable. */}
+              {/* Viewport container — panning past fit width is handled via JS
+                  drag (handleSharedPanStart/Move/End), not native browser
+                  scroll, which is unreliable for single-finger drag on mobile. */}
               <div
                 ref={sharedPaperAreaRef}
                 style={{
-                  overflow: sharedPreviewScale > sharedAutoFitScale ? 'auto' : 'hidden',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  touchAction: sharedPreviewScale > sharedAutoFitScale ? 'pan-y' : 'auto',
                 }}
               >
                 <div style={{
                   display: 'flex',
                   justifyContent: 'center',
-                  minWidth: sharedPreviewScale > sharedAutoFitScale
-                    ? `${Math.round(794 * sharedPreviewScale) + 32}px`
-                    : undefined,
+                  padding: '0 16px',
                 }}>
-                  {/* Width-constraining wrapper: layout width = 794 × scale px */}
-                  <div style={{
-                    width: `${Math.round(794 * sharedPreviewScale)}px`,
-                    height: sharedPreviewContentHeight > 0
-                      ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
-                      : undefined,
-                    minHeight: 200,
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                  }}>
+                  {/* Width-constraining wrapper: layout width = 794 × scale px.
+                      Drag/swipe handlers live here so the whole visible CV
+                      area is grabbable. */}
+                  <div
+                    ref={sharedViewportRef}
+                    style={{
+                      width: `${Math.round(794 * sharedPreviewScale)}px`,
+                      height: sharedPreviewContentHeight > 0
+                        ? `${Math.round(sharedPreviewContentHeight * sharedPreviewScale)}px`
+                        : undefined,
+                      minHeight: 200,
+                      overflow: 'visible',
+                      flexShrink: 0,
+                      position: 'relative',
+                      cursor: sharedPreviewScale > sharedAutoFitScale ? (isSharedPanning ? 'grabbing' : 'grab') : 'default',
+                      touchAction: sharedPreviewScale > sharedAutoFitScale ? 'none' : 'auto',
+                    }}
+                    onPointerDown={sharedPreviewScale > sharedAutoFitScale ? handleSharedPanStart : undefined}
+                    onPointerMove={sharedPreviewScale > sharedAutoFitScale ? handleSharedPanMove : undefined}
+                    onPointerUp={sharedPreviewScale > sharedAutoFitScale ? handleSharedPanEnd : undefined}
+                    onPointerCancel={sharedPreviewScale > sharedAutoFitScale ? handleSharedPanEnd : undefined}
+                  >
                     <div
                       ref={sharedScalingRef}
                       style={{
-                        transform: `scale(${sharedPreviewScale})`,
+                        transform: `translate(${sharedPanX}px, 0px) scale(${sharedPreviewScale})`,
                         transformOrigin: 'top left',
                         width: 794,
                       }}
