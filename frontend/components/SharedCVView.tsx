@@ -3,7 +3,7 @@ import { CVData, PersonalInfo, TemplateName } from '../types';
 import CVPreview from './CVPreview';
 import { downloadCV } from '../services/cvDownloadService';
 import DownloadProgressModal from './DownloadProgressModal';
-import { fetchShareStats } from '../services/shareService';
+import { fetchShareStats, type ShareStats } from '../services/shareService';
 
 // ── Smart Summary ─────────────────────────────────────────────────────────────
 // Builds a deterministic, human-readable professional snapshot from CV data.
@@ -115,6 +115,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
   const [linkCopied, setLinkCopied] = useState(false);
   const [activeDoc, setActiveDoc] = useState<'cv' | 'coverletter'>('cv');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [shareStats, setShareStats] = useState<ShareStats | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   // ── Responsive preview scaling ─────────────────────────────────────────────
@@ -139,7 +140,8 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
     const A4_PX = 794;
     function measure() {
       if (!el) return;
-      const scale = Math.min(1, Math.max(0.25, el.clientWidth / A4_PX));
+      const available = el.clientWidth - 32; // match the 16px horizontal padding each side used by the viewport
+      const scale = Math.min(1, Math.max(0.25, available / A4_PX));
       setSharedAutoFitScale(scale);
     }
     const obs = new ResizeObserver(measure);
