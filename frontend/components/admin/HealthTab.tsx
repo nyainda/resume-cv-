@@ -243,7 +243,13 @@ export default function HealthTab() {
       setPings(p => ({ ...p, [ep.key]: result }));
     }));
 
-    // Fire webhook alert for newly-failing endpoints
+    // Fire webhook alert for newly-failing endpoints.
+    // NOTE: unlike new_signup/new_signin/signin_spike (which now fire
+    // server-side from the worker — see backend handlers/notifications.ts),
+    // worker_error intentionally stays client-side: it reflects *this
+    // browser's* live health-check pings, which only make sense to run from
+    // an open admin session. It reads the local config cache, which is kept
+    // in sync with the server copy by NotificationsTab on save/load.
     const cfg = loadWebhookConfig();
     if (cfg.url && cfg.events.worker_error) {
       const failing = Object.entries(results).filter(([, r]) => !r.ok);
