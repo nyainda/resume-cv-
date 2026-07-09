@@ -466,6 +466,12 @@ const AppInner: React.FC = () => {
   const [sharedCVId, setSharedCVId] = useState<string | null>(null);
   // Public profile page — separate from the CV share view (#p= route)
   const [publicProfilePayload, setPublicProfilePayload] = useState<SharedCVPayload | null>(null);
+  // True while an async #s= / #p= fetch is in-flight — prevents the main app
+  // from rendering underneath the share view before the payload arrives.
+  const [isLoadingShareLink, setIsLoadingShareLink] = useState<boolean>(() => {
+    const h = window.location.hash;
+    return h.startsWith("#s=") || h.startsWith("#p=");
+  });
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.startsWith("#s=")) {
@@ -480,7 +486,9 @@ const AppInner: React.FC = () => {
               setShowLanding(false);
             }
           }
-        });
+        }).finally(() => setIsLoadingShareLink(false));
+      } else {
+        setIsLoadingShareLink(false);
       }
     } else if (hash.startsWith("#p=")) {
       const slugOrId = hash.slice("#p=".length);
@@ -491,7 +499,9 @@ const AppInner: React.FC = () => {
             setPublicProfilePayload(payload);
             setShowLanding(false);
           }
-        });
+        }).finally(() => setIsLoadingShareLink(false));
+      } else {
+        setIsLoadingShareLink(false);
       }
     } else if (hash.startsWith("#share=")) {
       const encoded = hash.slice("#share=".length);
@@ -700,6 +710,29 @@ const AppInner: React.FC = () => {
   // which left the full dashboard's document-flow height in the DOM behind a
   // `fixed` overlay, producing a second, invisible page-level scrollbar
   // alongside the shared view's own internal scroll container on desktop.
+
+  // While the async #s= / #p= payload is in-flight show a blank loading screen
+  // so the user never sees the main app flashing underneath before the share
+  // view arrives.
+  if (isLoadingShareLink) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-zinc-100 to-[#eeece5] dark:from-neutral-950 dark:to-neutral-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-[#1B2B4B] flex items-center justify-center shadow-lg">
+            <span className="text-white font-black text-sm">CV</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+            <svg className="animate-spin h-4 w-4 text-[#C9A84C]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+            </svg>
+            Loading preview…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (sharedCVPayload) {
     return (
       <SharedCVView
