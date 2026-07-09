@@ -550,6 +550,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('storage', onStorage);
     }, []);
 
+    // ── Background sync 401 → sign-out ───────────────────────────────────────
+    // userDataCloudService fires 'procv:session-expired' whenever the Worker
+    // returns 401 on a background sync call. Without this, the UI stays
+    // "logged in" while every save silently fails — the user sees their data
+    // but the Worker refuses every write.
+    //
+    // Runs the same cleanup as signOut() so auth/storage state is fully reset:
+    // user cache, session fallback token, sign-out sentinel, user namespace,
+    // Drive token + timer, and isNewUser flag.
+
+    useEffect(() => {
+        function onSessionExpired() {
+            // Only act if we believe we're signed in. Ignore the event if we're
+            // already signed out (avoids duplicate teardown on late in-flight 401s).
+            if (!localStorage.getItem(USER_CACHE_KEY)) return;
+
+            // Mirror signOut() cleanup exactly ─────────────────────────────────
+            // Best-effort server-side cookie clear (fire-and-forget so the UI
+            // responds immediately even if the network call is slow/fails).
+            signOutWorker().catch(() => {});
+            clearSessionFallback();
+            clearStorageUser();   // drop user namespace so next user starts clean
+            stampSignedOut();     // sentinel → boot won't auto-relog via stale cookie
+            _saveUser(null);
+
+            // Drive state cleanup
+            setDriveToken(null);
+            setDriveConnected(false);
+            localStorage.removeItem(DRIVE_SCOPE_KEY);
+            if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
+
+            setIsNewUser(false);
+        }
+        window.addEventListener('procv:session-expired', onSessionExpired);
+        return () => window.removeEventListener('procv:session-expired', onSessionExpired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [_saveUser]);
+
     // ── Google sign-in (identity only) ────────────────────────────────────────
 
     const googleSignIn = useCallback(async () => {

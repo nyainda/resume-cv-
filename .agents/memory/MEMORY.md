@@ -1,3 +1,4 @@
+- [Auth 401 session expiry](auth-401-session-expiry.md) — Worker 401s fire CustomEvent('procv:session-expired'); AuthContext listener runs full sign-out cleanup to unblock split-brain "logged in but 401" state.
 - [Replit dev CF proxy setup](replit-dev-cf-proxy.md) — VITE_CV_ENGINE_URL=/cf-engine via Vite proxy; buildEngineURL() helper handles relative vs absolute bases; PDF uses local Playwright server.
 - [CV variance architecture](cv-variance-architecture.md) — verb shuffle (12/30), forbidden rotation (20/30), rhythm constraints, narrative angle system, verbosity jitter — all live in geminiService.ts.
 - [CV examples pool diversity](cv-examples-pool-diversity.md) — NarrativeAngle type in cvExamplesClient.ts; D1 migration 017 adds narrative_angle + voice_name columns; worker ignores gracefully until deployed.
