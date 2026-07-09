@@ -2595,7 +2595,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           <TemplateGallery
             selectedTemplate={template}
             onSelect={setTemplate}
-            cvData={currentCV ?? undefined}
+            cvData={displayCV}
             personalInfo={userProfile.personalInfo}
           />
 
