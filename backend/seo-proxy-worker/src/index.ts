@@ -21,7 +21,8 @@ import { applySeoRewrite }                     from './rewriter';
 import { classifyPath, cacheControlHeader,
          buildCacheKey, addSecurityHeaders }   from './cache';
 import { getJobPage, renderJobPage,
-         renderIndexPage, jobPageUrl }         from './programmatic';
+         renderIndexPage, jobPageUrl,
+         JOB_SLUGS }                          from './programmatic';
 
 export interface Env {
   ORIGIN_URL:      string;
@@ -49,6 +50,35 @@ export default {
     // ── API routes: pass-through, no caching ──────────────────────────────────
     if (kind === 'api') {
       return passThrough(request, originUrl);
+    }
+
+    // ── sitemap.xml — generated dynamically from registered job pages ──────────
+    if (url.pathname === '/sitemap.xml') {
+      const baseUrl = `${url.protocol}//${url.host}`;
+      const now     = new Date().toISOString().split('T')[0];
+      const urls    = [
+        `<url><loc>${baseUrl}/</loc><changefreq>weekly</changefreq><priority>1.0</priority><lastmod>${now}</lastmod></url>`,
+        `<url><loc>${baseUrl}/cv-templates</loc><changefreq>weekly</changefreq><priority>0.9</priority><lastmod>${now}</lastmod></url>`,
+        ...JOB_SLUGS.map(slug =>
+          `<url><loc>${jobPageUrl(slug, baseUrl)}</loc><changefreq>monthly</changefreq><priority>0.8</priority><lastmod>${now}</lastmod></url>`
+        ),
+      ].join('\n  ');
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  ${urls}\n</urlset>`;
+      const headers = new Headers({ 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=3600' });
+      addSecurityHeaders(headers);
+      return new Response(xml, { status: 200, headers });
+    }
+
+    // ── robots.txt — tell Google where the sitemap is ─────────────────────────
+    if (url.pathname === '/robots.txt') {
+      const baseUrl = `${url.protocol}//${url.host}`;
+      const txt = [
+        'User-agent: *',
+        'Allow: /',
+        '',
+        `Sitemap: ${baseUrl}/sitemap.xml`,
+      ].join('\n');
+      return new Response(txt, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });
     }
 
     // ── Programmatic SEO pages — served directly from the worker ──────────────
