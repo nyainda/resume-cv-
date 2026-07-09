@@ -18,6 +18,7 @@
  */
 
 import type { UserProfileSlot, UserProfile } from '../types';
+import { notifySessionExpired } from './sessionEvents';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -73,17 +74,6 @@ export function setUserSessionToken(_token: string | null): void { /* no-op */ }
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
-/**
- * Fires a custom event so AuthContext can sign the user out when the
- * Worker rejects our session. Without this, 401s are silently swallowed
- * and the UI stays "logged in" while every sync operation fails.
- */
-function _notifySessionExpired(): void {
-    try {
-        window.dispatchEvent(new CustomEvent('procv:session-expired'));
-    } catch { /* non-fatal */ }
-}
-
 async function post(path: string, body: object): Promise<boolean> {
     if (!ENGINE_URL || !_isSignedIn()) return false;
     try {
@@ -97,7 +87,7 @@ async function post(path: string, body: object): Promise<boolean> {
             signal: ac.signal,
         });
         clearTimeout(timer);
-        if (res.status === 401) { _notifySessionExpired(); return false; }
+        if (res.status === 401) { notifySessionExpired(); return false; }
         return res.ok;
     } catch {
         return false;
@@ -114,7 +104,7 @@ async function get(path: string): Promise<any | null> {
             signal: ac.signal,
         });
         clearTimeout(timer);
-        if (res.status === 401) { _notifySessionExpired(); return null; }
+        if (res.status === 401) { notifySessionExpired(); return null; }
         if (!res.ok) return null;
         return await res.json();
     } catch {
@@ -325,7 +315,7 @@ export async function deleteSlotFromCloud(slotId: string): Promise<boolean> {
             signal: ac.signal,
         });
         clearTimeout(timer);
-        if (res.status === 401) { _notifySessionExpired(); return false; }
+        if (res.status === 401) { notifySessionExpired(); return false; }
         if (!res.ok) return false;
         // Server returns { ok: true, deleted: bool } — deleted:false means the
         // row wasn't found, but that's still success from our perspective.

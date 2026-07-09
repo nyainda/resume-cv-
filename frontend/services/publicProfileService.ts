@@ -10,6 +10,7 @@
 
 import { SharedCVPayload } from '../components/ShareCVModal';
 import LZString from 'lz-string';
+import { notifySessionExpired } from './sessionEvents';
 
 const ENGINE_BASE: string = (import.meta.env.VITE_CV_ENGINE_URL ?? '').replace(/\/$/, '');
 const TIMEOUT_MS = 6000;
@@ -56,6 +57,7 @@ export async function publishPublicProfile(
             credentials: 'include',
             body: JSON.stringify({ payload: compressed }),
         });
+        if (res.status === 401) { notifySessionExpired(); return null; }
         if (!res.ok) return null;
         const data = await res.json() as { slug?: string; user_id?: number };
         // Prefer slug (non-enumerable); fall back to numeric ID for legacy deployments.
@@ -77,6 +79,7 @@ export async function unpublishPublicProfile(sessionToken: string): Promise<bool
             headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
             credentials: 'include',
         });
+        if (res.status === 401) { notifySessionExpired(); return false; }
         return res.ok;
     } catch {
         return false;

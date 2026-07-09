@@ -18,6 +18,7 @@
  */
 
 import type { UserProfileSlot } from '../types';
+import { notifySessionExpired } from './sessionEvents';
 
 const ENGINE_URL: string = import.meta.env.VITE_CV_ENGINE_URL ?? '';
 const LS_PREFIX = 'cv_builder:profile_cache_hash:';
@@ -185,6 +186,7 @@ export async function syncProfileToCache(slot: UserProfileSlot): Promise<string 
             signal: AbortSignal.timeout(8000),
         });
 
+        if (res.status === 401) { notifySessionExpired(); return null; }
         if (!res.ok) {
             console.warn(`[ProfileCache] Upload failed (HTTP ${res.status}) for slot ${slot.id}`);
             return null;
@@ -215,6 +217,7 @@ export async function ensureProfileCached(slot: UserProfileSlot): Promise<string
                 `${ENGINE_URL}/api/cv/profile?hash=${encodeURIComponent(storedHash)}`,
                 { credentials: 'include', signal: AbortSignal.timeout(3000) }
             );
+            if (check.status === 401) { notifySessionExpired(); return null; }
             if (check.ok) {
                 const data = await check.json() as { found?: boolean };
                 if (data.found) return storedHash;
