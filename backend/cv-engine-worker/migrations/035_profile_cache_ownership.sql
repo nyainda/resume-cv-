@@ -32,16 +32,20 @@ CREATE TABLE IF NOT EXISTS profile_cache_new (
     PRIMARY KEY (user_id, hash)
 );
 
--- Best-effort backfill: only rows whose slot_id maps to exactly one owning
--- user in user_slots can be attributed safely. Anything ambiguous (including
--- the leaked row itself) is dropped rather than guessed.
+-- Best-effort backfill: only rows whose slot_id maps to EXACTLY ONE owning
+-- user in user_slots can be attributed safely. A slot_id shared by more than
+-- one user_id is itself leaked-data evidence (the same failure mode this
+-- migration fixes) — dropping it here matters, because a naive JOIN would
+-- silently duplicate that leaked profile into every matching user's rows
+-- instead of discarding it.
 INSERT OR REPLACE INTO profile_cache_new
     (user_id, hash, slot_id, slot_name, compact_json, created_at, last_used_at, use_count)
 SELECT us.user_id, pc.hash, pc.slot_id, pc.slot_name, pc.compact_json,
        pc.created_at, pc.last_used_at, pc.use_count
 FROM profile_cache pc
 JOIN user_slots us ON us.slot_id = pc.slot_id
-WHERE us.user_id IS NOT NULL;
+WHERE us.user_id IS NOT NULL
+  AND (SELECT COUNT(DISTINCT user_id) FROM user_slots WHERE slot_id = pc.slot_id) = 1;
 
 DROP TABLE profile_cache;
 ALTER TABLE profile_cache_new RENAME TO profile_cache;

@@ -32,3 +32,4 @@
 - [Cloudflare worker deploy drift](cf-worker-deploy-drift.md) — cv-engine-worker source can be "fixed" in-repo but stale live; if a well-documented backend bug recurs, verify D1 directly and redeploy before re-diagnosing.
 - [Fresh import setup](fresh-import-setup.md) — after cloning/importing ProCV, root `npm install` alone fixes both workflows (vite + express missing); no secrets needed for dev.
 - [SEO proxy worker](seo-proxy-worker.md) — CF Worker at backend/seo-proxy-worker/ injects country-aware meta/JSON-LD/hreflang at edge; domain plug-in via wrangler routes, zero code change.
+- [Cross-account cache leak pattern](cross-account-cache-key-pattern.md) — any D1 cache table keyed only by content-hash (not user_id) risks leaking data on hash collisions across accounts; audit every read/write/delete site, not just the primary one.

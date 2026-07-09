@@ -266,7 +266,7 @@ export async function handleCVExamplesPost(request: Request, env: Env): Promise<
  * profile_cache callers MUST authenticate — see handleProfileCacheGet/Post
  * below for why this is no longer optional.
  */
-async function getSessionUserId(request: Request, env: Env): Promise<number | null> {
+export async function getSessionUserId(request: Request, env: Env): Promise<number | null> {
     let token = '';
     const cookieHeader = request.headers.get('Cookie') ?? '';
     const cookieMatch = cookieHeader.match(/(?:^|;\s*)procv_session=([^;]+)/);

@@ -1372,6 +1372,11 @@ export async function workerParallelSections(
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                // credentials: 'include' — needed so the HttpOnly session cookie
+                // reaches the worker; without it, /api/cv/parallel-sections can
+                // never resolve a session and the {{PROFILE}} substitution below
+                // (scoped by user_id, see cache.ts) is always treated as a miss.
+                credentials: 'include',
                 body: JSON.stringify(bodyObj),
             },
             opts.timeoutMs ?? WORKER_PARALLEL_SECTIONS_DEFAULT_TIMEOUT_MS,

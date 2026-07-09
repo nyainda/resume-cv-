@@ -747,17 +747,15 @@ export async function handleAuthDeleteAccount(
     // cannot cause a FK violation on the identity row. Run them first and
     // individually so a partial failure here doesn't abort the critical chain.
 
-    // profile_cache — keyed by slot_id via user_slots
+    // profile_cache — scoped directly by user_id (migration 035). Deliberately
+    // NOT `WHERE slot_id IN (...)`: a slot_id is a client-generated UUID, not a
+    // guaranteed-unique key across accounts (that collision is exactly the bug
+    // migration 035 fixed), so deleting by slot_id membership could remove
+    // another user's rows if their slot_id ever collided with this one.
+    // Deleting by this account's own user_id can only ever touch its own rows.
     await env.CV_DB.prepare(
-        `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE user_id = ?)`,
+        `DELETE FROM profile_cache WHERE user_id = ?`,
     ).bind(uid).run().catch(() => {});
-
-    if (deviceId) {
-        // Orphaned profile_cache rows for anonymous (device_id-only) slots
-        await env.CV_DB.prepare(
-            `DELETE FROM profile_cache WHERE slot_id IN (SELECT slot_id FROM user_slots WHERE device_id = ? AND user_id IS NULL)`,
-        ).bind(deviceId).run().catch(() => {});
-    }
 
     // ── Step 3: Atomic FK-chain deletion via D1 batch ─────────────────────────
     //

@@ -8,6 +8,7 @@ import {
     _CV_SYSTEM_VALIDATOR,
     _CV_SYSTEM_AUDIT,
 } from './purify';
+import { getSessionUserId } from './cache';
 
 // ─── BYOK model catalogs + fallback chains ───────────────────────────────────
 // Providers routinely retire or rename models (e.g. Anthropic sunsetting a
@@ -561,20 +562,32 @@ export async function handleParallelSections(request: Request, env: Env): Promis
     let preamble = rawPreamble;
     const PROFILE_PLACEHOLDER = '{{PROFILE}}';
     if (profileHash && preamble.includes(PROFILE_PLACEHOLDER)) {
-        try {
-            const row = await env.CV_DB.prepare(
-                `SELECT compact_json FROM profile_cache WHERE hash = ?`
-            ).bind(profileHash).first<{ compact_json: string }>();
+        // SECURITY: profile_cache is scoped by (user_id, hash) — see migration 035
+        // and handlers/cache.ts. This lookup used to be `WHERE hash = ?` with no
+        // user scoping at all, which was the same cross-account leak vector as
+        // the one fixed in cache.ts, just reachable through the generation path
+        // instead of the cache endpoints directly. A profile can only ever be
+        // cached by an authenticated owner (handleProfileCachePost requires a
+        // session), so an unauthenticated or session-less request here has no
+        // legitimate cached profile to read — treat it as a cache miss, never
+        // fall back to a hash-only global lookup.
+        const sessionUserId = await getSessionUserId(request, env);
+        if (sessionUserId) {
+            try {
+                const row = await env.CV_DB.prepare(
+                    `SELECT compact_json FROM profile_cache WHERE user_id = ? AND hash = ?`
+                ).bind(sessionUserId, profileHash).first<{ compact_json: string }>();
 
-            if (row?.compact_json) {
-                preamble = preamble.replaceAll(PROFILE_PLACEHOLDER, row.compact_json);
-                const now = Math.floor(Date.now() / 1000);
-                env.CV_DB.prepare(
-                    `UPDATE profile_cache SET last_used_at = ?, use_count = use_count + 1 WHERE hash = ?`
-                ).bind(now, profileHash).run().catch(() => {});
+                if (row?.compact_json) {
+                    preamble = preamble.replaceAll(PROFILE_PLACEHOLDER, row.compact_json);
+                    const now = Math.floor(Date.now() / 1000);
+                    env.CV_DB.prepare(
+                        `UPDATE profile_cache SET last_used_at = ?, use_count = use_count + 1 WHERE user_id = ? AND hash = ?`
+                    ).bind(now, sessionUserId, profileHash).run().catch(() => {});
+                }
+            } catch {
+                // D1 read failure — leave preamble as-is
             }
-        } catch {
-            // D1 read failure — leave preamble as-is
         }
     }
 
