@@ -1,7 +1,13 @@
 /// <reference types="@cloudflare/workers-types" />
 import { Env, kvd } from '../types';
-import { json, corsHeaders } from '../utils';
+import { json, corsHeaders, rateLimitRequest, rateLimitResponse } from '../utils';
 import { verifySession } from './auth';
+
+// Hard cap on cached profile snapshots kept per user. This is a structural
+// bound, not just a time-based cleanup: it guarantees a single account
+// (malicious or buggy client stuck in a save-loop) can never grow this table
+// without limit, regardless of how fast it writes or how long ago it started.
+const PROFILE_CACHE_MAX_ROWS_PER_USER = 20;
 
 // ─── LLM cache constants ──────────────────────────────────────────────────────
 const LLM_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -303,6 +309,9 @@ export async function handleProfileCacheGet(request: Request, env: Env, url: URL
     const hash = (url.searchParams.get('hash') ?? '').trim();
     if (!hash || hash.length < 16) return json({ error: 'invalid_hash' }, request, env, 400);
 
+    const rl = await rateLimitRequest(env, request, 'cache', 60, 60);
+    if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
+
     const userId = await getSessionUserId(request, env);
     if (!userId) return json({ error: 'unauthorized' }, request, env, 401);
 
@@ -321,6 +330,15 @@ export async function handleProfileCacheGet(request: Request, env: Env, url: URL
 }
 
 export async function handleProfileCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Rate-limit writes: bounds both accidental double-fire (e.g. two tabs /
+    // a retry racing a slow request) and any client stuck in a save-loop from
+    // hammering D1. Concurrent identical writes are also safe at the DB level
+    // — the INSERT below is an atomic UPSERT keyed by (user_id, hash), so two
+    // simultaneous requests for the same profile snapshot just resolve to the
+    // same row, never a duplicate or a race.
+    const rl = await rateLimitRequest(env, request, 'cache', 30, 60);
+    if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
+
     const userId = await getSessionUserId(request, env);
     if (!userId) return json({ error: 'unauthorized' }, request, env, 401);
 
@@ -360,6 +378,21 @@ export async function handleProfileCachePost(request: Request, env: Env, ctx: Ex
         env.CV_DB.prepare(
             `DELETE FROM profile_cache WHERE user_id = ? AND slot_id = ? AND hash != ? AND last_used_at < ?`
         ).bind(userId, slotId, hash, ninetyDaysAgo).run().catch(() => {})
+    );
+
+    // Structural row cap (Rule: bound DB growth, not just age it out). Even if
+    // a client somehow wrote a new distinct hash every minute forever, this
+    // guarantees no single account can ever hold more than
+    // PROFILE_CACHE_MAX_ROWS_PER_USER rows — oldest-by-last-use is evicted
+    // first, regardless of the 90-day window above.
+    ctx.waitUntil(
+        env.CV_DB.prepare(
+            `DELETE FROM profile_cache
+             WHERE user_id = ? AND hash NOT IN (
+                 SELECT hash FROM profile_cache WHERE user_id = ?
+                 ORDER BY last_used_at DESC LIMIT ?
+             )`
+        ).bind(userId, userId, PROFILE_CACHE_MAX_ROWS_PER_USER).run().catch(() => {})
     );
 
     return json({ ok: true, hash, cached: true }, request, env);
