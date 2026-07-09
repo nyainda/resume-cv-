@@ -4,7 +4,7 @@ uploads = []
 id = "-DCLspts4GGj6_C_HwxTC"
 uri = "file://frontend/public/og-image.png"
 type = "image"
-title = "ProCV OG social image"
+title = "ProCV OG social share banner"
 
 [[outputs]]
 id = "92l1e6VT6zGmrFfhNscy-"
@@ -23,3 +23,9 @@ id = "WYkj6vHChwiMojZGpQw5S"
 uri = "file://docs/REFACTOR_ROADMAP.md"
 type = "text"
 title = "Full Codebase Refactor Roadmap"
+
+[[outputs]]
+id = "RygCMwncPz2RW0cw5PvIp"
+uri = "file://frontend/public/og-image.png"
+type = "image"
+title = "ProCV OG Image (1408×768 PNG)"
