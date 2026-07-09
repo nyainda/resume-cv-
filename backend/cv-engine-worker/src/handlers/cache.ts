@@ -261,19 +261,10 @@ export async function handleCVExamplesPost(request: Request, env: Env): Promise<
 
 /**
  * Resolves the authenticated user_id from the request session.
+ * Mirrors getUserIdFromRequest() in user.ts (cookie-first, Bearer fallback).
  *
- * BUG (cross-account profile_cache leak): this used to only read an
- * `Authorization: Bearer` header via bearerToken(). The frontend moved to
- * HttpOnly-cookie sessions (credentials: 'include', no Bearer header) a while
- * ago — see frontend/services/profileCacheClient.ts — so that check silently
- * never matched a real logged-in request. Every call to /api/cv/profile was
- * therefore treated as anonymous, and the ownership guards below (which only
- * run `if (token)`) never executed. Since profile_cache is keyed globally by
- * content hash (not by user), two different accounts whose compact profile
- * happened to hash identically (e.g. a default/empty profile before either
- * had entered real data) could read back — and then keep saving under —
- * each other's slot_id. This mirrors getUserIdFromRequest() in user.ts so the
- * same cookie-based session is recognized here too.
+ * profile_cache callers MUST authenticate — see handleProfileCacheGet/Post
+ * below for why this is no longer optional.
  */
 async function getSessionUserId(request: Request, env: Env): Promise<number | null> {
     let token = '';
@@ -292,53 +283,47 @@ async function getSessionUserId(request: Request, env: Env): Promise<number | nu
 }
 
 /**
- * Return true when the given slot_id is owned by the authenticated user.
- * A slot is "owned" when a user_slots row exists with matching slot_id AND user_id.
+ * FINDING (cross-account profile_cache leak, closed by migration 035):
+ * profile_cache used to be keyed globally by content hash alone, with an
+ * "optional" ownership check that only ran once a session was already
+ * resolved — and that resolution used to look for a Bearer header the
+ * frontend stopped sending, so the guard was silently dead. Any two accounts
+ * whose compact profile hashed identically (e.g. two fresh/near-empty
+ * profiles) could read and then keep writing under each other's slot_id.
+ * Confirmed real: accounts 96 and 100 shared a slot via hash fb11a5d....
+ *
+ * Hard fix, not a patched guard: both endpoints below now REQUIRE a valid
+ * session (fail closed, 401 — same as every other endpoint touching
+ * user_slots) and every query is scoped by (user_id, hash) via the table's
+ * own PRIMARY KEY. A hash collision between two different users can never
+ * resolve to the same row — they are physically different rows. There is no
+ * "if authenticated" branch left to silently skip.
  */
-async function slotOwnedByUser(slotId: string, userId: number, env: Env): Promise<boolean> {
-    const row = await env.CV_DB.prepare(
-        `SELECT 1 FROM user_slots WHERE slot_id = ? AND user_id = ? LIMIT 1`
-    ).bind(slotId, userId).first<{ 1: number }>();
-    return !!row;
-}
-
 export async function handleProfileCacheGet(request: Request, env: Env, url: URL): Promise<Response> {
     const hash = (url.searchParams.get('hash') ?? '').trim();
     if (!hash || hash.length < 16) return json({ error: 'invalid_hash' }, request, env, 400);
 
-    // ── Optional auth guard (Finding 3) ───────────────────────────────────────
-    // Authenticated callers must present a valid session token AND must own the
-    // slot that the requested hash belongs to.  Anonymous callers (no header)
-    // continue to use hash-only access so offline / device-only mode keeps working.
-    const sessionUserId = await getSessionUserId(request, env);
-    if (sessionUserId) {
-        // Peek at the slot_id stored for this hash — we need it for ownership check.
-        const slotRow = await env.CV_DB.prepare(
-            `SELECT slot_id FROM profile_cache WHERE hash = ?`
-        ).bind(hash).first<{ slot_id: string }>();
-
-        if (slotRow) {
-            const owned = await slotOwnedByUser(slotRow.slot_id, sessionUserId, env);
-            if (!owned) return json({ error: 'forbidden' }, request, env, 403);
-        }
-        // If no row → fall through to the normal 404 response below.
-    }
+    const userId = await getSessionUserId(request, env);
+    if (!userId) return json({ error: 'unauthorized' }, request, env, 401);
 
     const row = await env.CV_DB.prepare(
-        `SELECT compact_json, slot_id, slot_name FROM profile_cache WHERE hash = ?`
-    ).bind(hash).first<{ compact_json: string; slot_id: string; slot_name: string }>();
+        `SELECT compact_json, slot_id, slot_name FROM profile_cache WHERE user_id = ? AND hash = ?`
+    ).bind(userId, hash).first<{ compact_json: string; slot_id: string; slot_name: string }>();
 
     if (!row) return json({ found: false }, request, env, 404);
 
     const now = Math.floor(Date.now() / 1000);
     env.CV_DB.prepare(
-        `UPDATE profile_cache SET last_used_at = ?, use_count = use_count + 1 WHERE hash = ?`
-    ).bind(now, hash).run().catch(() => {});
+        `UPDATE profile_cache SET last_used_at = ?, use_count = use_count + 1 WHERE user_id = ? AND hash = ?`
+    ).bind(now, userId, hash).run().catch(() => {});
 
     return json({ found: true, hash, slot_id: row.slot_id, slot_name: row.slot_name, compact_json: row.compact_json }, request, env);
 }
 
 export async function handleProfileCachePost(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const userId = await getSessionUserId(request, env);
+    if (!userId) return json({ error: 'unauthorized' }, request, env, 401);
+
     let body: any;
     try { body = await request.json(); } catch { return json({ error: 'invalid_json' }, request, env, 400); }
 
@@ -352,31 +337,29 @@ export async function handleProfileCachePost(request: Request, env: Env, ctx: Ex
     if (!compactJson)               return json({ error: 'missing_compact_json' }, request, env, 400);
     if (compactJson.length > 65536) return json({ error: 'compact_json_too_large', max: 65536 }, request, env, 413);
 
-    // ── Optional auth guard for POST ──────────────────────────────────────────
-    // Authenticated callers must own the slot they're caching data for.
-    // This prevents cross-user cache poisoning: an attacker who knows a slot_id
-    // cannot overwrite another user's cached profile with malicious content.
-    const sessionUserId = await getSessionUserId(request, env);
-    if (sessionUserId) {
-        const owned = await slotOwnedByUser(slotId, sessionUserId, env);
-        if (!owned) return json({ error: 'forbidden' }, request, env, 403);
-    }
+    // Slot ownership is still verified so an attacker who guesses another
+    // user's slot_id cannot even attribute a cache row to it under their own
+    // user_id namespace with a spoofed slot_id.
+    const slotRow = await env.CV_DB.prepare(
+        `SELECT 1 FROM user_slots WHERE slot_id = ? AND user_id = ? LIMIT 1`
+    ).bind(slotId, userId).first<{ 1: number }>();
+    if (!slotRow) return json({ error: 'forbidden' }, request, env, 403);
 
     const now = Math.floor(Date.now() / 1000);
 
     await env.CV_DB.prepare(
-        `INSERT INTO profile_cache (hash, slot_id, slot_name, compact_json, created_at, last_used_at, use_count)
-         VALUES (?, ?, ?, ?, ?, ?, 0)
-         ON CONFLICT(hash) DO UPDATE SET
+        `INSERT INTO profile_cache (user_id, hash, slot_id, slot_name, compact_json, created_at, last_used_at, use_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+         ON CONFLICT(user_id, hash) DO UPDATE SET
              last_used_at = excluded.last_used_at,
              slot_name    = excluded.slot_name`
-    ).bind(hash, slotId, slotName, compactJson, now, now).run();
+    ).bind(userId, hash, slotId, slotName, compactJson, now, now).run();
 
     const ninetyDaysAgo = now - 90 * 24 * 3600;
     ctx.waitUntil(
         env.CV_DB.prepare(
-            `DELETE FROM profile_cache WHERE slot_id = ? AND hash != ? AND last_used_at < ?`
-        ).bind(slotId, hash, ninetyDaysAgo).run().catch(() => {})
+            `DELETE FROM profile_cache WHERE user_id = ? AND slot_id = ? AND hash != ? AND last_used_at < ?`
+        ).bind(userId, slotId, hash, ninetyDaysAgo).run().catch(() => {})
     );
 
     return json({ ok: true, hash, cached: true }, request, env);
