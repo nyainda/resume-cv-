@@ -530,15 +530,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         function onStorage(e: StorageEvent) {
             if (e.key !== USER_CACHE_KEY) return;
             if (!e.newValue) {
-                // Another tab signed out — mirror it fully here.
-                // setUser(null) alone leaves Drive tokens alive; clear everything
-                // so this tab cannot keep syncing to Drive as a ghost session.
+                // Another tab signed out OR deleted its account.
+                //
+                // CRITICAL: this tab may still hold a different (stale) in-memory
+                // profile/slot in React state, with a debounced sync-queue flush
+                // timer already armed. If we only clear the display state here,
+                // that pending flush can still fire — carrying THIS tab's stale
+                // profile data — and land under whatever session cookie the
+                // browser now has (the other tab may have already signed into a
+                // brand-new account by the time this flush runs). That is the
+                // exact mechanism behind the cross-account data leak: two tabs
+                // open, one deletes/switches, the other's background autosave
+                // silently attributes its old data to the new account.
+                //
+                // Fix: treat ANY auth-state change observed from another tab as
+                // untrustworthy for this tab's in-memory state. Cancel this
+                // tab's queued syncs and force a full reload so it re-derives
+                // everything from scratch (fresh session, fresh namespace).
+                clearQueueForAccount().catch(() => {});
                 setUser(null);
                 setDriveToken(null);
                 setDriveConnected(false);
                 localStorage.removeItem(DRIVE_SCOPE_KEY);
                 if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
                 stampSignedOut(); // prevent auto-relog on next boot
+                window.location.reload();
                 return;
             }
             try {
@@ -546,8 +562,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (!incoming?.email) return;
                 // Use lastKnownEmailRef (not React state) — avoids setState-inside-setState.
                 const prevEmail = lastKnownEmailRef.current;
-                if (prevEmail && incoming.email !== prevEmail) {
-                    // Different user signed in on another tab → wipe and reload.
+                if (!prevEmail || incoming.email !== prevEmail) {
+                    // Different user signed in on another tab (or this tab had no
+                    // user of its own yet) → this tab's in-memory state cannot be
+                    // trusted to belong to the new account. Cancel any queued sync
+                    // for this tab and reload so it starts clean under the new
+                    // session/namespace.
+                    clearQueueForAccount().catch(() => {});
                     wipeLocalAppData();
                     window.location.reload();
                 }
