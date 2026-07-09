@@ -260,11 +260,35 @@ export async function handleCVExamplesPost(request: Request, env: Env): Promise<
 }
 
 /**
- * Extract the Bearer token from an Authorization header, or return null.
+ * Resolves the authenticated user_id from the request session.
+ *
+ * BUG (cross-account profile_cache leak): this used to only read an
+ * `Authorization: Bearer` header via bearerToken(). The frontend moved to
+ * HttpOnly-cookie sessions (credentials: 'include', no Bearer header) a while
+ * ago — see frontend/services/profileCacheClient.ts — so that check silently
+ * never matched a real logged-in request. Every call to /api/cv/profile was
+ * therefore treated as anonymous, and the ownership guards below (which only
+ * run `if (token)`) never executed. Since profile_cache is keyed globally by
+ * content hash (not by user), two different accounts whose compact profile
+ * happened to hash identically (e.g. a default/empty profile before either
+ * had entered real data) could read back — and then keep saving under —
+ * each other's slot_id. This mirrors getUserIdFromRequest() in user.ts so the
+ * same cookie-based session is recognized here too.
  */
-function bearerToken(request: Request): string | null {
-    const h = request.headers.get('Authorization') ?? '';
-    return h.startsWith('Bearer ') ? h.slice(7).trim() : null;
+async function getSessionUserId(request: Request, env: Env): Promise<number | null> {
+    let token = '';
+    const cookieHeader = request.headers.get('Cookie') ?? '';
+    const cookieMatch = cookieHeader.match(/(?:^|;\s*)procv_session=([^;]+)/);
+    if (cookieMatch) token = cookieMatch[1].trim();
+
+    if (!token) {
+        const authHeader = request.headers.get('Authorization') ?? '';
+        token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    }
+    if (!token) return null;
+
+    const session = await verifySession(token, env);
+    return session?.userId ?? null;
 }
 
 /**
@@ -286,18 +310,15 @@ export async function handleProfileCacheGet(request: Request, env: Env, url: URL
     // Authenticated callers must present a valid session token AND must own the
     // slot that the requested hash belongs to.  Anonymous callers (no header)
     // continue to use hash-only access so offline / device-only mode keeps working.
-    const token = bearerToken(request);
-    if (token) {
-        const session = await verifySession(token, env);
-        if (!session) return json({ error: 'invalid_session' }, request, env, 401);
-
+    const sessionUserId = await getSessionUserId(request, env);
+    if (sessionUserId) {
         // Peek at the slot_id stored for this hash — we need it for ownership check.
         const slotRow = await env.CV_DB.prepare(
             `SELECT slot_id FROM profile_cache WHERE hash = ?`
         ).bind(hash).first<{ slot_id: string }>();
 
         if (slotRow) {
-            const owned = await slotOwnedByUser(slotRow.slot_id, session.userId, env);
+            const owned = await slotOwnedByUser(slotRow.slot_id, sessionUserId, env);
             if (!owned) return json({ error: 'forbidden' }, request, env, 403);
         }
         // If no row → fall through to the normal 404 response below.
@@ -335,11 +356,9 @@ export async function handleProfileCachePost(request: Request, env: Env, ctx: Ex
     // Authenticated callers must own the slot they're caching data for.
     // This prevents cross-user cache poisoning: an attacker who knows a slot_id
     // cannot overwrite another user's cached profile with malicious content.
-    const token = bearerToken(request);
-    if (token) {
-        const session = await verifySession(token, env);
-        if (!session) return json({ error: 'invalid_session' }, request, env, 401);
-        const owned = await slotOwnedByUser(slotId, session.userId, env);
+    const sessionUserId = await getSessionUserId(request, env);
+    if (sessionUserId) {
+        const owned = await slotOwnedByUser(slotId, sessionUserId, env);
         if (!owned) return json({ error: 'forbidden' }, request, env, 403);
     }
 
