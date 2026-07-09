@@ -246,6 +246,37 @@ export async function handleUserSlotsPost(request: Request, env: Env, ctx: Execu
 
     const now = Math.floor(Date.now() / 1000);
 
+    // Ownership guard (closes the "stale local profile survives an account
+    // switch" leak — confirmed real: accounts 96 and 100 both pushed slot_ids
+    // 19d900e7... and 84655339... within minutes of each other on 2026-07-09).
+    // slot_id is client-generated (crypto.randomUUID()); if the browser's
+    // local profile data isn't fully wiped before/at an account switch, the
+    // client can replay the SAME slot_id under a different authenticated
+    // user_id. Since user_slots' primary key is (user_id, slot_id), that
+    // upsert doesn't conflict there — it would just create a second,
+    // wrongly-attributed row for the same client-side profile.
+    //
+    // This must be an atomic claim, not a check-then-insert: a plain
+    // "SELECT owner, then INSERT if free" has a race where two concurrent
+    // first-writes for the same slot_id (different users) can both pass the
+    // SELECT before either commits. `slot_ownership` has slot_id as its own
+    // PRIMARY KEY, so `INSERT ... ON CONFLICT DO NOTHING` is atomic at the
+    // DB level — only one claimant can ever win a given slot_id.
+    const claim = await env.CV_DB.prepare(
+        `INSERT INTO slot_ownership (slot_id, user_id, claimed_at) VALUES (?, ?, ?)
+         ON CONFLICT(slot_id) DO NOTHING`
+    ).bind(slotId, userId, now).run();
+
+    if ((claim.meta?.changes ?? 0) === 0) {
+        // Someone already owns this slot_id — verify it's us.
+        const owner = await env.CV_DB.prepare(
+            `SELECT user_id FROM slot_ownership WHERE slot_id = ?`
+        ).bind(slotId).first<{ user_id: number }>();
+        if (!owner || owner.user_id !== userId) {
+            return json({ error: 'slot_id_owned_by_another_account' }, request, env, 409);
+        }
+    }
+
     // Single user-scoped upsert — no fallback branch.
     // Rule 3 (Identity & Ownership Directive): once authenticated, every write is
     // scoped by user_id alone. The old device-scoped fallback was the root cause of

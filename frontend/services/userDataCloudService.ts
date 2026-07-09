@@ -18,7 +18,7 @@
  */
 
 import type { UserProfileSlot, UserProfile } from '../types';
-import { notifySessionExpired } from './sessionEvents';
+import { notifySessionExpired, notifySlotOwnershipConflict } from './sessionEvents';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -74,6 +74,11 @@ export function setUserSessionToken(_token: string | null): void { /* no-op */ }
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
+/** Thrown by post() when the server reports slot_id_owned_by_another_account (409). */
+export class SlotOwnershipConflictError extends Error {
+    constructor() { super('slot_id_owned_by_another_account'); }
+}
+
 async function post(path: string, body: object): Promise<boolean> {
     if (!ENGINE_URL || !_isSignedIn()) return false;
     try {
@@ -88,8 +93,19 @@ async function post(path: string, body: object): Promise<boolean> {
         });
         clearTimeout(timer);
         if (res.status === 401) { notifySessionExpired(); return false; }
+        if (res.status === 409) {
+            // A stale local profile (carrying a slot_id minted while a different
+            // account was active on this device/browser — e.g. an account switch
+            // whose local-data wipe didn't finish before this write went out)
+            // tried to claim a slot_id another account already owns server-side.
+            // The server has correctly refused the write. Surface this distinctly
+            // so callers can force a clean local reset instead of silently
+            // retrying forever against the same rejected slot_id.
+            throw new SlotOwnershipConflictError();
+        }
         return res.ok;
-    } catch {
+    } catch (err) {
+        if (err instanceof SlotOwnershipConflictError) throw err;
         return false;
     }
 }
@@ -189,7 +205,26 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
                 localStorage.setItem(SLOT_SYNC_TS_PREFIX + slot.id, String(Date.now()));
             } catch { /* ignore */ }
         }
-    } catch { /* silent */ }
+    } catch (err) {
+        if (err instanceof SlotOwnershipConflictError) {
+            // Stale cross-account local data — this slot_id (minted on a
+            // different account's session on this device) is rejected by the
+            // server. This is NOT a session problem, so we must not sign the
+            // user out (notifySessionExpired is for 401s only). Instead, drop
+            // this slot's local sync bookkeeping so it stops being treated as
+            // "already synced" and AuthContext can purge/regenerate it.
+            console.warn(
+                `[D1 sync] Slot "${slot.name}" (${slot.id}) is owned by a different account — ` +
+                `purging this slot's local sync state.`
+            );
+            try {
+                localStorage.removeItem(SLOT_HASH_PREFIX + slot.id);
+                localStorage.removeItem(SLOT_SYNC_TS_PREFIX + slot.id);
+            } catch { /* ignore */ }
+            notifySlotOwnershipConflict(slot.id);
+        }
+        /* other errors: silent */
+    }
 }
 
 /**

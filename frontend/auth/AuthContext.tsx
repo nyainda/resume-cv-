@@ -643,6 +643,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [_saveUser]);
 
+    // ── Slot ownership conflict (409) — NOT a session problem ────────────────
+    // userDataCloudService fires 'procv:slot-ownership-conflict' when the
+    // Worker refuses to write a slot because its slot_id is already owned by
+    // a different account (stale local data from an earlier account switch on
+    // this device). The current session is still valid, so this must never
+    // sign the user out. It already cleared that slot's local sync hash/
+    // timestamp so it won't be silently treated as "in sync"; we just log it
+    // here for visibility. The profile itself is untouched — the next edit to
+    // that slot will keep failing to push under this ID, which is intentional
+    // (better a visibly-stuck sync than silently corrupting another account).
+    useEffect(() => {
+        function onSlotOwnershipConflict(e: Event) {
+            const slotId = (e as CustomEvent<{ slotId?: string }>).detail?.slotId;
+            console.warn(
+                `[Auth] Slot ${slotId ?? '(unknown)'} is owned by a different account on this device ` +
+                `and will not sync under the current session. This does not affect your current sign-in.`
+            );
+        }
+        window.addEventListener('procv:slot-ownership-conflict', onSlotOwnershipConflict);
+        return () => window.removeEventListener('procv:slot-ownership-conflict', onSlotOwnershipConflict);
+    }, []);
+
     // ── Google sign-in (identity only) ────────────────────────────────────────
 
     const googleSignIn = useCallback(async () => {
