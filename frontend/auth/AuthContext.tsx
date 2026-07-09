@@ -55,6 +55,7 @@ import {
     ACCOUNT_HASH_KEY,
     SIGNED_OUT_SENTINEL,
 } from '../utils/clearUserStorage';
+import { migrateDriveFilesToUserScope } from '../services/storage/DriveStorageService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -671,7 +672,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(DRIVE_SCOPE_KEY, '1');
         setDriveConnected(true);
         _scheduleDriveRefresh(expiresAt);
-    }, [_scheduleDriveRefresh, user?.email]);
+
+        // One-time migration: rename any legacy Drive files (cvb__key.json) to
+        // the user-scoped format (cvb__u{id}__key.json) so existing backups are
+        // readable with the new structural filename convention.
+        //
+        // AWAITED — not fire-and-forget.  Callers (App.tsx, CloudBackupSettings.tsx)
+        // call migrateLocalToDrive() immediately after requestDriveAccess() resolves.
+        // If the rename runs concurrently with the upload, the upload creates NEW
+        // user-scoped files while old files are being renamed, leaving duplicates.
+        // Awaiting here ensures the Drive namespace is fully upgraded before any
+        // read or write uses the new filename convention.
+        //
+        // Failures are caught and swallowed; migrateDriveFilesToUserScope only
+        // clears its "done" flag when ALL renames succeed, so a partial failure
+        // is automatically retried on the next Drive connect.
+        if (user?.id) {
+            await migrateDriveFilesToUserScope(accessToken, String(user.id)).catch(() => {});
+        }
+    }, [_scheduleDriveRefresh, user?.email, user?.id]);
 
     const disconnectDrive = useCallback(() => {
         localStorage.removeItem(DRIVE_SCOPE_KEY);

@@ -17,6 +17,7 @@ import { IStorageService } from './IStorageService';
 import { LocalStorageService } from './LocalStorageService';
 import { DriveStorageService } from './DriveStorageService';
 import { DriveConflictError, dispatchConflict } from './storageErrors';
+import { getStorageUserId } from './userStorageNamespace';
 
 const TOKEN_KEY = 'cv_gdrive_token';
 const EXPIRY_KEY = 'cv_gdrive_expiry';
@@ -40,9 +41,11 @@ function getCacheService(): LocalStorageService {
     return _cache;
 }
 
-function getDriveService(token: string, email?: string): DriveStorageService {
-    if (!_drive || _drive.currentToken !== token) {
-        _drive = new DriveStorageService(token, email);
+function getDriveService(token: string, userId?: string | null): DriveStorageService {
+    const uid = userId ?? getStorageUserId();
+    // Rebuild the singleton if token OR userId changes (account switch).
+    if (!_drive || _drive.currentToken !== token || _drive.userId !== uid) {
+        _drive = new DriveStorageService(token, uid);
     }
     return _drive;
 }
@@ -150,7 +153,8 @@ export function getStorageService(): IStorageService {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
     if (token && Date.now() < expiry && hasDriveScope()) {
-        const drive = getDriveService(token);
+        // Pass current userId so DriveStorageService names files cvb__u{id}__key.json
+        const drive = getDriveService(token, getStorageUserId());
         const local = getCacheService();
         return new WriteThroughDriveService(drive, local);
     }
@@ -162,7 +166,7 @@ export function getDriveRouter(): WriteThroughDriveService | null {
     const token = localStorage.getItem(TOKEN_KEY);
     const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
     if (token && Date.now() < expiry && hasDriveScope()) {
-        const drive = getDriveService(token);
+        const drive = getDriveService(token, getStorageUserId());
         const local = getCacheService();
         return new WriteThroughDriveService(drive, local);
     }
@@ -205,7 +209,9 @@ export async function migrateLocalToDrive(
     if (!token) throw new Error('Not signed in to Google');
 
     const cache = getCacheService();
-    const drive = getDriveService(token, userEmail);
+    // Always use the numeric ProCV userId (not email) so Drive filenames match
+    // the cvb__u{userId}__key.json convention enforced throughout the service.
+    const drive = getDriveService(token, getStorageUserId());
 
     const allData = await cache.dumpAll();
     const entries = Object.entries(allData);
@@ -233,7 +239,7 @@ export async function restoreDriveToLocal(userEmail?: string): Promise<void> {
     if (!token) throw new Error('Not signed in to Google');
 
     const cache = getCacheService();
-    const drive = getDriveService(token, userEmail);
+    const drive = getDriveService(token, getStorageUserId());
 
     const keys = await drive.list();
     for (const k of keys) {

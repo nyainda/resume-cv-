@@ -13,30 +13,52 @@
 
 import { IStorageService } from './IStorageService';
 import { DriveConflictError } from './storageErrors';
-import { getUserPrefix } from './userStorageNamespace';
+import { getUserPrefix, getStorageUserId } from './userStorageNamespace';
 
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
-// Bug 4 fix: mtime keys are scoped per user so timestamps from user A don't
-// contaminate conflict detection for user B on a shared device.
-const GLOBAL_MTIME_PREFIX = 'cv_drv_mtime:';
 
 interface FileMeta {
     id: string;
     modifiedTime: string;
 }
 
+// ── Filename format ──────────────────────────────────────────────────────────
+//
+// New format (structural account isolation):
+//   cvb__u{procvUserId}__{key}.json
+//
+//   The ProCV user ID is embedded in every Drive filename.  This means that
+//   even if the wrong Google account's Drive is connected (e.g. browser
+//   auto-selects a different Google session during the consent popup), that
+//   account's appDataFolder will contain files named for a DIFFERENT ProCV
+//   user ID — so `findFileWithMeta` returns null for every key and no data
+//   is ever loaded into the wrong session.  The mismatch becomes a hard
+//   filesystem boundary, not a runtime check.
+//
+// Legacy format (pre-structural fix):
+//   cvb__{key}.json
+//
+//   Old files are detected and renamed by `migrateDriveFilesToUserScope()`,
+//   which runs once after Drive is connected.  Until migration completes,
+//   loads fall back to localStorage (which still holds the user's local data).
+
 export class DriveStorageService implements IStorageService {
     readonly isPersistent = true;
     readonly label = 'Google Drive';
     readonly currentToken: string;
+    /** ProCV user ID embedded in every Drive filename for structural isolation. */
+    readonly userId: string;
     private readonly mtimePrefix: string;
 
-    constructor(token: string, _userEmail?: string) {
+    constructor(token: string, userId?: string | null) {
         this.currentToken = token;
-        // mtime keys are user-scoped via the namespace prefix so Drive conflict
-        // timestamps are fully isolated between accounts on the same device.
-        // getUserPrefix() is synchronous (reads in-memory cache set at login).
+        // Prefer the explicitly passed userId; fall back to the in-memory
+        // namespace cache.  Drive should never be activated for anonymous users,
+        // but 'anon' is a safe sentinel if somehow it is.
+        this.userId = userId ?? getStorageUserId() ?? 'anon';
+        // mtime keys are user-scoped so Drive conflict timestamps are fully
+        // isolated between accounts on the same device.
         this.mtimePrefix = `${getUserPrefix()}cv_drv_mtime:`;
     }
 
@@ -89,7 +111,12 @@ export class DriveStorageService implements IStorageService {
         );
         if (!res.ok) return [];
         const json = await res.json();
+        // Only return keys for files that belong to THIS user (correct prefix).
+        // Files from a mismatched Google account will have a different userId
+        // prefix and are silently skipped — they are never loaded.
+        const userPrefix = `cvb__u${this.userId}__`;
         return (json.files as Array<{ name: string }>)
+            .filter((f) => f.name.startsWith(userPrefix))
             .map((f) => this.fromFilename(f.name))
             .filter(Boolean);
     }
@@ -155,12 +182,21 @@ export class DriveStorageService implements IStorageService {
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private toFilename(key: string): string {
-        return `cvb__${key.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
+        // New format: cvb__u{userId}__{safeKey}.json
+        // The userId prefix makes cross-account leaks impossible at the
+        // filesystem level — a wrong Google account's Drive contains files
+        // with a different userId prefix, so findFileWithMeta returns null.
+        const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, '_');
+        return `cvb__u${this.userId}__${safeKey}.json`;
     }
 
     private fromFilename(name: string): string {
-        const m = name.match(/^cvb__(.+)\.json$/);
-        return m ? m[1] : '';
+        // New format: cvb__u{userId}__{key}.json
+        const newMatch = name.match(/^cvb__u[^_]+__(.+)\.json$/);
+        if (newMatch) return newMatch[1];
+        // Legacy format: cvb__{key}.json (pre-structural-fix files)
+        const legacyMatch = name.match(/^cvb__(.+)\.json$/);
+        return legacyMatch ? legacyMatch[1] : '';
     }
 
     private storeMtime(filename: string, mtime: string): void {
@@ -254,6 +290,69 @@ export class DriveStorageService implements IStorageService {
         });
         if (res.status === 401) throw new Error('Google Drive token expired. Please sign in again.');
         return res;
+    }
+}
+
+/**
+ * migrateDriveFilesToUserScope — one-time rename of legacy Drive files.
+ *
+ * Existing users who connected Drive before the structural filename fix have
+ * files named `cvb__profiles.json` (no userId prefix).  This function finds
+ * those files and renames them to `cvb__u{userId}__profiles.json` so the app
+ * can read them with the new naming convention.
+ *
+ * Idempotent — guarded by a per-user localStorage flag.
+ * Best-effort — a Drive API failure silently skips the rename; the user falls
+ * back to their local cache and the rename is retried on next connect.
+ */
+export async function migrateDriveFilesToUserScope(
+    token: string,
+    userId: string,
+): Promise<void> {
+    if (!token || !userId) return;
+
+    const flagKey = `procv:drive_ns_migrated_${userId}`;
+    if (localStorage.getItem(flagKey) === '1') return; // already done
+
+    const auth = { Authorization: `Bearer ${token}` };
+
+    let files: Array<{ id: string; name: string }> = [];
+    try {
+        const res = await fetch(
+            `${DRIVE_FILES_URL}?spaces=appDataFolder&fields=files(id,name)&pageSize=100`,
+            { headers: auth },
+        );
+        if (!res.ok) return; // Drive unavailable — retry next time
+        const json = await res.json() as { files?: Array<{ id: string; name: string }> };
+        files = json.files ?? [];
+    } catch { return; }
+
+    // Only rename files in the OLD format: cvb__key.json (no user prefix)
+    const oldFormat = files.filter(
+        f => /^cvb__(?!u\d+__)/.test(f.name) && f.name.endsWith('.json'),
+    );
+
+    let allRenamed = true;
+    for (const file of oldFormat) {
+        // Extract the key from the old filename and build the new name
+        const oldKey = file.name.replace(/^cvb__/, '').replace(/\.json$/, '');
+        const newName = `cvb__u${userId}__${oldKey}.json`;
+        try {
+            const res = await fetch(`${DRIVE_FILES_URL}/${file.id}`, {
+                method: 'PATCH',
+                headers: { ...auth, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName }),
+            });
+            if (!res.ok) allRenamed = false; // PATCH failed — mark for retry
+        } catch {
+            allRenamed = false; // Network error — leave old file in place, retry next time
+        }
+    }
+
+    // Only record "done" when every rename succeeded.  If any failed, skip the
+    // flag so the next Drive connect retries the remaining files.
+    if (allRenamed) {
+        localStorage.setItem(flagKey, '1');
     }
 }
 
