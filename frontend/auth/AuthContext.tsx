@@ -530,8 +530,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         function onStorage(e: StorageEvent) {
             if (e.key !== USER_CACHE_KEY) return;
             if (!e.newValue) {
-                // Another tab signed out — mirror the sign-out here.
+                // Another tab signed out — mirror it fully here.
+                // setUser(null) alone leaves Drive tokens alive; clear everything
+                // so this tab cannot keep syncing to Drive as a ghost session.
                 setUser(null);
+                setDriveToken(null);
+                setDriveConnected(false);
+                localStorage.removeItem(DRIVE_SCOPE_KEY);
+                if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
+                stampSignedOut(); // prevent auto-relog on next boot
                 return;
             }
             try {

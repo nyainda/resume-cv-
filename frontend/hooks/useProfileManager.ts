@@ -392,13 +392,29 @@ export function useProfileManager({
       return;
     }
 
+    // Capture the Drive token BEFORE clearAllBrowserStorage() wipes localStorage.
+    // driveToken React-state is memory-only and starts null on a fresh page load
+    // (the token is never persisted back to React state across sessions), so if the
+    // user had Drive connected in a previous session we fall back to the localStorage
+    // copy. Without this, Drive files survive account deletion whenever the user
+    // loads the page fresh and then immediately deletes their account.
+    const tokenForDriveDeletion: string | null =
+        driveToken?.accessToken ??
+        (() => {
+            try {
+                const t = localStorage.getItem('cv_gdrive_token');
+                const e = localStorage.getItem('cv_gdrive_expiry');
+                return (t && e && Date.now() < Number(e)) ? t : null;
+            } catch { return null; }
+        })();
+
     await clearQueueForAccount().catch(() => {});
     await clearAllBrowserStorage();
     stampDeletedAccount();
     rotateDeviceId();
 
-    if (driveToken?.accessToken) {
-      await deleteAllDriveData(driveToken.accessToken).catch(() => {});
+    if (tokenForDriveDeletion) {
+      await deleteAllDriveData(tokenForDriveDeletion).catch(() => {});
     }
 
     window.location.replace(window.location.origin);
