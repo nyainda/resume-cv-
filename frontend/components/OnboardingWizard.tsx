@@ -10,6 +10,9 @@ export function hasCompletedOnboarding(): boolean {
 }
 export function markOnboardingDone(): void {
     try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch { }
+    // Clear the refresh-survival flag now that onboarding is genuinely finished,
+    // so a later plain sign-out/sign-in on this device doesn't wrongly re-open it.
+    try { sessionStorage.removeItem('procv:pending_new_user'); } catch { }
 }
 
 function tryParseProfileJson(text: string): UserProfile | null {

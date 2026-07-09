@@ -406,7 +406,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Set new user's namespace + cache their display so it's ready after reload
             if (incoming.id) setStorageUser(String(incoming.id));
             try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(incoming)); } catch { /* non-fatal */ }
-            if (isNew) { try { sessionStorage.setItem('procv:pending_new_user', '1'); } catch { /* non-fatal */ } }
+            // Always resolve the flag explicitly for the incoming account rather than
+            // leaving behind whatever the previous account in this tab last set —
+            // otherwise a stale 'new user' flag from account A can wrongly reopen
+            // onboarding for account B after this reload.
+            try {
+                if (isNew) sessionStorage.setItem('procv:pending_new_user', '1');
+                else sessionStorage.removeItem('procv:pending_new_user');
+            } catch { /* non-fatal */ }
             window.location.reload();
             return;
         }
@@ -422,7 +429,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearQueueForAccount().catch(() => {});
         lastKnownEmailRef.current = incoming.email ?? null;
         _saveUser(incoming);
-        if (isNew) setIsNewUser(true);
+        if (isNew) {
+            setIsNewUser(true);
+            // Persist across a plain page refresh (not just the account-switch
+            // reload path below). Without this, a brand-new user who refreshes
+            // mid-onboarding — e.g. after picking a plan or uploading a CV, before
+            // hitting "Finish" — loses isNewUser (it was React-state-only) and the
+            // OnboardingWizard never remounts, silently dumping them into the app
+            // with no profile set up and no way to get the wizard back.
+            try { sessionStorage.setItem('procv:pending_new_user', '1'); } catch { /* non-fatal */ }
+        }
         setAuthModalOpen(false);
         const queue = pendingResolvers.current.splice(0);
         queue.forEach(r => r(true));
@@ -554,6 +570,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 localStorage.removeItem(DRIVE_SCOPE_KEY);
                 if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
                 stampSignedOut(); // prevent auto-relog on next boot
+                try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
                 window.location.reload();
                 return;
             }
@@ -570,6 +587,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     // session/namespace.
                     clearQueueForAccount().catch(() => {});
                     wipeLocalAppData();
+                    // wipeLocalAppData() doesn't touch sessionStorage; without this,
+                    // a stale pending_new_user flag from a previous account in this
+                    // tab could wrongly trigger onboarding for whoever signs into
+                    // this tab next.
+                    try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
                     window.location.reload();
                 }
             } catch { /* malformed — ignore */ }
@@ -610,6 +632,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
 
             setIsNewUser(false);
+            try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
         }
         window.addEventListener('procv:session-expired', onSessionExpired);
         return () => window.removeEventListener('procv:session-expired', onSessionExpired);
@@ -721,9 +744,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (user?.email) {
             const grantedEmail = await fetchGoogleAccountEmail(accessToken);
             if (grantedEmail.toLowerCase() !== user.email.toLowerCase()) {
+                // Revoke the wrong-account token immediately. Google's account
+                // chooser otherwise tends to keep offering the most recently
+                // granted account first on the next attempt, which is the exact
+                // opposite of what we want — the user should keep landing back
+                // on the account they signed up with.
+                fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`, {
+                    method: 'POST',
+                }).catch(() => { /* best-effort */ });
                 throw new Error(
-                    `That Google account (${grantedEmail}) doesn't match your signed-in account (${user.email}). ` +
-                    `Please grant Drive access using the same Google account you're signed in with.`,
+                    `That Google account (${grantedEmail}) doesn't match your ProCV account (${user.email}). ` +
+                    `Google's account picker doesn't let us force this away when several Google accounts are ` +
+                    `logged into your browser — please choose "${user.email}" in the popup. If you don't see it ` +
+                    `listed, click "Use another account" and sign in with it there.`,
                 );
             }
         }
@@ -805,6 +838,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(DRIVE_SCOPE_KEY);
         if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
         setIsNewUser(false);
+        try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
     }, [_saveUser]);
 
     // ── Delete account ────────────────────────────────────────────────────────

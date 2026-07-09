@@ -369,18 +369,23 @@ export async function migrateDriveFilesToUserScope(
 export async function deleteAllDriveData(token: string): Promise<void> {
     if (!token) return;
     const auth = { Authorization: `Bearer ${token}` };
+    // keepalive lets these requests finish even though the caller (account
+    // deletion) no longer awaits this function and navigates away immediately
+    // after firing it — without it, the browser can cancel in-flight deletes
+    // mid-navigation and leave Drive files behind.
+    const opts = { keepalive: true } as const;
 
     // ── 1. appDataFolder (hidden app data — cvb__*.json files) ───────────────
     try {
         const listRes = await fetch(
             `${DRIVE_FILES_URL}?spaces=appDataFolder&fields=files(id)&pageSize=1000`,
-            { headers: auth },
+            { headers: auth, ...opts },
         );
         if (listRes.ok) {
             const { files } = await listRes.json() as { files: Array<{ id: string }> };
             await Promise.allSettled(
                 (files ?? []).map(f =>
-                    fetch(`${DRIVE_FILES_URL}/${f.id}`, { method: 'DELETE', headers: auth }),
+                    fetch(`${DRIVE_FILES_URL}/${f.id}`, { method: 'DELETE', headers: auth, ...opts }),
                 ),
             );
         }
@@ -392,13 +397,13 @@ export async function deleteAllDriveData(token: string): Promise<void> {
             `${DRIVE_FILES_URL}?spaces=drive` +
             `&q=name%3D%27ProCV%27+and+mimeType%3D%27application%2Fvnd.google-apps.folder%27+and+trashed%3Dfalse` +
             `&fields=files(id)`,
-            { headers: auth },
+            { headers: auth, ...opts },
         );
         if (folderRes.ok) {
             const { files } = await folderRes.json() as { files: Array<{ id: string }> };
             await Promise.allSettled(
                 (files ?? []).map(f =>
-                    fetch(`${DRIVE_FILES_URL}/${f.id}?supportsAllDrives=true`, { method: 'DELETE', headers: auth }),
+                    fetch(`${DRIVE_FILES_URL}/${f.id}?supportsAllDrives=true`, { method: 'DELETE', headers: auth, ...opts }),
                 ),
             );
         }

@@ -413,8 +413,15 @@ export function useProfileManager({
     stampDeletedAccount();
     rotateDeviceId();
 
+    // Drive cleanup is best-effort and was previously awaited here, which made
+    // the user sit on the page for several extra seconds (multiple Google API
+    // round-trips) after the server + local wipe had already finished — the
+    // "delete takes a while, then logs me out" delay. The account and all local
+    // data are already gone at this point, so fire the Drive deletion without
+    // blocking the redirect. `deleteAllDriveData` already treats every request
+    // as best-effort internally.
     if (tokenForDriveDeletion) {
-      await deleteAllDriveData(tokenForDriveDeletion).catch(() => {});
+      deleteAllDriveData(tokenForDriveDeletion).catch(() => {});
     }
 
     window.location.replace(window.location.origin);
