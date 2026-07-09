@@ -29,4 +29,5 @@
 - [LLM model resilience pattern](llm-model-resilience.md) — BYOK Claude/Gemini proxy: fallback chain on model-not-found, fail-fast on other errors, finish_reason/stop_reason truncation → same-model bump-retry.
 - [CV preview mobile pan/swipe](cv-preview-mobile-pan.md) — native nested-scroll unreliable for touch drag; use symmetric-bounded JS pointer-driven pan instead, don't clamp content box with maxWidth:100%.
 - [CV preview responsive scaling](cv-preview-responsive-scaling.md) — every new CVPreview surface must use ResizeObserver-driven scale, never a hardcoded scale(0.NN); side-by-side compare views must stack on mobile.
+- [Fresh import setup](fresh-import-setup.md) — after cloning/importing ProCV, root `npm install` alone fixes both workflows (vite + express missing); no secrets needed for dev.
 - [SEO proxy worker](seo-proxy-worker.md) — CF Worker at backend/seo-proxy-worker/ injects country-aware meta/JSON-LD/hreflang at edge; domain plug-in via wrangler routes, zero code change.
