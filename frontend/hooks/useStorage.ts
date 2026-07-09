@@ -95,9 +95,10 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
         if (lsVal !== null) {
             // We already have a value from localStorage — no need to wait for
             // an async round-trip unless Drive is active (authoritative source).
+            const _drivePrefix = getUserPrefix();
             const driveActive =
-                !!localStorage.getItem('cv_gdrive_token') &&
-                Date.now() < Number(localStorage.getItem('cv_gdrive_expiry') ?? 0);
+                !!localStorage.getItem(`${_drivePrefix}cv_gdrive_token`) &&
+                Date.now() < Number(localStorage.getItem(`${_drivePrefix}cv_gdrive_expiry`) ?? 0);
 
             if (!driveActive) {
                 // Try IDB in case localStorage was just partially cleared

@@ -17,10 +17,14 @@ import { IStorageService } from './IStorageService';
 import { LocalStorageService } from './LocalStorageService';
 import { DriveStorageService } from './DriveStorageService';
 import { DriveConflictError, dispatchConflict } from './storageErrors';
-import { getStorageUserId } from './userStorageNamespace';
+import { getStorageUserId, getUserPrefix } from './userStorageNamespace';
 
-const TOKEN_KEY = 'cv_gdrive_token';
-const EXPIRY_KEY = 'cv_gdrive_expiry';
+// Namespaced per user (defense-in-depth on top of the Drive filename-level
+// isolation): even if an account-switch wipe were somehow skipped, one
+// account's Drive token can never be read back under another account's
+// namespace. Must stay in sync with AuthContext.tsx driveTokenKey()/driveExpiryKey().
+function TOKEN_KEY(): string  { return `${getUserPrefix()}cv_gdrive_token`; }
+function EXPIRY_KEY(): string { return `${getUserPrefix()}cv_gdrive_expiry`; }
 
 // Bug 3 fix: scope migration flag per user so account-switching doesn't
 // skip migration for a second user (or worse, overwrite Drive with empty data).
@@ -150,8 +154,8 @@ function hasDriveScope(): boolean {
 // ── Public API ────────────────────────────────────────────────────────────
 
 export function getStorageService(): IStorageService {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
+    const token = localStorage.getItem(TOKEN_KEY());
+    const expiry = Number(localStorage.getItem(EXPIRY_KEY()) ?? 0);
     if (token && Date.now() < expiry && hasDriveScope()) {
         // Pass current userId so DriveStorageService names files cvb__u{id}__key.json
         const drive = getDriveService(token, getStorageUserId());
@@ -163,8 +167,8 @@ export function getStorageService(): IStorageService {
 
 /** Returns the WriteThroughDriveService if Drive is active, null otherwise. */
 export function getDriveRouter(): WriteThroughDriveService | null {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
+    const token = localStorage.getItem(TOKEN_KEY());
+    const expiry = Number(localStorage.getItem(EXPIRY_KEY()) ?? 0);
     if (token && Date.now() < expiry && hasDriveScope()) {
         const drive = getDriveService(token, getStorageUserId());
         const local = getCacheService();
@@ -174,8 +178,8 @@ export function getDriveRouter(): WriteThroughDriveService | null {
 }
 
 export function isDriveActive(): boolean {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const expiry = Number(localStorage.getItem(EXPIRY_KEY) ?? 0);
+    const token = localStorage.getItem(TOKEN_KEY());
+    const expiry = Number(localStorage.getItem(EXPIRY_KEY()) ?? 0);
     return !!(token && Date.now() < (expiry + 300000) && hasDriveScope()); // +5 min buffer
 }
 
@@ -205,7 +209,7 @@ export async function migrateLocalToDrive(
         return;
     }
 
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY());
     if (!token) throw new Error('Not signed in to Google');
 
     const cache = getCacheService();
@@ -235,7 +239,7 @@ export async function migrateLocalToDrive(
 
 /** Forced restore from Drive back to Browser (Emergency fallback) */
 export async function restoreDriveToLocal(userEmail?: string): Promise<void> {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(TOKEN_KEY());
     if (!token) throw new Error('Not signed in to Google');
 
     const cache = getCacheService();

@@ -49,6 +49,7 @@ import {
     setStorageUser,
     clearStorageUser,
     migrateToUserNamespace,
+    getUserPrefix,
 } from '../services/storage/userStorageNamespace';
 import {
     stampSignedOut,
@@ -60,11 +61,14 @@ import { migrateDriveFilesToUserScope } from '../services/storage/DriveStorageSe
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const USER_CACHE_KEY  = 'procv:worker_user';
-const DRIVE_SCOPE_KEY        = 'procv:drive_scope_granted';
-// StorageRouter reads these to decide whether Drive sync is active.
-// Must stay in sync with StorageRouter.ts TOKEN_KEY / EXPIRY_KEY.
-const DRIVE_TOKEN_KEY        = 'cv_gdrive_token';
-const DRIVE_EXPIRY_KEY       = 'cv_gdrive_expiry';
+// Drive token/expiry/scope keys are namespaced per user (defense-in-depth on
+// top of the filename-level isolation in DriveStorageService): even if a
+// wipe were somehow skipped on account switch, one account's Drive token can
+// never be read back under a different account's namespace.
+// Must stay in sync with StorageRouter.ts driveTokenKey()/driveExpiryKey().
+function driveScopeKey(): string  { return `${getUserPrefix()}procv:drive_scope_granted`; }
+function driveTokenKey(): string  { return `${getUserPrefix()}cv_gdrive_token`; }
+function driveExpiryKey(): string { return `${getUserPrefix()}cv_gdrive_expiry`; }
 const OAUTH_CALLBACK_KEY     = 'procv:oauth_callback';
 
 const IDENTITY_SCOPES = [
@@ -369,7 +373,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Drive token — memory-only, never persisted
     const [driveToken, setDriveToken]       = useState<DriveToken | null>(null);
     const [driveConnected, setDriveConnected] = useState<boolean>(
-        () => localStorage.getItem(DRIVE_SCOPE_KEY) === '1',
+        () => localStorage.getItem(driveScopeKey()) === '1',
     );
 
     const pendingResolvers  = useRef<Array<(ok: boolean) => void>>([]);
@@ -567,7 +571,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(null);
                 setDriveToken(null);
                 setDriveConnected(false);
-                localStorage.removeItem(DRIVE_SCOPE_KEY);
+                localStorage.removeItem(driveScopeKey());
                 if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
                 stampSignedOut(); // prevent auto-relog on next boot
                 try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
@@ -628,7 +632,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Drive state cleanup
             setDriveToken(null);
             setDriveConnected(false);
-            localStorage.removeItem(DRIVE_SCOPE_KEY);
+            localStorage.removeItem(driveScopeKey());
             if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
 
             setIsNewUser(false);
@@ -681,12 +685,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // Guard 1 — abort if Drive was disconnected while waiting
                 // (sign-out, account delete, or manual disconnect happened during
                 // the timeout window).  Skipping here prevents token resurrection.
-                if (localStorage.getItem(DRIVE_SCOPE_KEY) !== '1') return;
+                if (localStorage.getItem(driveScopeKey()) !== '1') return;
 
                 const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'none');
 
                 // Guard 2 — re-check after the async popup (sign-out during OAuth).
-                if (localStorage.getItem(DRIVE_SCOPE_KEY) !== '1') return;
+                if (localStorage.getItem(driveScopeKey()) !== '1') return;
 
                 // Re-verify the refreshed token's account identity.
                 // On verification failure (tokeninfo unavailable / network blip):
@@ -703,9 +707,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
                 if (expectedEmailSnapshot && refreshedEmail.toLowerCase() !== expectedEmailSnapshot.toLowerCase()) {
                     // Account mismatch — silently disconnect Drive.
-                    localStorage.removeItem(DRIVE_TOKEN_KEY);
-                    localStorage.removeItem(DRIVE_EXPIRY_KEY);
-                    localStorage.removeItem(DRIVE_SCOPE_KEY);
+                    localStorage.removeItem(driveTokenKey());
+                    localStorage.removeItem(driveExpiryKey());
+                    localStorage.removeItem(driveScopeKey());
                     setDriveToken(null);
                     setDriveConnected(false);
                     return;
@@ -714,8 +718,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const newExpiry = Date.now() + expiresIn * 1000 - 60_000;
                 setDriveToken({ accessToken, expiresAt: newExpiry });
                 // Keep localStorage in sync so StorageRouter sees the refreshed token.
-                try { localStorage.setItem(DRIVE_TOKEN_KEY, accessToken); }   catch { /* quota */ }
-                try { localStorage.setItem(DRIVE_EXPIRY_KEY, String(newExpiry)); } catch { /* quota */ }
+                try { localStorage.setItem(driveTokenKey(), accessToken); }   catch { /* quota */ }
+                try { localStorage.setItem(driveExpiryKey(), String(newExpiry)); } catch { /* quota */ }
                 _scheduleDriveRefresh(newExpiry);
             } catch { /* silently expired — user will be prompted on next Drive action */ }
         }, Math.max(ms, 0));
@@ -766,9 +770,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Write to localStorage so StorageRouter can pick up the token immediately.
         // StorageRouter reads cv_gdrive_token / cv_gdrive_expiry on every save/load
         // call — without these writes Drive sync was silently broken.
-        try { localStorage.setItem(DRIVE_TOKEN_KEY, accessToken); }        catch { /* quota */ }
-        try { localStorage.setItem(DRIVE_EXPIRY_KEY, String(expiresAt)); } catch { /* quota */ }
-        localStorage.setItem(DRIVE_SCOPE_KEY, '1');
+        try { localStorage.setItem(driveTokenKey(), accessToken); }        catch { /* quota */ }
+        try { localStorage.setItem(driveExpiryKey(), String(expiresAt)); } catch { /* quota */ }
+        localStorage.setItem(driveScopeKey(), '1');
         setDriveConnected(true);
         _scheduleDriveRefresh(expiresAt);
 
@@ -792,7 +796,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [_scheduleDriveRefresh, user?.email, user?.id]);
 
     const disconnectDrive = useCallback(() => {
-        localStorage.removeItem(DRIVE_SCOPE_KEY);
+        localStorage.removeItem(driveScopeKey());
+        localStorage.removeItem(driveTokenKey());
+        localStorage.removeItem(driveExpiryKey());
+        // Also clear the legacy unnamespaced keys in case they're still lingering
+        // from before the per-user namespacing fix.
         localStorage.removeItem('cv_gdrive_token');
         localStorage.removeItem('cv_gdrive_expiry');
         setDriveToken(null);
@@ -835,7 +843,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         _saveUser(null);
         setDriveToken(null);
         setDriveConnected(false);
-        localStorage.removeItem(DRIVE_SCOPE_KEY);
+        localStorage.removeItem(driveScopeKey());
         if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
         setIsNewUser(false);
         try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }

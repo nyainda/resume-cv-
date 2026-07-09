@@ -12,6 +12,7 @@ import {
   getLastSyncTimestamp, markSlotSyncedNow,
 } from '../services/userDataCloudService';
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from '../utils/clearUserStorage';
+import { getUserPrefix } from '../services/storage/userStorageNamespace';
 import { deleteAllDriveData } from '../services/storage/DriveStorageService';
 import { getDriveRouter } from '../services/storage/StorageRouter';
 import { drainPendingSlots } from '../services/authService';
@@ -402,8 +403,9 @@ export function useProfileManager({
         driveToken?.accessToken ??
         (() => {
             try {
-                const t = localStorage.getItem('cv_gdrive_token');
-                const e = localStorage.getItem('cv_gdrive_expiry');
+                const prefix = getUserPrefix();
+                const t = localStorage.getItem(`${prefix}cv_gdrive_token`);
+                const e = localStorage.getItem(`${prefix}cv_gdrive_expiry`);
                 return (t && e && Date.now() < Number(e)) ? t : null;
             } catch { return null; }
         })();
