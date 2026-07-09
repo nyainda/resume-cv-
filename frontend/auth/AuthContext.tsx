@@ -138,6 +138,42 @@ export function useAuth(): AuthContextValue {
     return ctx;
 }
 
+// ─── Google account verification ──────────────────────────────────────────────
+// Fetch the email address the access token belongs to via the tokeninfo endpoint.
+// Used to verify Drive OAuth grants match the signed-in ProCV account so a
+// different Google account's appDataFolder can't silently overwrite local data.
+
+/**
+ * Fetch the email address associated with a Google OAuth access token.
+ * Throws if the email cannot be determined so callers can fail-closed
+ * rather than silently accepting a token whose owner is unknown.
+ */
+async function fetchGoogleAccountEmail(accessToken: string): Promise<string> {
+    let res: Response;
+    try {
+        res = await fetch(
+            `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+            { signal: AbortSignal.timeout(8_000) },
+        );
+    } catch {
+        throw new Error(
+            'Unable to verify your Google account — please check your connection and try again.',
+        );
+    }
+    if (!res.ok) {
+        throw new Error(
+            'Unable to verify your Google account — the verification request failed. Please try again.',
+        );
+    }
+    const data = await res.json() as { email?: string };
+    if (!data.email) {
+        throw new Error(
+            'Unable to verify your Google account — no email was returned. Please try again.',
+        );
+    }
+    return data.email;
+}
+
 // ─── OAuth popup ──────────────────────────────────────────────────────────────
 
 function openOAuthPopup(
@@ -446,9 +482,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     signOutWorker().catch(() => {});
                     _saveUser(null);
                 } else {
-                    // Restore the storage namespace so all hooks use the correct prefix.
-                    if (result.user.id) setStorageUser(String(result.user.id));
-                    _saveUser(result.user);
+                    // ── Boot-time account-switch reconciliation ──────────────────
+                    // Check whether the server-validated cookie user is a DIFFERENT
+                    // person from whoever was cached locally (shared device, or
+                    // sign-out flow that silently failed and left a stale cookie).
+                    //
+                    // We intentionally do NOT call _applySession() here because its
+                    // same-user path calls clearQueueForAccount(), which would drop
+                    // optimistic sync queue entries that should survive page refreshes.
+                    // _applySession is reserved for interactive sign-in events.
+                    //
+                    // If emails differ → full wipe+reload via _applySession (correct).
+                    // If same user (or first boot) → minimal setup, preserve queue.
+                    const prevEmail = lastKnownEmailRef.current;
+                    const incomingEmail = result.user.email;
+                    if (prevEmail && incomingEmail && prevEmail !== incomingEmail) {
+                        // Different account — delegate to _applySession for wipe+reload.
+                        _applySession(result.user, false);
+                    } else {
+                        // Same user returning — restore namespace and user state only.
+                        // Do NOT clear the sync queue; pending entries are still valid.
+                        if (result.user.id) setStorageUser(String(result.user.id));
+                        lastKnownEmailRef.current = incomingEmail ?? null;
+                        _saveUser(result.user);
+                    }
                 }
             } else if (result.invalid) {
                 // Server says definitively signed out
@@ -516,15 +573,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ── Drive ─────────────────────────────────────────────────────────────────
 
     const _scheduleDriveRefresh = useCallback((expiresAt: number) => {
+        // Snapshot the expected email NOW (at schedule time) from localStorage.
+        // The callback closure captures this snapshot so it remains stable even
+        // if the user cache is cleared mid-refresh (sign-out race).
+        const expectedEmailSnapshot = (() => {
+            try {
+                const raw = localStorage.getItem(USER_CACHE_KEY);
+                return raw ? (JSON.parse(raw) as { email?: string }).email ?? null : null;
+            } catch { return null; }
+        })();
+
         if (driveRefreshTimer.current) clearTimeout(driveRefreshTimer.current);
         const ms = expiresAt - Date.now() - 5 * 60 * 1000;
         if (ms <= 0) return;
         driveRefreshTimer.current = setTimeout(async () => {
             try {
+                // Guard 1 — abort if Drive was disconnected while waiting
+                // (sign-out, account delete, or manual disconnect happened during
+                // the timeout window).  Skipping here prevents token resurrection.
+                if (localStorage.getItem(DRIVE_SCOPE_KEY) !== '1') return;
+
                 const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'none');
+
+                // Guard 2 — re-check after the async popup (sign-out during OAuth).
+                if (localStorage.getItem(DRIVE_SCOPE_KEY) !== '1') return;
+
+                // Re-verify the refreshed token's account identity.
+                // On verification failure (tokeninfo unavailable / network blip):
+                //   → skip this refresh, keep the existing token in place.
+                //   → do NOT write an unverified token to localStorage.
+                // On mismatch (different Google account):
+                //   → silently disconnect Drive.
+                const refreshedEmail = await fetchGoogleAccountEmail(accessToken).catch(() => null);
+                if (refreshedEmail === null) {
+                    // Tokeninfo unavailable — cannot verify.  Keep old token; do not
+                    // write the new unverified one.  The existing token stays valid
+                    // until the StorageRouter's expiry check forces a reconnect.
+                    return;
+                }
+                if (expectedEmailSnapshot && refreshedEmail.toLowerCase() !== expectedEmailSnapshot.toLowerCase()) {
+                    // Account mismatch — silently disconnect Drive.
+                    localStorage.removeItem(DRIVE_TOKEN_KEY);
+                    localStorage.removeItem(DRIVE_EXPIRY_KEY);
+                    localStorage.removeItem(DRIVE_SCOPE_KEY);
+                    setDriveToken(null);
+                    setDriveConnected(false);
+                    return;
+                }
+
                 const newExpiry = Date.now() + expiresIn * 1000 - 60_000;
                 setDriveToken({ accessToken, expiresAt: newExpiry });
-                // Keep localStorage in sync so StorageRouter sees the refreshed token
+                // Keep localStorage in sync so StorageRouter sees the refreshed token.
                 try { localStorage.setItem(DRIVE_TOKEN_KEY, accessToken); }   catch { /* quota */ }
                 try { localStorage.setItem(DRIVE_EXPIRY_KEY, String(newExpiry)); } catch { /* quota */ }
                 _scheduleDriveRefresh(newExpiry);
@@ -539,7 +638,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const requestDriveAccess = useCallback(async () => {
         // Pass login_hint so Google skips account selection and goes straight to
         // the consent screen for the email the user already signed in with.
+        // login_hint is only a hint, though — if the browser has multiple Google
+        // sessions the user can still pick a different account in the popup.
         const { accessToken, expiresIn } = await openOAuthPopup(DRIVE_SCOPES, 'consent', user?.email);
+
+        // Verify the granted token actually belongs to the signed-in ProCV
+        // account before trusting it. Without this check, granting Drive access
+        // with a *different* Google account silently pulls that other account's
+        // appDataFolder (CVs, profiles) into the current session — a cross-account
+        // data leak that looks like "my old data came back".
+        //
+        // fetchGoogleAccountEmail now throws (fail-closed) if the email cannot be
+        // confirmed, so we always block mismatches and verification failures —
+        // we never silently fall through to Drive activation.
+        if (user?.email) {
+            const grantedEmail = await fetchGoogleAccountEmail(accessToken);
+            if (grantedEmail.toLowerCase() !== user.email.toLowerCase()) {
+                throw new Error(
+                    `That Google account (${grantedEmail}) doesn't match your signed-in account (${user.email}). ` +
+                    `Please grant Drive access using the same Google account you're signed in with.`,
+                );
+            }
+        }
+
         const expiresAt = Date.now() + expiresIn * 1000 - 60_000;
         setDriveToken({ accessToken, expiresAt });
         // Write to localStorage so StorageRouter can pick up the token immediately.
