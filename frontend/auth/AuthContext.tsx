@@ -274,7 +274,38 @@ function openOAuthPopup(
 // restoreLocalStorageFromIDB cannot re-inject the old user's data on next
 // boot), and fires fire-and-forget IDB deletes for belt-and-suspenders safety.
 
-export function wipeLocalAppData(): void {
+/**
+ * Deletes one IDB database and resolves once the browser confirms it's gone
+ * (or on error/block/timeout) — never hangs the caller indefinitely.
+ */
+function _deleteIdbDatabase(name: string): Promise<void> {
+    return new Promise(resolve => {
+        try {
+            const req = indexedDB.deleteDatabase(name);
+            const timer = setTimeout(resolve, 2000); // safety cap — never block reload forever
+            req.onsuccess = () => { clearTimeout(timer); resolve(); };
+            req.onerror   = () => { clearTimeout(timer); resolve(); };
+            // onblocked fires if another tab still has the DB open — don't wait on it,
+            // the delete completes once that tab's connection closes; we've already
+            // cleared localStorage + set skip sentinels, which is the primary defense.
+            req.onblocked = () => { clearTimeout(timer); resolve(); };
+        } catch { resolve(); }
+    });
+}
+
+/**
+ * Wipes all local app data for an account switch. Returns a Promise that
+ * resolves once every IDB delete has actually completed (or safely timed
+ * out) — callers MUST await this before reloading/continuing. Previously
+ * the IDB deletes were fire-and-forget while the caller reloaded
+ * immediately after; the reload could tear down the page before the
+ * deletes settled, and — more importantly — before any in-flight
+ * background sync request (queued while the old account was still
+ * active) had a chance to be cancelled, letting stale local profile data
+ * slip through and sync under the new account. Awaiting this closes that
+ * window; the synchronous localStorage clear below still happens first.
+ */
+export async function wipeLocalAppData(): Promise<void> {
     try {
         // ── 1. IDB-skip sentinels — written SYNCHRONOUSLY before any async work ──
         // restoreLocalStorageFromIDB() checks 'cv_appdata_cleared' on boot and
@@ -313,10 +344,11 @@ export function wipeLocalAppData(): void {
             }
         });
 
-        // ── 3. Fire-and-forget IDB deletes ────────────────────────────────────────
-        // Delete base DB names AND all known user-scoped variants.
-        // Since we don't know all user IDs, we enumerate the existing databases
-        // and delete any that match our naming pattern.
+        // ── 3. Awaited IDB deletes ─────────────────────────────────────────────────
+        // Delete base DB names AND all known user-scoped variants, and WAIT for
+        // each to actually finish before returning. Since we don't know all user
+        // IDs, we enumerate the existing databases and delete any that match our
+        // naming pattern.
         const BASE_IDB = [
             'cv_builder_auth',
             'cv_builder_cvdata',
@@ -324,12 +356,11 @@ export function wipeLocalAppData(): void {
             'cv_builder_sync',
             'cv_builder_keyvault',
         ];
-        BASE_IDB.forEach(name => {
-            try { indexedDB.deleteDatabase(name); } catch { /* non-fatal */ }
-        });
-        // Also delete user-scoped databases by enumerating all IDB databases
+        const deletions: Promise<void>[] = BASE_IDB.map(name => _deleteIdbDatabase(name));
+
         if (typeof indexedDB.databases === 'function') {
-            indexedDB.databases().then(dbs => {
+            try {
+                const dbs = await indexedDB.databases();
                 dbs.forEach(db => {
                     if (!db.name) return;
                     const isOurs = BASE_IDB.some(base =>
@@ -337,12 +368,12 @@ export function wipeLocalAppData(): void {
                         db.name!.startsWith(base + '_u_') ||
                         db.name!.startsWith(base + '_anon'),
                     );
-                    if (isOurs) {
-                        try { indexedDB.deleteDatabase(db.name!); } catch { /* non-fatal */ }
-                    }
+                    if (isOurs) deletions.push(_deleteIdbDatabase(db.name!));
                 });
-            }).catch(() => { /* browsers without indexedDB.databases() — already handled above */ });
+            } catch { /* browsers without indexedDB.databases() — already handled above */ }
         }
+
+        await Promise.all(deletions);
     } catch { /* non-fatal */ }
 }
 
@@ -403,22 +434,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const _applySession = useCallback((incoming: WorkerUser, isNew = false) => {
         const prevEmail = lastKnownEmailRef.current;
         if (prevEmail && incoming.email && prevEmail !== incoming.email) {
-            // Different user on the same device → wipe ALL local data and reload.
-            clearStorageUser(); // clear namespace BEFORE wipe so sentinels go to global keys
-            clearQueueForAccount().catch(() => {});
-            wipeLocalAppData();
-            // Set new user's namespace + cache their display so it's ready after reload
-            if (incoming.id) setStorageUser(String(incoming.id));
-            try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(incoming)); } catch { /* non-fatal */ }
-            // Always resolve the flag explicitly for the incoming account rather than
-            // leaving behind whatever the previous account in this tab last set —
-            // otherwise a stale 'new user' flag from account A can wrongly reopen
-            // onboarding for account B after this reload.
-            try {
-                if (isNew) sessionStorage.setItem('procv:pending_new_user', '1');
-                else sessionStorage.removeItem('procv:pending_new_user');
-            } catch { /* non-fatal */ }
-            window.location.reload();
+            // Different user on the same device → wipe ALL local data, THEN reload.
+            // clearQueueForAccount() is awaited first so any in-flight/pending
+            // background sync for the OLD account is dropped before it can race the
+            // account switch and get sent under the NEW session's cookie (this was
+            // the actual mechanism behind a confirmed cross-account leak — the
+            // reload used to fire before the wipe/queue-clear settled). No UI is
+            // shown during this gap since we still hold the previous account's
+            // rendered state until reload; it's milliseconds in practice.
+            (async () => {
+                clearStorageUser(); // clear namespace BEFORE wipe so sentinels go to global keys
+                await clearQueueForAccount().catch(() => {});
+                await wipeLocalAppData();
+                // Set new user's namespace + cache their display so it's ready after reload
+                if (incoming.id) setStorageUser(String(incoming.id));
+                try { localStorage.setItem(USER_CACHE_KEY, JSON.stringify(incoming)); } catch { /* non-fatal */ }
+                // Always resolve the flag explicitly for the incoming account rather than
+                // leaving behind whatever the previous account in this tab last set —
+                // otherwise a stale 'new user' flag from account A can wrongly reopen
+                // onboarding for account B after this reload.
+                try {
+                    if (isNew) sessionStorage.setItem('procv:pending_new_user', '1');
+                    else sessionStorage.removeItem('procv:pending_new_user');
+                } catch { /* non-fatal */ }
+                window.location.reload();
+            })();
             return;
         }
         // Clear any explicit sign-out sentinel — the user is actively signing in.
@@ -588,15 +628,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     // user of its own yet) → this tab's in-memory state cannot be
                     // trusted to belong to the new account. Cancel any queued sync
                     // for this tab and reload so it starts clean under the new
-                    // session/namespace.
-                    clearQueueForAccount().catch(() => {});
-                    wipeLocalAppData();
-                    // wipeLocalAppData() doesn't touch sessionStorage; without this,
-                    // a stale pending_new_user flag from a previous account in this
-                    // tab could wrongly trigger onboarding for whoever signs into
-                    // this tab next.
-                    try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
-                    window.location.reload();
+                    // session/namespace. Awaited (not fire-and-forget) for the same
+                    // reason as the primary account-switch path in _applySession —
+                    // reloading before the wipe/queue-clear settle is what let stale
+                    // data leak into a different account in a confirmed incident.
+                    (async () => {
+                        await clearQueueForAccount().catch(() => {});
+                        await wipeLocalAppData();
+                        // wipeLocalAppData() doesn't touch sessionStorage; without this,
+                        // a stale pending_new_user flag from a previous account in this
+                        // tab could wrongly trigger onboarding for whoever signs into
+                        // this tab next.
+                        try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
+                        window.location.reload();
+                    })();
                 }
             } catch { /* malformed — ignore */ }
         }

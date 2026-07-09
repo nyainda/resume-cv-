@@ -79,19 +79,42 @@ export class SlotOwnershipConflictError extends Error {
     constructor() { super('slot_id_owned_by_another_account'); }
 }
 
+// ─── Account-switch cancellation fence ─────────────────────────────────────────
+// A background sync request that was already dispatched (fetch sent over the
+// wire) while account A was active cannot be un-sent by clearing the local
+// queue — the request keeps running and, if it resolves after account B's
+// session cookie is now active, the server would (correctly) attribute it to
+// whichever cookie arrives with it. `abortAllPendingSync()` aborts every
+// in-flight request tied to the *current* epoch so none of them can complete
+// after an account switch starts. Call it BEFORE the local wipe/reload.
+let _epochController = new AbortController();
+
+export function abortAllPendingSync(): void {
+    try { _epochController.abort(); } catch { /* non-fatal */ }
+    _epochController = new AbortController();
+}
+
 async function post(path: string, body: object): Promise<boolean> {
     if (!ENGINE_URL || !_isSignedIn()) return false;
+    const epochSignal = _epochController.signal;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-        const res = await fetch(`${ENGINE_URL}${path}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(body),
-            signal: ac.signal,
-        });
-        clearTimeout(timer);
+        const onEpochAbort = () => ac.abort();
+        epochSignal.addEventListener('abort', onEpochAbort);
+        let res: Response;
+        try {
+            res = await fetch(`${ENGINE_URL}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(body),
+                signal: ac.signal,
+            });
+        } finally {
+            clearTimeout(timer);
+            epochSignal.removeEventListener('abort', onEpochAbort);
+        }
         if (res.status === 401) { notifySessionExpired(); return false; }
         if (res.status === 409) {
             // A stale local profile (carrying a slot_id minted while a different
@@ -112,14 +135,22 @@ async function post(path: string, body: object): Promise<boolean> {
 
 async function get(path: string): Promise<any | null> {
     if (!ENGINE_URL || !_isSignedIn()) return null;
+    const epochSignal = _epochController.signal;
     try {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-        const res = await fetch(`${ENGINE_URL}${path}`, {
-            credentials: 'include',
-            signal: ac.signal,
-        });
-        clearTimeout(timer);
+        const onEpochAbort = () => ac.abort();
+        epochSignal.addEventListener('abort', onEpochAbort);
+        let res: Response;
+        try {
+            res = await fetch(`${ENGINE_URL}${path}`, {
+                credentials: 'include',
+                signal: ac.signal,
+            });
+        } finally {
+            clearTimeout(timer);
+            epochSignal.removeEventListener('abort', onEpochAbort);
+        }
         if (res.status === 401) { notifySessionExpired(); return null; }
         if (!res.ok) return null;
         return await res.json();

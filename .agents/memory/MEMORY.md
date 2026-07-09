@@ -33,3 +33,4 @@
 - [Fresh import setup](fresh-import-setup.md) — after cloning/importing ProCV, root `npm install` alone fixes both workflows (vite + express missing); no secrets needed for dev.
 - [SEO proxy worker](seo-proxy-worker.md) — CF Worker at backend/seo-proxy-worker/ injects country-aware meta/JSON-LD/hreflang at edge; domain plug-in via wrangler routes, zero code change.
 - [Cross-account cache/ownership key pattern](cross-account-cache-key-pattern.md) — client-generated/hash keys need atomic DB-level ownership claims, not check-then-insert; confirmed twice (profile_cache, user_slots).
+- [Account-switch teardown must be fully synchronous-first](account-switch-teardown-fencing.md) — reload-after-wipe races: local wipe/IDB delete/queue clear/in-flight-fetch cancel must all be awaited (and any state flags set synchronously before the first await) or stale data leaks into the next account.

@@ -29,7 +29,7 @@
 
 import type { UserProfileSlot } from '../../types';
 import type { UserPrefsPayload } from '../userDataCloudService';
-import { syncSlot, syncPrefs } from '../userDataCloudService';
+import { syncSlot, syncPrefs, abortAllPendingSync } from '../userDataCloudService';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -156,12 +156,26 @@ async function sha256hex(text: string): Promise<string> {
 
 let _flushTimer: ReturnType<typeof setTimeout> | null = null;
 let _flushing = false;
+// Bumped by clearQueueForAccount() on every account switch/sign-out. A
+// _doFlush() loop that started before the bump checks this after each
+// per-item await and stops writing further items instead of continuing to
+// process a queue that's just been declared stale for the outgoing account.
+let _currentGeneration = 0;
+// True for the entire duration of clearQueueForAccount() (synchronously set
+// before any await). scheduleFlush()/_doFlush() both check this and refuse
+// to start a new flush while a clear is in progress — without this guard,
+// the timer cancel + IDB clear inside clearQueueForAccount() happen across
+// several awaits, and a timer/visibility-triggered flush firing in that
+// window could read+send stale items for the outgoing account before the
+// clear finishes.
+let _clearing = false;
 
 /**
  * Schedule a flush, respecting the 30-second rate limit.
  * Cancels any existing pending timer and reschedules at the correct offset.
  */
 function scheduleFlush(): void {
+    if (_clearing) return; // an account switch is tearing down the queue — don't schedule against it
     if (_flushTimer !== null) {
         clearTimeout(_flushTimer);
         _flushTimer = null;
@@ -181,7 +195,9 @@ function scheduleFlush(): void {
 
 async function _doFlush(): Promise<void> {
     if (_flushing) return; // prevent re-entrant flush
+    if (_clearing) return; // an account switch is tearing down the queue right now
     _flushing = true;
+    const startGeneration = _currentGeneration;
 
     try {
         const now   = Date.now();
@@ -194,6 +210,14 @@ async function _doFlush(): Promise<void> {
         try { localStorage.setItem(getLastFlushKey(), String(now)); } catch { /* ignore */ }
 
         for (const item of ready) {
+            // An account switch happened mid-flush (clearQueueForAccount()
+            // already aborted the in-flight request and cleared the IDB
+            // queue) — stop processing this now-stale batch. Any remaining
+            // items already belong to a queue that's been wiped out from
+            // under us; touching IDB further would just resurrect entries
+            // for the wrong account.
+            if (_currentGeneration !== startGeneration) return;
+
             let ok = false;
             try {
                 if (item.type === 'slot') {
@@ -319,13 +343,35 @@ export async function flushSyncQueue(trigger: 'online' | 'visibility' | 'force' 
  * flushed under a new user's session.
  */
 export async function clearQueueForAccount(): Promise<void> {
-    try { await idbClear(); } catch { /* ignore */ }
+    // Everything in this synchronous block runs before any await, so no
+    // flush can slip in between steps:
+    //   1. _clearing=true — scheduleFlush() and _doFlush() both refuse to
+    //      start a new flush from this point on.
+    //   2. Cancel the pending timer — no deferred flush can fire either.
+    //   3. Abort in-flight requests — a request already dispatched while the
+    //      outgoing account was active can't be un-sent by clearing the
+    //      queue, so it's cancelled at the network level instead. Without
+    //      this a request could still resolve (and land attributed to
+    //      whichever session cookie is active when it arrives) after the new
+    //      account's local wipe/reload starts.
+    //   4. Bump the generation — makes any _doFlush() loop that was already
+    //      mid-iteration (past the _clearing check, before this call ran)
+    //      bail out on its next per-item check.
+    _clearing = true;
     if (_flushTimer !== null) {
         clearTimeout(_flushTimer);
         _flushTimer = null;
     }
-    try { localStorage.removeItem(getLastFlushKey()); } catch { /* ignore */ }
-    try { localStorage.removeItem(getLastVisFlushKey()); } catch { /* ignore */ }
+    abortAllPendingSync();
+    _currentGeneration++;
+
+    try {
+        try { await idbClear(); } catch { /* ignore */ }
+        try { localStorage.removeItem(getLastFlushKey()); } catch { /* ignore */ }
+        try { localStorage.removeItem(getLastVisFlushKey()); } catch { /* ignore */ }
+    } finally {
+        _clearing = false;
+    }
 }
 
 /**
