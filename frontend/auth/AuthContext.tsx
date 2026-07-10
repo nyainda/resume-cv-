@@ -581,7 +581,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
         }
 
-        boot();
+        boot().catch(() => { if (!cancelled) setIsLoading(false); });
         return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -937,6 +937,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // deleted account's profile data.
         await clearQueueForAccount().catch(() => {}); // drop any queued sync for the deleted account
         clearStorageUser();                              // drop procv:storage_ns
+        clearSessionFallback();                           // stale token can't be valid for a deleted account
         rotateDeviceId();                                 // new account = new device_id
         await clearAllIdbAsync();                         // await — must finish before reload
         clearUserScopedStorage({ clearAppData: true });   // wipes u_*, legacy unprefixed keys, procv:*

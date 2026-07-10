@@ -9,7 +9,7 @@ import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync, clearQueueForAccount } from '../services/storage/syncQueue';
 import {
   syncSlot, fetchUserData, deleteSlotFromCloud, getDeviceId,
-  getLastSyncTimestamp, markSlotSyncedNow, recordServerTs,
+  getLastSyncTimestamp, markSlotSyncedNow, recordServerTs, clearSlotSyncTimestamp,
 } from '../services/userDataCloudService';
 import { useSlotPoller } from './useSlotPoller';
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from '../utils/clearUserStorage';
@@ -87,7 +87,31 @@ export function useProfileManager({
     if (!data?.slots?.length && localSlots.length === 0) return;
 
     if (!data?.slots?.length) {
-      for (const slot of localSlots) void syncSlot(slot);
+      // D1 is empty. For each local slot, only push if it has never been synced
+      // before (prevSyncTs === 0 means it never reached D1 — push as new data).
+      // If prevSyncTs > 0, D1 previously had it and now it's gone → another device
+      // deleted it. Honor the remote deletion: remove locally and clear the timestamp.
+      let anyRemotelyDeleted = false;
+      const toKeep: UserProfileSlot[] = [];
+      for (const slot of localSlots) {
+        const prevSyncTs = getLastSyncTimestamp(slot.id) ?? 0;
+        if (prevSyncTs === 0) {
+          toKeep.push(slot);
+          void syncSlot(slot);
+        } else {
+          clearSlotSyncTimestamp(slot.id);
+          anyRemotelyDeleted = true;
+        }
+      }
+      if (anyRemotelyDeleted) {
+        setProfiles(toKeep);
+        try {
+          const storedId = localStorage.getItem('activeProfileId');
+          const parsed = storedId ? JSON.parse(storedId) : null;
+          const stillExists = parsed && toKeep.some(p => p.id === parsed);
+          if (!stillExists && toKeep.length > 0) setActiveProfileId(toKeep[0].id);
+        } catch { /* ignore */ }
+      }
       return;
     }
 
@@ -134,8 +158,18 @@ export function useProfileManager({
 
     for (const local of localSlots) {
       if (!d1Map.has(local.id)) {
-        mergedSlots.push(local);
-        toPush.push(local);
+        const prevSyncTs = getLastSyncTimestamp(local.id) ?? 0;
+        if (prevSyncTs === 0) {
+          // Never pushed to D1 — this is a genuinely new local-only slot. Push it up.
+          mergedSlots.push(local);
+          toPush.push(local);
+        } else {
+          // Was previously in D1 but is now gone → another device explicitly
+          // deleted it. Honor the remote deletion: drop it locally and clear the
+          // stale timestamp so a future re-creation with the same ID starts fresh.
+          clearSlotSyncTimestamp(local.id);
+          anyD1Newer = true; // ensure setProfiles() fires to apply the removal
+        }
       }
     }
 

@@ -477,3 +477,13 @@ export function markSlotSyncedNow(slotId: string): void {
         localStorage.setItem(SLOT_SYNC_TS_PREFIX + slotId, String(Date.now()));
     } catch { /* non-fatal */ }
 }
+
+/**
+ * Clears the sync timestamp for a slot.
+ * Called when D1 no longer has a slot that was previously pushed — meaning
+ * another device deleted it. Clearing the timestamp lets the slot be
+ * recreated later with a fresh ID if the user explicitly adds it back.
+ */
+export function clearSlotSyncTimestamp(slotId: string): void {
+    try { localStorage.removeItem(SLOT_SYNC_TS_PREFIX + slotId); } catch { /* non-fatal */ }
+}
