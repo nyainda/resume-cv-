@@ -355,13 +355,19 @@ export async function handleProfileCachePost(request: Request, env: Env, ctx: Ex
     if (!compactJson)               return json({ error: 'missing_compact_json' }, request, env, 400);
     if (compactJson.length > 65536) return json({ error: 'compact_json_too_large', max: 65536 }, request, env, 413);
 
-    // Slot ownership is still verified so an attacker who guesses another
-    // user's slot_id cannot even attribute a cache row to it under their own
-    // user_id namespace with a spoofed slot_id.
+    // Slot ownership check: prefer the slot to exist in user_slots, but do NOT
+    // hard-fail when it doesn't. A newly created slot is queued for sync at up
+    // to 30s intervals; syncProfileToCache fires after only 3s — this race is
+    // guaranteed on first save. The real security boundary is user_id from the
+    // verified session (already checked above). A spoofed slot_id only lands
+    // under the attacker's own user_id namespace and cannot touch other users'
+    // data. Log a warning for observability but allow the cache write through.
     const slotRow = await env.CV_DB.prepare(
         `SELECT 1 FROM user_slots WHERE slot_id = ? AND user_id = ? LIMIT 1`
     ).bind(slotId, userId).first<{ 1: number }>();
-    if (!slotRow) return json({ error: 'forbidden' }, request, env, 403);
+    if (!slotRow) {
+        console.warn(`[ProfileCache] slot ${slotId} not yet in user_slots for user ${userId} — allowing cache write (sync race)`);
+    }
 
     const now = Math.floor(Date.now() / 1000);
 

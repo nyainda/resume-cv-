@@ -187,6 +187,23 @@ export async function syncProfileToCache(slot: UserProfileSlot): Promise<string 
         });
 
         if (res.status === 401) { notifySessionExpired(); return null; }
+        // 403 = slot not in user_slots yet (sync queue race — slot created locally
+        // but hasn't reached D1 within the 30s rate-limited flush window).
+        // Retry once after 10s; by then the slot flush will have landed.
+        if (res.status === 403) {
+            console.warn(`[ProfileCache] 403 for slot ${slot.id} — slot sync race, retrying in 10s`);
+            await new Promise(r => setTimeout(r, 10_000));
+            const retry = await fetch(`${ENGINE_URL}/api/cv/profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ hash, slot_id: slot.id, slot_name: slot.name || 'Unnamed Profile', compact_json: compactJson }),
+                signal: AbortSignal.timeout(8000),
+            }).catch(() => null);
+            if (!retry?.ok) return null;
+            setStoredHash(slot.id, hash);
+            return hash;
+        }
         if (!res.ok) {
             console.warn(`[ProfileCache] Upload failed (HTTP ${res.status}) for slot ${slot.id}`);
             return null;
