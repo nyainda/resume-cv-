@@ -253,7 +253,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   initialCvPurpose, initialGenerationMode, initialJdKeywords, onSlotUpdate, onPinField, onUnpinField, onShareLinkAdded,
   onUpgrade, openToolkitAtQualityAudit, activeSlot,
 }) => {
-  const { isAuthenticated, requireAuth, user: workerUser } = useAuth();
+  const { isAuthenticated, requireAuth, user: workerUser, isLoading: isAuthLoading } = useAuth();
 
   // Shared helper: push the latest CV to D1 so changes persist across all devices.
   // The syncQueue is rate-limited (max 1 flush per 30 s) and deduplicates by payload
@@ -443,7 +443,27 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   // Sync effective scale whenever auto-fit or manual override changes
   useEffect(() => {
     setPreviewScale(zoomOverride !== null ? zoomOverride : autoFitScale);
+    setPanX(0); // always recenter when the effective scale changes
   }, [autoFitScale, zoomOverride]);
+
+  // Re-measure once the auth session has resolved: the very first
+  // ResizeObserver measurement above can fire mid-reflow (the header swaps
+  // from guest → signed-in state, shifting layout), capturing a stale
+  // container width and leaving the preview mis-scaled/off-center until a
+  // manual refresh. Re-measure shortly after that reflow settles.
+  useEffect(() => {
+    if (!isAuthLoading) {
+      const t = setTimeout(() => {
+        const paperEl = paperAreaRef.current;
+        if (!paperEl) return;
+        const A4_PX = 794;
+        const available = paperEl.clientWidth - 32;
+        const auto = Math.min(1, Math.max(0.25, available / A4_PX));
+        setAutoFitScale(auto);
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [isAuthLoading]);
 
   const ZOOM_STEP = 0.15;
   const MIN_ZOOM  = 0.25;

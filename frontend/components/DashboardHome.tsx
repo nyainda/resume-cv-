@@ -470,16 +470,18 @@ const DashboardHome: React.FC<Props> = ({
                 const cfg = PRIORITY_CONFIG[top.priority] ?? PRIORITY_CONFIG.low;
                 const action = resolveRecAction(top.targetView, onNavigate, onEditProfile);
                 return (
-                  <div className={`flex flex-wrap sm:flex-nowrap items-center gap-3 px-3 sm:px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
-                    <span className="text-lg flex-shrink-0">{cfg.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-0.5">Your biggest opportunity</p>
-                      <p className={`text-xs font-bold leading-tight ${cfg.color}`}>{top.title}</p>
+                  <div className={`flex flex-col sm:flex-row sm:items-center gap-3 px-3 sm:px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg flex-shrink-0">{cfg.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-0.5">Your biggest opportunity</p>
+                        <p className={`text-xs font-bold leading-tight ${cfg.color}`}>{top.title}</p>
+                      </div>
                     </div>
                     {action && (
                       <button
                         onClick={action}
-                        className={`text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap`}
+                        className={`text-[10px] font-black uppercase tracking-wide px-3 py-1.5 rounded-lg border ${cfg.border} ${cfg.color} hover:opacity-80 transition-opacity whitespace-nowrap self-start sm:self-auto`}
                       >
                         {top.action} →
                       </button>
@@ -607,15 +609,17 @@ const DashboardHome: React.FC<Props> = ({
                         key={rec.id}
                         onClick={action ?? undefined}
                         disabled={!action}
-                        className={`w-full flex items-start gap-3 p-3 rounded-xl border transition-all text-left group ${cfg.border} ${cfg.bg} ${action ? 'hover:shadow-sm cursor-pointer' : 'cursor-default opacity-80'}`}
+                        className={`w-full flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 p-3 rounded-xl border transition-all text-left group ${cfg.border} ${cfg.bg} ${action ? 'hover:shadow-sm cursor-pointer' : 'cursor-default opacity-80'}`}
                       >
-                        <span className="text-base flex-shrink-0 mt-0.5">{cfg.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-xs font-bold leading-tight ${cfg.color}`}>{rec.title}</div>
-                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{rec.detail}</div>
+                        <div className="flex items-start gap-3">
+                          <span className="text-base flex-shrink-0 mt-0.5">{cfg.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-xs font-bold leading-tight ${cfg.color}`}>{rec.title}</div>
+                            <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">{rec.detail}</div>
+                          </div>
                         </div>
                         {action && (
-                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] whitespace-nowrap flex-shrink-0 mt-1 transition-colors">
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 group-hover:text-[#1B2B4B] dark:group-hover:text-[#C9A84C] sm:whitespace-nowrap sm:flex-shrink-0 mt-1 pl-8 sm:pl-0 transition-colors">
                             {rec.action} →
                           </span>
                         )}

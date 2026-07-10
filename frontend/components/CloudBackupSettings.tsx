@@ -196,8 +196,14 @@ export const CloudBackupSettings: React.FC = () => {
                 </p>
             </div>
 
-            {/* ── State: Drive already connected ── */}
-            {isAuthenticated && driveConnected && user ? (
+            {/* ── State: auth session still resolving on boot — don't render a
+                clickable CTA yet, or it may read a stale isAuthenticated===false
+                and route into the "sign in again" flow instead of Drive consent. */}
+            {isLoading ? (
+                <div className="animate-pulse h-10 rounded-lg bg-gray-100 dark:bg-gray-800" />
+
+            /* ── State: Drive already connected ── */
+            ) : isAuthenticated && driveConnected && user ? (
                 <div className="space-y-3">
                     {/* Account row */}
                     <div className="flex items-center justify-between p-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20">

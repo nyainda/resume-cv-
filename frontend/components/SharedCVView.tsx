@@ -152,7 +152,24 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
 
   useEffect(() => {
     setSharedPreviewScale(sharedZoomOverride !== null ? sharedZoomOverride : sharedAutoFitScale);
+    setSharedPanX(0); // always recenter when the effective scale changes
   }, [sharedAutoFitScale, sharedZoomOverride]);
+
+  // One-shot delayed re-measure to cover late layout shifts (share-stats /
+  // branding elements loading in after mount) that can leave the first
+  // ResizeObserver measurement stale, mis-scaling/off-centering the preview
+  // until a manual refresh.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const el = sharedPaperAreaRef.current;
+      if (!el) return;
+      const A4_PX = 794;
+      const available = el.clientWidth - 32;
+      const scale = Math.min(1, Math.max(0.25, available / A4_PX));
+      setSharedAutoFitScale(scale);
+    }, 50);
+    return () => clearTimeout(t);
+  }, []);
 
   const handleSharedZoomIn = () => {
     const next = Math.min(SHARED_MAX_ZOOM, parseFloat(((sharedZoomOverride ?? sharedAutoFitScale) + SHARED_ZOOM_STEP).toFixed(2)));
