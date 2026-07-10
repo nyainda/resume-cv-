@@ -45,15 +45,18 @@ function qualityLabel(value: number): { label: string; color: string } {
 }
 
 function ScoreRing({
-  value, label, color, tooltip,
+  value, label, color, tooltip, subLabel, subColor,
 }: {
   value: number; label: string; color: string; tooltip?: React.ReactNode;
+  subLabel?: string; subColor?: string;
 }) {
   const [show, setShow] = useState(false);
   const r = 20;
   const circ = 2 * Math.PI * r;
   const dash = circ * (Math.min(value, 100) / 100);
   const ql = qualityLabel(value);
+  const displayLabel = subLabel ?? ql.label;
+  const displayColor = subColor ?? ql.color;
   return (
     <div
       className="relative flex flex-col items-center gap-1 cursor-default"
@@ -74,7 +77,7 @@ function ScoreRing({
         />
         <text x="28" y="32" textAnchor="middle" fontSize="12" fontWeight="700" fill={color}>{value}</text>
       </svg>
-      <span style={{ color: ql.color }} className="text-[9px] font-bold text-center leading-none">{ql.label}</span>
+      <span style={{ color: displayColor }} className="text-[9px] font-bold text-center leading-none">{displayLabel}</span>
       {show && tooltip && (
         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 w-56 bg-zinc-900 dark:bg-zinc-950 text-white rounded-xl p-3 text-xs shadow-2xl pointer-events-none">
           {tooltip}
@@ -374,6 +377,8 @@ const DashboardHome: React.FC<Props> = ({
                 value={profileComplete}
                 label="Profile"
                 color={ringColor}
+                subLabel={strengthLabel}
+                subColor={strengthColor}
               />
             </div>
             <div className="flex-1 min-w-0">
