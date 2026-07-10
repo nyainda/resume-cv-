@@ -78,6 +78,9 @@ export async function handleSharePost(request: Request, env: Env, ctx: Execution
     const now       = Math.floor(Date.now() / 1000);
     const expiresAt = now + ttlDays * 86400;
 
+    // Attribute the share to the logged-in user (if any) so it can be wiped on account deletion.
+    const shareUserId = await getUserIdFromRequest(request, env);
+
     let id = randomShareId();
     for (let attempt = 0; attempt < 2; attempt++) {
         const existing = await env.CV_DB.prepare(`SELECT id FROM cv_shares WHERE id = ?`).bind(id).first();
@@ -86,9 +89,9 @@ export async function handleSharePost(request: Request, env: Env, ctx: Execution
     }
 
     await env.CV_DB.prepare(
-        `INSERT INTO cv_shares (id, payload, created_at, expires_at, view_count)
-         VALUES (?, ?, ?, ?, 0)`
-    ).bind(id, payload, now, expiresAt).run();
+        `INSERT INTO cv_shares (id, payload, created_at, expires_at, view_count, user_id)
+         VALUES (?, ?, ?, ?, 0, ?)`
+    ).bind(id, payload, now, expiresAt, shareUserId ?? null).run();
 
     ctx.waitUntil(
         env.CV_DB.prepare(`DELETE FROM cv_shares WHERE expires_at < ?`)

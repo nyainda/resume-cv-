@@ -795,6 +795,8 @@ export async function handleAuthDeleteAccount(
         env.CV_DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(uid),
         // public_profiles (FK → user_identities, mig 027)
         env.CV_DB.prepare(`DELETE FROM public_profiles WHERE user_id = ?`).bind(uid),
+        // cv_shares attributed to this user (mig 037) — anonymous shares have no user_id and are unaffected
+        env.CV_DB.prepare(`DELETE FROM cv_shares WHERE user_id = ?`).bind(uid),
         // auth_audit_log (FK → user_identities, mig 025) — includes the row
         // written above by auditLog(), so must come before user_identities.
         env.CV_DB.prepare(`DELETE FROM auth_audit_log WHERE user_id = ?`).bind(uid),
