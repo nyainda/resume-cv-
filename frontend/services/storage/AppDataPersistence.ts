@@ -237,7 +237,17 @@ export async function restoreLocalStorageFromIDB(): Promise<void> {
     const entries = Object.entries(idbData);
     if (entries.length === 0) return;
 
+    // Legacy IDB entries written before the user-namespace migration use bare
+    // keys like `cv_builder:profiles`.  Restoring them verbatim re-introduces
+    // the exact vector that caused cross-account profile leaks: a new user's
+    // migrateToUserNamespace() would then pick up the bare key and copy it
+    // into the new account's namespace.  Only restore keys that are already
+    // user-scoped (`u_<id>:…`, `anon:…`) or auth/device-level (`procv:…`).
+    const LEGACY_PREFIXES = ['cv_builder:', 'p:', 'cv:', 'cv_drv_mtime:'];
     for (const [key, value] of entries) {
+        const isLegacyUnscoped = LEGACY_PREFIXES.some(p => key.startsWith(p));
+        if (isLegacyUnscoped) continue; // skip — do not reintroduce bare keys
+
         if (localStorage.getItem(key) === null) {
             try {
                 localStorage.setItem(key, JSON.stringify(value));

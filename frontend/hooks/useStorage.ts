@@ -107,7 +107,11 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
                         && idbVal !== null && isCompatibleType(idbVal, initialValue)) {
                         // Update localStorage so future reads are fast
                         try {
-                            window.localStorage.setItem(CV_PREFIX + key, JSON.stringify(idbVal));
+                            // Write back under the user-scoped key, not the bare cv_builder: key.
+                            // Writing to the unprefixed key was the root cause of cross-account
+                            // profile leaks: migrateToUserNamespace() would pick up the bare key
+                            // and copy it into the next account's namespace on their first login.
+                            window.localStorage.setItem(_drivePrefix + CV_PREFIX + key, JSON.stringify(idbVal));
                         } catch { /* quota */ }
                         // Only update state if IDB has a materially different value
                         setValue(prev =>

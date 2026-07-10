@@ -472,7 +472,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (incoming.id) {
             setStorageUser(String(incoming.id));
             // One-time migration: copy any old unprefixed keys to user-scoped namespace.
-            migrateToUserNamespace(String(incoming.id)).catch(() => {});
+            migrateToUserNamespace(String(incoming.id), isNew).catch(() => {});
         }
         clearQueueForAccount().catch(() => {});
         lastKnownEmailRef.current = incoming.email ?? null;

@@ -101,9 +101,26 @@ export function getScopedDbName(baseName: string): string {
  *
  * Returns true if migration was performed.
  */
-export async function migrateToUserNamespace(userId: string): Promise<boolean> {
+export async function migrateToUserNamespace(userId: string, isNew = false): Promise<boolean> {
     const flagKey = `procv:ns_migrated_${userId}`;
     if (localStorage.getItem(flagKey)) return false;
+
+    // Brand-new accounts must never inherit unprefixed data left by a previous user
+    // on the same device. Skip migration entirely, stamp the flag, and purge ALL
+    // legacy-prefixed keys so no stale bare key can be picked up on a future run.
+    if (isNew) {
+        const legacyPrefixes = ['cv_builder:', 'p:', 'cv:', 'cv_drv_mtime:'];
+        try {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && legacyPrefixes.some(p => k.startsWith(p))) keysToRemove.push(k);
+            }
+            for (const k of keysToRemove) localStorage.removeItem(k);
+        } catch { /* non-fatal */ }
+        localStorage.setItem(flagKey, '1');
+        return false;
+    }
 
     const newPrefix = `u_${userId}:`;
     const oldPrefixes = ['cv_builder:', 'p:', 'cv:', 'cv_drv_mtime:'];
