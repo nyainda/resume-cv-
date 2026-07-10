@@ -537,6 +537,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
+            // 2b. ?deleted=1 — account was just deleted on this tab.
+            // All local storage and IDB were already wiped before the redirect,
+            // so there is no session to validate. Skip validateSession() entirely
+            // to avoid: spinner → network call → D1 sync attempt → 401s.
+            // The app will boot directly into the landing page.
+            if (params.get('deleted') === '1') {
+                const clean = new URL(window.location.href);
+                clean.searchParams.delete('deleted');
+                window.history.replaceState({}, '', clean.toString());
+                if (!cancelled) setIsLoading(false);
+                return;
+            }
+
             // 3. Validate via HttpOnly cookie (browser sends it automatically)
             const result = await validateSession();
             if (cancelled) return;
@@ -954,8 +967,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         _saveUser(null);
         setIsNewUser(false);
 
-        // Reload so no in-memory React state from the old session survives.
-        window.location.reload();
+        // Navigate to the origin with ?deleted=1 so the boot sequence skips
+        // validateSession() and renders the landing page immediately — no spinner,
+        // no D1 sync attempt, no 401s from a deleted account's cookie.
+        window.location.replace(window.location.origin + '?deleted=1');
 
         return true;
     }, [_saveUser]);
