@@ -67,6 +67,59 @@ export async function publishPublicProfile(
     }
 }
 
+/** Allowed custom slug pattern: 3–30 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphen. */
+export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$|^[a-z0-9]{3}$/;
+
+const RESERVED_SLUGS = new Set([
+    'api', 'admin', 'cv', 'profile', 'user', 'me', 'null', 'undefined',
+    'help', 'about', 'support', 'blog', 'www', 'auth', 'login', 'signup',
+]);
+
+/**
+ * Validate a candidate custom slug on the client side.
+ * Returns null if valid, or an error string describing the problem.
+ */
+export function validateSlug(slug: string): string | null {
+    if (slug.length < 3)  return 'Must be at least 3 characters';
+    if (slug.length > 30) return 'Must be 30 characters or fewer';
+    if (!SLUG_PATTERN.test(slug)) return 'Only lowercase letters, numbers, and hyphens — no leading/trailing hyphens';
+    if (RESERVED_SLUGS.has(slug)) return `"${slug}" is a reserved name`;
+    return null;
+}
+
+/**
+ * Set a custom slug for the authenticated user's public profile.
+ * Returns { ok: true, slug } on success, or { ok: false, error } on failure.
+ */
+export async function setCustomProfileSlug(
+    slug: string,
+    sessionToken: string,
+): Promise<{ ok: true; slug: string } | { ok: false; error: 'slug_taken' | 'not_published' | 'invalid' | 'network' }> {
+    try {
+        if (!ENGINE_BASE) return { ok: false, error: 'network' };
+        const res = await fetchWithTimeout(`${ENGINE_BASE}/api/cv/public-profile/slug`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}),
+            },
+            credentials: 'include',
+            body: JSON.stringify({ slug }),
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({})) as { error?: string };
+            if (data.error === 'slug_taken') return { ok: false, error: 'slug_taken' };
+            if (data.error === 'not_published') return { ok: false, error: 'not_published' };
+            if (data.error === 'invalid_slug') return { ok: false, error: 'invalid' };
+            return { ok: false, error: 'network' };
+        }
+        const data = await res.json() as { slug?: string };
+        return { ok: true, slug: data.slug ?? slug };
+    } catch {
+        return { ok: false, error: 'network' };
+    }
+}
+
 /**
  * Unpublish the authenticated user's public profile.
  * Returns true on success.

@@ -2,9 +2,11 @@
 /**
  * Public profile endpoints — permanent shareable CV page per user.
  *
- *   GET    /api/cv/public-profile?id=<userId>   — public read (no auth)
- *   POST   /api/cv/public-profile               — publish / update (auth required)
- *   DELETE /api/cv/public-profile               — unpublish (auth required)
+ *   GET    /api/cv/public-profile?id=<userId>         — public read (no auth)
+ *   POST   /api/cv/public-profile                     — publish / update (auth required)
+ *   DELETE /api/cv/public-profile                     — unpublish (auth required)
+ *   PATCH  /api/cv/public-profile/slug                — set custom slug (auth required)
+ *   GET    /api/cv/public-profile/slug/check?slug=…   — availability check (no auth)
  */
 
 import { Env } from '../types';
@@ -117,4 +119,81 @@ export async function handlePublicProfileDelete(
     ).bind(session.userId).run();
 
     return json({ ok: true }, request, env);
+}
+
+/** Slug validation — mirrors the client-side SLUG_PATTERN in publicProfileService.ts. */
+function isValidSlug(slug: string): boolean {
+    if (slug.length < 3 || slug.length > 30) return false;
+    const RESERVED = new Set([
+        'api', 'admin', 'cv', 'profile', 'user', 'me', 'null', 'undefined',
+        'help', 'about', 'support', 'blog', 'www', 'auth', 'login', 'signup',
+    ]);
+    if (RESERVED.has(slug)) return false;
+    return /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug) || /^[a-z0-9]{3}$/.test(slug);
+}
+
+/**
+ * PATCH /api/cv/public-profile/slug  (Authorization: Bearer <token>)
+ * Body: { slug: string }
+ *
+ * Sets a user-chosen custom slug on an already-published profile.
+ * Validates format, checks uniqueness, and updates in place so the
+ * old random slug stops working (one URL per profile at a time).
+ */
+export async function handlePublicProfileSlugPatch(
+    request: Request, env: Env,
+): Promise<Response> {
+    const session = await verifySession(sessionToken(request), env);
+    if (!session) return json({ error: 'unauthorized' }, request, env, 401);
+
+    const body = await safeJson(request);
+    const slug = typeof body?.slug === 'string' ? body.slug.trim().toLowerCase() : '';
+
+    if (!isValidSlug(slug)) return json({ error: 'invalid_slug' }, request, env, 400);
+
+    // Ensure the user has a published profile to attach the slug to.
+    const existing = await env.CV_DB.prepare(
+        `SELECT slug FROM public_profiles WHERE user_id = ?`
+    ).bind(session.userId).first<{ slug: string | null }>();
+    if (!existing) return json({ error: 'not_published' }, request, env, 404);
+
+    // Check uniqueness — owned by a different user is a conflict.
+    const owner = await env.CV_DB.prepare(
+        `SELECT user_id FROM public_profiles WHERE slug = ?`
+    ).bind(slug).first<{ user_id: number }>();
+    if (owner && owner.user_id !== session.userId) {
+        return json({ error: 'slug_taken' }, request, env, 409);
+    }
+
+    await env.CV_DB.prepare(
+        `UPDATE public_profiles SET slug = ? WHERE user_id = ?`
+    ).bind(slug, session.userId).run();
+
+    return json({ ok: true, slug }, request, env);
+}
+
+/**
+ * GET /api/cv/public-profile/slug/check?slug=<slug>  (no auth)
+ *
+ * Quick availability check used by the frontend slug editor for real-time
+ * feedback before the user clicks Save.  Must never be edge-cached.
+ */
+export async function handlePublicProfileSlugCheck(
+    request: Request, env: Env, url: URL,
+): Promise<Response> {
+    const slug = (url.searchParams.get('slug') ?? '').trim().toLowerCase();
+
+    if (!isValidSlug(slug)) {
+        return new Response(JSON.stringify({ available: false, valid: false }), {
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        });
+    }
+
+    const row = await env.CV_DB.prepare(
+        `SELECT user_id FROM public_profiles WHERE slug = ?`
+    ).bind(slug).first<{ user_id: number }>();
+
+    return new Response(JSON.stringify({ available: !row, valid: true }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
 }

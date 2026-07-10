@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { CVData, PersonalInfo, TemplateName } from '../types';
 import LZString from 'lz-string';
 import { createShareLink, buildShortShareUrl, checkShareRateLimit, addStoredShareLink, getStoredShareLinks } from '../services/shareService';
-import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl } from '../services/publicProfileService';
+import { publishPublicProfile, unpublishPublicProfile, buildProfileUrl, setCustomProfileSlug, validateSlug } from '../services/publicProfileService';
 import { logEvent } from '../services/eventsService';
 import { needsWatermark } from '../services/accountTierService';
 
@@ -86,6 +86,12 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
   const [profilePublished, setProfilePublished] = useState(false);
   const [profileError, setProfileError]   = useState('');
   const [profileCopied, setProfileCopied] = useState(false);
+
+  // Custom slug editor
+  const [slugInput, setSlugInput] = useState('');
+  const [slugEditing, setSlugEditing] = useState(false);
+  const [slugSaving, setSlugSaving] = useState(false);
+  const [slugFeedback, setSlugFeedback] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
   // Persist the slug so the editor's quick "Copy profile link" button works
   // across modal open/close without re-publishing.
   const profileSlugKey = userId ? `publicProfile:slug:${userId}` : null;
@@ -205,6 +211,37 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
     setProfileCopied(true);
     setTimeout(() => setProfileCopied(false), 2500);
   }, [profileUrl]);
+
+  const handleSaveSlug = useCallback(async () => {
+    if (!sessionToken || !userId) return;
+    const trimmed = slugInput.trim().toLowerCase();
+    const validationError = validateSlug(trimmed);
+    if (validationError) {
+      setSlugFeedback({ type: 'error', msg: validationError });
+      return;
+    }
+    setSlugSaving(true);
+    setSlugFeedback(null);
+    const result = await setCustomProfileSlug(trimmed, sessionToken);
+    setSlugSaving(false);
+    if ('error' in result) {
+      const msgs: Record<string, string> = {
+        slug_taken:    'That name is already taken — try another',
+        not_published: 'Publish your profile first',
+        invalid:       'Invalid format',
+        network:       'Could not save — please try again',
+      };
+      setSlugFeedback({ type: 'error', msg: msgs[result.error] ?? 'Error saving' });
+      return;
+    }
+    setProfileSlug(result.slug);
+    if (profileSlugKey) {
+      try { localStorage.setItem(profileSlugKey, result.slug); } catch { /* ignore */ }
+    }
+    setSlugEditing(false);
+    setSlugFeedback({ type: 'success', msg: 'URL updated!' });
+    setTimeout(() => setSlugFeedback(null), 3000);
+  }, [sessionToken, userId, slugInput, profileSlugKey]);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -465,6 +502,58 @@ const ShareCVModal: React.FC<ShareCVModalProps> = ({
                         : <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</>}
                     </button>
                   </div>
+                  {/* ── Custom slug editor ── */}
+                  {!slugEditing ? (
+                    <button
+                      onClick={() => { setSlugInput(profileSlug ?? ''); setSlugEditing(true); setSlugFeedback(null); }}
+                      className="flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-300 font-semibold transition-colors"
+                    >
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Customize your URL
+                    </button>
+                  ) : (
+                    <div className="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                      <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Customize your link</p>
+                      <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-violet-400 transition-shadow">
+                        <span className="text-[11px] text-zinc-400 font-mono whitespace-nowrap select-none">#p=</span>
+                        <input
+                          type="text"
+                          value={slugInput}
+                          onChange={e => { setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setSlugFeedback(null); }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleSaveSlug(); if (e.key === 'Escape') setSlugEditing(false); }}
+                          placeholder="your-name"
+                          maxLength={30}
+                          className="flex-1 text-xs font-mono bg-transparent outline-none text-zinc-800 dark:text-zinc-100 min-w-0"
+                          autoFocus
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-400">Letters, numbers, hyphens · 3–30 chars · e.g. jane-doe</p>
+                      {slugFeedback && (
+                        <p className={`text-xs font-semibold ${slugFeedback.type === 'error' ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {slugFeedback.type === 'success' ? '✓ ' : ''}{slugFeedback.msg}
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveSlug}
+                          disabled={slugSaving || slugInput.trim().length < 3}
+                          className="flex-1 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          {slugSaving ? <><svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Saving…</> : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => { setSlugEditing(false); setSlugFeedback(null); }}
+                          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-xs font-bold rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {slugFeedback?.type === 'success' && !slugEditing && (
+                    <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">✓ {slugFeedback.msg}</p>
+                  )}
+
                   <div className="flex gap-2 flex-wrap">
                     <a href={profileUrl} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">

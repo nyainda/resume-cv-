@@ -159,6 +159,60 @@ async function get(path: string): Promise<any | null> {
     }
 }
 
+// ─── Cross-device freshness tracking ─────────────────────────────────────────
+//
+// The 6-second slot poller (useSlotPoller) calls fetchSlotStatus() and
+// compares the returned unix-seconds timestamp against _lastKnownServerTs.
+// runD1MergeSync() calls recordServerTs() after every successful full fetch
+// so the poller never triggers a redundant sync right after one just ran.
+
+let _lastKnownServerTs = 0; // unix SECONDS — matches updated_at column type
+
+/** Returns the MAX(updated_at) the app last received from the server (unix seconds). */
+export function getLastKnownServerTs(): number {
+    return _lastKnownServerTs;
+}
+
+/** Called by runD1MergeSync after a successful fetchUserData() to anchor the baseline. */
+export function recordServerTs(updatedAtSeconds: number): void {
+    if (updatedAtSeconds > _lastKnownServerTs) {
+        _lastKnownServerTs = updatedAtSeconds;
+    }
+}
+
+/**
+ * Lightweight freshness poll — GET /api/cv/slot-status.
+ * Returns { updated_at: number (unix seconds), slot_count: number } or null on failure.
+ * Called every 6 seconds by useSlotPoller; triggers a full sync only when the
+ * timestamp is newer than _lastKnownServerTs.
+ */
+export async function fetchSlotStatus(): Promise<{ updated_at: number; slot_count: number } | null> {
+    if (!ENGINE_URL || !_isSignedIn()) return null;
+    const epochSignal = _epochController.signal;
+    try {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+        const onEpochAbort = () => ac.abort();
+        epochSignal.addEventListener('abort', onEpochAbort);
+        let res: Response;
+        try {
+            res = await fetch(`${ENGINE_URL}/api/cv/slot-status`, {
+                credentials: 'include',
+                signal: ac.signal,
+            });
+        } finally {
+            clearTimeout(timer);
+            epochSignal.removeEventListener('abort', onEpochAbort);
+        }
+        if (res.status === 401) { notifySessionExpired(); return null; }
+        if (!res.ok) return null;
+        const data = await res.json() as { updated_at?: number; slot_count?: number };
+        return { updated_at: data.updated_at ?? 0, slot_count: data.slot_count ?? 0 };
+    } catch {
+        return null;
+    }
+}
+
 // ─── Slot sync ────────────────────────────────────────────────────────────────
 
 /**

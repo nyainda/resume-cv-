@@ -9,8 +9,9 @@ import { syncProfileToCache } from '../services/profileCacheClient';
 import { enqueueSlotSync, clearQueueForAccount } from '../services/storage/syncQueue';
 import {
   syncSlot, fetchUserData, deleteSlotFromCloud, getDeviceId,
-  getLastSyncTimestamp, markSlotSyncedNow,
+  getLastSyncTimestamp, markSlotSyncedNow, recordServerTs,
 } from '../services/userDataCloudService';
+import { useSlotPoller } from './useSlotPoller';
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from '../utils/clearUserStorage';
 import { getUserPrefix } from '../services/storage/userStorageNamespace';
 import { deleteAllDriveData } from '../services/storage/DriveStorageService';
@@ -90,6 +91,12 @@ export function useProfileManager({
       return;
     }
 
+    // Anchor the poller baseline: record the max server timestamp so the 6-second
+    // poller doesn't immediately re-trigger a sync we just completed.
+    // updated_at is unix SECONDS from D1.
+    const maxServerTs = Math.max(...data.slots.map((s: any) => s.updated_at ?? 0));
+    if (maxServerTs > 0) recordServerTs(maxServerTs);
+
     const d1Map = new Map(data.slots.map((s: any) => [s.slot_id, s]));
     const localMap = new Map(localSlots.map(s => [s.id, s]));
     const mergedSlots: UserProfileSlot[] = [];
@@ -107,8 +114,10 @@ export function useProfileManager({
         }
         continue;
       }
-      const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0;
-      if (d1Slot.updated_at > localPushTs + 10_000) {
+      // getLastSyncTimestamp returns unix MILLISECONDS; d1Slot.updated_at is
+      // unix SECONDS — multiply seconds by 1000 before comparing.
+      const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0; // ms
+      if (d1Slot.updated_at * 1000 > localPushTs + 10_000) {
         const parsed = parseSlotData(d1Slot);
         if (parsed) {
           mergedSlots.push(parsed);
@@ -188,6 +197,18 @@ export function useProfileManager({
     return () => document.removeEventListener('visibilitychange', onVisible);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  // ── 6-second cross-device freshness poller ────────────────────────────────
+  // Polls /api/cv/slot-status while the tab is visible. Only triggers a full
+  // D1 merge when the server's MAX(updated_at) is newer than the last value
+  // recorded by runD1MergeSync — so it never fires extra syncs when nothing
+  // has changed on another device.
+  useSlotPoller(isAuthenticated, () => {
+    setProfiles(current => {
+      void runD1MergeSync(current, 'poll');
+      return current;
+    });
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 

@@ -398,3 +398,41 @@ export async function handleUserDataGet(request: Request, env: Env, url: URL): P
         prefs: prefsResult ?? null,
     }, request, env);
 }
+
+/**
+ * GET /api/cv/slot-status  (session cookie required)
+ *
+ * Returns MAX(updated_at) across the authenticated user's slots — a single-row
+ * aggregate used by the frontend 6-second poller to detect cross-device edits
+ * without pulling full slot payloads on every tick.
+ *
+ * MUST use Cache-Control: no-store.  Without it, Cloudflare's edge can serve
+ * a cached response (keyed by URL alone, ignoring the session cookie) to the
+ * wrong user — the same risk that existed on the old un-headered GET endpoints.
+ */
+export async function handleSlotStatusGet(request: Request, env: Env): Promise<Response> {
+    const userId = await getUserIdFromRequest(request, env);
+    if (!userId) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        });
+    }
+
+    const row = await env.CV_DB.prepare(
+        `SELECT MAX(updated_at) AS updated_at, COUNT(*) AS slot_count
+         FROM user_slots WHERE user_id = ?`
+    ).bind(userId).first<{ updated_at: number | null; slot_count: number }>();
+
+    return new Response(JSON.stringify({
+        ok: true,
+        updated_at: row?.updated_at ?? 0,
+        slot_count: row?.slot_count ?? 0,
+    }), {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+    });
+}

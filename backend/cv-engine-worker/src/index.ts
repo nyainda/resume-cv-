@@ -65,6 +65,7 @@ import {
     handleJobCacheGet, handleJobCachePost,
     handleEventPost,
     handleUserSlotsPost, handleUserSlotsDelete, handleUserPrefsPost, handleUserDataGet,
+    handleSlotStatusGet,
 } from './handlers/user';
 
 import {
@@ -74,6 +75,7 @@ import {
 
 import {
     handlePublicProfileGet, handlePublicProfilePost, handlePublicProfileDelete,
+    handlePublicProfileSlugPatch, handlePublicProfileSlugCheck,
 } from './handlers/publicProfile';
 
 import {
@@ -264,6 +266,9 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/user-slots'     && m === 'DELETE')                   return handleUserSlotsDelete(request, env);
     if (p === '/api/cv/user-prefs'     && m === 'POST')                     return handleUserPrefsPost(request, env);
     if (p === '/api/cv/user-data'      && m === 'GET')                      return handleUserDataGet(request, env, url);
+    // Lightweight timestamp poll — used by the 6-second cross-device freshness poller.
+    // Returns MAX(updated_at) across slots; MUST NOT be edge-cached (see handler).
+    if (p === '/api/cv/slot-status'    && m === 'GET')                      return handleSlotStatusGet(request, env);
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     if (p === '/api/auth/google'              && m === 'POST')   return handleAuthGoogle(request, env, ctx);
@@ -277,6 +282,9 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
     if (p === '/api/cv/public-profile' && m === 'GET')    return handlePublicProfileGet(request, env, url);
     if (p === '/api/cv/public-profile' && m === 'POST')   return handlePublicProfilePost(request, env);
     if (p === '/api/cv/public-profile' && m === 'DELETE') return handlePublicProfileDelete(request, env);
+    // Custom slug — check before the bare /public-profile routes so the path match is unambiguous
+    if (p === '/api/cv/public-profile/slug'        && m === 'PATCH') return handlePublicProfileSlugPatch(request, env);
+    if (p === '/api/cv/public-profile/slug/check'  && m === 'GET')   return handlePublicProfileSlugCheck(request, env, url);
 
     // ── S1 Rule Registry ──────────────────────────────────────────────────────
     if (p === '/api/cv/rule-registry'             && m === 'GET')  return handleRuleRegistryList(request, env);
