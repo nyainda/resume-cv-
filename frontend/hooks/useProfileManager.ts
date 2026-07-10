@@ -457,25 +457,12 @@ export function useProfileManager({
 
   const handleDeleteAccount = useCallback(async () => {
     const currentDeviceId = getDeviceId();
-    let serverDeleteOk = false;
-    try {
-      serverDeleteOk = await _deleteAccount(currentDeviceId);
-    } catch { /* serverDeleteOk stays false */ }
 
-    if (!serverDeleteOk) {
-      toast.error(
-        'Deletion failed',
-        'Your account could not be removed from the server. Check your connection and try again — nothing has been deleted yet.',
-      );
-      return;
-    }
-
-    // Capture the Drive token BEFORE clearAllBrowserStorage() wipes localStorage.
-    // driveToken React-state is memory-only and starts null on a fresh page load
-    // (the token is never persisted back to React state across sessions), so if the
-    // user had Drive connected in a previous session we fall back to the localStorage
-    // copy. Without this, Drive files survive account deletion whenever the user
-    // loads the page fresh and then immediately deletes their account.
+    // Capture the Drive token NOW — before anything is wiped.
+    // driveToken React-state is memory-only and starts null on a fresh page load,
+    // so if the user had Drive connected in a previous session we fall back to the
+    // localStorage copy. This must happen here, before _deleteAccount() triggers
+    // clearAllIdbAsync() + clearUserScopedStorage() which wipe that localStorage key.
     const tokenForDriveDeletion: string | null =
         driveToken?.accessToken ??
         (() => {
@@ -487,23 +474,30 @@ export function useProfileManager({
             } catch { return null; }
         })();
 
-    await clearQueueForAccount().catch(() => {});
-    await clearAllBrowserStorage();
-    stampDeletedAccount();
-    rotateDeviceId();
-
-    // Drive cleanup is best-effort and was previously awaited here, which made
-    // the user sit on the page for several extra seconds (multiple Google API
-    // round-trips) after the server + local wipe had already finished — the
-    // "delete takes a while, then logs me out" delay. The account and all local
-    // data are already gone at this point, so fire the Drive deletion without
-    // blocking the redirect. `deleteAllDriveData` already treats every request
-    // as best-effort internally.
+    // Fire Drive deletion BEFORE calling _deleteAccount. _deleteAccount calls
+    // window.location.reload() on success, which means any code after it never
+    // runs. By firing Drive deletion first with keepalive:true fetch requests,
+    // the browser completes those requests even after the page navigates away.
     if (tokenForDriveDeletion) {
       deleteAllDriveData(tokenForDriveDeletion).catch(() => {});
     }
 
-    window.location.replace(window.location.origin);
+    let serverDeleteOk = false;
+    try {
+      // _deleteAccount handles: server-side deletion, local storage/IDB wipe,
+      // queue clear, device ID rotation, and window.location.reload().
+      serverDeleteOk = await _deleteAccount(currentDeviceId);
+    } catch { /* serverDeleteOk stays false */ }
+
+    if (!serverDeleteOk) {
+      toast.error(
+        'Deletion failed',
+        'Your account could not be removed from the server. Check your connection and try again — nothing has been deleted yet.',
+      );
+      return;
+    }
+    // _deleteAccount already called window.location.reload() on success —
+    // execution does not reach here on the happy path.
   }, [_deleteAccount, driveToken?.accessToken, toast]);
 
   const handleClearAllData = useCallback(async () => {
