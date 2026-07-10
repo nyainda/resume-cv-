@@ -55,6 +55,10 @@ import {
     stampSignedOut,
     ACCOUNT_HASH_KEY,
     SIGNED_OUT_SENTINEL,
+    clearAllIdbAsync,
+    clearUserScopedStorage,
+    stampDeletedAccount,
+    rotateDeviceId,
 } from '../utils/clearUserStorage';
 import { migrateDriveFilesToUserScope } from '../services/storage/DriveStorageService';
 
@@ -921,8 +925,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const deleteAccount = useCallback(async (deviceId?: string): Promise<boolean> => {
         // deleteAccountWorker now reads the localStorage fallback token internally,
         // so no sessionToken parameter is needed here.
-        return deleteAccountWorker(deviceId);
-    }, []);
+        const ok = await deleteAccountWorker(deviceId);
+        if (!ok) return false;
+
+        // Server-side data is gone — now guarantee the local slate is clean
+        // BEFORE the next sign-in (same or different account) can run its
+        // first-login migration and adopt stale legacy keys. Without this,
+        // leftover legacy-prefixed localStorage keys from the deleted account
+        // get silently adopted by migrateToUserNamespace() on the next
+        // account's first login, making a brand-new account inherit the
+        // deleted account's profile data.
+        clearQueueForAccount().catch(() => {}); // drop any queued sync for the deleted account
+        clearStorageUser();                              // drop procv:storage_ns
+        rotateDeviceId();                                 // new account = new device_id
+        await clearAllIdbAsync();                         // await — must finish before reload
+        clearUserScopedStorage({ clearAppData: true });   // wipes u_*, legacy unprefixed keys, procv:*
+        stampDeletedAccount();                             // let the account-switch guard know it's clean
+        _saveUser(null);
+        setIsNewUser(false);
+
+        // Reload so no in-memory React state from the old session survives.
+        window.location.reload();
+
+        return true;
+    }, [_saveUser]);
 
     // ─────────────────────────────────────────────────────────────────────────
 
