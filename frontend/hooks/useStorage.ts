@@ -124,13 +124,28 @@ export function useStorage<T>(key: string, initialValue: T): [T, Setter<T>] {
         }
 
         // Full async load — used when: a) Drive is active, b) localStorage was empty
+        // for the CURRENT namespace. Note lsVal === null here can mean either
+        // "nothing was ever saved" or "the user namespace just switched (e.g.
+        // login/logout) and this account has no data yet" — in the latter case
+        // React state may still be holding the PREVIOUS namespace's value from
+        // before this effect re-ran (useState only initialises once on mount).
+        // If the async load also comes back empty, that stale value must be
+        // reset to initialValue — otherwise the old account's in-memory state
+        // (e.g. profile slots) lingers into the new session and gets treated
+        // as "local data to push" by callers like runD1MergeSync.
         getStorageService()
             .load<T>(key)
             .then((loaded) => {
-                if (!cancelled && writeGenRef.current === capturedWriteGen
-                    && loaded !== null && isCompatibleType(loaded, initialValue)) {
+                if (cancelled || writeGenRef.current !== capturedWriteGen) return;
+                if (loaded !== null && isCompatibleType(loaded, initialValue)) {
                     setValue(prev =>
                         JSON.stringify(prev) !== JSON.stringify(loaded) ? loaded : prev
+                    );
+                } else {
+                    // Nothing found for this namespace — make sure we aren't still
+                    // carrying over a previous namespace's in-memory value.
+                    setValue(prev =>
+                        JSON.stringify(prev) !== JSON.stringify(initialValue) ? initialValue : prev
                     );
                 }
             })

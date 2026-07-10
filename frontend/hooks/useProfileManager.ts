@@ -243,6 +243,7 @@ export function useProfileManager({
       if (document.visibilityState !== 'visible') return;
       const now = Date.now();
       if (now - lastVisSyncRef.current < 2 * 60_000) return;
+      if (isNewUser) return;
       lastVisSyncRef.current = now;
       setProfiles(current => {
         void runD1MergeSync(current, 'visibility sync');
@@ -260,6 +261,14 @@ export function useProfileManager({
   // recorded by runD1MergeSync — so it never fires extra syncs when nothing
   // has changed on another device.
   useSlotPoller(isAuthenticated, () => {
+    // A brand-new account has nothing worth merging by definition — the
+    // login-time effect above already clears any leftover local state for
+    // this case. Without this guard, the poller can independently discover
+    // slots that were pushed to D1 moments earlier by a *different* session
+    // (e.g. a previous account's queued sync flushing late) and merge them
+    // straight into the new user's profiles, even though the login-time
+    // effect correctly skipped the merge.
+    if (isNewUser) return;
     setProfiles(current => {
       void runD1MergeSync(current, 'poll');
       return current;
