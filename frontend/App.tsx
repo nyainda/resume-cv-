@@ -288,6 +288,7 @@ const AppInner: React.FC = () => {
     setCurrentCV,
     setIsEditingProfile,
     isAuthenticated,
+    isNewUser,
     driveToken,
     deleteAccount: _deleteAccount,
     toast,

@@ -486,6 +486,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // OnboardingWizard never remounts, silently dumping them into the app
             // with no profile set up and no way to get the wizard back.
             try { sessionStorage.setItem('procv:pending_new_user', '1'); } catch { /* non-fatal */ }
+        } else {
+            // Explicitly reset so a returning user signing in after a new user on
+            // the same tab never inherits stale isNewUser=true state.
+            setIsNewUser(false);
+            try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
         }
         setAuthModalOpen(false);
         const queue = pendingResolvers.current.splice(0);
@@ -573,8 +578,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
                 }
             } else if (result.invalid) {
-                // Server says definitively signed out
+                // Server says definitively signed out — also reset any stale
+                // isNewUser flag so a subsequent login on the same session
+                // doesn't inherit it and wrongly trigger onboarding clearing.
                 _saveUser(null);
+                setIsNewUser(false);
+                try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
             }
             // Network error: keep display cache → user not kicked to landing page on cold start
 
@@ -958,7 +967,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         isNewUser,
-        clearNewUser:         () => setIsNewUser(false),
+        clearNewUser: () => {
+            setIsNewUser(false);
+            try { sessionStorage.removeItem('procv:pending_new_user'); } catch { /* non-fatal */ }
+        },
         authModalOpen,
         authModalMode,
         showSignIn,

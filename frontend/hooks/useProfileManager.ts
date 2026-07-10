@@ -32,6 +32,7 @@ interface UseProfileManagerConfig {
   setCurrentCV: React.Dispatch<React.SetStateAction<CVData | null>>;
   setIsEditingProfile: React.Dispatch<React.SetStateAction<boolean>>;
   isAuthenticated: boolean;
+  isNewUser: boolean;
   driveToken: { accessToken: string } | null | undefined;
   deleteAccount: (deviceId: string) => Promise<boolean>;
   toast: ReturnType<typeof useToast>;
@@ -49,6 +50,7 @@ export function useProfileManager({
   setCurrentCV,
   setIsEditingProfile,
   isAuthenticated,
+  isNewUser,
   driveToken,
   deleteAccount: _deleteAccount,
   toast,
@@ -203,6 +205,26 @@ export function useProfileManager({
     if (!isAuthenticated) return;
     if (d1RestoreCheckedRef.current) return;
     d1RestoreCheckedRef.current = true;
+
+    // Brand-new accounts have no server-side data by definition. Any profiles
+    // currently in local state are stale leftovers from a previous account's
+    // session that was not fully wiped before sign-up completed (the wipe runs
+    // on email-change detection, but a fresh sign-up on a shared/reused device
+    // can race that path). Clear them immediately so they cannot:
+    //   1. Be pushed up to D1 under the new account (polluting it)
+    //   2. Trigger profile-cache uploads that reference the old slot IDs
+    //      (which the server correctly rejects with 403 — ownership check)
+    // After clearing, skip the D1 merge sync entirely — there is nothing on
+    // the server to pull for a new user and nothing worth preserving locally.
+    if (isNewUser) {
+      drainPendingSlots(); // discard any slots that arrived with the auth response
+      if (profiles.length > 0) {
+        setProfiles([]);
+        setActiveProfileId(null);
+      }
+      return;
+    }
+
     drainPendingSlots();
     setD1SyncPending(true);
     const syncTimeout = setTimeout(() => setD1SyncPending(false), 6000);
