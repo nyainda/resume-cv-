@@ -90,6 +90,24 @@ export function useProfileManager({
   const isNewUserRef = useRef(isNewUser);
   isNewUserRef.current = isNewUser;
 
+  // Tracks the id of a not-yet-committed "new profile" slot across repeated
+  // handleProfileSave calls made before activeSlot exists — see usage below.
+  const pendingNewSlotIdRef = useRef<string | null>(null);
+  // Clear on any sign-out/account-switch boundary so a pending id from one
+  // session can never be reused as the "first slot" id for a different
+  // session that happens to hit the no-activeSlot branch later.
+  useEffect(() => {
+    if (!isAuthenticated) pendingNewSlotIdRef.current = null;
+  }, [isAuthenticated]);
+  // Once a slot with the pending id actually lands in `profiles` (confirmed
+  // by activeSlot matching it) or the pending slot was deleted/replaced by a
+  // different active slot, the pending id no longer needs tracking.
+  useEffect(() => {
+    if (pendingNewSlotIdRef.current && activeSlot?.id !== pendingNewSlotIdRef.current) {
+      pendingNewSlotIdRef.current = null;
+    }
+  }, [activeSlot?.id]);
+
   const runD1MergeSync = useCallback(async (localSlots: UserProfileSlot[], source: string) => {
     const data = await fetchUserData().catch(() => null);
     if (!data?.slots?.length && localSlots.length === 0) return;
@@ -224,6 +242,7 @@ export function useProfileManager({
     // the server to pull for a new user and nothing worth preserving locally.
     if (isNewUser) {
       drainPendingSlots(); // discard any slots that arrived with the auth response
+      pendingNewSlotIdRef.current = null; // any pending create id belonged to a wiped-out session
       if (profiles.length > 0) {
         setProfiles([]);
         setActiveProfileId(null);
@@ -305,13 +324,23 @@ export function useProfileManager({
   const handleProfileSave = useCallback(
     (profile: UserProfile) => {
       if (activeSlot) {
+        pendingNewSlotIdRef.current = null;
         setUserProfile(profile);
         setIsEditingProfile(false);
         syncProfileToCache({ ...activeSlot, profile }).catch(() => {});
         if (isAuthenticated)
           enqueueSlotSync({ ...activeSlot, profile }).catch(() => {});
       } else {
-        const id = crypto.randomUUID();
+        // No active slot yet. This branch can be re-entered multiple times in
+        // quick succession (e.g. an autosave firing again before the
+        // setActiveProfileId() from a previous call has propagated back down
+        // through props/state) — reuse the same pending id across those calls
+        // instead of minting a fresh crypto.randomUUID() and pushing a brand
+        // new orphaned slot to D1 every time. Once the caller sees a real
+        // activeSlot (id matches pendingNewSlotIdRef), this branch won't run
+        // again and the ref is cleared.
+        const id = pendingNewSlotIdRef.current ?? crypto.randomUUID();
+        pendingNewSlotIdRef.current = id;
         const slot: UserProfileSlot = {
           id,
           name: profile.personalInfo?.name || 'My Profile',

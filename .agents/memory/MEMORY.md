@@ -38,3 +38,4 @@
 - [Cross-account cache/ownership key pattern](cross-account-cache-key-pattern.md) — client-generated/hash keys need atomic DB-level ownership claims, not check-then-insert; confirmed twice (profile_cache, user_slots).
 - [Account-switch teardown must be fully synchronous-first](account-switch-teardown-fencing.md) — reload-after-wipe races: local wipe/IDB delete/queue clear/in-flight-fetch cancel must all be awaited (and any state flags set synchronously before the first await) or stale data leaks into the next account.
 - [isNewUser sync guard staleness](isnewuser-sync-guards.md) — poller/visibility-sync closures over isNewUser go stale; must read from a ref, or a new account's poller can merge leaked D1 slots within seconds of signup.
+- [Duplicate profile slot on first save](duplicate-slot-on-first-save.md) — "create if none exists" handler re-entered before its own id-setting propagated back → distinct orphaned D1 rows while UI only ever shows one profile.
