@@ -60,7 +60,7 @@ function Gauge({ score, fill, size = 80 }: { score: number; fill: string; size?:
 
 // ── Component bar ────────────────────────────────────────────────────────────
 
-function ComponentBar({ item }: { item: IntelligenceComponent }) {
+const ComponentBar: React.FC<{ item: IntelligenceComponent }> = ({ item }) => {
   const bar = COMPONENT_BAR_COLOR[item.color];
   return (
     <div className="space-y-1">
@@ -77,7 +77,7 @@ function ComponentBar({ item }: { item: IntelligenceComponent }) {
       <p className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-snug">{item.tip}</p>
     </div>
   );
-}
+};
 
 // ── Main component ────────────────────────────────────────────────────────────
 
