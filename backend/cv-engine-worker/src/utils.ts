@@ -39,10 +39,21 @@ export function corsHeaders(request: Request, env: Env): HeadersInit {
 
 // ─── Response helpers ─────────────────────────────────────────────────────────
 
+// All API responses vary by session cookie, never by URL alone. Cloudflare's
+// edge cache keys on URL by default and does NOT look at Set-Cookie/Cookie
+// headers, so without an explicit no-store a cached response from one user's
+// session can be served straight back to a completely different user who
+// later hits the same URL (this exact bug served a deleted user's cached
+// /api/cv/user-data payload to the next account created on the same route).
+// Every JSON response through this helper must therefore be uncacheable.
 export function json(body: unknown, request: Request, env: Env, status = 200): Response {
     return new Response(JSON.stringify(body), {
         status,
-        headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' },
+        headers: {
+            ...corsHeaders(request, env),
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+        },
     });
 }
 
