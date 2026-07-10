@@ -28,11 +28,15 @@ export function scoreCVCompleteness(cv: CVData | null, profile: UserProfile | nu
 
         // CV content
         { label: 'Professional summary', weight: 10, filled: !!(cv?.summary?.trim() && cv.summary.length > 30) },
-        { label: 'Work experience',      weight: 20, filled: !!(cv?.experience?.length) },
-        { label: 'Education',            weight: 10, filled: !!(cv?.education?.length) },
-        { label: 'Skills (at least 5)',  weight: 10, filled: !!(cv?.skills?.length && cv.skills.length >= 5) },
-        { label: 'Projects',             weight: 8,  filled: !!(cv?.projects?.length) },
-        { label: 'Languages',            weight: 5,  filled: !!(cv?.languages?.length) },
+        // Note: forms seed these arrays with one placeholder entry (all fields
+        // blank) so users have a row to type into. Checking `.length` alone
+        // would count that empty placeholder as "filled" and hand out points
+        // for nothing — every check below requires actual non-empty content.
+        { label: 'Work experience',      weight: 20, filled: !!(cv?.experience?.some(e => e.company?.trim() || e.jobTitle?.trim())) },
+        { label: 'Education',            weight: 10, filled: !!(cv?.education?.some(e => e.degree?.trim() || e.school?.trim())) },
+        { label: 'Skills (at least 5)',  weight: 10, filled: (Array.isArray(cv?.skills) ? cv.skills.filter(s => typeof s === 'string' && s.trim()).length : 0) >= 5 },
+        { label: 'Projects',             weight: 8,  filled: !!(cv?.projects?.some(p => p.name?.trim())) },
+        { label: 'Languages',            weight: 5,  filled: !!(cv?.languages?.some(l => l.name?.trim())) },
 
         // Quality checks
         {

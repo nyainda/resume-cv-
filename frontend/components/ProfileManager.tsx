@@ -21,21 +21,42 @@ function getColor(id: ProfileColor) {
     return COLORS.find(c => c.id === id) ?? COLORS[0];
 }
 
+// Helpers below require actual non-empty content, not just array length.
+// ProfileForm seeds workExperience/education/projects with one blank
+// placeholder entry (all fields ''), so `.length` alone always reads >= 1
+// for a brand-new, completely empty profile — inflating the score for
+// nothing typed in. See cvCompleteness.ts for the same fix applied there.
+function realRoles(p: UserProfile) {
+    return (p.workExperience ?? []).filter(r => r.company?.trim() || r.jobTitle?.trim());
+}
+function realEducation(p: UserProfile) {
+    return (p.education ?? []).filter(e => e.degree?.trim() || e.school?.trim());
+}
+function realProjects(p: UserProfile) {
+    return (p.projects ?? []).filter(pr => pr.name?.trim());
+}
+function realSkillCount(p: UserProfile) {
+    const raw = (p as any).skills;
+    if (Array.isArray(raw)) return raw.filter((s: unknown) => typeof s === 'string' && s.trim()).length;
+    if (typeof raw === 'string') return raw.split(/[,\n;]/).map(s => s.trim()).filter(Boolean).length;
+    return 0;
+}
+
 function profileStrength(p: UserProfile): number {
     let score = 0;
     if (p.personalInfo.name?.trim())                          score += 15;
     if (p.personalInfo.email?.trim())                         score += 10;
     if (p.personalInfo.phone?.trim() || (p.personalInfo as any).linkedin?.trim()) score += 5;
     if (p.summary?.trim().length >= 20)                       score += 15;
-    const roles = p.workExperience?.length ?? 0;
+    const roles = realRoles(p).length;
     if (roles >= 1) score += 15;
     if (roles >= 2) score += 5;
-    if (p.workExperience?.some(r => r.description?.trim().length > 30)) score += 10;
-    const skillCount = p.skills?.length ?? 0;
+    if (realRoles(p).some(r => r.description?.trim().length > 30)) score += 10;
+    const skillCount = realSkillCount(p);
     if (skillCount >= 3)  score += 10;
     if (skillCount >= 10) score += 5;
-    if ((p.education?.length ?? 0) >= 1)  score += 10;
-    if ((p.projects?.length ?? 0) >= 1)   score += 5;
+    if (realEducation(p).length >= 1)  score += 10;
+    if (realProjects(p).length >= 1)   score += 5;
     return Math.min(score, 100);
 }
 
@@ -61,23 +82,23 @@ function strengthTips(p: UserProfile): string[] {
         tips.push({ msg: 'Add your email address', pts: 10 });
     if (!p.summary?.trim() || p.summary.trim().length < 20)
         tips.push({ msg: 'Write a professional summary', pts: 15 });
-    const roles = p.workExperience?.length ?? 0;
+    const roles = realRoles(p).length;
     if (roles === 0)
         tips.push({ msg: 'Add at least one work experience', pts: 15 });
     else if (roles === 1)
         tips.push({ msg: 'Add a second work experience', pts: 5 });
-    if (roles > 0 && !p.workExperience.some(r => r.description?.trim().length > 30))
+    if (roles > 0 && !realRoles(p).some(r => r.description?.trim().length > 30))
         tips.push({ msg: 'Add bullet points to your experience', pts: 10 });
-    const sc = p.skills?.length ?? 0;
+    const sc = realSkillCount(p);
     if (sc < 3)
         tips.push({ msg: 'Add at least 5 skills', pts: 10 });
     else if (sc < 10)
         tips.push({ msg: `Add more skills (${sc}/10)`, pts: 5 });
-    if ((p.education?.length ?? 0) === 0)
+    if (realEducation(p).length === 0)
         tips.push({ msg: 'Add your education', pts: 10 });
     if (!p.personalInfo.phone?.trim() && !(p.personalInfo as any).linkedin?.trim())
         tips.push({ msg: 'Add phone number or LinkedIn URL', pts: 5 });
-    if ((p.projects?.length ?? 0) === 0)
+    if (realProjects(p).length === 0)
         tips.push({ msg: 'Add a projects section', pts: 5 });
     return tips
         .sort((a, b) => b.pts - a.pts)
