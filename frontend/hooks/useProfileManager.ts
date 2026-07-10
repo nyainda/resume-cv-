@@ -83,6 +83,12 @@ export function useProfileManager({
 
   // ── D1 merge-sync ─────────────────────────────────────────────────────────
   const d1RestoreCheckedRef = useRef(false);
+  // Stable ref mirror of isNewUser so closures created inside effects that
+  // don't re-run on every isNewUser change (visibility listener, poller
+  // callback) always see the current value instead of whatever it was when
+  // the effect last (re-)subscribed.
+  const isNewUserRef = useRef(isNewUser);
+  isNewUserRef.current = isNewUser;
 
   const runD1MergeSync = useCallback(async (localSlots: UserProfileSlot[], source: string) => {
     const data = await fetchUserData().catch(() => null);
@@ -243,7 +249,7 @@ export function useProfileManager({
       if (document.visibilityState !== 'visible') return;
       const now = Date.now();
       if (now - lastVisSyncRef.current < 2 * 60_000) return;
-      if (isNewUser) return;
+      if (isNewUserRef.current) return;
       lastVisSyncRef.current = now;
       setProfiles(current => {
         void runD1MergeSync(current, 'visibility sync');
@@ -268,7 +274,7 @@ export function useProfileManager({
     // (e.g. a previous account's queued sync flushing late) and merge them
     // straight into the new user's profiles, even though the login-time
     // effect correctly skipped the merge.
-    if (isNewUser) return;
+    if (isNewUserRef.current) return;
     setProfiles(current => {
       void runD1MergeSync(current, 'poll');
       return current;
