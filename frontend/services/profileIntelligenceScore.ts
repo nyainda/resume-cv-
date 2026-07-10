@@ -58,6 +58,32 @@ export function computeIntelligenceScore(
   jobDescription?: string,
 ): IntelligenceScore {
 
+  // ── 0. Empty-CV guard ──────────────────────────────────────────────────────
+  // A CV with no summary, no experience, no skills, and no education has
+  // nothing for the fidelity/voice/ATS auditors to actually assess. The
+  // components below used to fall back to "neutral" defaults (75/100/15+) in
+  // that case, which made an entirely empty CV show a deceptively high,
+  // seemingly hard-coded score (e.g. ~55-60%) instead of ~0%. Those defaults
+  // are appropriate for "has some content but nothing flagged as bad" — they
+  // are wrong for "there is no content to judge at all". Detect that case
+  // explicitly and score every content-dependent component as 0 so the total
+  // collapses to (approximately) the completeness score, which correctly
+  // reflects "nothing filled in yet".
+  // Semantic (not just length) checks — an array of blank/placeholder entries
+  // (e.g. `experience: [{ responsibilities: [] }]`, `skills: ["   "]`) must
+  // NOT count as content, or the same "hardcoded-looking score" bug reappears
+  // for CVs that are structurally non-empty but have nothing real in them.
+  const hasAnyContent = !!(
+    cv?.summary?.trim() ||
+    cv?.experience?.some(e =>
+      e.jobTitle?.trim() || e.company?.trim() ||
+      e.responsibilities?.some(r => r?.trim())
+    ) ||
+    cv?.skills?.some(s => s?.trim()) ||
+    cv?.education?.some(e => e.school?.trim() || e.degree?.trim()) ||
+    cv?.projects?.some(p => p.name?.trim() || p.description?.trim())
+  );
+
   // ── 1. Profile Completeness (25%) ─────────────────────────────────────────
   const completeness = scoreCVCompleteness(cv, profile);
   const completenessScore = completeness.percent;
@@ -65,9 +91,9 @@ export function computeIntelligenceScore(
   // ── 2. Achievement Density (25%) ──────────────────────────────────────────
   // % of experience bullets that contain at least one numeric metric.
   let achievementDensity = 0;
-  let fidelityScore = 75;    // default: no bullets to audit
+  let fidelityScore = hasAnyContent ? 75 : 0; // 75 = neutral "no bullets to audit yet"; 0 = truly empty CV
   try {
-    if (cv) {
+    if (cv && hasAnyContent) {
       const report = auditCvQuality(cv as Parameters<typeof auditCvQuality>[0]);
       fidelityScore = report.score;
       achievementDensity = report.achievementDensity.percent;
@@ -79,9 +105,9 @@ export function computeIntelligenceScore(
 
   // ── 4. Voice Quality (15%) ────────────────────────────────────────────────
   // Penalise each voice issue found (first-person, tense drift, etc.).
-  let voiceScore = 100;
+  let voiceScore = hasAnyContent ? 100 : 0; // no text at all = nothing to grade as "professional voice"
   try {
-    if (cv) {
+    if (cv && hasAnyContent) {
       const issues = auditCvVoice(cv as Parameters<typeof auditCvVoice>[0]);
       // 8 points per issue; floors at 0.
       voiceScore = Math.max(0, 100 - issues.length * 8);
@@ -91,7 +117,7 @@ export function computeIntelligenceScore(
   // ── 5. ATS Coverage (15%) ─────────────────────────────────────────────────
   let atsScore = 0;
   let hasJd = false;
-  if (jobDescription?.trim() && cv) {
+  if (jobDescription?.trim() && cv && hasAnyContent) {
     try {
       const atsReport = scoreAtsCoverage(cv, jobDescription);
       // Use the richer semantic score if available, otherwise fall back to
@@ -101,8 +127,8 @@ export function computeIntelligenceScore(
         : atsReport.score;
       hasJd = true;
     } catch { /* non-fatal */ }
-  } else {
-    // No JD — estimate from skills richness and bullet count.
+  } else if (hasAnyContent) {
+    // No JD, but there IS some content — estimate from skills richness and bullet count.
     const skillCount = cv?.skills?.length ?? 0;
     const bulletCount = (cv?.experience ?? []).reduce(
       (n, e) => n + (e.responsibilities?.length ?? 0), 0
@@ -112,6 +138,7 @@ export function computeIntelligenceScore(
       (bulletCount >= 10 ? 20 : bulletCount >= 5 ? 10 : 0)
     );
   }
+  // else: no content at all → atsScore stays 0 (nothing to match against, JD or not)
 
   // ── Weighted composite ────────────────────────────────────────────────────
   const total = Math.round(
