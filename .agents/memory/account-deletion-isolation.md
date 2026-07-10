@@ -9,9 +9,18 @@ description: Complete account deletion must wipe both user_id-scoped AND device_
 2. Delete ALL device_id-keyed legacy tables
 3. Accept `device_id` from request body as a fallback
 
-`handleDeleteAccount` in `frontend/App.tsx` must:
-1. Call `getDeviceId()` and pass it to `deleteAccountWorker(token, deviceId)`
-2. Call `rotateDeviceId()` AFTER `clearUserScopedStorage()` so the new account starts with a fresh device_id
+`deleteAccount()` in `frontend/auth/AuthContext.tsx` must, after a successful `deleteAccountWorker()`:
+1. Clear the queued sync (`clearQueueForAccount()`), storage namespace pointer, and rotate device_id
+2. `await clearAllIdbAsync()` (all 5 IDB DBs) BEFORE `clearUserScopedStorage({ clearAppData: true })`
+3. Call `stampDeletedAccount()` so the account-switch guard doesn't force a redundant second wipe
+4. Only then `window.location.reload()`
+
+Confirmed in production (2026-07): this handler previously called ONLY `deleteAccountWorker()` and
+skipped all local wipe steps — leftover legacy-prefixed localStorage keys from the deleted account
+were silently adopted by `migrateToUserNamespace()` on the very next account's first login, making
+a brand-new account inherit the deleted account's profile. Server-side deletion being correct is
+not sufficient on its own — always verify the client-side teardown path is wired for every
+account-ending action (sign-out, account-switch, AND deletion), not just the one most recently touched.
 
 **Why:** Six tables are keyed by `device_id` only (no `user_id` column): `saved_cvs`, `tracked_applications`, `star_stories`, `saved_cover_letters`, `user_preferences`, `custom_templates`. Also `user_slots` can have orphan rows with `user_id IS NULL`. The `device_id` intentionally survives account deletion for anonymous/offline use, but old D1 rows keyed by the same device_id reappear when the same device re-registers. `user_identities.device_id` is stored at signup — always retrieve it there.
 

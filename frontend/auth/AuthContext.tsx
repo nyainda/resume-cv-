@@ -935,7 +935,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // get silently adopted by migrateToUserNamespace() on the next
         // account's first login, making a brand-new account inherit the
         // deleted account's profile data.
-        clearQueueForAccount().catch(() => {}); // drop any queued sync for the deleted account
+        await clearQueueForAccount().catch(() => {}); // drop any queued sync for the deleted account
         clearStorageUser();                              // drop procv:storage_ns
         rotateDeviceId();                                 // new account = new device_id
         await clearAllIdbAsync();                         // await — must finish before reload
