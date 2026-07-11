@@ -493,6 +493,7 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   <NegotiationCoach
                     apiKeySet={apiKeySet}
                     openSettings={() => setIsSettingsOpen(true)}
+                    userProfile={userProfile}
                   />
                 </div>
               )}
@@ -522,6 +523,8 @@ const AppViewRouter: React.FC<AppViewRouterProps> = ({
                   currentCV={currentCV}
                   onGoToGenerator={() => setCurrentView('generator')}
                   onGoToScore={() => setCurrentView('score')}
+                  apiKeySet={apiKeySet}
+                  openSettings={() => setIsSettingsOpen(true)}
                 />
               )}
 

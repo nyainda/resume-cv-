@@ -3,7 +3,7 @@
  * Colors: Navy #1B2B4B · Gold #C9A84C · Background #F8F7F4
  * Fonts: Playfair Display (headings) · DM Sans (body)
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateInterviewQA, generateThankYouLetter } from '../services/geminiService';
 
@@ -101,6 +101,11 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
     const [letterError, setLetterError]           = useState<string | null>(null);
     const [letterCopied, setLetterCopied]         = useState(false);
 
+    const [questionCount, setQuestionCount]       = useState(10);
+    const [mockMode, setMockMode]                 = useState(false);
+    const [mockIndex, setMockIndex]               = useState(0);
+    const intervalRef                             = useRef<ReturnType<typeof setInterval> | null>(null);
+
     const phases = [
         'Analyzing job requirements…',
         'Mapping your experience to the role…',
@@ -114,15 +119,23 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
         if (!jobDescription.trim()) { setError('Please paste a job description to generate tailored questions.'); return; }
         setIsGenerating(true); setError(null); setQuestions([]); setRevealedAnswers(new Set());
         setStarOpen(new Set()); setRatings(new Map()); setActiveFilter('All'); setThankYouLetter(null);
+        setMockMode(false); setMockIndex(0);
         let phaseIdx = 0; setLoadingMsg(phases[0]);
-        const interval = setInterval(() => { phaseIdx = Math.min(phaseIdx + 1, phases.length - 1); setLoadingMsg(phases[phaseIdx]); }, 2500);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(() => {
+            phaseIdx = Math.min(phaseIdx + 1, phases.length - 1);
+            setLoadingMsg(phases[phaseIdx]);
+        }, 2500);
         try {
-            const result = await generateInterviewQA(userProfile, jobDescription, companyName || undefined);
+            const result = await generateInterviewQA(userProfile, jobDescription, companyName || undefined, questionCount);
             setQuestions(result);
         } catch (err: any) {
             setError(err?.message || 'Failed to generate questions. Please try again.');
-        } finally { clearInterval(interval); setIsGenerating(false); }
-    }, [userProfile, jobDescription, companyName, apiKeySet, openSettings]);
+        } finally {
+            if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+            setIsGenerating(false);
+        }
+    }, [userProfile, jobDescription, companyName, apiKeySet, openSettings, questionCount]);
 
     const toggleAnswer  = (idx: number) => setRevealedAnswers(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
     const toggleStar    = (idx: number) => setStarOpen(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
@@ -327,7 +340,29 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                             disabled={isGenerating}
                         />
                     </div>
-                    <div className="hidden sm:block" />
+                    <div>
+                        <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
+                            Number of Questions
+                        </label>
+                        <div className="flex gap-2">
+                            {[5, 10, 15].map(n => (
+                                <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => setQuestionCount(n)}
+                                    disabled={isGenerating}
+                                    className={`flex-1 py-2.5 rounded-xl border text-sm font-bold transition-all ${
+                                        questionCount === n
+                                            ? 'border-transparent text-white'
+                                            : 'border-zinc-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-neutral-500'
+                                    }`}
+                                    style={questionCount === n ? { background: NAV } : {}}
+                                >
+                                    {n}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -371,7 +406,7 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                             {loadingMsg}
                         </>
                     ) : (
-                        <>🎤 Generate 10 Interview Questions</>
+                        <>🎤 Generate {questionCount} Interview Questions</>
                     )}
                 </button>
             </div>
@@ -386,22 +421,144 @@ const InterviewPrep: React.FC<InterviewPrepProps> = ({ userProfile, apiKeySet, o
                             <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{questions.length} questions ready</span>
                             <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-2">— reveal answers when ready to practice</span>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
+                            {/* Mock mode toggle */}
                             <button
-                                onClick={revealAll}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
-                                style={{ background: GOLD + '18', borderColor: GOLD + '40', color: '#92400e' }}
+                                onClick={() => { setMockMode(v => !v); setMockIndex(0); setRevealedAnswers(new Set()); }}
+                                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                                    mockMode
+                                        ? 'text-white border-transparent'
+                                        : 'border-zinc-200 dark:border-neutral-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800'
+                                }`}
+                                style={mockMode ? { background: NAV } : {}}
+                                title="Practice one question at a time without seeing answers upfront"
                             >
-                                Show All
+                                🎭 {mockMode ? 'Exit Mock Mode' : 'Mock Mode'}
                             </button>
-                            <button
-                                onClick={hideAll}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-neutral-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors"
-                            >
-                                Hide All
-                            </button>
+                            {!mockMode && (
+                                <>
+                                    <button
+                                        onClick={revealAll}
+                                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
+                                        style={{ background: GOLD + '18', borderColor: GOLD + '40', color: '#92400e' }}
+                                    >
+                                        Show All
+                                    </button>
+                                    <button
+                                        onClick={hideAll}
+                                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-neutral-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors"
+                                    >
+                                        Hide All
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
+
+                    {/* ── Mock Mode view ──────────────────────────────── */}
+                    {mockMode && (() => {
+                        const q = filtered[mockIndex] ?? filtered[0];
+                        if (!q) return null;
+                        const gi = questions.indexOf(q);
+                        const isRevealed = revealedAnswers.has(gi);
+                        const color = categoryColors[q.category as Category] || categoryColors.Strength;
+                        const icon  = categoryIcons[q.category as Category] || '💡';
+                        return (
+                            <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-zinc-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                                {/* Progress bar */}
+                                <div className="px-5 pt-4 pb-2">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${color}`}>
+                                            {icon} {q.category}
+                                        </span>
+                                        <span className="text-xs text-zinc-400 dark:text-zinc-500 font-medium">
+                                            {mockIndex + 1} / {filtered.length}
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-zinc-100 dark:bg-neutral-700 rounded-full h-1">
+                                        <div
+                                            className="h-1 rounded-full transition-all duration-300"
+                                            style={{ width: `${((mockIndex + 1) / filtered.length) * 100}%`, background: NAV }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="p-5">
+                                    <p className="text-base font-semibold text-zinc-800 dark:text-zinc-200 leading-snug mb-5">
+                                        "{q.question}"
+                                    </p>
+                                    {!isRevealed ? (
+                                        <div className="space-y-3">
+                                            <p className="text-xs text-zinc-400 dark:text-zinc-500 italic text-center">
+                                                Think through your answer, then reveal the model response.
+                                            </p>
+                                            <button
+                                                onClick={() => toggleAnswer(gi)}
+                                                className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed text-sm font-semibold transition-colors"
+                                                style={{ borderColor: GOLD + '60', color: '#92400e' }}
+                                            >
+                                                Reveal model answer →
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border p-4 mb-4"
+                                             style={{ background: NAV + '08', borderColor: NAV + '25' }}>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: NAV }}>Model Answer</span>
+                                                <CopyButton text={q.answer} />
+                                            </div>
+                                            <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">{q.answer}</p>
+                                        </div>
+                                    )}
+                                    {/* Self-rating */}
+                                    {isRevealed && (
+                                        <div className="rounded-xl border border-zinc-100 dark:border-neutral-800 bg-zinc-50 dark:bg-neutral-800/40 px-4 py-3 mb-4">
+                                            <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-2 uppercase tracking-wide">How did you do?</p>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {ratingScale.map(r => {
+                                                    const isSelected = ratings.get(gi) === r.score;
+                                                    return (
+                                                        <button key={r.score} onClick={() => rateQuestion(gi, r.score)} title={r.label}
+                                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all ${isSelected ? 'border-transparent text-white scale-105 shadow-sm' : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'}`}
+                                                            style={isSelected ? { background: r.score <= 2 ? '#dc2626' : r.score === 3 ? '#d97706' : NAV } : {}}>
+                                                            <span className="text-base leading-none">{r.emoji}</span>
+                                                            <span className="hidden sm:inline">{r.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* Navigation */}
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => { setMockIndex(i => Math.max(0, i - 1)); setRevealedAnswers(new Set()); }}
+                                            disabled={mockIndex === 0}
+                                            className="flex-1 py-2.5 rounded-xl border border-zinc-200 dark:border-neutral-700 text-sm font-semibold text-zinc-600 dark:text-zinc-300 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-neutral-800 transition-colors"
+                                        >
+                                            ← Previous
+                                        </button>
+                                        {mockIndex < filtered.length - 1 ? (
+                                            <button
+                                                onClick={() => { setMockIndex(i => i + 1); setRevealedAnswers(new Set()); }}
+                                                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-colors"
+                                                style={{ background: NAV }}
+                                            >
+                                                Next →
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setMockMode(false)}
+                                                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-colors"
+                                                style={{ background: '#059669' }}
+                                            >
+                                                ✅ Finish Mock
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* Category filter tabs */}
                     <div className="flex gap-2 flex-wrap">
