@@ -30,10 +30,10 @@ export function Scene4(_props: object) {
 
   const stages = [
     { icon: '📋', label: 'Parse Job Description', detail: 'Extracting 47 keywords & requirements', color: '#60a5fa' },
-    { icon: '🎯', label: 'Match Your Profile', detail: 'Aligning your experience with the role', color: '#a78bfa' },
-    { icon: '✍️', label: 'AI Writes Your CV', detail: '7-pass writing pipeline — no generic phrases', color: '#EBFF38' },
-    { icon: '🔍', label: 'Quality Validation', detail: 'Checking facts, tone, and ATS compatibility', color: '#f97316' },
-    { icon: '📄', label: 'PDF Generated', detail: 'Ready to download — ATS score: 87/100', color: '#22c55e' },
+    { icon: '🎯', label: 'Match Your Profile',    detail: 'Aligning your experience with the role', color: '#a78bfa' },
+    { icon: '✍️', label: 'ProCV Writes Your CV',  detail: '7-pass pipeline — no generic phrases, no fluff', color: '#EBFF38' },
+    { icon: '🔍', label: 'Quality Validation',    detail: 'Checking facts, tone, and ATS compatibility', color: '#f97316' },
+    { icon: '📄', label: 'PDF Generated',         detail: 'Ready to download — ATS score: 87/100', color: '#22c55e' },
   ];
 
   return (
@@ -54,8 +54,8 @@ export function Scene4(_props: object) {
           textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
           Click<br /><span style={{ color: '#EBFF38' }}>Build CV.</span><br />Watch it work.
         </h2>
-        <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
-          Paste the job description. ProCV runs a 5-stage AI pipeline and delivers a tailored, validated CV.
+        <p style={{ fontSize: '1.15vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
+          Paste the job description. ProCV runs a 5-stage pipeline and delivers a tailored, validated CV.
         </p>
 
         {/* ATS score result */}
@@ -117,10 +117,10 @@ export function Scene4(_props: object) {
 
               {/* Text */}
               <div className="flex flex-col gap-[0.2vh] flex-1">
-                <span style={{ fontSize: '0.9vw', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: done ? '#86efac' : active ? s.color : 'rgba(255,255,255,0.4)' }}>
+                <span style={{ fontSize: '1.05vw', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: done ? '#86efac' : active ? s.color : 'rgba(255,255,255,0.4)' }}>
                   {s.label}
                 </span>
-                <span style={{ fontSize: '0.78vw', fontFamily: 'DM Sans, sans-serif', color: done ? 'rgba(134,239,172,0.6)' : active ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)' }}>
+                <span style={{ fontSize: '0.9vw', fontFamily: 'DM Sans, sans-serif', color: done ? 'rgba(134,239,172,0.6)' : active ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)' }}>
                   {s.detail}
                 </span>
               </div>

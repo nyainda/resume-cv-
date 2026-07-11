@@ -19,7 +19,7 @@ export function Scene2(_props: object) {
 
   const props = [
     { icon: '🎯', text: 'Reads your job description and targets every keyword' },
-    { icon: '✍️', text: '7-pass AI writing pipeline — checks its own work' },
+    { icon: '✍️', text: '7-pass quality pipeline — checks and rewrites its own work' },
     { icon: '📄', text: 'Professional PDF, ready for any ATS system' },
   ];
 
@@ -67,7 +67,7 @@ export function Scene2(_props: object) {
 
       {/* Tagline */}
       <motion.p className="text-center mb-[1vh]"
-        style={{ fontSize: '1.5vw', color: 'rgba(255,255,255,0.7)', fontFamily: 'DM Sans, sans-serif', fontWeight: 500 }}
+        style={{ fontSize: '1.65vw', color: 'rgba(255,255,255,0.7)', fontFamily: 'DM Sans, sans-serif', fontWeight: 500 }}
         initial={{ opacity: 0, y: 10 }}
         animate={ph >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
         transition={{ duration: 0.55 }}
@@ -77,12 +77,12 @@ export function Scene2(_props: object) {
 
       {/* Sub */}
       <motion.p className="text-center mb-[4vh]"
-        style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.38)', fontFamily: 'DM Sans, sans-serif', maxWidth: '42vw' }}
+        style={{ fontSize: '1.15vw', color: 'rgba(255,255,255,0.38)', fontFamily: 'DM Sans, sans-serif', maxWidth: '42vw' }}
         initial={{ opacity: 0 }}
         animate={ph >= 2 ? { opacity: 1 } : { opacity: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        Not just another CV builder. ProCV reads the job description, writes your CV, then validates it — all in one pipeline.
+        Not just another CV builder. ProCV reads the job description, writes your CV, then validates it — automatically.
       </motion.p>
 
       {/* Gold divider */}

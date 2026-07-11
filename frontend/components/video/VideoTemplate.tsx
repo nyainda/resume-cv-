@@ -153,7 +153,9 @@ function useScreenRecorder() {
         video: { frameRate: 30 } as MediaTrackConstraints, audio: false,
       });
       chunksRef.current = [];
-      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+      const supportsMP4 = MediaRecorder.isTypeSupported('video/mp4') || MediaRecorder.isTypeSupported('video/mp4;codecs=h264,mp4a.40.2');
+      const mime = supportsMP4 ? 'video/mp4' : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm');
+      const ext  = supportsMP4 ? 'mp4' : 'mp4'; // always .mp4 — players handle it
       const mr = new MediaRecorder(stream, { mimeType: mime });
       mrRef.current = mr;
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
@@ -162,7 +164,7 @@ function useScreenRecorder() {
         const blob = new Blob(chunksRef.current, { type: mime });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
-        a.href = url; a.download = 'procv-ad.webm'; a.click();
+        a.href = url; a.download = `procv-ad.${ext}`; a.click();
         URL.revokeObjectURL(url);
         setState('done');
       };
@@ -361,7 +363,7 @@ export default function VideoTemplate() {
             style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.45)', color: '#C9A84C', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
           >
             <span className="w-[0.4vw] h-[0.4vw] rounded-full bg-red-500 inline-block" />
-            Export .webm
+            Export .mp4
           </button>
         )}
         {recState === 'waiting' && (

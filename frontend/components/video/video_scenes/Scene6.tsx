@@ -19,7 +19,7 @@ export function Scene6(_props: object) {
 
   const annotations = [
     { type: 'passive',  label: 'Passive voice',   color: '#fb923c', text: 'was responsible for' },
-    { type: 'buzzword', label: 'AI buzzword',      color: '#f43f5e', text: 'leveraged synergies' },
+    { type: 'buzzword', label: 'Buzzword',         color: '#f43f5e', text: 'leveraged synergies' },
     { type: 'metric',   label: 'No metric',        color: '#facc15', text: 'improved performance' },
   ];
 
@@ -49,10 +49,10 @@ export function Scene6(_props: object) {
         </div>
         <h2 style={{ fontSize: '3.2vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em',
           textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
-          Your AI<br /><span style={{ color: '#EBFF38' }}>career</span><br />consultant.
+          Your CV<br /><span style={{ color: '#EBFF38' }}>Doctor</span><br />feature.
         </h2>
-        <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6, maxWidth: '24vw' }}>
-          CV Doctor scans every bullet for weak language, missing metrics, and passive voice — then rewrites them instantly.
+        <p style={{ fontSize: '1.15vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6, maxWidth: '24vw' }}>
+          CV Doctor scans every bullet for weak language, missing metrics, and passive voice — and rewrites them instantly with one click.
         </p>
 
         {/* Feature checks */}
@@ -65,8 +65,8 @@ export function Scene6(_props: object) {
             >
               <span style={{ fontSize: '1vw' }}>{c.icon}</span>
               <div>
-                <span style={{ fontSize: '0.85vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{c.label} </span>
-                <span style={{ fontSize: '0.8vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif' }}>— {c.detail}</span>
+                <span style={{ fontSize: '1vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{c.label} </span>
+                <span style={{ fontSize: '0.92vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif' }}>— {c.detail}</span>
               </div>
             </motion.div>
           ))}
@@ -130,7 +130,7 @@ export function Scene6(_props: object) {
                 <p style={{ fontSize: '0.85vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
                   CV Doctor is rewriting…
                 </p>
-                <p style={{ fontSize: '0.75vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif' }}>
+                <p style={{ fontSize: '0.9vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif' }}>
                   Found 3 issues · generating 3 rewrite options
                 </p>
               </div>
@@ -152,7 +152,7 @@ export function Scene6(_props: object) {
                   <span style={{ fontSize: '0.65vw', color: '#86efac', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>✓ APPLY</span>
                 </div>
               </div>
-              <p style={{ fontSize: '0.95vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
+              <p style={{ fontSize: '1.1vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
                 • {strongBullet}
               </p>
             </motion.div>
