@@ -40,7 +40,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini, generateProfileFromFileClaude, generateProfile } from "./services/geminiService";
-import { extractText as pdfExtractText, rasterizePdfFirstPage } from "./services/pdfCvParser";
+import { rasterizePdfFirstPage } from "./services/pdfCvParser";
 import { runImportPipeline } from "./services/importPipeline";
 import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
@@ -582,44 +582,32 @@ const AppInner: React.FC = () => {
         try {
           const file = opts.pendingImportFile;
           if (opts.pendingImportType === "pdf") {
-            // Try zero-token text extraction first — works for any text-layer PDF
-            let extracted: Awaited<ReturnType<typeof pdfExtractText>> | null = null;
-            try { extracted = await pdfExtractText(file); } catch { /* fall through */ }
-
-            if (extracted?.layout.hasTextLayer) {
-              // Text PDF — no API key needed
-              const result = await runImportPipeline(extracted.text, 'pdf');
-              handleWordProfileImported(result.profile);
+            // All PDFs go straight to AI — no pdf.js text extraction.
+            // Gemini/Claude read PDFs natively; Workers AI needs a rasterised JPEG.
+            const toBase64 = (f: File) => new Promise<string>((res, rej) => {
+              const r = new FileReader();
+              r.onload = () => res((r.result as string).split(",")[1]);
+              r.onerror = rej;
+              r.readAsDataURL(f);
+            });
+            const mimeType = file.type || "application/pdf";
+            const activeProvider = getSelectedProvider();
+            if (activeProvider === 'claude') {
+              handleWordProfileImported(purifyProfile(await generateProfileFromFileClaude(await toBase64(file), mimeType, undefined)));
+            } else if (activeProvider === 'gemini') {
+              handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
             } else {
-              // Scanned PDF — no text layer. Route to the user's selected provider.
-              const toBase64 = (f: File) => new Promise<string>((res, rej) => {
-                const r = new FileReader();
-                r.onload = () => res((r.result as string).split(",")[1]);
-                r.onerror = rej;
-                r.readAsDataURL(f);
-              });
-              const mimeType = file.type || "application/pdf";
-              const activeProvider = getSelectedProvider();
-              if (activeProvider === 'claude') {
-                // BYOK — Claude vision
-                handleWordProfileImported(purifyProfile(await generateProfileFromFileClaude(await toBase64(file), mimeType, undefined)));
-              } else if (activeProvider === 'gemini') {
-                // BYOK — Gemini vision
-                handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
-              } else {
-                // Free / Premium — Workers AI. Must rasterize page 1 to a real JPEG first
-                // because Workers AI vision rejects raw PDF bytes.
-                const rasterized = await rasterizePdfFirstPage(file);
-                if (!rasterized) throw new Error('Could not render this PDF for AI vision. Try a text-based PDF or paste your CV text instead.');
-                const visionText = await workerVisionExtract(
-                  rasterized.base64, rasterized.mimeType,
-                  'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
-                  { maxTokens: 4096 },
-                );
-                if (!visionText || visionText.trim().length < 50) throw new Error('Workers AI could not read this scanned PDF. Try exporting as a text-based PDF instead.');
-                const result = await runImportPipeline(visionText, 'pdf');
-                handleWordProfileImported(purifyProfile(result.profile));
-              }
+              // Workers AI — rasterise page 1 to JPEG (vision endpoint is image-only)
+              const rasterized = await rasterizePdfFirstPage(file);
+              if (!rasterized) throw new Error('Could not render this PDF for AI vision. Try pasting your CV text instead.');
+              const visionText = await workerVisionExtract(
+                rasterized.base64, rasterized.mimeType,
+                'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
+                { maxTokens: 4096 },
+              );
+              if (!visionText || visionText.trim().length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
+              const result = await runImportPipeline(visionText, 'pdf');
+              handleWordProfileImported(purifyProfile(result.profile));
             }
           } else {
             // Image — route to the user's selected provider.
