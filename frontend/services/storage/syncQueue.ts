@@ -29,7 +29,7 @@
 
 import type { UserProfileSlot } from '../../types';
 import type { UserPrefsPayload } from '../userDataCloudService';
-import { syncSlot, syncPrefs, abortAllPendingSync } from '../userDataCloudService';
+import { syncSlot, syncPrefs, abortAllPendingSync, markLocalEditNow } from '../userDataCloudService';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -281,6 +281,10 @@ export function _devGetLastSlotSyncAt(): number { return _devLastSlotSyncAt; }
 
 export async function enqueueSlotSync(slot: UserProfileSlot): Promise<void> {
     if (import.meta.env.DEV) _devLastSlotSyncAt = Date.now();
+    // Mark the edit SYNCHRONOUSLY, before the 30s throttle/IDB write below —
+    // this is what runD1MergeSync checks so the poller/visibility-sync never
+    // overwrite this edit with stale server data while it's still queued.
+    markLocalEditNow(slot.id);
     try {
         const payloadJson = JSON.stringify(slot);
         const payloadHash = await sha256hex(payloadJson);

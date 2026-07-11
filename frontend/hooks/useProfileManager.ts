@@ -10,6 +10,7 @@ import { enqueueSlotSync, clearQueueForAccount } from '../services/storage/syncQ
 import {
   syncSlot, fetchUserData, deleteSlotFromCloud, getDeviceId,
   getLastSyncTimestamp, markSlotSyncedNow, recordServerTs, clearSlotSyncTimestamp,
+  getLocalEditTimestamp,
 } from '../services/userDataCloudService';
 import { useSlotPoller } from './useSlotPoller';
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from '../utils/clearUserStorage';
@@ -182,7 +183,13 @@ export function useProfileManager({
       // getLastSyncTimestamp returns unix MILLISECONDS; d1Slot.updated_at is
       // unix SECONDS — multiply seconds by 1000 before comparing.
       const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0; // ms
-      if (d1Slot.updated_at * 1000 > localPushTs + 10_000) {
+      // A local edit may still be sitting in the throttled sync queue (up to
+      // 30s) and hasn't reached D1 yet, so localPushTs alone is stale. Take
+      // the more recent of "last confirmed push" and "last local edit" so the
+      // poller/visibility-sync never overwrite an edit that hasn't landed yet.
+      const localEditTs = getLocalEditTimestamp(d1Slot.slot_id) ?? 0; // ms
+      const localFreshnessTs = Math.max(localPushTs, localEditTs);
+      if (d1Slot.updated_at * 1000 > localFreshnessTs + 10_000) {
         const parsed = parseSlotData(d1Slot);
         if (parsed) {
           mergedSlots.push(parsed);

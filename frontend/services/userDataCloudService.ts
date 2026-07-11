@@ -26,6 +26,12 @@ const ENGINE_URL: string = (import.meta as any).env?.VITE_CV_ENGINE_URL ?? '';
 const DEVICE_ID_KEY      = 'cv_builder:deviceId';
 const SLOT_HASH_PREFIX   = 'cv_builder:usync_slot_hash:'; // + slotId
 const SLOT_SYNC_TS_PREFIX = 'cv_builder:usync_slot_ts:';  // + slotId → unix ms of last successful push
+// Set SYNCHRONOUSLY the moment a local edit is made (save, import, restore…),
+// independent of the sync queue's 30s throttle. Without this, the 6s D1
+// poller / visibility-sync could see the server's still-stale updated_at as
+// "newer than last successful push" during the throttle window and overwrite
+// the just-made edit before it ever reaches D1. See runD1MergeSync().
+const SLOT_EDIT_TS_PREFIX = 'cv_builder:uedit_slot_ts:'; // + slotId → unix ms of last local edit
 const PREFS_HASH_KEY     = 'cv_builder:usync_prefs_hash';
 const MAX_SLOT_BYTES     = 512 * 1024; // 512 KB hard cap
 const FETCH_TIMEOUT_MS   = 6_000;
@@ -319,6 +325,28 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
 export function getLastSyncTimestamp(slotId: string): number | null {
     try {
         const raw = localStorage.getItem(SLOT_SYNC_TS_PREFIX + slotId);
+        if (!raw) return null;
+        const ms = Number(raw);
+        return Number.isFinite(ms) ? ms : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Records that a local edit just happened for this slot, RIGHT NOW —
+ * call this synchronously at the moment of the edit (not after the network
+ * push completes). Used by runD1MergeSync() to avoid overwriting an edit
+ * that hasn't reached D1 yet while it sits in the throttled sync queue.
+ */
+export function markLocalEditNow(slotId: string): void {
+    try { localStorage.setItem(SLOT_EDIT_TS_PREFIX + slotId, String(Date.now())); } catch { /* ignore */ }
+}
+
+/** Returns the unix-ms timestamp of the last local edit for this slot, or null. */
+export function getLocalEditTimestamp(slotId: string): number | null {
+    try {
+        const raw = localStorage.getItem(SLOT_EDIT_TS_PREFIX + slotId);
         if (!raw) return null;
         const ms = Number(raw);
         return Number.isFinite(ms) ? ms : null;
