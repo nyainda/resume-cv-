@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 interface SceneProps { lightMode: boolean }
 
 const tagline = 'Your Personal Career Consultant';
-const subtitle = 'Not another AI CV tool. A builder that checks its own work — 7 passes, zero AI tells, WYSIWYG PDF.';
+const subtitle = 'A CV builder that checks its own work — 7 passes, zero generic output, WYSIWYG PDF.';
 
 const features = ['Groq AI', 'Cloudflare Workers', '35 Templates', 'WYSIWYG PDF', 'ATS Gap Targeting', 'Cover Letters'];
 

@@ -196,7 +196,7 @@ export default function PricingModal({ isOpen, onClose, currentPlan = 'free', us
                                         <span className="text-3xl font-black text-zinc-500">$0</span>
                                         <span className="text-xs text-zinc-400">forever</span>
                                     </div>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">Try it out. 2 full AI-powered CVs, no card needed.</p>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">Try it out. 2 full CV generations, no card needed.</p>
                                     <button disabled className="w-full py-2.5 rounded-xl text-sm font-black bg-zinc-100 dark:bg-neutral-800 text-zinc-400 cursor-default mb-4">
                                         {currentPlan === 'free' ? '✓ Current plan' : 'Free forever'}
                                     </button>

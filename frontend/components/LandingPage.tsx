@@ -917,12 +917,12 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
             </div>
 
             <h1 style={{ fontSize: isLarge ? 'clamp(3rem,4vw,4.8rem)' : 'clamp(2.6rem,5.5vw,4.4rem)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.04em', margin: '0 0 20px' }}>
-              Not Another AI CV.<br />
+              Not Another Generic CV.<br />
               <span style={{ color: '#C9A84C' }}>A builder that checks its own work.</span>
             </h1>
 
             <p style={{ fontSize: isLarge ? 16 : 15, lineHeight: 1.7, color: muted, maxWidth: isLarge ? 520 : 440, margin: '0 0 20px' }}>
-              Most AI tools generate and stop. ProCV runs a 7-pass quality pipeline that catches AI tells, validates every number, and rewrites until your CV sounds like <strong style={{ color: text }}>you</strong> — not a template.
+              Most tools generate and stop. ProCV runs a 7-pass quality pipeline that catches weak language, validates every number, and rewrites until your CV sounds like <strong style={{ color: text }}>you</strong> — not a template.
             </p>
 
             {/* Benefit bullets */}
@@ -1263,7 +1263,7 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               Solve the <span style={{ color: '#C9A84C' }}>Real Problems</span> Others Ignore
             </h2>
             <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, margin: 0 }}>
-              We built ProCV around the most common complaints job seekers have about AI CV tools. Here's what frustrates people — and how we fix it.
+              We built ProCV around the most common complaints job seekers have about CV builders. Here's what frustrates people — and how we fix it.
             </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isLarge ? 'repeat(5,1fr)' : 'repeat(auto-fit,minmax(200px,1fr))', gap: isLarge ? 20 : 14 }}>

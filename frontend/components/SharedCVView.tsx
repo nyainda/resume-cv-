@@ -740,7 +740,7 @@ const SharedCVView: React.FC<SharedCVViewProps> = ({
                             >
                               ProCV
                             </a>
-                            {' '}— AI-powered CVs that get results
+                            {' '}— CVs that actually get results
                           </div>
                         )}
                       </div>
