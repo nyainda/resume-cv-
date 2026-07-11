@@ -502,7 +502,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           setImportConfidence(result.confidence);
 
         } else if (isImage) {
-          // ── Image path — tries Claude/Gemini first, falls back to Workers AI ─
+          // ── Image path — routes to the user's selected provider (Claude / Gemini / Workers AI) ─
           setImportStage({ step: 1, label: 'Reading image…' });
           const { base64 } = await fileToBase64(uploadedFile);
           setImportStage({ step: 2, label: 'AI extracting CV content…', sub: 'This may take a few seconds' });
