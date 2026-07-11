@@ -10,8 +10,6 @@ export function hasCompletedOnboarding(): boolean {
 }
 export function markOnboardingDone(): void {
     try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch { }
-    // Clear the refresh-survival flag now that onboarding is genuinely finished,
-    // so a later plain sign-out/sign-in on this device doesn't wrongly re-open it.
     try { sessionStorage.removeItem('procv:pending_new_user'); } catch { }
 }
 
@@ -27,8 +25,7 @@ function tryParseProfileJson(text: string): UserProfile | null {
             }
         }
         if (!obj.personalInfo && !obj.name && !obj.workExperience && !obj.experience) return null;
-
-        const profile = obj as unknown as UserProfile;
+        const profile = obj as UserProfile;
         const collections: (keyof UserProfile)[] = ['workExperience', 'education', 'skills', 'projects', 'languages'];
         for (const k of collections) {
             if (!Array.isArray(profile[k])) (profile as Record<string, unknown>)[k] = [];
@@ -37,8 +34,10 @@ function tryParseProfileJson(text: string): UserProfile | null {
     } catch { return null; }
 }
 
-type Plan = 'premium' | 'free';
+// Free | BYOK | Premium — each flows through a different step path
+type Plan = 'free' | 'byok' | 'premium';
 type Step = 'plan' | 'import' | 'keys';
+
 export type PendingImportType = 'docx' | 'pdf' | 'image';
 
 interface Props {
@@ -51,6 +50,8 @@ interface Props {
         apiSettings: ApiSettings;
     }) => void;
 }
+
+// ─── Step dots ────────────────────────────────────────────────────────────────
 
 function StepDots({ total, current }: { total: number; current: number }) {
     return (
@@ -68,6 +69,101 @@ function StepDots({ total, current }: { total: number; current: number }) {
     );
 }
 
+// ─── Plan card data ───────────────────────────────────────────────────────────
+
+const PLANS: Array<{
+    id: Plan;
+    icon: string;
+    name: string;
+    badge?: string;
+    tagline: string;
+    price: string;
+    priceNote: string;
+    bullets: string[];
+    dimmed?: string[];
+    borderColor: string;
+    headerBg: string;
+    headerText: string;
+    accentColor: string;
+    ctaText: string;
+}> = [
+    {
+        id: 'free',
+        icon: '🆓',
+        name: 'Free',
+        tagline: 'Try it out — no card, no key.',
+        price: '$0',
+        priceNote: 'forever',
+        bullets: [
+            '3 CV generations',
+            '1 profile slot',
+            'All 35+ templates',
+            'Workers AI — no key needed',
+            'CV checker & sharing links',
+        ],
+        dimmed: [
+            'Boosted / Aggressive modes',
+            'LinkedIn, Salary Coach',
+            'Clean PDF (no watermark)',
+        ],
+        borderColor: '#E5E7EB',
+        headerBg: '#F9FAFB',
+        headerText: '#374151',
+        accentColor: '#6B7280',
+        ctaText: 'Start free →',
+    },
+    {
+        id: 'byok',
+        icon: '🔑',
+        name: 'BYOK',
+        tagline: 'Bring your Gemini or Claude key.',
+        price: '$0',
+        priceNote: '+ your API key',
+        bullets: [
+            'Unlimited generations',
+            '3 profile slots',
+            'All 3 generation modes',
+            'ATS gap pinning',
+            'Interview Prep · Email Apply',
+            'Scholarship Essay Writer',
+            'Unlimited job tracking',
+        ],
+        dimmed: [
+            'LinkedIn, Salary Coach, Career Pivot',
+            'Clean PDF (no watermark)',
+        ],
+        borderColor: '#BFDBFE',
+        headerBg: '#EFF6FF',
+        headerText: '#1D4ED8',
+        accentColor: '#2563EB',
+        ctaText: 'Add my key →',
+    },
+    {
+        id: 'premium',
+        icon: '⭐',
+        name: 'Premium',
+        badge: 'BEST RESULTS',
+        tagline: 'No key needed. Full suite. Clean PDFs.',
+        price: '$19',
+        priceNote: '/mo  ·  $149/yr',
+        bullets: [
+            'Unlimited generations',
+            '5 profile slots',
+            'Llama 70B + DeepSeek R1 AI',
+            'All modes incl. Aggressive',
+            'Full career suite (12 tools)',
+            'LinkedIn, Salary, Career Pivot',
+            'Clean PDF — no watermark',
+            'Bulk export · Custom domain',
+        ],
+        borderColor: '#1B2B4B',
+        headerBg: '#1B2B4B',
+        headerText: '#FFFFFF',
+        accentColor: '#C9A84C',
+        ctaText: 'Go Premium →',
+    },
+];
+
 const FORMAT_BADGES = [
     { label: 'PDF', color: '#EF4444', bg: '#FEF2F2' },
     { label: 'Word .docx', color: '#2563EB', bg: '#EFF6FF' },
@@ -75,25 +171,29 @@ const FORMAT_BADGES = [
     { label: 'JSON', color: '#D97706', bg: '#FFFBEB' },
 ];
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
-    const [step, setStep] = useState<Step>('plan');
-    const [plan, setPlan] = useState<Plan>('free');
-    const [importedProfile, setImportedProfile] = useState<UserProfile | null>(null);
-    const [pendingDocxFile, setPendingDocxFile] = useState<File | null>(null);
+    const [step, setStep]                   = useState<Step>('plan');
+    const [plan, setPlan]                   = useState<Plan>('free');
+    const [importedProfile, setImportedProfile]     = useState<UserProfile | null>(null);
+    const [pendingDocxFile, setPendingDocxFile]     = useState<File | null>(null);
     const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
     const [pendingImportType, setPendingImportType] = useState<PendingImportType | null>(null);
-    const [importFileName, setImportFileName] = useState<string | null>(null);
+    const [importFileName, setImportFileName]       = useState<string | null>(null);
     const [importLoading, setImportLoading] = useState(false);
-    const [importError, setImportError] = useState<string | null>(null);
-    const [geminiKey, setGeminiKey] = useState('');
-    const [claudeKey, setClaudeKey] = useState('');
-    const [finishing, setFinishing] = useState(false);
-    const [dragOver, setDragOver] = useState(false);
+    const [importError, setImportError]     = useState<string | null>(null);
+    const [geminiKey, setGeminiKey]         = useState('');
+    const [claudeKey, setClaudeKey]         = useState('');
+    const [finishing, setFinishing]         = useState(false);
+    const [dragOver, setDragOver]           = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const isPremium = plan === 'premium';
-    const totalSteps = isPremium ? 2 : 3;
-    const stepIndex = step === 'plan' ? 0 : step === 'import' ? 1 : 2;
+    // BYOK is the only plan that has a keys step
+    const totalSteps = plan === 'byok' ? 3 : 2;
+    const stepIndex  = step === 'plan' ? 0 : step === 'import' ? 1 : 2;
+
+    // ── File handling ──────────────────────────────────────────────────────────
 
     const handleFile = useCallback(async (file: File) => {
         setImportError(null);
@@ -143,43 +243,63 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
 
     const hasFileSelected = !!(importedProfile || pendingDocxFile || pendingImportFile);
 
+    // ── Finish: wire the chosen plan's provider & tier ─────────────────────────
+
     const finish = useCallback(() => {
         setFinishing(true);
-        if (isPremium) { setTier('premium'); setSelectedProvider('workers-ai'); }
-        else { setTier('free'); setSelectedProvider(claudeKey.trim() ? 'claude' : 'gemini'); }
+
+        if (plan === 'premium') {
+            setTier('premium');
+            setSelectedProvider('workers-ai');
+        } else if (plan === 'byok') {
+            // Stored plan stays 'free'; BYOK is detected at runtime via hasByokKeys().
+            setTier('free');
+            setSelectedProvider(claudeKey.trim() ? 'claude' : 'gemini');
+        } else {
+            // Pure free — Workers AI handles it server-side, no key needed.
+            setTier('free');
+            setSelectedProvider('workers-ai');
+        }
+
         const apiSettings: ApiSettings = {
             provider: 'gemini',
-            aiProvider: isPremium ? 'workers-ai' : (claudeKey.trim() ? 'claude' : 'gemini'),
-            apiKey: geminiKey.trim() || null,
-            claudeApiKey: claudeKey.trim() || null,
-            msClientId: null,
+            aiProvider: plan === 'premium'
+                ? 'workers-ai'
+                : plan === 'byok'
+                    ? (claudeKey.trim() ? 'claude' : 'gemini')
+                    : 'workers-ai',
+            apiKey:        plan === 'byok' ? (geminiKey.trim() || null) : null,
+            claudeApiKey:  plan === 'byok' ? (claudeKey.trim() || null) : null,
+            msClientId:    null,
         };
+
         markOnboardingDone();
         onComplete({
             plan,
-            pendingDocxFile: pendingDocxFile ?? undefined,
-            pendingImportFile: pendingImportFile ?? undefined,
-            pendingImportType: pendingImportType ?? undefined,
-            importedProfile: importedProfile ?? undefined,
+            pendingDocxFile:    pendingDocxFile    ?? undefined,
+            pendingImportFile:  pendingImportFile  ?? undefined,
+            pendingImportType:  pendingImportType  ?? undefined,
+            importedProfile:    importedProfile    ?? undefined,
             apiSettings,
         });
-    }, [isPremium, plan, geminiKey, claudeKey, importedProfile, pendingDocxFile, pendingImportFile, pendingImportType, onComplete]);
+    }, [plan, geminiKey, claudeKey, importedProfile, pendingDocxFile, pendingImportFile, pendingImportType, onComplete]);
+
+    // ── Plan selection ─────────────────────────────────────────────────────────
+
+    const selectPlan = useCallback((p: Plan) => {
+        setPlan(p);
+        setStep('import');
+    }, []);
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     return (
         <div
             className="fixed inset-0 z-[200] flex flex-col items-stretch justify-end sm:items-center sm:justify-center sm:p-4"
-            style={{ background: 'rgba(10,16,30,0.82)', backdropFilter: 'blur(6px)' }}
+            style={{ background: 'rgba(10,16,30,0.85)', backdropFilter: 'blur(8px)' }}
         >
-            {/*
-             * Sheet container
-             * Mobile  : slides up from bottom, max 92dvh, scrolls inside
-             * Desktop : centred card, max 512px wide
-             *
-             * Safe-area-inset-bottom is applied to the last focusable element in
-             * each step so content always clears the iPhone home indicator.
-             */}
             <div
-                className="relative bg-white dark:bg-neutral-900 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-lg lg:max-w-xl shadow-2xl flex flex-col"
+                className="relative bg-white dark:bg-neutral-900 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-2xl shadow-2xl flex flex-col"
                 style={{ maxHeight: '92dvh', minHeight: 0 }}
             >
                 {/* Mobile drag handle */}
@@ -188,7 +308,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                 </div>
 
                 {/* Header */}
-                <div className="flex items-center gap-2.5 px-4 sm:px-5 pt-3 sm:pt-5 pb-0.5 flex-shrink-0">
+                <div className="flex items-center gap-2.5 px-4 sm:px-6 pt-3 sm:pt-5 pb-0.5 flex-shrink-0">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                          style={{ background: '#1B2B4B' }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -201,92 +321,112 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
 
                 <StepDots total={totalSteps} current={stepIndex} />
 
-                {/* Scrollable body — fills remaining height */}
+                {/* Scrollable body */}
                 <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
 
-                    {/* ── STEP 1: Choose plan ───────────────────────────────── */}
+                    {/* ── STEP 1: Choose plan ──────────────────────────────── */}
                     {step === 'plan' && (
-                        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-1 space-y-3 sm:space-y-4"
-                             style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
-                            <div className="text-center space-y-0.5">
+                        <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-1">
+                            <div className="text-center space-y-0.5 mb-4">
                                 <h2 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-zinc-100"
                                     style={{ fontFamily: "'Playfair Display', serif" }}>
                                     Welcome to ProCV
                                 </h2>
-                                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                    Your AI career consultant. Takes about two minutes.
+                                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+                                    How do you want to power your AI?
                                 </p>
                             </div>
 
-                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest text-center">How would you like to use AI?</p>
+                            {/* 3-column on sm+, stacked on mobile */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                                {PLANS.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => selectPlan(p.id)}
+                                        className="relative flex flex-col text-left rounded-2xl border-2 overflow-hidden transition-all hover:shadow-lg active:scale-[0.98]"
+                                        style={{ borderColor: p.borderColor }}
+                                    >
+                                        {/* Card header */}
+                                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2.5"
+                                             style={{ background: p.headerBg }}>
+                                            <span className="text-xl sm:text-2xl flex-shrink-0">{p.icon}</span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-sm font-black leading-none" style={{ color: p.headerText }}>{p.name}</p>
+                                                    {p.badge && (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full tracking-wide"
+                                                              style={{ background: '#C9A84C', color: '#1B2B4B' }}>
+                                                            {p.badge}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] leading-tight mt-0.5 opacity-70" style={{ color: p.headerText }}>
+                                                    {p.tagline}
+                                                </p>
+                                            </div>
+                                            <div className="flex-shrink-0 text-right">
+                                                <p className="text-base sm:text-lg font-black leading-none" style={{ color: p.id === 'premium' ? '#C9A84C' : p.accentColor }}>
+                                                    {p.price}
+                                                </p>
+                                                <p className="text-[9px] opacity-60 leading-tight" style={{ color: p.headerText }}>{p.priceNote}</p>
+                                            </div>
+                                        </div>
 
-                            {/* Plan cards — 2 columns at all sizes */}
-                            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                                {/* Premium */}
-                                <button
-                                    onClick={() => { setPlan('premium'); setStep('import'); }}
-                                    className="relative flex flex-col gap-1.5 sm:gap-2 rounded-xl border-2 p-2.5 sm:p-4 text-left transition-all hover:shadow-lg active:scale-[0.98]"
-                                    style={{ borderColor: '#C9A84C', background: 'linear-gradient(135deg, #FDFBF5 0%, #FFF8E7 100%)' }}
-                                >
-                                    <span className="absolute -top-2.5 left-2 text-[9px] font-black px-2 py-0.5 rounded-full tracking-wide text-white"
-                                          style={{ background: '#1B2B4B' }}>AI INCLUDED ✦</span>
-                                    <div className="mt-2 flex flex-col gap-1.5 sm:gap-2">
-                                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                             style={{ background: '#1B2B4B' }}>
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                                <circle cx="12" cy="12" r="10" stroke="#C9A84C" strokeWidth="2"/>
-                                                <path d="M12 6v6l4 2" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round"/>
+                                        {/* Feature list */}
+                                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-neutral-900 flex-1 space-y-1">
+                                            {p.bullets.map(b => (
+                                                <div key={b} className="flex items-start gap-1.5">
+                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mt-0.5"
+                                                         style={{ stroke: p.accentColor }} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"/>
+                                                    </svg>
+                                                    <span className="text-[11px] text-zinc-600 dark:text-zinc-300 leading-tight">{b}</span>
+                                                </div>
+                                            ))}
+                                            {p.dimmed?.map(b => (
+                                                <div key={b} className="flex items-start gap-1.5 opacity-30">
+                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mt-0.5"
+                                                         stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                                    </svg>
+                                                    <span className="text-[11px] text-zinc-400 leading-tight">{b}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* CTA */}
+                                        <div className="px-3 sm:px-4 py-2 border-t border-zinc-100 dark:border-neutral-800 flex items-center justify-between bg-white dark:bg-neutral-900">
+                                            <span className="text-[11px] font-black" style={{ color: p.accentColor }}>{p.ctaText}</span>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                                 stroke={p.accentColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M5 12h14M12 5l7 7-7 7"/>
                                             </svg>
                                         </div>
-                                        <div>
-                                            <p className="text-xs sm:text-sm font-black leading-snug" style={{ color: '#1B2B4B' }}>Premium</p>
-                                            <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">No API key needed</p>
-                                        </div>
-                                    </div>
-                                    {/* Feature list: visible on sm and up */}
-                                    <ul className="text-[10px] text-zinc-600 space-y-0.5 hidden sm:block">
-                                        <li>✓ CV generation &amp; ATS</li>
-                                        <li>✓ Cover letters &amp; interview</li>
-                                        <li>✓ Doctor &amp; humanizer</li>
-                                    </ul>
-                                    <span className="text-[10px] sm:text-[11px] font-bold mt-auto" style={{ color: '#C9A84C' }}>Select →</span>
-                                </button>
-
-                                {/* Free / BYOK */}
-                                <button
-                                    onClick={() => { setPlan('free'); setStep('import'); }}
-                                    className="flex flex-col gap-1.5 sm:gap-2 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-neutral-900 p-2.5 sm:p-4 text-left hover:border-zinc-400 hover:shadow-md transition-all active:scale-[0.98]"
-                                >
-                                    <div className="mt-2 flex flex-col gap-1.5 sm:gap-2">
-                                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                                <rect x="3" y="11" width="18" height="11" rx="2" stroke="#6B7280" strokeWidth="2"/>
-                                                <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"/>
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs sm:text-sm font-black text-zinc-700 dark:text-zinc-300 leading-snug">Free</p>
-                                            <p className="text-[10px] text-zinc-500 mt-0.5 leading-snug">Bring your own key</p>
-                                        </div>
-                                    </div>
-                                    <ul className="text-[10px] text-zinc-500 space-y-0.5 hidden sm:block">
-                                        <li>✓ All core features</li>
-                                        <li>✓ Free Gemini/Claude key</li>
-                                        <li>✓ Upgrade any time</li>
-                                    </ul>
-                                    <span className="text-[10px] sm:text-[11px] font-bold text-zinc-400 mt-auto">Select →</span>
-                                </button>
+                                    </button>
+                                ))}
                             </div>
 
-                            <p className="text-[10px] text-zinc-400 text-center">
-                                You can switch providers any time in Settings.
+                            {/* Reassurance */}
+                            <p className="text-[10px] text-zinc-400 text-center mt-3">
+                                You can change this any time in Settings. Your CVs and data are always yours.
                             </p>
                         </div>
                     )}
 
-                    {/* ── STEP 2: Import profile ───────────────────────────── */}
+                    {/* ── STEP 2: Import existing CV ───────────────────────── */}
                     {step === 'import' && (
                         <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-1 space-y-2.5 sm:space-y-4">
+                            {/* Plan badge */}
+                            <div className="flex justify-center">
+                                {PLANS.filter(p => p.id === plan).map(p => (
+                                    <span key={p.id} className="text-[10px] font-black px-2.5 py-1 rounded-full"
+                                          style={{ background: plan === 'premium' ? '#1B2B4B' : plan === 'byok' ? '#EFF6FF' : '#F3F4F6',
+                                                   color: plan === 'premium' ? '#C9A84C' : plan === 'byok' ? '#2563EB' : '#6B7280' }}>
+                                        {p.icon} {p.name} plan selected
+                                    </span>
+                                ))}
+                            </div>
+
                             <div className="text-center space-y-0.5">
                                 <h2 className="text-base sm:text-xl font-black text-zinc-900 dark:text-zinc-100"
                                     style={{ fontFamily: "'Playfair Display', serif" }}>
@@ -297,7 +437,6 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                 </p>
                             </div>
 
-                            {/* Supported formats */}
                             <div className="flex flex-wrap gap-1 sm:gap-1.5 justify-center">
                                 {FORMAT_BADGES.map(b => (
                                     <span key={b.label}
@@ -308,7 +447,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                 ))}
                             </div>
 
-                            {/* Drop zone — compact on mobile */}
+                            {/* Drop zone */}
                             <div
                                 onDrop={handleDrop}
                                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -317,7 +456,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                 className="cursor-pointer rounded-xl border-2 border-dashed p-3.5 sm:p-7 text-center transition-all duration-200"
                                 style={{
                                     borderColor: hasFileSelected ? '#22C55E' : dragOver ? '#1B2B4B' : importError ? '#F87171' : '#D1D5DB',
-                                    background: hasFileSelected ? '#F0FDF4' : dragOver ? '#F0F4FF' : importError ? '#FFF5F5' : '#FAFAFA',
+                                    background:  hasFileSelected ? '#F0FDF4' : dragOver ? '#F0F4FF' : importError ? '#FFF5F5' : '#FAFAFA',
                                 }}
                             >
                                 <input
@@ -379,16 +518,16 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                                     </svg>
                                     <span>
-                                        {pendingImportType === 'pdf' && 'PDF will be extracted by AI after setup.'}
+                                        {pendingImportType === 'pdf'   && 'PDF will be extracted by AI after setup.'}
                                         {pendingImportType === 'image' && 'Image will be scanned by AI vision after setup.'}
-                                        {pendingDocxFile && 'Word document will be parsed by AI after setup.'}
+                                        {pendingDocxFile               && 'Word document will be parsed by AI after setup.'}
                                     </span>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* ── STEP 3: API Keys (free plan only) ────────────────── */}
+                    {/* ── STEP 3: API Keys (BYOK only) ─────────────────────── */}
                     {step === 'keys' && (
                         <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-1 space-y-2.5 sm:space-y-3">
                             <div className="text-center space-y-0.5">
@@ -396,7 +535,9 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                     style={{ fontFamily: "'Playfair Display', serif" }}>
                                     Add your AI key
                                 </h2>
-                                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">Free from Google — takes 30 seconds.</p>
+                                <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+                                    Gemini is free from Google — takes 30 seconds to get.
+                                </p>
                             </div>
 
                             {/* Gemini — recommended */}
@@ -427,7 +568,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="min-w-0">
                                         <p className="text-xs font-black text-zinc-800 dark:text-zinc-200">🧠 Anthropic Claude</p>
-                                        <p className="text-[10px] text-zinc-400 font-medium">Optional</p>
+                                        <p className="text-[10px] text-zinc-400 font-medium">Optional — paid API</p>
                                     </div>
                                     <a href="https://console.anthropic.com/keys" target="_blank" rel="noreferrer"
                                        className="text-[11px] font-bold hover:underline shrink-0" style={{ color: '#1B2B4B' }}
@@ -452,23 +593,17 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                     )}
                 </div>
 
-                {/*
-                 * Persistent footer — action buttons live OUTSIDE the scrollable
-                 * body so they stay visible regardless of how tall a step's
-                 * content gets (e.g. long feature lists, error banners, or
-                 * import-status notices). Only steps with explicit actions
-                 * (import, keys) render one; the plan step advances on card tap.
-                 */}
+                {/* ── Footer: fixed action buttons ──────────────────────────── */}
                 {step === 'import' && (
                     <div className="flex-shrink-0 px-3 sm:px-6 pt-2 border-t border-zinc-100 dark:border-neutral-800 space-y-1.5"
                          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0.75rem))' }}>
                         <button
-                            onClick={isPremium ? finish : () => setStep('keys')}
+                            onClick={plan === 'byok' ? () => setStep('keys') : finish}
                             disabled={importLoading || finishing}
                             className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
                             style={{ background: '#1B2B4B' }}
                         >
-                            {finishing ? 'Setting up…' : hasFileSelected ? 'Continue →' : "Skip — I'll fill in manually →"}
+                            {finishing ? 'Setting up…' : plan === 'byok' ? 'Next — add key →' : hasFileSelected ? 'Continue →' : "Skip — I'll fill in manually →"}
                         </button>
                         <button onClick={() => setStep('plan')}
                                 className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-2 transition-colors font-medium">

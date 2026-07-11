@@ -556,7 +556,7 @@ const AppInner: React.FC = () => {
   // ── Onboarding completion ─────────────────────────────────────────────────
   const handleOnboardingComplete = useCallback(
     async (opts: {
-      plan: "premium" | "free";
+      plan: "premium" | "byok" | "free";
       pendingDocxFile?: File;
       pendingImportFile?: File;
       pendingImportType?: PendingImportType;
