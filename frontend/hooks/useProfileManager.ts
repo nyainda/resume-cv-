@@ -99,6 +99,21 @@ export function useProfileManager({
   useEffect(() => {
     if (!isAuthenticated) pendingNewSlotIdRef.current = null;
   }, [isAuthenticated]);
+
+  // Reset the "already checked" restore guards on sign-out so that switching
+  // to a *different* account re-runs both the Drive restore-on-new-device
+  // check and the D1 merge sync on its next sign-in. Without this, both refs
+  // stay `true` for the lifetime of the tab after the very first login —
+  // so signing out and into a second account, then back into the first,
+  // silently skips the D1 restore entirely (leaving stale/empty profile
+  // state and letting a "no profile yet" view create a spurious blank
+  // profile) instead of reloading the account's real saved profiles.
+  useEffect(() => {
+    if (!isAuthenticated) {
+      d1RestoreCheckedRef.current = false;
+      driveRestoreCheckedRef.current = false;
+    }
+  }, [isAuthenticated]);
   // Once a slot with the pending id actually lands in `profiles` (confirmed
   // by activeSlot matching it) or the pending slot was deleted/replaced by a
   // different active slot, the pending id no longer needs tracking.
