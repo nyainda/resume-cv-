@@ -1295,7 +1295,15 @@ const ScoreMyCVPage: React.FC<ScoreMyCVPageProps> = ({ currentCV, onGoToGenerato
   const reset = () => { setResults(null); setJd(''); setJdExpanded(false); };
 
   // ── Empty state ──────────────────────────────────────────────────────────
-  if (!currentCV || (!currentCV.summary && (currentCV.experience ?? []).length === 0)) {
+  // Placeholder profiles seed one blank experience row so there's something
+  // to type into — checking array length alone treats that as "real" content
+  // and produces a misleading score for a CV with nothing filled in.
+  const hasRealSummary = (currentCV?.summary ?? '').trim().length > 0;
+  const hasRealExperience = (currentCV?.experience ?? []).some(
+    role => (role.jobTitle ?? '').trim() || (role.company ?? '').trim() ||
+      (role.responsibilities ?? []).some(b => (b ?? '').trim())
+  );
+  if (!currentCV || (!hasRealSummary && !hasRealExperience)) {
     return (
       <div className="rounded-2xl border border-zinc-200 dark:border-neutral-800 p-10 text-center bg-[#F8F7F4] dark:bg-neutral-900">
         <div className="text-5xl mb-4">📋</div>
