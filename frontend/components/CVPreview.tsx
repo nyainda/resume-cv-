@@ -51,6 +51,11 @@ interface CVPreviewProps {
   // ExecutiveSidebar, PhotoSidebar, ModernTech, CompactSlate, CompactSage,
   // CompactCharcoal). All other templates ignore this prop.
   sidebarSections?: SidebarSectionsVisibility;
+  /**
+   * Resolved zoom level from the one-page convergence loop (0.85–1.0).
+   * Passed through to strict-one-page (sidebar) templates. Default 1 = no zoom.
+   */
+  density?: number;
 }
 
 // ─── Main CVPreview ──────────────────────────────────────────────────────────
@@ -64,6 +69,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     onDataChange = () => {},
     jobDescriptionForATS = '',
     sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
+    density = 1,
   } = props;
 
   // Guarantee all array fields are proper arrays before ANY template sees the data.
@@ -75,10 +81,10 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   );
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
-  // Sidebar templates additionally receive sidebarSections; spreading
-  // sidebarTemplateProps onto a non-sidebar template is harmless because
-  // those components don't declare the prop in their interface.
-  const sidebarTemplateProps = { ...templateProps, sidebarSections };
+  // Sidebar templates additionally receive sidebarSections and density (for the
+  // one-page convergence loop). Spreading onto non-sidebar templates is harmless
+  // because those components don't declare these props in their interfaces.
+  const sidebarTemplateProps = { ...templateProps, sidebarSections, density };
 
   const renderTemplate = () => {
     if (V2_TEMPLATE_IDS.includes(template as string)) {

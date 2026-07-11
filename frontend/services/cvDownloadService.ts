@@ -100,6 +100,19 @@ export interface DownloadCVOptions {
    * (e.g. shared-link downloads) rather than the current viewer.
    */
   forceWatermark?: boolean;
+  /**
+   * Resolved density from the one-page convergence loop (0.85–1.0).
+   * Injected into the captured HTML as `:root { --cv-density: N }` so the
+   * Chromium worker renders at the exact same zoom as the live preview.
+   * Also forwarded as `expectedPageCount` for the worker's sanity check.
+   */
+  density?: number;
+  /**
+   * Live-preview page count derived from the density convergence loop.
+   * Forwarded to the Cloudflare PDF worker so it can log a warning when the
+   * headless render diverges by more than 2% in scroll height.
+   */
+  expectedPageCount?: number;
 }
 
 export interface DownloadCVResult {
@@ -265,11 +278,13 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
   // cost regardless of how many tiers we try, and (b) a stable cache key so
   // repeat downloads of an unchanged CV can skip rendering entirely.
   const tHtml = performance.now();
+  const { density = 1, expectedPageCount } = opts;
   const html = await getCVHtml({
     containerEl,
     extraStyles: `
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
       body { margin: 0; padding: 0; }
+      ${density !== 1 ? `:root { --cv-density: ${density}; }` : ''}
     `,
     watermark,
   });
@@ -334,6 +349,7 @@ export async function downloadCV(opts: DownloadCVOptions): Promise<DownloadCVRes
         filename: fileName,
         format: 'A4',
         onStatus,
+        expectedPageCount,
       });
       timing.renderMs = Math.round(performance.now() - tRender2);
       if (r.ok && r.bytes) {

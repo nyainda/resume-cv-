@@ -11,6 +11,8 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Compact Sage — a warm, editorial single-page sidebar layout. Sage-green
@@ -24,6 +26,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
   onDataChange,
   jobDescriptionForATS,
   sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
+  density = 1,
 }) => {
   const accent = cvData.accentColor ?? '#5b6f56';
   const sageBg = '#3d4f3a';
@@ -53,8 +56,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   const initials = (personalInfo.name || 'CV')
@@ -65,7 +67,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
     .join('');
 
   return (
-    <div id="cv-preview-compact-sage" className="bg-white shadow-lg border" style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-compact-sage" className="bg-white shadow-lg border" style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${sageBg} 30%, white 30%)` }}>
         {/* Left Sage Sidebar */}
         <div className="w-[30%] flex-shrink-0 text-white p-4 flex flex-col">
@@ -104,7 +106,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b" style={{ color: '#a3b598', borderColor: '#5d7058', fontFamily: 'Georgia, "Times New Roman", serif' }}>Expertise</h2>
                 <ul className="space-y-0.5 text-[11px]" style={{ color: '#d8e0d3' }}>
-                  {cvData.skills.slice(0, 12).map((skill, i) => (
+                  {cvData.skills.map((skill, i) => (
                     <li key={i} className="leading-snug flex items-start gap-1.5">
                       <span className="flex-shrink-0 mt-1.5 w-1 h-1 rounded-full" style={{ backgroundColor: '#a3b598' }}></span>
                       <span {...editableProps(['skills', i])}>{skill}</span>
@@ -118,7 +120,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b" style={{ color: '#a3b598', borderColor: '#5d7058', fontFamily: 'Georgia, "Times New Roman", serif' }}>Education</h2>
                 <div className="space-y-1.5">
-                  {cvData.education.slice(0, 2).map((edu, index) => (
+                  {cvData.education.map((edu, index) => (
                     <div key={index} className="text-[11px]">
                       <p className="font-semibold leading-snug text-white" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                       <p className="text-[10.5px] italic" style={{ color: '#a3b598' }} {...editableProps(['education', index, 'school'])}>{edu.school}, {edu.year}</p>
@@ -156,7 +158,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] pb-0.5 mb-1.5 border-b" style={{ color: '#a3b598', borderColor: '#5d7058', fontFamily: 'Georgia, "Times New Roman", serif' }}>Selected Work</h2>
                 <ul className="space-y-0.5">
-                  {cvData.projects.slice(0, 3).map((p, i) => (
+                  {cvData.projects.map((p, i) => (
                     <li key={i} className="text-[11px] leading-snug" style={{ color: '#d8e0d3' }}>{p.name}</li>
                   ))}
                 </ul>

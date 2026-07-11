@@ -11,6 +11,8 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Two Column Blue — compact one-page edition. Same blue-gradient identity as
@@ -18,7 +20,7 @@ interface TemplateProps {
 // every measurement tightened so a typical CV (4-5 jobs, 12 skills, 2 edu)
 // lands on a single A4 page. Sidebar trimmed to 30% to give the main column
 // more room for dense experience bullets.
-const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
+const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
   const accent = cvData.accentColor ?? '#1e40af';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -42,14 +44,14 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
   // Capped at 2 (vs 3 in the older roomy version) so the sidebar height stays
   // in lock-step with a single-page right column.
+  // No cap — density convergence loop handles overflow instead of silent truncation.
   const keyAchievements = (() => {
     const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
     const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   const updatedLabel = new Date().toLocaleDateString('en-US', {
@@ -58,7 +60,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
   });
 
   return (
-    <div id="cv-preview-twoColumnBlue" className="bg-white text-slate-800 shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-twoColumnBlue" className="bg-white text-slate-800 shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${accent} 30%, white 30%)` }}>
         {/* Left Sidebar — narrowed from 34% to 30% so the main column gets
             more breathing room. */}
@@ -96,7 +98,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Skills</h2>
                 <ul className="space-y-0.5 text-[11px]">
-                  {cvData.skills.slice(0, 12).map((skill, i) => (
+                  {cvData.skills.map((skill, i) => (
                     <li key={i} className="flex items-start gap-1 text-blue-100 leading-snug">
                       <span className="mt-1.5 w-1 h-1 rounded-full bg-blue-300 flex-shrink-0 inline-block"></span>
                       <span {...editableProps(['skills', i])}>{skill}</span>
@@ -123,7 +125,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Education</h2>
                 <div className="space-y-1.5">
-                  {cvData.education.slice(0, 2).map((edu, index) => (
+                  {cvData.education.map((edu, index) => (
                     <div key={index} className="text-[11px]">
                       <p className="font-bold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                       <p className="text-blue-200 text-[10.5px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
@@ -151,7 +153,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 <section>
                   <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200 border-b border-blue-500 pb-0.5 mb-1.5">Selected Projects</h2>
                   <ul className="space-y-0.5 text-[11px]">
-                    {cvData.projects.slice(0, 3).map((proj, i) => (
+                    {cvData.projects.map((proj, i) => (
                       <li key={i} className="flex items-start gap-1.5 text-blue-100 leading-snug">
                         <span className="mt-1 w-1 h-1 rounded-full bg-blue-300 flex-shrink-0 inline-block"></span>
                         <span className="text-[10.5px] font-semibold">{proj.name}</span>

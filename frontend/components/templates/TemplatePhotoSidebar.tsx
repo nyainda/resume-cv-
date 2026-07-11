@@ -12,13 +12,15 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Photo Sidebar — compact one-page edition. Same warm magazine-style cream
 // sidebar with photo avatar, italic-serif Career Highlights pull-quotes,
 // uppercase Featured Work bullets and the "Portfolio · MMM YYYY" stamp. Photo
 // shrunk from w-28 to w-20, sidebar width trimmed from 38% to 32%.
-const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
+const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -66,21 +68,20 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
     </section>
   );
 
-  const certifications = cvData.skills.slice(0, 4);
-  const skills = cvData.skills.slice(0, 12);
+  const certifications = cvData.skills.slice(0, 4); // semantic split: first 4 skills shown as certs
+  const skills = cvData.skills; // no cap — density convergence handles overflow
   const memberships = cvData.languages && cvData.languages.length > 0
     ? cvData.languages.map(l => `${l.name}${l.proficiency ? ` (${l.proficiency})` : ''}`)
     : [];
 
-  // Capped at 2 (vs 3) for the compact layout.
+  // No cap — density convergence loop handles overflow instead of silent truncation.
   const keyAchievements = (() => {
     const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
     const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   const stampLabel = new Date().toLocaleDateString('en-US', {
@@ -89,7 +90,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   });
 
   return (
-    <div id="cv-preview-photo-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-photo-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${sidebarBg} 32%, white 32%)` }}>
 
         <div className="w-[32%] flex-shrink-0 p-4 flex flex-col">
@@ -199,7 +200,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Featured Work">
               <ul className="space-y-1">
-                {cvData.projects.slice(0, 3).map((p, i) => (
+                {cvData.projects.map((p, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-[10.5px] text-zinc-800 uppercase tracking-wider font-bold leading-snug">
                     <span className="mt-1 flex-shrink-0 w-1.5 h-1.5 inline-block" style={{ backgroundColor: accentColor }}></span>
                     {p.name}
@@ -241,7 +242,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
           {cvData.education.length > 0 && (
             <RightSection title="Education">
               <div className="space-y-1.5">
-                {cvData.education.slice(0, 2).map((edu, index) => (
+                {cvData.education.map((edu, index) => (
                   <div key={index} className="flex items-start gap-1.5">
                     <span className="mt-1 flex-shrink-0 w-2 h-2 rounded-full border-2 border-zinc-800 inline-block"></span>
                     <div>

@@ -18,6 +18,12 @@ export interface CloudflarePDFOptions {
   filename?: string;
   format?: PDFFormat;
   onStatus?: (msg: string) => void;
+  /**
+   * Expected page count from the live preview. Sent to the worker so it can
+   * log a warning when the headless Chromium render diverges by >2% in scroll
+   * height — catches cross-renderer font/hinting drift early.
+   */
+  expectedPageCount?: number;
 }
 
 export interface CloudflarePDFResult {
@@ -68,7 +74,7 @@ export async function renderHtmlToPdfBytesViaCF(
     const res = await fetch(`${WORKER_URL}/pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ html, filename, format }),
+      body: JSON.stringify({ html, filename, format, expectedPageCount: opts.expectedPageCount }),
       signal: AbortSignal.timeout(60000),
     });
 

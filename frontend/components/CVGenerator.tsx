@@ -2,7 +2,8 @@
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
 import V2ThemePicker from './V2ThemePicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
-import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, UserProfileSlot } from '../types';
+import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
+import { getPageCount, DENSITY_STEPS } from '../utils/pageFit';
 import { enqueueSlotSync, _devGetLastSlotSyncAt } from '../services/storage/syncQueue';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
@@ -543,6 +544,79 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     setPreviewContentHeight(el.scrollHeight);
     return () => obs.disconnect();
   }, []);
+
+  // ── One-page Fit: live page count + density convergence loop ──────────────
+  // For strict-one-page templates (the sidebar family), we auto-compress the
+  // entire template via CSS `zoom` until the content fits one A4 page — or we
+  // reach the readability floor (0.85). The ResizeObserver above re-fires
+  // automatically after each zoom change, so the loop converges naturally
+  // without any manual re-measure calls.
+  //
+  // Key invariants:
+  //   – density is per-CV state, initialized from the saved density value so
+  //     re-opening the editor never recomputes from scratch.
+  //   – density is reset to 1 when switching to a non-strict template.
+  //   – settled density is persisted back into CVData so the PDF download uses
+  //     the exact same zoom as the live preview.
+
+  /** Resolved zoom level for strict-one-page templates. 1 = no compression. */
+  const [density, setDensity] = useState<number>(currentCV?.density ?? 1);
+  const [showTwoPageBanner, setShowTwoPageBanner] = useState(false);
+
+  // Sync density from saved CV on first load (useState initializer only runs
+  // once at mount; currentCV may arrive asynchronously).
+  const densitySyncedRef = useRef(!!currentCV?.density);
+  useEffect(() => {
+    if (!densitySyncedRef.current && currentCV?.density !== undefined) {
+      setDensity(currentCV.density);
+      densitySyncedRef.current = true;
+    }
+  }, [currentCV]);
+
+  /** Live page count derived from the ResizeObserver-tracked content height. */
+  const pageCount = useMemo(
+    () => getPageCount(previewContentHeight),
+    [previewContentHeight],
+  );
+
+  // Reset density when switching away from a strict template.
+  useEffect(() => {
+    if (!STRICT_ONE_PAGE_TEMPLATES.includes(template)) {
+      setDensity(1);
+      setShowTwoPageBanner(false);
+    }
+  }, [template]);
+
+  // Convergence loop: step density down through DENSITY_STEPS until the
+  // content fits one page, or we hit the 0.85 readability floor.
+  useEffect(() => {
+    if (!STRICT_ONE_PAGE_TEMPLATES.includes(template)) return;
+    if (pageCount <= 1) {
+      setShowTwoPageBanner(false);
+      return;
+    }
+    setDensity(prev => {
+      const idx = DENSITY_STEPS.indexOf(prev as typeof DENSITY_STEPS[number]);
+      const nextIdx = idx === -1 ? 1 : idx + 1;
+      if (nextIdx >= DENSITY_STEPS.length) {
+        // At the readability floor — cannot compress further.
+        setShowTwoPageBanner(true);
+        return prev;
+      }
+      return DENSITY_STEPS[nextIdx];
+    });
+  }, [pageCount, template]);
+
+  // Persist the settled density to CVData so the download path and next
+  // editor session use the same zoom level without recomputing.
+  useEffect(() => {
+    if (!currentCV) return;
+    if (currentCV.density === density) return;
+    setCurrentCV({ ...currentCV, density });
+    // Intentionally omit setCurrentCV from deps — it's stable but ESLint
+    // doesn't know that. Adding it would cause an infinite re-render loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [density]);
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
@@ -1453,6 +1527,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
         // that doesn't match the on-screen layout exactly.
         containerEl: cvCaptureRef.current,
         onStatus: (m) => setDownloadStatus(m),
+        density,
+        expectedPageCount: pageCount,
       });
 
       if (result.blocked) {
@@ -3038,6 +3114,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                           jobDescriptionForATS={jobDescription}
                           template={template}
                           sidebarSections={sidebarSections}
+                          density={density}
                         />
                       </div>
                     </div>
@@ -3045,6 +3122,43 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                 </div>
                 </div>{/* end inner centering row */}
               </div>{/* end scroll container (paperAreaRef) */}
+              {/* ── Live page count indicator ──────────────────────────────
+                  data-pdf-hide: getCVHtml strips this before PDF export so it
+                  never leaks into the downloaded document (same pattern as the
+                  swipe hint in CVPreview.tsx). Only shown while a CV exists. */}
+              {currentCV && (
+                <div data-pdf-hide className="flex items-center justify-center gap-2 pt-1.5 pb-0.5">
+                  <span className={`text-[11px] font-medium tabular-nums select-none ${
+                    pageCount > 1
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {pageCount === 1 ? '✓ Fits 1 page' : `Page count: ${pageCount}`}
+                    {STRICT_ONE_PAGE_TEMPLATES.includes(template) && density < 1
+                      ? ` · zoom ${Math.round(density * 100)}%`
+                      : null}
+                  </span>
+                </div>
+              )}
+              {/* ── Two-page banner ─────────────────────────────────────────
+                  Shown when the density floor (0.85) has been reached and the
+                  CV still overflows. Never auto-deletes content. */}
+              {showTwoPageBanner && (
+                <div data-pdf-hide className="mx-4 mt-2 mb-1 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+                  <span className="mt-0.5 shrink-0 text-base">⚠️</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold leading-snug">This CV needs {pageCount} pages at readable size.</p>
+                    <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                      Minimum zoom (85%) reached. Consider trimming experience bullets or shortening your summary to get back to one page.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowTwoPageBanner(false)}
+                    className="shrink-0 text-amber-500 hover:text-amber-700 dark:hover:text-amber-200 transition-colors"
+                    aria-label="Dismiss"
+                  >✕</button>
+                </div>
+              )}
             </div>
             {/* Generation Trace Panel — S5 Phase 2. Shows only when the CV
                 carries a _trace from the last generation run. Collapsed by

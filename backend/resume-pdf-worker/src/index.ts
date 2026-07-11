@@ -60,6 +60,7 @@ export default {
         html?: string;
         filename?: string;
         format?: string;
+        expectedPageCount?: number;
       };
 
       if (!body.html || typeof body.html !== "string") {
@@ -79,6 +80,7 @@ export default {
       html = body.html;
       if (body.filename) filename = body.filename.replace(/[^\w\-_.]/g, "_");
       if (body.format === "Letter") format = "Letter";
+      const expectedPageCount: number | undefined = typeof body.expectedPageCount === 'number' ? body.expectedPageCount : undefined;
     } catch {
       return new Response(JSON.stringify({ error: "Invalid JSON" }), {
         status: 400,
@@ -98,6 +100,30 @@ export default {
       await page.setViewport({ width: 800, height: 1123 });
       await page.setContent(html, { waitUntil: "networkidle0" });
       await page.evaluateHandle("document.fonts.ready");
+
+      // ── Sanity check: compare headless scroll height vs live preview ──────
+      // If the browser font renderer diverges from Chromium (e.g. different
+      // system font hinting), the rendered page count may differ from what the
+      // user saw. We log a warning — not an error — so we catch drift early
+      // without breaking the download.
+      if (expectedPageCount !== undefined) {
+        try {
+          const A4_PX = 1123;
+          const scrollHeight = await page.evaluate(() => document.body.scrollHeight);
+          const expectedHeight = A4_PX * expectedPageCount;
+          const drift = Math.abs(scrollHeight - expectedHeight) / expectedHeight;
+          if (drift > 0.02) {
+            console.warn(
+              `[resume-pdf-worker] Layout drift detected: live preview expected ${expectedHeight}px (${expectedPageCount}p) ` +
+              `but headless Chromium measured ${scrollHeight}px (${(scrollHeight / A4_PX).toFixed(2)}p). ` +
+              `Drift: ${(drift * 100).toFixed(1)}% — check for cross-renderer font/hinting differences.`
+            );
+          }
+        } catch (driftErr) {
+          // Non-fatal — don't let measurement failures block the PDF.
+          console.warn('[resume-pdf-worker] Drift check failed:', driftErr);
+        }
+      }
 
       // 0mm margins + preferCSSPageSize:true so the @page rule injected by
       // getCVHtml ("@page { size: A4; margin: 0mm }") wins. The CV templates

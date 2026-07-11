@@ -11,6 +11,8 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Compact Slate — a deliberately tight one-page layout. Keeps a slim left
@@ -25,6 +27,7 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
   onDataChange,
   jobDescriptionForATS,
   sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
+  density = 1,
 }) => {
   const accent = cvData.accentColor ?? '#475569';
 
@@ -49,20 +52,18 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
 
   // Quantitative achievements extraction — same regex as the other sidebar
   // templates so the toggle behaviour is consistent across all of them.
-  // Capped at 2 here (vs 3 elsewhere) because Compact Slate is engineered to
-  // fit one A4 page and every line counts.
+  // No cap — density convergence loop handles overflow instead of silent truncation.
   const keyAchievements = (() => {
     const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
     const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   return (
-    <div id="cv-preview-compact-slate" className="bg-white shadow-lg border" style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-compact-slate" className="bg-white shadow-lg border" style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, #1e293b 28%, white 28%)` }}>
         {/* Left Sidebar — slate background from gradient. Narrow at 28% so the
             main column has room for dense experience bullets. */}
@@ -90,7 +91,7 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Skills</h2>
                 <ul className="space-y-0.5 text-[11px] text-slate-300">
-                  {cvData.skills.slice(0, 12).map((skill, i) => (
+                  {cvData.skills.map((skill, i) => (
                     <li key={i} className="leading-snug" {...editableProps(['skills', i])}>{skill}</li>
                   ))}
                 </ul>
@@ -101,7 +102,7 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Education</h2>
                 <div className="space-y-1.5">
-                  {cvData.education.slice(0, 2).map((edu, index) => (
+                  {cvData.education.map((edu, index) => (
                     <div key={index} className="text-[11px]">
                       <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                       <p className="text-slate-400 text-[12px]" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
@@ -143,7 +144,7 @@ const TemplateCompactSlate: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-300 pb-0.5 mb-1.5 border-b border-slate-700">Projects</h2>
                 <ul className="space-y-0.5">
-                  {cvData.projects.slice(0, 3).map((p, i) => (
+                  {cvData.projects.map((p, i) => (
                     <li key={i} className="text-[11px] text-slate-300 leading-snug">{p.name}</li>
                   ))}
                 </ul>

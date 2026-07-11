@@ -12,13 +12,15 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   sidebarSections?: SidebarSectionsVisibility;
   jobDescriptionForATS: string;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Navy Sidebar — compact one-page edition. Keeps the classical aesthetic
 // (vertical accent-bar Career Highlights, boxed Recognized Projects, serif
 // monogram crest with Roman-numeral year) but with everything sized to land
 // on a single A4 page. Sidebar trimmed from 35% → 30%.
-const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
+const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -56,20 +58,19 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
 
   // First 4 skills become "Certificates & Licenses", remainder become "Skills".
   const certifications = cvData.skills.slice(0, 4);
-  const skills = cvData.skills.slice(4, 14); // hard cap at 10 remaining for one-page fit
+  const skills = cvData.skills.slice(4); // no cap — density convergence handles overflow
   const memberships = cvData.languages && cvData.languages.length > 0
     ? cvData.languages.map(l => l.name)
     : [];
 
-  // Capped at 2 (vs 3) for the compact layout.
+  // No cap — density convergence loop handles overflow instead of silent truncation.
   const keyAchievements = (() => {
     const numberPattern = /\d+\s*%|\d+\s*x|KES\s*[\d,]+|USD\s*[\d,]+|\$[\d,]+|€[\d,]+|£[\d,]+|\b\d{2,}(?:,\d{3})*\b/i;
     const stripHtml = (s: string) => s.replace(/<[^>]+>/g, '');
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   const initials = (personalInfo.name || 'CV')
@@ -92,14 +93,14 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
   const yearRoman = toRoman(new Date().getFullYear());
 
   return (
-    <div id="cv-preview-navy-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-navy-sidebar" className="bg-white text-zinc-900 shadow-lg border font-sans" style={{ fontFamily: 'Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${navyBg} 30%, white 30%)` }}>
         <div className="w-[30%] text-white p-4 flex-shrink-0 flex flex-col">
 
           <div>
           <SidebarSection title="Education">
             <div className="space-y-1.5">
-              {cvData.education.slice(0, 2).map((edu, index) => (
+              {cvData.education.map((edu, index) => (
                 <div key={index} className="text-[11px]">
                   <p className="font-bold leading-snug text-white" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                   <p className="text-blue-200 text-[10.5px] mt-0.5" {...editableProps(['education', index, 'school'])}>{edu.school}</p>
@@ -165,7 +166,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
           {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Recognized Projects">
               <div className="space-y-1">
-                {cvData.projects.slice(0, 3).map((p, i) => (
+                {cvData.projects.map((p, i) => (
                   <div key={i} className="text-[10.5px] text-blue-100 px-1.5 py-1 border leading-snug" style={{ borderColor: '#3a5a8a' }}>
                     {p.name}
                   </div>

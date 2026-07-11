@@ -11,6 +11,8 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Compact Charcoal — bold geometric one-page layout. Charcoal sidebar with a
@@ -24,6 +26,7 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
   onDataChange,
   jobDescriptionForATS,
   sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
+  density = 1,
 }) => {
   const accent = cvData.accentColor ?? '#d4af37';
   const charcoalBg = '#1a1a1a';
@@ -53,12 +56,11 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   return (
-    <div id="cv-preview-compact-charcoal" className="bg-white shadow-lg border" style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-compact-charcoal" className="bg-white shadow-lg border" style={{ fontFamily: 'Inter, Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${charcoalBg} 30%, white 30%)` }}>
         {/* Left Charcoal Sidebar with thin accent stripe */}
         <div className="w-[30%] flex-shrink-0 text-zinc-200 p-4 flex flex-col relative">
@@ -89,7 +91,7 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Skills</h2>
                 <div className="flex flex-wrap gap-1">
-                  {cvData.skills.slice(0, 14).map((skill, i) => (
+                  {cvData.skills.map((skill, i) => (
                     <span key={i} className="text-[10.5px] px-1.5 py-0.5 border" style={{ borderColor: '#3a3a3a', color: '#e5e5e5' }} {...editableProps(['skills', i])}>{skill}</span>
                   ))}
                 </div>
@@ -100,7 +102,7 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Education</h2>
                 <div className="space-y-1.5">
-                  {cvData.education.slice(0, 2).map((edu, index) => (
+                  {cvData.education.map((edu, index) => (
                     <div key={index} className="text-[11px]">
                       <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                       <p className="text-[10.5px] text-zinc-400" {...editableProps(['education', index, 'school'])}>{edu.school} · {edu.year}</p>
@@ -139,7 +141,7 @@ const TemplateCompactCharcoal: React.FC<TemplateProps> = ({
               <section>
                 <h2 className="text-[10px] font-black uppercase tracking-[0.2em] pb-0.5 mb-1.5" style={{ color: accent }}>Featured</h2>
                 <ul className="space-y-0.5">
-                  {cvData.projects.slice(0, 3).map((p, i) => (
+                  {cvData.projects.map((p, i) => (
                     <li key={i} className="text-[11px] text-zinc-300 leading-snug uppercase tracking-wider font-semibold">{p.name}</li>
                   ))}
                 </ul>

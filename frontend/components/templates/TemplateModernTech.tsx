@@ -11,6 +11,8 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 // Modern Tech — compact one-page edition. Same dark code-editor aesthetic
@@ -18,7 +20,7 @@ interface TemplateProps {
 // kebab-case Repos, terminal `$ generated --on=YYYY-MM-DD` footer) but
 // sidebar shrunk from 33% to 30%, padding tightened, and skill chips +
 // caps reduced so a typical CV lands on a single A4 page.
-const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
+const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
   const accent = cvData.accentColor ?? '#1f2937';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -47,14 +49,13 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   const generatedDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <div id="cv-preview-modern-tech" className="bg-white shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div id="cv-preview-modern-tech" className="bg-white shadow-lg border" style={{ fontFamily: 'Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${accent} 30%, white 30%)` }}>
         <div className="w-[30%] flex-shrink-0 text-white p-4 flex flex-col">
           <div className="mb-3">
@@ -77,7 +78,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             <section>
               <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Skills</h2>
               <div className="flex flex-wrap gap-0.5">
-                {cvData.skills.slice(0, 14).map((skill, i) => (
+                {cvData.skills.map((skill, i) => (
                   <span key={i} className="bg-gray-700 text-gray-200 text-[8.5px] font-medium px-1 py-0.5 rounded">{skill}</span>
                 ))}
               </div>
@@ -95,7 +96,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
             <section>
               <h2 className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 pb-0.5 mb-1.5 border-b border-gray-600">Education</h2>
               <div className="space-y-1.5">
-                {cvData.education.slice(0, 2).map((edu, index) => (
+                {cvData.education.map((edu, index) => (
                   <div key={index} className="text-[11px]">
                     <p className="font-semibold text-white leading-snug" {...editableProps(['education', index, 'degree'])}>{edu.degree}</p>
                     <p className="text-gray-400 text-[10.5px]" {...editableProps(['education', index, 'school'])}>{edu.school}, {edu.year}</p>
@@ -128,7 +129,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                   <span className="text-gray-500">{'/*'}</span> Repos <span className="text-gray-500">{'*/'}</span>
                 </h2>
                 <ul className="space-y-0.5">
-                  {cvData.projects.slice(0, 3).map((p, i) => (
+                  {cvData.projects.map((p, i) => (
                     <li key={i} className="text-[10.5px] text-gray-300 leading-snug" style={{ fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace' }}>
                       <span className="text-blue-400">~/</span>{p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}
                     </li>

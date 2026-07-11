@@ -259,6 +259,7 @@ export interface CVData {
   fontPairing?: string; // custom font pairing key for V2 templates (e.g. 'playfair-dm')
   fontScale?: number;   // user-adjustable text-size multiplier for V2 templates (0.88–1.20, default 1.0)
   onePage?: boolean;   // user wants content compressed to fit a single A4 page
+  density?: number;    // resolved zoom level from the one-page convergence loop (0.85–1.0); persisted so re-open matches last PDF
   _trace?: import('./services/generationTrace').GenerationTrace; // generation audit trail — stripped before PDF export
 }
 
@@ -515,6 +516,13 @@ export const SIDEBAR_TEMPLATES: TemplateName[] = [
   'compact-sage',
   'compact-charcoal',
 ];
+
+/**
+ * Templates that enforce strict one-page rendering via the density convergence
+ * loop in CVGenerator. Currently the full sidebar family — density (CSS zoom)
+ * is auto-stepped until the content fits or the 0.85 floor is reached.
+ */
+export const STRICT_ONE_PAGE_TEMPLATES: TemplateName[] = [...SIDEBAR_TEMPLATES];
 
 export const templateDisplayNames: Record<TemplateName, string> = {
   professional: 'Professional',

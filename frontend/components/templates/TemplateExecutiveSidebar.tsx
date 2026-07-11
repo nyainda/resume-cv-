@@ -12,6 +12,8 @@ interface TemplateProps {
   onDataChange: (newData: CVData) => void;
   jobDescriptionForATS: string;
   sidebarSections?: SidebarSectionsVisibility;
+  /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
+  density?: number;
 }
 
 const SIDEBAR_BG = '#2e2510';
@@ -21,7 +23,7 @@ const SIDEBAR_BG = '#2e2510';
 // "Est. YYYY" double-rule crest. Avatar shrunk from w-28 to w-20, sidebar
 // trimmed from 38% to 32%, padding tightened, and every cap reduced so a
 // typical CV lands on a single A4 page.
-const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS }) => {
+const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
   // eslint-disable-next-line no-shadow
   const ACCENT = cvData.accentColor ?? '#c8a84b';
 
@@ -76,13 +78,12 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
     return cvData.experience
       .flatMap((e) => e.responsibilities.map(stripHtml))
       .filter((b) => numberPattern.test(b))
-      .sort((a, b) => a.length - b.length)
-      .slice(0, 2);
+      .sort((a, b) => a.length - b.length);
   })();
 
   return (
     <div id="cv-preview-executive-sidebar" className="bg-white text-zinc-900 shadow-xl border border-zinc-200"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif', zoom: density }}>
       <div className="flex min-h-[280mm]" style={{ backgroundImage: `linear-gradient(to right, ${SIDEBAR_BG} 32%, white 32%)` }}>
 
         <div className="w-[32%] flex-shrink-0 px-4 py-4 flex flex-col">
@@ -151,7 +152,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
           {cvData.skills.length > 0 && (
             <SidebarSection title="Skills">
               <ul className="space-y-0.5">
-                {cvData.skills.slice(0, 12).map((skill, i) => (
+                {cvData.skills.map((skill, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-[11px] text-white/90 leading-snug">
                     <span className="mt-1 w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: ACCENT }} />
                     {skill}
@@ -164,7 +165,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
           {sidebarSections.selectedProjects && cvData.projects && cvData.projects.length > 0 && (
             <SidebarSection title="Certifications">
               <ul className="space-y-0.5">
-                {cvData.projects.slice(0, 3).map((proj, i) => (
+                {cvData.projects.map((proj, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-[11px] text-white/90 leading-snug">
                     <span className="mt-1 w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: ACCENT }} />
                     {proj.name}
@@ -227,7 +228,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
           {cvData.education.length > 0 && (
             <RightSection title="Education">
               <div className="space-y-1.5">
-                {cvData.education.slice(0, 2).map((edu, i) => (
+                {cvData.education.map((edu, i) => (
                   <div key={i} className="flex items-start gap-1.5">
                     <Dot />
                     <div>
