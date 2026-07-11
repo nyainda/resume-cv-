@@ -791,7 +791,7 @@ app.post('/api/claude', async (req, res) => {
 // requests server-side avoids CORS issues and keeps VITE_CV_ENGINE_URL=/cf-engine
 // working unchanged across both environments.
 const CF_WORKER_URL = 'https://cv-engine-worker.dripstech.workers.dev';
-app.all('/cf-engine/*', async (req, res) => {
+app.all('/cf-engine/*path', async (req, res) => {
     const workerPath = req.url.replace(/^\/cf-engine/, '') || '/';
     const target = `${CF_WORKER_URL}${workerPath}`;
     try {
