@@ -1,148 +1,147 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
-interface SceneProps { lightMode: boolean }
-
-const tools = [
-  { num: '01', name: 'CV Generator',       desc: 'ATS-optimised in 5 min',       color: '#C9A84C' },
-  { num: '02', name: 'LinkedIn Optimizer', desc: 'Headline, About & top skills',  color: '#3b82f6' },
-  { num: '03', name: 'Interview Prep',     desc: '10 tailored Q&As + thank-you',  color: '#8b5cf6' },
-  { num: '04', name: 'Portal Scanner',     desc: '150+ company portals',          color: '#10b981' },
-  { num: '05', name: 'CV Toolkit',         desc: 'Deep ATS audit & rewrites',     color: '#f59e0b' },
-  { num: '06', name: 'Scholarship Essays', desc: 'Personal statements & funding', color: '#ec4899' },
-  { num: '07', name: 'Negotiation Coach',  desc: 'Market-rate counter-offer',     color: '#ef4444' },
-  { num: '08', name: 'Email Apply',        desc: 'One-click application email',   color: '#06b6d4' },
-  { num: '09', name: 'App Tracker',        desc: 'Kanban — interviews & deadlines', color: '#84cc16' },
-  { num: '10', name: 'Analytics',          desc: 'Search velocity & story gaps',  color: '#f97316' },
-  { num: '11', name: 'Profile Manager',    desc: 'Multiple career identities',    color: '#a78bfa' },
-  { num: '12', name: 'Cloud Backup',       desc: 'Google Drive encrypted sync',   color: '#34d399' },
-];
-
-export function Scene4({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
-  const [visibleTools, setVisibleTools] = useState(0);
+// Scene 4 — Build Your CV: the pipeline (10s)
+export function Scene4(_props: object) {
+  const [ph, setPh] = useState(0);
+  const [activeStage, setActiveStage] = useState(-1);
+  const [atsScore, setAtsScore] = useState(0);
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 200),
-      setTimeout(() => setPhase(2), 900),
-      setTimeout(() => setPhase(3), 1400),
+    const tt = [
+      setTimeout(() => setPh(1), 150),
+      setTimeout(() => { setPh(2); setActiveStage(0); }, 700),
+      setTimeout(() => setActiveStage(1), 2000),
+      setTimeout(() => setActiveStage(2), 3500),
+      setTimeout(() => setActiveStage(3), 5200),
+      setTimeout(() => setActiveStage(4), 6800),
+      setTimeout(() => setPh(3), 7200),
     ];
-    return () => timers.forEach(clearTimeout);
+    // Animate ATS score
+    let frame = 0;
+    const scoreTimer = setInterval(() => {
+      if (frame > 87) { clearInterval(scoreTimer); return; }
+      setAtsScore(frame);
+      frame += 3;
+    }, 30);
+    tt.push(scoreTimer as unknown as ReturnType<typeof setTimeout>);
+    return () => { tt.forEach(t => typeof t === 'number' ? clearTimeout(t) : clearInterval(t as any)); };
   }, []);
 
-  // stagger tools in after phase 3
-  useEffect(() => {
-    if (phase < 3) return;
-    let i = 0;
-    const iv = setInterval(() => {
-      i++;
-      setVisibleTools(i);
-      if (i >= tools.length) clearInterval(iv);
-    }, 360);
-    return () => clearInterval(iv);
-  }, [phase]);
-
-  const [phase2, setPhase2] = useState(false);
-  useEffect(() => {
-    if (visibleTools >= tools.length) {
-      const t = setTimeout(() => setPhase2(true), 400);
-      return () => clearTimeout(t);
-    }
-  }, [visibleTools]);
-
-  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext = lightMode ? 'rgba(27,43,75,0.5)'  : 'rgba(248,247,244,0.45)';
-  const cardBg  = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
-  const cardBorder = lightMode ? 'rgba(27,43,75,0.1)' : 'rgba(255,255,255,0.07)';
+  const stages = [
+    { icon: '📋', label: 'Parse Job Description', detail: 'Extracting 47 keywords & requirements', color: '#60a5fa' },
+    { icon: '🎯', label: 'Match Your Profile', detail: 'Aligning your experience with the role', color: '#a78bfa' },
+    { icon: '✍️', label: 'AI Writes Your CV', detail: '7-pass writing pipeline — no generic phrases', color: '#EBFF38' },
+    { icon: '🔍', label: 'Quality Validation', detail: 'Checking facts, tone, and ATS compatibility', color: '#f97316' },
+    { icon: '📄', label: 'PDF Generated', detail: 'Ready to download — ATS score: 87/100', color: '#22c55e' },
+  ];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center px-[4vw] py-[2vh]"
-      initial={{ opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1.03 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div className="absolute inset-0 flex items-center justify-center px-[6vw]"
+      initial={{ opacity: 0, y: 60 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -60 }}
+      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Eyebrow + headline row */}
-      <motion.div
-        className="flex items-baseline gap-[2vw] mb-[1vh]"
-        initial={{ opacity: 0, y: -16 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -16 }}
-        transition={{ duration: 0.55 }}
-      >
-        {/* Big number */}
-        <motion.span
-          className="font-black leading-none"
-          style={{ fontSize: '9vw', color: 'rgba(201,168,76,0.18)', fontFamily: 'Playfair Display, serif', lineHeight: 1 }}
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={phase >= 1 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
-          transition={{ duration: 0.65, type: 'spring', stiffness: 200, damping: 16 }}
-        >
-          12
-        </motion.span>
-
-        <div>
-          <motion.p
-            className="text-[1.1vw] font-semibold tracking-[0.25em] uppercase"
-            style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}
-            initial={{ opacity: 0 }}
-            animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            AI career tools
-          </motion.p>
-          <motion.h2
-            className="font-bold leading-tight"
-            style={{ fontSize: '3.2vw', color: text, fontFamily: 'Playfair Display, serif' }}
-            initial={{ opacity: 0, x: -10 }}
-            animate={phase >= 2 ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
-            transition={{ duration: 0.55, delay: 0.08 }}
-          >
-            One profile.<br />
-            <span style={{ color: '#C9A84C' }}>Every tool.</span>
-          </motion.h2>
+      {/* Left headline */}
+      <motion.div className="flex flex-col gap-[1.5vh] mr-[4vw]" style={{ width: '26vw', flexShrink: 0 }}
+        initial={{ opacity: 0, x: -20 }} animate={ph >= 1 ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.7 }}>
+        <div className="flex items-center gap-[0.8vw]">
+          <div style={{ width: '0.25vw', height: '3vh', background: '#EBFF38', borderRadius: '2px' }} />
+          <span style={{ fontSize: '0.85vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, letterSpacing: '0.12em' }}>STEP 2</span>
         </div>
-      </motion.div>
-
-      {/* 4x3 tools grid */}
-      <div className="grid w-full max-w-[88vw]" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.9vw' }}>
-        {tools.map((tool, i) => (
-          <motion.div
-            key={tool.num}
-            className="rounded-lg px-[1.1vw] py-[1vh] flex items-center gap-[0.7vw]"
-            style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
-            initial={{ opacity: 0, y: 14, scale: 0.94 }}
-            animate={visibleTools > i ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.94 }}
-            transition={{ duration: 0.35, type: 'spring', stiffness: 320, damping: 22 }}
-          >
-            {/* color accent bar */}
-            <div className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ background: tool.color, minHeight: '3.2vh' }} />
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-[0.35vw]">
-                <span className="text-[0.82vw] font-bold" style={{ color: tool.color, fontFamily: 'DM Sans, sans-serif', opacity: 0.7 }}>{tool.num}</span>
-                <span className="text-[1vw] font-bold truncate" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{tool.name}</span>
-              </div>
-              <span className="text-[0.85vw] leading-tight" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{tool.desc}</span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Bottom tagline */}
-      <motion.div
-        className="mt-[2.5vh] flex items-center gap-[1.2vw]"
-        initial={{ opacity: 0, y: 10 }}
-        animate={phase2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="h-[1px] w-[6vw]" style={{ background: 'rgba(201,168,76,0.3)' }} />
-        <p className="text-[1.1vw] font-semibold text-center" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-          Fill your profile <span style={{ color: '#C9A84C' }}>once</span> — every tool uses it.{' '}
-          <span style={{ color: text }}>No repeating yourself. Ever.</span>
+        <h2 style={{ fontSize: '3.2vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em',
+          textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
+          Click<br /><span style={{ color: '#EBFF38' }}>Build CV.</span><br />Watch it work.
+        </h2>
+        <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
+          Paste the job description. ProCV runs a 5-stage AI pipeline and delivers a tailored, validated CV.
         </p>
-        <div className="h-[1px] w-[6vw]" style={{ background: 'rgba(201,168,76,0.3)' }} />
+
+        {/* ATS score result */}
+        <AnimatePresence>
+          {ph >= 3 && (
+            <motion.div className="mt-[1.5vh] rounded-2xl px-[1.5vw] py-[1.5vh] flex flex-col gap-[0.5vh]"
+              style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}
+              initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 250, damping: 18 }}
+            >
+              <div className="flex items-center justify-between">
+                <span style={{ fontSize: '0.82vw', color: '#86efac', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>ATS SCORE</span>
+                <span style={{ fontSize: '2.2vw', color: '#22c55e', fontFamily: 'DM Sans, sans-serif', fontWeight: 900 }}>{Math.min(atsScore, 87)}</span>
+              </div>
+              <div style={{ height: '0.4vh', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', overflow: 'hidden' }}>
+                <motion.div style={{ height: '100%', background: 'linear-gradient(90deg, #22c55e, #86efac)', borderRadius: '2px' }}
+                  animate={{ width: `${Math.min(atsScore, 87)}%` }} transition={{ duration: 0.1 }} />
+              </div>
+              <span style={{ fontSize: '0.75vw', color: 'rgba(134,239,172,0.7)', fontFamily: 'DM Sans, sans-serif' }}>
+                Excellent — ready to submit
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
+
+      {/* Right — pipeline */}
+      <div className="flex flex-col gap-[1vh]" style={{ width: '42vw' }}>
+        {stages.map((s, i) => {
+          const done    = i < activeStage;
+          const active  = i === activeStage;
+          const pending = i > activeStage;
+          return (
+            <motion.div key={i}
+              className="flex items-center gap-[1.2vw] px-[1.5vw] py-[1.2vh] rounded-2xl"
+              style={{
+                background: active ? 'rgba(255,255,255,0.07)' : done ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.025)',
+                border: active ? `1px solid ${s.color}55` : done ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.06)',
+                backdropFilter: 'blur(10px)',
+                transition: 'all 0.5s ease',
+              }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={ph >= 2 ? { opacity: pending ? 0.35 : 1, x: 0 } : { opacity: 0, x: 20 }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              {/* Icon / check */}
+              <div className="flex items-center justify-center rounded-xl"
+                style={{ width: '2.8vw', height: '2.8vw', flexShrink: 0,
+                  background: done ? 'rgba(34,197,94,0.15)' : active ? `${s.color}18` : 'rgba(255,255,255,0.04)',
+                  border: done ? '1px solid rgba(34,197,94,0.3)' : active ? `1px solid ${s.color}44` : '1px solid rgba(255,255,255,0.06)',
+                }}>
+                {done
+                  ? <span style={{ fontSize: '1.2vw', color: '#22c55e' }}>✓</span>
+                  : active
+                    ? <motion.span style={{ fontSize: '1.3vw' }} animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 0.7, repeat: Infinity }}>{s.icon}</motion.span>
+                    : <span style={{ fontSize: '1.2vw', opacity: 0.3 }}>{s.icon}</span>
+                }
+              </div>
+
+              {/* Text */}
+              <div className="flex flex-col gap-[0.2vh] flex-1">
+                <span style={{ fontSize: '0.9vw', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: done ? '#86efac' : active ? s.color : 'rgba(255,255,255,0.4)' }}>
+                  {s.label}
+                </span>
+                <span style={{ fontSize: '0.78vw', fontFamily: 'DM Sans, sans-serif', color: done ? 'rgba(134,239,172,0.6)' : active ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)' }}>
+                  {s.detail}
+                </span>
+              </div>
+
+              {/* Progress spinner */}
+              {active && (
+                <motion.div className="rounded-full"
+                  style={{ width: '1.2vw', height: '1.2vw', border: `2px solid ${s.color}`, borderTopColor: 'transparent', flexShrink: 0 }}
+                  animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                />
+              )}
+              {done && (
+                <div className="rounded-full flex items-center justify-center"
+                  style={{ width: '1.2vw', height: '1.2vw', background: 'rgba(34,197,94,0.2)', flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.6vw', color: '#22c55e' }}>✓</span>
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
     </motion.div>
   );
 }

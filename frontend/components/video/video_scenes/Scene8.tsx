@@ -1,175 +1,161 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { ProCVLogo } from '../VideoTemplate';
 
-interface SceneProps { lightMode: boolean }
-
-const coverLetterLines = [
-  'Dear Hiring Manager,',
-  '',
-  'When I cut cart abandonment by 34% at Acme — not through guesswork but through a 22-variant A/B programme — I learned that great product work is about closing the gap between data and decision.',
-  '',
-  'Your role as Senior Product Manager at Stripe resonates because you\'re asking for exactly that: someone who can own a £8M+ portfolio, align OKRs across engineering and commercial teams, and ship with measurable impact.',
-  '',
-  'In three years at Checkout EU I did precisely this across 18 features generating £12.6M ARR. I\'d welcome the chance to show you how that translates to your roadmap.',
-];
-
-const stats = [
-  { label: 'Tone match',      value: '96%', color: '#22c55e' },
-  { label: 'JD alignment',   value: '94%', color: '#C9A84C' },
-  { label: 'ATS keywords',   value: '12/13', color: '#3b82f6' },
-  { label: 'AI tells',       value: '0',   color: '#22c55e' },
-];
-
-export function Scene8({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
-  const [visibleLines, setVisibleLines] = useState(0);
-
+// Scene 8 — CTA / Close (10s)
+export function Scene8(_props: object) {
+  const [ph, setPh] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 300),
-      setTimeout(() => setPhase(2), 1000),
+    const tt = [
+      setTimeout(() => setPh(1), 200),
+      setTimeout(() => setPh(2), 1000),
+      setTimeout(() => setPh(3), 2200),
+      setTimeout(() => setPh(4), 3800),
+      setTimeout(() => setPh(5), 5500),
+      setTimeout(() => setPh(6), 7000),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => tt.forEach(clearTimeout);
   }, []);
 
-  useEffect(() => {
-    if (phase < 2) return;
-    let i = 0;
-    const iv = setInterval(() => {
-      i++;
-      setVisibleLines(i);
-      if (i >= coverLetterLines.length) clearInterval(iv);
-    }, 420);
-    return () => clearInterval(iv);
-  }, [phase]);
+  const stats = [
+    { value: '30+',  label: 'Templates',     color: '#EBFF38' },
+    { value: '7',    label: 'AI Passes',      color: '#a78bfa' },
+    { value: '87',   label: 'Avg ATS Score',  color: '#22c55e' },
+    { value: '£0',   label: 'Cost. Always.',  color: '#EBFF38' },
+  ];
 
-  useEffect(() => {
-    if (visibleLines >= coverLetterLines.length) {
-      const t = setTimeout(() => setPhase(3), 600);
-      return () => clearTimeout(t);
-    }
-  }, [visibleLines]);
-
-  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.55)';
-  const cardBg  = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
-  const cardBorder = lightMode ? 'rgba(27,43,75,0.12)' : 'rgba(255,255,255,0.08)';
-  const pageBg  = lightMode ? 'rgba(27,43,75,0.03)' : 'rgba(255,255,255,0.03)';
-  const pageBorder = lightMode ? 'rgba(27,43,75,0.1)' : 'rgba(255,255,255,0.07)';
+  const features = [
+    'ATS Gap Targeting',
+    'CV Doctor AI',
+    'Career Rooms',
+    'Cover Letter Generator',
+    'Share Your Profile',
+    'Import from PDF/Word',
+    'WYSIWYG Live Editor',
+    'Quantify Bullets',
+  ];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex items-center justify-center px-[5vw] gap-[3vw]"
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -30 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Left panel — cover letter preview */}
-      <motion.div
-        className="flex-1 rounded-xl overflow-hidden"
-        style={{ background: pageBg, border: `1px solid ${pageBorder}`, maxHeight: '75vh' }}
-        initial={{ opacity: 0, y: 20 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-        transition={{ duration: 0.5 }}
-      >
-        {/* "Paper" header */}
-        <div className="px-[1.8vw] pt-[1.8vh] pb-[1vh] flex items-center justify-between" style={{ borderBottom: `1px solid ${pageBorder}` }}>
-          <div className="flex items-center gap-[0.8vw]">
-            <div className="w-[1.8vw] h-[1.8vw] rounded flex items-center justify-center font-bold text-[0.95vw]" style={{ background: '#C9A84C', color: '#1B2B4B', fontFamily: 'Playfair Display, serif' }}>CV</div>
-            <span className="text-[0.95vw] font-semibold" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Cover Letter — Senior PM @ Stripe</span>
-          </div>
-          <motion.div
-            className="flex items-center gap-[0.4vw] text-[0.88vw] px-[0.6vw] py-[0.25vh] rounded-full"
-            style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac', fontFamily: 'DM Sans, sans-serif' }}
-            animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
-          >
-            <motion.span className="w-[0.35vw] h-[0.35vw] rounded-full bg-green-400 inline-block" animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }} />
-            Generating…
-          </motion.div>
-        </div>
+      {/* Big radial glow */}
+      <motion.div className="absolute pointer-events-none"
+        style={{
+          width: '70vw', height: '70vw', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(235,255,56,0.12) 0%, rgba(201,168,76,0.06) 40%, transparent 70%)',
+          top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={ph >= 1 ? { scale: 1, opacity: 1 } : {}}
+        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
+      />
 
-        {/* Letter body */}
-        <div className="px-[1.8vw] py-[1.5vh] space-y-[0.6vh] overflow-hidden" style={{ maxHeight: '62vh' }}>
-          {coverLetterLines.map((line, i) => (
-            <motion.p
-              key={i}
-              className="text-[1vw] leading-relaxed"
-              style={{
-                color: line === '' ? 'transparent' : (i === 0 ? '#C9A84C' : text),
-                fontFamily: i === 0 ? 'Playfair Display, serif' : 'DM Sans, sans-serif',
-                fontWeight: i === 0 ? 600 : 400,
-                minHeight: line === '' ? '0.8vh' : undefined,
-              }}
-              initial={{ opacity: 0, x: -8 }}
-              animate={visibleLines > i ? { opacity: 1, x: 0 } : { opacity: 0, x: -8 }}
-              transition={{ duration: 0.3 }}
-            >
-              {line || '\u00A0'}
-            </motion.p>
-          ))}
-        </div>
+      {/* Logo */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.4, y: 20 }}
+        animate={ph >= 1 ? { opacity: 1, scale: 1, y: 0 } : {}}
+        transition={{ duration: 0.85, type: 'spring', stiffness: 170, damping: 14 }}
+        className="mb-[2vh]"
+      >
+        <motion.div
+          animate={ph >= 1 ? { filter: ['drop-shadow(0 0 0px rgba(235,255,56,0))', 'drop-shadow(0 0 40px rgba(235,255,56,0.7))', 'drop-shadow(0 0 20px rgba(235,255,56,0.4))'] } : {}}
+          transition={{ duration: 1.8, delay: 0.4 }}
+        >
+          <ProCVLogo size="7vw" />
+        </motion.div>
       </motion.div>
 
-      {/* Right panel — stats + label */}
-      <div className="w-[22vw] flex flex-col gap-[2vh]">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
-          transition={{ duration: 0.5 }}
-        >
-          <p className="text-[1.1vw] font-semibold tracking-[0.3em] uppercase mb-[1vh]" style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}>
-            Cover Letters
-          </p>
-          <h2 className="text-[2.8vw] font-bold leading-tight mb-[1.5vh]" style={{ color: text, fontFamily: 'Playfair Display, serif' }}>
-            One click.<br />
-            <span style={{ color: '#C9A84C' }}>Tailored to the JD.</span>
-          </h2>
-          <p className="text-[1vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-            ProCV reads your CV, cross-references the job description, and writes a letter that sounds like you — not like ChatGPT.
-          </p>
-        </motion.div>
+      {/* ProCV name */}
+      <motion.div className="flex items-baseline gap-[0.5vw] mb-[0.8vh]"
+        initial={{ opacity: 0, y: 16 }} animate={ph >= 1 ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.6, delay: 0.35 }}>
+        <span style={{ fontSize: '5vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, letterSpacing: '-0.03em' }}>
+          Pro<span style={{ color: '#EBFF38' }}>CV</span>
+        </span>
+      </motion.div>
 
-        {/* Quality stats */}
-        <motion.div
-          className="rounded-xl p-[1.8vh_1.5vw] space-y-[1.2vh]"
-          style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
-          initial={{ opacity: 0, y: 15 }}
-          animate={phase >= 3 ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
-          transition={{ duration: 0.5 }}
-        >
-          <p className="text-[0.95vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Quality Check</p>
-          {stats.map((s, i) => (
-            <motion.div
-              key={s.label}
-              className="flex items-center justify-between"
-              initial={{ opacity: 0, x: 10 }}
-              animate={phase >= 3 ? { opacity: 1, x: 0 } : { opacity: 0, x: 10 }}
-              transition={{ delay: 0.1 + i * 0.08, duration: 0.4 }}
-            >
-              <span className="text-[0.95vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{s.label}</span>
-              <span className="text-[1vw] font-bold" style={{ color: s.color, fontFamily: 'DM Sans, sans-serif' }}>{s.value}</span>
-            </motion.div>
-          ))}
-        </motion.div>
+      {/* Tagline */}
+      <motion.p className="mb-[3.5vh] text-center"
+        style={{ fontSize: '1.35vw', color: 'rgba(255,255,255,0.55)', fontFamily: 'DM Sans, sans-serif', maxWidth: '44vw' }}
+        initial={{ opacity: 0 }} animate={ph >= 2 ? { opacity: 1 } : {}} transition={{ duration: 0.6 }}
+      >
+        The CV builder that reads the job, writes the CV, checks its own work — and gets you interviews.
+      </motion.p>
 
-        <motion.div
-          className="flex flex-wrap gap-[0.5vw]"
-          initial={{ opacity: 0 }}
-          animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.4, delay: 0.4 }}
-        >
-          {['Groq Llama 3.3 70B', 'JD-aware', 'Voice-matched', 'Humanized'].map((tag, i) => (
-            <span
-              key={tag}
-              className="text-[0.85vw] px-[0.5vw] py-[0.2vh] rounded-full"
-              style={{ border: '1px solid rgba(201,168,76,0.25)', color: 'rgba(201,168,76,0.7)', fontFamily: 'DM Sans, sans-serif' }}
-            >
-              {tag}
+      {/* Stats row */}
+      <motion.div className="flex gap-[3.5vw] mb-[3.5vh]"
+        initial={{ opacity: 0, y: 20 }} animate={ph >= 3 ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.6 }}>
+        {stats.map((s, i) => (
+          <motion.div key={i} className="flex flex-col items-center"
+            initial={{ opacity: 0, scale: 0.7 }} animate={ph >= 3 ? { opacity: 1, scale: 1 } : {}}
+            transition={{ duration: 0.5, delay: i * 0.1, type: 'spring', stiffness: 270, damping: 20 }}>
+            <motion.span style={{ fontSize: '3.8vw', color: s.color, fontFamily: 'DM Sans, sans-serif', fontWeight: 900, lineHeight: 1 }}
+              animate={ph >= 3 ? { textShadow: [`0 0 0px ${s.color}00`, `0 0 24px ${s.color}66`, `0 0 12px ${s.color}33`] } : {}}
+              transition={{ duration: 1.2, delay: 0.4 + i * 0.1 }}>
+              {s.value}
+            </motion.span>
+            <span style={{ fontSize: '0.82vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, letterSpacing: '0.08em', marginTop: '0.3vh' }}>
+              {s.label}
             </span>
-          ))}
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Feature chips */}
+      <motion.div className="flex flex-wrap justify-center gap-[0.6vw] mb-[3.5vh]" style={{ maxWidth: '62vw' }}
+        initial={{ opacity: 0 }} animate={ph >= 4 ? { opacity: 1 } : {}} transition={{ duration: 0.5 }}>
+        {features.map((f, i) => (
+          <motion.span key={f}
+            className="px-[1vw] py-[0.45vh] rounded-full text-[0.78vw] font-semibold"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontFamily: 'DM Sans, sans-serif' }}
+            initial={{ opacity: 0, scale: 0.8 }} animate={ph >= 4 ? { opacity: 1, scale: 1 } : {}}
+            transition={{ delay: i * 0.06, type: 'spring', stiffness: 290, damping: 22 }}
+          >{f}</motion.span>
+        ))}
+      </motion.div>
+
+      {/* CTA button */}
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.85 }}
+        animate={ph >= 5 ? { opacity: 1, y: 0, scale: 1 } : {}}
+        transition={{ duration: 0.7, type: 'spring', stiffness: 220, damping: 18 }}
+        className="flex flex-col items-center gap-[1.2vh]"
+      >
+        <motion.div
+          className="px-[4vw] py-[1.5vh] rounded-full font-black cursor-pointer"
+          style={{
+            background: '#EBFF38',
+            color: '#06090f',
+            fontSize: '1.3vw',
+            fontFamily: 'DM Sans, sans-serif',
+            letterSpacing: '-0.01em',
+          }}
+          animate={ph >= 5 ? {
+            boxShadow: [
+              '0 0 20px rgba(235,255,56,0.3)',
+              '0 0 60px rgba(235,255,56,0.6)',
+              '0 0 20px rgba(235,255,56,0.3)',
+            ]
+          } : {}}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          whileHover={{ scale: 1.06, boxShadow: '0 0 70px rgba(235,255,56,0.7)' }}
+          whileTap={{ scale: 0.97 }}
+        >
+          Start Free — No Account Needed →
         </motion.div>
-      </div>
+
+        <motion.p
+          style={{ fontSize: '0.88vw', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif', textAlign: 'center' }}
+          initial={{ opacity: 0 }} animate={ph >= 6 ? { opacity: 1 } : {}} transition={{ duration: 0.5 }}
+        >
+          No account · No credit card · Your data never leaves your browser
+        </motion.p>
+      </motion.div>
     </motion.div>
   );
 }

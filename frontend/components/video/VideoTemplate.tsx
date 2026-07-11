@@ -10,101 +10,175 @@ import { Scene6 } from './video_scenes/Scene6';
 import { Scene7 } from './video_scenes/Scene7';
 import { Scene8 } from './video_scenes/Scene8';
 
+// ─── ProCV Logo ───────────────────────────────────────────────────────────────
+export function ProCVLogo({ size = '3vw', className = '' }: { size?: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 512 512" style={{ width: size, height: size, flexShrink: 0 }} className={className}>
+      <rect width="512" height="512" rx="110" ry="110" fill="#EBFF38" />
+      <rect x="96"  y="96"  width="44"  height="320" rx="18" fill="#111" />
+      <rect x="96"  y="96"  width="136" height="44"  rx="18" fill="#111" />
+      <rect x="96"  y="372" width="136" height="44"  rx="18" fill="#111" />
+      <rect x="372" y="96"  width="44"  height="320" rx="18" fill="#111" />
+      <rect x="280" y="96"  width="136" height="44"  rx="18" fill="#111" />
+      <rect x="280" y="372" width="136" height="44"  rx="18" fill="#111" />
+      <text x="256" y="308" textAnchor="middle" fill="#111" fontSize="132" fontWeight="900"
+        fontFamily="system-ui,-apple-system,Arial,sans-serif" letterSpacing="-6">CV</text>
+    </svg>
+  );
+}
+
+// ─── Scene durations ──────────────────────────────────────────────────────────
 const SCENE_DURATIONS = {
   problem:   8000,
   intro:    10000,
-  why:      10000,
-  ats_gap:  10000,
-  rooms:    10000,
-  cover:    10000,
-  tools:    10000,
+  profile:  10000,
+  build:    10000,
+  templates:10000,
+  doctor:   10000,
+  share:    10000,
   close:    10000,
 };
-
 const TOTAL_MS = Object.values(SCENE_DURATIONS).reduce((a, b) => a + b, 0);
-
+const SCENE_KEYS = Object.keys(SCENE_DURATIONS);
 const SCENE_NAMES = [
-  'The Problem', 'What is ProCV', 'Why ProCV',
-  'ATS Gap Targeting', 'Career Rooms', 'Cover Letter AI',
-  '12 AI Tools', 'Start Free',
+  'The Problem',
+  'Meet ProCV',
+  'Fill Your Profile',
+  'Build Your CV',
+  '30+ Templates',
+  'CV Doctor',
+  'Share Your Profile',
+  'Start Free',
 ];
 
-const SCENES = Object.keys(SCENE_DURATIONS);
+// ─── Ambient audio ────────────────────────────────────────────────────────────
+function useAmbientAudio() {
+  const ctxRef    = useRef<AudioContext | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const [muted, setMuted]   = useState(false);
+  const [ready, setReady]   = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-const bgPositions = [
-  { x: '10%',  y: '15%', scale: 1.4 },
-  { x: '70%',  y: '5%',  scale: 1.0 },
-  { x: '55%',  y: '60%', scale: 1.6 },
-  { x: '20%',  y: '70%', scale: 1.1 },
-  { x: '45%',  y: '30%', scale: 1.3 },
-  { x: '15%',  y: '45%', scale: 1.2 },
-  { x: '65%',  y: '55%', scale: 1.5 },
-  { x: '35%',  y: '20%', scale: 1.0 },
-];
+  const start = useCallback(() => {
+    if (ctxRef.current) { ctxRef.current.resume(); return; }
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      ctxRef.current = ctx;
 
-const accentLineConfig = [
-  { left: '12%', width: '28%', top: '88%' },
-  { left: '60%', width: '32%', top: '8%'  },
-  { left: '5%',  width: '20%', top: '50%' },
-  { left: '72%', width: '24%', top: '75%' },
-  { left: '30%', width: '40%', top: '12%' },
-  { left: '8%',  width: '25%', top: '70%' },
-  { left: '55%', width: '30%', top: '40%' },
-  { left: '20%', width: '35%', top: '85%' },
-];
+      const master = ctx.createGain();
+      master.gain.value = 0.055;
+      master.connect(ctx.destination);
+      masterRef.current = master;
+
+      // Spacious delay
+      const dly   = ctx.createDelay(2.5); dly.delayTime.value = 0.9;
+      const fbGain = ctx.createGain();   fbGain.gain.value = 0.28;
+      const dlyFlt = ctx.createBiquadFilter();
+      dlyFlt.type = 'lowpass'; dlyFlt.frequency.value = 600;
+      dly.connect(dlyFlt); dlyFlt.connect(fbGain); fbGain.connect(dly);
+      const dlyOut = ctx.createGain(); dlyOut.gain.value = 0.35;
+      dly.connect(dlyOut); dlyOut.connect(master);
+
+      // Pad — Cmaj7: C3 E3 G3 B3 + C2 drone
+      const notes = [
+        { f: 65.41,  g: 0.030, type: 'sine'     as OscillatorType }, // C2 drone
+        { f: 130.81, g: 0.028, type: 'sine'     as OscillatorType }, // C3
+        { f: 164.81, g: 0.022, type: 'sine'     as OscillatorType }, // E3
+        { f: 196.00, g: 0.020, type: 'sine'     as OscillatorType }, // G3
+        { f: 246.94, g: 0.016, type: 'triangle' as OscillatorType }, // B3
+        { f: 329.63, g: 0.010, type: 'triangle' as OscillatorType }, // E4 shimmer
+      ];
+      notes.forEach(({ f, g, type }, i) => {
+        const osc  = ctx.createOscillator();
+        osc.type = type; osc.frequency.value = f;
+        const lfo  = ctx.createOscillator();
+        lfo.frequency.value = 0.08 + i * 0.025;
+        const lfoG = ctx.createGain(); lfoG.gain.value = 0.012;
+        lfo.connect(lfoG);
+        const ng = ctx.createGain(); ng.gain.value = g;
+        lfoG.connect(ng.gain);
+        osc.connect(ng); ng.connect(master); ng.connect(dly);
+        osc.start(); lfo.start();
+      });
+
+      // Soft kick pulse at 80 BPM (every other beat)
+      const kickOsc = ctx.createOscillator();
+      kickOsc.type = 'sine'; kickOsc.frequency.value = 50;
+      const kickEnv = ctx.createGain(); kickEnv.gain.value = 0;
+      kickOsc.connect(kickEnv); kickEnv.connect(master); kickOsc.start();
+      let beat = 0;
+      timerRef.current = setInterval(() => {
+        if (!ctxRef.current) return;
+        if (beat % 2 === 0) {
+          const now = ctx.currentTime;
+          kickEnv.gain.cancelScheduledValues(now);
+          kickEnv.gain.setValueAtTime(0.06, now);
+          kickEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          kickOsc.frequency.setValueAtTime(55, now);
+          kickOsc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
+        }
+        beat++;
+      }, 750); // 80 BPM
+
+      setReady(true);
+    } catch { /* audio blocked */ }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setMuted(m => {
+      if (masterRef.current) masterRef.current.gain.value = m ? 0.055 : 0;
+      return !m;
+    });
+  }, []);
+
+  const stop = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    ctxRef.current?.close(); ctxRef.current = null;
+  }, []);
+
+  return { start, toggleMute, stop, muted, ready };
+}
 
 // ─── Screen recorder ──────────────────────────────────────────────────────────
 type RecordState = 'idle' | 'waiting' | 'recording' | 'done' | 'error';
-
-function useScreenRecorder(totalMs: number) {
+function useScreenRecorder() {
   const [state, setState] = useState<RecordState>('idle');
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef        = useRef<Blob[]>([]);
+  const mrRef    = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const startCapture = useCallback(async (): Promise<boolean> => {
     setState('waiting');
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 } as MediaTrackConstraints,
-        audio: false,
+        video: { frameRate: 30 } as MediaTrackConstraints, audio: false,
       });
       chunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9' : 'video/webm';
-      const mr = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mr;
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+      const mr = new MediaRecorder(stream, { mimeType: mime });
+      mrRef.current = mr;
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mime });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
-        a.href = url; a.download = 'procv-advert.webm'; a.click();
+        a.href = url; a.download = 'procv-ad.webm'; a.click();
         URL.revokeObjectURL(url);
         setState('done');
       };
-      stream.getVideoTracks()[0].onended = () => {
-        if (mr.state === 'recording') mr.stop();
-        setState('idle');
-      };
-      setState('recording');
-      mr.start(200);
-      return true;
-    } catch {
-      setState('error');
-      setTimeout(() => setState('idle'), 3000);
-      return false;
-    }
-  }, [totalMs]);
+      stream.getVideoTracks()[0].onended = () => { if (mr.state === 'recording') mr.stop(); setState('idle'); };
+      setState('recording'); mr.start(200); return true;
+    } catch { setState('error'); setTimeout(() => setState('idle'), 3000); return false; }
+  }, []);
 
   const stopCapture = useCallback(() => {
-    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+    if (mrRef.current?.state === 'recording') mrRef.current.stop();
   }, []);
 
   return { state, startCapture, stopCapture };
 }
 
-// ─── Countdown overlay ────────────────────────────────────────────────────────
+// ─── Countdown ────────────────────────────────────────────────────────────────
 function Countdown({ from, onDone }: { from: number; onDone: () => void }) {
   const [n, setN] = useState(from);
   useEffect(() => {
@@ -113,50 +187,53 @@ function Countdown({ from, onDone }: { from: number; onDone: () => void }) {
     return () => clearTimeout(t);
   }, [n, onDone]);
   return (
-    <motion.div
-      className="absolute inset-0 z-50 flex flex-col items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)' }}
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
+    <motion.div className="absolute inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
     >
       <AnimatePresence mode="popLayout">
-        <motion.span key={n} className="font-black"
-          style={{ fontSize: '22vw', color: '#C9A84C', fontFamily: 'Playfair Display, serif', lineHeight: 1 }}
-          initial={{ opacity: 0, scale: 1.5, y: -20 }}
+        <motion.span key={n} className="font-black leading-none"
+          style={{ fontSize: '20vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif' }}
+          initial={{ opacity: 0, scale: 1.8, y: -30 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.6, y: 20 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        >
-          {n}
-        </motion.span>
+          exit={{ opacity: 0, scale: 0.4, y: 20 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        >{n}</motion.span>
       </AnimatePresence>
-      <motion.p className="mt-[2vh] text-[1.4vw] font-semibold tracking-[0.2em]"
-        style={{ color: 'rgba(248,247,244,0.7)', fontFamily: 'DM Sans, sans-serif' }}
-        animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1, repeat: Infinity }}
-      >
-        RECORDING STARTS IN…
-      </motion.p>
+      <p className="mt-[2vh] text-[1.2vw] font-semibold tracking-[0.25em] uppercase"
+        style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif' }}>
+        Recording starts…
+      </p>
     </motion.div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Background grid ──────────────────────────────────────────────────────────
+const bgShifts = [
+  { x: '8%',  y: '12%', s: 1.3 }, { x: '68%', y: '5%',  s: 1.0 },
+  { x: '52%', y: '58%', s: 1.5 }, { x: '18%', y: '68%', s: 1.1 },
+  { x: '42%', y: '28%', s: 1.2 }, { x: '12%', y: '42%', s: 1.4 },
+  { x: '62%', y: '52%', s: 1.3 }, { x: '30%', y: '18%', s: 1.0 },
+];
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function VideoTemplate() {
   const { currentScene, isPlaying, isFinished, progressFraction, play, reset } =
     useVideoPlayer({ durations: SCENE_DURATIONS });
-  const { state: recState, startCapture, stopCapture } = useScreenRecorder(TOTAL_MS);
+  const { state: recState, startCapture, stopCapture } = useScreenRecorder();
+  const audio = useAmbientAudio();
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [lightMode, setLightMode]   = useState(false);
-  const [countdown, setCountdown]   = useState<number | null>(null);
-  const videoRef                    = useRef<HTMLVideoElement>(null);
-
-  // ── Auto-play on page load after 1 second ──────────────────────────────────
+  // Auto-play + start audio on first user interaction
   useEffect(() => {
-    const t = setTimeout(() => { play(); }, 1000);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => play(), 1000);
+    const onInteract = () => audio.start();
+    document.addEventListener('click', onInteract, { once: true });
+    document.addEventListener('keydown', onInteract, { once: true });
+    return () => { clearTimeout(t); document.removeEventListener('click', onInteract); document.removeEventListener('keydown', onInteract); };
   }, []);
 
-  // Auto-start recording + countdown, then play
   const handleStartAndRecord = useCallback(async () => {
     reset();
     const ok = await startCapture();
@@ -166,10 +243,10 @@ export default function VideoTemplate() {
 
   const handleCountdownDone = useCallback(() => {
     setCountdown(null);
+    audio.start();
     play();
   }, [play]);
 
-  // When playback finishes, stop recording
   useEffect(() => {
     if (isFinished && recState === 'recording') stopCapture();
   }, [isFinished, recState, stopCapture]);
@@ -180,287 +257,229 @@ export default function VideoTemplate() {
     reset();
   };
 
-  const bg     = bgPositions[currentScene] ?? bgPositions[0];
-  const accent = accentLineConfig[currentScene] ?? accentLineConfig[0];
-  const darkBg = '#0a1220';
-  const lightBg = '#F8F7F4';
-
-  const totalSecs = Math.round(TOTAL_MS / 1000);
-  const secsLeft  = Math.round(totalSecs - progressFraction * totalSecs);
-  const sceneProps = { lightMode };
+  const bg         = bgShifts[currentScene] ?? bgShifts[0];
+  const totalSecs  = Math.round(TOTAL_MS / 1000);
+  const secsLeft   = Math.round(totalSecs - progressFraction * totalSecs);
+  const sceneProps = {};
 
   return (
-    <div
-      className="relative w-full h-screen overflow-hidden select-none"
-      style={{ background: lightMode ? lightBg : darkBg }}
-    >
-      {/* ── Cinematic video backdrop ─────────────────────────────────────── */}
-      <video
-        ref={videoRef}
+    <div className="relative w-full h-screen overflow-hidden select-none" style={{ background: '#06090f' }}>
+
+      {/* Cinematic video backdrop */}
+      <video ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-        style={{ opacity: lightMode ? 0.10 : 0.65 }}
+        style={{ opacity: 0.55 }}
         src="/videos/cinematic-bg.mp4"
         autoPlay muted loop playsInline
       />
 
-      {/* Dark gradient overlay — light enough to let the video breathe */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: lightMode
-            ? 'rgba(248,247,244,0.80)'
-            : 'linear-gradient(135deg, rgba(8,14,26,0.72) 0%, rgba(8,14,26,0.45) 50%, rgba(8,14,26,0.72) 100%)',
-        }}
+      {/* Dark overlay */}
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ background: 'linear-gradient(135deg, rgba(6,9,15,0.78) 0%, rgba(6,9,15,0.48) 50%, rgba(6,9,15,0.78) 100%)' }}
       />
 
-      {/* Animated blob */}
+      {/* Animated ambient glow blob */}
       <motion.div
         className="absolute rounded-full blur-3xl pointer-events-none"
         style={{
-          background: lightMode
-            ? 'radial-gradient(circle, rgba(201,168,76,0.18) 0%, transparent 70%)'
-            : 'radial-gradient(circle, rgba(201,168,76,0.1) 0%, rgba(27,43,75,0.5) 60%, transparent 100%)',
-          width: '60vw', height: '60vw',
+          background: 'radial-gradient(circle, rgba(235,255,56,0.07) 0%, rgba(201,168,76,0.05) 40%, transparent 70%)',
+          width: '65vw', height: '65vw',
         }}
-        animate={{ left: bg.x, top: bg.y, scale: bg.scale }}
-        transition={{ duration: 2.8, ease: [0.16, 1, 0.3, 1] }}
+        animate={{ left: bg.x, top: bg.y, scale: bg.s }}
+        transition={{ duration: 3.2, ease: [0.16, 1, 0.3, 1] }}
       />
 
       {/* Floating gold particles */}
-      {[...Array(8)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute rounded-full pointer-events-none"
+      {[...Array(10)].map((_, i) => (
+        <motion.div key={i} className="absolute rounded-full pointer-events-none"
           style={{
-            width:  `${[3,4,2,5,3,4,2,3][i]}px`,
-            height: `${[3,4,2,5,3,4,2,3][i]}px`,
-            background: '#C9A84C',
-            left: `${[12,78,42,88,22,58,35,68][i]}%`,
-            top:  `${[18,38,72,12,62,82,48,28][i]}%`,
+            width:  `${[3,4,2,5,3,4,2,3,4,2][i]}px`,
+            height: `${[3,4,2,5,3,4,2,3,4,2][i]}px`,
+            background: i % 3 === 0 ? '#EBFF38' : '#C9A84C',
+            left: `${[10,75,40,85,20,55,32,65,48,22][i]}%`,
+            top:  `${[15,35,70,10,60,80,45,25,55,82][i]}%`,
           }}
-          animate={{ y: [0,-20,6,-12,0], x: [0,7,-5,9,0], opacity: [0.2,0.55,0.25,0.5,0.2] }}
-          transition={{ duration: 7 + i * 1.3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.7 }}
+          animate={{ y: [0,-18,5,-10,0], x: [0,6,-4,8,0], opacity: [0.15,0.5,0.2,0.45,0.15] }}
+          transition={{ duration: 7 + i * 1.1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.6 }}
         />
       ))}
 
-      {/* Gold accent line */}
-      <motion.div
-        className="absolute h-[1px] pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }}
-        animate={{ left: accent.left, width: accent.width, top: accent.top, opacity: 0.45 }}
-        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
-      />
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      <div className="absolute top-0 left-0 right-0 h-[8vh] flex items-center px-[2vw] z-30"
+        style={{ background: 'linear-gradient(180deg, rgba(6,9,15,0.7) 0%, transparent 100%)' }}>
+        {/* Logo */}
+        <motion.div className="flex items-center gap-[0.6vw]"
+          animate={{ opacity: currentScene === 7 ? 0 : 1 }} transition={{ duration: 0.6 }}>
+          <ProCVLogo size="2.2vw" />
+          <span style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.75)', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, letterSpacing: '0.05em' }}>
+            ProCV
+          </span>
+        </motion.div>
 
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      {/* ProCV corner mark */}
-      <motion.div
-        className="absolute top-[2.5vh] left-[2.5vw] flex items-center gap-[0.6vw] z-20"
-        animate={{ opacity: currentScene === 7 ? 0 : 0.6 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="w-[2vw] h-[2vw] rounded-md flex items-center justify-center font-bold"
-          style={{ background: '#C9A84C', color: '#1B2B4B', fontSize: '0.8vw', fontFamily: 'Playfair Display, serif' }}>
-          CV
-        </div>
-        <span style={{ fontSize: '0.9vw', color: lightMode ? 'rgba(27,43,75,0.7)' : 'rgba(248,247,244,0.7)', fontFamily: 'Playfair Display, serif', fontWeight: 600 }}>
-          ProCV
-        </span>
-      </motion.div>
+        <div className="flex-1" />
 
-      {/* Light/Dark toggle */}
-      <button
-        onClick={() => setLightMode(m => !m)}
-        className="absolute top-[2.5vh] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105"
-        style={{
-          background: lightMode ? 'rgba(27,43,75,0.08)' : 'rgba(248,247,244,0.08)',
-          border: lightMode ? '1px solid rgba(27,43,75,0.2)' : '1px solid rgba(248,247,244,0.2)',
-          color: lightMode ? '#1B2B4B' : 'rgba(248,247,244,0.8)',
-          backdropFilter: 'blur(8px)',
-        }}
-      >
-        <span>{lightMode ? '🌙' : '☀️'}</span>
-        {lightMode ? 'Dark mode' : 'Light mode'}
-      </button>
+        {/* Audio toggle */}
+        <button onClick={() => { audio.start(); audio.toggleMute(); }}
+          className="flex items-center gap-[0.4vw] px-[0.9vw] py-[0.5vh] rounded-full text-[0.72vw] font-semibold transition-all hover:scale-105 mr-[0.8vw]"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.55)', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
+        >
+          {audio.muted ? '🔇' : '🔊'}
+          <span>{audio.muted ? 'Unmute' : 'Music'}</span>
+        </button>
 
-      {/* Top-right controls */}
-      <div className="absolute top-[2.5vh] right-[2vw] z-30 flex items-center gap-[0.8vw]">
+        {/* Recording indicator */}
         {recState === 'recording' && (
           <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-[0.5vw] px-[1vw] py-[0.6vh] rounded-full text-[0.75vw] font-semibold"
+            className="flex items-center gap-[0.5vw] px-[0.9vw] py-[0.5vh] rounded-full text-[0.72vw] font-semibold mr-[0.8vw]"
             style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
           >
-            <motion.span className="w-[0.45vw] h-[0.45vw] rounded-full bg-red-500 inline-block"
+            <motion.span className="w-[0.4vw] h-[0.4vw] rounded-full bg-red-500 inline-block"
               animate={{ opacity: [1,0.2,1] }} transition={{ duration: 0.9, repeat: Infinity }} />
-            REC · {secsLeft}s left
-            <button onClick={stopCapture} className="ml-[0.4vw] opacity-60 hover:opacity-100">✕</button>
+            REC · {secsLeft}s
+            <button onClick={stopCapture} className="ml-[0.3vw] opacity-60 hover:opacity-100">✕</button>
           </motion.div>
         )}
-
         {recState === 'done' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="px-[1vw] py-[0.6vh] rounded-full text-[0.75vw] font-semibold"
+          <div className="px-[0.9vw] py-[0.5vh] rounded-full text-[0.72vw] font-semibold mr-[0.8vw]"
             style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac', fontFamily: 'DM Sans, sans-serif' }}>
-            ✓ Saved to downloads!
-          </motion.div>
+            ✓ Saved
+          </div>
         )}
 
-        {/* Reset */}
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-[0.4vw] px-[1vw] py-[0.6vh] rounded-full text-[0.75vw] font-semibold transition-all hover:scale-105 active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(248,247,244,0.7)', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
+        {/* Replay */}
+        <button onClick={handleReset}
+          className="flex items-center gap-[0.4vw] px-[0.9vw] py-[0.5vh] rounded-full text-[0.72vw] font-semibold transition-all hover:scale-105 mr-[0.6vw]"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
         >
           ↩ Replay
         </button>
 
-        {/* Record button */}
+        {/* Record */}
         {recState === 'idle' && (
-          <button
-            onClick={handleStartAndRecord}
-            className="flex items-center gap-[0.5vw] px-[1.2vw] py-[0.6vh] rounded-full text-[0.75vw] font-semibold transition-all hover:scale-105 active:scale-95"
-            style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.5)', color: '#C9A84C', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
+          <button onClick={handleStartAndRecord}
+            className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vh] rounded-full text-[0.72vw] font-semibold transition-all hover:scale-105"
+            style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.45)', color: '#C9A84C', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
           >
-            <span className="w-[0.45vw] h-[0.45vw] rounded-full bg-red-500 inline-block" />
-            Record &amp; Export
+            <span className="w-[0.4vw] h-[0.4vw] rounded-full bg-red-500 inline-block" />
+            Export .webm
           </button>
         )}
-
         {recState === 'waiting' && (
-          <div className="flex items-center gap-[0.5vw] px-[1.2vw] py-[0.6vh] rounded-full text-[0.75vw] font-semibold"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(248,247,244,0.6)', fontFamily: 'DM Sans, sans-serif' }}>
-            <motion.span animate={{ opacity: [1,0.3,1] }} transition={{ duration: 0.8, repeat: Infinity }}>⏳</motion.span>
-            Select this tab…
+          <div className="px-[1vw] py-[0.5vh] rounded-full text-[0.72vw]"
+            style={{ color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif' }}>
+            <motion.span animate={{ opacity: [1,0.3,1] }} transition={{ duration: 0.8, repeat: Infinity }}>⏳</motion.span> Select tab…
           </div>
         )}
       </div>
 
-      {/* ── Progress bar ─────────────────────────────────────────────────── */}
-      <motion.div
-        className="absolute bottom-0 left-0 h-[3px] z-30 pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, #C9A84C, #f0dc8a)', width: `${progressFraction * 100}%` }}
+      {/* ── Progress bar ────────────────────────────────────────────────── */}
+      <motion.div className="absolute bottom-0 left-0 h-[3px] z-30 pointer-events-none"
+        style={{ background: 'linear-gradient(90deg, #EBFF38, #C9A84C, #f0dc8a)', width: `${progressFraction * 100}%` }}
         transition={{ duration: 0.2, ease: 'linear' }}
       />
 
-      {/* ── Scene dots + name ─────────────────────────────────────────────── */}
-      <div className="absolute bottom-[3vh] left-1/2 -translate-x-1/2 flex flex-col items-center gap-[0.8vh] z-20 pointer-events-none">
+      {/* Scene dots + name */}
+      <div className="absolute bottom-[3.5vh] left-1/2 -translate-x-1/2 flex flex-col items-center gap-[0.8vh] z-20 pointer-events-none">
         <AnimatePresence mode="popLayout">
           <motion.p key={currentScene}
-            className="text-[0.68vw] font-semibold tracking-widest uppercase"
-            style={{ color: lightMode ? 'rgba(27,43,75,0.45)' : 'rgba(248,247,244,0.45)', fontFamily: 'DM Sans, sans-serif' }}
+            className="text-[0.65vw] font-semibold tracking-widest uppercase"
+            style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif' }}
             initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.3 }}
-          >
-            {SCENE_NAMES[currentScene]}
-          </motion.p>
+          >{SCENE_NAMES[currentScene]}</motion.p>
         </AnimatePresence>
         <div className="flex gap-[0.5vw]">
-          {SCENES.map((_, i) => (
+          {SCENE_KEYS.map((_, i) => (
             <motion.div key={i} className="rounded-full"
               animate={{
-                width: currentScene === i ? '1.5vw' : '0.4vw',
-                height: '0.4vw',
-                backgroundColor: currentScene === i
-                  ? '#C9A84C'
-                  : i < currentScene
-                    ? 'rgba(201,168,76,0.4)'
-                    : (lightMode ? 'rgba(27,43,75,0.2)' : 'rgba(255,255,255,0.18)'),
+                width: currentScene === i ? '1.6vw' : '0.35vw',
+                height: '0.35vw',
+                backgroundColor: currentScene === i ? '#EBFF38' : i < currentScene ? 'rgba(235,255,56,0.35)' : 'rgba(255,255,255,0.15)',
               }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.35 }}
             />
           ))}
         </div>
       </div>
 
       {/* Scene counter */}
-      <div className="absolute bottom-[3vh] right-[2vw] z-20 text-[0.65vw] font-semibold tabular-nums pointer-events-none"
-        style={{ color: lightMode ? 'rgba(27,43,75,0.3)' : 'rgba(255,255,255,0.28)', fontFamily: 'DM Sans, sans-serif' }}>
-        {currentScene + 1} / {SCENES.length}
+      <div className="absolute bottom-[3.5vh] right-[2vw] z-20 text-[0.62vw] font-semibold tabular-nums pointer-events-none"
+        style={{ color: 'rgba(255,255,255,0.25)', fontFamily: 'DM Sans, sans-serif' }}>
+        {currentScene + 1} / {SCENE_KEYS.length}
       </div>
 
-      {/* ── Idle / pre-play splash ────────────────────────────────────────── */}
+      {/* ── Idle splash ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {!isPlaying && !isFinished && (
           <motion.div
             className="absolute inset-0 flex flex-col items-center justify-center z-10"
-            style={{ background: 'rgba(10,18,32,0.6)', backdropFilter: 'blur(4px)' }}
+            style={{ background: 'rgba(6,9,15,0.72)', backdropFilter: 'blur(6px)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
+            onClick={() => { audio.start(); play(); }}
           >
-            {/* Big play button */}
-            <motion.button
-              onClick={() => play()}
-              className="relative flex items-center justify-center rounded-full mb-[3vh]"
-              style={{ width: '8vw', height: '8vw', background: 'rgba(201,168,76,0.15)', border: '2px solid rgba(201,168,76,0.6)' }}
-              animate={{ boxShadow: ['0 0 0px rgba(201,168,76,0)', '0 0 40px rgba(201,168,76,0.5)', '0 0 0px rgba(201,168,76,0)'] }}
-              transition={{ duration: 2.2, repeat: Infinity }}
-              whileHover={{ scale: 1.08, background: 'rgba(201,168,76,0.25)' }}
-              whileTap={{ scale: 0.96 }}
-            >
-              {/* Pulse ring */}
-              <motion.div
-                className="absolute rounded-full border"
-                style={{ width: '8vw', height: '8vw', borderColor: 'rgba(201,168,76,0.3)' }}
-                animate={{ scale: [1, 1.4, 1.7], opacity: [0.6, 0.3, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-              />
-              <span style={{ fontSize: '2.5vw', color: '#C9A84C', marginLeft: '0.3vw' }}>▶</span>
-            </motion.button>
-
+            {/* Play button */}
             <motion.div
-              className="flex flex-col items-center gap-[1vh]"
-              animate={{ y: [0, -5, 0] }}
-              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative flex items-center justify-center rounded-full mb-[3vh] cursor-pointer"
+              style={{ width: '9vw', height: '9vw', background: 'rgba(235,255,56,0.1)', border: '2px solid rgba(235,255,56,0.5)' }}
+              animate={{ boxShadow: ['0 0 0px rgba(235,255,56,0)', '0 0 50px rgba(235,255,56,0.35)', '0 0 0px rgba(235,255,56,0)'] }}
+              transition={{ duration: 2.5, repeat: Infinity }}
+              whileHover={{ scale: 1.08, background: 'rgba(235,255,56,0.2)' }}
+              whileTap={{ scale: 0.95 }}
             >
-              <div className="w-[4.5vw] h-[4.5vw] rounded-2xl flex items-center justify-center font-black"
-                style={{ background: '#C9A84C', color: '#1B2B4B', fontSize: '2vw', fontFamily: 'Playfair Display, serif' }}>
-                CV
-              </div>
-              <p className="text-[2vw] font-bold text-center" style={{ color: '#F8F7F4', fontFamily: 'Playfair Display, serif' }}>
-                ProCV — The Ad
+              <motion.div className="absolute rounded-full border"
+                style={{ width: '9vw', height: '9vw', borderColor: 'rgba(235,255,56,0.25)' }}
+                animate={{ scale: [1, 1.5, 1.9], opacity: [0.6, 0.25, 0] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut' }}
+              />
+              <span style={{ fontSize: '2.8vw', color: '#EBFF38', marginLeft: '0.5vw' }}>▶</span>
+            </motion.div>
+
+            <motion.div className="flex flex-col items-center gap-[1.5vh]"
+              animate={{ y: [0, -6, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}>
+              <ProCVLogo size="5.5vw" />
+              <p style={{ fontSize: '2.2vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                ProCV
               </p>
-              <p style={{ fontSize: '0.9vw', color: 'rgba(248,247,244,0.5)', fontFamily: 'DM Sans, sans-serif' }}>
-                8 scenes · ~{Math.round(TOTAL_MS / 1000)}s · click ▶ or wait
+              <p style={{ fontSize: '1.05vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.08em' }}>
+                See how it works · {Math.round(TOTAL_MS / 1000)}s · click to play
               </p>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Finished splash ───────────────────────────────────────────────── */}
+      {/* ── Finished splash ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isFinished && (
           <motion.div
             className="absolute inset-0 flex flex-col items-center justify-center z-10"
-            style={{ background: 'rgba(10,18,32,0.75)', backdropFilter: 'blur(14px)' }}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            transition={{ duration: 0.6 }}
+            style={{ background: 'rgba(6,9,15,0.82)', backdropFilter: 'blur(16px)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.7 }}
           >
             <motion.div className="flex flex-col items-center gap-[2.5vh]"
-              initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.55, delay: 0.2 }}
+              initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.25 }}
             >
-              <p className="text-[2.8vw] font-bold text-center" style={{ color: '#C9A84C', fontFamily: 'Playfair Display, serif' }}>
-                {recState === 'done' ? '🎬 Saved to downloads!' : '✓ That\'s the ad.'}
+              <ProCVLogo size="5vw" />
+              <p style={{ fontSize: '2.6vw', color: recState === 'done' ? '#86efac' : '#EBFF38', fontFamily: 'DM Sans, sans-serif', fontWeight: 800 }}>
+                {recState === 'done' ? '🎬 Saved to downloads!' : '✓ That\'s ProCV.'}
               </p>
-              <p style={{ fontSize: '1.05vw', color: 'rgba(248,247,244,0.55)', fontFamily: 'DM Sans, sans-serif', textAlign: 'center', maxWidth: '40vw' }}>
-                {recState === 'done'
-                  ? 'procv-advert.webm is in your downloads folder.'
-                  : 'Hit Replay to watch again, or Record & Export to capture a .webm file.'}
+              <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif', textAlign: 'center', maxWidth: '38vw' }}>
+                {recState === 'done' ? 'procv-ad.webm is in your downloads folder.' : 'Replay, or export as .webm to share anywhere.'}
               </p>
               <div className="flex items-center gap-[1.5vw] mt-[1vh]">
                 <button onClick={handleReset}
-                  className="flex items-center gap-[0.6vw] px-[2vw] py-[1.2vh] rounded-full text-[0.9vw] font-semibold transition-all hover:scale-105 active:scale-95"
-                  style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.5)', color: '#C9A84C', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
-                >
-                  ↩ Replay
-                </button>
+                  className="flex items-center gap-[0.5vw] px-[2vw] py-[1.2vh] rounded-full text-[0.9vw] font-semibold transition-all hover:scale-105"
+                  style={{ background: 'rgba(235,255,56,0.1)', border: '1px solid rgba(235,255,56,0.45)', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif' }}
+                >↩ Replay</button>
                 {recState !== 'done' && (
                   <button onClick={handleStartAndRecord}
-                    className="flex items-center gap-[0.5vw] px-[2vw] py-[1.2vh] rounded-full text-[0.9vw] font-semibold transition-all hover:scale-105 active:scale-95"
-                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontFamily: 'DM Sans, sans-serif', backdropFilter: 'blur(8px)' }}
+                    className="flex items-center gap-[0.5vw] px-[2vw] py-[1.2vh] rounded-full text-[0.9vw] font-semibold transition-all hover:scale-105"
+                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontFamily: 'DM Sans, sans-serif' }}
                   >
-                    <span className="w-[0.5vw] h-[0.5vw] rounded-full bg-red-500 inline-block" />
-                    Record &amp; Export
+                    <span className="w-[0.45vw] h-[0.45vw] rounded-full bg-red-500 inline-block" />
+                    Export .webm
                   </button>
                 )}
               </div>
@@ -469,24 +488,21 @@ export default function VideoTemplate() {
         )}
       </AnimatePresence>
 
-      {/* ── Countdown ────────────────────────────────────────────────────── */}
+      {/* Countdown */}
       <AnimatePresence>
-        {countdown !== null && (
-          <Countdown key="cd" from={countdown} onDone={handleCountdownDone} />
-        )}
+        {countdown !== null && <Countdown key="cd" from={countdown} onDone={handleCountdownDone} />}
       </AnimatePresence>
 
-      {/* ── Scene foreground ──────────────────────────────────────────────── */}
-      {/* Order: Problem → What is ProCV → Why ProCV → ATS Gap → Career Rooms → Cover Letters → 12 Tools → Start Free */}
-      <AnimatePresence mode="popLayout">
+      {/* ── Scenes ──────────────────────────────────────────────────────── */}
+      <AnimatePresence mode="sync">
         {currentScene === 0 && isPlaying && <Scene1 key="s1" {...sceneProps} />}
         {currentScene === 1 && isPlaying && <Scene2 key="s2" {...sceneProps} />}
         {currentScene === 2 && isPlaying && <Scene3 key="s3" {...sceneProps} />}
-        {currentScene === 3 && isPlaying && <Scene6 key="s6" {...sceneProps} />}
-        {currentScene === 4 && isPlaying && <Scene7 key="s7" {...sceneProps} />}
-        {currentScene === 5 && isPlaying && <Scene8 key="s8" {...sceneProps} />}
-        {currentScene === 6 && isPlaying && <Scene4 key="s4" {...sceneProps} />}
-        {currentScene === 7 && isPlaying && <Scene5 key="s5" {...sceneProps} />}
+        {currentScene === 3 && isPlaying && <Scene4 key="s4" {...sceneProps} />}
+        {currentScene === 4 && isPlaying && <Scene5 key="s5" {...sceneProps} />}
+        {currentScene === 5 && isPlaying && <Scene6 key="s6" {...sceneProps} />}
+        {currentScene === 6 && isPlaying && <Scene7 key="s7" {...sceneProps} />}
+        {currentScene === 7 && isPlaying && <Scene8 key="s8" {...sceneProps} />}
       </AnimatePresence>
     </div>
   );

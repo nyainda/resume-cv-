@@ -1,185 +1,220 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
-interface SceneProps { lightMode: boolean }
-
-const competitors = [
-  {
-    name: 'ChatGPT / AI tools',
-    tag: 'Generates, never validates',
-    flaws: [
-      'Output sounds like every other CV',
-      'No ATS keyword analysis',
-      'No job description context',
-      'Gets flagged by recruiters',
-    ],
-  },
-  {
-    name: 'Resume Builders',
-    tag: 'Pretty templates, zero brain',
-    flaws: [
-      'Manual keyword research on you',
-      'No tailoring to the actual JD',
-      'Template-locked, no AI rewrite',
-      'No quality pass — hope for the best',
-    ],
-  },
-];
-
-const procvAdvantages = [
-  { text: '7-pass quality validation engine', detail: 'Runs after every generation — automatically' },
-  { text: 'ATS gap-pin: confirmed missing keywords injected', detail: 'Top 12 gaps found & forced verbatim into output' },
-  { text: 'Humanization audit — 0 AI tells', detail: 'Strips clichés, corporate speak, em dashes' },
-  { text: 'Live market research via Gemini grounding', detail: 'Real JD intel, not generic templates' },
-];
-
-export function Scene3({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
+// Scene 3 — Fill Your Profile Once (10s)
+// Animated profile form mockup — shows the sections being filled
+export function Scene3(_props: object) {
+  const [ph, setPh] = useState(0);
+  const [activeTab, setActiveTab] = useState(0);
+  const [typedName, setTypedName] = useState('');
+  const [typedTitle, setTypedTitle] = useState('');
+  const fullName  = 'Sarah Johnson';
+  const fullTitle = 'Senior Product Manager';
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 200),
-      setTimeout(() => setPhase(2), 1300),
-      setTimeout(() => setPhase(3), 2600),
-      setTimeout(() => setPhase(4), 3800),
-      setTimeout(() => setPhase(5), 7800),
+    const tt = [
+      setTimeout(() => setPh(1), 150),
+      setTimeout(() => setPh(2), 900),
+      // type name
+      ...Array.from(fullName).map((_, i) =>
+        setTimeout(() => setTypedName(fullName.slice(0, i + 1)), 1200 + i * 65)
+      ),
+      // type title
+      ...Array.from(fullTitle).map((_, i) =>
+        setTimeout(() => setTypedTitle(fullTitle.slice(0, i + 1)), 2300 + i * 55)
+      ),
+      setTimeout(() => setPh(3), 3800),
+      setTimeout(() => { setPh(4); setActiveTab(1); }, 5200),
+      setTimeout(() => { setPh(5); setActiveTab(2); }, 7000),
+      setTimeout(() => setPh(6), 8500),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => tt.forEach(clearTimeout);
   }, []);
 
-  const text     = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext  = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.5)';
-  const cardBg   = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
-  const cardBorder = lightMode ? 'rgba(27,43,75,0.1)' : 'rgba(255,255,255,0.07)';
+  const tabs = ['Personal', 'Experience', 'Education', 'Skills', 'Projects'];
+
+  const expRows = [
+    { company: 'Shopify', role: 'Lead PM — Checkout', years: '2021–present' },
+    { company: 'Monzo', role: 'Product Manager', years: '2018–2021' },
+  ];
+
+  const skills = ['Product Strategy', 'A/B Testing', 'SQL', 'Figma', 'Python', 'Roadmapping', 'Agile', 'OKRs'];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center px-[4vw]"
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div className="absolute inset-0 flex items-center justify-center px-[6vw]"
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
     >
-      <motion.p
-        className="text-[1.1vw] font-semibold tracking-[0.3em] uppercase mb-[1.5vh]"
-        style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}
-        initial={{ opacity: 0, y: -12 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -12 }}
-        transition={{ duration: 0.5 }}
+      {/* Left — headline */}
+      <motion.div className="flex flex-col gap-[1.5vh] mr-[4vw]" style={{ width: '28vw', flexShrink: 0 }}
+        initial={{ opacity: 0, x: -30 }}
+        animate={ph >= 1 ? { opacity: 1, x: 0 } : { opacity: 0, x: -30 }}
+        transition={{ duration: 0.7 }}
       >
-        Why ProCV
-      </motion.p>
-
-      <motion.h2
-        className="text-[3.8vw] font-bold text-center leading-tight mb-[3.5vh]"
-        style={{ color: text, fontFamily: 'Playfair Display, serif' }}
-        initial={{ opacity: 0, y: 12 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-      >
-        Others generate CVs.<br />
-        <span style={{ color: '#C9A84C' }}>ProCV validates them.</span>
-      </motion.h2>
-
-      <div className="w-full max-w-[88vw] grid grid-cols-3 gap-[1.8vw]">
-
-        {/* Competitor columns */}
-        {competitors.map((comp, ci) => (
-          <motion.div
-            key={comp.name}
-            className="rounded-xl p-[2vh_1.5vw]"
-            style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
-            initial={{ opacity: 0, y: 28 }}
-            animate={phase >= ci + 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }}
-            transition={{ duration: 0.55, type: 'spring', stiffness: 260, damping: 22 }}
-          >
-            <p className="text-[1.05vw] font-bold mb-[0.3vh]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-              {comp.name}
-            </p>
-            <p className="text-[1.05vw] mb-[1.4vh]" style={{ color: 'rgba(239,68,68,0.75)', fontFamily: 'DM Sans, sans-serif' }}>
-              {comp.tag}
-            </p>
-            {comp.flaws.map((flaw, fi) => (
-              <motion.div
-                key={fi}
-                className="flex items-start gap-[0.5vw] mb-[0.65vh]"
-                initial={{ opacity: 0, x: -10 }}
-                animate={phase >= ci + 2 ? { opacity: 1, x: 0 } : {}}
-                transition={{ delay: 0.08 + fi * 0.1, duration: 0.35 }}
-              >
-                <span style={{ color: '#ef4444', fontSize: '0.95vw', lineHeight: '1.5', flexShrink: 0 }}>✗</span>
-                <span className="text-[0.95vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{flaw}</span>
-              </motion.div>
-            ))}
-          </motion.div>
-        ))}
-
-        {/* ProCV column */}
-        <motion.div
-          className="rounded-xl p-[2vh_1.5vw] relative overflow-hidden"
-          style={{ background: 'rgba(201,168,76,0.09)', border: '1px solid rgba(201,168,76,0.38)' }}
-          initial={{ opacity: 0, y: 28, scale: 0.96 }}
-          animate={phase >= 4 ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 28, scale: 0.96 }}
-          transition={{ duration: 0.65, type: 'spring', stiffness: 240, damping: 20 }}
-        >
-          {/* top glow */}
-          <div
-            className="absolute inset-0 rounded-xl pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.18), transparent 65%)' }}
-          />
-          {/* glowing border top line */}
-          <motion.div
-            className="absolute top-0 left-[10%] h-[2px] rounded-full pointer-events-none"
-            style={{ background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }}
-            initial={{ width: 0 }}
-            animate={phase >= 4 ? { width: '80%' } : { width: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          />
-
-          <div className="flex items-center gap-[0.7vw] mb-[0.3vh]">
-            <div
-              className="w-[1.6vw] h-[1.6vw] rounded flex items-center justify-center font-bold"
-              style={{ background: '#C9A84C', color: '#1B2B4B', fontSize: '0.88vw', fontFamily: 'Playfair Display, serif' }}
-            >
-              CV
+        <div className="flex items-center gap-[0.8vw] mb-[0.5vh]">
+          <div style={{ width: '0.25vw', height: '3vh', background: '#EBFF38', borderRadius: '2px' }} />
+          <span style={{ fontSize: '0.85vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, letterSpacing: '0.12em' }}>
+            STEP 1
+          </span>
+        </div>
+        <h2 style={{ fontSize: '3.2vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em',
+          textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
+          Fill your<br /><span style={{ color: '#EBFF38' }}>profile</span><br />once.
+        </h2>
+        <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6, maxWidth: '24vw' }}>
+          Add your details across 5 sections. ProCV uses them to tailor every CV automatically.
+        </p>
+        <motion.div className="flex flex-col gap-[0.8vh] mt-[1vh]"
+          initial={{ opacity: 0 }} animate={ph >= 6 ? { opacity: 1 } : { opacity: 0 }} transition={{ duration: 0.6 }}>
+          {['Personal Info & Photo', 'Work Experience', 'Education & Certifications', 'Skills & Languages', 'Projects & Achievements'].map((s, i) => (
+            <div key={i} className="flex items-center gap-[0.6vw]">
+              <span style={{ color: '#EBFF38', fontSize: '0.85vw' }}>✓</span>
+              <span style={{ fontSize: '0.88vw', color: 'rgba(255,255,255,0.6)', fontFamily: 'DM Sans, sans-serif' }}>{s}</span>
             </div>
-            <p className="text-[1.05vw] font-bold" style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}>ProCV</p>
-          </div>
-          <p className="text-[1.05vw] mb-[1.4vh]" style={{ color: 'rgba(34,197,94,0.8)', fontFamily: 'DM Sans, sans-serif' }}>
-            Built to check its own work
-          </p>
-
-          {procvAdvantages.map((adv, ai) => (
-            <motion.div
-              key={ai}
-              className="flex items-start gap-[0.5vw] mb-[0.8vh]"
-              initial={{ opacity: 0, x: 10 }}
-              animate={phase >= 4 ? { opacity: 1, x: 0 } : {}}
-              transition={{ delay: 0.08 + ai * 0.12, duration: 0.4, type: 'spring', stiffness: 320 }}
-            >
-              <span style={{ color: '#22c55e', fontSize: '0.95vw', lineHeight: '1.5', flexShrink: 0 }}>✓</span>
-              <div>
-                <span className="text-[0.95vw] font-semibold leading-snug block" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{adv.text}</span>
-                <span className="text-[0.6vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{adv.detail}</span>
-              </div>
-            </motion.div>
           ))}
         </motion.div>
-      </div>
+      </motion.div>
 
-      {/* Bottom verdict */}
+      {/* Right — form mockup */}
       <motion.div
-        className="mt-[2.5vh] flex items-center gap-[1.5vw]"
-        initial={{ opacity: 0, y: 10 }}
-        animate={phase >= 5 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          width: '44vw', borderRadius: '1.2vw',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          backdropFilter: 'blur(20px)',
+          overflow: 'hidden',
+        }}
+        initial={{ opacity: 0, y: 30, scale: 0.96 }}
+        animate={ph >= 2 ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 30, scale: 0.96 }}
+        transition={{ duration: 0.7, type: 'spring', stiffness: 180, damping: 18 }}
       >
-        <div className="h-[1px] w-[8vw]" style={{ background: 'rgba(201,168,76,0.3)' }} />
-        <p className="text-[1.4vw] font-semibold" style={{ color: '#C9A84C', fontFamily: 'Playfair Display, serif' }}>
-          The only builder that checks its own work.
-        </p>
-        <div className="h-[1px] w-[8vw]" style={{ background: 'rgba(201,168,76,0.3)' }} />
+        {/* Window chrome */}
+        <div className="flex items-center gap-[0.5vw] px-[1.4vw] py-[1.2vh]"
+          style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="rounded-full" style={{ width: '0.7vw', height: '0.7vw', background: '#ff5f57' }} />
+          <div className="rounded-full" style={{ width: '0.7vw', height: '0.7vw', background: '#febc2e' }} />
+          <div className="rounded-full" style={{ width: '0.7vw', height: '0.7vw', background: '#28c840' }} />
+          <span className="ml-[1vw]" style={{ fontSize: '0.7vw', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}>
+            ProCV — Your Profile
+          </span>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex px-[1.4vw] pt-[1.2vh] gap-[0.3vw]"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          {tabs.map((t, i) => (
+            <div key={i}
+              className="px-[0.9vw] py-[0.6vh] rounded-t-lg text-[0.72vw] font-semibold"
+              style={{
+                color: activeTab === i ? '#EBFF38' : 'rgba(255,255,255,0.35)',
+                borderBottom: activeTab === i ? '2px solid #EBFF38' : '2px solid transparent',
+                fontFamily: 'DM Sans, sans-serif',
+                transition: 'all 0.3s ease',
+              }}
+            >{t}</div>
+          ))}
+        </div>
+
+        {/* Form content */}
+        <div className="px-[1.8vw] py-[1.8vh]" style={{ minHeight: '28vh' }}>
+          <AnimatePresence mode="wait">
+            {activeTab === 0 && (
+              <motion.div key="personal" className="flex flex-col gap-[1.4vh]"
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}>
+                {/* Photo + name row */}
+                <div className="flex items-center gap-[1.2vw]">
+                  <div style={{ width: '4vw', height: '4vw', borderRadius: '50%', background: 'linear-gradient(135deg, #EBFF38, #C9A84C)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '1.8vw' }}>👩</span>
+                  </div>
+                  <div className="flex flex-col gap-[0.4vh] flex-1">
+                    <FieldLabel>Full Name</FieldLabel>
+                    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '0.4vw', padding: '0.5vh 0.8vw', border: '1px solid rgba(235,255,56,0.3)' }}>
+                      <span style={{ fontSize: '0.88vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif' }}>
+                        {typedName}<motion.span animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.7, repeat: Infinity }} style={{ color: '#EBFF38' }}>|</motion.span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Job Title</FieldLabel>
+                  <FieldBox>{typedTitle}<motion.span animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.7, repeat: Infinity }} style={{ color: '#EBFF38' }}>|</motion.span></FieldBox>
+                </div>
+                <div className="flex gap-[1vw]">
+                  <div className="flex-1">
+                    <FieldLabel>Location</FieldLabel>
+                    <FieldBox>London, UK</FieldBox>
+                  </div>
+                  <div className="flex-1">
+                    <FieldLabel>Industry</FieldLabel>
+                    <FieldBox>Product & Tech</FieldBox>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 1 && (
+              <motion.div key="exp" className="flex flex-col gap-[1.2vh]"
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}>
+                <p style={{ fontSize: '0.78vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif', marginBottom: '0.4vh' }}>
+                  Work Experience
+                </p>
+                {expRows.map((r, i) => (
+                  <motion.div key={i} className="rounded-xl px-[1.2vw] py-[1vh]"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.15 }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span style={{ fontSize: '0.88vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{r.role}</span>
+                      <span style={{ fontSize: '0.75vw', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}>{r.years}</span>
+                    </div>
+                    <span style={{ fontSize: '0.78vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif' }}>{r.company}</span>
+                  </motion.div>
+                ))}
+                <div className="flex items-center gap-[0.5vw] mt-[0.4vh] cursor-pointer">
+                  <span style={{ fontSize: '1.1vw', color: '#EBFF38' }}>＋</span>
+                  <span style={{ fontSize: '0.78vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif' }}>Add another role</span>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 2 && (
+              <motion.div key="edu" className="flex flex-col gap-[1.2vh]"
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}>
+                <p style={{ fontSize: '0.78vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif', marginBottom: '0.4vh' }}>
+                  Skills — click to add
+                </p>
+                <div className="flex flex-wrap gap-[0.5vw]">
+                  {skills.map((s, i) => (
+                    <motion.span key={s}
+                      className="px-[0.9vw] py-[0.4vh] rounded-full text-[0.78vw] font-semibold"
+                      style={{ background: 'rgba(235,255,56,0.1)', border: '1px solid rgba(235,255,56,0.25)', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif' }}
+                      initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.07, type: 'spring', stiffness: 300, damping: 20 }}
+                    >{s}</motion.span>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <p style={{ fontSize: '0.7vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif', marginBottom: '0.3vh', fontWeight: 600 }}>{children}</p>;
+}
+function FieldBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '0.4vw', padding: '0.5vh 0.8vw', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <span style={{ fontSize: '0.88vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif' }}>{children}</span>
+    </div>
   );
 }

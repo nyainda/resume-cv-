@@ -1,179 +1,163 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
-interface SceneProps { lightMode: boolean }
-
-const jdKeywords = [
-  'stakeholder management', 'OKR alignment', 'growth strategy',
-  'data-driven', 'cross-functional', 'P&L ownership', 'go-to-market',
-];
-
-const missingKeywords = ['OKR alignment', 'P&L ownership', 'go-to-market'];
-
-const bulletBefore = 'Led the product team and drove growth initiatives across multiple business units.';
-const bulletAfter  = 'Drove go-to-market strategy for 3 product lines, aligning OKR targets across 4 divisions with full P&L ownership of £8.4M portfolio.';
-
-export function Scene6({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
-  const [typed, setTyped] = useState('');
-
+// Scene 6 — CV Doctor (10s)
+// Shows the AI scanning + rewriting weak bullets
+export function Scene6(_props: object) {
+  const [ph, setPh] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 300),
-      setTimeout(() => setPhase(2), 1500),
-      setTimeout(() => setPhase(3), 3000),
-      setTimeout(() => setPhase(4), 5000),
+    const tt = [
+      setTimeout(() => setPh(1), 200),
+      setTimeout(() => setPh(2), 1100),
+      setTimeout(() => setPh(3), 2200),
+      setTimeout(() => setPh(4), 3800),
+      setTimeout(() => setPh(5), 5400),
+      setTimeout(() => setPh(6), 7200),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => tt.forEach(clearTimeout);
   }, []);
 
-  useEffect(() => {
-    if (phase < 4) return;
-    let i = 0;
-    const iv = setInterval(() => {
-      i++;
-      setTyped(bulletAfter.slice(0, i));
-      if (i >= bulletAfter.length) clearInterval(iv);
-    }, 22);
-    return () => clearInterval(iv);
-  }, [phase]);
+  const annotations = [
+    { type: 'passive',  label: 'Passive voice',   color: '#fb923c', text: 'was responsible for' },
+    { type: 'buzzword', label: 'AI buzzword',      color: '#f43f5e', text: 'leveraged synergies' },
+    { type: 'metric',   label: 'No metric',        color: '#facc15', text: 'improved performance' },
+  ];
 
-  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.55)';
-  const cardBg  = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
-  const cardBorder = lightMode ? 'rgba(27,43,75,0.12)' : 'rgba(255,255,255,0.08)';
+  const weakBullet  = 'Was responsible for leveraging synergies to improve performance across the team';
+  const strongBullet = 'Reduced checkout drop-off by 34% by redesigning the payment flow for 2.4M monthly users';
+
+  const checks = [
+    { label: 'Smart Review',    detail: 'Adds, removes & prioritises bullets',  icon: '🧠' },
+    { label: 'Bullet Rewriter', detail: 'Click any weak bullet for 3 rewrites', icon: '✍️' },
+    { label: 'Seniority Check', detail: 'Matches tone to your career level',    icon: '📈' },
+    { label: 'What Changed',    detail: 'Side-by-side before/after diff view',  icon: '🔄' },
+  ];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center px-[5vw]"
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div className="absolute inset-0 flex items-center justify-center px-[6vw]"
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
     >
-      <motion.p
-        className="text-[1.1vw] font-semibold tracking-[0.3em] uppercase mb-[1.5vh]"
-        style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}
-        initial={{ opacity: 0, y: -10 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
-        transition={{ duration: 0.5 }}
-      >
-        ATS Gap Targeting
-      </motion.p>
+      {/* Left headline */}
+      <motion.div className="flex flex-col gap-[1.5vh] mr-[4vw]" style={{ width: '28vw', flexShrink: 0 }}
+        initial={{ opacity: 0, x: -20 }} animate={ph >= 1 ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.7 }}>
+        <div className="flex items-center gap-[0.8vw]">
+          <div style={{ width: '0.25vw', height: '3vh', background: '#EBFF38', borderRadius: '2px' }} />
+          <span style={{ fontSize: '0.85vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, letterSpacing: '0.12em' }}>CV DOCTOR</span>
+        </div>
+        <h2 style={{ fontSize: '3.2vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em',
+          textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
+          Your AI<br /><span style={{ color: '#EBFF38' }}>career</span><br />consultant.
+        </h2>
+        <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.5)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6, maxWidth: '24vw' }}>
+          CV Doctor scans every bullet for weak language, missing metrics, and passive voice — then rewrites them instantly.
+        </p>
 
-      <motion.h2
-        className="text-[3.8vw] font-bold text-center mb-[4vh] leading-tight"
-        style={{ color: text, fontFamily: 'Playfair Display, serif' }}
-        initial={{ opacity: 0 }}
-        animate={phase >= 1 ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-      >
-        Keywords you're missing.<br />
-        <span style={{ color: '#C9A84C' }}>Injected automatically.</span>
-      </motion.h2>
+        {/* Feature checks */}
+        <div className="flex flex-col gap-[0.9vh] mt-[1vh]">
+          {checks.map((c, i) => (
+            <motion.div key={i} className="flex items-center gap-[0.8vw]"
+              initial={{ opacity: 0, x: -10 }}
+              animate={ph >= 6 ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+              transition={{ duration: 0.4, delay: i * 0.1 }}
+            >
+              <span style={{ fontSize: '1vw' }}>{c.icon}</span>
+              <div>
+                <span style={{ fontSize: '0.85vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{c.label} </span>
+                <span style={{ fontSize: '0.8vw', color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Sans, sans-serif' }}>— {c.detail}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
 
-      <div className="w-full max-w-[82vw] grid grid-cols-2 gap-[2.5vw]">
+      {/* Right — doctor panel mockup */}
+      <div className="flex flex-col gap-[1.5vh]" style={{ width: '44vw' }}>
 
-        {/* Left: JD keyword scan */}
-        <motion.div
-          className="rounded-xl p-[2vh_1.8vw]"
-          style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
-          initial={{ opacity: 0, x: -20 }}
-          animate={phase >= 1 ? { opacity: 1, x: 0 } : { opacity: 0, x: -20 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-        >
-          <p className="text-[0.95vw] font-semibold tracking-widest uppercase mb-[1.5vh]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-            Job Description Keywords
-          </p>
-          <div className="flex flex-wrap gap-[0.5vw]">
-            {jdKeywords.map((kw, i) => {
-              const isMissing = missingKeywords.includes(kw);
-              const showMissing = phase >= 2 && isMissing;
+        {/* Annotation legend */}
+        <motion.div className="flex gap-[0.8vw]"
+          initial={{ opacity: 0 }} animate={ph >= 2 ? { opacity: 1 } : {}} transition={{ duration: 0.5 }}>
+          {annotations.map((a, i) => (
+            <motion.div key={i} className="flex items-center gap-[0.4vw] px-[0.8vw] py-[0.4vh] rounded-full"
+              style={{ background: `${a.color}18`, border: `1px solid ${a.color}44` }}
+              initial={{ opacity: 0, scale: 0.8 }} animate={ph >= 2 ? { opacity: 1, scale: 1 } : {}}
+              transition={{ delay: i * 0.1, type: 'spring', stiffness: 280, damping: 20 }}>
+              <div className="rounded-full" style={{ width: '0.5vw', height: '0.5vw', background: a.color, flexShrink: 0 }} />
+              <span style={{ fontSize: '0.7vw', color: a.color, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{a.label}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* BEFORE bullet */}
+        <motion.div className="rounded-2xl px-[1.5vw] py-[1.5vh]"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,100,100,0.2)', backdropFilter: 'blur(12px)' }}
+          initial={{ opacity: 0, y: 16 }} animate={ph >= 2 ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.6 }}>
+          <div className="flex items-center gap-[0.6vw] mb-[0.8vh]">
+            <span style={{ fontSize: '0.75vw', color: '#f43f5e', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, letterSpacing: '0.1em' }}>BEFORE</span>
+            <div style={{ height: '1px', flex: 1, background: 'rgba(244,63,94,0.2)' }} />
+          </div>
+          <p style={{ fontSize: '0.95vw', color: 'rgba(255,255,255,0.65)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
+            {'• '}{weakBullet.split(' ').map((word, wi) => {
+              const isPassive  = ['Was', 'responsible', 'for'].includes(word);
+              const isBuzzword = ['leveraging', 'synergies'].includes(word);
+              const isMetric   = ['improve', 'performance'].includes(word);
+              const color = isPassive ? '#fb923c' : isBuzzword ? '#f43f5e' : isMetric ? '#facc15' : undefined;
               return (
-                <motion.span
-                  key={kw}
-                  className="px-[0.7vw] py-[0.3vh] rounded-full text-[0.95vw] font-medium"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={phase >= 1 ? {
-                    opacity: 1,
-                    scale: 1,
-                    background: showMissing ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.1)',
-                    borderColor: showMissing ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.3)',
-                    color: showMissing ? '#fca5a5' : '#86efac',
-                  } : { opacity: 0, scale: 0.8 }}
-                  transition={{ delay: 0.2 + i * 0.08, duration: 0.4, border: { duration: 0.3, delay: phase >= 2 ? 0.5 + i * 0.08 : 0 } }}
-                  style={{ border: '1px solid transparent', fontFamily: 'DM Sans, sans-serif' } as any}
+                <motion.span key={wi}
+                  style={{ color: ph >= 3 && color ? color : undefined, fontWeight: ph >= 3 && color ? 700 : undefined }}
+                  animate={ph >= 3 && color ? { textDecoration: 'underline' } : {}}
                 >
-                  {showMissing ? '✗ ' : '✓ '}{kw}
+                  {word}{' '}
                 </motion.span>
               );
             })}
-          </div>
-
-          <motion.div
-            className="mt-[1.5vh] pt-[1.5vh] border-t"
-            style={{ borderColor: cardBorder }}
-            initial={{ opacity: 0 }}
-            animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
-            transition={{ duration: 0.4, delay: 0.8 }}
-          >
-            <p className="text-[0.95vw]" style={{ color: '#fca5a5', fontFamily: 'DM Sans, sans-serif' }}>
-              ↑ {missingKeywords.length} confirmed gap keywords — not in your current CV
-            </p>
-          </motion.div>
-        </motion.div>
-
-        {/* Right: bullet rewrite */}
-        <motion.div
-          className="rounded-xl p-[2vh_1.8vw] flex flex-col gap-[1.5vh]"
-          style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
-          initial={{ opacity: 0, x: 20 }}
-          animate={phase >= 1 ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <p className="text-[0.95vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-            Bullet Rewrite
           </p>
-
-          {/* Before */}
-          <motion.div
-            className="p-[1vh_1vw] rounded-lg"
-            style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}
-            animate={phase >= 3 ? { opacity: 0.4 } : { opacity: 1 }}
-            transition={{ duration: 0.4 }}
-          >
-            <p className="text-[0.88vw] font-semibold uppercase mb-[0.5vh]" style={{ color: '#ef4444', fontFamily: 'DM Sans, sans-serif' }}>Before</p>
-            <p className="text-[1vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{bulletBefore}</p>
-          </motion.div>
-
-          {/* After */}
-          <motion.div
-            className="p-[1vh_1vw] rounded-lg"
-            style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}
-            initial={{ opacity: 0, y: 10 }}
-            animate={phase >= 3 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-            transition={{ duration: 0.5 }}
-          >
-            <p className="text-[0.88vw] font-semibold uppercase mb-[0.5vh]" style={{ color: '#22c55e', fontFamily: 'DM Sans, sans-serif' }}>After — gap keywords injected</p>
-            <p className="text-[1vw] leading-snug" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>
-              {typed || (phase >= 3 ? '' : '')}
-              {phase >= 4 && typed.length < bulletAfter.length && (
-                <motion.span animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>|</motion.span>
-              )}
-            </p>
-            {/* Highlight injected keywords */}
-            {phase >= 4 && typed.length >= bulletAfter.length && (
-              <div className="flex flex-wrap gap-[0.4vw] mt-[0.8vh]">
-                {missingKeywords.map(kw => (
-                  <span key={kw} className="px-[0.5vw] py-[0.2vh] rounded text-[0.6vw] font-semibold" style={{ background: 'rgba(34,197,94,0.15)', color: '#86efac', fontFamily: 'DM Sans, sans-serif' }}>
-                    ✓ {kw}
-                  </span>
-                ))}
-              </div>
-            )}
-          </motion.div>
         </motion.div>
+
+        {/* Doctor scanning animation */}
+        <AnimatePresence>
+          {ph >= 3 && ph < 5 && (
+            <motion.div className="flex items-center gap-[1vw] px-[1.5vw] py-[1vh] rounded-2xl"
+              style={{ background: 'rgba(235,255,56,0.06)', border: '1px solid rgba(235,255,56,0.2)', backdropFilter: 'blur(10px)' }}
+              initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.4 }}>
+              <motion.div className="rounded-full"
+                style={{ width: '1.4vw', height: '1.4vw', border: '2px solid #EBFF38', borderTopColor: 'transparent', flexShrink: 0 }}
+                animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }} />
+              <div>
+                <p style={{ fontSize: '0.85vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
+                  CV Doctor is rewriting…
+                </p>
+                <p style={{ fontSize: '0.75vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif' }}>
+                  Found 3 issues · generating 3 rewrite options
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* AFTER bullet */}
+        <AnimatePresence>
+          {ph >= 5 && (
+            <motion.div className="rounded-2xl px-[1.5vw] py-[1.5vh]"
+              style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.25)', backdropFilter: 'blur(12px)' }}
+              initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.6, type: 'spring', stiffness: 240, damping: 18 }}>
+              <div className="flex items-center gap-[0.6vw] mb-[0.8vh]">
+                <span style={{ fontSize: '0.75vw', color: '#22c55e', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, letterSpacing: '0.1em' }}>AFTER · OPTION 1</span>
+                <div style={{ height: '1px', flex: 1, background: 'rgba(34,197,94,0.2)' }} />
+                <div className="px-[0.6vw] py-[0.25vh] rounded-full" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <span style={{ fontSize: '0.65vw', color: '#86efac', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>✓ APPLY</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '0.95vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.6 }}>
+                • {strongBullet}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );

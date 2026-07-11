@@ -1,120 +1,110 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
-interface SceneProps { lightMode: boolean }
-
-const problems = [
-  { icon: '🤖', text: 'Your CV is parsed by a bot — not a human' },
-  { icon: '🔑', text: 'Missing keywords = instant rejection, no review' },
-  { icon: '📋', text: 'Generic CVs look identical to 10,000 others' },
-];
-
-export function Scene1({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
-
+// Scene 1 — The Problem (8s)
+// Cinematic hook: "75% of CVs rejected before a human reads them"
+export function Scene1(_props: object) {
+  const [ph, setPh] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 200),   // stat pops
-      setTimeout(() => setPhase(2), 1200),  // label slides
-      setTimeout(() => setPhase(3), 2100),  // divider
-      setTimeout(() => setPhase(4), 2700),  // problems
-      setTimeout(() => setPhase(5), 6000),  // verdict
+    const tt = [
+      setTimeout(() => setPh(1), 150),
+      setTimeout(() => setPh(2), 1100),
+      setTimeout(() => setPh(3), 2000),
+      setTimeout(() => setPh(4), 2800),
+      setTimeout(() => setPh(5), 5800),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => tt.forEach(clearTimeout);
   }, []);
 
-  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.5)';
-  const cardBg  = lightMode ? 'rgba(27,43,75,0.05)' : 'rgba(255,255,255,0.05)';
-  const cardBorder = lightMode ? 'rgba(27,43,75,0.12)' : 'rgba(255,255,255,0.08)';
+  const problems = [
+    { icon: '🤖', title: 'ATS robots decide first', body: 'Your CV is parsed by an algorithm before any human sees it' },
+    { icon: '🔑', title: 'Missing keywords = instant reject', body: 'One missing term and you\'re filtered out with no review' },
+    { icon: '📋', title: 'Generic CVs look identical', body: 'Yours looks the same as 10,000 others in the pile' },
+  ];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center px-[6vw]"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ clipPath: 'inset(0 0 0 100%)', opacity: 0 }}
-      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center px-[7vw]"
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -100, filter: 'blur(8px)' }}
+      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Big stat */}
-      <motion.div
-        className="flex flex-col items-center mb-[3.5vh]"
-        initial={{ opacity: 0, scale: 0.6 }}
-        animate={phase >= 1 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.6 }}
-        transition={{ duration: 0.7, type: 'spring', stiffness: 200, damping: 16 }}
+      <motion.div className="flex flex-col items-center mb-[4vh]"
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={ph >= 1 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.5 }}
+        transition={{ duration: 0.8, type: 'spring', stiffness: 180, damping: 14 }}
       >
         <motion.span
           className="font-black leading-none"
-          style={{ fontSize: '13vw', fontFamily: 'Playfair Display, serif', color: '#C9A84C', lineHeight: 1 }}
-          animate={phase >= 1 ? {
-            textShadow: ['0 0 0px rgba(201,168,76,0)', '0 0 60px rgba(201,168,76,0.5)', '0 0 30px rgba(201,168,76,0.3)'],
-          } : {}}
-          transition={{ duration: 1.4, delay: 0.2 }}
+          style={{ fontSize: '14vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif', lineHeight: 0.9,
+            textShadow: ph >= 1 ? '0 0 80px rgba(235,255,56,0.4), 0 0 160px rgba(235,255,56,0.15)' : 'none' }}
         >
           75%
         </motion.span>
-
-        <motion.p
-          className="text-center font-semibold mt-[0.5vh]"
-          style={{ fontSize: '1.6vw', color: text, fontFamily: 'DM Sans, sans-serif', maxWidth: '48vw' }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={phase >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+        <motion.p className="text-center font-semibold mt-[1vh]"
+          style={{ fontSize: '1.65vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', maxWidth: '50vw' }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={ph >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
           transition={{ duration: 0.55 }}
         >
-          of CVs are rejected before a human reads them.
+          of CVs are rejected before a human ever reads them.
         </motion.p>
-
-        <motion.p
-          className="text-center mt-[0.8vh]"
-          style={{ fontSize: '1vw', color: subtext, fontFamily: 'DM Sans, sans-serif' }}
+        <motion.p className="text-center mt-[0.6vh]"
+          style={{ fontSize: '1.05vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif' }}
           initial={{ opacity: 0 }}
-          animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          animate={ph >= 2 ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
         >
-          Not because you're underqualified. Because your CV uses the wrong words.
+          Not because you're underqualified — because your CV uses the wrong words.
         </motion.p>
       </motion.div>
 
       {/* Divider */}
-      <motion.div
-        className="h-[1px] mb-[3vh]"
-        style={{ background: 'linear-gradient(90deg, transparent, rgba(201,168,76,0.4), transparent)' }}
+      <motion.div className="h-[1px] mb-[3.5vh]"
+        style={{ background: 'linear-gradient(90deg, transparent, rgba(235,255,56,0.5), transparent)' }}
         initial={{ width: 0 }}
-        animate={phase >= 3 ? { width: '50vw' } : { width: 0 }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        animate={ph >= 3 ? { width: '52vw' } : { width: 0 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       />
 
       {/* Problem cards */}
-      <div className="flex gap-[2vw] mb-[3.5vh]">
+      <div className="flex gap-[1.8vw] mb-[4vh]">
         {problems.map((p, i) => (
-          <motion.div
-            key={i}
-            className="flex items-start gap-[0.8vw] px-[1.5vw] py-[1.2vh] rounded-xl"
-            style={{ background: cardBg, border: `1px solid ${cardBorder}`, width: '22vw' }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={phase >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: i * 0.18, type: 'spring', stiffness: 280, damping: 22 }}
+          <motion.div key={i}
+            className="flex flex-col gap-[0.6vh] px-[1.5vw] py-[1.4vh] rounded-2xl"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              backdropFilter: 'blur(12px)',
+              width: '22vw',
+            }}
+            initial={{ opacity: 0, y: 24, scale: 0.92 }}
+            animate={ph >= 4 ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 24, scale: 0.92 }}
+            transition={{ duration: 0.55, delay: i * 0.15, type: 'spring', stiffness: 260, damping: 20 }}
           >
-            <span style={{ fontSize: '1.3vw', flexShrink: 0, lineHeight: 1.4 }}>{p.icon}</span>
-            <span className="text-[1vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-              {p.text}
+            <span style={{ fontSize: '1.5vw' }}>{p.icon}</span>
+            <span style={{ fontSize: '1vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
+              {p.title}
+            </span>
+            <span style={{ fontSize: '0.88vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.5 }}>
+              {p.body}
             </span>
           </motion.div>
         ))}
       </div>
 
       {/* Verdict */}
-      <motion.div
-        className="flex items-center gap-[1.5vw]"
-        initial={{ opacity: 0, y: 10 }}
-        animate={phase >= 5 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+      <motion.div className="flex items-center gap-[1.5vw]"
+        initial={{ opacity: 0, y: 12 }}
+        animate={ph >= 5 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
         transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="h-[2px] w-[5vw]" style={{ background: 'rgba(201,168,76,0.4)' }} />
-        <p className="font-bold" style={{ fontSize: '1.7vw', color: '#C9A84C', fontFamily: 'Playfair Display, serif' }}>
+        <div className="h-[2px] w-[6vw]" style={{ background: 'rgba(235,255,56,0.4)' }} />
+        <p className="font-bold" style={{ fontSize: '1.6vw', color: '#EBFF38', fontFamily: 'DM Sans, sans-serif' }}>
           The system is automated. ProCV beats it.
         </p>
-        <div className="h-[2px] w-[5vw]" style={{ background: 'rgba(201,168,76,0.4)' }} />
+        <div className="h-[2px] w-[6vw]" style={{ background: 'rgba(235,255,56,0.4)' }} />
       </motion.div>
     </motion.div>
   );

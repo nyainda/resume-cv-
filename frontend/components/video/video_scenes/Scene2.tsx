@@ -1,180 +1,125 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { ProCVLogo } from '../VideoTemplate';
 
-interface SceneProps { lightMode: boolean }
-
-const steps = [
-  {
-    num: '01',
-    icon: '📋',
-    label: 'Paste a Job Description',
-    detail: 'ProCV reads the JD, extracts required keywords, seniority level, and company tone — automatically.',
-    accent: '#3b82f6',
-  },
-  {
-    num: '02',
-    icon: '⚡',
-    label: 'AI Generates & Validates',
-    detail: '7 quality passes: market research, generation, number fidelity, humanization, ATS coverage, voice, polish.',
-    accent: '#C9A84C',
-  },
-  {
-    num: '03',
-    icon: '📄',
-    label: 'Download Your PDF',
-    detail: 'Pixel-perfect WYSIWYG PDF via headless Chrome. 35 templates. What you see is exactly what employers receive.',
-    accent: '#22c55e',
-  },
-];
-
-export function Scene2({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
-
+// Scene 2 — Meet ProCV (10s)
+// Big logo reveal + what it is
+export function Scene2(_props: object) {
+  const [ph, setPh] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 200),   // eyebrow + headline
-      setTimeout(() => setPhase(2), 1000),  // sub
-      setTimeout(() => setPhase(3), 1800),  // step 1
-      setTimeout(() => setPhase(4), 3400),  // step 2
-      setTimeout(() => setPhase(5), 5000),  // step 3
-      setTimeout(() => setPhase(6), 7400),  // footer strip
+    const tt = [
+      setTimeout(() => setPh(1), 200),
+      setTimeout(() => setPh(2), 1000),
+      setTimeout(() => setPh(3), 2000),
+      setTimeout(() => setPh(4), 3200),
+      setTimeout(() => setPh(5), 5000),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => tt.forEach(clearTimeout);
   }, []);
 
-  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.5)';
-  const cardBg  = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
-  const cardBorder = lightMode ? 'rgba(27,43,75,0.1)' : 'rgba(255,255,255,0.07)';
+  const props = [
+    { icon: '🎯', text: 'Reads your job description and targets every keyword' },
+    { icon: '✍️', text: '7-pass AI writing pipeline — checks its own work' },
+    { icon: '📄', text: 'Professional PDF, ready for any ATS system' },
+  ];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center px-[5vw]"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center px-[8vw]"
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100, scale: 0.96 }}
+      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Eyebrow */}
-      <motion.p
-        className="text-[1.1vw] font-semibold tracking-[0.3em] uppercase mb-[1.2vh]"
-        style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}
-        initial={{ opacity: 0, y: -12 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -12 }}
-        transition={{ duration: 0.5 }}
-      >
-        Meet ProCV
-      </motion.p>
+      {/* Radial glow */}
+      <motion.div className="absolute inset-0 pointer-events-none flex items-center justify-center"
+        initial={{ opacity: 0 }} animate={ph >= 1 ? { opacity: 1 } : { opacity: 0 }} transition={{ duration: 1.2 }}>
+        <div style={{
+          width: '45vw', height: '45vw',
+          background: 'radial-gradient(circle, rgba(235,255,56,0.1) 0%, rgba(201,168,76,0.05) 45%, transparent 70%)',
+          borderRadius: '50%',
+        }} />
+      </motion.div>
 
-      {/* Headline */}
-      <motion.h2
-        className="font-bold text-center leading-tight mb-[1.2vh]"
-        style={{ fontSize: '4.2vw', color: text, fontFamily: 'Playfair Display, serif' }}
-        initial={{ opacity: 0, y: 14 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
+      {/* Logo */}
+      <motion.div className="mb-[2.5vh] relative"
+        initial={{ opacity: 0, scale: 0.4, rotate: -10 }}
+        animate={ph >= 1 ? { opacity: 1, scale: 1, rotate: 0 } : { opacity: 0, scale: 0.4, rotate: -10 }}
+        transition={{ duration: 0.9, type: 'spring', stiffness: 180, damping: 14 }}
       >
-        Your Personal<br />
-        <span style={{ color: '#C9A84C' }}>Career Consultant.</span>
-      </motion.h2>
+        <motion.div
+          animate={ph >= 1 ? { filter: ['drop-shadow(0 0 0px rgba(235,255,56,0))', 'drop-shadow(0 0 30px rgba(235,255,56,0.6))', 'drop-shadow(0 0 15px rgba(235,255,56,0.3))'] } : {}}
+          transition={{ duration: 1.5, delay: 0.3 }}
+        >
+          <ProCVLogo size="8vw" />
+        </motion.div>
+      </motion.div>
+
+      {/* Brand name */}
+      <motion.div className="flex items-baseline gap-[0.8vw] mb-[1.5vh]"
+        initial={{ opacity: 0, y: 16 }}
+        animate={ph >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+      >
+        <span style={{ fontSize: '4.5vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, letterSpacing: '-0.03em' }}>
+          Pro<span style={{ color: '#EBFF38' }}>CV</span>
+        </span>
+      </motion.div>
+
+      {/* Tagline */}
+      <motion.p className="text-center mb-[1vh]"
+        style={{ fontSize: '1.5vw', color: 'rgba(255,255,255,0.7)', fontFamily: 'DM Sans, sans-serif', fontWeight: 500 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={ph >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+        transition={{ duration: 0.55 }}
+      >
+        Your Personal Career Consultant
+      </motion.p>
 
       {/* Sub */}
-      <motion.p
-        className="text-center mb-[4vh]"
-        style={{ fontSize: '1.05vw', color: subtext, fontFamily: 'DM Sans, sans-serif', maxWidth: '46vw', lineHeight: 1.6 }}
+      <motion.p className="text-center mb-[4vh]"
+        style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.38)', fontFamily: 'DM Sans, sans-serif', maxWidth: '42vw' }}
         initial={{ opacity: 0 }}
-        animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 0.5 }}
+        animate={ph >= 2 ? { opacity: 1 } : { opacity: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
       >
-        An AI-powered CV builder that doesn't just generate — it validates, humanizes, and targets your output to every job you apply for.
+        Not just another CV builder. ProCV reads the job description, writes your CV, then validates it — all in one pipeline.
       </motion.p>
 
-      {/* 3-step flow */}
-      <div className="flex items-stretch gap-0 w-full max-w-[82vw]">
-        {steps.map((step, i) => (
-          <div key={i} className="flex items-center flex-1">
-            <motion.div
-              className="flex-1 rounded-xl p-[2.2vh_1.8vw] h-full"
-              style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={phase >= i + 3 ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 30, scale: 0.95 }}
-              transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 22 }}
-            >
-              {/* Top row: num + icon */}
-              <div className="flex items-center justify-between mb-[1.5vh]">
-                <span
-                  className="font-black"
-                  style={{ fontSize: '2.8vw', color: `${step.accent}22`, fontFamily: 'Playfair Display, serif', lineHeight: 1 }}
-                >
-                  {step.num}
-                </span>
-                <motion.div
-                  className="w-[2.8vw] h-[2.8vw] rounded-xl flex items-center justify-center"
-                  style={{ background: `${step.accent}18`, fontSize: '1.4vw' }}
-                  animate={phase >= i + 3 ? { rotate: [0, -5, 5, 0] } : {}}
-                  transition={{ duration: 0.4, delay: 0.3 }}
-                >
-                  {step.icon}
-                </motion.div>
-              </div>
+      {/* Gold divider */}
+      <motion.div className="h-[1px] mb-[3.5vh]"
+        style={{ background: 'linear-gradient(90deg, transparent, rgba(235,255,56,0.5), transparent)' }}
+        initial={{ width: 0 }}
+        animate={ph >= 3 ? { width: '44vw' } : { width: 0 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      />
 
-              {/* Accent line */}
-              <motion.div
-                className="h-[2px] rounded-full mb-[1.2vh]"
-                style={{ background: `linear-gradient(90deg, ${step.accent}, transparent)` }}
-                initial={{ width: 0 }}
-                animate={phase >= i + 3 ? { width: '70%' } : { width: 0 }}
-                transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              />
-
-              <p className="font-bold mb-[0.8vh]" style={{ fontSize: '1.05vw', color: text, fontFamily: 'DM Sans, sans-serif' }}>
-                {step.label}
-              </p>
-              <p className="leading-relaxed" style={{ fontSize: '0.95vw', color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-                {step.detail}
-              </p>
-            </motion.div>
-
-            {/* Arrow connector */}
-            {i < steps.length - 1 && (
-              <motion.div
-                className="flex flex-col items-center gap-[3px] px-[0.8vw] flex-shrink-0"
-                initial={{ opacity: 0 }}
-                animate={phase >= i + 4 ? { opacity: 1 } : { opacity: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                {[0, 1, 2].map((d) => (
-                  <motion.div
-                    key={d}
-                    className="w-[5px] h-[5px] rounded-full"
-                    style={{ background: '#C9A84C' }}
-                    animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] }}
-                    transition={{ duration: 1.1, delay: d * 0.25, repeat: Infinity }}
-                  />
-                ))}
-              </motion.div>
-            )}
-          </div>
+      {/* Value props */}
+      <div className="flex gap-[2vw]">
+        {props.map((p, i) => (
+          <motion.div key={i}
+            className="flex flex-col items-center text-center gap-[0.8vh] px-[1.5vw] py-[1.5vh] rounded-2xl"
+            style={{ background: 'rgba(235,255,56,0.04)', border: '1px solid rgba(235,255,56,0.12)', backdropFilter: 'blur(10px)', width: '20vw' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={ph >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+            transition={{ duration: 0.5, delay: i * 0.14, type: 'spring', stiffness: 280, damping: 22 }}
+          >
+            <span style={{ fontSize: '1.8vw' }}>{p.icon}</span>
+            <span style={{ fontSize: '0.92vw', color: 'rgba(255,255,255,0.7)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.55 }}>
+              {p.text}
+            </span>
+          </motion.div>
         ))}
       </div>
 
-      {/* Footer strip */}
-      <motion.div
-        className="mt-[3.5vh] flex items-center gap-[3vw]"
-        initial={{ opacity: 0, y: 10 }}
-        animate={phase >= 6 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      {/* Bottom note */}
+      <motion.p className="mt-[3vh] text-center"
+        style={{ fontSize: '0.88vw', color: 'rgba(235,255,56,0.6)', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.08em' }}
+        initial={{ opacity: 0 }}
+        animate={ph >= 5 ? { opacity: 1 } : { opacity: 0 }}
+        transition={{ duration: 0.5 }}
       >
-        {['7 quality passes', '35 templates', 'WYSIWYG PDF', 'Free forever'].map((item, i) => (
-          <div key={item} className="flex items-center gap-[0.8vw]">
-            {i > 0 && <div className="w-[1px] h-[2.5vh]" style={{ background: 'rgba(201,168,76,0.25)' }} />}
-            <div className="flex items-center gap-[0.5vw]">
-              <span style={{ color: '#22c55e', fontSize: '1vw' }}>✓</span>
-              <span style={{ fontSize: '1vw', color: subtext, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{item}</span>
-            </div>
-          </div>
-        ))}
-      </motion.div>
+        NO ACCOUNT REQUIRED · DATA STAYS IN YOUR BROWSER · COMPLETELY FREE
+      </motion.p>
     </motion.div>
   );
 }

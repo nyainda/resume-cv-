@@ -1,211 +1,155 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
-interface SceneProps { lightMode: boolean }
-
-const stats = [
-  { value: '35',  label: 'CV Templates',    color: '#C9A84C' },
-  { value: '7',   label: 'Quality Passes',  color: '#22c55e' },
-  { value: '12',  label: 'Career Tools',    color: '#3b82f6' },
-  { value: '£0',  label: 'Cost. Forever.',  color: '#C9A84C' },
-];
-
-const pillars = [
-  'No account required',
-  'Data stays in your browser',
-  'No cloud. No subscriptions.',
-  'Your keys. Your data. Your edge.',
-];
-
-export function Scene5({ lightMode }: SceneProps) {
-  const [phase, setPhase] = useState(0);
-
+// Scene 5 — 30+ Templates (10s)
+export function Scene5(_props: object) {
+  const [ph, setPh] = useState(0);
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 200),   // logo
-      setTimeout(() => setPhase(2), 900),   // gold line
-      setTimeout(() => setPhase(3), 1700),  // tagline
-      setTimeout(() => setPhase(4), 3200),  // stats
-      setTimeout(() => setPhase(5), 5600),  // pillars
-      setTimeout(() => setPhase(6), 7400),  // CTA
+    const tt = [
+      setTimeout(() => setPh(1), 200),
+      setTimeout(() => setPh(2), 1000),
+      setTimeout(() => setPh(3), 2000),
+      setTimeout(() => setPh(4), 3500),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => tt.forEach(clearTimeout);
   }, []);
 
-  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
-  const subtext = lightMode ? 'rgba(27,43,75,0.55)' : 'rgba(248,247,244,0.5)';
+  const templates = [
+    // Row 1
+    { name: 'Executive',       cat: 'Leadership',   accent: '#C9A84C', pattern: 'A' },
+    { name: 'Silicon Valley',  cat: 'Tech',         accent: '#60a5fa', pattern: 'B' },
+    { name: 'Medical Standard',cat: 'Healthcare',   accent: '#34d399', pattern: 'C' },
+    { name: 'ATS Clean Pro',   cat: 'Universal',    accent: '#a78bfa', pattern: 'D' },
+    { name: 'Tokyo Night',     cat: 'Creative',     accent: '#f472b6', pattern: 'E' },
+    // Row 2
+    { name: 'Oxford Scholar',  cat: 'Academic',     accent: '#EBFF38', pattern: 'F' },
+    { name: 'Minimal Dark',    cat: 'Modern',       accent: '#94a3b8', pattern: 'G' },
+    { name: 'Swiss Grid',      cat: 'Design',       accent: '#fb923c', pattern: 'H' },
+    { name: 'Legal Brief',     cat: 'Legal / Law',  accent: '#c4b5fd', pattern: 'I' },
+    { name: 'Nordic',          cat: 'Minimal',      accent: '#5eead4', pattern: 'J' },
+  ];
+
+  const cats = ['All', 'Tech', 'Healthcare', 'Academic', 'Creative', 'Leadership'];
 
   return (
-    <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.8 }}
+    <motion.div className="absolute inset-0 flex flex-col items-center justify-center px-[5vw]"
+      initial={{ opacity: 0, scale: 0.94 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, x: -100 }}
+      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
     >
-      {/* Radial glow behind logo */}
-      <motion.div
-        className="absolute pointer-events-none"
-        style={{
-          width: '50vw', height: '50vw',
-          background: 'radial-gradient(circle, rgba(201,168,76,0.12) 0%, transparent 65%)',
-          top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        }}
-        initial={{ scale: 0, opacity: 0 }}
-        animate={phase >= 1 ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
-        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-      />
-
-      {/* Vertical accent lines */}
-      <motion.div className="absolute left-[9vw] top-1/2 w-[2px]"
-        style={{ background: 'linear-gradient(180deg, transparent, #C9A84C, transparent)', transform: 'translateY(-50%)' }}
-        initial={{ height: 0 }} animate={phase >= 1 ? { height: '45vh' } : { height: 0 }}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-      />
-      <motion.div className="absolute right-[9vw] top-1/2 w-[2px]"
-        style={{ background: 'linear-gradient(180deg, transparent, #C9A84C, transparent)', transform: 'translateY(-50%)' }}
-        initial={{ height: 0 }} animate={phase >= 1 ? { height: '45vh' } : { height: 0 }}
-        transition={{ duration: 0.9, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-      />
-
-      {/* Logo */}
-      <motion.div
-        className="flex items-center gap-[1.2vw] mb-[2vh]"
-        initial={{ opacity: 0, scale: 0.55, y: 10 }}
-        animate={phase >= 1 ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.55, y: 10 }}
-        transition={{ duration: 0.75, type: 'spring', stiffness: 220, damping: 18 }}
-      >
-        <motion.div
-          className="rounded-2xl flex items-center justify-center font-black"
-          style={{ width: '5vw', height: '5vw', background: '#C9A84C', color: '#1B2B4B', fontSize: '2.2vw', fontFamily: 'Playfair Display, serif' }}
-          animate={phase >= 1 ? { boxShadow: ['0 0 0px rgba(201,168,76,0)', '0 0 32px rgba(201,168,76,0.5)', '0 0 16px rgba(201,168,76,0.3)'] } : {}}
-          transition={{ duration: 1.5, delay: 0.3 }}
-        >
-          CV
-        </motion.div>
-        <span className="font-bold" style={{ fontSize: '3.8vw', color: text, fontFamily: 'Playfair Display, serif', letterSpacing: '-0.02em' }}>
-          ProCV
-        </span>
+      {/* Header */}
+      <motion.div className="flex flex-col items-center mb-[2.5vh]"
+        initial={{ opacity: 0, y: -20 }} animate={ph >= 1 ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.65 }}>
+        <h2 style={{ fontSize: '3.8vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 900, letterSpacing: '-0.02em', textAlign: 'center',
+          textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
+          30+ <span style={{ color: '#EBFF38' }}>Professional</span> Templates
+        </h2>
+        <p style={{ fontSize: '1vw', color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif', marginTop: '0.6vh' }}>
+          Pick the perfect design for your industry — from tech to medicine to law
+        </p>
       </motion.div>
 
-      {/* Gold divider */}
-      <motion.div
-        className="h-[2px] mb-[2.5vh]"
-        style={{ background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)' }}
-        initial={{ width: 0 }}
-        animate={phase >= 2 ? { width: '32vw' } : { width: 0 }}
-        transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
-      />
+      {/* Category tabs */}
+      <motion.div className="flex gap-[0.6vw] mb-[2vh]"
+        initial={{ opacity: 0 }} animate={ph >= 2 ? { opacity: 1 } : {}} transition={{ duration: 0.5 }}>
+        {cats.map((c, i) => (
+          <div key={c}
+            className="px-[0.9vw] py-[0.45vh] rounded-full text-[0.72vw] font-semibold"
+            style={{
+              background: i === 0 ? 'rgba(235,255,56,0.15)' : 'rgba(255,255,255,0.05)',
+              border: i === 0 ? '1px solid rgba(235,255,56,0.45)' : '1px solid rgba(255,255,255,0.08)',
+              color: i === 0 ? '#EBFF38' : 'rgba(255,255,255,0.45)',
+              fontFamily: 'DM Sans, sans-serif',
+            }}
+          >{c}</div>
+        ))}
+      </motion.div>
 
-      {/* Tagline — letter by letter */}
-      <div className="mb-[1vh] overflow-hidden text-center" style={{ maxWidth: '62vw' }}>
-        <AnimatePresence>
-          {phase >= 3 && (
-            <motion.p
-              style={{ fontSize: '2.4vw', color: '#C9A84C', fontFamily: 'Playfair Display, serif', fontWeight: 700, lineHeight: 1.2 }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.1 }}
-            >
-              {'Your Personal Career Consultant.'.split('').map((char, i) => (
-                <motion.span
-                  key={i}
-                  style={{ display: 'inline-block', whiteSpace: char === ' ' ? 'pre' : 'normal' }}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: i * 0.022, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  {char}
-                </motion.span>
-              ))}
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <motion.p
-        className="text-center mb-[3.5vh]"
-        style={{ fontSize: '1vw', color: subtext, fontFamily: 'DM Sans, sans-serif', maxWidth: '44vw', lineHeight: 1.6 }}
-        initial={{ opacity: 0, y: 8 }}
-        animate={phase >= 3 ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
-        transition={{ duration: 0.5, delay: 0.5 }}
-      >
-        A CV builder that checks its own work — 7 passes, zero generic output, WYSIWYG PDF.
-      </motion.p>
-
-      {/* Stat blocks */}
-      <div className="flex gap-[2.5vw] mb-[3vh]">
-        {stats.map((s, i) => (
-          <motion.div
-            key={s.label}
-            className="flex flex-col items-center"
-            initial={{ opacity: 0, y: 20, scale: 0.85 }}
-            animate={phase >= 4 ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 20, scale: 0.85 }}
-            transition={{ duration: 0.5, delay: i * 0.12, type: 'spring', stiffness: 280, damping: 20 }}
+      {/* Template grid */}
+      <div className="grid gap-[1vw]" style={{ gridTemplateColumns: 'repeat(5, 1fr)', width: '88vw' }}>
+        {templates.map((t, i) => (
+          <motion.div key={i}
+            className="relative overflow-hidden rounded-xl cursor-pointer"
+            style={{ aspectRatio: '3/4', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+            initial={{ opacity: 0, y: 24, scale: 0.9 }}
+            animate={ph >= 3 ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 24, scale: 0.9 }}
+            transition={{ duration: 0.5, delay: i * 0.06, type: 'spring', stiffness: 260, damping: 22 }}
+            whileHover={{ scale: 1.04, zIndex: 10, transition: { duration: 0.2 } }}
           >
-            <motion.span
-              className="font-black leading-none mb-[0.4vh]"
-              style={{ fontSize: '3.8vw', color: s.color, fontFamily: 'Playfair Display, serif' }}
-              animate={phase >= 4 ? { textShadow: [`0 0 0px ${s.color}00`, `0 0 20px ${s.color}55`, `0 0 10px ${s.color}30`] } : {}}
-              transition={{ duration: 1, delay: 0.3 + i * 0.12 }}
+            {/* Template preview */}
+            <TemplateMiniPreview pattern={t.pattern} accent={t.accent} />
+
+            {/* Hover overlay */}
+            <motion.div className="absolute inset-0 flex flex-col items-center justify-end pb-[1.2vh]"
+              style={{ background: `linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.85) 100%)` }}
+              initial={{ opacity: 0 }} whileHover={{ opacity: 1 }} transition={{ duration: 0.25 }}
             >
-              {s.value}
-            </motion.span>
-            <span className="text-[0.95vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
-              {s.label}
-            </span>
+              <span style={{ fontSize: '0.72vw', color: '#F8F7F4', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, textAlign: 'center' }}>
+                {t.name}
+              </span>
+              <span style={{ fontSize: '0.62vw', color: t.accent, fontFamily: 'DM Sans, sans-serif' }}>{t.cat}</span>
+            </motion.div>
+
+            {/* Always-visible accent dot */}
+            <div className="absolute top-[0.6vh] right-[0.4vw] rounded-full"
+              style={{ width: '0.5vw', height: '0.5vw', background: t.accent }} />
           </motion.div>
         ))}
       </div>
 
-      {/* Pillar chips */}
-      <motion.div
-        className="flex flex-wrap justify-center gap-[0.8vw] mb-[3vh]"
-        initial={{ opacity: 0 }}
-        animate={phase >= 5 ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 0.5 }}
+      {/* Footer note */}
+      <motion.p className="mt-[2vh] text-center"
+        style={{ fontSize: '0.82vw', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}
+        initial={{ opacity: 0 }} animate={ph >= 4 ? { opacity: 1 } : {}} transition={{ duration: 0.5 }}
       >
-        {pillars.map((p, i) => (
-          <motion.span
-            key={p}
-            className="px-[1.1vw] py-[0.55vh] rounded-full text-[0.95vw] font-semibold"
-            style={{ border: '1px solid rgba(201,168,76,0.32)', color: 'rgba(201,168,76,0.85)', fontFamily: 'DM Sans, sans-serif' }}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={phase >= 5 ? { opacity: 1, scale: 1 } : {}}
-            transition={{ delay: i * 0.08, type: 'spring', stiffness: 300, damping: 20 }}
-          >
-            {p}
-          </motion.span>
-        ))}
-      </motion.div>
-
-      {/* CTA */}
-      <motion.div
-        className="flex flex-col items-center gap-[1vh]"
-        initial={{ opacity: 0, y: 16 }}
-        animate={phase >= 6 ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
-        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <motion.div
-          className="px-[3vw] py-[1.2vh] rounded-full font-bold"
-          style={{
-            background: 'linear-gradient(135deg, #C9A84C, #e8c97a)',
-            color: '#1B2B4B',
-            fontSize: '1.1vw',
-            fontFamily: 'DM Sans, sans-serif',
-            boxShadow: '0 0 30px rgba(201,168,76,0.35)',
-          }}
-          animate={phase >= 6 ? {
-            boxShadow: ['0 0 20px rgba(201,168,76,0.3)', '0 0 40px rgba(201,168,76,0.55)', '0 0 20px rgba(201,168,76,0.3)'],
-          } : {}}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          Start free in 30 seconds →
-        </motion.div>
-        <p className="text-[1vw] font-medium" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.05em' }}>
-          No account. No credit card. No cloud.
-        </p>
-      </motion.div>
+        All templates export as pixel-perfect PDF · ATS-safe · live preview in browser
+      </motion.p>
     </motion.div>
+  );
+}
+
+// Mini template preview renders different layout patterns
+function TemplateMiniPreview({ pattern, accent }: { pattern: string; accent: string }) {
+  const configs: Record<string, { header: string; sidebar: boolean; lines: number[] }> = {
+    A: { header: '#1a1a2e', sidebar: false, lines: [70, 55, 60, 45, 50] },
+    B: { header: '#0f172a', sidebar: false, lines: [80, 50, 65, 45, 55] },
+    C: { header: '#064e3b', sidebar: true,  lines: [60, 70, 55, 65, 50] },
+    D: { header: '#18181b', sidebar: false, lines: [75, 60, 70, 50, 55] },
+    E: { header: '#1e1b4b', sidebar: true,  lines: [65, 75, 55, 60, 70] },
+    F: { header: '#1c1917', sidebar: false, lines: [80, 55, 65, 50, 60] },
+    G: { header: '#0f172a', sidebar: false, lines: [70, 60, 50, 65, 55] },
+    H: { header: '#27272a', sidebar: true,  lines: [65, 70, 60, 55, 75] },
+    I: { header: '#1e1b4b', sidebar: false, lines: [75, 55, 65, 50, 60] },
+    J: { header: '#042f2e', sidebar: true,  lines: [60, 65, 70, 55, 50] },
+  };
+  const c = configs[pattern] ?? configs['A'];
+
+  return (
+    <div className="w-full h-full flex" style={{ flexDirection: c.sidebar ? 'row' : 'column' }}>
+      {/* Header band */}
+      {!c.sidebar && (
+        <div style={{ height: '22%', background: c.header, borderBottom: `2px solid ${accent}`, flexShrink: 0, padding: '4px 6px' }}>
+          <div style={{ width: '60%', height: '4px', background: accent, borderRadius: '2px', marginBottom: '3px' }} />
+          <div style={{ width: '40%', height: '3px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px' }} />
+        </div>
+      )}
+      {/* Sidebar */}
+      {c.sidebar && (
+        <div style={{ width: '32%', background: c.header, borderRight: `2px solid ${accent}`, padding: '6px 4px', flexShrink: 0 }}>
+          <div style={{ width: '70%', height: '4px', background: accent, borderRadius: '2px', marginBottom: '4px' }} />
+          {[40,55,45,60,50].map((w, i) => (
+            <div key={i} style={{ width: `${w}%`, height: '3px', background: 'rgba(255,255,255,0.15)', borderRadius: '2px', marginBottom: '3px' }} />
+          ))}
+        </div>
+      )}
+      {/* Content lines */}
+      <div style={{ flex: 1, padding: '5px 6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        {c.lines.map((w, i) => (
+          <div key={i} style={{ width: `${w}%`, height: i === 0 ? '4px' : '2.5px',
+            background: i === 0 ? `${accent}88` : 'rgba(255,255,255,0.12)', borderRadius: '2px' }} />
+        ))}
+      </div>
+    </div>
   );
 }
