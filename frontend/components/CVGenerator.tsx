@@ -14,7 +14,7 @@ import { getCachedBannedPhrases } from '../services/cvEngineClient';
 import type { BannedEntry } from '../services/cvEngineClient';
 import { getLastAiEngine, PROVIDER_TRYING_EVENT, getSelectedProvider } from '../services/groqService';
 import type { ProviderTryingPayload } from '../services/groqService';
-import { getTier, canUsePremiumModes } from '../services/accountTierService';
+import { getEffectiveTier, canUsePremiumModes, canGenerate, incrementGenerationCount } from '../services/accountTierService';
 import { conductMarketResearch, detectRoleAndIndustry, MarketResearchResult } from '../services/marketResearch';
 import { scoreCVCompleteness } from '../utils/cvCompleteness';
 import { ProfileIntelligenceScore } from './ProfileIntelligenceScore';
@@ -870,16 +870,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     if (!authed) return;
 
     // ── Free tier limit gate ───────────────────────────────────────────────────
-    // Free users get 2 trial generations total (any provider).
-    // On the 3rd attempt, show the pricing/upgrade modal.
-    const FREE_GEN_KEY = 'procv:freeGenCount';
-    const currentTier = getTier();
-    if (currentTier === 'free') {
-      const usedCount = parseInt(localStorage.getItem(FREE_GEN_KEY) || '0', 10);
-      if (usedCount >= 2) {
-        onUpgrade?.();
-        return;
-      }
+    // Free users (no key, no subscription) get FREE_GENERATION_LIMIT lifetime
+    // generations. BYOK and Premium users are never blocked here.
+    if (!canGenerate()) {
+      onUpgrade?.();
+      return;
     }
 
     setIsLoading(true);
@@ -1142,12 +1137,8 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       syncCurrentCVToD1(generatedData);
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
-      // Increment free-tier trial counter so the gate fires after 2 generations
-      const FREE_GEN_KEY = 'procv:freeGenCount';
-      if (getTier() === 'free') {
-        const used = parseInt(localStorage.getItem(FREE_GEN_KEY) || '0', 10);
-        localStorage.setItem(FREE_GEN_KEY, String(used + 1));
-      }
+      // Increment free-tier counter — no-op for BYOK/Premium users.
+      incrementGenerationCount();
       setJustGenerated(true);
       // Record field confidence history entry for the trace panel trend
       if (generatedData._trace?.fieldSource) {

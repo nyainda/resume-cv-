@@ -41,3 +41,4 @@
 - [Duplicate profile slot on first save](duplicate-slot-on-first-save.md) — "create if none exists" handler re-entered before its own id-setting propagated back → distinct orphaned D1 rows while UI only ever shows one profile.
 - [Placeholder-array-as-content scoring bug](placeholder-array-scoring-bug.md) — blank seeded form rows have array.length 1; scoring/gating code must check real field content, not length.
 - [Onboarding modal footer pattern](onboarding-modal-footer-pattern.md) — wizard/modal CTA buttons must live in a fixed footer outside the scrollable body, not inline with variable-height card content.
+- [Three-tier feature split](three-tier-features.md) — Free/BYOK/Premium gates: BYOK gets boosted/ats/interview/email/scholarship/tracker; Premium-only: clean-pdf/linkedin/salary/career-pivot/bulk-export/domain/suite.

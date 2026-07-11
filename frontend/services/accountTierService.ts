@@ -4,47 +4,62 @@
  * Core tier logic — reading, writing, and querying account tier state.
  * This is a pure service (no React). Hooks and components import from here.
  *
- * Storage: localStorage for now (Phase 2 will sync with D1 via the
- * cv-engine-worker /api/account/tier endpoint after auth).
+ * Three-tier model:
+ *   free    — No API key, no subscription. Workers AI free models (Mistral 24B).
+ *             Hard cap: 3 lifetime CV generations, 2 watermarked PDFs, 1 profile slot.
+ *   byok    — Bring Your Own Key (Gemini / Claude). Unlimited generations on their
+ *             quota. Watermarked PDFs. Most tools unlocked. LinkedIn, Salary Coach,
+ *             Career Pivot, and clean PDFs require Premium.
+ *   premium — Subscription ($19/mo or $149/yr). Workers AI best models (Llama 70B +
+ *             DeepSeek R1) OR their own keys. Clean PDFs. Full career suite.
+ *
+ * Storage: 'cv_builder:accountTier' in localStorage holds 'free' | 'premium'.
+ *          BYOK is detected at runtime via key presence — not stored separately.
  */
 
-import type { AccountTier, TierFeature, TierFeatureConfig } from '../types/accountTier';
+import type { AccountTier, EffectiveTier, TierFeature, TierFeatureConfig } from '../types/accountTier';
 
 // ─── Storage key ────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'cv_builder:accountTier';
 
 /**
- * Custom event fired whenever the tier changes so all hooks stay in sync
- * across tabs and components without prop-drilling.
+ * Custom event fired whenever the stored tier changes so all hooks stay in
+ * sync across tabs and components without prop-drilling.
  */
 export const TIER_CHANGED_EVENT = 'procv:tierChanged';
 
-// ─── Limits (defined before TIER_FEATURES so they can be referenced in descriptions) ──
+// ─── Limits ──────────────────────────────────────────────────────────────────
 
+/** Lifetime CV generations allowed on the pure free tier (no keys, no sub). */
+export const FREE_GENERATION_LIMIT = 3;
 /** Lifetime PDF downloads allowed on the pure free tier. */
-export const FREE_PDF_LIMIT = 5;
-/** Max tracked applications for free (non-BYOK, non-premium) users. */
+export const FREE_PDF_LIMIT = 2;
+/** Max tracked applications for free users. */
 export const FREE_TRACKER_LIMIT = 15;
 /** Max saved CVs visible in CV History for pure free users. */
 export const FREE_HISTORY_LIMIT = 5;
-/** Max profile slots per tier. */
-export const SLOT_LIMITS: Record<'free' | 'byok' | 'premium', number> = {
+/** Max profile slots per effective tier. */
+export const SLOT_LIMITS: Record<EffectiveTier, number> = {
   free:    1,
   byok:    3,
   premium: 5,
 };
 
 // ─── Feature map ────────────────────────────────────────────────────────────
+//
+// Three-tier access rules:
+//   Free only       → ['free'] (none currently — free is the baseline)
+//   BYOK + Premium  → ['byok', 'premium']
+//   Premium only    → ['premium']
+//
+// Workers AI is special: free gets the cheap models (Mistral 24B), premium
+// gets the best (Llama 70B + DeepSeek R1). BYOK uses their own keys instead.
 
-/**
- * Defines which tiers unlock each feature and the metadata shown in the
- * upgrade modal. Add new gated features here only — types/accountTier.ts
- * is the canonical list of valid keys.
- */
-export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: TierFeatureConfig }> = {
+export const TIER_FEATURES: Record<TierFeature, { tiers: EffectiveTier[]; meta: TierFeatureConfig }> = {
+  // ── Workers AI access ─────────────────────────────────────────────────────
   'workers-ai': {
-    tiers: ['free', 'premium'],
+    tiers: ['free', 'premium'],   // BYOK uses own keys — doesn't need Workers AI
     meta: {
       label: 'Workers AI',
       icon: '✨',
@@ -52,8 +67,10 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: Ti
         'Cloudflare-powered AI with no API key required. Runs the full CV pipeline server-side — generation, audit, humanization, and more.',
     },
   },
+
+  // ── BYOK + Premium features ───────────────────────────────────────────────
   'boosted-mode': {
-    tiers: ['premium'],
+    tiers: ['byok', 'premium'],
     meta: {
       label: 'Boosted & Aggressive Modes',
       icon: '🚀',
@@ -61,35 +78,61 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: Ti
     },
   },
   'ats-gap-pinning': {
-    tiers: ['premium'],
+    tiers: ['byok', 'premium'],
     meta: {
       label: 'ATS Gap Pinning',
       icon: '🎯',
       description: 'Automatically detects missing keywords from the job description and pins them into your CV during generation.',
     },
   },
+  'unlimited-pdf': {
+    tiers: ['byok', 'premium'],
+    meta: {
+      label: 'Unlimited PDF Downloads',
+      icon: '📥',
+      description: 'No cap on how many CVs you can download. BYOK downloads include a ProCV watermark; Premium downloads are clean.',
+    },
+  },
+  'interview-prep': {
+    tiers: ['byok', 'premium'],
+    meta: {
+      label: 'Interview Prep',
+      icon: '🎤',
+      description: 'AI-generated behavioural, technical, and situational questions tailored to your role and experience.',
+    },
+  },
+  'email-apply': {
+    tiers: ['byok', 'premium'],
+    meta: {
+      label: 'Email Apply',
+      icon: '✉️',
+      description: 'Draft personalised application emails and follow-ups in one click.',
+    },
+  },
+  'scholarship': {
+    tiers: ['byok', 'premium'],
+    meta: {
+      label: 'Scholarship Essay Writer',
+      icon: '🎓',
+      description: 'Generate compelling scholarship, fellowship, and research grant essays from your profile.',
+    },
+  },
+  'unlimited-tracker': {
+    tiers: ['byok', 'premium'],
+    meta: {
+      label: 'Unlimited Job Tracking',
+      icon: '📊',
+      description: `Track more than ${FREE_TRACKER_LIMIT} active job applications with full kanban and analytics.`,
+    },
+  },
+
+  // ── Premium-only features ─────────────────────────────────────────────────
   'clean-pdf': {
     tiers: ['premium'],
     meta: {
       label: 'Watermark-Free PDF',
       icon: '📄',
-      description: 'Download clean, professional PDFs with no ProCV branding.',
-    },
-  },
-  'unlimited-pdf': {
-    tiers: ['premium'],
-    meta: {
-      label: 'Unlimited PDF Downloads',
-      icon: '📥',
-      description: 'No cap on how many CVs you can download.',
-    },
-  },
-  'interview-prep': {
-    tiers: ['premium'],
-    meta: {
-      label: 'Interview Prep',
-      icon: '🎤',
-      description: 'AI-generated behavioural, technical, and situational questions tailored to your role and experience.',
+      description: 'Download clean, professional PDFs with no ProCV branding. Available exclusively on the Premium plan.',
     },
   },
   'linkedin-optimizer': {
@@ -108,14 +151,6 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: Ti
       description: 'Research market rates, build your case, and get scripts for negotiating your offer.',
     },
   },
-  'email-apply': {
-    tiers: ['premium'],
-    meta: {
-      label: 'Email Apply',
-      icon: '✉️',
-      description: 'Draft personalised application emails and follow-ups in one click.',
-    },
-  },
   'career-pivot': {
     tiers: ['premium'],
     meta: {
@@ -124,28 +159,12 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: Ti
       description: 'Map your transferable skills to new industries and roles with an AI-guided pivot roadmap.',
     },
   },
-  'scholarship': {
-    tiers: ['premium'],
-    meta: {
-      label: 'Scholarship Essay Writer',
-      icon: '🎓',
-      description: 'Generate compelling scholarship, fellowship, and research grant essays from your profile.',
-    },
-  },
   'career-suite': {
     tiers: ['premium'],
     meta: {
       label: 'Full Career Suite',
       icon: '🧰',
       description: 'Unlimited access to every ProCV tool — Interview Prep, LinkedIn, Negotiation, Email Apply, Career Pivot, and more.',
-    },
-  },
-  'unlimited-tracker': {
-    tiers: ['premium'],
-    meta: {
-      label: 'Unlimited Job Tracking',
-      icon: '📊',
-      description: `Track more than ${FREE_TRACKER_LIMIT} active job applications with full kanban and analytics.`,
     },
   },
   'bulk-export': {
@@ -166,9 +185,9 @@ export const TIER_FEATURES: Record<TierFeature, { tiers: AccountTier[]; meta: Ti
   },
 };
 
-// ─── Read / write ────────────────────────────────────────────────────────────
+// ─── Read / write stored plan ─────────────────────────────────────────────────
 
-/** Returns the current account tier, defaulting to 'free'. */
+/** Returns the stored account plan ('free' | 'premium'). Use getEffectiveTier() for feature checks. */
 export function getTier(): AccountTier {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -181,7 +200,6 @@ export function getTier(): AccountTier {
 
 /**
  * Persists the account tier and notifies all listeners.
- * Phase 2: also POST to /api/account/tier on the cv-engine-worker.
  */
 export function setTier(tier: AccountTier): void {
   try {
@@ -192,15 +210,52 @@ export function setTier(tier: AccountTier): void {
   window.dispatchEvent(new CustomEvent(TIER_CHANGED_EVENT, { detail: { tier } }));
 }
 
-// ─── Feature checks ──────────────────────────────────────────────────────────
+// ─── BYOK detection ───────────────────────────────────────────────────────────
 
-/** Returns true if the given tier has access to the feature. */
-export function hasFeature(feature: TierFeature, tier: AccountTier): boolean {
+/**
+ * Returns true when the user has configured at least one third-party AI key
+ * (Groq / Claude / Gemini). These are "BYOK" users — unlimited AI generations
+ * on their own quota, but PDFs are watermarked until they subscribe to Premium.
+ */
+export function hasByokKeys(): boolean {
+  try {
+    const raw =
+      localStorage.getItem('cv_builder:apiSettings') ||
+      localStorage.getItem('apiSettings');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    return !!(s?.apiKey || s?.claudeApiKey || s?.geminiApiKey || s?.groqApiKey);
+  } catch {
+    return false;
+  }
+}
+
+// ─── Effective tier ───────────────────────────────────────────────────────────
+
+/**
+ * Returns the runtime effective tier — the tier that drives all feature checks.
+ *
+ *   premium  → active subscription (plan='premium' in D1)
+ *   byok     → has a third-party API key; plan is still 'free' in D1
+ *   free     → no key, no subscription
+ *
+ * Always call this (not getTier()) when gating features.
+ */
+export function getEffectiveTier(): EffectiveTier {
+  if (getTier() === 'premium') return 'premium';
+  if (hasByokKeys()) return 'byok';
+  return 'free';
+}
+
+// ─── Feature checks ───────────────────────────────────────────────────────────
+
+/** Returns true if the given effective tier has access to the feature. */
+export function hasFeature(feature: TierFeature, tier: EffectiveTier): boolean {
   return TIER_FEATURES[feature]?.tiers.includes(tier) ?? false;
 }
 
-/** Returns all features unlocked by a given tier. */
-export function getFeaturesForTier(tier: AccountTier): TierFeature[] {
+/** Returns all features unlocked by a given effective tier. */
+export function getFeaturesForTier(tier: EffectiveTier): TierFeature[] {
   return (Object.keys(TIER_FEATURES) as TierFeature[]).filter((f) =>
     TIER_FEATURES[f].tiers.includes(tier),
   );
@@ -211,51 +266,64 @@ export function getFeatureMeta(feature: TierFeature): TierFeatureConfig {
   return TIER_FEATURES[feature].meta;
 }
 
-// ─── BYOK detection ──────────────────────────────────────────────────────────
-
-/**
- * Returns true when the user has configured at least one third-party AI key
- * (Groq / Claude / Gemini). These are "BYOK" users — unlimited AI generations
- * on their own quota, but PDFs are still watermarked until they upgrade to Pro.
- */
-export function hasByokKeys(): boolean {
-  try {
-    const raw =
-      localStorage.getItem('cv_builder:apiSettings') ||
-      localStorage.getItem('apiSettings');
-    if (!raw) return false;
-    const s = JSON.parse(raw);
-    return !!(s?.apiKey || s?.claudeApiKey || s?.geminiApiKey);
-  } catch {
-    return false;
-  }
-}
+// ─── Convenience checks ───────────────────────────────────────────────────────
 
 /**
  * Pure free user: no API keys AND not on premium.
  * Tightest limits apply: capped generations, capped downloads, watermarked.
  */
 export function isPureFreeTier(): boolean {
-  return getTier() === 'free' && !hasByokKeys();
+  return getEffectiveTier() === 'free';
 }
 
 /**
  * True if the CV PDF must include the ProCV watermark.
- * Only Pro (premium) users receive clean PDFs.
+ * Only Premium subscribers receive clean PDFs.
  */
 export function needsWatermark(): boolean {
-  return getTier() !== 'premium';
+  return getEffectiveTier() !== 'premium';
 }
 
 /**
  * True if the user may use Boosted / Aggressive generation modes.
- * Pure free users (no API keys) are limited to Honest mode only.
+ * BYOK and Premium users both get all modes.
  */
 export function canUsePremiumModes(): boolean {
-  return getTier() === 'premium' || hasByokKeys();
+  return getEffectiveTier() !== 'free';
 }
 
-// ─── PDF download counter (pure free tier only) ────────────────────────────
+// ─── CV generation counter (pure free tier only) ──────────────────────────────
+
+const GENERATION_COUNT_KEY = 'procv:freeGenCount';
+
+/** Returns how many CVs the user has generated on the free tier. */
+export function getGenerationCount(): number {
+  try {
+    return parseInt(localStorage.getItem(GENERATION_COUNT_KEY) || '0', 10);
+  } catch {
+    return 0;
+  }
+}
+
+/** Increments the free-tier generation counter. No-op for BYOK/Premium. */
+export function incrementGenerationCount(): void {
+  if (getEffectiveTier() !== 'free') return;
+  try {
+    localStorage.setItem(GENERATION_COUNT_KEY, String(getGenerationCount() + 1));
+  } catch { /* ignore */ }
+}
+
+/**
+ * Returns true if the user is allowed to start a CV generation.
+ * - Premium / BYOK → always true.
+ * - Free           → true until FREE_GENERATION_LIMIT lifetime generations.
+ */
+export function canGenerate(): boolean {
+  if (getEffectiveTier() !== 'free') return true;
+  return getGenerationCount() < FREE_GENERATION_LIMIT;
+}
+
+// ─── PDF download counter (pure free tier only) ───────────────────────────────
 
 const PDF_DOWNLOAD_KEY = 'procv:pdfDownloadCount';
 
@@ -282,8 +350,8 @@ export function incrementPdfDownloadCount(): void {
  * - Free    → true until FREE_PDF_LIMIT lifetime downloads.
  */
 export function canDownloadPdf(): boolean {
-  if (getTier() === 'premium') return true;
-  if (hasByokKeys()) return true;
+  const t = getEffectiveTier();
+  if (t === 'premium' || t === 'byok') return true;
   return getPdfDownloadCount() < FREE_PDF_LIMIT;
 }
 
@@ -291,11 +359,10 @@ export function canDownloadPdf(): boolean {
 
 /**
  * Returns true if the user can add another tracked application.
- * BYOK users get unlimited tracking. Premium too.
+ * BYOK and Premium users get unlimited tracking.
  */
 export function canAddTrackedApp(currentCount: number): boolean {
-  if (getTier() === 'premium') return true;
-  if (hasByokKeys()) return true;
+  if (getEffectiveTier() !== 'free') return true;
   return currentCount < FREE_TRACKER_LIMIT;
 }
 
@@ -303,28 +370,21 @@ export function canAddTrackedApp(currentCount: number): boolean {
 
 /**
  * Returns how many saved CVs the user can see in CV History.
- * Free users see the 5 most recent; premium/BYOK see all.
+ * Free users see the most recent FREE_HISTORY_LIMIT; BYOK/Premium see all.
  */
 export function getHistoryLimit(): number {
-  if (getTier() === 'premium') return Infinity;
-  if (hasByokKeys()) return Infinity;
+  if (getEffectiveTier() !== 'free') return Infinity;
   return FREE_HISTORY_LIMIT;
 }
 
 // ─── Profile slot limit ───────────────────────────────────────────────────────
 
-/**
- * Returns the maximum number of profile slots the user can have.
- */
+/** Returns the maximum number of profile slots the user can have. */
 export function getProfileSlotLimit(): number {
-  if (getTier() === 'premium') return SLOT_LIMITS.premium;
-  if (hasByokKeys()) return SLOT_LIMITS.byok;
-  return SLOT_LIMITS.free;
+  return SLOT_LIMITS[getEffectiveTier()];
 }
 
-/**
- * Returns true if the user can create another profile slot.
- */
+/** Returns true if the user can create another profile slot. */
 export function canAddProfileSlot(currentCount: number): boolean {
   return currentCount < getProfileSlotLimit();
 }

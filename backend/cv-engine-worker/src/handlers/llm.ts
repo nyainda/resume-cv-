@@ -14,8 +14,14 @@ import { verifySession } from './auth';
 // ─── Session-based plan resolution ───────────────────────────────────────────
 // Derive paidUpgrade server-side from the caller's D1 session — never trust
 // a client-supplied flag for this, as anyone could pass paidUpgrade:true.
-// Falls back to false (free tier) when there is no session or a D1 error.
-async function resolveIsPremium(request: Request, env: Env): Promise<boolean> {
+// Falls back gracefully when there is no session or a D1 error.
+
+interface SessionContext {
+    isPremium: boolean;
+    userId: number | null;
+}
+
+async function resolveSessionContext(request: Request, env: Env): Promise<SessionContext> {
     try {
         // Mirror auth.ts sessionTokenFromRequest: cookie first, then Bearer header.
         const cookieHeader = request.headers.get('Cookie') ?? '';
@@ -23,11 +29,44 @@ async function resolveIsPremium(request: Request, env: Env): Promise<boolean> {
         const token = cookieMatch
             ? cookieMatch[1].trim()
             : (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
-        if (!token) return false;
+        if (!token) return { isPremium: false, userId: null };
         const session = await verifySession(token, env);
-        return session?.plan === 'premium';
+        return {
+            isPremium: session?.plan === 'premium',
+            userId: session?.userId ?? null,
+        };
     } catch {
-        return false; // fail-open: D1 error → treat as free
+        return { isPremium: false, userId: null }; // fail-open: D1 error → treat as free
+    }
+}
+
+// Thin wrapper for handlers that only need the boolean (handleRaceLLM etc.)
+async function resolveIsPremium(request: Request, env: Env): Promise<boolean> {
+    return (await resolveSessionContext(request, env)).isPremium;
+}
+
+// Daily premium LLM cap — prevents a $19/mo subscriber from hammering 70B/DeepSeek
+// 24/7 at a loss. 300 tiered-llm calls/day ≈ 30 full CV generations (each uses ~10
+// calls). No real job-seeker hits this; abuse does.
+const DAILY_PREMIUM_LLM_CAP = 300;
+
+async function checkAndIncrementDailyCap(
+    userId: number,
+    env: Env,
+): Promise<boolean> {
+    // Returns true if the request is allowed, false if the daily cap is exceeded.
+    try {
+        const today   = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+        const capKey  = `daily:llm:${userId}:${today}`;
+        const raw     = await env.CV_KV.get(capKey);
+        const count   = parseInt(raw ?? '0', 10);
+        if (count >= DAILY_PREMIUM_LLM_CAP) return false;
+        // Increment asynchronously — don't block the response on a write.
+        // TTL of 2 days ensures the key expires naturally without manual cleanup.
+        env.CV_KV.put(capKey, String(count + 1), { expirationTtl: 172800 }).catch(() => {});
+        return true;
+    } catch {
+        return true; // KV unavailable → fail-open, never block generation
     }
 }
 
@@ -346,10 +385,23 @@ export const TIERED_LLM_HARD_MAX_TOKENS   = 8192;
 export async function handleTieredLLM(request: Request, env: Env): Promise<Response> {
     const body = await safeJson(request);
 
-    const taskKey     = typeof body?.task === 'string' ? body.task.trim() : 'general';
-    // Server-side plan check: ignore any client-supplied paidUpgrade flag — derive
-    // it from the caller's session so free users can't bypass it via the API.
-    const paidUpgrade = await resolveIsPremium(request, env);
+    const taskKey = typeof body?.task === 'string' ? body.task.trim() : 'general';
+
+    // Server-side plan check — ignores any client-supplied paidUpgrade flag.
+    const { isPremium: paidUpgrade, userId } = await resolveSessionContext(request, env);
+
+    // Daily abuse cap for premium users. 300 calls/day ≈ 30 full generations.
+    // Fails open so a KV outage never blocks a paying user.
+    if (paidUpgrade && userId !== null) {
+        const allowed = await checkAndIncrementDailyCap(userId, env);
+        if (!allowed) {
+            return json({
+                error: 'daily_limit_reached',
+                limit: DAILY_PREMIUM_LLM_CAP,
+                message: 'Daily AI generation limit reached. Resets at midnight UTC.',
+            }, request, env, 429);
+        }
+    }
     const _internalSystemMap: Record<string, string> = {
         cvGenerate:       _CV_SYSTEM_PROFESSIONAL,
         cvGenerateLong:   _CV_SYSTEM_PROFESSIONAL,
