@@ -47,7 +47,7 @@ Return ONLY valid JSON. No markdown code fences.`;
     GROQ_LARGE,
     'You are an expert career coach specialising in industry transitions. Be specific, strategic, and direct. Avoid clichés.',
     prompt,
-    { json: true, temperature: 0.7, maxTokens: 1000 }
+    { task: 'coaching', json: true, temperature: 0.7, maxTokens: 1000 }
   );
 
   return JSON.parse(raw) as PivotBrief;

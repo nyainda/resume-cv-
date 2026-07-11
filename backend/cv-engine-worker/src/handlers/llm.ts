@@ -187,6 +187,7 @@ export const TIERED_MODEL_MAP: Record<string, { model: string; tier: number; fre
     jdParse:              { model: '@cf/ibm-granite/granite-4.0-h-micro',          tier: 3, free: true,  description: 'JD keyword + company + title extraction — Granite 4.0 Micro (FREE)' },
     humanize:             { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 3, free: true,  description: 'Plain-text humanizer — Mistral Small 3.1 24B (FREE)' },
     coverLetter:          { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 3, free: true,  description: 'Cover letter generation — Mistral Small 3.1 24B (FREE)' },
+    coaching:             { model: '@cf/mistralai/mistral-small-3.1-24b-instruct', tier: 3, free: true,  description: 'Career coaching (negotiation, interview, pivot) — Mistral Small 3.1 24B (FREE)' },
     general:              { model: '@cf/meta/llama-3.2-3b-instruct',               tier: 3, free: true,  description: 'General purpose fallback — Llama 3.2 3B (FREE)' },
 };
 
@@ -215,6 +216,7 @@ const MODEL_FALLBACK_CHAIN: Record<string, string[]> = {
     parser:               ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
     humanize:             ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
     coverLetter:          ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
+    coaching:             ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
     multilingualGenerate: ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
     rhythmSelection:      ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
     corpusCrawl:          ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/meta/llama-3.1-8b-instruct'],
@@ -338,7 +340,12 @@ export async function handleTieredLLM(request: Request, env: Env): Promise<Respo
         jdParse:          _CV_SYSTEM_PARSER,
         parser:           _CV_SYSTEM_PARSER,
     };
-    const system = _internalSystemMap[taskKey] ?? '';
+    // For tasks without a built-in system prompt (e.g. 'coaching', 'general'),
+    // honour the client-provided system so callers can inject their own context.
+    const clientSystem = typeof body?.system === 'string'
+        ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS)
+        : '';
+    const system = _internalSystemMap[taskKey] ?? clientSystem;
     const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
 

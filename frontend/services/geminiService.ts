@@ -4103,7 +4103,7 @@ Return ONLY a JSON array of ${n} objects:
 [{ "question": "string", "answer": "string", "category": "Behavioural|Technical|Situational|Culture|Strength" }]
 `;
     const tokens = Math.min(4000, n * 350);
-    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { temperature: 0.6, json: true, maxTokens: tokens });
+    const text = await groqChat(GROQ_FAST, SYSTEM_INSTRUCTION_PROFESSIONAL, prompt, { task: 'coaching', temperature: 0.6, json: true, maxTokens: tokens });
     return JSON.parse(text.trim());
 };
 

@@ -873,6 +873,7 @@ export async function workerTieredLLM(
                 body: JSON.stringify({
                     task,
                     prompt,
+                    system: opts.system || undefined,
                     json: !!opts.json,
                     temperature: opts.temperature ?? 0.3,
                     maxTokens: opts.maxTokens ?? 2048,

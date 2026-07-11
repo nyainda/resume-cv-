@@ -387,6 +387,7 @@ export async function groqChat(
         _dispatchTrying({ label: 'Workers AI', type: 'single' });
         try {
             const text = await workerTieredLLM(proxyTask, userPrompt, {
+                system:      systemPrompt || undefined,
                 temperature: opts.temperature,
                 json:        opts.json,
                 maxTokens:   opts.maxTokens,

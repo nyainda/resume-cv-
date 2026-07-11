@@ -110,6 +110,7 @@ export async function generateNegotiationPackage(
   input: NegotiationInput
 ): Promise<NegotiationOutput> {
   const raw = await groqChat(GROQ_LARGE, SYSTEM, buildPrompt(input), {
+    task: 'coaching',
     json: true,
     temperature: 0.7,
     maxTokens: 3500,
@@ -121,6 +122,7 @@ export async function generateRaisePackage(
   input: NegotiationInput
 ): Promise<RaiseOutput> {
   const raw = await groqChat(GROQ_LARGE, SYSTEM, buildRaisePrompt(input), {
+    task: 'coaching',
     json: true,
     temperature: 0.7,
     maxTokens: 3500,
@@ -137,5 +139,5 @@ Offer: ${input.offeredSalary} → Target: ${input.targetSalary}
 
 Include subject line. 120-150 words. Professional, warm, anchored high. Return plain text only.`;
 
-  return groqChat(GROQ_LARGE, SYSTEM, prompt, { temperature: 0.6 });
+  return groqChat(GROQ_LARGE, SYSTEM, prompt, { task: 'coaching', temperature: 0.6 });
 }
