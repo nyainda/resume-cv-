@@ -179,7 +179,7 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
              * each step so content always clears the iPhone home indicator.
              */}
             <div
-                className="relative bg-white dark:bg-neutral-900 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-lg shadow-2xl flex flex-col"
+                className="relative bg-white dark:bg-neutral-900 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-lg lg:max-w-xl shadow-2xl flex flex-col"
                 style={{ maxHeight: '92dvh', minHeight: 0 }}
             >
                 {/* Mobile drag handle */}
@@ -385,22 +385,6 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                                     </span>
                                 </div>
                             )}
-
-                            <div className="space-y-1.5 pt-0.5"
-                                 style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}>
-                                <button
-                                    onClick={isPremium ? finish : () => setStep('keys')}
-                                    disabled={importLoading || finishing}
-                                    className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
-                                    style={{ background: '#1B2B4B' }}
-                                >
-                                    {finishing ? 'Setting up…' : hasFileSelected ? 'Continue →' : "Skip — I'll fill in manually →"}
-                                </button>
-                                <button onClick={() => setStep('plan')}
-                                        className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-2 transition-colors font-medium">
-                                    ← Back
-                                </button>
-                            </div>
                         </div>
                     )}
 
@@ -464,25 +448,52 @@ export const OnboardingWizard: React.FC<Props> = ({ onComplete }) => {
                             <p className="text-[10px] text-zinc-400 text-center px-2 leading-relaxed">
                                 🔐 Keys are stored only in your browser and never sent to our servers.
                             </p>
-
-                            <div className="space-y-1.5"
-                                 style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
-                                <button
-                                    onClick={finish}
-                                    disabled={finishing}
-                                    className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
-                                    style={{ background: '#1B2B4B' }}
-                                >
-                                    {finishing ? 'Setting up…' : geminiKey || claudeKey ? "Let's go →" : 'Skip for now →'}
-                                </button>
-                                <button onClick={() => setStep('import')}
-                                        className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-2 transition-colors font-medium">
-                                    ← Back
-                                </button>
-                            </div>
                         </div>
                     )}
                 </div>
+
+                {/*
+                 * Persistent footer — action buttons live OUTSIDE the scrollable
+                 * body so they stay visible regardless of how tall a step's
+                 * content gets (e.g. long feature lists, error banners, or
+                 * import-status notices). Only steps with explicit actions
+                 * (import, keys) render one; the plan step advances on card tap.
+                 */}
+                {step === 'import' && (
+                    <div className="flex-shrink-0 px-3 sm:px-6 pt-2 border-t border-zinc-100 dark:border-neutral-800 space-y-1.5"
+                         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0.75rem))' }}>
+                        <button
+                            onClick={isPremium ? finish : () => setStep('keys')}
+                            disabled={importLoading || finishing}
+                            className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                            style={{ background: '#1B2B4B' }}
+                        >
+                            {finishing ? 'Setting up…' : hasFileSelected ? 'Continue →' : "Skip — I'll fill in manually →"}
+                        </button>
+                        <button onClick={() => setStep('plan')}
+                                className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-2 transition-colors font-medium">
+                            ← Back
+                        </button>
+                    </div>
+                )}
+
+                {step === 'keys' && (
+                    <div className="flex-shrink-0 px-3 sm:px-6 pt-2 border-t border-zinc-100 dark:border-neutral-800 space-y-1.5"
+                         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
+                        <button
+                            onClick={finish}
+                            disabled={finishing}
+                            className="w-full py-3 rounded-xl text-white text-sm font-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                            style={{ background: '#1B2B4B' }}
+                        >
+                            {finishing ? 'Setting up…' : geminiKey || claudeKey ? "Let's go →" : 'Skip for now →'}
+                        </button>
+                        <button onClick={() => setStep('import')}
+                                className="w-full text-sm text-zinc-400 hover:text-zinc-600 py-2 transition-colors font-medium">
+                            ← Back
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

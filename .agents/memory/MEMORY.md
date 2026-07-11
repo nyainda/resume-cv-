@@ -40,3 +40,4 @@
 - [isNewUser sync guard staleness](isnewuser-sync-guards.md) — poller/visibility-sync closures over isNewUser go stale; must read from a ref, or a new account's poller can merge leaked D1 slots within seconds of signup.
 - [Duplicate profile slot on first save](duplicate-slot-on-first-save.md) — "create if none exists" handler re-entered before its own id-setting propagated back → distinct orphaned D1 rows while UI only ever shows one profile.
 - [Placeholder-array-as-content scoring bug](placeholder-array-scoring-bug.md) — blank seeded form rows have array.length 1; scoring/gating code must check real field content, not length.
+- [Onboarding modal footer pattern](onboarding-modal-footer-pattern.md) — wizard/modal CTA buttons must live in a fixed footer outside the scrollable body, not inline with variable-height card content.
