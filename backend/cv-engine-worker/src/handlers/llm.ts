@@ -9,6 +9,27 @@ import {
     _CV_SYSTEM_AUDIT,
 } from './purify';
 import { getSessionUserId } from './cache';
+import { verifySession } from './auth';
+
+// ─── Session-based plan resolution ───────────────────────────────────────────
+// Derive paidUpgrade server-side from the caller's D1 session — never trust
+// a client-supplied flag for this, as anyone could pass paidUpgrade:true.
+// Falls back to false (free tier) when there is no session or a D1 error.
+async function resolveIsPremium(request: Request, env: Env): Promise<boolean> {
+    try {
+        // Mirror auth.ts sessionTokenFromRequest: cookie first, then Bearer header.
+        const cookieHeader = request.headers.get('Cookie') ?? '';
+        const cookieMatch  = cookieHeader.match(/(?:^|;\s*)procv_session=([^;]+)/);
+        const token = cookieMatch
+            ? cookieMatch[1].trim()
+            : (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+        if (!token) return false;
+        const session = await verifySession(token, env);
+        return session?.plan === 'premium';
+    } catch {
+        return false; // fail-open: D1 error → treat as free
+    }
+}
 
 // ─── BYOK model catalogs + fallback chains ───────────────────────────────────
 // Providers routinely retire or rename models (e.g. Anthropic sunsetting a
@@ -326,7 +347,9 @@ export async function handleTieredLLM(request: Request, env: Env): Promise<Respo
     const body = await safeJson(request);
 
     const taskKey     = typeof body?.task === 'string' ? body.task.trim() : 'general';
-    const paidUpgrade = body?.paidUpgrade === true;
+    // Server-side plan check: ignore any client-supplied paidUpgrade flag — derive
+    // it from the caller's session so free users can't bypass it via the API.
+    const paidUpgrade = await resolveIsPremium(request, env);
     const _internalSystemMap: Record<string, string> = {
         cvGenerate:       _CV_SYSTEM_PROFESSIONAL,
         cvGenerateLong:   _CV_SYSTEM_PROFESSIONAL,
@@ -478,7 +501,8 @@ export async function handleRaceLLM(request: Request, env: Env): Promise<Respons
         : [];
     if (tasks.length < 2) return json({ error: 'need_at_least_two_tasks' }, request, env, 400);
 
-    const paidUpgrade = body?.paidUpgrade === true;
+    // Server-side plan check — same as handleTieredLLM, never trust client flag.
+    const paidUpgrade = await resolveIsPremium(request, env);
     const system = typeof body?.system === 'string' ? body.system.slice(0, TIERED_LLM_MAX_SYSTEM_CHARS) : '';
     const prompt = typeof body?.prompt === 'string' ? body.prompt.slice(0, TIERED_LLM_MAX_PROMPT_CHARS) : '';
     if (!prompt) return json({ error: 'missing_prompt' }, request, env, 400);
