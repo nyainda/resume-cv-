@@ -93,10 +93,10 @@ export function Scene3({ lightMode }: SceneProps) {
             animate={phase >= ci + 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 28 }}
             transition={{ duration: 0.55, type: 'spring', stiffness: 260, damping: 22 }}
           >
-            <p className="text-[0.88vw] font-bold mb-[0.3vh]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+            <p className="text-[1.05vw] font-bold mb-[0.3vh]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
               {comp.name}
             </p>
-            <p className="text-[0.68vw] mb-[1.4vh]" style={{ color: 'rgba(239,68,68,0.75)', fontFamily: 'DM Sans, sans-serif' }}>
+            <p className="text-[1.05vw] mb-[1.4vh]" style={{ color: 'rgba(239,68,68,0.75)', fontFamily: 'DM Sans, sans-serif' }}>
               {comp.tag}
             </p>
             {comp.flaws.map((flaw, fi) => (
@@ -107,8 +107,8 @@ export function Scene3({ lightMode }: SceneProps) {
                 animate={phase >= ci + 2 ? { opacity: 1, x: 0 } : {}}
                 transition={{ delay: 0.08 + fi * 0.1, duration: 0.35 }}
               >
-                <span style={{ color: '#ef4444', fontSize: '0.75vw', lineHeight: '1.5', flexShrink: 0 }}>✗</span>
-                <span className="text-[0.7vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{flaw}</span>
+                <span style={{ color: '#ef4444', fontSize: '0.95vw', lineHeight: '1.5', flexShrink: 0 }}>✗</span>
+                <span className="text-[0.95vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{flaw}</span>
               </motion.div>
             ))}
           </motion.div>
@@ -139,13 +139,13 @@ export function Scene3({ lightMode }: SceneProps) {
           <div className="flex items-center gap-[0.7vw] mb-[0.3vh]">
             <div
               className="w-[1.6vw] h-[1.6vw] rounded flex items-center justify-center font-bold"
-              style={{ background: '#C9A84C', color: '#1B2B4B', fontSize: '0.6vw', fontFamily: 'Playfair Display, serif' }}
+              style={{ background: '#C9A84C', color: '#1B2B4B', fontSize: '0.88vw', fontFamily: 'Playfair Display, serif' }}
             >
               CV
             </div>
-            <p className="text-[0.88vw] font-bold" style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}>ProCV</p>
+            <p className="text-[1.05vw] font-bold" style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}>ProCV</p>
           </div>
-          <p className="text-[0.68vw] mb-[1.4vh]" style={{ color: 'rgba(34,197,94,0.8)', fontFamily: 'DM Sans, sans-serif' }}>
+          <p className="text-[1.05vw] mb-[1.4vh]" style={{ color: 'rgba(34,197,94,0.8)', fontFamily: 'DM Sans, sans-serif' }}>
             Built to check its own work
           </p>
 
@@ -157,9 +157,9 @@ export function Scene3({ lightMode }: SceneProps) {
               animate={phase >= 4 ? { opacity: 1, x: 0 } : {}}
               transition={{ delay: 0.08 + ai * 0.12, duration: 0.4, type: 'spring', stiffness: 320 }}
             >
-              <span style={{ color: '#22c55e', fontSize: '0.75vw', lineHeight: '1.5', flexShrink: 0 }}>✓</span>
+              <span style={{ color: '#22c55e', fontSize: '0.95vw', lineHeight: '1.5', flexShrink: 0 }}>✓</span>
               <div>
-                <span className="text-[0.72vw] font-semibold leading-snug block" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{adv.text}</span>
+                <span className="text-[0.95vw] font-semibold leading-snug block" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{adv.text}</span>
                 <span className="text-[0.6vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{adv.detail}</span>
               </div>
             </motion.div>

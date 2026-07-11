@@ -85,7 +85,7 @@ export function Scene7({ lightMode }: SceneProps) {
             <div className="flex items-center justify-between mb-[1vh]">
               <span className="text-[1.8vw]">{room.icon}</span>
               <motion.span
-                className="text-[0.7vw] font-bold px-[0.6vw] py-[0.2vh] rounded-full"
+                className="text-[0.95vw] font-bold px-[0.6vw] py-[0.2vh] rounded-full"
                 style={{ background: `${room.color}20`, color: room.color, fontFamily: 'DM Sans, sans-serif' }}
                 animate={activeRoom >= i ? { opacity: 1 } : { opacity: 0 }}
                 transition={{ duration: 0.3 }}
@@ -93,10 +93,10 @@ export function Scene7({ lightMode }: SceneProps) {
                 ATS {room.score}
               </motion.span>
             </div>
-            <p className="text-[0.9vw] font-bold mb-[0.4vh]" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>
+            <p className="text-[1.05vw] font-bold mb-[0.4vh]" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>
               {room.label}
             </p>
-            <p className="text-[0.7vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+            <p className="text-[0.95vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
               {room.slots} CV slot{room.slots > 1 ? 's' : ''}
             </p>
 
@@ -125,7 +125,7 @@ export function Scene7({ lightMode }: SceneProps) {
           <div className="flex items-center gap-[1.5vw]">
             <div className="w-[0.4vw] h-[4vh] rounded-full" style={{ background: '#C9A84C' }} />
             <div>
-              <p className="text-[0.75vw] font-semibold" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Active CV Slot</p>
+              <p className="text-[0.95vw] font-semibold" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Active CV Slot</p>
               <p className="text-[1vw] font-bold" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{activeSlot.label}</p>
             </div>
           </div>
@@ -137,8 +137,8 @@ export function Scene7({ lightMode }: SceneProps) {
               { label: 'Generated', value: activeSlot.lastGenerated },
             ].map(({ label, value }) => (
               <div key={label} className="text-center">
-                <p className="text-[0.65vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{label}</p>
-                <p className="text-[0.85vw] font-semibold" style={{ color: label === 'ATS Score' ? '#C9A84C' : text, fontFamily: 'DM Sans, sans-serif' }}>{value}</p>
+                <p className="text-[0.88vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{label}</p>
+                <p className="text-[1vw] font-semibold" style={{ color: label === 'ATS Score' ? '#C9A84C' : text, fontFamily: 'DM Sans, sans-serif' }}>{value}</p>
               </div>
             ))}
           </div>
@@ -146,7 +146,7 @@ export function Scene7({ lightMode }: SceneProps) {
       </motion.div>
 
       <motion.p
-        className="mt-[2vh] text-[0.85vw] text-center"
+        className="mt-[2vh] text-[1vw] text-center"
         style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}
         initial={{ opacity: 0 }}
         animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}

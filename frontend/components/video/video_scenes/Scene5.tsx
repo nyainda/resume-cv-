@@ -151,7 +151,7 @@ export function Scene5({ lightMode }: SceneProps) {
             >
               {s.value}
             </motion.span>
-            <span className="text-[0.72vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+            <span className="text-[0.95vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
               {s.label}
             </span>
           </motion.div>
@@ -168,7 +168,7 @@ export function Scene5({ lightMode }: SceneProps) {
         {pillars.map((p, i) => (
           <motion.span
             key={p}
-            className="px-[1.1vw] py-[0.55vh] rounded-full text-[0.7vw] font-semibold"
+            className="px-[1.1vw] py-[0.55vh] rounded-full text-[0.95vw] font-semibold"
             style={{ border: '1px solid rgba(201,168,76,0.32)', color: 'rgba(201,168,76,0.85)', fontFamily: 'DM Sans, sans-serif' }}
             initial={{ opacity: 0, scale: 0.8 }}
             animate={phase >= 5 ? { opacity: 1, scale: 1 } : {}}
@@ -202,7 +202,7 @@ export function Scene5({ lightMode }: SceneProps) {
         >
           Start free in 30 seconds →
         </motion.div>
-        <p className="text-[0.78vw] font-medium" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.05em' }}>
+        <p className="text-[1vw] font-medium" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.05em' }}>
           No account. No credit card. No cloud.
         </p>
       </motion.div>

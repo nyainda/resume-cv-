@@ -957,6 +957,27 @@ const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn, darkMode, onTogg
               </button>
             </div>
 
+            {/* Watch the Ad button */}
+            <div style={{ marginBottom: 16 }}>
+              <a
+                href="/how-it-works"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '10px 20px', borderRadius: 10,
+                  background: 'rgba(201,168,76,0.12)',
+                  border: '1.5px solid rgba(201,168,76,0.55)',
+                  color: '#C9A84C', fontSize: 14, fontWeight: 700,
+                  textDecoration: 'none', cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(201,168,76,0.22)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(201,168,76,0.12)'; }}
+              >
+                <span style={{ fontSize: 16 }}>▶</span>
+                Watch the Ad — See ProCV in 78 seconds
+              </a>
+            </div>
+
             {/* Trust line */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {[

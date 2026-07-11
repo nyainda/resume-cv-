@@ -96,7 +96,7 @@ export function Scene1({ lightMode }: SceneProps) {
             transition={{ duration: 0.5, delay: i * 0.18, type: 'spring', stiffness: 280, damping: 22 }}
           >
             <span style={{ fontSize: '1.3vw', flexShrink: 0, lineHeight: 1.4 }}>{p.icon}</span>
-            <span className="text-[0.82vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+            <span className="text-[1vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
               {p.text}
             </span>
           </motion.div>

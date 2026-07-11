@@ -76,11 +76,11 @@ export function Scene8({ lightMode }: SceneProps) {
         {/* "Paper" header */}
         <div className="px-[1.8vw] pt-[1.8vh] pb-[1vh] flex items-center justify-between" style={{ borderBottom: `1px solid ${pageBorder}` }}>
           <div className="flex items-center gap-[0.8vw]">
-            <div className="w-[1.8vw] h-[1.8vw] rounded flex items-center justify-center font-bold text-[0.7vw]" style={{ background: '#C9A84C', color: '#1B2B4B', fontFamily: 'Playfair Display, serif' }}>CV</div>
-            <span className="text-[0.75vw] font-semibold" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Cover Letter — Senior PM @ Stripe</span>
+            <div className="w-[1.8vw] h-[1.8vw] rounded flex items-center justify-center font-bold text-[0.95vw]" style={{ background: '#C9A84C', color: '#1B2B4B', fontFamily: 'Playfair Display, serif' }}>CV</div>
+            <span className="text-[0.95vw] font-semibold" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Cover Letter — Senior PM @ Stripe</span>
           </div>
           <motion.div
-            className="flex items-center gap-[0.4vw] text-[0.65vw] px-[0.6vw] py-[0.25vh] rounded-full"
+            className="flex items-center gap-[0.4vw] text-[0.88vw] px-[0.6vw] py-[0.25vh] rounded-full"
             style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac', fontFamily: 'DM Sans, sans-serif' }}
             animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
           >
@@ -94,7 +94,7 @@ export function Scene8({ lightMode }: SceneProps) {
           {coverLetterLines.map((line, i) => (
             <motion.p
               key={i}
-              className="text-[0.78vw] leading-relaxed"
+              className="text-[1vw] leading-relaxed"
               style={{
                 color: line === '' ? 'transparent' : (i === 0 ? '#C9A84C' : text),
                 fontFamily: i === 0 ? 'Playfair Display, serif' : 'DM Sans, sans-serif',
@@ -125,7 +125,7 @@ export function Scene8({ lightMode }: SceneProps) {
             One click.<br />
             <span style={{ color: '#C9A84C' }}>Tailored to the JD.</span>
           </h2>
-          <p className="text-[0.8vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+          <p className="text-[1vw] leading-relaxed" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
             ProCV reads your CV, cross-references the job description, and writes a letter that sounds like you — not like ChatGPT.
           </p>
         </motion.div>
@@ -138,7 +138,7 @@ export function Scene8({ lightMode }: SceneProps) {
           animate={phase >= 3 ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[0.7vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Quality Check</p>
+          <p className="text-[0.95vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>Quality Check</p>
           {stats.map((s, i) => (
             <motion.div
               key={s.label}
@@ -147,8 +147,8 @@ export function Scene8({ lightMode }: SceneProps) {
               animate={phase >= 3 ? { opacity: 1, x: 0 } : { opacity: 0, x: 10 }}
               transition={{ delay: 0.1 + i * 0.08, duration: 0.4 }}
             >
-              <span className="text-[0.75vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{s.label}</span>
-              <span className="text-[0.85vw] font-bold" style={{ color: s.color, fontFamily: 'DM Sans, sans-serif' }}>{s.value}</span>
+              <span className="text-[0.95vw]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{s.label}</span>
+              <span className="text-[1vw] font-bold" style={{ color: s.color, fontFamily: 'DM Sans, sans-serif' }}>{s.value}</span>
             </motion.div>
           ))}
         </motion.div>
@@ -162,7 +162,7 @@ export function Scene8({ lightMode }: SceneProps) {
           {['Groq Llama 3.3 70B', 'JD-aware', 'Voice-matched', 'Humanized'].map((tag, i) => (
             <span
               key={tag}
-              className="text-[0.62vw] px-[0.5vw] py-[0.2vh] rounded-full"
+              className="text-[0.85vw] px-[0.5vw] py-[0.2vh] rounded-full"
               style={{ border: '1px solid rgba(201,168,76,0.25)', color: 'rgba(201,168,76,0.7)', fontFamily: 'DM Sans, sans-serif' }}
             >
               {tag}

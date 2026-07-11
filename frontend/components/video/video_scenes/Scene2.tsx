@@ -130,7 +130,7 @@ export function Scene2({ lightMode }: SceneProps) {
               <p className="font-bold mb-[0.8vh]" style={{ fontSize: '1.05vw', color: text, fontFamily: 'DM Sans, sans-serif' }}>
                 {step.label}
               </p>
-              <p className="leading-relaxed" style={{ fontSize: '0.75vw', color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+              <p className="leading-relaxed" style={{ fontSize: '0.95vw', color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
                 {step.detail}
               </p>
             </motion.div>
@@ -169,8 +169,8 @@ export function Scene2({ lightMode }: SceneProps) {
           <div key={item} className="flex items-center gap-[0.8vw]">
             {i > 0 && <div className="w-[1px] h-[2.5vh]" style={{ background: 'rgba(201,168,76,0.25)' }} />}
             <div className="flex items-center gap-[0.5vw]">
-              <span style={{ color: '#22c55e', fontSize: '0.8vw' }}>✓</span>
-              <span style={{ fontSize: '0.8vw', color: subtext, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{item}</span>
+              <span style={{ color: '#22c55e', fontSize: '1vw' }}>✓</span>
+              <span style={{ fontSize: '1vw', color: subtext, fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{item}</span>
             </div>
           </div>
         ))}

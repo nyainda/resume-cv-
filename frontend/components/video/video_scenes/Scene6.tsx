@@ -82,7 +82,7 @@ export function Scene6({ lightMode }: SceneProps) {
           animate={phase >= 1 ? { opacity: 1, x: 0 } : { opacity: 0, x: -20 }}
           transition={{ duration: 0.5, delay: 0.15 }}
         >
-          <p className="text-[0.75vw] font-semibold tracking-widest uppercase mb-[1.5vh]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+          <p className="text-[0.95vw] font-semibold tracking-widest uppercase mb-[1.5vh]" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
             Job Description Keywords
           </p>
           <div className="flex flex-wrap gap-[0.5vw]">
@@ -92,7 +92,7 @@ export function Scene6({ lightMode }: SceneProps) {
               return (
                 <motion.span
                   key={kw}
-                  className="px-[0.7vw] py-[0.3vh] rounded-full text-[0.72vw] font-medium"
+                  className="px-[0.7vw] py-[0.3vh] rounded-full text-[0.95vw] font-medium"
                   style={{ fontFamily: 'DM Sans, sans-serif' }}
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={phase >= 1 ? {
@@ -118,7 +118,7 @@ export function Scene6({ lightMode }: SceneProps) {
             animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
             transition={{ duration: 0.4, delay: 0.8 }}
           >
-            <p className="text-[0.72vw]" style={{ color: '#fca5a5', fontFamily: 'DM Sans, sans-serif' }}>
+            <p className="text-[0.95vw]" style={{ color: '#fca5a5', fontFamily: 'DM Sans, sans-serif' }}>
               ↑ {missingKeywords.length} confirmed gap keywords — not in your current CV
             </p>
           </motion.div>
@@ -132,7 +132,7 @@ export function Scene6({ lightMode }: SceneProps) {
           animate={phase >= 1 ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <p className="text-[0.75vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+          <p className="text-[0.95vw] font-semibold tracking-widest uppercase" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
             Bullet Rewrite
           </p>
 
@@ -143,8 +143,8 @@ export function Scene6({ lightMode }: SceneProps) {
             animate={phase >= 3 ? { opacity: 0.4 } : { opacity: 1 }}
             transition={{ duration: 0.4 }}
           >
-            <p className="text-[0.65vw] font-semibold uppercase mb-[0.5vh]" style={{ color: '#ef4444', fontFamily: 'DM Sans, sans-serif' }}>Before</p>
-            <p className="text-[0.8vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{bulletBefore}</p>
+            <p className="text-[0.88vw] font-semibold uppercase mb-[0.5vh]" style={{ color: '#ef4444', fontFamily: 'DM Sans, sans-serif' }}>Before</p>
+            <p className="text-[1vw] leading-snug" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{bulletBefore}</p>
           </motion.div>
 
           {/* After */}
@@ -155,8 +155,8 @@ export function Scene6({ lightMode }: SceneProps) {
             animate={phase >= 3 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
             transition={{ duration: 0.5 }}
           >
-            <p className="text-[0.65vw] font-semibold uppercase mb-[0.5vh]" style={{ color: '#22c55e', fontFamily: 'DM Sans, sans-serif' }}>After — gap keywords injected</p>
-            <p className="text-[0.8vw] leading-snug" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>
+            <p className="text-[0.88vw] font-semibold uppercase mb-[0.5vh]" style={{ color: '#22c55e', fontFamily: 'DM Sans, sans-serif' }}>After — gap keywords injected</p>
+            <p className="text-[1vw] leading-snug" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>
               {typed || (phase >= 3 ? '' : '')}
               {phase >= 4 && typed.length < bulletAfter.length && (
                 <motion.span animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>|</motion.span>

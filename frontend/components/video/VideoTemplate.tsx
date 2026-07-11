@@ -198,18 +198,18 @@ export default function VideoTemplate() {
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-        style={{ opacity: lightMode ? 0.06 : 0.22 }}
+        style={{ opacity: lightMode ? 0.10 : 0.65 }}
         src="/videos/cinematic-bg.mp4"
         autoPlay muted loop playsInline
       />
 
-      {/* Dark gradient overlay to keep text readable */}
+      {/* Dark gradient overlay — light enough to let the video breathe */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background: lightMode
-            ? 'rgba(248,247,244,0.82)'
-            : 'linear-gradient(135deg, rgba(10,18,32,0.78) 0%, rgba(10,18,32,0.55) 50%, rgba(10,18,32,0.78) 100%)',
+            ? 'rgba(248,247,244,0.80)'
+            : 'linear-gradient(135deg, rgba(8,14,26,0.72) 0%, rgba(8,14,26,0.45) 50%, rgba(8,14,26,0.72) 100%)',
         }}
       />
 

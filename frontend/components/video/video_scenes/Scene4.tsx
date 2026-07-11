@@ -84,7 +84,7 @@ export function Scene4({ lightMode }: SceneProps) {
 
         <div>
           <motion.p
-            className="text-[0.95vw] font-semibold tracking-[0.25em] uppercase"
+            className="text-[1.1vw] font-semibold tracking-[0.25em] uppercase"
             style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}
             initial={{ opacity: 0 }}
             animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
@@ -120,10 +120,10 @@ export function Scene4({ lightMode }: SceneProps) {
             <div className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ background: tool.color, minHeight: '3.2vh' }} />
             <div className="min-w-0">
               <div className="flex items-baseline gap-[0.35vw]">
-                <span className="text-[0.6vw] font-bold" style={{ color: tool.color, fontFamily: 'DM Sans, sans-serif', opacity: 0.7 }}>{tool.num}</span>
-                <span className="text-[0.78vw] font-bold truncate" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{tool.name}</span>
+                <span className="text-[0.82vw] font-bold" style={{ color: tool.color, fontFamily: 'DM Sans, sans-serif', opacity: 0.7 }}>{tool.num}</span>
+                <span className="text-[1vw] font-bold truncate" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{tool.name}</span>
               </div>
-              <span className="text-[0.62vw] leading-tight" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{tool.desc}</span>
+              <span className="text-[0.85vw] leading-tight" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{tool.desc}</span>
             </div>
           </motion.div>
         ))}
