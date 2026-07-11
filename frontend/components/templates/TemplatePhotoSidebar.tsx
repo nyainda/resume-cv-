@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { getSpacingValues } from '../../utils/pageFit';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
@@ -14,13 +15,16 @@ interface TemplateProps {
   sidebarSections?: SidebarSectionsVisibility;
   /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
   density?: number;
+  /** Spacing compression level (0–3) from the two-phase convergence loop. */
+  spacingLevel?: number;
 }
 
 // Photo Sidebar — compact one-page edition. Same warm magazine-style cream
 // sidebar with photo avatar, italic-serif Career Highlights pull-quotes,
 // uppercase Featured Work bullets and the "Portfolio · MMM YYYY" stamp. Photo
 // shrunk from w-28 to w-20, sidebar width trimmed from 38% to 32%.
-const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
+const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1, spacingLevel = 0 }) => {
+  const { secGap, entryGap, lh } = getSpacingValues(spacingLevel);
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -60,7 +64,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
   );
 
   const RightSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section className="mb-3">
+    <section style={{ marginBottom: secGap }}>
       <h2 className="text-[11.5px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: '#222' }}>
         {title}
       </h2>
@@ -258,7 +262,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
 
           {cvData.experience.length > 0 && (
             <RightSection title="Experience">
-              <div className="space-y-2.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: entryGap }}>
                 {cvData.experience.map((job, index) => (
                   <div key={index} className="relative group flex items-start gap-1.5">
                     <span className="mt-1.5 flex-shrink-0 w-2 h-2 rounded-full inline-block" style={{ backgroundColor: accentColor }}></span>
@@ -279,7 +283,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                       <p className="text-[11px] font-semibold text-zinc-600 mb-0.5" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                       <ul className="list-disc list-outside ml-3 space-y-0.5">
                         {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
-                          <li key={i} className="text-[11px] text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                          <li key={i} className="text-[11px] text-zinc-700 leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                         ))}
                       </ul>
                     </div>

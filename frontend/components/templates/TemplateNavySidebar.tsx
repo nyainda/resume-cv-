@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { getSpacingValues } from '../../utils/pageFit';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
@@ -14,13 +15,16 @@ interface TemplateProps {
   jobDescriptionForATS: string;
   /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
   density?: number;
+  /** Spacing compression level (0–3) from the two-phase convergence loop. */
+  spacingLevel?: number;
 }
 
 // Navy Sidebar — compact one-page edition. Keeps the classical aesthetic
 // (vertical accent-bar Career Highlights, boxed Recognized Projects, serif
 // monogram crest with Roman-numeral year) but with everything sized to land
 // on a single A4 page. Sidebar trimmed from 35% → 30%.
-const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
+const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1, spacingLevel = 0 }) => {
+  const { secGap, entryGap, lh } = getSpacingValues(spacingLevel);
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
     const newCvData = JSON.parse(JSON.stringify(cvData));
@@ -226,7 +230,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
           </header>
 
           {cvData.summary && (
-            <section className="mb-3">
+            <section style={{ marginBottom: secGap }}>
               <h2 className="text-[10px] font-black uppercase tracking-widest mb-1 pb-0.5 border-b" style={{ color: navyBg, borderColor: navyBg }}>
                 Profile Summary
               </h2>
@@ -239,7 +243,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
               <h2 className="text-[10px] font-black uppercase tracking-widest mb-1.5 pb-0.5 border-b" style={{ color: navyBg, borderColor: navyBg }}>
                 Experience
               </h2>
-              <div className="space-y-2.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: entryGap }}>
                 {cvData.experience.map((job, index) => (
                   <div key={index} className="relative group">
                     {isEditing && (
@@ -258,7 +262,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                     <p className="text-[11px] font-semibold mb-0.5" style={{ color: navyBg }} {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-3.5 space-y-0.5">
                       {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
-                        <li key={i} className="text-[11px] text-zinc-700 leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                        <li key={i} className="text-[11px] text-zinc-700 leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
                   </div>

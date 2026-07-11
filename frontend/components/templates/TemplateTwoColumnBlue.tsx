@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { getSpacingValues } from '../../utils/pageFit';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
@@ -13,6 +14,8 @@ interface TemplateProps {
   sidebarSections?: SidebarSectionsVisibility;
   /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
   density?: number;
+  /** Spacing compression level (0–3) from the two-phase convergence loop. */
+  spacingLevel?: number;
 }
 
 // Two Column Blue — compact one-page edition. Same blue-gradient identity as
@@ -20,7 +23,8 @@ interface TemplateProps {
 // every measurement tightened so a typical CV (4-5 jobs, 12 skills, 2 edu)
 // lands on a single A4 page. Sidebar trimmed to 30% to give the main column
 // more room for dense experience bullets.
-const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
+const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1, spacingLevel = 0 }) => {
+  const { secGap, entryGap, lh } = getSpacingValues(spacingLevel);
   const accent = cvData.accentColor ?? '#1e40af';
 
   const handleUpdate = useCallback((path: (string | number)[], value: any) => {
@@ -184,7 +188,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
         {/* Main Content — tight padding, dense typography. */}
         <div className="flex-1 px-5 py-4">
-          <main className="space-y-3.5">
+          <main style={{ display: 'flex', flexDirection: 'column', gap: secGap }}>
             {cvData.summary && (
               <section>
                 <h2 className="text-[10px] font-bold uppercase tracking-wider border-b-2 border-blue-100 pb-0.5 mb-1" style={{ color: accent }}>Professional Summary</h2>
@@ -194,7 +198,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
 
             <section>
               <h2 className="text-[10px] font-bold uppercase tracking-wider border-b-2 border-blue-100 pb-0.5 mb-1.5" style={{ color: accent }}>Experience</h2>
-              <div className="space-y-2.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: entryGap }}>
                 {cvData.experience.map((job, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
@@ -204,7 +208,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                     <p className="text-[11px] font-medium text-slate-600" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-slate-700">
                       {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
-                        <li key={i} className="leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                        <li key={i} className="leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
                   </div>

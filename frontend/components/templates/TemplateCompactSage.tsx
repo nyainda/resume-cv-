@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { getSpacingValues } from '../../utils/pageFit';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
@@ -13,6 +14,8 @@ interface TemplateProps {
   sidebarSections?: SidebarSectionsVisibility;
   /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
   density?: number;
+  /** Spacing compression level (0–3) from the two-phase convergence loop. */
+  spacingLevel?: number;
 }
 
 // Compact Sage — a warm, editorial single-page sidebar layout. Sage-green
@@ -27,7 +30,9 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
   jobDescriptionForATS,
   sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
   density = 1,
+  spacingLevel = 0,
 }) => {
+  const { secGap, entryGap, lh } = getSpacingValues(spacingLevel);
   const accent = cvData.accentColor ?? '#5b6f56';
   const sageBg = '#3d4f3a';
 
@@ -185,7 +190,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
 
         {/* Main Content */}
         <div className="flex-1 px-5 py-5">
-          <main className="space-y-3.5">
+          <main style={{ display: 'flex', flexDirection: 'column', gap: secGap }}>
             {cvData.summary && (
               <section>
                 <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1 border-b" style={{ color: accent, borderColor: '#d4dcd0', fontFamily: 'Georgia, "Times New Roman", serif' }}>Profile</h2>
@@ -195,7 +200,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
 
             <section>
               <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b" style={{ color: accent, borderColor: '#d4dcd0', fontFamily: 'Georgia, "Times New Roman", serif' }}>Experience</h2>
-              <div className="space-y-2.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: entryGap }}>
                 {cvData.experience.map((job, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
@@ -205,7 +210,7 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
                     <p className="text-[11px] font-medium" style={{ color: accent }} {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-zinc-700">
                       {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
-                        <li key={i} className="leading-snug" dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
+                        <li key={i} className="leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
                       ))}
                     </ul>
                   </div>

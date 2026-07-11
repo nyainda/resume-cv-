@@ -259,7 +259,9 @@ export interface CVData {
   fontPairing?: string; // custom font pairing key for V2 templates (e.g. 'playfair-dm')
   fontScale?: number;   // user-adjustable text-size multiplier for V2 templates (0.88–1.20, default 1.0)
   onePage?: boolean;   // user wants content compressed to fit a single A4 page
-  density?: number;    // resolved zoom level from the one-page convergence loop (0.85–1.0); persisted so re-open matches last PDF
+  density?: number;
+  /** Resolved spacing compression level (0–3) from the two-phase convergence loop. Persisted alongside density. */
+  spacingLevel?: number;    // resolved zoom level from the one-page convergence loop (0.85–1.0); persisted so re-open matches last PDF
   _trace?: import('./services/generationTrace').GenerationTrace; // generation audit trail — stripped before PDF export
 }
 

@@ -3,7 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import V2ThemePicker from './V2ThemePicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
-import { getPageCount, DENSITY_STEPS } from '../utils/pageFit';
+import { getPageCount, COMPRESSION_STEPS } from '../utils/pageFit';
 import { enqueueSlotSync, _devGetLastSlotSyncAt } from '../services/storage/syncQueue';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
 import { buildCVDeterministically } from '../services/cvDeterministicAssembler';
@@ -545,33 +545,52 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     return () => obs.disconnect();
   }, []);
 
-  // ── One-page Fit: live page count + density convergence loop ──────────────
-  // For strict-one-page templates (the sidebar family), we auto-compress the
-  // entire template via CSS `zoom` until the content fits one A4 page — or we
-  // reach the readability floor (0.85). The ResizeObserver above re-fires
-  // automatically after each zoom change, so the loop converges naturally
-  // without any manual re-measure calls.
+  // ── One-page Fit: two-phase convergence loop ─────────────────────────────
+  // Phase 1 (steps 1–3): spacing compression — reduces section gaps, entry
+  // gaps and bullet line-height without touching font sizes. Fixes "tiny
+  // overflow" in most cases with no visible text change.
+  // Phase 2 (steps 4–7): CSS zoom fallback, only after spacing is maxed out.
+  //
+  // A single `compressionStep` index into COMPRESSION_STEPS drives both
+  // `density` (zoom) and `spacingLevel` so there is no state-sync issue
+  // between the two axes.
   //
   // Key invariants:
-  //   – density is per-CV state, initialized from the saved density value so
-  //     re-opening the editor never recomputes from scratch.
-  //   – density is reset to 1 when switching to a non-strict template.
-  //   – settled density is persisted back into CVData so the PDF download uses
-  //     the exact same zoom as the live preview.
+  //   – compressionStep is persisted (via density + spacingLevel in CVData)
+  //     so re-opening the editor starts at the right compression level.
+  //   – compressionStep resets to 0 when switching to a non-strict template.
+  //   – The ResizeObserver on scalingRef re-fires after every render triggered
+  //     by a step change, so the loop converges naturally with no manual
+  //     re-measure calls.
 
-  /** Resolved zoom level for strict-one-page templates. 1 = no compression. */
-  const [density, setDensity] = useState<number>(currentCV?.density ?? 1);
+  /** Initialise from the saved density + spacingLevel combination (backward-compatible). */
+  const initCompressionStep = (): number => {
+    if (!currentCV) return 0;
+    const d = currentCV.density ?? 1;
+    const s = currentCV.spacingLevel ?? 0;
+    const idx = COMPRESSION_STEPS.findIndex(step => step.density === d && step.spacingLevel === s);
+    return idx === -1 ? 0 : idx;
+  };
+
+  const [compressionStep, setCompressionStep] = useState<number>(initCompressionStep);
   const [showTwoPageBanner, setShowTwoPageBanner] = useState(false);
 
-  // Sync density from saved CV on first load (useState initializer only runs
-  // once at mount; currentCV may arrive asynchronously).
-  const densitySyncedRef = useRef(!!currentCV?.density);
+  // Sync compressionStep from saved CV if currentCV loads asynchronously
+  // after mount (useState initializer only runs once).
+  const compressionSyncedRef = useRef(!!currentCV);
   useEffect(() => {
-    if (!densitySyncedRef.current && currentCV?.density !== undefined) {
-      setDensity(currentCV.density);
-      densitySyncedRef.current = true;
+    if (!compressionSyncedRef.current && currentCV) {
+      const d = currentCV.density ?? 1;
+      const s = currentCV.spacingLevel ?? 0;
+      const idx = COMPRESSION_STEPS.findIndex(step => step.density === d && step.spacingLevel === s);
+      setCompressionStep(idx === -1 ? 0 : idx);
+      compressionSyncedRef.current = true;
     }
   }, [currentCV]);
+
+  /** density and spacingLevel derived from the current step — no separate state. */
+  const density = COMPRESSION_STEPS[compressionStep]?.density ?? 1;
+  const spacingLevel = COMPRESSION_STEPS[compressionStep]?.spacingLevel ?? 0;
 
   /** Live page count derived from the ResizeObserver-tracked content height. */
   const pageCount = useMemo(
@@ -579,44 +598,40 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     [previewContentHeight],
   );
 
-  // Reset density when switching away from a strict template.
+  // Reset to step 0 when switching to a non-strict (non-sidebar) template.
   useEffect(() => {
     if (!STRICT_ONE_PAGE_TEMPLATES.includes(template)) {
-      setDensity(1);
+      setCompressionStep(0);
       setShowTwoPageBanner(false);
     }
   }, [template]);
 
-  // Convergence loop: step density down through DENSITY_STEPS until the
-  // content fits one page, or we hit the 0.85 readability floor.
+  // Convergence loop: advance one step at a time until content fits one page.
+  // Phase 1 adjusts spacing only (no font change); Phase 2 reduces zoom.
   useEffect(() => {
     if (!STRICT_ONE_PAGE_TEMPLATES.includes(template)) return;
     if (pageCount <= 1) {
       setShowTwoPageBanner(false);
       return;
     }
-    setDensity(prev => {
-      const idx = DENSITY_STEPS.indexOf(prev as typeof DENSITY_STEPS[number]);
-      const nextIdx = idx === -1 ? 1 : idx + 1;
-      if (nextIdx >= DENSITY_STEPS.length) {
-        // At the readability floor — cannot compress further.
+    setCompressionStep(prev => {
+      const next = prev + 1;
+      if (next >= COMPRESSION_STEPS.length) {
         setShowTwoPageBanner(true);
-        return prev;
+        return prev; // at the floor — cannot compress further
       }
-      return DENSITY_STEPS[nextIdx];
+      return next;
     });
   }, [pageCount, template]);
 
-  // Persist the settled density to CVData so the download path and next
-  // editor session use the same zoom level without recomputing.
+  // Persist settled density + spacingLevel back to CVData so the PDF download
+  // and next editor session use the exact same compression without recomputing.
   useEffect(() => {
     if (!currentCV) return;
-    if (currentCV.density === density) return;
-    setCurrentCV({ ...currentCV, density });
-    // Intentionally omit setCurrentCV from deps — it's stable but ESLint
-    // doesn't know that. Adding it would cause an infinite re-render loop.
+    if (currentCV.density === density && currentCV.spacingLevel === spacingLevel) return;
+    setCurrentCV({ ...currentCV, density, spacingLevel });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [density]);
+  }, [density, spacingLevel]);
   const [cvScore, setCvScore] = useState<CVScore | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizingProvider, setOptimizingProvider] = useState<string | null>(null);
@@ -3115,6 +3130,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                           template={template}
                           sidebarSections={sidebarSections}
                           density={density}
+                          spacingLevel={spacingLevel}
                         />
                       </div>
                     </div>

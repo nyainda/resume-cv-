@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { getSpacingValues } from '../../utils/pageFit';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
 import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
@@ -14,6 +15,8 @@ interface TemplateProps {
   sidebarSections?: SidebarSectionsVisibility;
   /** Resolved zoom level from the one-page convergence loop (0.85–1.0). Default 1. */
   density?: number;
+  /** Spacing compression level (0–3) from the two-phase convergence loop. */
+  spacingLevel?: number;
 }
 
 const SIDEBAR_BG = '#2e2510';
@@ -23,7 +26,8 @@ const SIDEBAR_BG = '#2e2510';
 // "Est. YYYY" double-rule crest. Avatar shrunk from w-28 to w-20, sidebar
 // trimmed from 38% to 32%, padding tightened, and every cap reduced so a
 // typical CV lands on a single A4 page.
-const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1 }) => {
+const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS, sidebarSections = DEFAULT_SIDEBAR_SECTIONS, density = 1, spacingLevel = 0 }) => {
+  const { secGap, entryGap, lh } = getSpacingValues(spacingLevel);
   // eslint-disable-next-line no-shadow
   const ACCENT = cvData.accentColor ?? '#c8a84b';
 
@@ -59,7 +63,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
   );
 
   const RightSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section className="mb-3">
+    <section style={{ marginBottom: secGap }}>
       <h2 className="text-[11.5px] font-bold uppercase tracking-wider mb-1 pb-0.5" style={{ color: SIDEBAR_BG, borderBottom: `1.5px solid ${SIDEBAR_BG}` }}>
         {title}
       </h2>
@@ -254,7 +258,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
 
           {cvData.experience.length > 0 && (
             <RightSection title="Experience">
-              <div className="space-y-2.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: entryGap }}>
                 {cvData.experience.map((job, i) => (
                   <div key={i} className="relative group">
                     {isEditing && (
@@ -282,7 +286,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
                         </p>
                         <ul className="space-y-0.5">
                           {smartBullets(job.responsibilities, cvData.experience.length).map((r, j) => (
-                            <li key={j} className="flex items-start gap-1 text-[11px] text-zinc-700 leading-snug">
+                            <li key={j} className="flex items-start gap-1 text-[11px] text-zinc-700 leading-snug" style={{ lineHeight: lh }}>
                               <span className="flex-shrink-0 mt-1 text-zinc-400">•</span>
                               <span dangerouslySetInnerHTML={{ __html: r }}
                                 {...editable(['experience', i, 'responsibilities', j])} />

@@ -56,6 +56,12 @@ interface CVPreviewProps {
    * Passed through to strict-one-page (sidebar) templates. Default 1 = no zoom.
    */
   density?: number;
+  /**
+   * Spacing compression level (0–3) from the two-phase convergence loop.
+   * Controls inter-section gap, entry gap, and bullet line-height without
+   * touching font sizes. Passed through to all sidebar templates.
+   */
+  spacingLevel?: number;
 }
 
 // ─── Main CVPreview ──────────────────────────────────────────────────────────
@@ -70,6 +76,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
     jobDescriptionForATS = '',
     sidebarSections = DEFAULT_SIDEBAR_SECTIONS,
     density = 1,
+    spacingLevel = 0,
   } = props;
 
   // Guarantee all array fields are proper arrays before ANY template sees the data.
@@ -81,10 +88,10 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   );
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
-  // Sidebar templates additionally receive sidebarSections and density (for the
-  // one-page convergence loop). Spreading onto non-sidebar templates is harmless
-  // because those components don't declare these props in their interfaces.
-  const sidebarTemplateProps = { ...templateProps, sidebarSections, density };
+  // Sidebar templates additionally receive sidebarSections, density, and spacingLevel
+  // (for the two-phase convergence loop). Spreading onto non-sidebar templates is
+  // harmless because those components don't declare these props in their interfaces.
+  const sidebarTemplateProps = { ...templateProps, sidebarSections, density, spacingLevel };
 
   const renderTemplate = () => {
     if (V2_TEMPLATE_IDS.includes(template as string)) {
