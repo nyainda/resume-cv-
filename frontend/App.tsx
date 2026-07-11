@@ -39,15 +39,15 @@ import DriveConflictModal from "./components/DriveConflictModal";
 import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx } from "./services/wordImportService";
-import { generateProfileFromFileWithGemini } from "./services/geminiService";
-import { extractText as pdfExtractText } from "./services/pdfCvParser";
+import { generateProfileFromFileWithGemini, generateProfile } from "./services/geminiService";
+import { extractText as pdfExtractText, rasterizePdfFirstPage } from "./services/pdfCvParser";
 import { runImportPipeline } from "./services/importPipeline";
 import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
 import JsonImportDialog from "./components/JsonImportDialog";
 import ImportChoiceModal from "./components/ImportChoiceModal";
 import { migrateLocalToDrive } from "./services/storage/StorageRouter";
-import { isCVEngineConfigured } from "./services/cvEngineClient";
+import { isCVEngineConfigured, workerVisionExtract } from "./services/cvEngineClient";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { useBootEffects } from "./hooks/useBootEffects";
 import { useAppNavigation } from "./hooks/useAppNavigation";
@@ -590,13 +590,76 @@ const AppInner: React.FC = () => {
               const result = await runImportPipeline(extracted.text, 'pdf');
               handleWordProfileImported(result.profile);
             } else {
-              // Scanned PDF — needs vision AI; check for a key first
-              const mimeType = file.type || "application/pdf";
+              // Scanned PDF — try Workers AI vision first (free, no key),
+              // then fall back to BYOK Gemini.
+              let imported = false;
+              if (isCVEngineConfigured()) {
+                try {
+                  const rasterized = await rasterizePdfFirstPage(file);
+                  if (rasterized) {
+                    const visionText = await workerVisionExtract(
+                      rasterized.base64, rasterized.mimeType,
+                      'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
+                      { maxTokens: 4096 },
+                    );
+                    if (visionText && visionText.trim().length >= 50) {
+                      const result = await runImportPipeline(visionText, 'pdf');
+                      handleWordProfileImported(purifyProfile(result.profile));
+                      imported = true;
+                    }
+                  }
+                } catch { /* fall through to BYOK */ }
+              }
+              if (!imported) {
+                const mimeType = file.type || "application/pdf";
+                const apiKey = opts.apiSettings?.apiKey || (opts.apiSettings as any)?.claudeApiKey;
+                if (!apiKey) {
+                  toast.error(
+                    "Scanned PDF Detected",
+                    "This PDF has no text layer. Add a Gemini or Claude API key in Settings to import scanned PDFs, or paste your CV text in the Profile tab instead."
+                  );
+                } else {
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+                  handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType)));
+                }
+              }
+            }
+          } else {
+            // Image — try Workers AI vision first (free, no key),
+            // then fall back to BYOK Gemini.
+            const mimeType = file.type || "image/jpeg";
+            let imported = false;
+            if (isCVEngineConfigured()) {
+              try {
+                const base64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve((reader.result as string).split(",")[1]);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(file);
+                });
+                const visionText = await workerVisionExtract(
+                  base64, mimeType,
+                  'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
+                  { maxTokens: 4096 },
+                );
+                if (visionText && visionText.trim().length >= 50) {
+                  const result = await runImportPipeline(visionText, 'pdf');
+                  handleWordProfileImported(purifyProfile(result.profile));
+                  imported = true;
+                }
+              } catch { /* fall through to BYOK */ }
+            }
+            if (!imported) {
               const apiKey = opts.apiSettings?.apiKey || (opts.apiSettings as any)?.claudeApiKey;
               if (!apiKey) {
                 toast.error(
-                  "Scanned PDF Detected",
-                  "This PDF has no text layer. Add a Gemini or Claude API key in Settings to import scanned PDFs, or paste your CV text in the Profile tab instead."
+                  "API Key Required",
+                  "Image imports need a Gemini or Claude API key. Add one in Settings → AI Keys, or paste your CV text in the Profile tab instead."
                 );
               } else {
                 const base64 = await new Promise<string>((resolve, reject) => {
@@ -605,28 +668,8 @@ const AppInner: React.FC = () => {
                   reader.onerror = reject;
                   reader.readAsDataURL(file);
                 });
-                const profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType));
-                handleWordProfileImported(profile);
+                handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType)));
               }
-            }
-          } else {
-            // Image — always needs vision AI
-            const mimeType = file.type || "image/jpeg";
-            const apiKey = opts.apiSettings?.apiKey || (opts.apiSettings as any)?.claudeApiKey;
-            if (!apiKey) {
-              toast.error(
-                "API Key Required",
-                "Image imports need a Gemini or Claude API key. Add one in Settings → AI Keys, or paste your CV text in the Profile tab instead."
-              );
-            } else {
-              const base64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve((reader.result as string).split(",")[1]);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-              });
-              const profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType));
-              handleWordProfileImported(profile);
             }
           }
         } catch (e: any) {

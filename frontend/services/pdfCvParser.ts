@@ -115,6 +115,39 @@ function reconstruct2Column(items: TextItem[], pageWidth: number): string[] {
 }
 
 /**
+ * Render the first page of a PDF to a JPEG image (base64, no data-URL prefix).
+ * Workers AI vision requires a real image — not raw PDF bytes.
+ * Uses 2× scale for better OCR quality.
+ * Returns null if canvas rendering fails (e.g. corrupted PDF).
+ */
+export async function rasterizePdfFirstPage(
+  file: File,
+): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: buffer, useWorkerFetch: false } as any);
+    const doc = await loadingTask.promise;
+    const page = await doc.getPage(1);
+    const viewport = page.getViewport({ scale: 2 }); // 2× for OCR quality
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { await doc.destroy(); return null; }
+    // pdfjs-dist v5 RenderParameters — cast to any to satisfy stricter types
+    await (page.render({ canvasContext: ctx, viewport } as any)).promise;
+    page.cleanup();
+    await doc.destroy();
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    const base64 = dataUrl.split(',')[1];
+    return base64 ? { base64, mimeType: 'image/jpeg' } : null;
+  } catch (e) {
+    console.warn('[pdfCvParser] rasterizePdfFirstPage failed:', e);
+    return null;
+  }
+}
+
+/**
  * Extract all text from a PDF file.
  * Returns the extracted text + layout metadata.
  * Throws on corrupt or password-protected PDFs.
