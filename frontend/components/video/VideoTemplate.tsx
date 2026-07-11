@@ -46,8 +46,8 @@ const accentLineConfig = [
 ];
 
 const SCENE_NAMES = [
-  'The Problem', '7-Pass Pipeline', 'Why ProCV', '12 Tools',
-  'ATS Gap Targeting', 'Career Rooms', 'Cover Letter AI', 'Start Free',
+  'The Problem', 'What is ProCV', 'Why ProCV', 'ATS Gap Targeting',
+  'Career Rooms', 'Cover Letter AI', '12 AI Tools', 'Start Free',
 ];
 
 const SCENES = Object.keys(SCENE_DURATIONS);
@@ -500,14 +500,15 @@ export default function VideoTemplate() {
       </AnimatePresence>
 
       {/* ── Scene foreground ──────────────────────────────────────────────── */}
+      {/* Scene order: Problem → What is ProCV → Why ProCV → ATS Gap → Career Rooms → Cover Letters → 12 Tools → Start Free */}
       <AnimatePresence mode="popLayout">
         {currentScene === 0 && isPlaying && <Scene1 key="s1" {...sceneProps} />}
         {currentScene === 1 && isPlaying && <Scene2 key="s2" {...sceneProps} />}
         {currentScene === 2 && isPlaying && <Scene3 key="s3" {...sceneProps} />}
-        {currentScene === 3 && isPlaying && <Scene4 key="s4" {...sceneProps} />}
-        {currentScene === 4 && isPlaying && <Scene6 key="s6" {...sceneProps} />}
-        {currentScene === 5 && isPlaying && <Scene7 key="s7" {...sceneProps} />}
-        {currentScene === 6 && isPlaying && <Scene8 key="s8" {...sceneProps} />}
+        {currentScene === 3 && isPlaying && <Scene6 key="s6" {...sceneProps} />}
+        {currentScene === 4 && isPlaying && <Scene7 key="s7" {...sceneProps} />}
+        {currentScene === 5 && isPlaying && <Scene8 key="s8" {...sceneProps} />}
+        {currentScene === 6 && isPlaying && <Scene4 key="s4" {...sceneProps} />}
         {currentScene === 7 && isPlaying && <Scene5 key="s5" {...sceneProps} />}
       </AnimatePresence>
     </div>
