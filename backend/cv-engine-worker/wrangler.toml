@@ -60,7 +60,7 @@ simple = { limit = 120, period = 60 }
 crons = ["15 3 * * *"]
 
 [vars]
-ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app,https://procv.replit.app,https://0d46ea6d-50c5-4dfc-8593-353b638052bf-00-e5mk26rqmqbe.worf.replit.dev"
+ALLOWED_ORIGINS = "https://resume-cv-gold.vercel.app,https://procv.replit.app,https://cv-engine-worker.dripstech.workers.dev,https://0d46ea6d-50c5-4dfc-8593-353b638052bf-00-e5mk26rqmqbe.worf.replit.dev"
 
 [env.dev.vars]
 ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5000,http://localhost:3000"

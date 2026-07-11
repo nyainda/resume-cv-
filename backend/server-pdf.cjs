@@ -785,6 +785,36 @@ app.post('/api/claude', async (req, res) => {
     }
 });
 
+// ─── Cloudflare Worker proxy (/cf-engine/*) ────────────────────────────────────
+// In dev, Vite proxies /cf-engine → the CF worker. In production the Vite dev
+// server is not running, so this Express route does the same job — forwarding
+// requests server-side avoids CORS issues and keeps VITE_CV_ENGINE_URL=/cf-engine
+// working unchanged across both environments.
+const CF_WORKER_URL = 'https://cv-engine-worker.dripstech.workers.dev';
+app.all('/cf-engine/*', async (req, res) => {
+    const workerPath = req.url.replace(/^\/cf-engine/, '') || '/';
+    const target = `${CF_WORKER_URL}${workerPath}`;
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        const fetchOpts = { method: req.method, headers };
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            fetchOpts.body = JSON.stringify(req.body);
+        }
+        const upstream = await fetch(target, fetchOpts);
+        const text = await upstream.text();
+        res.status(upstream.status);
+        upstream.headers.forEach((v, k) => {
+            if (!['content-encoding', 'transfer-encoding', 'connection'].includes(k.toLowerCase())) {
+                res.setHeader(k, v);
+            }
+        });
+        res.send(text);
+    } catch (err) {
+        console.error('[cf-engine proxy] error:', err.message);
+        res.status(502).json({ error: 'cf_engine_proxy_error', detail: err.message });
+    }
+});
+
 // ─── SPA fallback (production only) ───────────────────────────────────────────
 // Any route not matched by an API handler returns index.html so client-side
 // routing works correctly on hard refresh or direct URL navigation.
