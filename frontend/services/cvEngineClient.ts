@@ -1493,6 +1493,35 @@ export async function workerVisionExtract(
 }
 
 /**
+ * Upload any document (PDF, DOCX, image, etc.) to the cv-engine worker and
+ * receive extracted plain text back via Cloudflare's env.AI.toMarkdown().
+ *
+ * - Text-layer PDFs and DOCX: parsed without AI inference (zero token cost).
+ * - Scanned / image-only files: converted via Workers AI vision.
+ *
+ * Returns null on network error or if the engine is not configured.
+ */
+export async function workerExtractDoc(file: File): Promise<string | null> {
+    if (!isCVEngineConfigured()) return null;
+    const u = buildEngineURL('/api/cv/extract-doc');
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        const r = await fetchWithTimeout(
+            u.toString(),
+            { method: 'POST', body: form },
+            60_000, // 60 s — large scanned PDFs can take time
+        );
+        if (!r.ok) return null;
+        const data = await r.json() as { text?: string };
+        return typeof data?.text === 'string' && data.text.length > 0 ? data.text : null;
+    } catch (e) {
+        if (import.meta.env.DEV) console.warn('[cvEngineClient] workerExtractDoc failed:', e);
+        return null;
+    }
+}
+
+/**
  * Chunk a flat CV text blob into atomic phrases suitable for embedding.
  * Splits on lines, bullets, and sentence boundaries; dedups; caps length.
  */

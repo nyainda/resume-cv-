@@ -38,16 +38,14 @@ import DriveBackupPrompt from "./components/DriveBackupPrompt";
 import DriveConflictModal from "./components/DriveConflictModal";
 import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
-import { extractTextFromDocx } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini, generateProfileFromFileClaude, generateProfile } from "./services/geminiService";
-import { rasterizePdfAllPages } from "./services/pdfCvParser";
 import { runImportPipeline } from "./services/importPipeline";
 import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
 import JsonImportDialog from "./components/JsonImportDialog";
 import ImportChoiceModal from "./components/ImportChoiceModal";
 import { migrateLocalToDrive } from "./services/storage/StorageRouter";
-import { isCVEngineConfigured, workerVisionExtract } from "./services/cvEngineClient";
+import { isCVEngineConfigured, workerExtractDoc } from "./services/cvEngineClient";
 import { getSelectedProvider } from "./services/groqService";
 import { useAutoSync } from "./hooks/useAutoSync";
 import { useBootEffects } from "./hooks/useBootEffects";
@@ -571,7 +569,9 @@ const AppInner: React.FC = () => {
       }
       if (opts.pendingDocxFile) {
         try {
-          const text = await extractTextFromDocx(opts.pendingDocxFile);
+          // Workers AI toMarkdown extracts DOCX text; the user's chosen provider structures it.
+          const text = await workerExtractDoc(opts.pendingDocxFile);
+          if (!text || text.trim().length < 50) throw new Error('Could not extract text from this Word document.');
           const result = await runImportPipeline(text, 'docx');
           handleWordProfileImported(result.profile);
         } catch (e: any) {
@@ -581,64 +581,38 @@ const AppInner: React.FC = () => {
       if (opts.pendingImportFile && opts.pendingImportType) {
         try {
           const file = opts.pendingImportFile;
+          const activeProvider = getSelectedProvider();
+
           if (opts.pendingImportType === "pdf") {
-            // All PDFs go straight to AI — no pdf.js text extraction.
-            // Gemini/Claude read PDFs natively; Workers AI needs a rasterised JPEG.
-            const toBase64 = (f: File) => new Promise<string>((res, rej) => {
-              const r = new FileReader();
-              r.onload = () => res((r.result as string).split(",")[1]);
-              r.onerror = rej;
-              r.readAsDataURL(f);
-            });
             const mimeType = file.type || "application/pdf";
-            const activeProvider = getSelectedProvider();
             if (activeProvider === 'claude') {
+              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
               handleWordProfileImported(purifyProfile(await generateProfileFromFileClaude(await toBase64(file), mimeType, undefined)));
             } else if (activeProvider === 'gemini') {
+              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
               handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
             } else {
-              // Workers AI (free/premium) — rasterise every page, OCR each, then structure.
-              const pages = await rasterizePdfAllPages(file);
-              if (!pages.length) throw new Error('Could not render this PDF for AI vision. Try pasting your CV text instead.');
-              const pageTexts: string[] = [];
-              for (let i = 0; i < pages.length; i++) {
-                const t = await workerVisionExtract(
-                  pages[i].base64, pages[i].mimeType,
-                  `Extract ALL text from page ${i + 1} of this resume/CV. Return only the raw text, preserving structure and line breaks.`,
-                  { maxTokens: 4096 },
-                );
-                if (t?.trim()) pageTexts.push(t.trim());
-              }
-              const allText = pageTexts.join('\n\n');
-              if (allText.length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
-              const result = await runImportPipeline(allText, 'pdf');
+              // Workers AI — toMarkdown handles PDF server-side (zero tokens for text PDFs)
+              const text = await workerExtractDoc(file);
+              if (!text || text.trim().length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
+              const result = await runImportPipeline(text, 'pdf');
               handleWordProfileImported(purifyProfile(result.profile));
             }
+
           } else {
-            // Image — route to the user's selected provider.
-            const toBase64 = (f: File) => new Promise<string>((res, rej) => {
-              const r = new FileReader();
-              r.onload = () => res((r.result as string).split(",")[1]);
-              r.onerror = rej;
-              r.readAsDataURL(f);
-            });
+            // Image
             const mimeType = file.type || "image/jpeg";
-            const activeProvider = getSelectedProvider();
             if (activeProvider === 'claude') {
-              // BYOK — Claude vision
+              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
               handleWordProfileImported(purifyProfile(await generateProfileFromFileClaude(await toBase64(file), mimeType, undefined)));
             } else if (activeProvider === 'gemini') {
-              // BYOK — Gemini vision
+              const toBase64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
               handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
             } else {
-              // Free / Premium — Workers AI vision
-              const visionText = await workerVisionExtract(
-                await toBase64(file), mimeType,
-                'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
-                { maxTokens: 4096 },
-              );
-              if (!visionText || visionText.trim().length < 50) throw new Error('Workers AI could not extract text from this image. Try pasting your CV text instead.');
-              const result = await runImportPipeline(visionText, 'pdf');
+              // Workers AI — toMarkdown handles images via vision server-side
+              const text = await workerExtractDoc(file);
+              if (!text || text.trim().length < 50) throw new Error('Workers AI could not extract text from this image. Try pasting your CV text instead.');
+              const result = await runImportPipeline(text, 'pdf');
               handleWordProfileImported(purifyProfile(result.profile));
             }
           }

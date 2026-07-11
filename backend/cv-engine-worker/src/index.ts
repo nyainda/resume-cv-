@@ -48,6 +48,7 @@ import {
     handleLLM, handleVisionExtract, handleTieredLLM,
     handleRaceLLM, handleParallelSections,
     handleProxyLLM, handleAccountTier, handleClassifyTitles,
+    handleExtractDoc,
 } from './handlers/llm';
 
 import {
@@ -159,7 +160,8 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
         p === '/api/cv/validate-voice' ||
         p === '/api/cv/semantic-match' ||
         p === '/api/cv/brief'          ||
-        p === '/api/cv/clean'
+        p === '/api/cv/clean'          ||
+        p === '/api/cv/extract-doc'
     )) {
         const rl = await rateLimitRequest(env, request, 'medium', 40, 60);
         if (!rl.allowed) return rateLimitResponse(request, env, rl.retryAfter);
@@ -202,6 +204,7 @@ async function _dispatch(request: Request, env: Env, ctx: ExecutionContext, url:
 
     if (p === '/api/cv/llm'            && m === 'POST')                     return handleLLM(request, env);
     if (p === '/api/cv/vision-extract' && m === 'POST')                     return handleVisionExtract(request, env);
+    if (p === '/api/cv/extract-doc'    && m === 'POST')                     return handleExtractDoc(request, env);
     if (p === '/api/cv/tiered-llm'     && m === 'POST')                     return handleTieredLLM(request, env);
     if (p === '/api/cv/account-tier'   && m === 'GET')                      return handleAccountTier(request, env);
 

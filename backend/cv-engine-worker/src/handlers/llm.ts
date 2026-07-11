@@ -1320,3 +1320,50 @@ export async function handleAccountTier(request: Request, env: Env): Promise<Res
         return json({ tier: 'free', model: PAID_MODEL, note: isQuota ? 'neuron quota exhausted' : msg.slice(0, 120) }, request, env);
     }
 }
+
+// ─── Document → Markdown extraction (toMarkdown) ─────────────────────────────
+//
+// Accepts any supported file (PDF, DOCX, XLSX, images, etc.) as multipart
+// form-data and returns the extracted text as Markdown via env.AI.toMarkdown.
+//
+// Text-layer PDFs and DOCX are parsed without AI inference (zero token cost).
+// Scanned / image-only files use Workers AI vision (counts against daily quota).
+//
+// Rate-limited to the "medium" bucket (40 req/60 s) to cover the worst case
+// where every request triggers a vision inference.
+
+export async function handleExtractDoc(request: Request, env: Env): Promise<Response> {
+    let formData: FormData;
+    try {
+        formData = await request.formData();
+    } catch {
+        return json({ error: 'invalid_form_data', hint: 'POST multipart/form-data with a "file" field.' }, request, env, 400);
+    }
+
+    const file = formData.get('file') as File | null;
+    if (!file || typeof file.name !== 'string') {
+        return json({ error: 'missing_file', hint: 'Include a "file" field in the form data.' }, request, env, 400);
+    }
+
+    const MAX_BYTES = 10 * 1024 * 1024; // 10 MB — generous for any CV
+    if (file.size > MAX_BYTES) {
+        return json({ error: 'file_too_large', maxBytes: MAX_BYTES }, request, env, 413);
+    }
+
+    try {
+        const results: Array<{ name: string; result: string }> =
+            await (env.AI as any).toMarkdown([{ name: file.name, blob: file }]);
+
+        const text = results?.[0]?.result?.trim() ?? '';
+        if (text.length < 10) {
+            return json({
+                error: 'extraction_empty',
+                hint: 'File may be image-only, password-protected, or an unsupported format.',
+            }, request, env, 502);
+        }
+
+        return json({ text }, request, env);
+    } catch (e: any) {
+        return json({ error: 'extraction_failed', message: String(e?.message || e) }, request, env, 502);
+    }
+}

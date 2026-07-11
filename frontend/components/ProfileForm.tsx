@@ -17,9 +17,7 @@ import {
   generateEnhancedProjectDescription,
 } from '../services/geminiService';
 import { getSelectedProvider } from '../services/groqService';
-import { workerVisionExtract } from '../services/cvEngineClient';
-import { rasterizePdfAllPages } from '../services/pdfCvParser';
-import { extractTextFromDocx } from '../services/wordImportService';
+import { workerExtractDoc } from '../services/cvEngineClient';
 import { runImportPipeline } from '../services/importPipeline';
 import { purifyProfile } from '../services/cvPurificationPipeline';
 import QuantifyPanel from './QuantifyPanel';
@@ -430,47 +428,36 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
         const isDOCX = mimeType.includes('wordprocessingml') || uploadedFile.name.toLowerCase().endsWith('.docx');
         const isImage = /^image\//i.test(mimeType);
 
-        if (isPDF) {
-          // All PDFs go directly to AI — Gemini/Claude read PDFs natively;
-          // Workers AI (free/premium) needs the page rasterised to JPEG first.
-          setImportStage({ step: 1, label: 'Reading PDF…' });
-          const activeProvider = getSelectedProvider();
-          console.log(`[ImportPipeline] PDF — provider: ${activeProvider}`);
-          const { base64 } = await fileToBase64(uploadedFile);
+        const activeProvider = getSelectedProvider();
+        console.log(`[ImportPipeline] ${isPDF ? 'PDF' : isDOCX ? 'DOCX' : 'Image'} — provider: ${activeProvider}`);
 
+        if (isPDF) {
+          setImportStage({ step: 1, label: 'Reading PDF…' });
           if (activeProvider === 'claude') {
             setImportStage({ step: 2, label: 'Extracting via Claude…', sub: 'Multimodal AI reading your PDF' });
+            const { base64 } = await fileToBase64(uploadedFile);
             profile = purifyProfile(await generateProfileFromFileClaude(base64, mimeType, undefined));
           } else if (activeProvider === 'gemini') {
             setImportStage({ step: 2, label: 'Extracting via Gemini…', sub: 'Multimodal AI reading your PDF' });
+            const { base64 } = await fileToBase64(uploadedFile);
             profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
           } else {
-            // Workers AI (free/premium) — rasterise every page to JPEG, then OCR each one.
-            // Vision endpoint is image-only; page-by-page ensures multi-page CVs are fully read.
-            setImportStage({ step: 2, label: 'Rendering PDF pages…', sub: 'Free — no key required' });
-            const pages = await rasterizePdfAllPages(uploadedFile);
-            if (!pages.length) throw new Error('Could not render this PDF. Try pasting your CV text instead.');
-            setImportStage({ step: 2, label: 'Extracting via Workers AI…', sub: `Free — ${pages.length} page${pages.length !== 1 ? 's' : ''}` });
-            const pageTexts: string[] = [];
-            for (let i = 0; i < pages.length; i++) {
-              const t = await workerVisionExtract(
-                pages[i].base64, pages[i].mimeType,
-                `Extract ALL text from page ${i + 1} of this resume/CV. Return only the raw text, preserving structure and line breaks.`,
-                { maxTokens: 4096 },
-              );
-              if (t?.trim()) pageTexts.push(t.trim());
-            }
-            const allText = pageTexts.join('\n\n');
-            if (allText.length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
+            // Workers AI (free/premium) — toMarkdown handles the whole PDF server-side;
+            // text-layer PDFs cost zero tokens, scanned PDFs use vision quota.
+            setImportStage({ step: 2, label: 'Extracting via Workers AI…', sub: 'Free — no key required' });
+            const text = await workerExtractDoc(uploadedFile);
+            if (!text || text.trim().length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
-            profile = await generateProfile(allText, undefined);
+            profile = await generateProfile(text, undefined);
           }
           setImportStage({ step: 4, label: 'Profile extracted ✓' });
 
         } else if (isDOCX) {
-          // ── Zero-token DOCX path ───────────────────────────────────────────
+          // Claude and Gemini cannot accept raw DOCX bytes — extract text via
+          // Workers AI toMarkdown first, then the user's chosen provider structures it.
           setImportStage({ step: 1, label: 'Extracting text from Word document…' });
-          const text = await extractTextFromDocx(uploadedFile);
+          const text = await workerExtractDoc(uploadedFile);
+          if (!text || text.trim().length < 50) throw new Error('Could not extract text from this Word document. Try saving as PDF and importing that instead.');
           setImportStage({ step: 2, label: 'Parsing sections…' });
           const result = await runImportPipeline(text, 'docx', {
             onStage1Complete: (r) => { setImportStage({ step: 3, label: 'Structuring profile…' }); setImportConfidence(r.confidence); },
@@ -480,22 +467,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
           setImportConfidence(result.confidence);
 
         } else if (isImage) {
-          // ── Image path — routes to the user's selected provider (Claude / Gemini / Workers AI) ─
           setImportStage({ step: 1, label: 'Reading image…' });
-          const { base64 } = await fileToBase64(uploadedFile);
-          setImportStage({ step: 2, label: 'AI extracting CV content…', sub: 'This may take a few seconds' });
-          const activeProvider = getSelectedProvider();
-          if (activeProvider === 'claude' && hasClaudeKey()) {
+          if (activeProvider === 'claude') {
+            setImportStage({ step: 2, label: 'Extracting via Claude…', sub: 'Multimodal AI reading your image' });
+            const { base64 } = await fileToBase64(uploadedFile);
             profile = purifyProfile(await generateProfileFromFileClaude(base64, mimeType, undefined));
-          } else if (hasGeminiKey()) {
+          } else if (activeProvider === 'gemini') {
+            setImportStage({ step: 2, label: 'Extracting via Gemini…', sub: 'Multimodal AI reading your image' });
+            const { base64 } = await fileToBase64(uploadedFile);
             profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
           } else {
-            // Workers AI vision — free, no key needed
-            setImportStage({ step: 2, label: 'Extracting text via Workers AI…', sub: 'Free, no key required' });
-            const extracted = await workerVisionExtract(base64, mimeType, 'Extract ALL text from this resume/CV image. Return only the raw text, preserving structure and line breaks.', { maxTokens: 4096 });
-            if (!extracted || extracted.trim().length < 50) throw new Error('Could not extract text from the image. Try pasting your CV text instead.');
+            // Workers AI — toMarkdown handles images via vision server-side
+            setImportStage({ step: 2, label: 'Extracting via Workers AI…', sub: 'Free — no key required' });
+            const text = await workerExtractDoc(uploadedFile);
+            if (!text || text.trim().length < 50) throw new Error('Could not extract text from this image. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
-            profile = await generateProfile(extracted, undefined);
+            profile = await generateProfile(text, undefined);
           }
           setImportStage({ step: 4, label: 'Profile extracted ✓' });
 
