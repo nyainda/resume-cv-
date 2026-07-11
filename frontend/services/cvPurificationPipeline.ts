@@ -1716,7 +1716,12 @@ function stripSummaryTargetingClause(text: string): { text: string; changed: boo
     if (filtered.length === 0 || filtered.length === sentences.length) {
         return { text, changed: false };
     }
-    const out = filtered.join(' ').replace(/\s{2,}/g, ' ').trim();
+    // Defensive: the sentence splitter above only produces single-line
+    // sentence fragments in practice, but if a multi-line string ever slips
+    // through, joining with a plain space would fuse separate bullets into
+    // one paragraph (the exact class of bug fixed in cleanImportedText).
+    // Collapse horizontal whitespace only — never touch newlines here.
+    const out = filtered.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
     return { text: out, changed: true };
 }
 

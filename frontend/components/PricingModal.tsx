@@ -92,7 +92,7 @@ const FEATURE_SECTIONS: FeatureSection[] = [
             { label: 'Bulk export (ZIP)',           free: 'no',           byok: 'no',      premium: 'yes'     },
             { label: 'Custom domain sharing',      free: 'no',           byok: 'no',      premium: 'yes'     },
             { label: 'Word (.docx) import',        free: 'yes',          byok: 'yes',     premium: 'yes'     },
-            { label: 'PDF / image import',         free: 'partial',      byok: 'yes',     premium: 'yes'     },
+            { label: 'PDF / image import',         free: 'yes',          byok: 'yes',     premium: 'yes'     },
         ],
     },
 ];
