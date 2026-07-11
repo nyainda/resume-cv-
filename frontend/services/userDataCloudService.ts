@@ -32,6 +32,12 @@ const SLOT_SYNC_TS_PREFIX = 'cv_builder:usync_slot_ts:';  // + slotId → unix m
 // "newer than last successful push" during the throttle window and overwrite
 // the just-made edit before it ever reaches D1. See runD1MergeSync().
 const SLOT_EDIT_TS_PREFIX = 'cv_builder:uedit_slot_ts:'; // + slotId → unix ms of last local edit
+// Server-clock (unix SECONDS) echoed back by the last successful push for this
+// slot, or learned from a full fetchUserData() merge. Comparing a freshly
+// polled d1Slot.updated_at against THIS (both server clock) instead of against
+// a client Date.now() timestamp avoids false "newer on another device"
+// verdicts caused by ordinary client clock drift — see runD1MergeSync().
+const SLOT_SERVER_TS_PREFIX = 'cv_builder:userver_slot_ts:'; // + slotId → unix seconds
 const PREFS_HASH_KEY     = 'cv_builder:usync_prefs_hash';
 const MAX_SLOT_BYTES     = 512 * 1024; // 512 KB hard cap
 const FETCH_TIMEOUT_MS   = 6_000;
@@ -100,8 +106,14 @@ export function abortAllPendingSync(): void {
     _epochController = new AbortController();
 }
 
-async function post(path: string, body: object): Promise<boolean> {
-    if (!ENGINE_URL || !_isSignedIn()) return false;
+/**
+ * Returns the parsed response body on success, or null on any failure
+ * (network error, non-2xx, timeout). Callers that only care about
+ * success/failure can check `!== null`; syncSlot() also reads fields
+ * (e.g. the server-echoed `updated_at`) off the body.
+ */
+async function post(path: string, body: object): Promise<Record<string, unknown> | null> {
+    if (!ENGINE_URL || !_isSignedIn()) return null;
     const epochSignal = _epochController.signal;
     try {
         const ac = new AbortController();
@@ -121,7 +133,7 @@ async function post(path: string, body: object): Promise<boolean> {
             clearTimeout(timer);
             epochSignal.removeEventListener('abort', onEpochAbort);
         }
-        if (res.status === 401) { notifySessionExpired(); return false; }
+        if (res.status === 401) { notifySessionExpired(); return null; }
         if (res.status === 409) {
             // A stale local profile (carrying a slot_id minted while a different
             // account was active on this device/browser — e.g. an account switch
@@ -132,10 +144,11 @@ async function post(path: string, body: object): Promise<boolean> {
             // retrying forever against the same rejected slot_id.
             throw new SlotOwnershipConflictError();
         }
-        return res.ok;
+        if (!res.ok) return null;
+        return await res.json().catch(() => ({})) as Record<string, unknown>;
     } catch (err) {
         if (err instanceof SlotOwnershipConflictError) throw err;
-        return false;
+        return null;
     }
 }
 
@@ -281,7 +294,7 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
         const lastHash = localStorage.getItem(hashKey);
         if (lastHash === newHash) return; // no change, skip D1 write
 
-        const ok = await post('/api/cv/user-slots', {
+        const respBody = await post('/api/cv/user-slots', {
             device_id:    getDeviceId(),
             slot_id:      slot.id,
             slot_name:    slot.name ?? '',
@@ -290,10 +303,15 @@ export async function syncSlot(slot: UserProfileSlot): Promise<void> {
             current_cv:   currentCvMeta,
         });
 
-        if (ok) {
+        if (respBody) {
             try {
                 localStorage.setItem(hashKey, newHash);
                 localStorage.setItem(SLOT_SYNC_TS_PREFIX + slot.id, String(Date.now()));
+                const serverUpdatedAt = typeof respBody.updated_at === 'number' ? respBody.updated_at : null;
+                if (serverUpdatedAt !== null) {
+                    localStorage.setItem(SLOT_SERVER_TS_PREFIX + slot.id, String(serverUpdatedAt));
+                    recordServerTs(serverUpdatedAt);
+                }
             } catch { /* ignore */ }
         }
     } catch (err) {
@@ -353,6 +371,28 @@ export function getLocalEditTimestamp(slotId: string): number | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * Returns the unix-SECONDS server-clock timestamp this device last confirmed
+ * for this slot (from a push response or a full merge fetch), or null if
+ * never recorded. Server-clock, not client Date.now() — see
+ * SLOT_SERVER_TS_PREFIX for why the two must never be compared to each other.
+ */
+export function getSlotServerTs(slotId: string): number | null {
+    try {
+        const raw = localStorage.getItem(SLOT_SERVER_TS_PREFIX + slotId);
+        if (!raw) return null;
+        const s = Number(raw);
+        return Number.isFinite(s) ? s : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Records a server-clock (unix seconds) timestamp for this slot, without a network call. */
+export function recordSlotServerTs(slotId: string, updatedAtSeconds: number): void {
+    try { localStorage.setItem(SLOT_SERVER_TS_PREFIX + slotId, String(updatedAtSeconds)); } catch { /* ignore */ }
 }
 
 /** Human-readable "synced X ago" label, or null if never synced. */

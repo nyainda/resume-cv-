@@ -10,7 +10,7 @@ import { enqueueSlotSync, clearQueueForAccount } from '../services/storage/syncQ
 import {
   syncSlot, fetchUserData, deleteSlotFromCloud, getDeviceId,
   getLastSyncTimestamp, markSlotSyncedNow, recordServerTs, clearSlotSyncTimestamp,
-  getLocalEditTimestamp,
+  getLocalEditTimestamp, getSlotServerTs, recordSlotServerTs,
 } from '../services/userDataCloudService';
 import { useSlotPoller } from './useSlotPoller';
 import { clearAllBrowserStorage, rotateDeviceId, stampDeletedAccount } from '../utils/clearUserStorage';
@@ -180,20 +180,43 @@ export function useProfileManager({
         }
         continue;
       }
-      // getLastSyncTimestamp returns unix MILLISECONDS; d1Slot.updated_at is
-      // unix SECONDS — multiply seconds by 1000 before comparing.
-      const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0; // ms
-      // A local edit may still be sitting in the throttled sync queue (up to
-      // 30s) and hasn't reached D1 yet, so localPushTs alone is stale. Take
-      // the more recent of "last confirmed push" and "last local edit" so the
-      // poller/visibility-sync never overwrite an edit that hasn't landed yet.
-      const localEditTs = getLocalEditTimestamp(d1Slot.slot_id) ?? 0; // ms
-      const localFreshnessTs = Math.max(localPushTs, localEditTs);
-      if (d1Slot.updated_at * 1000 > localFreshnessTs + 10_000) {
+      // Two independent comparisons, each kept within a single clock so
+      // ordinary client/server clock drift can never produce a false
+      // "remote is newer" verdict (this used to compare the server's
+      // updated_at directly against a client Date.now() timestamp, which
+      // fired a spurious "synced from another device" merge — wiping
+      // in-memory UI state like the shown template — on essentially every
+      // edit whenever the browser's clock lagged the server's by more than
+      // the old 10s buffer):
+      //
+      // 1. "Is there a local edit not yet confirmed pushed?" — both sides of
+      //    this check are client Date.now() values, so it's internally
+      //    consistent regardless of clock drift vs the server.
+      const localPushTs = getLastSyncTimestamp(d1Slot.slot_id) ?? 0; // client ms
+      const localEditTs = getLocalEditTimestamp(d1Slot.slot_id) ?? 0; // client ms
+      const hasUnconfirmedLocalEdit = localEditTs > localPushTs;
+
+      // 2. "Did the server's copy change since OUR last confirmed push?" —
+      //    both sides are server-clock unix seconds (the updated_at this
+      //    device recorded from its own last successful push/merge vs the
+      //    updated_at just polled), never mixed with client time.
+      const lastKnownSlotServerTs = getSlotServerTs(d1Slot.slot_id); // server seconds, or null pre-migration
+      // Sessions that synced before this fix shipped have no recorded
+      // server-clock baseline yet. Fall back to the old (client-clock,
+      // 10s-buffer) heuristic for exactly that one-time case instead of
+      // treating "never recorded" as "remote is newer", which would fire a
+      // spurious one-time "synced from another device" toast for every
+      // returning user right after this deploy.
+      const remoteChangedSinceOurLastPush = lastKnownSlotServerTs === null
+        ? d1Slot.updated_at * 1000 > Math.max(localPushTs, localEditTs) + 10_000
+        : d1Slot.updated_at > lastKnownSlotServerTs;
+
+      if (!hasUnconfirmedLocalEdit && remoteChangedSinceOurLastPush) {
         const parsed = parseSlotData(d1Slot);
         if (parsed) {
           mergedSlots.push(parsed);
           markSlotSyncedNow(d1Slot.slot_id);
+          recordSlotServerTs(d1Slot.slot_id, d1Slot.updated_at);
           anyD1Newer = true;
         } else {
           mergedSlots.push(local);
@@ -201,6 +224,10 @@ export function useProfileManager({
       } else {
         mergedSlots.push(local);
         toPush.push(local);
+        // Establish/refresh the server-clock baseline for this slot so the
+        // next poll compares apples-to-apples instead of falling back to the
+        // client-clock heuristic again.
+        if (!hasUnconfirmedLocalEdit) recordSlotServerTs(d1Slot.slot_id, d1Slot.updated_at);
       }
     }
 

@@ -311,7 +311,14 @@ export async function handleUserSlotsPost(request: Request, env: Env, ctx: Execu
         );
     }
 
-    return json({ ok: true, slot_id: slotId }, request, env);
+    // Echo back the server-clock timestamp this write was stored with. The
+    // client uses this (not its own Date.now()) as the baseline for deciding
+    // whether a LATER poll/visibility-sync sees a genuinely newer remote
+    // write — comparing the server's own updated_at against a client-clock
+    // timestamp is clock-skew-sensitive and was firing false "synced from
+    // another device" merges on ordinary single-device edits whenever the
+    // browser's clock lagged the server's by more than the 10s buffer.
+    return json({ ok: true, slot_id: slotId, updated_at: now }, request, env);
 }
 
 export async function handleUserSlotsDelete(request: Request, env: Env): Promise<Response> {
