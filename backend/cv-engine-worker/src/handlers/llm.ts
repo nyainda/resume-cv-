@@ -1351,10 +1351,19 @@ export async function handleExtractDoc(request: Request, env: Env): Promise<Resp
     }
 
     try {
-        const results: Array<{ name: string; result: string }> =
+        // CF binding returns Array<{ id, name, mimeType, format, tokens, data } | { format:'error', error:string }>
+        const results: Array<{ name: string; format: string; data?: string; error?: string }> =
             await (env.AI as any).toMarkdown([{ name: file.name, blob: file }]);
 
-        const text = results?.[0]?.result?.trim() ?? '';
+        const first = results?.[0];
+        if (!first || first.format === 'error') {
+            return json({
+                error: 'extraction_failed',
+                hint: first?.error ?? 'File could not be converted — check format or content.',
+            }, request, env, 502);
+        }
+
+        const text = first.data?.trim() ?? '';
         if (text.length < 10) {
             return json({
                 error: 'extraction_empty',
