@@ -190,8 +190,15 @@ export function cleanImportedText(input: string): { cleaned: string; changes: st
         out = out.replace(/~(\d)/g, '$1');
     }
 
-    // Collapse double spaces and orphaned spaces created by deletions.
-    out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1');
+    // Collapse double spaces/tabs and orphaned spaces created by deletions —
+    // but NEVER touch newlines here. `responsibilities` strings are multiple
+    // bullets joined by \n; a naive /\s{2,}/ collapse (which \s also matches)
+    // would merge "bullet1\n\nbullet2" or "bullet1\n bullet2" into a single
+    // space, silently fusing every bullet into one paragraph before it's ever
+    // split for rendering. Collapse runs of blank lines to one newline first,
+    // then collapse horizontal whitespace only.
+    out = out.replace(/[ \t]*\n[ \t]*(?:\n[ \t]*)+/g, '\n').replace(/[ \t]{2,}/g, ' ');
+    out = out.replace(/[ \t]+([.,;:!?])/g, '$1');
     // Final guard: substitutions can cause adjacent duplicate words. Strip them.
     const before = out;
     out = removeDuplicateWords(out);
@@ -236,7 +243,9 @@ export async function cleanImportedTextRemote(input: string): Promise<{ cleaned:
     }
 
     // Collapse whitespace artefacts from any deletions and de-dupe again.
-    out = out.replace(/\s{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1');
+    // Same newline-preserving rule as cleanImportedText() above — see comment there.
+    out = out.replace(/[ \t]*\n[ \t]*(?:\n[ \t]*)+/g, '\n').replace(/[ \t]{2,}/g, ' ');
+    out = out.replace(/[ \t]+([.,;:!?])/g, '$1');
     const before = out;
     out = removeDuplicateWords(out);
     if (out !== before && !changes.includes('removed duplicate adjacent words')) {
@@ -3083,6 +3092,25 @@ export function purifyText(text: string): string {
  *
  * Idempotent. Safe to call on every regenerate/optimize/improve invocation.
  */
+/**
+ * Safety net for import providers (chiefly PDF/image vision extraction) that
+ * occasionally return a role's bullets as one run-on paragraph with no line
+ * breaks at all, instead of newline-separated bullets. Every downstream
+ * renderer splits `responsibilities` on `\n` to produce standalone bullets
+ * (see profileToCV.ts, cvDataUtils.ts, PublicProfilePage.tsx) — with zero
+ * newlines the whole role renders as a single wall-of-text paragraph.
+ *
+ * Only kicks in when there is genuinely no bullet structure AND the text
+ * reads like several sentences run together (2+ sentence boundaries) — a
+ * short single-sentence responsibility is left untouched.
+ */
+function splitMergedResponsibilities(text: string): string {
+    if (!text || text.includes('\n')) return text;
+    const sentenceBoundaries = text.match(/[.!?]\s+(?=[A-Z(])/g);
+    if (!sentenceBoundaries || sentenceBoundaries.length < 2) return text;
+    return text.replace(/([.!?])\s+(?=[A-Z(])/g, '$1\n').trim();
+}
+
 export function purifyProfile(profile: UserProfile): UserProfile {
     if (!profile) return profile;
     const sub = (s: string) => cleanImportedText(s || '').cleaned;
@@ -3092,7 +3120,7 @@ export function purifyProfile(profile: UserProfile): UserProfile {
         skills: (profile.skills || []).map(sub),
         workExperience: (profile.workExperience || []).map(e => ({
             ...e,
-            responsibilities: sub(e.responsibilities || ''),
+            responsibilities: splitMergedResponsibilities(sub(e.responsibilities || '')),
         })),
         education: (profile.education || []).map(e => ({ ...e })),
         projects: (profile.projects || []).map(p => ({
