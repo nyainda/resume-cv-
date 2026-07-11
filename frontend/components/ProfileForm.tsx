@@ -18,7 +18,7 @@ import {
 } from '../services/geminiService';
 import { getSelectedProvider } from '../services/groqService';
 import { workerVisionExtract } from '../services/cvEngineClient';
-import { rasterizePdfFirstPage } from '../services/pdfCvParser';
+import { rasterizePdfAllPages } from '../services/pdfCvParser';
 import { extractTextFromDocx } from '../services/wordImportService';
 import { runImportPipeline } from '../services/importPipeline';
 import { purifyProfile } from '../services/cvPurificationPipeline';
@@ -445,20 +445,25 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
             setImportStage({ step: 2, label: 'Extracting via Gemini…', sub: 'Multimodal AI reading your PDF' });
             profile = purifyProfile(await generateProfileFromFileWithGemini(base64, mimeType, undefined));
           } else {
-            // Workers AI — must rasterise to JPEG first (vision endpoint is image-only)
-            setImportStage({ step: 2, label: 'Rendering PDF for AI…', sub: 'Free — no key required' });
-            const rasterized = await rasterizePdfFirstPage(uploadedFile);
-            if (!rasterized) throw new Error('Could not render this PDF. Try pasting your CV text instead.');
-            setImportStage({ step: 2, label: 'Extracting via Workers AI…', sub: 'Free, no key required' });
-            const visionText = await workerVisionExtract(
-              rasterized.base64, rasterized.mimeType,
-              'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
-              { maxTokens: 4096 },
-            );
-            if (!visionText || visionText.trim().length < 50)
-              throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
+            // Workers AI (free/premium) — rasterise every page to JPEG, then OCR each one.
+            // Vision endpoint is image-only; page-by-page ensures multi-page CVs are fully read.
+            setImportStage({ step: 2, label: 'Rendering PDF pages…', sub: 'Free — no key required' });
+            const pages = await rasterizePdfAllPages(uploadedFile);
+            if (!pages.length) throw new Error('Could not render this PDF. Try pasting your CV text instead.');
+            setImportStage({ step: 2, label: 'Extracting via Workers AI…', sub: `Free — ${pages.length} page${pages.length !== 1 ? 's' : ''}` });
+            const pageTexts: string[] = [];
+            for (let i = 0; i < pages.length; i++) {
+              const t = await workerVisionExtract(
+                pages[i].base64, pages[i].mimeType,
+                `Extract ALL text from page ${i + 1} of this resume/CV. Return only the raw text, preserving structure and line breaks.`,
+                { maxTokens: 4096 },
+              );
+              if (t?.trim()) pageTexts.push(t.trim());
+            }
+            const allText = pageTexts.join('\n\n');
+            if (allText.length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
             setImportStage({ step: 3, label: 'Structuring profile…' });
-            profile = await generateProfile(visionText, undefined);
+            profile = await generateProfile(allText, undefined);
           }
           setImportStage({ step: 4, label: 'Profile extracted ✓' });
 

@@ -40,7 +40,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import { OnboardingWizard, type PendingImportType } from "./components/OnboardingWizard";
 import { extractTextFromDocx } from "./services/wordImportService";
 import { generateProfileFromFileWithGemini, generateProfileFromFileClaude, generateProfile } from "./services/geminiService";
-import { rasterizePdfFirstPage } from "./services/pdfCvParser";
+import { rasterizePdfAllPages } from "./services/pdfCvParser";
 import { runImportPipeline } from "./services/importPipeline";
 import { purifyProfile } from "./services/cvPurificationPipeline";
 import AdminApp from "./components/admin/AdminApp";
@@ -597,16 +597,21 @@ const AppInner: React.FC = () => {
             } else if (activeProvider === 'gemini') {
               handleWordProfileImported(purifyProfile(await generateProfileFromFileWithGemini(await toBase64(file), mimeType, undefined)));
             } else {
-              // Workers AI — rasterise page 1 to JPEG (vision endpoint is image-only)
-              const rasterized = await rasterizePdfFirstPage(file);
-              if (!rasterized) throw new Error('Could not render this PDF for AI vision. Try pasting your CV text instead.');
-              const visionText = await workerVisionExtract(
-                rasterized.base64, rasterized.mimeType,
-                'Extract ALL text from this resume/CV. Return only the raw text, preserving structure and line breaks.',
-                { maxTokens: 4096 },
-              );
-              if (!visionText || visionText.trim().length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
-              const result = await runImportPipeline(visionText, 'pdf');
+              // Workers AI (free/premium) — rasterise every page, OCR each, then structure.
+              const pages = await rasterizePdfAllPages(file);
+              if (!pages.length) throw new Error('Could not render this PDF for AI vision. Try pasting your CV text instead.');
+              const pageTexts: string[] = [];
+              for (let i = 0; i < pages.length; i++) {
+                const t = await workerVisionExtract(
+                  pages[i].base64, pages[i].mimeType,
+                  `Extract ALL text from page ${i + 1} of this resume/CV. Return only the raw text, preserving structure and line breaks.`,
+                  { maxTokens: 4096 },
+                );
+                if (t?.trim()) pageTexts.push(t.trim());
+              }
+              const allText = pageTexts.join('\n\n');
+              if (allText.length < 50) throw new Error('Workers AI could not read this PDF. Try pasting your CV text instead.');
+              const result = await runImportPipeline(allText, 'pdf');
               handleWordProfileImported(purifyProfile(result.profile));
             }
           } else {

@@ -133,8 +133,8 @@ function buildConfidence(profile: UserProfile): Record<string, number> {
  * - For JSON: pass the already-parsed UserProfile as `input`.
  * - For PDF / DOCX / text: pass the extracted text string.
  *
- * The AI provider priority is: Workers AI → Claude (BYOK) → Gemini (BYOK),
- * determined by the user's Settings selection (getSelectedProvider()).
+ * The AI provider is determined strictly by the user's Settings selection
+ * (getSelectedProvider()). No cross-provider fallback.
  *
  * purifyProfile() is always applied to the output.
  */
