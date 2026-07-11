@@ -46,8 +46,8 @@ const accentLineConfig = [
 ];
 
 const SCENE_NAMES = [
-  'The Problem', '7-Pass Pipeline', 'How It Works', 'Real Results',
-  'ATS Gap Targeting', 'Career Rooms', 'Cover Letter AI', 'ProCV',
+  'The Problem', '7-Pass Pipeline', 'Why ProCV', '12 Tools',
+  'ATS Gap Targeting', 'Career Rooms', 'Cover Letter AI', 'Start Free',
 ];
 
 const SCENES = Object.keys(SCENE_DURATIONS);
@@ -209,6 +209,17 @@ export default function VideoTemplate() {
 
   return (
     <div className="relative w-full h-screen overflow-hidden select-none" style={{ background: lightMode ? lightBg : darkBg }}>
+
+      {/* Cinematic video background */}
+      <video
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+        style={{ opacity: lightMode ? 0.04 : 0.09, filter: 'blur(3px) saturate(0.4)' }}
+        src="/videos/cinematic-bg.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+      />
 
       {/* Animated background blob */}
       <motion.div

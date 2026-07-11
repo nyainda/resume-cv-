@@ -1,145 +1,148 @@
-import { motion, useMotionValue, animate } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 
 interface SceneProps { lightMode: boolean }
 
-const templates = [
-  { name: 'Executive', color: '#1B2B4B', accent: '#C9A84C' },
-  { name: 'Modern',    color: '#2d3748', accent: '#68d391' },
-  { name: 'Creative',  color: '#553c9a', accent: '#e9d8fd' },
-  { name: 'Academic',  color: '#1a365d', accent: '#90cdf4' },
-  { name: 'Tech',      color: '#1a202c', accent: '#f6e05e' },
+const tools = [
+  { num: '01', name: 'CV Generator',       desc: 'ATS-optimised in 5 min',       color: '#C9A84C' },
+  { num: '02', name: 'LinkedIn Optimizer', desc: 'Headline, About & top skills',  color: '#3b82f6' },
+  { num: '03', name: 'Interview Prep',     desc: '10 tailored Q&As + thank-you',  color: '#8b5cf6' },
+  { num: '04', name: 'Portal Scanner',     desc: '150+ company portals',          color: '#10b981' },
+  { num: '05', name: 'CV Toolkit',         desc: 'Deep ATS audit & rewrites',     color: '#f59e0b' },
+  { num: '06', name: 'Scholarship Essays', desc: 'Personal statements & funding', color: '#ec4899' },
+  { num: '07', name: 'Negotiation Coach',  desc: 'Market-rate counter-offer',     color: '#ef4444' },
+  { num: '08', name: 'Email Apply',        desc: 'One-click application email',   color: '#06b6d4' },
+  { num: '09', name: 'App Tracker',        desc: 'Kanban — interviews & deadlines', color: '#84cc16' },
+  { num: '10', name: 'Analytics',          desc: 'Search velocity & story gaps',  color: '#f97316' },
+  { num: '11', name: 'Profile Manager',    desc: 'Multiple career identities',    color: '#a78bfa' },
+  { num: '12', name: 'Cloud Backup',       desc: 'Google Drive encrypted sync',   color: '#34d399' },
 ];
-
-const templatePositions = [
-  { x: '-26vw', y: '-8vh',  rotate: -8, scale: 0.78 },
-  { x: '-14vw', y: '10vh',  rotate: -4, scale: 0.84 },
-  { x: '0vw',   y: '16vh',  rotate: 0,  scale: 0.88 },
-  { x: '14vw',  y: '10vh',  rotate: 4,  scale: 0.84 },
-  { x: '26vw',  y: '-8vh',  rotate: 8,  scale: 0.78 },
-];
-
-function ScoreGauge({ target, active }: { target: number; active: boolean }) {
-  const count = useMotionValue(31);
-  const displayRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!active) return;
-    const controls = animate(count, target, {
-      duration: 3.5,
-      ease: 'easeOut',
-      onUpdate: (v) => { if (displayRef.current) displayRef.current.textContent = Math.round(v).toString(); },
-    });
-    return controls.stop;
-  }, [active]);
-
-  const radius = 38;
-  const circ = 2 * Math.PI * radius;
-  const startAngle = -200;
-  const endAngle = 20;
-  const totalArc = endAngle - startAngle;
-  const startFrac = 31 / 100;
-  const endFrac = target / 100;
-
-  return (
-    <div className="relative flex items-center justify-center" style={{ width: '20vw', height: '20vw' }}>
-      <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={`${(totalArc / 360) * circ} ${circ}`}
-          style={{ transformOrigin: '50% 50%', transform: `rotate(${startAngle + 90}deg)` }}
-        />
-        <motion.circle
-          cx="50" cy="50" r={radius} fill="none" stroke="#C9A84C" strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={`${(totalArc / 360) * circ} ${circ}`}
-          style={{ transformOrigin: '50% 50%', transform: `rotate(${startAngle + 90}deg)` }}
-          initial={{ strokeDashoffset: (totalArc / 360) * circ * (1 - startFrac) }}
-          animate={active ? { strokeDashoffset: (totalArc / 360) * circ * (1 - endFrac) } : {}}
-          transition={{ duration: 3.5, ease: 'easeOut' }}
-          filter="url(#glow4)"
-        />
-        <defs>
-          <filter id="glow4">
-            <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
-            <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-      </svg>
-      <div className="flex flex-col items-center">
-        <span ref={displayRef} className="font-black" style={{ fontSize: '5.5vw', color: '#F8F7F4', fontFamily: 'Playfair Display, serif', lineHeight: 1 }}>31</span>
-        <span className="text-[0.8vw] font-semibold mt-[0.5vh] tracking-widest uppercase" style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}>ATS Score</span>
-      </div>
-    </div>
-  );
-}
 
 export function Scene4({ lightMode }: SceneProps) {
   const [phase, setPhase] = useState(0);
+  const [visibleTools, setVisibleTools] = useState(0);
+
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 300),
+      setTimeout(() => setPhase(1), 200),
       setTimeout(() => setPhase(2), 900),
       setTimeout(() => setPhase(3), 1400),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  const text = lightMode ? '#1B2B4B' : '#F8F7F4';
+  // stagger tools in after phase 3
+  useEffect(() => {
+    if (phase < 3) return;
+    let i = 0;
+    const iv = setInterval(() => {
+      i++;
+      setVisibleTools(i);
+      if (i >= tools.length) clearInterval(iv);
+    }, 360);
+    return () => clearInterval(iv);
+  }, [phase]);
+
+  const [phase2, setPhase2] = useState(false);
+  useEffect(() => {
+    if (visibleTools >= tools.length) {
+      const t = setTimeout(() => setPhase2(true), 400);
+      return () => clearTimeout(t);
+    }
+  }, [visibleTools]);
+
+  const text    = lightMode ? '#1B2B4B' : '#F8F7F4';
+  const subtext = lightMode ? 'rgba(27,43,75,0.5)'  : 'rgba(248,247,244,0.45)';
+  const cardBg  = lightMode ? 'rgba(27,43,75,0.04)' : 'rgba(255,255,255,0.04)';
+  const cardBorder = lightMode ? 'rgba(27,43,75,0.1)' : 'rgba(255,255,255,0.07)';
 
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.6 }}
+      className="absolute inset-0 flex flex-col items-center justify-center px-[4vw] py-[2vh]"
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.03 }}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
-      <motion.p
-        className="text-[1.1vw] font-semibold tracking-[0.3em] uppercase mb-[1vh]"
-        style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif', position: 'relative', zIndex: 10 }}
-        initial={{ opacity: 0, y: -10 }}
-        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
-        transition={{ duration: 0.5 }}
+      {/* Eyebrow + headline row */}
+      <motion.div
+        className="flex items-baseline gap-[2vw] mb-[1vh]"
+        initial={{ opacity: 0, y: -16 }}
+        animate={phase >= 1 ? { opacity: 1, y: 0 } : { opacity: 0, y: -16 }}
+        transition={{ duration: 0.55 }}
       >
-        Real results
-      </motion.p>
+        {/* Big number */}
+        <motion.span
+          className="font-black leading-none"
+          style={{ fontSize: '9vw', color: 'rgba(201,168,76,0.18)', fontFamily: 'Playfair Display, serif', lineHeight: 1 }}
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={phase >= 1 ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
+          transition={{ duration: 0.65, type: 'spring', stiffness: 200, damping: 16 }}
+        >
+          12
+        </motion.span>
 
-      <div className="relative flex items-center justify-center" style={{ height: '50vh' }}>
-        {templates.map((tmpl, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-lg overflow-hidden"
-            style={{ width: '8vw', height: '11vw', left: '50%', top: '38%', marginLeft: '-4vw', marginTop: '-5.5vw', background: tmpl.color, border: `1px solid ${tmpl.accent}30` }}
-            initial={{ opacity: 0, scale: 0.5, rotate: 0, x: 0, y: 0 }}
-            animate={phase >= 3 ? { opacity: 1, scale: templatePositions[i].scale, rotate: templatePositions[i].rotate, x: templatePositions[i].x, y: templatePositions[i].y } : { opacity: 0 }}
-            transition={{ duration: 0.8, delay: i * 0.1, type: 'spring', stiffness: 180, damping: 18 }}
+        <div>
+          <motion.p
+            className="text-[0.95vw] font-semibold tracking-[0.25em] uppercase"
+            style={{ color: '#C9A84C', fontFamily: 'DM Sans, sans-serif' }}
+            initial={{ opacity: 0 }}
+            animate={phase >= 2 ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.4 }}
           >
-            <div className="p-[0.8vw]">
-              <div className="h-[0.3vw] rounded-full mb-[0.6vw]" style={{ background: tmpl.accent, width: '60%' }} />
-              {[1, 0.7, 0.85, 0.6, 0.9, 0.5].map((w, j) => (
-                <div key={j} className="h-[0.18vw] rounded-full mb-[0.4vw]" style={{ background: 'rgba(255,255,255,0.15)', width: `${w * 100}%` }} />
-              ))}
-              <div className="mt-[1vw] h-[0.25vw] rounded-full mb-[0.4vw]" style={{ background: tmpl.accent, width: '45%', opacity: 0.6 }} />
-              {[0.8, 0.6, 0.75].map((w, j) => (
-                <div key={j} className="h-[0.18vw] rounded-full mb-[0.4vw]" style={{ background: 'rgba(255,255,255,0.12)', width: `${w * 100}%` }} />
-              ))}
+            AI career tools
+          </motion.p>
+          <motion.h2
+            className="font-bold leading-tight"
+            style={{ fontSize: '3.2vw', color: text, fontFamily: 'Playfair Display, serif' }}
+            initial={{ opacity: 0, x: -10 }}
+            animate={phase >= 2 ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
+            transition={{ duration: 0.55, delay: 0.08 }}
+          >
+            One profile.<br />
+            <span style={{ color: '#C9A84C' }}>Every tool.</span>
+          </motion.h2>
+        </div>
+      </motion.div>
+
+      {/* 4x3 tools grid */}
+      <div className="grid w-full max-w-[88vw]" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.9vw' }}>
+        {tools.map((tool, i) => (
+          <motion.div
+            key={tool.num}
+            className="rounded-lg px-[1.1vw] py-[1vh] flex items-center gap-[0.7vw]"
+            style={{ background: cardBg, border: `1px solid ${cardBorder}` }}
+            initial={{ opacity: 0, y: 14, scale: 0.94 }}
+            animate={visibleTools > i ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.94 }}
+            transition={{ duration: 0.35, type: 'spring', stiffness: 320, damping: 22 }}
+          >
+            {/* color accent bar */}
+            <div className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ background: tool.color, minHeight: '3.2vh' }} />
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-[0.35vw]">
+                <span className="text-[0.6vw] font-bold" style={{ color: tool.color, fontFamily: 'DM Sans, sans-serif', opacity: 0.7 }}>{tool.num}</span>
+                <span className="text-[0.78vw] font-bold truncate" style={{ color: text, fontFamily: 'DM Sans, sans-serif' }}>{tool.name}</span>
+              </div>
+              <span className="text-[0.62vw] leading-tight" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>{tool.desc}</span>
             </div>
           </motion.div>
         ))}
-        <div style={{ position: 'relative', zIndex: 5 }}>
-          <ScoreGauge target={94} active={phase >= 2} />
-        </div>
       </div>
 
-      <motion.p
-        className="text-[1.6vw] font-semibold text-center -mt-[2vh]"
-        style={{ color: text, fontFamily: 'Playfair Display, serif', position: 'relative', zIndex: 10 }}
-        initial={{ opacity: 0 }}
-        animate={phase >= 3 ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 0.6 }}
+      {/* Bottom tagline */}
+      <motion.div
+        className="mt-[2.5vh] flex items-center gap-[1.2vw]"
+        initial={{ opacity: 0, y: 10 }}
+        animate={phase2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       >
-        35 templates.{' '}
-        <span style={{ color: '#C9A84C' }}>Real ATS scores.</span>
-      </motion.p>
+        <div className="h-[1px] w-[6vw]" style={{ background: 'rgba(201,168,76,0.3)' }} />
+        <p className="text-[1.1vw] font-semibold text-center" style={{ color: subtext, fontFamily: 'DM Sans, sans-serif' }}>
+          Fill your profile <span style={{ color: '#C9A84C' }}>once</span> — every tool uses it.{' '}
+          <span style={{ color: text }}>No repeating yourself. Ever.</span>
+        </p>
+        <div className="h-[1px] w-[6vw]" style={{ background: 'rgba(201,168,76,0.3)' }} />
+      </motion.div>
     </motion.div>
   );
 }
