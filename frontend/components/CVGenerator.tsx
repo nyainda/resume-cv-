@@ -3150,8 +3150,11 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                       : 'text-emerald-600 dark:text-emerald-400'
                   }`}>
                     {pageCount === 1 ? '✓ Fits 1 page' : `Page count: ${pageCount}`}
+                    {STRICT_ONE_PAGE_TEMPLATES.includes(template) && spacingLevel > 0 && density === 1
+                      ? ` · spacing ↓`
+                      : null}
                     {STRICT_ONE_PAGE_TEMPLATES.includes(template) && density < 1
-                      ? ` · zoom ${Math.round(density * 100)}%`
+                      ? `${spacingLevel > 0 ? ' · spacing ↓' : ''} · zoom ${Math.round(density * 100)}%`
                       : null}
                   </span>
                 </div>

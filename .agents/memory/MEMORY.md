@@ -1,4 +1,4 @@
-- [One-Page Fit density loop](one-page-fit-density-loop.md) — CSS zoom on sidebar template root; DENSITY_STEPS [1..0.85]; ResizeObserver drives convergence; CVData.density persists; no calc() needed.
+- [One-Page Fit two-phase compression](one-page-fit-density-loop.md) — Phase 1: spacing (secGap/entryGap/lh) via spacingLevel 0–3; Phase 2: CSS zoom 1→0.85. Single compressionStep index into COMPRESSION_STEPS (8 steps). CVData.density+spacingLevel persisted.
 - [Ghost slot tombstone pattern](ghost-slot-tombstone.md) — local slot absent from D1: prevSyncTs===0 → push (new); prevSyncTs>0 → honor remote delete. Applies in BOTH runD1MergeSync branches (empty-D1 early exit + main loop).
 - [Slot poller and timestamp units](slot-poller-timestamp-units.md) — D1 updated_at is unix seconds; getLastSyncTimestamp() is ms — always multiply seconds×1000 before comparing. Poller architecture also documented here.
 - [Auth 401 session expiry](auth-401-session-expiry.md) — Worker 401s fire CustomEvent('procv:session-expired'); AuthContext listener runs full sign-out cleanup to unblock split-brain "logged in but 401" state.
