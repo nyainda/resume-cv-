@@ -10,6 +10,7 @@ import {
   getClaudeModel, setClaudeModel, getGeminiModel, setGeminiModel,
   CLAUDE_MODEL_OPTIONS, GEMINI_MODEL_OPTIONS,
 } from '../services/groqService';
+import { rewarmCVEngineModels } from '../services/cvEngineClient';
 import { setRuntimeKeys } from '../services/security/RuntimeKeys';
 import { usePremiumGate } from '../hooks/usePremiumGate';
 import { PremiumUpgradeModal } from './premium/PremiumUpgradeModal';
@@ -89,6 +90,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
   }, [selectedAiProvider, claudeKey, geminiKey]);
 
   useEffect(() => { setProviderTest({ status: 'idle' }); }, [selectedAiProvider, claudeKey, geminiKey]);
+
+  // ── Wake AI models (Workers AI warm-up) ────────────────────────────────
+  type WakeState = { status: 'idle' | 'waking' | 'ok' | 'fail'; message?: string };
+  const [wakeStatus, setWakeStatus] = useState<WakeState>({ status: 'idle' });
+
+  const handleWakeModels = useCallback(async () => {
+    setWakeStatus({ status: 'waking' });
+    try {
+      const results = await rewarmCVEngineModels();
+      const okCount = results.filter((r) => r.ok).length;
+      if (results.length === 0) {
+        setWakeStatus({ status: 'fail', message: 'Workers AI is not configured.' });
+      } else if (okCount === results.length) {
+        setWakeStatus({ status: 'ok', message: `All ${okCount} models are warm.` });
+      } else if (okCount > 0) {
+        setWakeStatus({ status: 'ok', message: `${okCount}/${results.length} models warm — retry if imports still fail.` });
+      } else {
+        setWakeStatus({ status: 'fail', message: 'Models are still cold — wait a moment and try again.' });
+      }
+    } catch (e: any) {
+      setWakeStatus({ status: 'fail', message: e?.message || 'Wake-up failed.' });
+    }
+  }, []);
 
   useEffect(() => {
     setGeminiKey(currentApiSettings.apiKey || '');
@@ -357,6 +381,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, 
                             <span className="text-[10px] text-zinc-400 dark:text-zinc-500">— system prompt cached between runs, 90% cheaper on repeats</span>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Wake AI models — Workers AI has no key, just a warm-up trigger */}
+                    {active && opt.id === 'workers-ai' && (
+                      <div className="space-y-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            onClick={handleWakeModels}
+                            disabled={wakeStatus.status === 'waking'}
+                            className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white"
+                          >
+                            {wakeStatus.status === 'waking' ? 'Waking…' : 'Wake AI models now'}
+                          </Button>
+                          {wakeStatus.status === 'ok' && (
+                            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">✓ {wakeStatus.message}</span>
+                          )}
+                          {wakeStatus.status === 'fail' && (
+                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">✗ {wakeStatus.message}</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                          Free Cloudflare models can go cold after a few minutes idle — the first request after that may come back empty. Click this to warm them up before importing or generating.
+                        </p>
                       </div>
                     )}
 
