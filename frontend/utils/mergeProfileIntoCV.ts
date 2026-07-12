@@ -150,13 +150,18 @@ export function mergeProfileIntoCV(
           s.items.some((i) => i.title.trim().length > 0),
         )
       : currentCV.customSections,
-    // certifications and achievements are always derived from customSections
-    // (profileToCV extracts them from there). They must NEVER be inherited
-    // from the old CVData via the ...currentCV spread — doing so causes stale
-    // AI-generated or import-misclassified values to persist across profile
-    // edits even after the user has removed or never had those sections.
-    certifications: fromProfile.certifications,
-    achievements:   fromProfile.achievements,
+    // certifications and achievements are derived from customSections in the
+    // profile (profileToCV promotes them). Follow the same "only update when
+    // changed" rule as every other field: if the user edited the cert/achieve
+    // custom sections → take the new profile value; if they didn't → keep
+    // currentCV so inline CV edits (e.g. correcting a cert name directly in
+    // the template) survive a profile save that touched unrelated fields.
+    certifications: customSectionsChanged
+      ? fromProfile.certifications
+      : currentCV.certifications,
+    achievements: customSectionsChanged
+      ? fromProfile.achievements
+      : currentCV.achievements,
     sectionOrder: newProfile.sectionOrder,
   };
 }

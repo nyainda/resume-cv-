@@ -38,15 +38,30 @@ export function profileToCV(profile: UserProfile): CVData {
 
   const customSections: CustomSection[] = profile.customSections || [];
 
+  // Dedup sets — the AI import sometimes violates its own rules and puts
+  // language names or skill strings inside a certifications custom section.
+  // Guard against those misclassifications propagating into CVData fields.
+  const languageNames = new Set(
+    (profile.languages || []).map(l => String(l?.name || '').trim().toLowerCase()).filter(Boolean)
+  );
+  const skillNames = new Set(
+    normalisedSkills.map(s => s.trim().toLowerCase()).filter(Boolean)
+  );
+
   // ── Extract certifications from customSections (type='certifications') ──────
   const certSections = customSections.filter(s => s.type === 'certifications');
   const certifications = certSections.length > 0
     ? certSections.flatMap(s =>
-        s.items.map(item => ({
-          name:   item.title,
-          issuer: item.subtitle || undefined,
-          year:   item.year    || undefined,
-        }))
+        s.items
+          .filter(item => {
+            const t = String(item.title || '').trim().toLowerCase();
+            return t && !languageNames.has(t) && !skillNames.has(t);
+          })
+          .map(item => ({
+            name:   item.title,
+            issuer: item.subtitle || undefined,
+            year:   item.year    || undefined,
+          }))
       ).filter(c => c.name)
     : undefined;
 
@@ -54,12 +69,17 @@ export function profileToCV(profile: UserProfile): CVData {
   const achieveSections = customSections.filter(s => s.type === 'achievements' || s.type === 'awards');
   const achievements = achieveSections.length > 0
     ? achieveSections.flatMap(s =>
-        s.items.map(item => {
-          const parts = [item.title];
-          if (item.subtitle) parts.push(item.subtitle);
-          if (item.year)     parts.push(`(${item.year})`);
-          return parts.filter(Boolean).join(' — ');
-        })
+        s.items
+          .filter(item => {
+            const t = String(item.title || '').trim().toLowerCase();
+            return t && !languageNames.has(t);
+          })
+          .map(item => {
+            const parts = [item.title];
+            if (item.subtitle) parts.push(item.subtitle);
+            if (item.year)     parts.push(`(${item.year})`);
+            return parts.filter(Boolean).join(' — ');
+          })
       ).filter(Boolean)
     : undefined;
 
