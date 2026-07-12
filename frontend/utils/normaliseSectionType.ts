@@ -47,6 +47,13 @@ const LABEL_PATTERNS: Array<[RegExp, CustomSectionType]> = [
   // ── Courses / Training / Professional Development ─────────────────────────
   [/course|training|workshop|bootcamp|continuing ed|professional dev|e.?learning|mooc|upskill|short programme|adult ed/i, 'courses'],
 
+  // ── Languages — must come BEFORE memberships; "language" contains no member-
+  //    like words but a label mismatch would otherwise fall through to memberships.
+  //    Languages should never live in customSections (dedicated field exists), so
+  //    we route any stray entry to 'custom' as a safe catch-all rather than a
+  //    semantically wrong type.
+  [/^languages?$|^language proficiency$|^language skills?$/i, 'custom'],
+
   // ── Memberships / Affiliations ────────────────────────────────────────────
   [/member|affiliat|associat|society|institution|board|committee|network|chapter|professional body/i, 'memberships'],
 

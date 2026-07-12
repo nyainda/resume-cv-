@@ -3661,6 +3661,21 @@ export const extractProfileTextFromFile = async (base64Data: string, mimeType: s
 };
 
 /**
+ * Shared extraction rule #1 used by all three file-import prompts below.
+ *
+ * IMPORTANT: languages must be called out as going to the dedicated `languages`
+ * field, not to customSections. The original single-sentence form lumped
+ * "languages" in with the extras list, causing the model to map it to the
+ * nearest CustomSectionType — which is 'memberships'.
+ */
+const EXTRACTION_RULE_LANGUAGES =
+    '1. Extract work experience, education, skills, projects, and personal info.' +
+    ' Languages go in the dedicated `languages` field — NEVER in customSections.' +
+    ' Also extract any extras such as certifications, licences, awards, honours,' +
+    ' publications, patents, volunteer work, memberships, presentations, courses,' +
+    ' training, hobbies, and interests — map those extras to customSections.';
+
+/**
  * Parse a UserProfile from a file (PDF/image).
  * Priority: Claude (multimodal, 200 K ctx) → Gemini 2.5 Flash.
  * Named "WithGemini" for backward-compat; Claude is now the primary path.
@@ -3683,7 +3698,7 @@ export const generateProfileFromFileWithGemini = async (
         Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
 
         ### CRITICAL EXTRACTION RULES
-        1. Extract ALL sections: work experience, education, skills, projects, personal info, languages, AND any extras such as certifications, licences, awards, honours, publications, patents, volunteer work, memberships, presentations, courses, training, hobbies, interests. Map extras to customSections.
+        ${EXTRACTION_RULE_LANGUAGES}
         2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet point.
         3. Preserve EVERY skill listed — do NOT drop any.
         4. Standardize all dates to 'YYYY-MM-DD'. First day of month/year if only month/year given. Current roles → endDate = 'Present'.
@@ -3738,7 +3753,7 @@ export const generateProfileFromFileClaude = async (
         Your ONLY job is to extract EVERY piece of information visible — nothing more, nothing less.
 
         ### CRITICAL EXTRACTION RULES
-        1. Extract ALL sections: work experience, education, skills, projects, personal info, languages, AND any extras such as certifications, licences, awards, honours, publications, patents, volunteer work, memberships, presentations, courses, training, hobbies, interests. Map extras to customSections.
+        ${EXTRACTION_RULE_LANGUAGES}
         2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet point.
         3. Preserve EVERY skill listed — do NOT drop any.
         4. Standardize all dates to 'YYYY-MM-DD'. First day of month/year if only month/year given. Current roles → endDate = 'Present'.
@@ -3787,7 +3802,7 @@ export const generateProfileFromTextWithGemini = async (
         ${githubInstruction}
 
         ### CRITICAL EXTRACTION RULES
-        1. Extract ALL sections: work experience, education, skills, projects, personal info, languages, AND any extras (certifications, licences, awards, honours, publications, patents, volunteer work, memberships, presentations, courses, training, hobbies, interests). Map extras to customSections.
+        ${EXTRACTION_RULE_LANGUAGES}
         2. Preserve ALL responsibility bullets in full — do NOT summarise, paraphrase, or drop any bullet.
         3. Preserve EVERY skill listed — do NOT drop any.
         4. Standardize all dates to 'YYYY-MM-DD'. Current roles: endDate = 'Present'.
