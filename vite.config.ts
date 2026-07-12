@@ -58,13 +58,17 @@ export default defineConfig(() => {
           proxyTimeout: 15000,
         },
         // Proxy CF engine worker calls to avoid CORS (Replit origin not in worker's ALLOWED_ORIGINS)
+        // 95s — must stay above WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS (90s) in
+        // cvEngineClient.ts, or this proxy kills the connection before the
+        // client's own timeout ever gets a chance to fire. The free-tier
+        // parser model can genuinely take 60s+ under load.
         '/cf-engine': {
           target: 'https://cv-engine-worker.dripstech.workers.dev',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/cf-engine/, ''),
           secure: true,
-          timeout: 60000,
-          proxyTimeout: 60000,
+          timeout: 95000,
+          proxyTimeout: 95000,
         },
       },
     },

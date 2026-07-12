@@ -2265,13 +2265,24 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     const provider = getSelectedProvider();
 
     if (provider === 'workers-ai') {
-        // Workers AI explicitly selected — use it only, never fall back to Groq
-        const cf = await workerTieredLLM('parser', prompt, {
+        // Workers AI explicitly selected — use it only, never fall back to Groq.
+        // Parsing a full CV on the free tier's mistral-small model can take
+        // 25-60s+ under load — give it real headroom (90s, matches the client
+        // default) instead of aborting early and mislabeling a slow response
+        // as an "empty" one.
+        const parserOpts = {
             system: SYSTEM_INSTRUCTION_PARSER,
             temperature: 0.1,
             json: true,
             maxTokens: 4096,
-        });
+            timeoutMs: 90_000,
+        };
+        let cf = await workerTieredLLM('parser', prompt, parserOpts);
+        if (!cf?.trim()) {
+            // One silent retry — a single cold/slow call shouldn't surface the
+            // scary error immediately when a second attempt often succeeds.
+            cf = await workerTieredLLM('parser', prompt, parserOpts);
+        }
         if (!cf?.trim()) {
             throw new Error('Workers AI returned an empty response. The model may be warming up — please try again, or click "Wake AI models" in Settings.');
         }

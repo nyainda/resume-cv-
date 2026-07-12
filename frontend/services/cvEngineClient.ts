@@ -850,7 +850,13 @@ export interface WorkerTieredLLMResult {
     free: boolean;
 }
 
-const WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS = 45000;
+// 90s — measured real-world latency on the free tier's mistral-small-3.1-24b
+// model for larger tasks (e.g. the CV import parser) ranges from ~25s up to
+// 59s+ under load, well past the old 45s cutoff. Cloudflare Workers don't
+// bill/limit wall-clock time spent awaiting an AI response, so it's safe to
+// wait this long — the risk was always the client giving up too early and
+// showing a scary "empty response" error while the model was still working.
+const WORKER_TIERED_LLM_DEFAULT_TIMEOUT_MS = 90000;
 
 export async function workerTieredLLM(
     task: string,
