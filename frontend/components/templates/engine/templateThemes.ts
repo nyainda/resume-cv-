@@ -31,6 +31,9 @@ export interface TemplateTheme {
   sectionSize: string;
   sectionWeight: string;
   sectionDecoration: 'underline' | 'border-left' | 'bar-bg' | 'caps-line' | 'double-rule' | 'none';
+  /** When true, renders Core Skills immediately after the summary — before work history.
+   *  Mirrors the section priority of modern ATS scorecards and suits career-changers. */
+  skillsFirst?: boolean;
   sectionBorderColor: string;
 
   tagBg: string;
@@ -551,6 +554,110 @@ export const THEMES: TemplateTheme[] = [
     bulletChar: '–', borderColor: '#E5E7EB',
     atsScore: 'high', bestFor: 'Any industry — sophisticated and universally readable',
     description: 'Graphite-grey accent on clean white, DM Sans throughout. Sophisticated neutrality — works for any role without saying too much.',
+  },
+  // ── SWE VIVID ────────────────────────────────────────────────────────────────
+  // Dark purple/indigo dark-mode — distinct from swe-neon (cyan sidebar) and tokyo-night
+  {
+    id: 'swe-vivid',
+    name: 'SWE Vivid',
+    layout: 'single-col',
+    category: 'Technical',
+    headerBg: '#1e1b4b', headerText: '#f5f3ff', headerPadding: '24px 28px 20px',
+    headerNameSize: '24px', headerNameWeight: '800', headerTitleColor: '#a5b4fc',
+    accent: '#8b5cf6', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#0f0d1a', bodyText: '#e2e0f9', bodyMuted: '#9d9bc4',
+    sectionColor: '#8b5cf6', sectionSize: '10px', sectionWeight: '800',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#8b5cf6',
+    tagBg: '#8b5cf614', tagText: '#c4b5fd', tagBorder: '#8b5cf644', tagRadius: '4px',
+    fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
+    bulletChar: '▸', borderColor: '#8b5cf622',
+    atsScore: 'low', bestFor: 'Creative tech roles, startups, product engineering',
+    description: 'Deep indigo-purple background with vivid violet accents. A bold dark-mode statement for engineers who want their CV to stand out.',
+  },
+  // ── SWE IMPACT ────────────────────────────────────────────────────────────────
+  // High-contrast black canvas, vivid orange — maximum visual authority for senior engineers
+  {
+    id: 'swe-impact',
+    name: 'SWE Impact',
+    layout: 'single-col',
+    category: 'Technical',
+    accentBar: '#f97316',
+    headerBg: '#09090b', headerText: '#fafafa', headerPadding: '26px 32px 20px',
+    headerNameSize: '28px', headerNameWeight: '900', headerTitleColor: '#f97316',
+    accent: '#f97316', accentContrast: '#09090b',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#09090b', bodyText: '#e4e4e7', bodyMuted: '#71717a',
+    sectionColor: '#f97316', sectionSize: '10px', sectionWeight: '800',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#f97316',
+    tagBg: '#f9731614', tagText: '#fb923c', tagBorder: '#f9731644', tagRadius: '3px',
+    fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
+    bulletChar: '›', borderColor: '#27272a',
+    atsScore: 'low', bestFor: 'Senior engineers, tech leads, open-source contributors',
+    description: 'Pure black canvas with vivid orange impact. Maximum visual authority — built for engineers whose achievements deserve the spotlight.',
+  },
+  // ── ATS MAXIMUM ──────────────────────────────────────────────────────────────
+  // Zero colour, Arial, classic bullets — engineered for the most aggressive ATS parsers
+  {
+    id: 'v2-ats-max',
+    name: 'ATS Maximum',
+    layout: 'single-col',
+    category: 'Professional',
+    headerBg: '#ffffff', headerText: '#000000', headerPadding: '24px 32px 16px',
+    headerNameSize: '22px', headerNameWeight: '700', headerTitleColor: '#000000',
+    accent: '#000000', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#000000', bodyMuted: '#444444',
+    sectionColor: '#000000', sectionSize: '10px', sectionWeight: '700',
+    sectionDecoration: 'underline', sectionBorderColor: '#000000',
+    tagBg: '#f5f5f5', tagText: '#000000', tagBorder: '#d4d4d4', tagRadius: '2px',
+    fontHeading: "Arial, 'Helvetica Neue', sans-serif", fontBody: "Arial, 'Helvetica Neue', sans-serif",
+    bulletChar: '•', borderColor: '#000000',
+    atsScore: 'high', bestFor: 'Large-company ATS — Workday, Greenhouse, Taleo, iCIMS, Lever',
+    description: 'Zero colour. Arial. Classic bullets. Engineered for the most aggressive ATS parsers — when getting past the machine is the only priority.',
+  },
+  // ── SKILLS FIRST ─────────────────────────────────────────────────────────────
+  // Leads with Core Skills before Experience — matches how modern ATS scorecards rank
+  {
+    id: 'v2-skills-first',
+    name: 'Skills First',
+    layout: 'single-col',
+    category: 'Professional',
+    skillsFirst: true,
+    accentBar: '#0d9488',
+    headerBg: '#ffffff', headerText: '#0f172a', headerPadding: '24px 32px 18px',
+    headerNameSize: '26px', headerNameWeight: '700', headerTitleColor: '#0d9488',
+    accent: '#0d9488', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#1e293b', bodyMuted: '#64748b',
+    sectionColor: '#0f172a', sectionSize: '10px', sectionWeight: '700',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#0d9488',
+    tagBg: '#f0fdfa', tagText: '#0d9488', tagBorder: '#99f6e4', tagRadius: '4px',
+    fontHeading: "'Inter', sans-serif", fontBody: "'Inter', sans-serif",
+    bulletChar: '◆', borderColor: '#e2e8f0',
+    atsScore: 'high', bestFor: 'Career changers, technical roles, skills-led hiring',
+    description: 'Leads with Core Skills before work history — mirrors how ATS scorecards rank candidates. Teal accent on clean white. Ideal for career changers.',
+  },
+  // ── CAREER STARTER ───────────────────────────────────────────────────────────
+  // Fresh green, spacious, centred header — graduates and career changers
+  {
+    id: 'v2-starter',
+    name: 'Career Starter',
+    layout: 'single-col',
+    category: 'Professional',
+    headerBg: '#f0fdf4', headerText: '#14532d', headerPadding: '28px 36px 22px',
+    headerNameSize: '28px', headerNameWeight: '700', headerTitleColor: '#16a34a',
+    headerAlign: 'center',
+    accent: '#16a34a', accentContrast: '#ffffff',
+    sidebarBg: '', sidebarText: '', sidebarMuted: '', sidebarWidth: '0',
+    bodyBg: '#ffffff', bodyText: '#1a2e1a', bodyMuted: '#4b7a4b',
+    sectionColor: '#14532d', sectionSize: '10px', sectionWeight: '700',
+    sectionDecoration: 'caps-line', sectionBorderColor: '#16a34a',
+    tagBg: '#f0fdf4', tagText: '#166534', tagBorder: '#bbf7d0', tagRadius: '4px',
+    fontHeading: "'DM Sans', sans-serif", fontBody: "'DM Sans', sans-serif",
+    bulletChar: '•', borderColor: '#dcfce7',
+    atsScore: 'high', bestFor: 'Graduates, career changers, first professional role',
+    description: 'Fresh green header, spacious layout, projects given full weight. Designed for early-career candidates where education and projects speak louder than long work history.',
   },
   {
     id: 'v2-crimson',

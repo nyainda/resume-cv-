@@ -486,7 +486,10 @@ export type TemplateName =
   | 'v2-bold'
   | 'v2-modern-blue'
   | 'v2-graphite'
-  | 'v2-crimson';
+  | 'v2-crimson'
+  | 'v2-ats-max'
+  | 'v2-skills-first'
+  | 'v2-starter';
 
 // ── Sidebar section visibility (Sidebar Section Picker) ──────────────────────
 // Controls which auto-generated sidebar fillers appear in templates that have
@@ -589,6 +592,9 @@ export const templateDisplayNames: Record<TemplateName, string> = {
   'v2-modern-blue': 'Modern Indigo',
   'v2-graphite': 'Graphite Clean',
   'v2-crimson': 'Crimson Elite',
+  'v2-ats-max': 'ATS Maximum',
+  'v2-skills-first': 'Skills First',
+  'v2-starter': 'Career Starter',
   'custom': 'My Custom',
 };
 

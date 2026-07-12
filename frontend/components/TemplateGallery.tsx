@@ -15,6 +15,7 @@ interface TemplateGalleryProps {
 
 const templateCategories: Record<string, TemplateName[]> = {
   'Professional': [
+    'v2-ats-max', 'v2-skills-first', 'v2-starter',
     'v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy',
     'v2-harvard', 'v2-warm', 'v2-crimson',
     'professional', 'standard-pro', 'ats-clean-pro', 'corporate', 'london-finance',
@@ -29,7 +30,8 @@ const templateCategories: Record<string, TemplateName[]> = {
   ],
   'Technical': [
     'v2-modern-blue', 'v2-terminal', 'v2-noir',
-    'swe-elite', 'swe-clean', 'software-engineer', 'technical',
+    'swe-elite', 'swe-clean', 'swe-neon', 'swe-vivid', 'swe-impact',
+    'software-engineer', 'technical',
   ],
   'Creative': [
     'v2-editorial', 'v2-coral',
@@ -71,13 +73,14 @@ interface FeaturedPick {
 }
 
 const FEATURED_PICKS: FeaturedPick[] = [
+  { template: 'v2-ats-max',       badge: '🛡️ Max ATS Safety',  badgeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-200',     bestFor: 'Workday, Greenhouse, Taleo'    },
   { template: 'v2-classic-pro',   badge: '⭐ Most Trusted',   badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',     bestFor: 'Any professional role'         },
   { template: 'v2-harvard',       badge: '🏛️ Harvard Style',  badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',         bestFor: 'Consulting, law & finance'     },
-  { template: 'v2-pro',           badge: '🎯 ATS #1',          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300', bestFor: 'Corporate & tech hiring'    },
+  { template: 'v2-pro',           badge: '🎯 ATS Safe',        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300', bestFor: 'Corporate & tech hiring'    },
   { template: 'v2-modern-blue',   badge: '💻 Best for Tech',   badgeColor: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',             bestFor: 'SWE, product & data science'   },
-  { template: 'v2-slate-sidebar', badge: '⚡ Modern Pro',      badgeColor: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300', bestFor: 'Management & operations'       },
+  { template: 'v2-skills-first',  badge: '🔑 Skills First',    badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',         bestFor: 'Career changers & switchers'   },
   { template: 'v2-gold-exec',     badge: '👑 Executive',       badgeColor: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bestFor: 'C-suite & senior leadership'   },
-  { template: 'v2-minimal',       badge: '✨ Ultra Clean',     badgeColor: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300', bestFor: 'Any industry'                  },
+  { template: 'v2-starter',       badge: '🎓 Career Starter',  badgeColor: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',     bestFor: 'Graduates & first roles'       },
   { template: 'v2-editorial',     badge: '🎨 Creative',        badgeColor: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',         bestFor: 'Design, media & marketing'     },
 ];
 
@@ -115,6 +118,8 @@ const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
   'v2-harvard': 'high', 'v2-warm': 'high', 'v2-bold': 'high',
   'v2-modern-blue': 'high', 'v2-graphite': 'high',
   'v2-steel': 'medium', 'v2-teal': 'medium', 'v2-crimson': 'medium',
+  // V2 gap-fills
+  'v2-ats-max': 'high', 'v2-skills-first': 'high', 'v2-starter': 'high',
 };
 
 const atsConfig = {
@@ -231,7 +236,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
             Choose Template
           </Label>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {activeCategory === 'Featured' && !searchQuery ? '8 expert-curated picks — one for every career goal' : `${activeCategory} templates`}
+            {activeCategory === 'Featured' && !searchQuery ? '9 expert-curated picks — one for every career goal' : `${activeCategory} templates`}
           </p>
         </div>
 
@@ -336,8 +341,8 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       {/* ── Featured picks view ────────────────────────────────────────────── */}
       {!searchQuery && activeCategory === 'Featured' && (
         <div className="space-y-4">
-          {/* 4-column picks grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-5">
+          {/* Featured picks grid — 3 cols on sm, 4 on md, 5 on lg to fit 9 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
             {FEATURED_PICKS.map(({ template, badge, badgeColor, bestFor }) => (
               <TemplateCard
                 key={template}
@@ -406,10 +411,10 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           <div className="flex gap-2.5">
             <span className="text-sm flex-shrink-0">💡</span>
             <div className="text-[11px] text-blue-700 dark:text-blue-300 space-y-0.5">
-              <p><strong>Harvard Classic</strong> — most trusted format for consulting, law, banking & top-tier firms.</p>
-              <p><strong>Clean Professional / Modern Indigo</strong> — highest ATS score. Safe for any corporate or tech role.</p>
-              <p><strong>Gold Executive / Crimson Elite</strong> — premium designs for senior, C-suite and leadership roles.</p>
-              <p><strong>Editorial Rose / Warm Coral</strong> — creative & marketing roles. Striking but less ATS-safe.</p>
+              <p><strong>ATS Maximum</strong> — zero colour, Arial font. Safest choice for Workday, Greenhouse, Taleo, and iCIMS.</p>
+              <p><strong>Skills First</strong> — puts Core Skills before work history. Best for career changers and technical roles.</p>
+              <p><strong>Harvard Classic / Clean Professional</strong> — most trusted formats for any professional or corporate role.</p>
+              <p><strong>Career Starter</strong> — spacious layout, projects prominent. Built for graduates and first professional roles.</p>
             </div>
           </div>
         </div>

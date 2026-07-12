@@ -819,26 +819,51 @@ const OnePageBoundary: React.FC = () => (
 );
 
 // ─── Layouts ──────────────────────────────────────────────────────────────────
-const LayoutSingleColumn: React.FC<LayoutProps> = (props) => (
-  <div style={{ background: props.theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
-    {props.cvData.onePage && <OnePageBoundary />}
-    <CVHeader pi={props.pi} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onUpdate={() => {}} />
-    <div style={{ padding: props.sc.bodyPad }}>
-      {/* Recruiter-expected order: Summary → Experience → Education → Skills → Projects → Extras */}
-      <SummarySection    cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
-      <ExperienceSection cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
-      <EducationSection  cvData={props.cvData} theme={props.theme} sc={props.sc} isEditing={props.isEditing} onChange={props.onChange} />
-      <SkillsSection        skills={props.cvData.skills} theme={props.theme} sc={props.sc} />
-      <ProjectsSection   cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <CustomSectionsBlock sections={(props.cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type))} theme={props.theme} sc={props.sc} />
-      <CertificationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <LanguagesSection     cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <AchievementsSection  cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <ReferencesSection   cvData={props.cvData} theme={props.theme} sc={props.sc} />
-      <PublicationsSection cvData={props.cvData} theme={props.theme} sc={props.sc} />
+const LayoutSingleColumn: React.FC<LayoutProps> = (props) => {
+  const { theme, cvData, sc, isEditing, onChange } = props;
+  const customSections = (cvData.customSections ?? []).filter(s => !PROMOTED_SECTION_TYPES.has(s.type));
+  // Shared tail sections (same for both orderings)
+  const TailSections = () => (
+    <>
+      <CustomSectionsBlock    sections={customSections} theme={theme} sc={sc} />
+      <CertificationsSection  cvData={cvData} theme={theme} sc={sc} />
+      <LanguagesSection       cvData={cvData} theme={theme} sc={sc} />
+      <AchievementsSection    cvData={cvData} theme={theme} sc={sc} />
+      <ReferencesSection      cvData={cvData} theme={theme} sc={sc} />
+      <PublicationsSection    cvData={cvData} theme={theme} sc={sc} />
+    </>
+  );
+  return (
+    <div style={{ background: theme.bodyBg, minHeight: '280mm', position: 'relative' }}>
+      {cvData.onePage && <OnePageBoundary />}
+      <CVHeader pi={props.pi} theme={theme} sc={sc} isEditing={isEditing} onUpdate={() => {}} />
+      <div style={{ padding: sc.bodyPad }}>
+        {theme.skillsFirst ? (
+          /* Skills-first order: Summary → Core Skills → Experience → Education → Projects → Extras
+             Used for career-change and skills-led hiring where ATS scorecard maps skills first. */
+          <>
+            <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <SkillsSection     skills={cvData.skills} theme={theme} sc={sc} />
+            <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <EducationSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} />
+            <TailSections />
+          </>
+        ) : (
+          /* Standard recruiter-expected order: Summary → Experience → Education → Skills → Projects → Extras */
+          <>
+            <SummarySection    cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <ExperienceSection cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <EducationSection  cvData={cvData} theme={theme} sc={sc} isEditing={isEditing} onChange={onChange} />
+            <SkillsSection     skills={cvData.skills} theme={theme} sc={sc} />
+            <ProjectsSection   cvData={cvData} theme={theme} sc={sc} />
+            <TailSections />
+          </>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const LayoutSidebarLeft: React.FC<LayoutProps> = (props) => {
   const split = computeSmartSplit(props.cvData);

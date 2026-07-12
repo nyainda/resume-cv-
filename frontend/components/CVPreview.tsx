@@ -37,7 +37,8 @@ import TemplateCompactSlate from './templates/TemplateCompactSlate';
 import TemplateCompactSage from './templates/TemplateCompactSage';
 import TemplateCompactCharcoal from './templates/TemplateCompactCharcoal';
 import TemplatePrestige from './templates/TemplatePrestige';
-
+import TemplateSWENeon from './templates/TemplateSWENeon';
+import TemplateSWEClean from './templates/TemplateSWEClean';
 
 interface CVPreviewProps {
   cvData: CVData;
@@ -139,6 +140,8 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
       case 'compact-sage':       return <TemplateCompactSage {...sidebarTemplateProps} />;
       case 'compact-charcoal':   return <TemplateCompactCharcoal {...sidebarTemplateProps} />;
       case 'prestige':           return <TemplatePrestige {...templateProps} />;
+      case 'swe-neon':           return <TemplateSWENeon {...templateProps} />;
+      case 'swe-clean':          return <TemplateSWEClean {...templateProps} />;
       default:                   return <TemplateProfessional {...templateProps} />;
     }
   };

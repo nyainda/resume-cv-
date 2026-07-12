@@ -57,7 +57,7 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
         style: { outline: 'none', borderBottom: '1px dashed rgba(34,211,238,0.4)', cursor: 'text' },
     } : {};
 
-    const accent = cvData.accentColor ?? accent;
+    const accent = cvData.accentColor ?? '#22d3ee';
     const cats = categorize(cvData.skills || []);
     const initials = (personalInfo.name || '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??';
 
