@@ -110,14 +110,18 @@ export function mergeProfileIntoCV(
         dates:     newExp.dates,
         startDate: newExp.startDate,
         endDate:   newExp.endDate,
+        location:  newExp.location,
       };
     }
-    // Bullets unchanged — keep AI version, just sync dates.
+    // Bullets unchanged — keep AI version, but sync all factual metadata
+    // (dates, location) so profile edits to those fields are never silently
+    // dropped even when the AI-polished bullets are preserved.
     return {
       ...prevCVExp,
       dates:     newExp.dates,
       startDate: newExp.startDate,
       endDate:   newExp.endDate,
+      location:  newExp.location,
     };
   });
 
@@ -150,18 +154,22 @@ export function mergeProfileIntoCV(
           s.items.some((i) => i.title.trim().length > 0),
         )
       : currentCV.customSections,
-    // certifications and achievements are derived from customSections in the
-    // profile (profileToCV promotes them). Follow the same "only update when
-    // changed" rule as every other field: if the user edited the cert/achieve
-    // custom sections → take the new profile value; if they didn't → keep
-    // currentCV so inline CV edits (e.g. correcting a cert name directly in
-    // the template) survive a profile save that touched unrelated fields.
+    // certifications, achievements, and publications are all derived from
+    // customSections in the profile (profileToCV promotes them). Follow the
+    // same "only update when changed" rule as every other field: if the user
+    // edited the relevant custom sections → take the new profile value; if
+    // they didn't → keep currentCV so inline CV edits (e.g. correcting a cert
+    // name directly in the template) survive a profile save that touched
+    // unrelated fields.
     certifications: customSectionsChanged
       ? fromProfile.certifications
       : currentCV.certifications,
     achievements: customSectionsChanged
       ? fromProfile.achievements
       : currentCV.achievements,
+    publications: customSectionsChanged
+      ? fromProfile.publications
+      : currentCV.publications,
     sectionOrder: newProfile.sectionOrder,
   };
 }
