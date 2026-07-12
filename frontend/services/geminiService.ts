@@ -1894,8 +1894,6 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
 
     // Preserve existing user-owned custom sections (awards/certifications if stored there).
     if (Array.isArray(profile.customSections) && profile.customSections.length > 0) {
-        cvData.customSections = profile.customSections;
-
         // Promote certifications / achievements / awards from customSections into
         // the dedicated CVData fields so custom templates can render them properly.
         // NOTE: 'memberships' was previously included in certSectionTypes, which
@@ -1908,21 +1906,47 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
         const certSectionTypes = new Set(['certifications', 'courses', 'presentations', 'patents']);
         const achieveSectionTypes = new Set(['achievements', 'awards', 'honors', 'volunteer']);
 
-        const certStrings: string[] = [];
-        const achieveStrings: string[] = [];
+        // Build dedup sets — the AI import sometimes violates its own rules and puts
+        // language names or skill names inside a certifications custom section.
         const languageNames = new Set(
             (profile.languages || []).map(l => String(l?.name || '').trim().toLowerCase()).filter(Boolean)
         );
+        // Skills normalised for cert-section dedup (skills mis-labelled as certs is
+        // the most common import artefact — same text appears in both sections).
+        const skillNames = new Set(
+            (profile.skills || []).map(s => String(s || '').trim().toLowerCase()).filter(Boolean)
+        );
 
-        for (const section of profile.customSections) {
+        // Clean the customSections BEFORE storing them so the template renderer
+        // also sees filtered data (the promotion loop below iterates the cleaned copy).
+        const cleanedSections = profile.customSections.map(section => {
+            if (!certSectionTypes.has(section.type) && !achieveSectionTypes.has(section.type)) {
+                return section;
+            }
+            const cleanedItems = (section.items || []).filter(item => {
+                const titleNorm = String(item.title || '').trim().toLowerCase();
+                if (!titleNorm) return false;
+                // Drop language names that leaked into cert/achieve sections
+                if (languageNames.has(titleNorm)) return false;
+                // Drop skill items that were mis-classified as certifications
+                if (certSectionTypes.has(section.type) && skillNames.has(titleNorm)) return false;
+                return true;
+            });
+            return { ...section, items: cleanedItems };
+        // Drop sections that are now empty after filtering
+        }).filter(s => (s.items?.length ?? 0) > 0);
+
+        cvData.customSections = cleanedSections;
+
+        const certStrings: string[] = [];
+        const achieveStrings: string[] = [];
+
+        for (const section of cleanedSections) {
             const t = section.type;
             const isCert = certSectionTypes.has(t);
             const isAchieve = achieveSectionTypes.has(t);
             if (!isCert && !isAchieve) continue;
             for (const item of (section.items || [])) {
-                // Guard against a language item leaking into a mis-typed customSection
-                // and getting duplicated into certifications/achievements.
-                if (languageNames.has(String(item.title || '').trim().toLowerCase())) continue;
                 const parts = [item.title, item.subtitle, item.year].filter(Boolean);
                 const line = parts.join(' · ');
                 if (isCert) certStrings.push(line);
