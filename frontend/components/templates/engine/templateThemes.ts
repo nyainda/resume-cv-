@@ -687,3 +687,66 @@ export const V2_TEMPLATE_IDS = THEMES.map(t => t.id) as string[];
 export function getTheme(id: string): TemplateTheme {
   return THEME_MAP[id] ?? THEMES[0];
 }
+
+// ─── Approved template accent palette ─────────────────────────────────────────
+// These 12 slots are the ONLY hex values permitted as template accent colours.
+// Layer 2 of the central-command governance plan: once all themes are normalised
+// to these values, `TemplateTheme.accent` can be retyped as `ApprovedTemplateColor`
+// and the compiler will reject any off-palette hex at build time.
+//
+// Mirrors the table in CLAUDE.md § "Approved template accent palette".
+export const APPROVED_TEMPLATE_COLORS = {
+  navy:     '#1B2B4B',  // classic professional, finance, law
+  cobalt:   '#1D4ED8',  // corporate tech, modern professional
+  teal:     '#0D9488',  // skills-first, career change, fresh
+  emerald:  '#16A34A',  // starter, graduate, career change
+  forest:   '#166634',  // academic, research, sustainability
+  amber:    '#B45309',  // academic, consulting, warmth
+  gold:     '#C9A84C',  // executive, prestige, luxury
+  crimson:  '#9F1239',  // editorial, creative, media
+  burgundy: '#6B2D3E',  // print-rich, literary, ink/parchment
+  graphite: '#374151',  // neutral, ATS-safe, any industry
+  indigo:   '#4338CA',  // tech-forward, SWE, product (CV only — NOT app chrome)
+  orange:   '#EA580C',  // high-contrast, bold, SWE impact
+} as const;
+
+/** Union of every value in APPROVED_TEMPLATE_COLORS.
+ *  Phase-2 target: retype `TemplateTheme.accent` as this once all themes
+ *  are normalised — the compiler will then reject off-palette hexes outright. */
+export type ApprovedTemplateColor =
+  (typeof APPROVED_TEMPLATE_COLORS)[keyof typeof APPROVED_TEMPLATE_COLORS];
+
+// ─── Legacy → V2 redirect map ─────────────────────────────────────────────────
+// Templates here were removed from the gallery (no new CVs use them) but
+// existing user CVs may still reference these IDs. Resolving to the nearest V2
+// equivalent gives those CVs computeSmartSplit and the density loop for free.
+//
+// CVPreview imports and applies this map BEFORE the V2_TEMPLATE_IDS check.
+// Governance tests can also import it to verify redirect targets exist.
+export const LEGACY_TEMPLATE_REDIRECTS: Record<string, string> = {
+  // Sidebar family
+  'navy-sidebar':       'v2-slate-sidebar',
+  'executive-sidebar':  'v2-gold-exec',
+  'photo-sidebar':      'v2-photo',
+  'twoColumnBlue':      'v2-slate-sidebar',
+  'compact-slate':      'v2-slate-sidebar',
+  'compact-sage':       'v2-sage',
+  'compact-charcoal':   'v2-gold-exec',
+  'modern-tech':        'v2-teal',
+  'swe-elite':          'v2-teal',
+  'scholarship-pro':    'v2-amber',
+  // Gray corporate single-col near-duplicates
+  'corporate':          'v2-graphite',
+  'elegant':            'v2-warm',
+  'modern':             'v2-pro',
+  'classic':            'v2-classic-pro',
+  'executive':          'v2-gold-exec',
+  'technical':          'v2-modern-blue',
+  'software-engineer':  'v2-modern-blue',
+  'compact':            'v2-minimal',
+  'standard-pro':       'v2-classic-pro',
+  // Navy/gold cluster
+  'prestige':           'v2-gold-exec',
+  'silicon-valley':     'v2-bold',
+  'sydney-creative':    'v2-editorial',
+};

@@ -2,6 +2,7 @@ import React from 'react';
 import { CVData, PersonalInfo, CustomSection, CustomSectionItem } from '../../../types';
 import HiddenATSKeywords from '../../HiddenATSKeywords';
 import { getTheme, TemplateTheme, ContentDensity, DensityScale, DENSITY_SCALES, applyFontScale } from './templateThemes';
+import { FONT_PAIRING_MAP } from './fontPairings';
 
 interface TemplateV2Props {
   cvData: CVData;

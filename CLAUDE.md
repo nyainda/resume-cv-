@@ -123,3 +123,11 @@ Do NOT invent a hex that isn't in this table. If a use case isn't covered, exten
    The completeness Vitest test (`frontend/components/__tests__/template-completeness.test.ts`) enforces rules 1 and 2 automatically — run it after any template change.
 
 4. **One source of truth.** `templateThemes.ts` is the design-token registry for all V2 templates. If you want to change a colour, font, or layout for a V2 theme, change it there — nowhere else.
+
+5. **Approved accent colours are enforced by type.** All template accent colours MUST come from `APPROVED_TEMPLATE_COLORS` in `templateThemes.ts`. The target type is `ApprovedTemplateColor` — once all themes are normalised the compiler will reject any off-palette hex. Until then, check the table in CLAUDE.md before picking a hex. If a use case isn't covered, extend the `APPROVED_TEMPLATE_COLORS` object and document it in the table above.
+
+6. **Legacy → V2 redirect map lives in `templateThemes.ts`.** When you remove a template from the gallery, add it to `LEGACY_TEMPLATE_REDIRECTS` (also in `templateThemes.ts`) instead of deleting it from `TemplateName` — existing user CVs that still reference the old ID will then automatically get the nearest V2 theme.
+
+7. **Font pairings are separate from theme fonts.** Per-CV font overrides are stored in `CVData.fontPairing` and resolved against `FONT_PAIRINGS` in `frontend/components/templates/engine/fontPairings.ts`. To add a new font pairing: (a) add it to `FONT_PAIRINGS`, (b) add its Google Fonts URL params to `frontend/index.html`. Do not add one-off font families to individual themes.
+
+8. **Run governance tests after any template change:** `npx vitest run templateGovernance template-completeness` — these catch duplicates, missing display names, invalid hex colours, and broken render paths before they reach the user.

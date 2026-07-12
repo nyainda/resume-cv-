@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect } from 'react';
 import V2ThemePicker from './V2ThemePicker';
+import FontPicker from './FontPicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
 import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
 import { getPageCount, COMPRESSION_STEPS } from '../utils/pageFit';
@@ -2779,6 +2780,18 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Font pairing */}
+            {currentCV && (
+              <FontPicker
+                value={currentCV.fontPairing}
+                onChange={(id) => {
+                  const cv = { ...currentCV, fontPairing: id };
+                  setCurrentCV(cv);
+                  syncCurrentCVToD1(cv);
+                }}
+              />
             )}
 
             {/* One-page mode */}

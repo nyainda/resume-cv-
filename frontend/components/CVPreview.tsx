@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../types';
 import { normalizeCVData } from '../utils/cvDataUtils';
 import TemplateV2 from './templates/engine/TemplateV2';
-import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
+import { V2_TEMPLATE_IDS, LEGACY_TEMPLATE_REDIRECTS } from './templates/engine/templateThemes';
 import TemplateModern from './templates/TemplateModern';
 import TemplateProfessional from './templates/TemplateProfessional';
 import TemplateMinimalist from './templates/TemplateMinimalist';
@@ -94,43 +94,7 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   // harmless because those components don't declare these props in their interfaces.
   const sidebarTemplateProps = { ...templateProps, sidebarSections, density, spacingLevel };
 
-  // ─── Legacy → V2 redirect map ───────────────────────────────────────────────
-  // Templates listed here were removed from the gallery (no new CVs can be saved
-  // with them) but existing user CVs may still reference these IDs. Redirecting
-  // them to their nearest V2 equivalent gives those CVs computeSmartSplit and the
-  // density loop for free, replacing silent truncation with data-aware routing.
-  //
-  // Visual delta is minimal — each target was chosen as the closest V2 theme by
-  // sidebar layout, accent colour, and overall tone. The legacy .tsx files and
-  // switch cases below are kept as dead-code fallback only.
-  const LEGACY_TEMPLATE_REDIRECTS: Partial<Record<string, string>> = {
-    // Cluster A — sidebar templates (hardcoded sections, no length-aware routing)
-    'navy-sidebar':       'v2-slate-sidebar',  // dark sidebar → slate sidebar
-    'executive-sidebar':  'v2-gold-exec',      // dark + gold → gold executive
-    'photo-sidebar':      'v2-photo',          // dark blue photo sidebar
-    'twoColumnBlue':      'v2-slate-sidebar',  // linear blue/slate split
-    'compact-slate':      'v2-slate-sidebar',  // slim slate sidebar
-    'compact-sage':       'v2-sage',           // sage sidebar ✓ exact
-    'compact-charcoal':   'v2-gold-exec',      // charcoal + gold accent
-    'modern-tech':        'v2-teal',           // dark sidebar + teal accent
-    'swe-elite':          'v2-teal',           // emerald/teal sidebar
-    'scholarship-pro':    'v2-amber',          // academic amber
-    // Cluster B — gray corporate single-col (near-duplicates of V2 themes)
-    'corporate':          'v2-graphite',
-    'elegant':            'v2-warm',
-    'modern':             'v2-pro',
-    'classic':            'v2-classic-pro',
-    'executive':          'v2-gold-exec',
-    'technical':          'v2-modern-blue',
-    'software-engineer':  'v2-modern-blue',
-    'compact':            'v2-minimal',
-    'standard-pro':       'v2-classic-pro',
-    // Cluster C — navy/gold
-    'prestige':           'v2-gold-exec',
-    'silicon-valley':     'v2-bold',
-    'sydney-creative':    'v2-editorial',
-  };
-
+  // LEGACY_TEMPLATE_REDIRECTS is imported from templateThemes — single source of truth.
   const renderTemplate = () => {
     // Resolve legacy IDs first — redirected templates render via V2 engine,
     // gaining computeSmartSplit and the density loop without any visual rework.
