@@ -23,9 +23,8 @@
 | 986 | `frontend/components/CoverLetterPreview.tsx` | 🟠 Components |
 | 970 | `frontend/components/JobAnalysis.tsx` | 🟡 Components |
 | 924 | `backend/cv-engine-worker/src/handlers/purify.ts` | 🟡 Worker |
-| 895 | `frontend/components/templates/TemplateCustomGenerated.tsx` | 🟡 Templates |
+| 1010 | `frontend/components/templates/engine/TemplateV2.tsx` | 🟡 Templates |
 | 881 | `frontend/components/CVToolkit.tsx` | 🟡 Components |
-| 880 | `frontend/components/templates/engine/TemplateV2.tsx` | 🟡 Templates |
 | 837 | `frontend/services/cvPromptHelpers.ts` | 🟡 Services |
 | 809 | `frontend/types.ts` | 🟡 Types |
 | 804 | `backend/cv-engine-worker/src/handlers/llm.ts` | 🟡 Worker |

@@ -85,3 +85,41 @@ NEVER create a 4th button type
 NEVER add box-shadow to cards
 ALWAYS use Playfair Display for h1/h2/h3 elements
 ALWAYS ask: does this look consistent with every other page?
+
+---
+
+## CV TEMPLATE RULES
+*(separate from the app palette — CV templates legitimately need more colour variety than the app chrome)*
+
+### Approved template accent palette — ONLY THESE 12 SLOTS
+
+| Name      | Hex       | Used for                              |
+|-----------|-----------|---------------------------------------|
+| Navy      | `#1B2B4B` | Classic professional, finance, law    |
+| Cobalt    | `#1D4ED8` | Corporate tech, modern professional   |
+| Teal      | `#0D9488` | Skills-first, career change, fresh    |
+| Emerald   | `#16A34A` | Starter, graduate, career change      |
+| Forest    | `#166634` | Academic, research, sustainability    |
+| Amber     | `#B45309` | Academic, consulting, warmth          |
+| Gold      | `#C9A84C` | Executive, prestige, luxury           |
+| Crimson   | `#9F1239` | Editorial, creative, media            |
+| Burgundy  | `#6B2D3E` | Print-rich, literary, ink/parchment   |
+| Graphite  | `#374151` | Neutral, ATS-safe, any industry       |
+| Indigo    | `#4338CA` | Tech-forward, SWE, product (CV only — NOT app chrome) |
+| Orange    | `#EA580C` | High-contrast, bold, SWE impact       |
+
+Do NOT invent a hex that isn't in this table. If a use case isn't covered, extend this table and document the addition here.
+
+### Hard rules — read these BEFORE touching anything in `frontend/components/templates/`
+
+1. **Check before creating.** Before writing any template code, list every existing `TemplateTheme` object in `frontend/components/templates/engine/templateThemes.ts`. If an existing theme is within one shade of what you're about to build — same layout, similar accent — reskin that theme instead of creating a new one.
+
+2. **V2 engine first.** New templates MUST be `TemplateTheme` objects consumed by `TemplateV2`. Do NOT create a new standalone `Template*.tsx` file unless the V2 engine genuinely cannot express the layout. If that happens, it is a signal to extend the engine, not bypass it. A new `.tsx` component file is always the last resort.
+
+3. **Wire it or don't ship it.** Every `TemplateName` union member in `types.ts` MUST have:
+   - A render path in `CVPreview.tsx` (either a `case` in the switch statement, or an entry in `V2_TEMPLATE_IDS` via `templateThemes.ts`)
+   - A display name in `templateDisplayNames`
+   - A category entry in `templateCategories` in `TemplateGallery.tsx`
+   The completeness Vitest test (`frontend/components/__tests__/template-completeness.test.ts`) enforces rules 1 and 2 automatically — run it after any template change.
+
+4. **One source of truth.** `templateThemes.ts` is the design-token registry for all V2 templates. If you want to change a colour, font, or layout for a V2 theme, change it there — nowhere else.
