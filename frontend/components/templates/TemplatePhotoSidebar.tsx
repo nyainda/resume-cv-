@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { getSpacingValues } from '../../utils/pageFit';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
+import { CVData, CVProject, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
@@ -298,7 +298,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
             return (
               <RightSection title="Highlights">
                 <ul className="space-y-0.5 list-disc list-outside ml-3.5">
-                  {visible.map((proj, index) => (
+                  {visible.map((proj: CVProject, index) => (
                     <li key={index} className="text-[11px] text-zinc-700 leading-snug">
                       <span className="font-semibold" {...editableProps(['projects', index, 'name'])}>{proj.name}:</span>{' '}
                       <span dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />

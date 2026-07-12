@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { getSpacingValues } from '../../utils/pageFit';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
+import { CVData, CVProject, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
 
 interface TemplateProps {
@@ -199,7 +199,7 @@ const TemplateModernTech: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 <section>
                   <h2 className="text-[10px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b border-gray-200" style={{ color: accent }}>Projects</h2>
                   <div className="space-y-1.5">
-                    {visible.map((proj, index) => (
+                    {visible.map((proj: CVProject, index) => (
                       <div key={index}>
                         <h3 className="text-[10px] font-semibold text-gray-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                         <p className="text-[11px] text-gray-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />

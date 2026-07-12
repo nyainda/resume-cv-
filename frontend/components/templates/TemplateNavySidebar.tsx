@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { getSpacingValues } from '../../utils/pageFit';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
+import { CVData, CVProject, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
@@ -279,7 +279,7 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                   Projects
                 </h2>
                 <div className="space-y-1.5">
-                  {visible.map((proj, index) => (
+                  {visible.map((proj: CVProject, index) => (
                     <div key={index}>
                       <p className="text-[10px] font-bold" {...editableProps(['projects', index, 'name'])}>{proj.name}</p>
                       <p className="text-[11px] text-zinc-600 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />

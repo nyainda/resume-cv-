@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { getSpacingValues } from '../../utils/pageFit';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
+import { CVData, CVProject, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
 
@@ -222,7 +222,7 @@ const TemplateTwoColumnBlue: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                 <section>
                   <h2 className="text-[10px] font-bold uppercase tracking-wider border-b-2 border-blue-100 pb-0.5 mb-1.5" style={{ color: accent }}>Projects</h2>
                   <div className="space-y-1.5">
-                    {visible.map((proj, index) => (
+                    {visible.map((proj: CVProject, index) => (
                       <div key={index}>
                         <h3 className="text-[10px] font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                         <p className="text-[11px] text-slate-700 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />

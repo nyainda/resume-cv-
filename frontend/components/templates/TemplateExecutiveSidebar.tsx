@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { getSpacingValues } from '../../utils/pageFit';
 import { smartBullets, smartProjects } from '../../utils/smartBullets';
 import HiddenATSKeywords from '../HiddenATSKeywords';
-import { CVData, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
+import { CVData, CVProject, PersonalInfo, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
 
@@ -306,7 +306,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
             return (
               <RightSection title="Highlights">
                 <ul className="space-y-0.5">
-                  {visible.map((proj, i) => (
+                  {visible.map((proj: CVProject, i) => (
                     <li key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-700 leading-snug">
                       <Dot />
                       <span>
