@@ -97,39 +97,29 @@ const FEATURED_PICKS: FeaturedPick[] = [
 // ─── ATS config ───────────────────────────────────────────────────────────────
 
 const photoSupportedTemplates: TemplateName[] = [
-  'modern', 'twoColumnBlue', 'creative', 'minimalist', 'classic',
-  'photo-sidebar', 'executive-sidebar',
+  'creative', 'minimalist',
   'v2-photo', 'v2-slate-sidebar', 'v2-gold-exec', 'v2-sage', 'v2-coral', 'v2-forest',
   'v2-teal', 'v2-steel', 'v2-crimson',
 ];
 
 const atsLevel: Record<TemplateName, 'high' | 'medium' | 'low'> = {
-  'standard-pro': 'high', 'ats-clean-pro': 'high', 'professional': 'high',
-  'classic': 'high', 'executive': 'high', 'compact': 'high', 'minimalist': 'high',
-  'corporate': 'medium', 'elegant': 'medium', 'technical': 'medium',
-  'london-finance': 'medium', 'medical-standard': 'medium', 'scholarship-pro': 'medium',
+  // Legacy remaining
+  'ats-clean-pro': 'high', 'professional': 'high', 'minimalist': 'high',
+  'london-finance': 'medium', 'medical-standard': 'medium',
   'harvard-gold': 'medium', 'timeline': 'medium', 'swe-elite': 'medium',
-  'software-engineer': 'medium', 'modern': 'medium', 'modern-tech': 'medium',
-  'silicon-valley': 'medium', 'twoColumnBlue': 'medium', 'navy-sidebar': 'medium',
-  'swe-clean': 'medium', 'swe-impact': 'medium', 'creative': 'low',
-  'infographic': 'low', 'tokyo-night': 'low', 'paris-vibe': 'low',
-  'berlin-design': 'low', 'sydney-creative': 'low', 'swe-neon': 'low',
-  'swe-vivid': 'low', 'photo-sidebar': 'low', 'executive-sidebar': 'low',
-  'compact-slate': 'medium', 'compact-sage': 'medium', 'compact-charcoal': 'medium',
-  'prestige': 'medium',
-  // V2 existing
+  'swe-clean': 'medium', 'swe-impact': 'medium',
+  'creative': 'low', 'infographic': 'low', 'tokyo-night': 'low',
+  'paris-vibe': 'low', 'berlin-design': 'low', 'swe-neon': 'low', 'swe-vivid': 'low',
+  // V2
   'v2-classic-pro': 'high', 'v2-standard-black': 'high',
   'v2-pro': 'high', 'v2-navy': 'high', 'v2-minimal': 'high', 'v2-amber': 'high', 'v2-ink': 'high',
-  'v2-photo': 'medium', 'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium',
-  'v2-sage': 'medium', 'v2-forest': 'medium', 'v2-coral': 'medium',
-  'v2-terminal': 'low', 'v2-noir': 'low',
-  'v2-editorial': 'medium',
-  // V2 new premium
   'v2-harvard': 'high', 'v2-warm': 'high', 'v2-bold': 'high',
   'v2-modern-blue': 'high', 'v2-graphite': 'high',
-  'v2-steel': 'medium', 'v2-teal': 'medium', 'v2-crimson': 'medium',
-  // V2 gap-fills
   'v2-ats-max': 'high', 'v2-skills-first': 'high', 'v2-starter': 'high',
+  'v2-photo': 'medium', 'v2-slate-sidebar': 'medium', 'v2-gold-exec': 'medium',
+  'v2-sage': 'medium', 'v2-forest': 'medium', 'v2-coral': 'medium',
+  'v2-editorial': 'medium', 'v2-steel': 'medium', 'v2-teal': 'medium', 'v2-crimson': 'medium',
+  'v2-terminal': 'low', 'v2-noir': 'low',
 };
 
 const atsConfig = {

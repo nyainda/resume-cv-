@@ -22,12 +22,18 @@ const purposeConfig: Record<string, { label: string; bg: string; text: string; i
 };
 
 const ALL_TEMPLATES: TemplateName[] = [
-    'standard-pro', 'professional', 'modern', 'minimalist', 'corporate',
-    'elegant', 'executive', 'classic', 'london-finance', 'harvard-gold',
-    'ats-clean-pro', 'compact', 'timeline', 'twoColumnBlue', 'technical',
-    'software-engineer', 'modern-tech', 'swe-elite', 'silicon-valley', 'berlin-design',
-    'tokyo-night', 'paris-vibe', 'sydney-creative', 'creative', 'infographic',
-    'navy-sidebar', 'photo-sidebar', 'executive-sidebar', 'scholarship-pro', 'medical-standard',
+    // V2 — primary (gallery order)
+    'v2-ats-max', 'v2-skills-first', 'v2-starter', 'v2-classic-pro', 'v2-standard-black',
+    'v2-pro', 'v2-navy', 'v2-harvard', 'v2-warm', 'v2-teal', 'v2-steel', 'v2-bold',
+    'v2-slate-sidebar', 'v2-sage', 'v2-graphite', 'v2-gold-exec', 'v2-minimal',
+    'v2-modern-blue', 'v2-terminal', 'v2-noir', 'v2-editorial', 'v2-coral',
+    'v2-amber', 'v2-ink', 'v2-forest', 'v2-crimson', 'v2-photo',
+    // SWE specialist
+    'swe-neon', 'swe-clean', 'swe-vivid', 'swe-impact', 'swe-elite',
+    // Remaining legacy (still shown in gallery)
+    'professional', 'minimalist', 'creative', 'timeline', 'infographic',
+    'harvard-gold', 'tokyo-night', 'paris-vibe', 'london-finance', 'berlin-design',
+    'ats-clean-pro', 'medical-standard',
 ];
 
 function relativeTime(iso: string): string {
@@ -62,7 +68,7 @@ interface PreviewModalProps {
 }
 
 const PreviewModal: React.FC<PreviewModalProps> = ({ cv, userProfile, onClose, onLoad, onDelete }) => {
-    const [selectedTemplate, setSelectedTemplate] = useState<TemplateName>(cv.template || 'standard-pro');
+    const [selectedTemplate, setSelectedTemplate] = useState<TemplateName>(cv.template || 'v2-classic-pro');
     const [showAllTemplates, setShowAllTemplates] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -220,7 +226,7 @@ const CVCard: React.FC<CVCardProps> = ({ cv, onPreview, onLoad, onDelete }) => {
     const cvData = getCVDataCached(cv.id) ?? cv.data;
     const purpose = purposeConfig[cv.purpose] || purposeConfig.job;
     const PurposeIcon = purpose.icon;
-    const template = cv.template || 'standard-pro';
+    const template = cv.template || 'v2-classic-pro';
     const atsScore = (cv as any).atsScore as number | undefined;
 
     return (

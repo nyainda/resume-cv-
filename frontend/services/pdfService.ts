@@ -2602,56 +2602,19 @@ const generatePdfForTemplate = (
         case 'professional':
             professional();
             break;
-        case 'corporate':
-            corporatePdf();
-            break;
-        case 'elegant':
-            elegantPdf();
-            break;
-        case 'executive':
-            executivePdf();
-            break;
-        case 'classic':
-            classic();
-            break;
-        case 'modern': {
-            const sidebarRgb = hexToRgb(accentHex ?? '', [45, 55, 72]);
-            twoColumn(sidebarRgb, sidebarRgb);
-            break;
-        }
-        case 'twoColumnBlue': {
-            const sidebarRgb = hexToRgb(accentHex ?? '', [30, 64, 175]);
-            twoColumn(sidebarRgb, sidebarRgb);
-            break;
-        }
         case 'creative': {
             const sidebarRgb = hexToRgb(accentHex ?? '', [13, 148, 136]);
             twoColumn(sidebarRgb, sidebarRgb);
             break;
         }
-        case 'software-engineer':
-            softwareEngineerPdf();
-            break;
         case 'minimalist':
             minimalist();
             break;
         case 'timeline':
             timelinePdf();
             break;
-        case 'technical':
-            technicalPdf();
-            break;
-        case 'compact':
-            compactPdf();
-            break;
-        case 'modern-tech':
-            modernTechPdf();
-            break;
         case 'infographic':
             infographic();
-            break;
-        case 'standard-pro':
-            standardProPdf();
             break;
         case 'harvard-gold':
             harvardGoldPdf();
@@ -2668,15 +2631,6 @@ const generatePdfForTemplate = (
         case 'berlin-design':
             berlinDesignPdf();
             break;
-        case 'silicon-valley':
-            siliconValleyPdf();
-            break;
-        case 'sydney-creative':
-            sydneyCreativePdf();
-            break;
-        case 'scholarship-pro':
-            scholarshipProPdf();
-            break;
         case 'medical-standard':
             medicalStandardPdf();
             break;
@@ -2685,8 +2639,7 @@ const generatePdfForTemplate = (
     }
 
     // ── Additional Sections (appended for all templates) ──────────────────────
-    // References (standard-pro handles references internally with its own serifFont)
-    if (template !== 'standard-pro' && cvData.references && cvData.references.length > 0) {
+    if (cvData.references && cvData.references.length > 0) {
         h.checkPageBreak(60, margin);
         drawSectionTitle('References', { yPos: h.getY(), font: selectedFont, lineWidth: 1 });
 

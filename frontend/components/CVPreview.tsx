@@ -3,40 +3,19 @@ import { CVData, PersonalInfo, TemplateName, SidebarSectionsVisibility, DEFAULT_
 import { normalizeCVData } from '../utils/cvDataUtils';
 import TemplateV2 from './templates/engine/TemplateV2';
 import { V2_TEMPLATE_IDS, LEGACY_TEMPLATE_REDIRECTS } from './templates/engine/templateThemes';
-import TemplateModern from './templates/TemplateModern';
 import TemplateProfessional from './templates/TemplateProfessional';
 import TemplateMinimalist from './templates/TemplateMinimalist';
-import TemplateCorporate from './templates/TemplateCorporate';
 import TemplateCreative from './templates/TemplateCreative';
 import TemplateTimeline from './templates/TemplateTimeline';
-import TemplateTwoColumnBlue from './templates/TemplateTwoColumnBlue';
-import TemplateExecutive from './templates/TemplateExecutive';
-import TemplateTechnical from './templates/TemplateTechnical';
-import TemplateCompact from './templates/TemplateCompact';
-import TemplateElegant from './templates/TemplateElegant';
-import TemplateSoftwareEngineer from './templates/TemplateSoftwareEngineer';
-import TemplateModernTech from './templates/TemplateModernTech';
 import TemplateInfographic from './templates/TemplateInfographic';
-import TemplateClassic from './templates/TemplateClassic';
-import TemplateStandardPro from './templates/TemplateStandardPro';
 import TemplateHarvardGold from './templates/TemplateHarvardGold';
 import TemplateTokyoNight from './templates/TemplateTokyoNight';
 import TemplateParisVibe from './templates/TemplateParisVibe';
 import TemplateLondonFinance from './templates/TemplateLondonFinance';
 import TemplateBerlinDesign from './templates/TemplateBerlinDesign';
-import TemplateSiliconValley from './templates/TemplateSiliconValley';
-import TemplateSydneyCreative from './templates/TemplateSydneyCreative';
-import TemplateScholarshipPro from './templates/TemplateScholarshipPro';
 import TemplateMedicalStandard from './templates/TemplateMedicalStandard';
-import TemplateNavySidebar from './templates/TemplateNavySidebar';
-import TemplatePhotoSidebar from './templates/TemplatePhotoSidebar';
 import TemplateSWEElite from './templates/TemplateSWEElite';
 import TemplateATSCleanPro from './templates/TemplateATSCleanPro';
-import TemplateExecutiveSidebar from './templates/TemplateExecutiveSidebar';
-import TemplateCompactSlate from './templates/TemplateCompactSlate';
-import TemplateCompactSage from './templates/TemplateCompactSage';
-import TemplateCompactCharcoal from './templates/TemplateCompactCharcoal';
-import TemplatePrestige from './templates/TemplatePrestige';
 import TemplateSWENeon from './templates/TemplateSWENeon';
 import TemplateSWEClean from './templates/TemplateSWEClean';
 
@@ -89,15 +68,10 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   );
 
   const templateProps = { cvData, personalInfo, isEditing, onDataChange, jobDescriptionForATS };
-  // Sidebar templates additionally receive sidebarSections, density, and spacingLevel
-  // (for the two-phase convergence loop). Spreading onto non-sidebar templates is
-  // harmless because those components don't declare these props in their interfaces.
-  const sidebarTemplateProps = { ...templateProps, sidebarSections, density, spacingLevel };
 
   // LEGACY_TEMPLATE_REDIRECTS is imported from templateThemes — single source of truth.
+  // Any old template ID saved in a user's CV resolves to the nearest V2 equivalent here.
   const renderTemplate = () => {
-    // Resolve legacy IDs first — redirected templates render via V2 engine,
-    // gaining computeSmartSplit and the density loop without any visual rework.
     const resolvedId = LEGACY_TEMPLATE_REDIRECTS[template as string] ?? (template as string);
     if (V2_TEMPLATE_IDS.includes(resolvedId)) {
       return <TemplateV2
@@ -109,41 +83,21 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
         themeId={resolvedId}
       />;
     }
+    // Legacy templates still shown in the gallery
     switch (template) {
-      case 'modern':             return <TemplateModern {...templateProps} />;
       case 'professional':       return <TemplateProfessional {...templateProps} />;
       case 'minimalist':         return <TemplateMinimalist {...templateProps} />;
-      case 'corporate':          return <TemplateCorporate {...templateProps} />;
       case 'creative':           return <TemplateCreative {...templateProps} />;
       case 'timeline':           return <TemplateTimeline {...templateProps} />;
-      case 'twoColumnBlue':      return <TemplateTwoColumnBlue {...sidebarTemplateProps} />;
-      case 'executive':          return <TemplateExecutive {...templateProps} />;
-      case 'technical':          return <TemplateTechnical {...templateProps} />;
-      case 'compact':            return <TemplateCompact {...templateProps} />;
-      case 'elegant':            return <TemplateElegant {...templateProps} />;
-      case 'software-engineer':  return <TemplateSoftwareEngineer {...templateProps} />;
-      case 'modern-tech':        return <TemplateModernTech {...sidebarTemplateProps} />;
       case 'infographic':        return <TemplateInfographic {...templateProps} />;
-      case 'classic':            return <TemplateClassic {...templateProps} />;
-      case 'standard-pro':       return <TemplateStandardPro {...templateProps} />;
       case 'harvard-gold':       return <TemplateHarvardGold {...templateProps} />;
       case 'tokyo-night':        return <TemplateTokyoNight {...templateProps} />;
       case 'paris-vibe':         return <TemplateParisVibe {...templateProps} />;
       case 'london-finance':     return <TemplateLondonFinance {...templateProps} />;
       case 'berlin-design':      return <TemplateBerlinDesign {...templateProps} />;
-      case 'silicon-valley':     return <TemplateSiliconValley {...templateProps} />;
-      case 'sydney-creative':    return <TemplateSydneyCreative {...templateProps} />;
-      case 'scholarship-pro':    return <TemplateScholarshipPro {...templateProps} />;
       case 'medical-standard':   return <TemplateMedicalStandard {...templateProps} />;
-      case 'navy-sidebar':       return <TemplateNavySidebar {...sidebarTemplateProps} />;
-      case 'photo-sidebar':      return <TemplatePhotoSidebar {...sidebarTemplateProps} />;
       case 'swe-elite':          return <TemplateSWEElite {...templateProps} />;
       case 'ats-clean-pro':      return <TemplateATSCleanPro {...templateProps} />;
-      case 'executive-sidebar':  return <TemplateExecutiveSidebar {...sidebarTemplateProps} />;
-      case 'compact-slate':      return <TemplateCompactSlate {...sidebarTemplateProps} />;
-      case 'compact-sage':       return <TemplateCompactSage {...sidebarTemplateProps} />;
-      case 'compact-charcoal':   return <TemplateCompactCharcoal {...sidebarTemplateProps} />;
-      case 'prestige':           return <TemplatePrestige {...templateProps} />;
       case 'swe-neon':           return <TemplateSWENeon {...templateProps} />;
       case 'swe-clean':          return <TemplateSWEClean {...templateProps} />;
       default:                   return <TemplateProfessional {...templateProps} />;

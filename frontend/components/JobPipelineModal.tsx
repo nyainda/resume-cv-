@@ -125,18 +125,18 @@ function computeMatch(userProfile: UserProfile, jd: string): MatchResult {
 // ─── Template Picker (compact inline version) ─────────────────────────────────
 
 const RECOMMENDED_TEMPLATES: { id: TemplateName; label: string; badge?: string }[] = [
-    { id: 'ats-clean-pro', label: 'ATS Clean Pro', badge: '🎯 ATS' },
-    { id: 'standard-pro', label: 'Standard Pro', badge: '⭐ Popular' },
-    { id: 'professional', label: 'Professional' },
-    { id: 'modern', label: 'Modern', badge: '🔥 Trending' },
-    { id: 'silicon-valley', label: 'Silicon Valley', badge: '🦄 Startup' },
-    { id: 'tokyo-night', label: 'Tokyo Night', badge: '🗼 Bold' },
-    { id: 'executive', label: 'Executive', badge: '🏛️ Senior' },
-    { id: 'minimalist', label: 'Minimalist', badge: '✨ Clean' },
-    { id: 'software-engineer', label: 'Tech', badge: '💻 SWE' },
-    { id: 'harvard-gold', label: 'Harvard Gold', badge: '🎓 Academic' },
-    { id: 'navy-sidebar', label: 'Navy Sidebar' },
-    { id: 'london-finance', label: 'London Finance' },
+    { id: 'v2-ats-max',       label: 'ATS Maximum',       badge: '🎯 ATS' },
+    { id: 'v2-classic-pro',   label: 'Classic Pro',        badge: '⭐ Popular' },
+    { id: 'v2-pro',           label: 'Clean Professional', badge: '🔥 Trending' },
+    { id: 'v2-bold',          label: 'Bold Indigo',        badge: '🦄 Startup' },
+    { id: 'tokyo-night',      label: 'Tokyo Night',        badge: '🗼 Bold' },
+    { id: 'v2-gold-exec',     label: 'Gold Executive',     badge: '🏛️ Senior' },
+    { id: 'v2-minimal',       label: 'Pure Minimal',       badge: '✨ Clean' },
+    { id: 'v2-modern-blue',   label: 'Modern Indigo',      badge: '💻 SWE' },
+    { id: 'harvard-gold',     label: 'Harvard Gold',       badge: '🎓 Academic' },
+    { id: 'v2-slate-sidebar', label: 'Slate Sidebar' },
+    { id: 'london-finance',   label: 'London Finance' },
+    { id: 'professional',     label: 'Professional' },
 ];
 
 const ALL_TEMPLATE_NAMES = Object.keys(templateDisplayNames) as TemplateName[];

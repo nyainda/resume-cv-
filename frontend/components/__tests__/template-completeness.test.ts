@@ -19,14 +19,9 @@ const ALL_TEMPLATE_NAMES = Object.keys(templateDisplayNames).filter(
 // Keep this list in sync with the switch cases in CVPreview.tsx.
 // The test will fail if a case is added to types.ts but not here (or vice versa).
 const LEGACY_SWITCH_CASES = new Set([
-  'modern', 'professional', 'minimalist', 'corporate', 'creative', 'timeline',
-  'twoColumnBlue', 'executive', 'technical', 'compact', 'elegant',
-  'software-engineer', 'modern-tech', 'infographic', 'classic', 'standard-pro',
+  'professional', 'minimalist', 'creative', 'timeline', 'infographic',
   'harvard-gold', 'tokyo-night', 'paris-vibe', 'london-finance', 'berlin-design',
-  'silicon-valley', 'sydney-creative', 'scholarship-pro', 'medical-standard',
-  'navy-sidebar', 'photo-sidebar', 'swe-elite', 'ats-clean-pro',
-  'executive-sidebar', 'compact-slate', 'compact-sage', 'compact-charcoal',
-  'prestige', 'swe-neon', 'swe-clean',
+  'medical-standard', 'swe-elite', 'ats-clean-pro', 'swe-neon', 'swe-clean',
 ]);
 
 // ── V2 engine IDs ─────────────────────────────────────────────────────────────

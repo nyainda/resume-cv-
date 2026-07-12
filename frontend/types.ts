@@ -425,44 +425,24 @@ export interface TrackedApplication {
 // --- Templates and Fonts ---
 
 export type TemplateName =
+  // ── Remaining legacy (still shown in gallery) ─────────────────────────────
   | 'professional'
-  | 'modern'
   | 'minimalist'
-  | 'corporate'
   | 'creative'
   | 'timeline'
-  | 'twoColumnBlue'
-  | 'executive'
-  | 'technical'
-  | 'compact'
-  | 'elegant'
-  | 'software-engineer'
-  | 'modern-tech'
   | 'infographic'
-  | 'classic'
-  | 'standard-pro'
   | 'harvard-gold'
   | 'tokyo-night'
   | 'paris-vibe'
   | 'london-finance'
   | 'berlin-design'
-  | 'silicon-valley'
-  | 'sydney-creative'
-  | 'scholarship-pro'
   | 'medical-standard'
-  | 'navy-sidebar'
-  | 'photo-sidebar'
   | 'swe-elite'
   | 'swe-neon'
   | 'swe-clean'
   | 'swe-vivid'
   | 'swe-impact'
   | 'ats-clean-pro'
-  | 'executive-sidebar'
-  | 'compact-slate'
-  | 'compact-sage'
-  | 'compact-charcoal'
-  | 'prestige'
   | 'v2-pro'
   | 'v2-navy'
   | 'v2-photo'
@@ -511,16 +491,9 @@ export const DEFAULT_SIDEBAR_SECTIONS: SidebarSectionsVisibility = {
 // Templates whose sidebar contains togglable Key Achievements / Selected
 // Projects / References fillers. The Sidebar Section Picker toolbar only
 // appears in the editor when one of these is selected.
-export const SIDEBAR_TEMPLATES: TemplateName[] = [
-  'twoColumnBlue',
-  'navy-sidebar',
-  'executive-sidebar',
-  'photo-sidebar',
-  'modern-tech',
-  'compact-slate',
-  'compact-sage',
-  'compact-charcoal',
-];
+// All legacy sidebar templates have been removed. V2 sidebar templates
+// (v2-slate-sidebar, v2-photo, etc.) manage their own layout via the V2 engine.
+export const SIDEBAR_TEMPLATES: TemplateName[] = [];
 
 /**
  * Templates that enforce strict one-page rendering via the density convergence
@@ -530,72 +503,52 @@ export const SIDEBAR_TEMPLATES: TemplateName[] = [
 export const STRICT_ONE_PAGE_TEMPLATES: TemplateName[] = [...SIDEBAR_TEMPLATES];
 
 export const templateDisplayNames: Record<TemplateName, string> = {
-  professional: 'Professional',
-  modern: 'Modern',
-  'software-engineer': 'Tech',
-  minimalist: 'Minimalist',
-  corporate: 'Corporate',
-  elegant: 'Elegant',
-  'modern-tech': 'Modern Tech',
-  'twoColumnBlue': 'Two Column',
-  creative: 'Creative',
-  timeline: 'Timeline',
-  executive: 'Executive',
-  technical: 'Technical',
-  compact: 'Compact',
-  infographic: 'Infographic',
-  classic: 'Classic',
-  'standard-pro': 'Standard Professional',
-  'harvard-gold': 'Harvard Gold',
-  'tokyo-night': 'Tokyo Night',
-  'paris-vibe': 'Paris Vibe',
-  'london-finance': 'London Finance',
-  'berlin-design': 'Berlin Design',
-  'silicon-valley': 'Silicon Valley',
-  'sydney-creative': 'Sydney Creative',
-  'scholarship-pro': 'Scholarship Pro',
+  // ── Legacy (still shown in gallery) ───────────────────────────────────────
+  professional:       'Professional',
+  minimalist:         'Minimalist',
+  creative:           'Creative',
+  timeline:           'Timeline',
+  infographic:        'Infographic',
+  'harvard-gold':     'Harvard Gold',
+  'tokyo-night':      'Tokyo Night',
+  'paris-vibe':       'Paris Vibe',
+  'london-finance':   'London Finance',
+  'berlin-design':    'Berlin Design',
   'medical-standard': 'Medical Standard',
-  'navy-sidebar': 'Navy Sidebar',
-  'photo-sidebar': 'Photo Sidebar',
-  'swe-elite': 'SWE Elite',
-  'swe-neon': 'SWE Neon',
-  'swe-clean': 'SWE Clean',
-  'swe-vivid': 'SWE Vivid',
-  'swe-impact': 'SWE Impact',
-  'ats-clean-pro': 'ATS Clean Pro',
-  'executive-sidebar': 'Executive Sidebar',
-  'compact-slate': 'Compact Slate',
-  'compact-sage': 'Compact Sage',
-  'compact-charcoal': 'Compact Charcoal',
-  'prestige': 'Prestige',
-  'v2-pro': 'Clean Professional',
-  'v2-navy': 'Navy Classic',
-  'v2-photo': 'Photo Pro',
+  'swe-elite':        'SWE Elite',
+  'swe-neon':         'SWE Neon',
+  'swe-clean':        'SWE Clean',
+  'swe-vivid':        'SWE Vivid',
+  'swe-impact':       'SWE Impact',
+  'ats-clean-pro':    'ATS Clean Pro',
+  // ── V2 ────────────────────────────────────────────────────────────────────
+  'v2-pro':           'Clean Professional',
+  'v2-navy':          'Navy Classic',
+  'v2-photo':         'Photo Pro',
   'v2-slate-sidebar': 'Slate Sidebar',
-  'v2-gold-exec': 'Gold Executive',
-  'v2-minimal': 'Pure Minimal',
-  'v2-sage': 'Sage Modern',
-  'v2-terminal': 'Terminal Dark',
-  'v2-noir': 'Noir Tech',
-  'v2-editorial': 'Editorial Rose',
-  'v2-coral': 'Warm Coral',
-  'v2-amber': 'Amber Scholar',
-  'v2-ink': 'Ink & Parchment',
-  'v2-forest': 'Forest Pro',
-  'v2-classic-pro': 'Classic Professional',
-  'v2-standard-black': 'Standard Black',
-  'v2-harvard': 'Harvard Classic',
-  'v2-warm': 'Warm Consultancy',
-  'v2-steel': 'Steel Blue',
-  'v2-teal': 'Teal Professional',
-  'v2-bold': 'Bold Indigo',
-  'v2-modern-blue': 'Modern Indigo',
-  'v2-graphite': 'Graphite Clean',
-  'v2-crimson': 'Crimson Elite',
-  'v2-ats-max': 'ATS Maximum',
-  'v2-skills-first': 'Skills First',
-  'v2-starter': 'Career Starter',
-  'custom': 'My Custom',
+  'v2-gold-exec':     'Gold Executive',
+  'v2-minimal':       'Pure Minimal',
+  'v2-sage':          'Sage Modern',
+  'v2-terminal':      'Terminal Dark',
+  'v2-noir':          'Noir Tech',
+  'v2-editorial':     'Editorial Rose',
+  'v2-coral':         'Warm Coral',
+  'v2-amber':         'Amber Scholar',
+  'v2-ink':           'Ink & Parchment',
+  'v2-forest':        'Forest Pro',
+  'v2-classic-pro':   'Classic Professional',
+  'v2-standard-black':'Standard Black',
+  'v2-harvard':       'Harvard Classic',
+  'v2-warm':          'Warm Consultancy',
+  'v2-steel':         'Steel Blue',
+  'v2-teal':          'Teal Professional',
+  'v2-bold':          'Bold Indigo',
+  'v2-modern-blue':   'Modern Indigo',
+  'v2-graphite':      'Graphite Clean',
+  'v2-crimson':       'Crimson Elite',
+  'v2-ats-max':       'ATS Maximum',
+  'v2-skills-first':  'Skills First',
+  'v2-starter':       'Career Starter',
 };
 
 // --- CV Generation Mode ---
