@@ -13,42 +13,52 @@ interface TemplateGalleryProps {
 
 // ─── Category definitions ─────────────────────────────────────────────────────
 
+// ─── Active gallery templates ──────────────────────────────────────────────────
+// Only genuinely distinct designs are listed here. Near-duplicate legacy templates
+// have been consolidated into their V2 engine equivalents (see CONSOLIDATION_MAP
+// below). Those templates remain in CVPreview.tsx switch/types.ts for backward
+// compatibility — existing user CVs that used them still render correctly.
 const templateCategories: Record<string, TemplateName[]> = {
+  // Most widely used — safe for any industry. Leads with ATS-safe options.
   'Professional': [
     'v2-ats-max', 'v2-skills-first', 'v2-starter',
     'v2-classic-pro', 'v2-standard-black', 'v2-pro', 'v2-navy',
     'v2-harvard', 'v2-warm', 'v2-crimson',
-    'professional', 'standard-pro', 'ats-clean-pro', 'corporate', 'london-finance',
+    'professional', 'ats-clean-pro', 'london-finance',
   ],
+  // Contemporary sidebar and accent-forward designs
   'Modern': [
     'v2-teal', 'v2-steel', 'v2-bold', 'v2-slate-sidebar',
-    'v2-sage', 'modern', 'prestige', 'modern-tech', 'twoColumnBlue', 'silicon-valley',
+    'v2-sage', 'v2-graphite',
   ],
+  // Senior, C-suite and leadership roles
   'Executive': [
     'v2-gold-exec', 'v2-ink', 'v2-crimson',
-    'executive', 'elegant', 'navy-sidebar', 'executive-sidebar',
   ],
+  // Engineers, developers, and technical contributors
   'Technical': [
     'v2-modern-blue', 'v2-terminal', 'v2-noir',
     'swe-elite', 'swe-clean', 'swe-neon', 'swe-vivid', 'swe-impact',
-    'software-engineer', 'technical',
   ],
+  // Design, media, marketing — visual-first (lower ATS score)
   'Creative': [
     'v2-editorial', 'v2-coral',
-    'creative', 'sydney-creative', 'berlin-design', 'paris-vibe',
+    'creative', 'berlin-design', 'paris-vibe', 'tokyo-night', 'infographic',
   ],
+  // Research, academia, graduate programmes
   'Academic': [
     'v2-amber', 'v2-forest',
-    'harvard-gold', 'scholarship-pro', 'classic', 'medical-standard',
+    'harvard-gold', 'medical-standard',
   ],
+  // Templates that render a profile photo
   'Photo': [
     'v2-photo', 'v2-teal', 'v2-steel', 'v2-slate-sidebar',
     'v2-sage', 'v2-gold-exec', 'v2-coral', 'v2-forest', 'v2-crimson',
-    'photo-sidebar',
   ],
+  // Clean, sparse layouts — highest ATS parse rates
   'Minimal': [
     'v2-minimal', 'v2-graphite',
-    'minimalist', 'compact', 'timeline', 'compact-slate', 'compact-sage', 'compact-charcoal',
+    'minimalist', 'timeline',
   ],
 };
 
@@ -411,10 +421,10 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           <div className="flex gap-2.5">
             <span className="text-sm flex-shrink-0">💡</span>
             <div className="text-[11px] text-blue-700 dark:text-blue-300 space-y-0.5">
-              <p><strong>ATS Maximum</strong> — zero colour, Arial font. Safest choice for Workday, Greenhouse, Taleo, and iCIMS.</p>
-              <p><strong>Skills First</strong> — puts Core Skills before work history. Best for career changers and technical roles.</p>
-              <p><strong>Harvard Classic / Clean Professional</strong> — most trusted formats for any professional or corporate role.</p>
-              <p><strong>Career Starter</strong> — spacious layout, projects prominent. Built for graduates and first professional roles.</p>
+              <p><strong>ATS Maximum</strong> — zero colour, Arial. The safest choice for Workday, Greenhouse, Taleo &amp; iCIMS.</p>
+              <p><strong>Skills First</strong> — Core Skills before Experience. Best for career changers and technical roles.</p>
+              <p><strong>Harvard Classic / Clean Professional</strong> — most trusted formats for any corporate or professional role.</p>
+              <p><strong>Looking for Navy Sidebar, Compact Slate, or Executive Sidebar?</strong> Their upgraded V2 equivalents are <em>Navy Classic</em>, <em>Slate Sidebar</em>, and <em>Gold Executive</em>.</p>
             </div>
           </div>
         </div>
