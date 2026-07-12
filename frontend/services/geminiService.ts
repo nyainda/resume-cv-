@@ -11,6 +11,7 @@ import { buildBrief, validateVoice, reportLeaks, workerLLM, workerTieredLLM, wor
 import { findOverusedWords } from './cvEngine/wordFrequency';
 import { ROLE_TRACKS } from '../data/roleTracks';
 import { normaliseCustomSections } from '../utils/normaliseSectionType';
+import { profileToCV } from '../utils/profileToCV';
 import {
     collectSourceNumberTokens as _collectSourceNumberTokens,
     repairBulletsAgainstSource as _repairBulletsAgainstSource,
@@ -3130,10 +3131,41 @@ Output must be fluent, professional-grade ${targetLanguage} — not a literal tr
                 } catch { return null; }
             };
 
-            const sectionSummary    = tolerantParse(psResult.results.summary?.text,    'summary');
-            const sectionSkills     = tolerantParse(psResult.results.skills?.text,     'skills');
-            const sectionExperience = tolerantParse(psResult.results.experience?.text, 'experience');
-            const sectionEducation  = tolerantParse(psResult.results.education?.text,  'education');
+            const sectionSummary = tolerantParse(psResult.results.summary?.text, 'summary');
+            const sectionSkills  = tolerantParse(psResult.results.skills?.text,  'skills');
+            const sectionEducation = tolerantParse(psResult.results.education?.text, 'education');
+
+            // Parse experience then immediately patch any roles Workers AI dropped
+            // due to token limits. We NEVER fail or fall back — missing roles are
+            // restored from the raw profile so the user loses nothing.
+            const sectionExperience = (() => {
+                const aiRoles: any[] = Array.isArray(
+                    tolerantParse(psResult.results.experience?.text, 'experience')
+                ) ? tolerantParse(psResult.results.experience?.text, 'experience') : [];
+
+                const profileRoles = profileToCV(profile).experience;
+                if (aiRoles.length >= profileRoles.length) return aiRoles; // all present — nothing to do
+
+                // Build a lookup of what the AI returned (by company + jobTitle)
+                const aiKeys = new Set(aiRoles.map(e => `${e.company}|${e.jobTitle}`));
+                const patched = [...aiRoles];
+                for (const raw of profileRoles) {
+                    if (!aiKeys.has(`${raw.company}|${raw.jobTitle}`)) {
+                        // Role was dropped — restore it with profile bullets
+                        patched.push(raw);
+                        console.warn(
+                            `[CV Gen] Workers AI truncated "${raw.jobTitle} @ ${raw.company}" — restored from profile.`
+                        );
+                    }
+                }
+                // Re-sort to match original profile order
+                const order = new Map(profileRoles.map((e, i) => [`${e.company}|${e.jobTitle}`, i]));
+                patched.sort((a, b) =>
+                    (order.get(`${a.company}|${a.jobTitle}`) ?? 999) -
+                    (order.get(`${b.company}|${b.jobTitle}`) ?? 999)
+                );
+                return patched;
+            })();
             const sectionProjects   = psResult.results.projects ? tolerantParse(psResult.results.projects.text, 'projects') : [];
 
             const okSummary    = typeof sectionSummary === 'string' && sectionSummary.trim().length > 0;
