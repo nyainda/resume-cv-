@@ -150,6 +150,13 @@ export function mergeProfileIntoCV(
           s.items.some((i) => i.title.trim().length > 0),
         )
       : currentCV.customSections,
+    // certifications and achievements are always derived from customSections
+    // (profileToCV extracts them from there). They must NEVER be inherited
+    // from the old CVData via the ...currentCV spread — doing so causes stale
+    // AI-generated or import-misclassified values to persist across profile
+    // edits even after the user has removed or never had those sections.
+    certifications: fromProfile.certifications,
+    achievements:   fromProfile.achievements,
     sectionOrder: newProfile.sectionOrder,
   };
 }
