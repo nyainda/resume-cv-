@@ -204,10 +204,10 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
                 {cvData.experience.map((job, index) => (
                   <div key={index}>
                     <div className="flex justify-between items-baseline gap-2">
-                      <h3 className="text-[10.5px] font-bold text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                      <h3 className="text-[10.5px] font-bold" style={{ color: accent }} {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                       <p className="text-[10.5px] text-zinc-500 whitespace-nowrap flex-shrink-0 italic" {...editableProps(['experience', index, 'dates'])}>{job.dates}</p>
                     </div>
-                    <p className="text-[11px] font-medium" style={{ color: accent }} {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <p className="text-[11px] font-semibold text-zinc-900" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5 text-[11px] text-zinc-700">
                       {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                         <li key={i} className="leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
@@ -236,19 +236,18 @@ const TemplateCompactSage: React.FC<TemplateProps> = ({
               );
             })()}
           </main>
+          <TemplateCustomSections
+            customSections={cvData.customSections}
+            references={cvData.references}
+            renderHeader={title => <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b" style={{ color: accent, borderColor: '#d4dcd0', fontFamily: 'Georgia, "Times New Roman", serif' }}>{title}</h2>}
+            sectionClassName="mb-4"
+            titleClass="font-semibold text-[10.5px]"
+            subtitleClass="text-[11px] text-zinc-500"
+            descClass="text-[11px] text-zinc-600 mt-0.5"
+            yearClass="text-[10.5px] text-zinc-400"
+          />
         </div>
       </div>
-
-      <TemplateCustomSections
-        customSections={cvData.customSections}
-        references={cvData.references}
-        renderHeader={title => <h2 className="text-[11.5px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b" style={{ color: accent, borderColor: '#d4dcd0', fontFamily: 'Georgia, "Times New Roman", serif' }}>{title}</h2>}
-        sectionClassName="mb-4 px-5"
-        titleClass="font-semibold text-[10.5px]"
-        subtitleClass="text-[11px] text-zinc-500"
-        descClass="text-[11px] text-zinc-600 mt-0.5"
-        yearClass="text-[10.5px] text-zinc-400"
-      />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />
       )}

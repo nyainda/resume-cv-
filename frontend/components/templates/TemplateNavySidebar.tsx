@@ -256,10 +256,10 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                       </button>
                     )}
                     <div className="flex justify-between items-baseline gap-2">
-                      <h3 className="text-[10.5px] font-bold text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                      <h3 className="text-[10.5px] font-bold" style={{ color: navyBg }} {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                       <span className="text-[10.5px] text-zinc-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                     </div>
-                    <p className="text-[11px] font-semibold mb-0.5" style={{ color: navyBg }} {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                    <p className="text-[11px] font-bold text-zinc-900 mb-0.5" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                     <ul className="list-disc list-outside ml-3.5 space-y-0.5">
                       {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                         <li key={i} className="text-[11px] text-zinc-700 leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
@@ -290,19 +290,18 @@ const TemplateNavySidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, is
               </section>
             );
           })()}
+          <TemplateCustomSections
+            customSections={cvData.customSections}
+            references={cvData.references}
+            renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-widest mb-1 pb-0.5 border-b" style={{ color: navyBg, borderColor: navyBg }}>{title}</h2>}
+            sectionClassName="mt-3"
+            titleClass="text-[10px] font-bold"
+            subtitleClass="text-[11px] text-zinc-500"
+            descClass="text-[11px] text-zinc-600 mt-0.5"
+            yearClass="text-[10.5px] text-zinc-400"
+          />
         </div>
       </div>
-
-      <TemplateCustomSections
-        customSections={cvData.customSections}
-        references={cvData.references}
-        renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-widest mb-1 pb-0.5 border-b" style={{ color: navyBg, borderColor: navyBg }}>{title}</h2>}
-        sectionClassName="mt-3 px-5"
-        titleClass="text-[10px] font-bold"
-        subtitleClass="text-[11px] text-zinc-500"
-        descClass="text-[11px] text-zinc-600 mt-0.5"
-        yearClass="text-[10.5px] text-zinc-400"
-      />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />
       )}

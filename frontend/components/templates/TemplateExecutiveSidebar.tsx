@@ -64,7 +64,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
 
   const RightSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section style={{ marginBottom: secGap }}>
-      <h2 className="text-[11.5px] font-bold uppercase tracking-wider mb-1 pb-0.5" style={{ color: SIDEBAR_BG, borderBottom: `1.5px solid ${SIDEBAR_BG}` }}>
+      <h2 className="text-[11.5px] font-bold uppercase tracking-wider mb-1 pb-0.5" style={{ color: ACCENT, borderBottom: `1.5px solid ${ACCENT}` }}>
         {title}
       </h2>
       {children}
@@ -236,7 +236,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
                   <div key={i} className="flex items-start gap-1.5">
                     <Dot />
                     <div>
-                      <p className="text-[10.5px] font-bold leading-snug" style={{ color: SIDEBAR_BG }}
+                      <p className="text-[10.5px] font-bold leading-snug" style={{ color: ACCENT }}
                         {...editable(['education', i, 'degree'])}>
                         {edu.degree}
                       </p>
@@ -271,7 +271,7 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
                       <Dot />
                       <div className="flex-1">
                         <div className="flex justify-between items-baseline flex-wrap gap-1">
-                          <p className="text-[10.5px] font-bold" style={{ color: SIDEBAR_BG }}
+                          <p className="text-[10.5px] font-bold" style={{ color: ACCENT }}
                             {...editable(['experience', i, 'jobTitle'])}>
                             {job.jobTitle}
                           </p>
@@ -320,19 +320,18 @@ const TemplateExecutiveSidebar: React.FC<TemplateProps> = ({ cvData, personalInf
               </RightSection>
             );
           })()}
+          <TemplateCustomSections
+            customSections={cvData.customSections}
+            references={cvData.references}
+            renderHeader={title => <h2 className="text-[10px] font-bold uppercase tracking-wider mb-1 pb-0.5" style={{ color: ACCENT, borderBottom: `1.5px solid ${ACCENT}` }}>{title}</h2>}
+            sectionClassName="mt-3"
+            titleClass="text-[10px] font-bold"
+            subtitleClass="text-[11px] text-zinc-500"
+            descClass="text-[11px] text-zinc-600 mt-0.5"
+            yearClass="text-[10.5px] text-zinc-400"
+          />
         </div>
       </div>
-
-      <TemplateCustomSections
-        customSections={cvData.customSections}
-        references={cvData.references}
-        renderHeader={title => <h2 className="text-[10px] font-bold uppercase tracking-wider mb-1 pb-0.5" style={{ color: SIDEBAR_BG, borderBottom: `1.5px solid ${SIDEBAR_BG}` }}>{title}</h2>}
-        sectionClassName="mt-3 px-5"
-        titleClass="text-[10px] font-bold"
-        subtitleClass="text-[11px] text-zinc-500"
-        descClass="text-[11px] text-zinc-600 mt-0.5"
-        yearClass="text-[10.5px] text-zinc-400"
-      />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />
       )}

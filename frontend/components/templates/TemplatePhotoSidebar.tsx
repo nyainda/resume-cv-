@@ -65,7 +65,7 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
 
   const RightSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <section style={{ marginBottom: secGap }}>
-      <h2 className="text-[11.5px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: '#222' }}>
+      <h2 className="text-[11.5px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: accentColor }}>
         {title}
       </h2>
       {children}
@@ -277,10 +277,10 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                         </button>
                       )}
                       <div className="flex justify-between items-baseline gap-2">
-                        <h3 className="text-[10.5px] font-bold text-zinc-900" {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
+                        <h3 className="text-[10.5px] font-bold" style={{ color: accentColor }} {...editableProps(['experience', index, 'jobTitle'])}>{job.jobTitle}</h3>
                         <span className="text-[10.5px] text-zinc-500 whitespace-nowrap flex-shrink-0" {...editableProps(['experience', index, 'dates'])}>{job.dates}</span>
                       </div>
-                      <p className="text-[11px] font-semibold text-zinc-600 mb-0.5" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
+                      <p className="text-[11px] font-bold text-zinc-900 mb-0.5" {...editableProps(['experience', index, 'company'])}>{job.company}</p>
                       <ul className="list-disc list-outside ml-3 space-y-0.5">
                         {smartBullets(job.responsibilities, cvData.experience.length).map((resp, i) => (
                           <li key={i} className="text-[11px] text-zinc-700 leading-snug" style={{ lineHeight: lh }} dangerouslySetInnerHTML={{ __html: resp }} {...editableProps(['experience', index, 'responsibilities', i])} />
@@ -337,19 +337,18 @@ const TemplatePhotoSidebar: React.FC<TemplateProps> = ({ cvData, personalInfo, i
               </div>
             </RightSection>
           )}
+          <TemplateCustomSections
+            customSections={cvData.customSections}
+            references={cvData.references}
+            renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: accentColor }}>{title}</h2>}
+            sectionClassName="mt-3"
+            titleClass="text-[10px] font-bold"
+            subtitleClass="text-[11px] text-zinc-500"
+            descClass="text-[11px] text-zinc-600 mt-0.5"
+            yearClass="text-[10.5px] text-zinc-400"
+          />
         </div>
       </div>
-
-      <TemplateCustomSections
-        customSections={cvData.customSections}
-        references={cvData.references}
-        renderHeader={title => <h2 className="text-[10px] font-black uppercase tracking-wide mb-1 pb-0.5 border-b border-zinc-300" style={{ color: '#222' }}>{title}</h2>}
-        sectionClassName="mt-3 px-5"
-        titleClass="text-[10px] font-bold"
-        subtitleClass="text-[11px] text-zinc-500"
-        descClass="text-[11px] text-zinc-600 mt-0.5"
-        yearClass="text-[10.5px] text-zinc-400"
-      />
       {jobDescriptionForATS && (
         <HiddenATSKeywords text={jobDescriptionForATS} />
       )}
