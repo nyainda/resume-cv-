@@ -46,3 +46,4 @@
 - [Onboarding modal footer pattern](onboarding-modal-footer-pattern.md) — wizard/modal CTA buttons must live in a fixed footer outside the scrollable body, not inline with variable-height card content.
 - [Three-tier feature split](three-tier-features.md) — Free/BYOK/Premium gates: BYOK gets boosted/ats/interview/email/scholarship/tracker; Premium-only: clean-pdf/linkedin/salary/career-pivot/bulk-export/domain/suite.
 - [Sync-queue throttle edit revert](sync-queue-throttle-edit-revert.md) — freshness merge must use max(last-push-ts, last-local-edit-ts), not push-ts alone, or throttled saves get overwritten by stale server data.
+- [CV import schema gaps cause section drop + invention](cv-import-schema-truncation.md) — missing customSections field + 8k-char truncation in the real import path silently dropped cert/membership/language sections, causing downstream fabrication.

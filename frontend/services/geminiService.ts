@@ -1898,11 +1898,21 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
 
         // Promote certifications / achievements / awards from customSections into
         // the dedicated CVData fields so custom templates can render them properly.
-        const certSectionTypes = new Set(['certifications', 'courses', 'memberships', 'presentations', 'patents']);
+        // NOTE: 'memberships' was previously included in certSectionTypes, which
+        // meant e.g. a "Memberships" section containing language entries (a known
+        // model mis-classification) got duplicated verbatim into cvData.certifications
+        // — the same items then rendered under both "Memberships" AND
+        // "Certifications" in the final CV. Memberships now stay memberships-only;
+        // they are still preserved via cvData.customSections above, just not
+        // duplicated into the certifications list.
+        const certSectionTypes = new Set(['certifications', 'courses', 'presentations', 'patents']);
         const achieveSectionTypes = new Set(['achievements', 'awards', 'honors', 'volunteer']);
 
         const certStrings: string[] = [];
         const achieveStrings: string[] = [];
+        const languageNames = new Set(
+            (profile.languages || []).map(l => String(l?.name || '').trim().toLowerCase()).filter(Boolean)
+        );
 
         for (const section of profile.customSections) {
             const t = section.type;
@@ -1910,6 +1920,9 @@ function applySourceFidelityRules(cvData: CVData, profile: UserProfile): CVData 
             const isAchieve = achieveSectionTypes.has(t);
             if (!isCert && !isAchieve) continue;
             for (const item of (section.items || [])) {
+                // Guard against a language item leaking into a mis-typed customSection
+                // and getting duplicated into certifications/achievements.
+                if (languageNames.has(String(item.title || '').trim().toLowerCase())) continue;
                 const parts = [item.title, item.subtitle, item.year].filter(Boolean);
                 const line = parts.join(' · ');
                 if (isCert) certStrings.push(line);
@@ -2050,13 +2063,15 @@ RETURN FORMAT — output ONLY a raw JSON object (no markdown, no code fences) ma
   ]
 }
 
-EXTRACTION RULES — follow these precisely:
+EXTRACTION RULES — follow these precisely. This is a verbatim transcription task, not a rewrite:
 1. Extract EVERY section visible in the document, including but not limited to: certifications, licences, awards, honours, publications, patents, volunteer work, community service, professional memberships, conference presentations, courses, training programmes, hobbies, and interests.
-2. Put each extra section into the customSections array with the correct type.
+2. Put each extra section into the customSections array with the correct type, using the section's exact original heading as its label.
 3. Preserve ALL bullet points in responsibilities — do NOT summarise or drop any bullet.
 4. Preserve ALL skills listed — do NOT drop any.
-5. Do NOT invent data — only extract what is visibly present in the document.
-6. If a section is absent, omit it from the output (do not include empty arrays or null values).
+5. Do NOT invent data — only extract what is visibly present in the document. Do NOT paraphrase, summarise, or group items (e.g. skills) into a new label that does not literally appear in the source — a fabricated "certification" name built from skill text is strictly forbidden.
+6. Languages belong ONLY in the dedicated "languages" field — never in customSections, and never duplicated anywhere else.
+7. Never place the same real-world item (the same certification, language, project, membership, etc.) in more than one field or section.
+8. If a section is absent, omit it from the output (do not include empty arrays or null values). Do not invent placeholder or example content to fill an apparently-missing section.
 `;
 
 // --- CVData JSON schema description for Groq prompts ---
@@ -2297,6 +2312,7 @@ export const generateProfile = async (rawText: string, githubUrl?: string): Prom
     profileData.education = profileData.education || [];
     profileData.workExperience = profileData.workExperience || [];
     profileData.languages = profileData.languages || [];
+    profileData.customSections = normaliseCustomSections(profileData.customSections || []);
 
     return profileData;
 };
