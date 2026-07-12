@@ -105,16 +105,6 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   return { eduInSidebar, projectsInSidebar, achievementsInSidebar, refsInSidebar, certsInSidebar, customInSidebar, pubsInSidebar };
 }
 
-// ─── Font pairing map ─────────────────────────────────────────────────────────
-const FONT_PAIRING_MAP: Record<string, { heading: string; body: string }> = {
-  'inter':             { heading: "'Inter', sans-serif",                      body: "'Inter', sans-serif" },
-  'playfair-dm':       { heading: "'Playfair Display', Georgia, serif",        body: "'DM Sans', sans-serif" },
-  'georgia-open':      { heading: "Georgia, 'Times New Roman', serif",         body: "'Open Sans', sans-serif" },
-  'mono-inter':        { heading: "'JetBrains Mono', 'Fira Code', monospace",  body: "'Inter', sans-serif" },
-  'raleway-inter':     { heading: "'Raleway', sans-serif",                     body: "'Inter', sans-serif" },
-  'merriweather-lato': { heading: "'Merriweather', Georgia, serif",            body: "'Lato', sans-serif" },
-};
-
 // ─── Inline-edit helper ───────────────────────────────────────────────────────
 function editable(isEditing: boolean, onBlur: (v: string) => void): React.HTMLAttributes<HTMLElement> {
   if (!isEditing) return {};
