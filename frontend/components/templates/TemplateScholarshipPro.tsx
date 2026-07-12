@@ -237,6 +237,11 @@ const TemplateScholarshipPro: React.FC<TemplateProps> = ({ cvData, personalInfo,
                                     />
                                 </div>
                             ))}
+                            {cvData.skills.length > 14 && (
+                                <p className="text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-200">
+                                    +{cvData.skills.length - 14} more skills
+                                </p>
+                            )}
                         </div>
                     </section>
 

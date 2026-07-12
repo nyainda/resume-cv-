@@ -124,6 +124,11 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                             {skill}
                                         </span>
                                     ))}
+                                    {skills.length > 8 && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono text-slate-400" style={{ border: '1px solid rgba(148,163,184,0.3)' }}>
+                                            +{skills.length - 8} more
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -141,6 +146,11 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                 <p className="text-[10.5px]" style={{ color: accent + 'cc' }}>{edu.year}</p>
                             </div>
                         ))}
+                        {cvData.education.length > 2 && (
+                            <p className="text-[10px] mt-1 pt-1 border-t" style={{ color: accent + '99', borderColor: accent + '33' }}>
+                                +{cvData.education.length - 2} more
+                            </p>
+                        )}
                     </div>
                 )}
 
