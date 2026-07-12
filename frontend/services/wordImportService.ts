@@ -150,10 +150,13 @@ async function parseWithClaude(text: string): Promise<UserProfile> {
 
     const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n${PARSE_EXTRACTION_RULES}\nCV Text:\n${text.slice(0, 150_000)}`;
 
+    // maxTokens raised to 16000 (PROXY_HARD_MAX_TOKENS on the worker) — this is
+    // BYOK, so token cost is the user's own Claude bill, not a Replit/CF cost;
+    // there's no reason to risk truncating the JSON response on a long CV.
     const raw = await workerProxyLLM('parser', userPrompt, {
         provider:    'claude',
         apiKey,
-        maxTokens:   8192,
+        maxTokens:   16000,
         temperature: 0.1,
         json:        true,
         timeoutMs:   45_000,
@@ -173,10 +176,13 @@ async function parseWithGemini(text: string): Promise<UserProfile> {
     // full text room (well beyond any real CV's length).
     const userPrompt = `Extract all structured information from the following CV/resume text and return ONLY a raw JSON object matching this schema:\n\n${PARSE_SCHEMA}\n${PARSE_EXTRACTION_RULES}\nCV Text:\n${text.slice(0, 60_000)}`;
 
+    // maxTokens raised to 16000 (PROXY_HARD_MAX_TOKENS on the worker) — BYOK,
+    // so token cost is the user's own Gemini bill; no reason to risk truncating
+    // the JSON response on a long CV.
     const raw = await workerProxyLLM('parser', userPrompt, {
         provider:    'gemini',
         apiKey,
-        maxTokens:   8192,
+        maxTokens:   16000,
         temperature: 0.1,
         json:        true,
         timeoutMs:   40_000,
@@ -193,8 +199,13 @@ async function parseWithWorkersAI(text: string): Promise<UserProfile> {
     // trailing sections never even reached the model, so it had nothing to
     // extract them from and either dropped them or fabricated substitutes to
     // satisfy the schema. Raised well above any realistic CV length.
+    // maxTokens raised to 8192 — the CF Workers tiered-llm endpoint's hard cap
+    // (TIERED_LLM_HARD_MAX_TOKENS in the worker). This is the free tier — there
+    // is no per-token cost to the user here, so there is no reason to under-
+    // request output room and risk a CV with many sections getting its JSON
+    // response cut off mid-way.
     const userPrompt = `Extract all structured information from the following CV text and return a raw JSON object matching this exact schema:\n\n${PARSE_SCHEMA}\n${PARSE_EXTRACTION_RULES}\nCV Text:\n${text.slice(0, 60_000)}`;
-    const raw = await workerTieredLLM('parser', userPrompt, { temperature: 0.1, json: true, maxTokens: 4096, timeoutMs: 90_000 });
+    const raw = await workerTieredLLM('parser', userPrompt, { temperature: 0.1, json: true, maxTokens: 8192, timeoutMs: 90_000 });
     if (!raw) throw new Error('Workers AI returned no text for CV parse');
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
     return buildUserProfile(JSON.parse(cleaned));
