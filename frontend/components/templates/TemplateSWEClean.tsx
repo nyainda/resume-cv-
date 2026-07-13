@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
+import { cleanBulletHtml } from './templateUtils';
 
 interface TemplateProps {
     cvData: CVData;
@@ -110,7 +111,15 @@ const TemplateSWEClean: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                                 </a>
                                             )}
                                         </div>
-                                        <p className="text-[10px] text-gray-500 leading-relaxed" {...ed(['projects', i, 'description'])} dangerouslySetInnerHTML={{ __html: proj.description }} />
+                                        {proj.bullets?.length ? (
+                                            <ul className="list-disc list-outside ml-3.5 space-y-0.5 mt-0.5">
+                                                {proj.bullets.map((b, bi) => (
+                                                    <li key={bi} className="text-[10px] text-gray-500 leading-relaxed font-mono" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-[10px] text-gray-500 leading-relaxed" {...ed(['projects', i, 'description'])} dangerouslySetInnerHTML={{ __html: proj.description }} />
+                                        )}
                                     </div>
                                 </div>
                             ))}

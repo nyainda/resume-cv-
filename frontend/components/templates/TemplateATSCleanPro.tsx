@@ -134,7 +134,15 @@ const TemplateATSCleanPro: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                             {cvData.projects.slice(0, 4).map((proj, i) => (
                                 <div key={i}>
                                     <p className="text-sm font-black text-slate-900" dangerouslySetInnerHTML={{ __html: proj.name }} {...editableProps(['projects', i, 'name'])} />
-                                    <p className="text-xs text-slate-600 leading-relaxed mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', i, 'description'])} />
+                                    {proj.bullets?.length ? (
+                                        <ul className="list-disc list-outside ml-3.5 mt-0.5 space-y-0.5">
+                                            {proj.bullets.map((b, bi) => (
+                                                <li key={bi} className="text-xs text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-xs text-slate-600 leading-relaxed mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', i, 'description'])} />
+                                    )}
                                 </div>
                             ))}
                         </div>

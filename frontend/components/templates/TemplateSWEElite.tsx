@@ -253,10 +253,18 @@ const TemplateSWEElite: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                                             </a>
                                         )}
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed"
-                                        {...editable(['projects', i, 'description'])}
-                                        dangerouslySetInnerHTML={{ __html: proj.description }}
-                                    />
+                                    {proj.bullets?.length ? (
+                                        <ul className="list-disc list-outside ml-4 mt-1.5 space-y-0.5">
+                                            {proj.bullets.map((b, bi) => (
+                                                <li key={bi} className="text-xs text-slate-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed"
+                                            {...editable(['projects', i, 'description'])}
+                                            dangerouslySetInnerHTML={{ __html: proj.description }}
+                                        />
+                                    )}
                                 </div>
                             ))}
                         </div>

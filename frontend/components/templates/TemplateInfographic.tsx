@@ -159,7 +159,15 @@ const TemplateInfographic: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
                       <h3 className="text-xs font-semibold">{proj.name}</h3>
-                      <p className="text-xs text-slate-600 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                      {proj.bullets?.length ? (
+                        <ul className="list-disc list-outside ml-3.5 space-y-0.5 mt-0.5">
+                          {proj.bullets.map((b, bi) => (
+                            <li key={bi} className="text-xs text-slate-600 leading-snug" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-slate-600 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                      )}
                       {proj.link && <a href={proj.link} className="text-[10px] underline" style={{ color: INK_LINK }}>{proj.link}</a>}
                     </div>
                   ))}

@@ -141,7 +141,15 @@ const TemplateMinimalist: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                                         <h3 className="text-lg font-medium text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                                         {proj.link && <a href={proj.link} className="text-xs hover:underline" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>[Link]</a>}
                                     </div>
-                                    <p className="text-base text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                                    {proj.bullets?.length ? (
+                                        <ul className="list-disc list-outside ml-5 space-y-1 mt-1">
+                                            {proj.bullets.map((b, bi) => (
+                                                <li key={bi} className="text-base text-slate-700" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-base text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                                    )}
                                 </div>
                             ))}
                         </div>

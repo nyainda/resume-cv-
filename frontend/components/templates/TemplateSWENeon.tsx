@@ -224,7 +224,15 @@ const TemplateSWENeon: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdit
                                             )}
                                         </div>
                                     </div>
-                                    <p className="text-[10px] leading-relaxed" style={{ color: '#8b949e' }} {...ed(['projects', i, 'description'])} dangerouslySetInnerHTML={{ __html: proj.description }} />
+                                    {proj.bullets?.length ? (
+                                        <ul className="list-disc list-outside ml-3.5 space-y-0.5 mt-0.5">
+                                            {proj.bullets.map((b, bi) => (
+                                                <li key={bi} className="text-[10px] leading-relaxed" style={{ color: '#8b949e' }} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-[10px] leading-relaxed" style={{ color: '#8b949e' }} {...ed(['projects', i, 'description'])} dangerouslySetInnerHTML={{ __html: proj.description }} />
+                                    )}
                                 </div>
                             ))}
                         </div>

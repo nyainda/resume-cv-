@@ -203,11 +203,19 @@ const TemplateProfessional: React.FC<TemplateProps> = ({ cvData, personalInfo, i
                   <h3 className="text-[17px] font-serif font-bold text-zinc-900" {...editableProps(['projects', index, 'name'])}>
                     {proj.name}
                   </h3>
-                  <p
-                    className="text-sm text-zinc-700 mt-1 font-serif leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: proj.description }}
-                    {...editableProps(['projects', index, 'description'])}
-                  />
+                  {proj.bullets?.length ? (
+                    <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5">
+                      {proj.bullets.map((b, bi) => (
+                        <li key={bi} className="text-sm text-zinc-700 font-serif leading-relaxed" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p
+                      className="text-sm text-zinc-700 mt-1 font-serif leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: proj.description }}
+                      {...editableProps(['projects', index, 'description'])}
+                    />
+                  )}
                   {proj.link && (
                     <a href={proj.link} className="text-[13px] font-mono underline mt-0.5 inline-block" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>
                       {proj.link}

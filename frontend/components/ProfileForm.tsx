@@ -1071,6 +1071,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ existingProfile, onSave, onCa
                   rows={3}
                   placeholder="Describe what you built, technologies used, and key results..."
                 />
+                {(() => {
+                  const desc = watch(`projects.${index}.description`) || '';
+                  const len = desc.length;
+                  if (len < 200) return null;
+                  return (
+                    <p className={`text-xs mt-1 text-right ${len > 500 ? 'text-red-500' : len > 300 ? 'text-amber-500' : 'text-zinc-400'}`}>
+                      {len} chars{len > 500 ? ' — very long, may be trimmed by AI' : len > 300 ? ' — consider keeping under 300' : ''}
+                    </p>
+                  );
+                })()}
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Link</Label>

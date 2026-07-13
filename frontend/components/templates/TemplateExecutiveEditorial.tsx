@@ -394,15 +394,18 @@ const TemplateExecutiveEditorial: React.FC<TemplateProps> = ({
               <span style={{ fontSize: '9.5px', color: '#9ca3af', fontFamily: "Georgia, 'Times New Roman', serif", flexShrink: 0 }}>{p.year}</span>
             )}
           </div>
-          {p.description && (
+          {p.bullets?.length ? (
+            <div style={{ marginTop: 3 }}>
+              {p.bullets.map((b, bi) => (
+                <div key={bi} style={{ fontSize: '9.5px', color: '#374151', lineHeight: 1.5, marginTop: 2, fontFamily: "Georgia, 'Times New Roman', serif" }}>• {cleanBulletHtml(b)}</div>
+              ))}
+            </div>
+          ) : p.description ? (
             <div style={{ fontSize: '9.5px', color: '#374151', lineHeight: 1.55, marginTop: 3, fontFamily: "Georgia, 'Times New Roman', serif" }}
               {...editable(v => handleUpdate(d => { d.projects![i].description = v; }))}>
               {p.description}
             </div>
-          )}
-          {p.bullets?.map((b, bi) => (
-            <div key={bi} style={{ fontSize: '9.5px', color: '#374151', lineHeight: 1.5, marginTop: 2, fontFamily: "Georgia, 'Times New Roman', serif" }}>• {b}</div>
-          ))}
+          ) : null}
           {p.technologies?.length ? (
             <div style={{ marginTop: 4, fontSize: '9px', color: '#6b7280', fontFamily: "Georgia, 'Times New Roman', serif" }}>
               <span style={{ fontWeight: 700 }}>Technologies:</span> {p.technologies.join(', ')}

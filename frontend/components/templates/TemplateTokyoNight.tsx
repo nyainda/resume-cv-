@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { cleanBulletHtml } from './templateUtils';
 import { INK_META, INK_LINK } from './styleTokens';
 
 interface TemplateProps {
@@ -98,7 +99,15 @@ const TemplateTokyoNight: React.FC<TemplateProps> = ({ cvData, personalInfo, isE
                 {cvData.projects.map((proj, i) => (
                   <div key={i} className="border-l border-fuchsia-500/20 pl-3">
                     <p className="text-xs font-black text-white uppercase">{proj.name}</p>
-                    <p className="text-[10px] text-slate-500 leading-snug mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                    {proj.bullets?.length ? (
+                      <ul className="list-disc list-outside ml-3.5 space-y-0.5 mt-0.5">
+                        {proj.bullets.map((b, bi) => (
+                          <li key={bi} className="text-[10px] text-slate-500 leading-snug" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[10px] text-slate-500 leading-snug mt-0.5" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                    )}
                     {proj.link && <a href={proj.link} className="text-[10px] truncate block" style={{ color: INK_LINK }}>{proj.link}</a>}
                   </div>
                 ))}

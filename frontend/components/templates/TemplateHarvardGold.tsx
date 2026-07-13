@@ -140,7 +140,15 @@ const TemplateHarvardGold: React.FC<TemplateProps> = ({ cvData, personalInfo, is
                                         <h3 className="text-base font-bold text-slate-900 leading-tight" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
                                         {proj.link && <a href={proj.link} className="text-xs hover:underline" style={{ color: INK_LINK }}>[link]</a>}
                                     </div>
-                                    <p className="text-sm text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                                    {proj.bullets?.length ? (
+                                        <ul className="list-disc list-outside ml-4 mt-1 space-y-0.5">
+                                            {proj.bullets.map((b, bi) => (
+                                                <li key={bi} className="text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-sm text-slate-700 mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                                    )}
                                 </div>
                             ))}
                         </div>

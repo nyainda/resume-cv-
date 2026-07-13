@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo, ProfileSectionKey, DEFAULT_SECTION_ORDER } from '../../types';
 import { TemplateCustomSections } from './sharedSections';
 import { INK_LINK } from './styleTokens';
+import { cleanBulletHtml } from './templateUtils';
 
 interface TemplateProps {
   cvData: CVData;
@@ -112,7 +113,15 @@ const TemplateTimeline: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
               {cvData.projects.map((proj, index) => (
                 <div key={index}>
                   <h3 className="text-lg font-bold" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                  <p className="text-base mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                  {proj.bullets?.length ? (
+                    <ul className="list-disc list-outside ml-5 space-y-1 mt-1">
+                      {proj.bullets.map((b, bi) => (
+                        <li key={bi} className="text-base" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-base mt-1" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                  )}
                   {proj.link && <a href={proj.link} className="text-sm underline" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>{proj.link}</a>}
                 </div>
               ))}

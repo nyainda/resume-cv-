@@ -128,7 +128,15 @@ const TemplateLondonFinance: React.FC<TemplateProps> = ({ cvData, personalInfo, 
                             {cvData.projects.map((p, i) => (
                                 <div key={i} className="flex gap-4">
                                     <span className="font-bold uppercase min-w-[120px]">{p.name}:</span>
-                                    <span className="flex-1" dangerouslySetInnerHTML={{ __html: p.description }} />
+                                    {p.bullets?.length ? (
+                                        <ul className="flex-1 list-disc list-outside ml-4 space-y-0.5">
+                                            {p.bullets.map((b, bi) => (
+                                                <li key={bi} dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <span className="flex-1" dangerouslySetInnerHTML={{ __html: p.description }} />
+                                    )}
                                 </div>
                             ))}
                         </div>

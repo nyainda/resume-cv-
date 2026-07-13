@@ -154,7 +154,15 @@ const TemplateCreative: React.FC<TemplateProps> = ({ cvData, personalInfo, isEdi
                   {cvData.projects.map((proj, index) => (
                     <div key={index}>
                       <h3 className="text-xs font-semibold text-slate-900" {...editableProps(['projects', index, 'name'])}>{proj.name}</h3>
-                      <p className="text-[10px] text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      {proj.bullets?.length ? (
+                        <ul className="list-disc list-outside ml-3 space-y-0.5 mt-0.5">
+                          {proj.bullets.map((b, bi) => (
+                            <li key={bi} className="text-[10px] text-slate-700" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[10px] text-slate-700" dangerouslySetInnerHTML={{ __html: proj.description }} {...editableProps(['projects', index, 'description'])} />
+                      )}
                       {proj.link && (
                         <a href={proj.link} className="text-[10px] underline" style={{ color: INK_LINK }} {...editableProps(['projects', index, 'link'])}>{proj.link}</a>
                       )}

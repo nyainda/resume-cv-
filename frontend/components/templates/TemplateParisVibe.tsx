@@ -3,6 +3,7 @@ import HiddenATSKeywords from '../HiddenATSKeywords';
 import { CVData, PersonalInfo } from '../../types';
 import { Trash } from '../icons';
 import { TemplateCustomSections } from './sharedSections';
+import { cleanBulletHtml } from './templateUtils';
 import { INK_META } from './styleTokens';
 
 interface TemplateProps {
@@ -155,7 +156,15 @@ const TemplateParisVibe: React.FC<TemplateProps> = ({ cvData, personalInfo, isEd
                 {cvData.projects.map((proj, index) => (
                   <div key={index}>
                     <h3 className="text-xs font-bold text-zinc-800">{proj.name}</h3>
-                    <p className="text-[10px] text-zinc-500 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                    {proj.bullets?.length ? (
+                      <ul className="list-disc list-outside ml-3.5 space-y-0.5 mt-0.5">
+                        {proj.bullets.map((b, bi) => (
+                          <li key={bi} className="text-[10px] text-zinc-500 leading-snug" dangerouslySetInnerHTML={{ __html: cleanBulletHtml(b) }} />
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[10px] text-zinc-500 leading-snug" dangerouslySetInnerHTML={{ __html: proj.description }} />
+                    )}
                   </div>
                 ))}
               </div>
