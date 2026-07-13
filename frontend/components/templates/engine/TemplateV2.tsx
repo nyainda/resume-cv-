@@ -1018,6 +1018,11 @@ const TemplateV2: React.FC<TemplateV2Props> = ({ cvData, personalInfo, isEditing
     theme = { ...theme, fontHeading: fp.heading, fontBody: fp.body };
   }
 
+  // Apply user bullet-style override
+  if (cvData.bulletStyle) {
+    theme = { ...theme, bulletChar: cvData.bulletStyle };
+  }
+
   const layoutProps: LayoutProps = { cvData, pi: personalInfo, theme, sc, isEditing, onChange: onDataChange };
 
   const Layout = {

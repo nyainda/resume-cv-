@@ -863,6 +863,7 @@ const AppInner: React.FC = () => {
         toolkitForceTab={toolkitForceTab}
         setToolkitForceTab={setToolkitForceTab}
         onSaveCV={handleSaveCV}
+        onAutoSaveCV={handleSaveCVFromPipeline}
         onAutoTrack={handleAutoTrack}
         onApplyViaEmail={handleApplyViaEmail}
         onGoToInterviewPrep={handleGoToInterviewPrep}

@@ -96,6 +96,8 @@ interface CVGeneratorProps {
   currentCV: CVData | null;
   setCurrentCV: React.Dispatch<React.SetStateAction<CVData | null>>;
   onSaveCV: (cvData: CVData, purpose: 'job' | 'academic' | 'general') => void;
+  /** Silent auto-save called after every successful generation — preserves each tailored result as its own snapshot. */
+  onAutoSaveCV?: (cvData: CVData, name: string) => void;
   onAutoTrack: (details: { roleTitle: string, company: string, savedCvName: string }) => void;
   apiKeySet: boolean;
   openSettings: () => void;
@@ -235,7 +237,7 @@ const purposeConfig: Record<CVPurpose, { label: string; icon: React.FC<any>; col
 };
 
 const CVGenerator: React.FC<CVGeneratorProps> = ({
-  userProfile, currentCV, setCurrentCV, onSaveCV, onAutoTrack, apiKeySet, openSettings,
+  userProfile, currentCV, setCurrentCV, onSaveCV, onAutoSaveCV, onAutoTrack, apiKeySet, openSettings,
   onApplyViaEmail, savedCVs = [], toolkitSuggestions, onDismissToolkitSuggestions,
   onSaveStories, onGoToInterviewPrep, onRestoreProfileBullets, importedFromJson,
   profileId, initialJobDescription, initialTargetCompany, initialTargetJobTitle,
@@ -1214,6 +1216,19 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
       syncCurrentCVToD1(generatedData);
       setDraftCV(null); // draft replaced by polished final version
       setLastEngine(getLastAiEngine());
+
+      // Auto-snapshot: save a versioned copy of every tailored result so that
+      // switching to a new JD never silently destroys the previous output.
+      // Model contract: UserProfile is canonical; each Generate produces its own
+      // immutable snapshot keyed to the JD that produced it.
+      if (onAutoSaveCV) {
+        const snapName = [targetJobTitle, targetCompany]
+          .filter(Boolean).join(' – ')
+          || jobDescription.trim().split('\n')[0].slice(0, 50)
+          || `CV ${new Date().toLocaleDateString()}`;
+        onAutoSaveCV(generatedData, snapName);
+      }
+
       // Increment free-tier counter — no-op for BYOK/Premium users.
       incrementGenerationCount();
       setJustGenerated(true);
@@ -1285,7 +1300,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
     setIsLoading(false);
     setLoadingMessage('Generating...');
     resetProgress();
-  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress, syncCurrentCVToD1]);
+  }, [jobDescription, userProfile, setCurrentCV, generationMode, setCoverLetter, apiKeySet, openSettings, cvPurpose, scholarshipFormat, jdRequired, targetLanguage, advanceStage, resetProgress, syncCurrentCVToD1, onAutoSaveCV, targetJobTitle, targetCompany]);
 
   /**
    * Zero-LLM fallback: assembles a clean CV directly from the user's profile

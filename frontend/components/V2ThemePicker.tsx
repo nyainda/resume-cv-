@@ -36,6 +36,17 @@ const FONT_SCALES = [
   { label: 'XL', value: 1.16, title: 'Extra large text' },
 ] as const;
 
+const BULLET_STYLES = [
+  { char: '▸', label: 'Arrow'   },
+  { char: '•', label: 'Dot'     },
+  { char: '›', label: 'Chevron' },
+  { char: '◆', label: 'Diamond' },
+  { char: '■', label: 'Square'  },
+  { char: '–', label: 'Dash'    },
+  { char: '→', label: 'Right'   },
+  { char: '★', label: 'Star'    },
+] as const;
+
 const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
   const colorInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,9 +62,14 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
     onChange({ ...cvData, fontScale: v === 1.0 ? undefined : v });
   };
 
-  const currentAccent = cvData.accentColor ?? '';
-  const currentFont   = cvData.fontPairing ?? '';
-  const currentScale  = cvData.fontScale ?? 1.0;
+  const setBullet = (char: string) => {
+    onChange({ ...cvData, bulletStyle: cvData.bulletStyle === char ? undefined : char });
+  };
+
+  const currentAccent  = cvData.accentColor  ?? '';
+  const currentFont    = cvData.fontPairing  ?? '';
+  const currentScale   = cvData.fontScale    ?? 1.0;
+  const currentBullet  = cvData.bulletStyle  ?? '';
 
   return (
     <div className="mt-5 space-y-4">
@@ -178,6 +194,50 @@ const V2ThemePicker: React.FC<V2ThemePickerProps> = ({ cvData, onChange }) => {
                 </span>
                 <span className="text-[7.5px] text-zinc-400 dark:text-zinc-500 truncate w-full text-center leading-tight">
                   {fp.headingLabel} / {fp.bodyLabel}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Bullet style ─────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
+            Bullet Style
+          </span>
+          {currentBullet && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...cvData, bulletStyle: undefined })}
+              className="text-[10px] text-zinc-400 hover:text-rose-500 dark:text-zinc-500 dark:hover:text-rose-400 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5 p-2.5 rounded-lg bg-zinc-50 dark:bg-neutral-800/50 border border-zinc-200 dark:border-neutral-700">
+          {BULLET_STYLES.map(({ char, label }) => {
+            const active = currentBullet === char;
+            return (
+              <button
+                key={char}
+                type="button"
+                title={label}
+                onClick={() => setBullet(char)}
+                aria-pressed={active}
+                className={`flex flex-col items-center justify-center w-10 h-10 rounded-md border transition-all duration-100 gap-0.5 ${
+                  active
+                    ? 'border-[#2563eb] bg-blue-50 dark:bg-blue-950/30 shadow-sm'
+                    : 'border-zinc-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:border-zinc-300 dark:hover:border-neutral-600'
+                }`}
+              >
+                <span className={`text-[16px] leading-none ${active ? 'text-[#2563eb]' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                  {char}
+                </span>
+                <span className="text-[7px] text-zinc-400 dark:text-zinc-500 leading-none">
+                  {label}
                 </span>
               </button>
             );
