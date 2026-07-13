@@ -59,13 +59,13 @@ function computeSmartSplit(cvData: CVData): SmartSplit {
   const eduInSidebar = eduCount <= 2 && !eduHasLongDesc;
 
   // ── Projects ─────────────────────────────────────────────────────────────────
-  // Sidebar: ≤2 entries, short description, few tech tags, and no bullet list
-  // (bullet lists require the full main-column treatment)
+  // Route to sidebar whenever ≤4 projects exist. Content length, tech-tag count,
+  // and bullet lists are handled in the sidebar renderer itself (description
+  // clamped to 2 lines, first bullet used as fallback blurb, tech tags capped at 4)
+  // so there is no content-gating here. This keeps Experience dominant in the main
+  // column for the vast majority of CVs.
   const projCount = cvData.projects?.length ?? 0;
-  const projHasLongDesc = cvData.projects?.some(p => (p.description?.length ?? 0) > 90) ?? false;
-  const projHasLongTech = cvData.projects?.some(p => (p.technologies?.length ?? 0) > 4) ?? false;
-  const projHasBullets  = cvData.projects?.some(p => (p.bullets?.length ?? 0) > 0) ?? false;
-  const projectsInSidebar = projCount <= 2 && !projHasLongDesc && !projHasLongTech && !projHasBullets;
+  const projectsInSidebar = projCount > 0 && projCount <= 4;
 
   // ── Achievements ─────────────────────────────────────────────────────────────
   // Sidebar: ≤5 items AND individually short (avg ≤ 90 chars)
@@ -709,24 +709,81 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ cvData, pi, theme, sc, 
         </div>
       ) : null}
 
-      {/* Projects — only when smart-split says they're short enough */}
+      {/* Projects — sidebar card layout: description clamped to 2 lines,
+          first bullet used as blurb fallback, tech chips capped at 4 */}
       {split.projectsInSidebar && cvData.projects?.length ? (
         <div style={{ marginBottom: sc.sectionGap }}>
           <SidebarHead title="Projects" theme={theme} sc={sc} />
-          {cvData.projects.map((p, i) => (
-            <div key={i} style={{ marginBottom: 7 }}>
-              <div style={{ fontSize: sc.sidebarBodySize, fontWeight: 700, color: textColor, fontFamily: theme.fontBody }}>{p.name}</div>
-              {p.description && <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, lineHeight: sc.lineH, marginTop: 1 }}>{p.description}</div>}
-              {p.technologies?.length ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 4px', marginTop: 3 }}>
-                  {p.technologies.slice(0, 3).map((t, ti) => (
-                    <span key={ti} style={{ fontSize: sc.tagSize, color: mutedColor, fontFamily: theme.fontBody }}>#{t}</span>
-                  ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {cvData.projects.map((p, i) => {
+              // Prefer prose description; fall back to first bullet when only bullets exist
+              const blurb = p.description?.trim() || (p.bullets?.[0] ?? '');
+              const extraTech = (p.technologies?.length ?? 0) > 4 ? (p.technologies!.length - 4) : 0;
+              return (
+                <div key={i} style={{
+                  borderLeft: `2px solid ${theme.accent}40`,
+                  paddingLeft: 7,
+                }}>
+                  {/* Name + optional year */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{
+                      fontSize: sc.sidebarBodySize, fontWeight: 700,
+                      color: textColor, fontFamily: theme.fontBody, lineHeight: 1.3,
+                    }}>{p.name}</span>
+                    {p.year && (
+                      <span style={{
+                        fontSize: sc.metaSize, color: mutedColor,
+                        fontFamily: theme.fontBody, flexShrink: 0,
+                      }}>{p.year}</span>
+                    )}
+                  </div>
+
+                  {/* Description — hard-clamped to 2 lines so long text never blows the sidebar */}
+                  {blurb && (
+                    <div style={{
+                      fontSize: sc.metaSize, color: mutedColor,
+                      fontFamily: theme.fontBody, lineHeight: 1.45, marginTop: 2,
+                      overflow: 'hidden', display: '-webkit-box',
+                      WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any,
+                    }}>{blurb}</div>
+                  )}
+
+                  {/* Tech chips — up to 4, overflow shown as "+N" */}
+                  {p.technologies?.length ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 4px', marginTop: 4 }}>
+                      {p.technologies.slice(0, 4).map((t, ti) => (
+                        <span key={ti} style={{
+                          fontSize: sc.tagSize, color: mutedColor,
+                          fontFamily: theme.fontBody, background: theme.tagBg,
+                          border: `1px solid ${theme.tagBorder}`,
+                          borderRadius: '3px', padding: '1px 4px',
+                          whiteSpace: 'nowrap',
+                        }}>{t}</span>
+                      ))}
+                      {extraTech > 0 && (
+                        <span style={{
+                          fontSize: sc.tagSize, color: mutedColor,
+                          fontFamily: theme.fontBody,
+                        }}>+{extraTech}</span>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Link — stripped of protocol, truncated if long */}
+                  {p.link && (
+                    <div style={{
+                      fontSize: sc.metaSize, color: mutedColor,
+                      fontFamily: theme.fontBody, marginTop: 3,
+                      textDecoration: 'underline', textDecorationColor: `${mutedColor}66`,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {p.link.replace(/^https?:\/\/(www\.)?/, '')}
+                    </div>
+                  )}
                 </div>
-              ) : null}
-              {p.link && <div style={{ fontSize: sc.metaSize, color: mutedColor, fontFamily: theme.fontBody, marginTop: 1 }}>{p.link}</div>}
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
