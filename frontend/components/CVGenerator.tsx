@@ -3,7 +3,7 @@ import React, { useState, useCallback, ChangeEvent, useMemo, useRef, useEffect }
 import V2ThemePicker from './V2ThemePicker';
 import FontPicker from './FontPicker';
 import { V2_TEMPLATE_IDS } from './templates/engine/templateThemes';
-import { UserProfile, CVData, TemplateName, FontName, fontDisplayNames, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
+import { UserProfile, CVData, TemplateName, templateDisplayNames, JobAnalysisResult, CVGenerationMode, cvGenerationModes, ScholarshipFormat, scholarshipFormats, SavedCV, SidebarSectionsVisibility, DEFAULT_SIDEBAR_SECTIONS, SIDEBAR_TEMPLATES, STRICT_ONE_PAGE_TEMPLATES, UserProfileSlot } from '../types';
 import { getPageCount, COMPRESSION_STEPS } from '../utils/pageFit';
 import { enqueueSlotSync, _devGetLastSlotSyncAt } from '../services/storage/syncQueue';
 import { generateCV, generateCoverLetter, extractProfileTextFromFile, scoreCV, improveCV, CVScore } from '../services/geminiService';
@@ -389,7 +389,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
   // sidebar fillers (Key Achievements, Selected Projects, References) are
   // visible. Only takes effect for templates listed in SIDEBAR_TEMPLATES.
   const [sidebarSections, setSidebarSections] = useLocalStorage<SidebarSectionsVisibility>('sidebarSections', DEFAULT_SIDEBAR_SECTIONS);
-  const [font, setFont] = useLocalStorage<FontName>('cvFont', 'lora');
+
   const [inputMode, setInputMode] = useState<'text' | 'upload'>('text');
   const [generationMode, setGenerationMode] = useLocalStorage<CVGenerationMode>(`p:${profileId}:mode`, (initialGenerationMode as CVGenerationMode) ?? 'honest');
   const [cvPurpose, setCvPurpose] = useLocalStorage<CVPurpose>(`p:${profileId}:purpose`, initialCvPurpose ?? 'job');
@@ -2308,7 +2308,7 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
           <div className="flex flex-wrap items-start justify-between mb-6 gap-6">
             <div>
               <h2 className="text-2xl font-bold">CV Preview</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template, choose a font, and make final edits.</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Select a template, pick a font pairing, and make final edits.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" onClick={() => setIsEditing(!isEditing)} size="sm">
@@ -2704,32 +2704,6 @@ const CVGenerator: React.FC<CVGeneratorProps> = ({
 
           {/* ── Customisation Panel: Font + Accent Colour ── */}
           <div className="mt-5 p-4 bg-zinc-50 dark:bg-neutral-800/60 rounded-xl border border-zinc-200 dark:border-neutral-700 space-y-4">
-
-            {/* Font chips */}
-            <div>
-              <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-2">Font</span>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(fontDisplayNames).map(([key, label]) => {
-                  const shortName = label.split(' ')[0];
-                  const isSelected = font === key;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setFont(key as FontName)}
-                      disabled={isEditing}
-                      title={label}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                        isSelected
-                          ? 'bg-[#1B2B4B] text-white shadow-sm ring-1 ring-[#1B2B4B]/30'
-                          : 'bg-white dark:bg-neutral-700 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-neutral-600 hover:bg-zinc-100 dark:hover:bg-neutral-600 hover:text-zinc-900 dark:hover:text-zinc-200'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {shortName}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
 
             {/* Accent colour */}
             {currentCV && (
