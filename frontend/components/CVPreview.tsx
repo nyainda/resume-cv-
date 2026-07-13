@@ -18,6 +18,7 @@ import TemplateSWEElite from './templates/TemplateSWEElite';
 import TemplateATSCleanPro from './templates/TemplateATSCleanPro';
 import TemplateSWENeon from './templates/TemplateSWENeon';
 import TemplateSWEClean from './templates/TemplateSWEClean';
+import TemplateExecutiveEditorial from './templates/TemplateExecutiveEditorial';
 
 interface CVPreviewProps {
   cvData: CVData;
@@ -73,6 +74,18 @@ const CVPreview: React.FC<CVPreviewProps> = (props) => {
   // Any old template ID saved in a user's CV resolves to the nearest V2 equivalent here.
   const renderTemplate = () => {
     const resolvedId = LEGACY_TEMPLATE_REDIRECTS[template as string] ?? (template as string);
+
+    // Executive Editorial uses a bespoke standalone renderer for pixel-accurate layout
+    if (resolvedId === 'v2-executive-editorial') {
+      return <TemplateExecutiveEditorial
+        cvData={cvData}
+        personalInfo={personalInfo}
+        isEditing={isEditing}
+        onDataChange={onDataChange}
+        jobDescriptionForATS={jobDescriptionForATS}
+      />;
+    }
+
     if (V2_TEMPLATE_IDS.includes(resolvedId)) {
       return <TemplateV2
         cvData={cvData}
